@@ -137,11 +137,14 @@ describe("DOT styles: label places", () => {
         expect(x.cluster_b).toBe(-8);
     });
 
-    it("draws a node that grows to its label at least one quantum across", async () => {
+    it("rounds a node's padded label box up to a multiple of the quantum, whatever its shape", async () => {
         const doc = `digraph { graph [quantum=0.5]; a [shape=box, width=0, height=0, label=m];
-            b [shape=ellipse, width=0, height=0, label=m]; c [shape=box, width=0.2, height=0.2, fixedsize=true] }`;
-        const w = await nodes(doc, "width");
-        expect([w.a, w.c]).toEqual([36, 14.4]);
-        expect(w.b).toBeCloseTo(36 * Math.SQRT2, 3);
+            b [shape=ellipse, width=0, height=0, label="a longer label"]; d [shape=star, label=s];
+            c [shape=box, width=0.2, height=0.2, fixedsize=true]; e [label=""] }`;
+        const q = await nodes(doc, "labelFitQuantum");
+        expect([q.a, q.b, q.d]).toEqual([36, 36, 36]);
+        // a node drawn at its stated size, and one with no label, round nothing
+        expect([q.c ?? null, q.e ?? null]).toEqual([null, null]);
+        expect((await nodes(doc, "width")).c).toBe(14.4);
     });
 });

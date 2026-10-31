@@ -408,7 +408,7 @@ const TABLES: Record<string, { cls: string; cols: [string, string][] }> = {
         cols: [
             ["line", "line"],
             ["projected", "projected month-end, USD"],
-            ["sofar", "spent so far / budget"],
+            ["sofar", "spent so far / limit"],
             ["spark", "projection by day"],
             ["state", "state"],
         ],

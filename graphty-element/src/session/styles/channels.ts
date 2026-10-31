@@ -411,6 +411,7 @@ export interface ChannelValues {
     "node.outerBorderOpacity": number;
     "node.outerBorderStyle": NodeBorderStyleValue;
     "node.outerBorderOffset": number;
+    "node.outerBorderCount": number;
     "node.cornerRadius": number;
     "node.exactCornerRadius": boolean;
     "node.underlayColor": ColorValue;
@@ -433,6 +434,7 @@ export interface ChannelValues {
     "node.labelPaddingX": number;
     "node.labelPaddingY": number;
     "node.labelFitSquare": boolean;
+    "node.labelFitQuantum": number;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
     "node.gradientColors": string;
@@ -654,6 +656,16 @@ export interface ChannelValues {
     "edge.labelOffsetY": number;
     "edge.labelShiftX": number;
     "edge.labelShiftY": number;
+    "node.xlabel": string;
+    "node.xlabelStyle": LabelStyle;
+    "node.xlabelLocation": LabelLocation;
+    "node.xlabelOffsetX": number;
+    "node.xlabelOffsetY": number;
+    "edge.xlabel": string;
+    "edge.xlabelStyle": LabelStyle;
+    "edge.xlabelLocation": LabelLocation;
+    "edge.xlabelOffsetX": number;
+    "edge.xlabelOffsetY": number;
 }
 
 /**
@@ -1061,7 +1073,8 @@ const NODE_STRIPES_CAVEAT =
 const NODE_OUTER_BORDER_CAVEAT =
     "A second ring outside the node's border, `node.outerBorderOffset` beyond the border's outer edge " +
     "(Cytoscape.js's outline): drawn only with a width above 0. Widths and the offset are in the units " +
-    "of `node.borderWidth`. It is not `node.outline`, which is a highlight drawn over the node's rim.";
+    "of `node.borderWidth`; `node.outerBorderCount` draws that many rings, each the offset beyond the one before. " +
+    "It is not `node.outline`, which is a highlight drawn over the node's rim.";
 
 const ARROW_CAPTION_CAVEAT =
     "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
@@ -1528,6 +1541,16 @@ function labelLocationChannel(target: "node" | "edge"): ChannelDescriptor {
             "a node against a side or in a corner. The same field as `labelStyle`'s location.",
     };
 }
+
+/** What the external label channels draw, written once and read by each. */
+const XLABEL_CAVEAT =
+    "A second label drawn outside the node, in the label's font, size and color (Graphviz's `xlabel`): " +
+    "against the node's top left corner, or where a Graphviz layout placed it. The words switch it on.";
+
+/** What the edge external label channels draw, written once and read by each. */
+const EDGE_XLABEL_CAVEAT =
+    "A second label drawn beside the line's middle, in the label's font, size and color (Graphviz's `xlabel` " +
+    "beside a `label`): up and left of the middle, or where a Graphviz layout placed it. The words switch it on.";
 
 /** Every order `node.labelDeclutter` takes. */
 const LABEL_DECLUTTER_VALUES: readonly LabelDeclutterOrder[] = ["degree", "size"];
@@ -2669,6 +2692,19 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: NODE_OUTER_BORDER_CAVEAT,
     },
+    "node.outerBorderCount": {
+        channel: "node.outerBorderCount",
+        target: "node",
+        plainName: "Node Outer Border Count",
+        shortName: "Outer border count",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 1,
+        stylePath: "outerBorder.count",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
     ...haloRows("node", "underlay"),
     ...haloRows("node", "overlay"),
     "node.image": {
@@ -3425,7 +3461,9 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "node's center as fractions of its half width and half height, y up: `0,1 1,-1 -1,-1` is a " +
             "triangle. The outline is stretched so its farthest corners reach the node's sides. A node that " +
             "grows to hold its label (`node.labelFit`) grows by as far as its corners reach past 1. Other " +
-            "shapes ignore it.",
+            "shapes ignore it. A coordinate may add a length in the units of `node.size` after its fraction, " +
+            "so the corner keeps its distance whatever the node's size: `-1+24` is 24 in from the left side, " +
+            "`0+6` 6 above the middle (in `node.shapeParts` and `node.shapeLines` too).",
     },
     "node.shapeStretchPoints": {
         channel: "node.shapeStretchPoints",
@@ -3541,6 +3579,22 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "A node that grows to hold its label (`node.labelFit`) stays as wide as it is tall, as a " +
             "circle or a square does. Without `node.labelFit` it changes nothing.",
+    },
+    "node.labelFitQuantum": {
+        channel: "node.labelFitQuantum",
+        target: "node",
+        plainName: "Node Label Fit Quantum",
+        shortName: "Fit quantum",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.labelFitQuantum",
+        renderable: true,
+        caveat:
+            "A node that grows to hold its label (`node.labelFit`) rounds its padded label box up to a " +
+            "multiple of this length each way before its outline is fitted round it, as Graphviz's " +
+            "`quantum` does. 0 rounds nothing; without `node.labelFit` it changes nothing.",
     },
     "node.gradientColor": {
         channel: "node.gradientColor",
@@ -4330,6 +4384,122 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "How far the middle of the edge's route rises out of the layout plane, in world units, " +
             "as an arc. Drawn only for a flat layout in the 3D view; anywhere else the edge is drawn " +
             "flat and the layer reports `edge.lift-needs-flat-layout` as drawing nothing.",
+    },
+    "node.xlabel": {
+        channel: "node.xlabel",
+        target: "node",
+        plainName: "Node External Label",
+        shortName: "External label",
+        group: "text",
+        accepts: "text",
+        stylePath: "xlabel.text",
+        renderable: true,
+        caveat: XLABEL_CAVEAT,
+    },
+    "node.xlabelStyle": {
+        channel: "node.xlabelStyle",
+        target: "node",
+        plainName: "Node External Label Style",
+        shortName: "External label style",
+        group: "text",
+        accepts: "labelStyle",
+        stylePath: "xlabel",
+        renderable: true,
+        caveat: `${XLABEL_CAVEAT} A field it leaves unset is drawn as the label's.`,
+    },
+    "node.xlabelLocation": {
+        channel: "node.xlabelLocation",
+        target: "node",
+        plainName: "Node External Label Location",
+        shortName: "External label location",
+        group: "text",
+        accepts: "enum",
+        values: LABEL_LOCATION_VALUES,
+        stylePath: "xlabel.location",
+        renderable: true,
+        caveat:
+            "Where the external label sits against its node, as `labelLocation` places the label. Unset, against " +
+            "the node's top left corner outside it, or where the layout placed it (Graphviz's `xlp`).",
+    },
+    "node.xlabelOffsetX": {
+        channel: "node.xlabelOffsetX",
+        target: "node",
+        plainName: "Node External Label Offset X",
+        shortName: "External label offset x",
+        group: "text",
+        accepts: "number",
+        stylePath: "xlabel.offsetX",
+        renderable: true,
+        caveat: "How far the external label is moved right of where its location puts it, in scene units.",
+    },
+    "node.xlabelOffsetY": {
+        channel: "node.xlabelOffsetY",
+        target: "node",
+        plainName: "Node External Label Offset Y",
+        shortName: "External label offset y",
+        group: "text",
+        accepts: "number",
+        stylePath: "xlabel.offsetY",
+        renderable: true,
+        caveat: "How far the external label is moved down from where its location puts it, in scene units.",
+    },
+    "edge.xlabel": {
+        channel: "edge.xlabel",
+        target: "edge",
+        plainName: "Edge External Label",
+        shortName: "External label",
+        group: "text",
+        accepts: "text",
+        stylePath: "xlabel.text",
+        renderable: true,
+        caveat: EDGE_XLABEL_CAVEAT,
+    },
+    "edge.xlabelStyle": {
+        channel: "edge.xlabelStyle",
+        target: "edge",
+        plainName: "Edge External Label Style",
+        shortName: "External label style",
+        group: "text",
+        accepts: "labelStyle",
+        stylePath: "xlabel",
+        renderable: true,
+        caveat: `${EDGE_XLABEL_CAVEAT} A field it leaves unset is drawn as the label's.`,
+    },
+    "edge.xlabelLocation": {
+        channel: "edge.xlabelLocation",
+        target: "edge",
+        plainName: "Edge External Label Location",
+        shortName: "External label location",
+        group: "text",
+        accepts: "enum",
+        values: LABEL_LOCATION_VALUES,
+        stylePath: "xlabel.location",
+        renderable: true,
+        caveat:
+            "Where the external label sits against the line's middle, as `labelLocation` places the label. Unset, " +
+            "up and left of the middle, or where the layout placed it (Graphviz's `xlp`).",
+    },
+    "edge.xlabelOffsetX": {
+        channel: "edge.xlabelOffsetX",
+        target: "edge",
+        plainName: "Edge External Label Offset X",
+        shortName: "External label offset x",
+        group: "text",
+        accepts: "number",
+        stylePath: "xlabel.offsetX",
+        renderable: true,
+        caveat: "How far the external label is moved right of where its location puts it, in scene units.",
+    },
+    "edge.xlabelOffsetY": {
+        channel: "edge.xlabelOffsetY",
+        target: "edge",
+        plainName: "Edge External Label Offset Y",
+        shortName: "External label offset y",
+        group: "text",
+        accepts: "number",
+        stylePath: "xlabel.offsetY",
+        renderable: true,
+        caveat: "How far the external label is moved down from where its location puts it, in scene units.",
     },
 };
 

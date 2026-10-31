@@ -3,25 +3,25 @@
     "headroomPercent": 10,
     "minimumHeadroomBytes": 1024,
     "entries": {
-        ".": 827144,
-        "./session": 562456,
-        "./schema": 16024,
-        "./catalog": 227456,
-        "./commands": 1632,
-        "./extend": 114801,
-        "./format": 1266,
-        "./logging": 11128,
+        ".": 828896,
+        "./session": 561956,
+        "./schema": 15956,
+        "./catalog": 225802,
+        "./commands": 1635,
+        "./extend": 113604,
+        "./format": 1267,
+        "./logging": 11037,
         "./react": 1044,
-        "./webgpu": 5832,
-        "./ai": 204475,
-        "./credentials": 5723,
-        "./bundle": 4517659
+        "./webgpu": 5820,
+        "./ai": 248582,
+        "./credentials": 6130,
+        "./bundle": 4551080
     },
     "lazyChunks": {
         "models": {
             "source": "src/models/chunk.ts",
             "external": ["@babylonjs/core"],
-            "budget": 53738
+            "budget": 40900
         }
     }
 }

@@ -16,6 +16,9 @@ import { createProvider, type ProviderType } from "./providers";
 import type { LlmProvider } from "./providers/types";
 import { SchemaManager } from "./schema";
 
+// Loaded before an AiManager is built: its key manager restores persisted keys as it is built.
+export { loadEncryptStorage } from "./keys";
+
 /** Default debounce delay for schema updates in milliseconds */
 const SCHEMA_UPDATE_DEBOUNCE_MS = 300;
 

@@ -16,8 +16,8 @@
         "widthPx": 1200,
         "heightPx": 900
     },
-    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
-    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
-    "date": "2026-10-19",
+    "fonts": "FONTCONFIG_FILE=graph-io/test/fidelity/oracles/tools/graphviz-fonts.conf (the repository's pinned fonts, each font-family resolved to the face a browser draws it in, Verdana to the test pages' Inter)",
+    "svgPostprocessing": "a font-family naming no generic family gets sans-serif after it, the face Graphviz measured it in; otherwise Graphviz's output byte for byte",
+    "date": "2026-10-31",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-edges-lines-p4 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-edges-lines-p4.svg"
 }

@@ -60,10 +60,14 @@ export const INSPECTOR_TITLE_ID = "ws-inspector-title";
  * how big; else, while the inspector shows something else, on the open place's list. A reader
  * who has already moved into the drawing, or into a dialog, while the graph was still being read
  * keeps their place.
+ * @param readerStayed - the reader pressed nothing while the graph was read, so focus on the
+ *   drawing was left there by something else (a closed dialog handing focus back to where it
+ *   opened) and the heading takes it all the same.
  */
-export function focusOpenedGraph(): void {
+export function focusOpenedGraph(readerStayed = false): void {
     const active = document.activeElement;
-    if (active?.tagName === "GRAPHTY-ELEMENT" || (active?.closest('[role="dialog"]') ?? null) !== null) {
+    const inDrawing = !readerStayed && active?.tagName === "GRAPHTY-ELEMENT";
+    if (inDrawing || (active?.closest('[role="dialog"]') ?? null) !== null) {
         return;
     }
     const title = document.querySelector<HTMLElement>(`[data-inspected="graph"] #${INSPECTOR_TITLE_ID}`);
@@ -92,7 +96,7 @@ export function focusOpenedGraphLater(): (focus?: boolean) => void {
         document.removeEventListener("keydown", onInput, true);
         document.removeEventListener("pointerdown", onInput, true);
         if (focus && (!acted || focusIsLost())) {
-            focusOpenedGraph();
+            focusOpenedGraph(!acted);
         }
     };
 }
@@ -164,12 +168,17 @@ export function tabStops(root: ParentNode): HTMLElement[] {
 }
 
 /**
- * The panels F6 and Shift+F6 move between, in order, as a desktop application's do: the left
- * panel, then the inspector that edits what it picks (one press from a layer to its style), the
- * drawing, the timeline dock while a time field is designated, the canvas toolbar, the table while
- * it is open, and the Data page while it stands in for them. A hidden one is passed over.
+ * The regions F6 and Shift+F6 move between, in order, as a desktop application's do -- the one
+ * place the app's F6 ring is defined: the top bar, the places rail, the left panel, then the
+ * inspector that edits what it picks (one press from a layer to its style), the drawing, the
+ * timeline dock while a time field is designated, the canvas toolbar, the table while it is open,
+ * the Data page while it stands in for the panels, and the status bar; then round to the top bar.
+ * A hidden one is passed over. Inside each region Tab follows the order the region is drawn in
+ * (document order: the app sets no positive tabindex), so a region's Tab order is its markup's.
  */
 const PANELS = [
+    ".ws-header",
+    ".ws-rail",
     ".ws-left",
     ".ws-right",
     ".ws-canvas graphty-element",
@@ -178,7 +187,14 @@ const PANELS = [
     ".ws-toolbar-dock",
     ".ws-dock",
     ".ws-page",
+    ".cm-status-bar",
 ];
+
+/**
+ * Where F6 never lands: a panel's resize handle is a control on the panel's edge, not a place to
+ * work in, so it stays a Tab stop but is never a region's landing, not even the one F6 last left.
+ */
+const NOT_A_LANDING = '[role="separator"]';
 
 /** The control that last had focus in each panel, by its selector: where F6 returns to it. */
 const lastInPanel = new Map<string, HTMLElement>();
@@ -230,7 +246,7 @@ export function cyclePanel(step: 1 | -1): void {
  */
 function panelTarget(selector: string, element: HTMLElement): HTMLElement | undefined {
     const last = lastInPanel.get(selector);
-    if (last !== undefined && element.contains(last) && canFocus(last)) {
+    if (last !== undefined && element.contains(last) && canFocus(last) && !last.matches(NOT_A_LANDING)) {
         return last;
     }
     if (element.tagName === "GRAPHTY-ELEMENT") {
@@ -238,7 +254,9 @@ function panelTarget(selector: string, element: HTMLElement): HTMLElement | unde
     }
     // A panel can name where focus lands first (the timeline dock's brush, not its first button).
     const start = element.querySelector<HTMLElement>("[data-panel-start]");
-    return (start === null ? undefined : tabStops(start)[0]) ?? tabStops(element)[0];
+    const landings = (root: ParentNode): HTMLElement | undefined =>
+        tabStops(root).find((stop) => !stop.matches(NOT_A_LANDING));
+    return (start === null ? undefined : landings(start)) ?? landings(element);
 }
 
 /** How many focused controls the guard remembers, newest last. */

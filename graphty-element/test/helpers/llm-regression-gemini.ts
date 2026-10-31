@@ -24,6 +24,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { appendFileSync } from "node:fs";
 import { setTimeout as sleepFor } from "node:timers/promises";
 
 /** The tier the transport asks for: flex, or standard (the API's default, the field left out). */
@@ -114,6 +115,12 @@ export interface GeminiTransportOptions {
     now?: () => number;
     /** The signal that aborts a send at its deadline (default `AbortSignal.timeout(REQUEST_DEADLINE_MS)`). */
     deadline?: () => AbortSignal;
+    /**
+     * A file each priced cost is appended to as it is spent, one `{"usd":n}` line per change (default none). It
+     * outlives a run that is stopped before its `[llm-regression] API calls` line prints, so CI logs what a hung or
+     * cut-off run spent (tools/llm-spend.mjs cost).
+     */
+    usageFile?: string;
 }
 
 const defaultSleep = async (ms: number, signal?: AbortSignal | null): Promise<void> => {
@@ -134,6 +141,7 @@ export class GeminiTransport {
     private cacheUsd = 0;
     private tokenUsd = 0;
     private priced = true;
+    private filedUsd = 0;
     readonly usage: GeminiRunUsage = {
         requests: 0,
         promptTokens: 0,
@@ -365,5 +373,10 @@ export class GeminiTransport {
 
     private updateUsd(): void {
         this.usage.usd = this.priced && this.prices() ? this.tokenUsd + this.cacheUsd : undefined;
+        const spent = (this.usage.usd ?? 0) - this.filedUsd;
+        if (this.options.usageFile && spent > 0) {
+            appendFileSync(this.options.usageFile, `${JSON.stringify({ usd: spent })}\n`);
+            this.filedUsd += spent;
+        }
     }
 }

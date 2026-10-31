@@ -124,8 +124,13 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > the gate step and visual job in ci.yml to make a check pass; decide every two-way door yourself and say the choice in the commit message; a breaking change or a one-way decision: commit
 > nothing, comment the question on the issue with the `needs-decision` label, and stop. Before your final tests:
 > `git fetch origin`, `git merge origin/master` (never rebase), `pnpm install --frozen-lockfile`, resolve any conflict
-> keeping both intents, then run the affected lint, build and tests (`pnpm run test:changed --base origin/master`)
-> and `node tools/sonar-gate.mjs` on the merged code and commit. A long-lived branch (open more than about two days,
+> keeping both intents, then run the affected lint, typecheck and build, and only the test files you touched or
+> wrote plus those that exercise the code you changed, never whole shards (CI runs the rest, owner 2026-10-25;
+> `pnpm run test:changed --dry-run --base origin/master` names the candidates). Then run
+> `node tools/sonar-gate.mjs` on the merged code and commit. A change that adds a graphty-element channel or a
+> graph-io style property also lists it in the graphty app's channel records (`graphty/src/workspace/style/words.ts`,
+> `style/coverage.ts`, `inspector/words.ts`), regenerates graph-io's docs (`npm run docs:reference`) and runs
+> `pnpm run lint:knip` and `npm run api:report` before its pull request. A long-lived branch (open more than about two days,
 > more than a day of work, or a merge of master that brought app or graphty-element changes or conflicts), or any
 > branch after a large change (a refactor of a shared component, a dependency or lockfile upgrade, a change to
 > graphty-element's styling, layout or rendering), whose change reaches the graphty app also runs
@@ -135,7 +140,10 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > start each long run once and end your turn; do not re-check it again and again. When you stop, done or not, write
 > where the work stands on the branch's issue:
 > `node tools/branch-note.mjs update --done "<what is done>" --left "<what is left>" --next "<the next step>"`.
-> Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL.
+> Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL. A change to the graphty app's
+> UI follows the owner's UI rules: no sentences as UI in the data screens (use Figma patterns: property rows, chips,
+> dropdowns, + sections, pop-overs, context menus); every hotkey has a visible button showing its key; never remove
+> or restyle owner-approved UI; compact-mantine's look stays locked to Figma.
 
 ## Escalation
 

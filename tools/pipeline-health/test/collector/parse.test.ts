@@ -27,6 +27,7 @@ import {
     releaseTags,
     runnerFlags,
     runnerUse,
+    waitsOnConcurrency,
     STRESS_FOUND,
     stressQuiet,
     stressRunState,
@@ -42,6 +43,7 @@ import {
     workflowState,
     type GhJob,
     type GhRun,
+    screenshotReview,
     type GqlIssue,
     type GqlPr,
     type Rates,
@@ -293,6 +295,45 @@ describe("runner use", () => {
             saturated: true,
             unassigned: false,
         });
+    });
+});
+
+describe("runner use: waiting is not queued", () => {
+    it("a lone job waiting for an environment approval does not read as runners not assigned", () => {
+        const base = jobs("jobs-pr-40238975833.json")[0];
+        const old = new Date(NOW - 300 * MIN).toISOString();
+        const use = runnerUse(
+            [
+                { ...base, status: "waiting", labels: ["ubuntu-24.04"], created_at: old },
+                { ...base, status: "pending", labels: ["ubuntu-24.04"], created_at: old },
+            ],
+            [],
+            NOW,
+        );
+        expect(use.queuedOver2).toBe(0);
+        expect(runnerFlags(use, 60)).toEqual({ saturated: false, unassigned: false });
+    });
+
+    it("macOS jobs queued behind their own limit while Linux jobs run are not an outage", () => {
+        const base = jobs("jobs-pr-40238975833.json")[0];
+        const old = new Date(NOW - 90 * MIN).toISOString();
+        const linux = Array.from({ length: 10 }, () => ({ ...base, status: "in_progress", labels: ["ubuntu-24.04"] }));
+        const mac = Array.from({ length: 3 }, () => ({
+            ...base,
+            status: "queued",
+            labels: ["macos-26"],
+            created_at: old,
+        }));
+        const use = runnerUse([...linux, ...mac], [], NOW);
+        expect(use.queuedOver2).toBe(0);
+        expect(runnerFlags(use, 60).unassigned).toBe(false);
+    });
+
+    it("a run queued with no jobs yet for over 2 minutes counts as waiting (an Actions outage)", () => {
+        const run = { created_at: new Date(NOW - 30 * MIN).toISOString(), status: "queued" } as GhRun;
+        const use = runnerUse([], [run, { ...run, status: "pending" }], NOW);
+        expect(use.queuedOver2).toBe(1);
+        expect(runnerFlags(use, 60).unassigned).toBe(true);
     });
 });
 
@@ -780,6 +821,37 @@ describe("ghost runs", () => {
     });
 });
 
+describe("runs waiting on their own concurrency group", () => {
+    // 2026-10-31 10:20Z: Release restart 41191120998 waited in release.yml's release-train group, with no jobs and
+    // status "queued", behind full run 41188440989; the collector read it as a 15.5 min wait for a runner.
+    const at = Date.parse("2026-10-31T10:20:00Z");
+    const full: GhRun = {
+        ...fixture<GhRun>("run-release-full-41188440989.json"),
+        status: "in_progress",
+        conclusion: null,
+    };
+    const restart: GhRun = {
+        ...fixture<GhRun>("run-release-restart-41191120998.json"),
+        status: "queued",
+        conclusion: null,
+    };
+
+    it("calls a no-job run behind an older in-progress run of its workflow on its branch a concurrency wait", () => {
+        expect(waitsOnConcurrency(restart, [full, restart])).toBe(true);
+        expect(waitsOnConcurrency({ ...restart, status: "pending" }, [restart])).toBe(true);
+    });
+
+    it("still counts a no-job run with nothing ahead of it as waiting for a runner", () => {
+        expect(waitsOnConcurrency(restart, [restart])).toBe(false);
+        expect(waitsOnConcurrency(restart, [{ ...full, head_branch: "other" }, restart])).toBe(false);
+        expect(waitsOnConcurrency(restart, [{ ...full, path: ".github/workflows/ci.yml" }, restart])).toBe(false);
+        expect(waitsOnConcurrency(restart, [{ ...full, status: "queued" }, restart])).toBe(false);
+        // A newer run cannot hold the group against an older one.
+        expect(waitsOnConcurrency(full, [full, { ...restart, status: "in_progress" }])).toBe(false);
+        expect(runnerUse([], [restart], at).longestQueuedMs).toBe(at - Date.parse(restart.created_at));
+    });
+});
+
 describe("release workflows count only their declared events", () => {
     it("declares the events each workflow file names under on:", () => {
         for (const [wf, events] of Object.entries(RELEASE_WORKFLOW_EVENTS)) {
@@ -827,5 +899,43 @@ describe("stress run: found nothing three weeks running", () => {
         ).toBe(false);
         // A failure found four weeks ago is outside the rule.
         expect(stressQuiet([...runs, { at: at("2026-10-04T08:00:00Z"), foundFailures: true }], now)).toBe(true);
+    });
+});
+
+describe("the nightly hold waiting on the owner's screenshot review", () => {
+    const hold = (body: string, comments: string[] = []) => ({
+        number: 4700,
+        title: "Nightly held on 0123456789ab",
+        state: "OPEN",
+        createdAt: new Date(NOW - 30 * 60 * MIN).toISOString(),
+        body,
+        comments: {
+            nodes: comments.map((c, i) => ({ body: c, createdAt: new Date(NOW - (20 - i) * 60 * MIN).toISOString() })),
+        },
+    });
+
+    it("a green-images hold waits on the owner, from its first green-images verdict", () => {
+        expect(screenshotReview([hold("Nightly is held on x: its full run ended green-images (12 changed)")])).toEqual({
+            since: NOW - 30 * 60 * MIN,
+            issue: 4700,
+        });
+        const retested = hold("its full run ended red (ci)", [
+            "The full run on the held head y ended green-images (3 changed): url",
+            "The full run on the held head z ended green-images (3 changed): url",
+        ]);
+        expect(screenshotReview([retested])).toEqual({ since: NOW - 20 * 60 * MIN, issue: 4700 });
+    });
+
+    it("a red hold, a hold since re-tested red, and a publish hold do not wait on the owner", () => {
+        expect(screenshotReview([hold("its full run ended red (ci)")])).toBeUndefined();
+        expect(
+            screenshotReview([
+                hold("ended green-images (2 changed)", ["The full run on the held head y ended red (t4)"]),
+            ]),
+        ).toBeUndefined();
+        expect(
+            screenshotReview([{ ...hold("ended green-images"), title: "Release held: publish failed on 7a2ca69" }]),
+        ).toBeUndefined();
+        expect(screenshotReview([])).toBeUndefined();
     });
 });

@@ -103,6 +103,11 @@ permissions:
     checks: write
 
 env:
+    # A cache restore whose download fails (GitHub answering "Egress is over the account limit") leaves
+    # @actions/cache's segment timer, 10 minutes by default, running: actions/setup-node and actions/cache then
+    # hold the step for 10 minutes after "Failed to restore", and Lint, Docs and Stories ran into their job
+    # timeouts (run 41095808301, #5098). One minute bounds that wait; a cold pnpm install takes about 15 s.
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
     # A cache a job saves is restored by every later run in the same ref's scope, master's included. The release
     # train's call checks out inputs.ref, which can be an older or held commit, not the commit the run belongs to:
     # a job saves its caches only when it checked out the run's own commit, and otherwise only restores them
@@ -972,6 +977,9 @@ jobs:
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 15
+        env:
+            # graphty-element's and graphty's lint targets pass this to ESLint; see "Key the ESLint caches"
+            ESLINT_CACHE: --cache --cache-strategy content --cache-location node_modules/.cache/eslint/
         # lint is an nx-cached target (nx.json), so a project whose lint inputs equal master's (a pull request
         # that touches nx.json or a project.json marks every project affected) replays master's result from
         # the remote cache instead of linting again (graphty-element alone takes about 3.5 minutes). Only
@@ -1044,6 +1052,29 @@ jobs:
               continue-on-error: true
               run: echo "LINT_START=$(date +%s)" >> "$GITHUB_ENV"
 
+            # graphty-element and graphty lint with an ESLint content cache in CI ($ESLINT_CACHE in their project.json
+            # lint targets; a local lint never caches). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
+            # re-lints only the files whose content differs from master's (graphty-element took about 300 s here,
+            # beside two other packages on the runner's 4 cores). The key holds what changes a rule's verdict on an
+            # unchanged file -- the lockfile, the ESLint configs and rules, the tsconfigs -- so a change to any of
+            # them lints everything. An unchanged file that a pull request's type change makes fail a type-aware
+            # rule is caught by master's and the full run's lint, which never restore the cache. The key's last part
+            # is the day, so master saves one cache a day (about 3 MB), not one per commit.
+            - name: Key the ESLint caches
+              id: eslint-cache
+              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v1-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.js', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the ESLint caches (PR)
+              if: needs.packages.outputs.full == 'false'
+              continue-on-error: true
+              uses: actions/cache/restore@v6
+              with:
+                  path: |
+                      graphty-element/node_modules/.cache/eslint
+                      graphty/node_modules/.cache/eslint
+                  key: ${{ steps.eslint-cache.outputs.prefix }}${{ steps.eslint-cache.outputs.day }}
+                  restore-keys: ${{ steps.eslint-cache.outputs.prefix }}
+
             - name: Lint affected (PR)
               if: needs.packages.outputs.full == 'false'
               run: pnpm exec nx affected -t lint --parallel=3 --exclude-task-dependencies --base=origin/${{ github.base_ref }} --head=HEAD
@@ -1051,6 +1082,16 @@ jobs:
             - name: Lint all (master, a manual dispatch or the merge queue)
               if: needs.packages.outputs.full == 'true'
               run: pnpm exec nx run-many -t lint --parallel=3 --exclude-task-dependencies
+
+            - name: Save the ESLint caches (full lint)
+              if: needs.packages.outputs.full == 'true' && env.SAVE_CACHES == 'true'
+              continue-on-error: true
+              uses: actions/cache/save@v6
+              with:
+                  path: |
+                      graphty-element/node_modules/.cache/eslint
+                      graphty/node_modules/.cache/eslint
+                  key: ${{ steps.eslint-cache.outputs.prefix }}${{ steps.eslint-cache.outputs.day }}
 
             # Lint all took 3 to 5 minutes until a typescript-eslint update made one rule take 7 of them
             # (2026-10-06, about 14 minutes in all), and nothing said so for two days. A run past the budget
@@ -1338,9 +1379,13 @@ jobs:
             # Build unified documentation on every run that has a Docs job (a pull request only on a docs input,
             # the Build job's "Plan the optional jobs"), so one that breaks the docs (a dead link included:
             # VitePress fails the build on one) fails here rather than on master. The docs and both gh-pages builds are uploaded on every run because the
-            # "Links" job checks every link to graphty.app against the site they assemble into.
+            # "Links" job checks every link to graphty.app against the site they assemble into. A pull request's
+            # site is never published or link-checked, so it builds without the API sidebars (DOCS_API_SIDEBARS,
+            # docs/.vitepress/config.ts; every page and the dead-link check stay) and uploads nothing.
             - name: Build docs
               run: npm run docs:build
+              env:
+                  DOCS_API_SIDEBARS: ${{ github.event_name == 'pull_request' && 'off' || 'on' }}
 
             - name: Build algorithms gh-pages
               run: pnpm exec nx run algorithms:build:gh-pages --exclude-task-dependencies
@@ -1350,6 +1395,7 @@ jobs:
 
             # Upload documentation artifacts (deploy-pages publishes them; the Links job checks them)
             - name: Upload unified docs
+              if: github.event_name != 'pull_request'
               uses: actions/upload-artifact@v7
               with:
                   name: build-docs
@@ -1357,6 +1403,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload algorithms gh-pages
+              if: github.event_name != 'pull_request'
               uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-algorithms
@@ -1364,6 +1411,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload layout gh-pages
+              if: github.event_name != 'pull_request'
               uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-layout

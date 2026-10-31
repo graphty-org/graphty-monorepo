@@ -275,7 +275,7 @@ async function inner() {
         await p.waitForFunction(() => document.querySelector("graphty-element")?.getNodes?.().length > 0, null, {
             timeout: 30000,
         });
-        await p.evaluate(() => document.querySelector("graphty-element").waitForStableFrame?.({ timeoutMs: 15000 }));
+        await p.evaluate(() => document.querySelector("graphty-element").waitForStableFrame?.());
     });
     const rest = await p.evaluate(wordsOnScreen);
     await step(p, "Analyze open", async () => {

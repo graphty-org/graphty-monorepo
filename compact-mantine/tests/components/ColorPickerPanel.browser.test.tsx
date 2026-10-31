@@ -66,6 +66,20 @@ describe("ColorPickerPanel value box", () => {
     });
 });
 
+describe("ColorPickerPanel Escape", () => {
+    it("Escape in the value box takes typing back, keeps focus there, and says so aloud", async () => {
+        const value = await openPicker();
+        await userEvent.keyboard("FF0000{Escape}");
+
+        await expect.element(page.getByTestId("color-picker-panel")).toBeVisible();
+        expect(value.value).toBe("6366F1");
+        expect(document.activeElement).toBe(value);
+        await expect
+            .element(page.getByTestId("color-picker-panel").getByRole("status"))
+            .toHaveTextContent("Edit discarded; this stays 6366F1.");
+    });
+});
+
 describe("ColorPickerPanel Tab walk", () => {
     it("Tab reaches every control of the picker before it leaves", async () => {
         await openPicker(false);

@@ -228,7 +228,7 @@
 <g id="node21" class="node">
 <title>sync</title>
 <polygon fill="#91b5c9" stroke="#c46747" stroke-width="5" points="752.4,-404.31 752.4,-425.19 706.01,-439.95 640.39,-439.95 594,-425.19 594,-404.31 640.39,-389.55 706.01,-389.55 752.4,-404.31"/>
-<text xml:space="preserve" text-anchor="middle" x="673.2" y="-407.75" font-family="Arial Narrow" font-size="20.00">synchronization</text>
+<text xml:space="preserve" text-anchor="middle" x="673.2" y="-407.38" font-family="Arial Narrow,sans-serif" font-size="20.00">synchronization</text>
 </g>
 <!-- Tasks&#45;&gt;sync -->
 <g id="edge15" class="edge">

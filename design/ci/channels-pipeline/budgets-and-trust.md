@@ -160,6 +160,10 @@ same code locally):
 - Alarm when `recent > budget`, or when `recent > 1.3 x earlier` and `recent - earlier >= 60 s`.
 - Suspects: master's first-parent merges between the last run under the line and the first over it;
   each merge is one pull request with its issue.
+- A key that stops getting samples (its job or step was renamed or removed) is never judged again, so its
+  alarm cannot close by coming back under. The `POST /durations` answer's `lastSeen` names each key's last
+  sample and how many runs of its workflow and kind came after it; the posting `timings` job closes an open
+  alarm whose key missed the last 10 runs, or has no sample in 30 days, with a comment naming that sample.
 - ONE issue per key (`CI budget: <key> <earlier> -> <recent>`; labels `bug`, `ci-budget`,
   `priority:high`, `effort:medium`, the owner label) listing runs, numbers and suspects; later alarms
   comment on it. The Worker only computes the alarm in its answer to `POST /durations`; the `timings`

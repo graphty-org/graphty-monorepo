@@ -2222,7 +2222,7 @@ async function recordStyles(s, file) {
 }
 
 // The DOM stops changing, then the drawing settles: graphty-element's waitForStableFrame
-async function settle(s, out, ms = 15000) {
+async function settle(s, out) {
     const { page } = s;
     const t0 = performance.now();
     let last = -1;
@@ -2233,16 +2233,16 @@ async function settle(s, out, ms = 15000) {
         await page.waitForTimeout(100);
     }
     const moving = await page
-        .evaluate(async (ms) => {
+        .evaluate(async () => {
             const el = document.querySelector("graphty-element");
             if (!el || typeof el.waitForStableFrame !== "function") return null;
             try {
-                await el.waitForStableFrame({ timeoutMs: ms });
+                await el.waitForStableFrame();
                 return null;
             } catch (e) {
                 return String(e.message || e);
             }
-        }, ms)
+        })
         .catch(() => null);
     if (moving) out.push(`the drawing is still moving (${moving.split("\n")[0].slice(0, 160)})`);
     await page.evaluate(() => document.fonts.ready).catch(() => {});

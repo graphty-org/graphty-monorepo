@@ -401,8 +401,9 @@ describe("the pre-push gate matches CI", () => {
         // and the advisory test selector it starts beside the shards
         "test-select.mjs",
         "test-select-rules.json",
-        // the quarantine wrapper every shard runs through, and the ledger it reads JUnit with
+        // the quarantine wrapper every shard runs through, and the ledger it reads JUnit with (and the hang guard it reads)
         "test-quarantine.mjs",
+        "test-wait-guard.mjs",
         // the test ledger, and the scratch worktree a land check re-runs a failure on golden's tip in
         "test-ledger.mjs",
         "land.mjs",
@@ -555,6 +556,7 @@ describe("the pre-push gate matches CI", () => {
                 "push-base.mjs",
                 "shard-verdict.mjs",
                 "test-quarantine.mjs",
+                "test-wait-guard.mjs",
                 "test-ledger.mjs",
                 "test-select.mjs",
                 "test-select-rules.json",
@@ -1715,6 +1717,12 @@ describe("ci.yml", () => {
             /if: steps.plan.outputs.full == 'true' && steps.reuse-build.outputs.artifacts-run == ''\n\s+run: pnpm exec nx run-many -t build/,
         );
         assert.match(job(ci, "docs"), /name: build-docs\n/);
+        // only a pull request's docs leave out the API sidebars and upload nothing; master's site keeps both
+        assert.match(
+            job(ci, "docs"),
+            /DOCS_API_SIDEBARS: \$\{\{ github.event_name == 'pull_request' && 'off' \|\| 'on' \}\}\n/,
+        );
+        assert.match(job(ci, "docs"), /- name: Upload unified docs\n\s+if: github.event_name != 'pull_request'\n/);
         assert.match(job(ci, "build"), /name: build-storybook-element\n/);
         assert.match(job(ci, "build"), /\n {8}needs: run-cap\n {8}runs-on:/, "build runs on master too");
         for (const name of ["lint", "checks", "docs"]) {
@@ -3357,6 +3365,27 @@ describe("apt in the workflows", () => {
 });
 
 describe("actions/cache in the workflows", () => {
+    it("restores the ESLint caches only for a pull request's lint, so master and the full run lint every file", () => {
+        // An ESLint cache skips an unchanged file even when a type change elsewhere would make a type-aware rule
+        // fail it; only the full lint catches that, so it must never start from a restored cache.
+        const lint = job(workflow("ci.yml"), "lint");
+        const restore = lint.match(/- name: Restore the ESLint caches.*\n\s+if: (.*)\n/);
+        assert.ok(restore, "the Lint job restores the ESLint caches");
+        assert.equal(restore[1], "needs.packages.outputs.full == 'false'");
+        assert.match(lint, /- name: Save the ESLint caches.*\n\s+if: needs\.packages\.outputs\.full == 'true' &&/);
+        assert.match(
+            lint,
+            /\n {8}env:\n(?: +#.*\n)* +ESLINT_CACHE: --cache --cache-strategy content --cache-location node_modules\/\.cache\/eslint\/\n/,
+        );
+        for (const project of ["graphty-element", "graphty"]) {
+            const target = JSON.parse(readFileSync(new URL(`../${project}/project.json`, import.meta.url), "utf8"))
+                .targets.lint;
+            // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file
+            assert.match(target.options.command, /^eslint [^&]*\$ESLINT_CACHE &&/);
+            assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
+        }
+    });
+
     it("never keys a cache on the commit and never caches .nx/cache", () => {
         // The Nx cache never hit (release commits change every package.json, and nx.json sharedGlobals
         // includes .github/workflows/**) and its key held github.sha, so every run saved a new 600 MB entry
@@ -3373,6 +3402,27 @@ describe("actions/cache in the workflows", () => {
             }
         }
         assert.ok(checked >= 4, `found the cache steps (${checked})`);
+    });
+
+    it("bounds a failed restore's wait in every workflow that restores a cache (#5098)", () => {
+        // @actions/cache races each segment download against a timer (SEGMENT_DOWNLOAD_TIMEOUT_MINS, 10 minutes
+        // by default) and clears it only when the download settles successfully. A rejected download ("Egress is
+        // over the account limit", run 41095808301) leaves the timer armed, so the step sits idle for the rest of
+        // the 10 minutes after "Failed to restore" and the job runs into its timeout.
+        const files = readdirSync(new URL("../.github/workflows/", import.meta.url))
+            .filter((f) => f.endsWith(".yml"))
+            .map((f) => `../.github/workflows/${f}`)
+            .concat(["../visual-review/templates/visual-review.yml", "../visual-review/templates/visual-seed.yml"]);
+        let checked = 0;
+        for (const file of files) {
+            const text = readFileSync(new URL(file, import.meta.url), "utf8");
+            const code = text.replace(/^\s*#.*$/gm, "");
+            if (!/actions\/cache(\/\w+)?@|cache: "?(pnpm|npm|yarn)|playwright-system-deps/.test(code)) continue;
+            const mins = Number(parseYaml(text)?.env?.SEGMENT_DOWNLOAD_TIMEOUT_MINS);
+            assert.ok(mins > 0 && mins <= 2, `${file}: env SEGMENT_DOWNLOAD_TIMEOUT_MINS is 1 or 2 (got ${mins})`);
+            checked++;
+        }
+        assert.ok(checked >= 10, `found the workflows that restore caches (${checked})`);
     });
 });
 
@@ -4575,8 +4625,8 @@ describe("release.yml", () => {
     it("runs the paid LLM tests in every release test of a candidate, with no once-a-day gate (owner, 2026-10-29)", () => {
         // no step decides whether the lane is due: every step runs whenever the job runs
         assert.doesNotMatch(llm, /steps\.due|llm-due/);
-        // (the cost step after the tests, which runs after a failed test step too, is not a gate)
-        const steps = llm.slice(llm.indexOf("\n        steps:"), llm.indexOf('- name: "LLM regression cost:'));
+        // (the cost steps after the tests, which run after a failed test step too, are not a gate)
+        const steps = llm.slice(llm.indexOf("\n        steps:"), llm.indexOf("- name: Price the LLM regression run"));
         assert.doesNotMatch(steps, /\n\s+if: /, "no step-level gate");
         // the job runs only when the pick chose a candidate to test, never in promote-nightly (which tests nothing)
         assert.match(
@@ -4592,13 +4642,27 @@ describe("release.yml", () => {
         assert.match(script, /const MONTHLY_CEILING = 60;/);
         assert.match(llm, /- name: LLM regression tests\n/, "the step llm-spend.mjs counts");
         // the run's logged cost reaches llm-spend.mjs and the health dashboard as the next step's name
+        // priced in a step of its own from the usage file the transport appends to as it spends (else the log), so a
+        // failed, cancelled or cut-off test step still logs what it spent (#5062)
+        assert.match(llm, /LLM_REGRESSION_USAGE_FILE: \$\{\{ runner\.temp \}\}\/llm-usage\.jsonl\n/);
         assert.match(
             llm,
-            /echo "usd=\$\(node \.\.\/tools\/llm-spend\.mjs cost "\$RUNNER_TEMP\/llm-regression\.log"\)" >> "\$GITHUB_OUTPUT"/,
+            /- name: Price the LLM regression run\n\s+id: cost\n\s+if: \$\{\{ always\(\) && steps\.llm\.outcome != 'skipped' \}\}\n\s+run: echo "usd=\$\(node tools\/llm-spend\.mjs cost "\$RUNNER_TEMP\/llm-usage\.jsonl" "\$RUNNER_TEMP\/llm-regression\.log"\)" >> "\$GITHUB_OUTPUT"\n/,
         );
         assert.match(
             llm,
-            /- name: "LLM regression cost: \$\{\{ steps\.llm\.outputs\.usd \}\} USD"\n\s+if: \$\{\{ always\(\) && steps\.llm\.outputs\.usd != '' \}\}\n/,
+            /- name: "LLM regression cost: \$\{\{ steps\.cost\.outputs\.usd \}\} USD"\n\s+if: \$\{\{ always\(\) && steps\.cost\.outputs\.usd != '' \}\}\n/,
+        );
+        // a hung test is ended by the test hang guard (25 min) inside the job's limit, so the cost steps run
+        const guard = Number(
+            /TEST_GUARD_MS = ([\d_]+)/
+                .exec(readFileSync(new URL("./test-wait-guard.mjs", import.meta.url), "utf8"))[1]
+                .replaceAll("_", ""),
+        );
+        const jobMinutes = Number(/\n {8}timeout-minutes: (\d+)/.exec(llm)[1]);
+        assert.ok(
+            jobMinutes * 60_000 >= guard + 10 * 60_000,
+            `job limit ${jobMinutes} min is above the hang guard and the build`,
         );
         assert.match(script, /export const COST_STEP = /);
         // the paid project runs nowhere else: not on a pull request, a master push or any other workflow
@@ -5552,9 +5616,12 @@ describe("release.yml", () => {
     it("hands the Pushover secrets only to the steps that announce (tools/release-status.mjs, publish-hold.mjs settle)", () => {
         for (const name of ["release.yml", "release-watch.yml", "release-rerun.yml", "nightly-site.yml"]) {
             const steps = workflow(name).split(/\n(?=\s+- (?:name|uses): )/);
-            // tools/release-rerun.mjs announces a re-run, or the red verdict it files, through release-status.mjs
+            // tools/release-rerun.mjs announces a re-run, or the red verdict it files, through release-status.mjs;
+            // tools/health-dead-man.sh pages when the health dashboard itself has stopped
             const announcing = steps.filter((st) =>
-                /node tools\/(?:release-status\.mjs |publish-hold\.mjs settle |release-rerun\.mjs\n)/.test(st),
+                /node tools\/(?:release-status\.mjs |publish-hold\.mjs settle |release-rerun\.mjs\n)|run: tools\/health-dead-man\.sh\s*$/.test(
+                    st,
+                ),
             );
             assert.ok(announcing.length > 0, name);
             for (const st of steps) {
@@ -6479,6 +6546,7 @@ describe("a failed pre-push test shard (#1562)", () => {
                 "push-base.mjs",
                 "shard-verdict.mjs",
                 "test-quarantine.mjs",
+                "test-wait-guard.mjs",
                 "test-ledger.mjs",
                 "test-select.mjs",
                 "test-select-rules.json",
@@ -7213,6 +7281,38 @@ describe("bisect.yml's LLM points", () => {
         assert.equal(release.llm.environment, "full-run");
         assert.equal(jobs.point.environment, "${{ inputs.lane == 'llm' && 'full-run' || '' }}");
         assert.match(JSON.stringify(jobs.point.steps), /secrets.GOOGLE_API_KEY/);
+    });
+
+    it("log their real cost in a cost step's name, a cut-off point's too, as release.yml's llm job does (#5062)", () => {
+        const steps = parseYaml(readFileSync(".github/workflows/bisect.yml", "utf8")).jobs.point.steps;
+        const run = steps.find((x) => x.name === "Run the failing files");
+        assert.equal(
+            run.env.LLM_REGRESSION_USAGE_FILE,
+            "${{ inputs.lane == 'llm' && format('{0}/llm-usage.jsonl', runner.temp) || '' }}",
+        );
+        assert.match(run.run, /\| tee "\$RUNNER_TEMP\/point\.log"/);
+        const price = steps.find((x) => x.id === "cost");
+        assert.equal(price.if, "${{ always() && inputs.lane == 'llm' }}");
+        const named = steps[steps.indexOf(price) + 1];
+        assert.equal(named.name, "LLM regression cost: ${{ steps.cost.outputs.usd }} USD");
+        assert.equal(named.if, "${{ always() && steps.cost.outputs.usd != '' }}");
+        // replay the price step on a point whose vitest was killed mid-file: the usage file holds its spend
+        const temp = mkdtempSync(join(tmpdir(), "bisect-price-"));
+        try {
+            mkdirSync(join(temp, "bisect-tools/tools"), { recursive: true });
+            copyFileSync("tools/llm-spend.mjs", join(temp, "bisect-tools/tools/llm-spend.mjs"));
+            writeFileSync(join(temp, "llm-usage.jsonl"), '{"usd":0.12}\n{"usd":0.03}\n{"usd":0.0');
+            writeFileSync(join(temp, "point.log"), "no API calls line: the file hung\n");
+            const out = join(temp, "output");
+            const r = spawnSync("bash", ["-eo", "pipefail", "-c", price.run], {
+                encoding: "utf8",
+                env: { ...process.env, RUNNER_TEMP: temp, GITHUB_OUTPUT: out },
+            });
+            assert.equal(r.status, 0, r.stderr);
+            assert.equal(readFileSync(out, "utf8"), "usd=0.1500\n");
+        } finally {
+            rmSync(temp, { recursive: true, force: true });
+        }
     });
 });
 
@@ -8538,6 +8638,7 @@ describe("the Checks job's CI workflow tests run their files side by side", () =
                 new URL("run-ci-workflow-tests.mjs", import.meta.url),
                 join(dir, "tools/run-ci-workflow-tests.mjs"),
             );
+            copyFileSync(new URL("tool-test-guard.mjs", import.meta.url), join(dir, "tools/tool-test-guard.mjs"));
             // "slow" finishes last but is listed first; "bad" fails; "a.mjs" is listed twice (a union merge)
             const slow = 'console.log("slow-1"); setTimeout(() => console.log("slow-2"), 300);';
             writeFileSync(join(dir, "tools/slow.mjs"), slow);
@@ -8569,6 +8670,7 @@ describe("the Checks job's CI workflow tests run their files side by side", () =
                 new URL("run-ci-workflow-tests.mjs", import.meta.url),
                 join(dir, "tools/run-ci-workflow-tests.mjs"),
             );
+            copyFileSync(new URL("tool-test-guard.mjs", import.meta.url), join(dir, "tools/tool-test-guard.mjs"));
             writeFileSync(
                 join(dir, "tools/loud.mjs"),
                 'process.stdout.write("x".repeat(4 * 1024 * 1024) + "\\n"); process.exitCode = 2;',
@@ -8580,6 +8682,58 @@ describe("the Checks job's CI workflow tests run their files side by side", () =
             });
             assert.equal(r.status, 1);
             assert.match(r.stdout, /0 of 1 test files passed\nfailed:\n {2}tools\/loud\.mjs \(exit 2\)\n$/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("the CI workflow tests never reach the real world (#3392)", () => {
+    it("fails a file that calls gh, fetches beyond loopback or writes to the shared tmp/ state, even when it swallows the error", () => {
+        const dir = mkdtempSync(join(tmpdir(), "ci-workflow-tests-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            for (const f of ["run-ci-workflow-tests.mjs", "tool-test-guard.mjs"]) {
+                copyFileSync(new URL(f, import.meta.url), join(dir, "tools", f));
+            }
+            const swallow = (body) => `try { ${body} } catch {}`;
+            const files = {
+                "env.mjs": `if (process.env.GITHUB_ACTIONS || process.env.RESULTS_URL || process.env.GH_TOKEN) process.exit(4);`,
+                "gh.mjs": swallow(
+                    `(await import("node:child_process")).execFileSync("gh", ["issue", "create"], { stdio: "pipe" });`,
+                ),
+                "fetch.mjs": swallow(`await fetch("https://api.github.com/repos/o/r/issues");`),
+                "write.mjs": swallow(`(await import("node:fs")).writeFileSync("tmp/quarantine/state.json", "{}");`),
+                "own.mjs": `const fs = await import("node:fs"); fs.mkdirSync("tmp", { recursive: true }); const d = fs.mkdtempSync("tmp/fixture-"); fs.writeFileSync(d + "/a", "x"); fs.rmSync(d, { recursive: true });`,
+                "child.mjs": `(await import("node:child_process")).spawnSync(process.execPath, ["-e", "fetch('https://results.example/x').catch(() => {})"]);`,
+                "local.mjs": `const fs = await import("node:fs"); const os = await import("node:os"); const p = (await import("node:path")).join(os.tmpdir(), "tt-" + process.pid); fs.writeFileSync(p, "x"); fs.rmSync(p);`,
+            };
+            for (const [f, body] of Object.entries(files)) writeFileSync(join(dir, "tools", f), body);
+            mkdirSync(join(dir, "tmp/quarantine"), { recursive: true }); // the shared state, there before the run
+            writeFileSync(
+                join(dir, "tools/tool-tests.txt"),
+                Object.keys(files)
+                    .map((f) => `tools/${f}`)
+                    .join("\n"),
+            );
+            const r = spawnSync(process.execPath, [join(dir, "tools/run-ci-workflow-tests.mjs")], {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GITHUB_ACTIONS: "true",
+                    RESULTS_URL: "https://results.example",
+                    GH_TOKEN: "x",
+                },
+            });
+            assert.match(r.stdout, /3 of 7 test files passed/, r.stdout);
+            for (const f of ["gh", "fetch", "write", "child"])
+                assert.match(r.stdout, new RegExp(`tools/${f}\\.mjs \\(exit 1\\)`));
+            assert.match(r.stdout, /refused a real gh call: gh issue create/);
+            assert.match(r.stdout, /refused a network call to https:\/\/api\.github\.com/);
+            assert.match(r.stdout, /refused a network call to https:\/\/results\.example/);
+            assert.match(r.stdout, /refused a write to .*tmp\/quarantine\/state\.json/);
+            assert.deepEqual(readdirSync(join(dir, "tmp/quarantine")), [], "nothing written to the shared state");
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

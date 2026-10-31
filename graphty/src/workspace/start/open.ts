@@ -69,6 +69,17 @@ const LOCAL_DATASETS =
     import.meta.env.DEV || import.meta.env.VITE_LOCAL_SAMPLE_DATA === "true"
         ? new URL(`${import.meta.env.BASE_URL}data/graph-samples/v1/`, globalThis.location.href).href
         : undefined;
+/** The copy datasets are read from; none reads the site's own. */
+let localDatasets = LOCAL_DATASETS;
+
+/**
+ * Reads the site's own datasets, as a deployed site does, even where this machine has a copy; or
+ * this machine's copy again. For tests of how the site's configuration moves the datasets.
+ * @param prefer - whether to read this machine's copy.
+ */
+export function preferLocalDatasets(prefer: boolean): void {
+    localDatasets = prefer ? LOCAL_DATASETS : undefined;
+}
 
 /**
  * Where the datasets are read from: this machine's copy where there is one, else the site's own
@@ -76,7 +87,7 @@ const LOCAL_DATASETS =
  * @returns the options naming it, or none for graph-samples' default.
  */
 export function datasetBase(): { readonly baseUrl?: string } {
-    const baseUrl = LOCAL_DATASETS ?? siteConfig().datasets;
+    const baseUrl = localDatasets ?? siteConfig().datasets;
     return baseUrl === undefined ? {} : { baseUrl };
 }
 

@@ -1,5 +1,5 @@
 // Installs Mesh.prototype.createInstance, which createModelInstance calls.
-import "@babylonjs/core/Meshes/instancedMesh";
+import "@babylonjs/core/Meshes/instancedMesh.js";
 
 import {
     AbstractMesh,
@@ -739,13 +739,13 @@ export class NodeMesh {
             const extents = this.fillExtents(sized, inset);
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
-            const base = gap > 0 ? offsetOutline(outline, gap) : outline;
-            const mesh = ringSlab(
-                "node-outer-border",
-                borderRing(base, width, outerBorder?.style ?? "solid"),
-                depth,
-                scene,
-            );
+            // each further ring (`count`, Graphviz's peripheries) starts the offset beyond the one before
+            const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
+            const pieces = Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
+                const at = gap + i * step;
+                return borderRing(at > 0 ? offsetOutline(outline, at) : outline, width, outerBorder?.style ?? "solid");
+            }).flat();
+            const mesh = ringSlab("node-outer-border", pieces, depth, scene);
             placeByZIndex(mesh, shape, options.is2D);
             mesh.material = this.createBorderMaterial(outerBorder?.color ?? "#000000", opacity, scene);
 
@@ -906,17 +906,17 @@ export class NodeMesh {
     }
 
     private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
-        const corner = shape.cornerRadius === undefined ? undefined : shape.cornerRadius * this.extentPerSize(shape);
-
+        // drawn in units of size, where a polygon's lengths (`-1+24`) and the corner radius are, then in world units
+        const perSize = this.extentPerSize(shape);
         const outline = flatShapeOutline(
             shape.type ?? "",
-            extents.x ?? extents.across,
-            extents.y ?? extents.across,
-            corner,
+            (extents.x ?? extents.across) / perSize,
+            (extents.y ?? extents.across) / perSize,
+            shape.cornerRadius,
             shape.points,
             shape.stretchPoints !== false,
             shape.exactCornerRadius === true,
-        );
+        ).map(([x, y]): Point2 => [x * perSize, y * perSize]);
         if (shape.sizeMode !== "diameter" || this.hasExplicitExtent(shape) || outline.length === 0) {
             return outline;
         }

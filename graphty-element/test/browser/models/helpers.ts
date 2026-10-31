@@ -6,7 +6,7 @@
 
 import "../../../src/graphty-element";
 
-import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
+import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { afterEach, vi } from "vitest";
 
 import type { Graphty } from "../../../index.js";

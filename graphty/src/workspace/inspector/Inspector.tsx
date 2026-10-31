@@ -561,17 +561,18 @@ export function Inspector(): React.JSX.Element {
                 <Stack gap={0} px="md" py={6}>
                     <Group gap={6} wrap="nowrap">
                         <HeaderGlyph session={session} header={header} treeRow={treeRow} kindId={kindId} />
-                        {/* Focusable from script only: where focus lands after a run or a find pick,
-                            so a screen reader starts here. A heading, not a control and not in the
-                            Tab order, so it takes no focus mark: a box read as a field, an
-                            underline as a link. The next Tab reaches the first control. */}
+                        {/* Focusable from script only: where focus lands after a graph opens, a run
+                            or a find pick, so a screen reader starts here. A heading, not a control
+                            and not in the Tab order; on keyboard focus it draws the app's shared
+                            inset ring, so a keyboard reader sees where the next key goes (WCAG
+                            2.4.7). The next Tab reaches the first control. */}
                         <Text
                             id={INSPECTOR_TITLE_ID}
+                            className="cm-focus-inside"
                             tabIndex={-1}
                             role="heading"
                             aria-level={2}
                             aria-label={header.spoken}
-                            style={{ outline: "none" }}
                             size="sm"
                             fw={600}
                             truncate

@@ -62,6 +62,7 @@ import {
     parseJunit,
 } from "./test-ledger.mjs";
 import { selectedCommand } from "./test-select.mjs";
+import { WAIT_GUARD_MS } from "./test-wait-guard.mjs";
 
 const DAY = 86_400_000;
 export const PASSES_TO_LEAVE = 20;
@@ -266,7 +267,7 @@ export function shardOfRun(root, listed, command) {
  * @param [o.logBudget] the most bytes the first run's output may hold (shard-verdict.mjs); a larger one fails
  *   the shard whatever it exited with, here as in CI, whose test job judges shards only through this wrapper
  * @param [o.list] the quarantine in force, in place of the committed list and the local state (the results store's)
- * @param [o.judge] `(decision, { firstOutcome }) => decision` in place of blameChange(): the pull request rules of
+ * @param [o.judge] `(decision, { firstOutcome, unretried }) => decision` in place of blameChange(): the pull request rules of
  *   tools/results/run-group.mjs; a decision with `lines` prints those instead of the [FLAKY] and [FAIL] lines
  * @param [o.family] the family the quarantine list is matched by, in place of the shard's own (run-group.mjs's
  *   groupFamily(), which keeps a screenshot run apart)
@@ -289,11 +290,11 @@ export async function runShard(
     let code = r1.code;
     try {
         const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
-        const shard = shardOfRun(
-            root,
-            SHARDS.find((s) => s.shard === shardName),
-            command,
-        );
+        // a pull request's light-check bin (`<family>-<n>`, tools/test-select.mjs lightPlan()) is no SHARDS entry:
+        // it is retried as a shard of its family, whose slices differ only by --shard, which a retry drops (#5128)
+        const listed =
+            SHARDS.find((s) => s.shard === shardName) ?? SHARDS.find((s) => familyOf(s.shard) === familyOf(shardName));
+        const shard = shardOfRun(root, listed, command);
         reports.pkg = shard?.package;
         const first = newReports(reports, "");
         result.ran = [...(first?.files ?? [])];
@@ -317,10 +318,11 @@ export async function runShard(
             postFlaky(env, shardName, family, failedFirst(raw.flaky, first));
             await flushHealth();
         }
-        const d = judge ? judge(raw, { firstOutcome }) : blameChange(raw, root, family, env);
+        const unretried = retry ? "" : notRetried(firstOutcome, first, list, family);
+        const d = judge ? judge(raw, { firstOutcome, unretried }) : blameChange(raw, root, family, env);
         result = { ...result, flaky: brief(d.flaky), excused: brief(d.excused), failing: brief(d.failing) };
         result.suspects = d.suspects;
-        printDecision(shardName, d, env, retry ? "" : notRetried(firstOutcome, first, list, family));
+        printDecision(shardName, d, env, unretried);
         if (d.pass) code = flood;
     } catch (e) {
         console.log(
@@ -415,8 +417,22 @@ function notRetried(outcome, first, list, family) {
     if (outcome !== "failed") return `not retried: the run ended "${outcome}", not in test failures alone`;
     const open = new Set((first?.failures ?? []).filter((f) => !quarantined(list, family, f)).map((f) => f.file));
     if (open.size > MAX_RETRY_FILES) return `not retried: ${open.size} files failed, more than ${MAX_RETRY_FILES}`;
+    const hung = waitedOutGuard(first?.failures ?? []);
+    if (hung.length > 0) {
+        const s = Math.round(WAIT_GUARD_MS / 1000);
+        return `not retried: ${hung.map((f) => f.name).join(", ")} waited out the ${s} s hang guard, and a retry would wait it out again`;
+    }
     return "not retried: its command cannot be narrowed to the failed files";
 }
+
+/**
+ * The failures that ran as long as the wait guard (tools/test-wait-guard.mjs): a wait that never came true.
+ * Their retry waits the guard out again, and two guards do not fit in a CI test job, which GitHub then
+ * cancels with no result recorded (#5255: 15 min first, the retry cancelled at the job's 30 min).
+ * @param failures parseJunit() failures
+ * @returns those that hit the guard
+ */
+export const waitedOutGuard = (failures) => failures.filter((f) => (f.ms ?? 0) >= WAIT_GUARD_MS);
 
 /**
  * Runs the failed test files of a shard once more, when there are a few and one of them is not quarantined.
@@ -435,7 +451,8 @@ async function retryFailed({ root, shard, first, family, list, env, viaRunTests,
     const failed = first?.failures ?? [];
     const open = [...new Set(failed.filter((f) => !quarantined(list, family, f)).map((f) => f.file))];
     const files = [...new Set(failed.map((f) => f.file))];
-    const cmd = shard && open.length > 0 && open.length <= MAX_RETRY_FILES ? selectedCommand(root, shard, files) : null;
+    const retryable = open.length > 0 && open.length <= MAX_RETRY_FILES && waitedOutGuard(failed).length === 0;
+    const cmd = shard && retryable ? selectedCommand(root, shard, files) : null;
     if (!cmd) return null;
     console.log(`${RETRY_MARK} the ${files.length} failed test file(s) of ${shard.shard} once: ${files.join(", ")}`);
     const retryId = reports.id ? `${reports.id}.retry` : null;

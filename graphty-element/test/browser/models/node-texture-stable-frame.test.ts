@@ -11,10 +11,10 @@
  * does not.
  */
 
-import type { Material } from "@babylonjs/core/Materials/material";
-import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
-import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
-import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import type { Material } from "@babylonjs/core/Materials/material.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { assert, describe, it } from "vitest";
 
 import { operationQueueOf } from "../../../src/Graph";

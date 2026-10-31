@@ -23,7 +23,7 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { dispatcherOf } from "../session/GraphSession";
-import { supersededError } from "../session/loadLine";
+import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
@@ -412,8 +412,10 @@ export class Autosaver {
     #maxWait: (() => void) | null = null;
     #idle: (() => void) | null = null;
     #told = "";
-    /** A restore is opening an entry: its changes and its boundary are not new work. */
-    #restoring = false;
+    /** A restore is opening an entry, or a discard reloads: see {@link #restoring}. */
+    #restoringFlag = false;
+    /** The restore's place in the session's load line, once its turn has come. */
+    #restoreTurn: LoadTurn | null = null;
     /** A page-supplied load is running: its changes do not start an entry. */
     #quiet = 0;
     /** Changes made during a page load, and the parts they touched, until the load says whose they were. */
@@ -775,8 +777,8 @@ export class Autosaver {
         metas: readonly AutosaveEntryMeta[],
         live: (meta: AutosaveEntryMeta) => boolean,
     ): Promise<AutosaveRestored | null | "next" | "taken"> {
-        const restored = await this.#restoreFrom(meta, isOwn && live(meta), metas, live);
-        return restored === "taken" && isOwn ? this.#restoreFrom(meta, true, metas, live) : restored;
+        const restored = await this.#restoreFrom(meta, isOwn && live(meta), metas, live, true);
+        return restored === "taken" && isOwn ? this.#restoreFrom(meta, true, metas, live, true) : restored;
     }
 
     /**
@@ -1172,11 +1174,11 @@ export class Autosaver {
 
         entry.release?.();
         entry.release = null;
-        this.#restoring = true;
+        this.#restoringFlag = true;
         try {
             await reload();
         } finally {
-            this.#restoring = false;
+            this.#restoringFlag = false;
             this.#tell();
         }
     }
@@ -1302,9 +1304,35 @@ export class Autosaver {
             });
             return;
         }
-        // The reader cleared the page on purpose: nothing failed, so nothing is announced, and the
-        // entry is written back as it was before the attempt, to be offered on the next load. A
-        // copy this restore made is removed instead: the entry it copied is still there.
+        // The reader cleared the page on purpose: nothing failed, so nothing is announced.
+        await this.#takeBack(current, untried, copied);
+    }
+
+    /**
+     * Whether the graph already holds data, or a load or an edit waits in the session's line,
+     * that this autosave did not bring: the page asked for it before the restore could open.
+     * @returns True when it does.
+     */
+    #graphTaken(): boolean {
+        try {
+            const snapshot = this.#session.data.snapshot();
+            return snapshot.nodeCount > 0 || snapshot.edgeCount > 0 || loadLineOf(dispatcherOf(this.#session)).size > 0;
+        } catch {
+            // A session disposed meanwhile (the element left): the open reports that, releases the
+            // lock and settles the attempt, as it always did.
+            return false;
+        }
+    }
+
+    /**
+     * Take back a restore attempt that did not open: the entry is written back as it was before
+     * the attempt, to be offered on the next load. A copy this restore made is removed instead:
+     * the entry it copied is still there.
+     * @param current - The entry, with the attempt recorded.
+     * @param untried - The entry as it was before the attempt.
+     * @param copied - Whether `current` is a copy this restore made.
+     */
+    async #takeBack(current: AutosaveEntryMeta, untried: AutosaveEntryMeta, copied: boolean): Promise<void> {
         if (copied) {
             await this.#store.remove(current.id).catch(() => undefined);
             return;
@@ -1362,6 +1390,8 @@ export class Autosaver {
      * @param copy - Copy it into a new entry instead of claiming it.
      * @param metas - Every entry of the key, as listed.
      * @param live - Whether a tab holds an entry.
+     * @param startup - The automatic restore at the start, which gives way to a graph the page
+     *     already asked for; a restore the reader picks opens over it.
      * @returns What was restored; null when opening failed; `"next"` to try the next candidate;
      *   `"taken"` when another tab holds its lock.
      */
@@ -1370,6 +1400,7 @@ export class Autosaver {
         copy: boolean,
         metas: readonly AutosaveEntryMeta[],
         live: (meta: AutosaveEntryMeta) => boolean,
+        startup = false,
     ): Promise<AutosaveRestored | null | "next" | "taken"> {
         let release: (() => void) | null = null;
         if (!copy) {
@@ -1424,17 +1455,39 @@ export class Autosaver {
             });
         }
 
+        // The page asked the graph for data of its own while the entry was read (a sample, a file,
+        // rows): that newer load wins. The open would queue behind it and replace it, so the work
+        // is offered instead, as when the page's own data replaces a restore (issue #3313).
+        if (startup && this.#graphTaken()) {
+            await this.#takeBack(current, untried, copy);
+            release?.();
+            this.#available(meta, live(meta), "page-data-changed", null);
+            return null;
+        }
+
         let report: AutosaveRestored["report"];
-        this.#restoring = true;
+        // The open's place in line, taken now. The restore counts as writing only once its turn
+        // has come and until a clear cancels it: a change made while it waits behind a load, or
+        // right after a clear cancelled it, is the reader's (issue #3674).
+        const line = loadLineOf(dispatcherOf(this.#session));
+        const turn = line.join();
         try {
-            report = await this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } });
+            await turn.wait();
+            this.#restoreTurn = turn;
+            this.#restoringFlag = true;
+            report = await line.within(turn, () =>
+                this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } }),
+            );
         } catch (error) {
+            this.#restoringFlag = false;
+            turn.leave();
             // Before the lock goes, so no other tab commits over the entry meanwhile.
             await this.#restoreFailed(current, untried, error, copy);
             release?.();
             return null;
         } finally {
-            this.#restoring = false;
+            this.#restoringFlag = false;
+            this.#restoreTurn = null;
         }
 
         // The work comes back as it was: unsaved to a file if it was, and at its revision.
@@ -1564,6 +1617,15 @@ export class Autosaver {
             this.#quiet = quiet;
             this.#releasedSteps = this.#readerStepsInLoad();
         }
+    }
+
+    /**
+     * Whether the changes now are a restore's or a discard's reload, not new work: a restore's
+     * open only from when its turn in the load line came, and never once a clear cancelled it.
+     * @returns True while they are.
+     */
+    get #restoring(): boolean {
+        return this.#restoringFlag && this.#restoreTurn?.superseded !== true;
     }
 
     /**

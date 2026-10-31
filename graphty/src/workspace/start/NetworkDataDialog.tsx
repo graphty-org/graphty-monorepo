@@ -1,10 +1,11 @@
 import { FileSource } from "@graphty/compact-mantine";
-import { Modal, Text, UnstyledButton, useComputedColorScheme } from "@mantine/core";
+import { Button, Kbd, Modal, Text, UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import type React from "react";
 
 import { GLYPHS } from "../glyphs";
+import { ariaKey, formatKey } from "../keys/keys";
 import { openServerForm } from "../server/commands";
-import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { addUrl, openFiles } from "./open";
 
 /** The workspace dialog id of Open network data. */
@@ -24,12 +25,15 @@ const SOURCES = [
  * Open network data, the one door to data on the network: the start screen's "Open network data"
  * and the Sources "+" item Network data... both open it. Each network source opens the server
  * form on that source; a web address (or a file from this computer) is taken in as the start
- * screen's new project, or as the open project's next source.
+ * screen's new project, or as the open project's next source. Open a file, with its key, is there
+ * for a reader who came here with a file on this computer.
  * @returns The chooser, open while the workspace dialog is "network"
  */
 export function NetworkDataDialog(): React.JSX.Element {
     const ctx = useWorkspace();
     const scheme = useComputedColorScheme("dark");
+    const openDoor = useCommand("file.open");
+    const openFileKey = openDoor?.command.keys?.[0];
     const opened = useWorkspaceState((state) => state.dialog === NETWORK_DIALOG);
     const close = (): void => {
         ctx.store.set((state) => (state.dialog === NETWORK_DIALOG ? { dialog: null } : {}));
@@ -83,6 +87,18 @@ export function NetworkDataDialog(): React.JSX.Element {
                                 openFiles(ctx, files);
                             }}
                         />
+                        <Button
+                            variant="default"
+                            leftSection={<GLYPHS.openFile size={16} aria-hidden />}
+                            rightSection={openFileKey === undefined ? undefined : <Kbd>{formatKey(openFileKey)}</Kbd>}
+                            aria-keyshortcuts={openFileKey === undefined ? undefined : ariaKey(openFileKey)}
+                            onClick={() => {
+                                close();
+                                openDoor?.run();
+                            }}
+                        >
+                            Open a file
+                        </Button>
                     </div>
                 </div>
             </Modal.Content>

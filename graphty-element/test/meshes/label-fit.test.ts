@@ -46,6 +46,25 @@ describe("labelFitExtent", () => {
         assert.equal(fitted?.height, 4);
     });
 
+    it("rounds the padded box up to a multiple of the quantum before fitting the outline round it", () => {
+        const shape = { labelFit: "inside" as const, labelPaddingX: 1, labelPaddingY: 1, size: 0, labelFitQuantum: 5 };
+        // 12 by 4 rounds up to 15 by 5
+        assert.deepEqual(labelFitExtent({ ...shape, type: "rectangle" }, box), { width: 15, height: 5 });
+        const ellipse = labelFitExtent({ ...shape, type: "ellipse" }, box);
+        assert.closeTo(ellipse?.width ?? 0, 15 * Math.SQRT2, 1e-9);
+        assert.closeTo(ellipse?.height ?? 0, 5 * Math.SQRT2, 1e-9);
+    });
+
+    it("grows a star until the box fits inside its inner points, as Graphviz's star_size does", () => {
+        const fitted = labelFitExtent({ type: "star", labelFit: "inside", size: 0 }, { width: 40, height: 22.4 });
+        // the outer radius that holds the box between the star's arms, its bounding box drawn
+        const a = Math.PI / 10;
+        const r0 = Math.max(40 / (2 * Math.cos(a)), 22.4 / (Math.sin(a) + Math.sin(3 * a)));
+        const r = (r0 * Math.sin(4 * a) * Math.cos(2 * a)) / (Math.cos(a) * Math.cos(4 * a));
+        assert.closeTo(fitted?.width ?? 0, 2 * r * Math.cos(a), 1e-9);
+        assert.closeTo(fitted?.height ?? 0, r * (1 + Math.sin(3 * a)), 1e-9);
+    });
+
     it("reaches a polygon out by 1 / cos(pi / sides) past the ellipse", () => {
         const diamond = labelFitExtent({ type: "diamond", labelFit: "inside", size: 0 }, box);
         assert.closeTo(diamond?.width ?? 0, 10 * Math.SQRT2 * Math.SQRT2, 1e-9);
@@ -90,6 +109,22 @@ describe("labelFitExtent", () => {
             { width: 100, height: 40 },
         );
         assert.deepEqual(short, { width: 50, height: 20 });
+    });
+
+    it("fits the box of a polygon whose corners carry lengths, which do not grow or draw it in", () => {
+        // a terminator: a glyph a fixed size in the middle, its baseline across the node
+        const fitted = labelFitExtent(
+            {
+                type: "polygon",
+                points: "0+3,0 0+3,0+6 0+9,0+6 0+9,0+12 0-9,0+12 0-9,0+6 0-3,0+6 0-3,0",
+                stretchPoints: false,
+                labelFit: "bounds",
+                width: 54,
+                height: 36,
+            },
+            { width: 100, height: 40 },
+        );
+        assert.deepEqual(fitted, { width: 100, height: 40 });
     });
 
     it("never shrinks a node below its own size for a short label", () => {

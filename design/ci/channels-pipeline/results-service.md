@@ -335,7 +335,8 @@ The Worker holds the list and computes it; workflows file its issues (2.1).
   failure prints `[QUARANTINED] ... issue #N` with a warning annotation and does not fail the job. Never
   for `webgpu-graph-algorithms*` families or the screenshot gate (the rules of `checkQuarantine()` in
   `tools/test-ledger.mjs`, now enforced by the Worker).
-- **Leaves** when its issue closes (release.yml's `pick` posts closed quarantine issues every run),
+- **Leaves** when its issue closes (every master-evidence run of the entry's family -- each full run's test job of that family -- posts the
+  closed issues the store names back to it, so an entry leaves at the next full run after its issue closes),
   after 20 consecutive passing evidence verdicts, or after 14 days (the owner's rules of 2026-10-22),
   each computed when the plan is read.
 - **With no plan nothing is quarantined,** so the failure fails the job: stricter, never looser.

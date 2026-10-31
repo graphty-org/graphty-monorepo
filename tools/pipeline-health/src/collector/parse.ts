@@ -282,9 +282,28 @@ export function masterState(runs: RunItem[]): MasterState {
 export interface RunnerUse {
     running: Record<JobItem["pool"], number>;
     queued: number;
-    /** Jobs queued over 2 minutes. */
+    /** Linux and Windows jobs waiting for a runner (status "queued") over 2 minutes, and runs queued with no jobs. */
     queuedOver2: number;
     longestQueuedMs: number;
+}
+
+/**
+ * Whether a job is waiting for a Linux or Windows runner: status "queued" for over 2 minutes. Only "queued" waits for
+ * a runner: "waiting" is an environment approval and "pending" a concurrency group, so neither says GitHub is short
+ * of runners (the owner's own Promote run read as an outage). macOS jobs queue behind their own 5-job limit while
+ * Linux runners sit free: that is no outage. A job queued under 2 minutes is GitHub's normal assignment delay.
+ */
+export function waitsForRunner(j: GhJob, nowMs: number): boolean {
+    return j.status === "queued" && pool(j.labels) === "linux_windows" && nowMs - Date.parse(j.created_at) > 2 * MIN;
+}
+
+/** Counts one job that has not started (queued, waiting or pending) into `use`. */
+function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number) {
+    if (p === "other") return; // machine.dev and self-hosted pools are outside GitHub's limit
+    const age = nowMs - Date.parse(j.created_at);
+    use.queued++;
+    if (waitsForRunner(j, nowMs)) use.queuedOver2++;
+    use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
 }
 
 export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number): RunnerUse {
@@ -300,15 +319,15 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
             use.running[p]++;
             if (p === "macos") use.running.linux_windows++; // a macOS job counts against the 60 too
         } else if (j.status === "queued" || j.status === "waiting" || j.status === "pending") {
-            if (p === "other") continue; // machine.dev and self-hosted pools are outside GitHub's limit
-            const age = nowMs - Date.parse(j.created_at);
-            use.queued++;
-            if (age > 2 * MIN) use.queuedOver2++;
-            use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
+            countWaiting(use, j, p, nowMs);
         }
     }
-    for (const r of runsWithoutJobs)
-        use.longestQueuedMs = Math.max(use.longestQueuedMs, nowMs - Date.parse(r.created_at));
+    for (const r of runsWithoutJobs) {
+        const age = nowMs - Date.parse(r.created_at);
+        use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
+        // In an Actions outage runs sit queued before GitHub creates their jobs: each counts as one job waiting.
+        if (age > 2 * MIN && r.status === "queued") use.queuedOver2++;
+    }
     return use;
 }
 
@@ -323,6 +342,26 @@ export function isGhostRun(run: GhRun, open: GqlPr[], complete: boolean): boolea
     if (!complete || run.event !== "pull_request" || run.status === "completed") return false;
     const listed = new Set((run.pull_requests ?? []).map((p) => p.number));
     return !open.some((p) => listed.has(p.number) || p.headRefName === run.head_branch);
+}
+
+/**
+ * An unfinished run with no jobs that waits on its own workflow's concurrency group, not for a runner: GitHub creates
+ * no job until the group is free, and reports the run as "pending" or, as for Release restart 41191120998 behind full
+ * run 41188440989 in release.yml's `release-train` group (2026-10-31, 10:02-10:25Z), as "queued". So a run is taken to
+ * wait on its group when it is "pending", or when an older run of the same workflow on the same branch is in progress.
+ * It holds no runner, so runner use leaves it out. `unfinished` is the unfinished runs of the run's repository.
+ */
+export function waitsOnConcurrency(run: GhRun, unfinished: GhRun[]): boolean {
+    if (run.status === "pending") return true;
+    const created = Date.parse(run.created_at);
+    return unfinished.some(
+        (o) =>
+            o.id !== run.id &&
+            o.status === "in_progress" &&
+            o.path === run.path &&
+            o.head_branch === run.head_branch &&
+            Date.parse(o.created_at) < created,
+    );
 }
 
 /** Saturated: jobs queued > 2 min while running >= limit - 3. Not assigned: queued > 2 min while running < 75%. */
@@ -581,6 +620,38 @@ export interface GqlIssue {
     updatedAt: string;
     closedAt: string | null;
     labels: { nodes: { name: string }[] };
+}
+
+/** An open "Nightly held on <sha>" issue (ISSUE_QUERY's `nightly` search), with its body and last comments. */
+export interface GqlHoldIssue {
+    number: number;
+    title: string;
+    state: string;
+    createdAt: string;
+    body?: string;
+    comments?: { nodes: { body: string; createdAt: string }[] };
+}
+
+const HOLD_VERDICT = /\bended (green-images|green-clean|red|owner-item|approved|rejected)\b/;
+
+/**
+ * The held nightly candidate waiting only on the owner's screenshot review: its hold issue's newest verdict
+ * (tools/channel/hold.mjs writes "ended <state>" in the body, then in a comment per re-test) is green-images. A red
+ * or owner-item hold is the agents' to fix, and a publish hold ("Release held") is not a nightly hold at all.
+ * @param issues - the `nightly` search's nodes
+ * @returns since when it has waited and its issue, or undefined
+ */
+export function screenshotReview(issues: (GqlHoldIssue | null)[]): { since: number; issue: number } | undefined {
+    for (const i of issues) {
+        if (i?.state !== "OPEN" || !i.title.startsWith("Nightly held on")) continue;
+        const said = [{ body: i.body ?? "", createdAt: i.createdAt }, ...(i.comments?.nodes ?? [])]
+            .map((x) => ({ at: Date.parse(x.createdAt), state: HOLD_VERDICT.exec(x.body)?.[1] }))
+            .filter((x) => x.state);
+        let k = said.length;
+        while (k > 0 && said[k - 1].state === "green-images") k--; // re-tests that stay green-images keep the wait
+        if (k < said.length) return { since: said[k].at, issue: i.number };
+    }
+    return undefined;
 }
 
 export function toIssueItem(i: GqlIssue, repo: string): IssueItem {

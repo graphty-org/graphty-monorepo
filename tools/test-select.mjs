@@ -32,7 +32,7 @@
  *       shards that run whole and why, the shards that run nothing
  *   node tools/test-select.mjs [--root <checkout>] [--base <ref>] [--head <ref>] --plan [--durations <file.json>]
  *       the pull request light check's plan as JSON: each shard family's selected files packed into bins of at
- *       most 8 min (lightPlan(); --durations is `{ "<family>": { "<file>": ms } }`), the shards that run whole
+ *       most 4 min (lightPlan(); --durations is `{ "<family>": { "<file>": ms } }`), the shards that run whole
  *       or not at all, and the stories of each visual-review project (selectStories())
  *   node tools/test-select.mjs [--root <checkout>] --cache-key
  *       the key of the import graphs cached in <main checkout>/tmp/test-select/graphs (graphCacheKey())
@@ -41,12 +41,24 @@
  *       Vitest sets NODE_ENV and VITEST* in the process that does it
  */
 
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+    appendFileSync,
+    closeSync,
+    existsSync,
+    mkdirSync,
+    openSync,
+    readdirSync,
+    readFileSync,
+    readSync,
+    statSync,
+    writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, posix, relative, resolve } from "node:path";
+import { basename, dirname, join, posix, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 
 import { pathRefs, projectGraph } from "./prepush-inputs.mjs";
 
@@ -55,7 +67,9 @@ const RULES = join(HERE, "test-select-rules.json");
 
 /** A path that goes into a package's build: not a test, a story, a doc or a test folder. */
 const TEST_SIDE = /(^|\/)(test|tests|__tests__|e2e|stories|\.storybook|benchmarks?)\//u;
-const TEST_FILE = /\.(test|spec|stories)\.[cm]?[jt]sx?$|\.test-d\.ts$|\.md$/u;
+/** A test spec: no build or Storybook loads it (a test helper under test/ can be: graph-io's fidelity stories import some). */
+const SPEC_FILE = /\.(test|spec)\.[cm]?[jt]sx?$|\.test-d\.ts$/u;
+const TEST_FILE = new RegExp(String.raw`${SPEC_FILE.source}|\.stories\.[cm]?[jt]sx?$|\.md$`, "u");
 export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.test(pkgPath);
 
 /**
@@ -933,8 +947,12 @@ function readsOf(file, fdir, { gs, upstream, target, refs }) {
     if (!viaBuild && gs?.some((g) => knows(g, file))) {
         out.push({ file, holder: file });
     }
+    // a holder's path that names nothing of the package stands for the whole package (refOf): a file built from
+    // parts, never one of its test specs (graph-io's fidelity stories hold oracle-known-failures.json, whose stack
+    // strings resolve to such paths, so every graphty-element test spec selected all of them: PR #5212)
+    const wholePkg = (r) => r.holder && r.prefix === `${fdir}/` && SPEC_FILE.test(file);
     for (const r of refs) {
-        if (!r.build && r.target === target && file.startsWith(r.prefix)) {
+        if (!r.build && r.target === target && file.startsWith(r.prefix) && !wholePkg(r)) {
             out.push({ file, holder: r.holder });
         }
     }
@@ -1329,8 +1347,13 @@ export function planRuns(root, shards, selection) {
     return plan;
 }
 
-/** The longest a light-check test bin is planned to run (design/ci/channels-pipeline/merging.md section 4.1). */
-export const BIN_LIMIT_MS = 8 * 60_000;
+/**
+ * The longest a light-check test bin is planned to run (design/ci/channels-pipeline/merging.md section 4.1). At 8
+ * min the bins were the pull request tail (#3448): Build ends about 4.6 min in, a Test job spends about 45 s on
+ * setup, and its bin ran up to the limit (graphty-1: 22 files, vitest 430 s; graphty-element-storybook-1: 31 files,
+ * 490 s; runs 41128974826 and 41178964261), so those runs took 13 to 14 min. 4 min bins end near 10 min.
+ */
+export const BIN_LIMIT_MS = 4 * 60_000;
 /** Milliseconds counted for a file of a family with no recorded file at all. */
 const NO_HISTORY_MS = 30_000;
 /**
@@ -1626,10 +1649,11 @@ function storiesGlobal(project, dir, changed, rules, lockMoved) {
  * @param shards `[{ shard: SHARDS entry, sel: selectShards() entry }]`
  * @param drawnBy packages whose selection runs the project whole when it has no story graph
  * @param reach storiesReaching() for the project's package: its stories when its shard runs no storybook project
+ * @param specOnly the change's drawable files are all test specs, so a package they select draws nothing new
  *   (compact-mantine's play test imports every story file), or null
  * @returns `{ mode, files, reasons }`
  */
-function storiesFromTests(project, pkg, shards, drawnBy, reach = null) {
+function storiesFromTests(project, pkg, shards, drawnBy, reach = null, specOnly = false) {
     const own = shards.filter((s) => s.shard.package === pkg && storyShard(s.shard));
     if (own.length > 0) {
         const all = own.find((s) => s.sel.mode === "all");
@@ -1639,8 +1663,9 @@ function storiesFromTests(project, pkg, shards, drawnBy, reach = null) {
         const files = [...new Set(own.flatMap((s) => (s.sel.files ?? []).map((f) => f.file)))].sort();
         return { mode: files.length > 0 ? "files" : "none", files, reasons: [] };
     }
-    // ponytail: no story graph for these projects yet, so any selected package that draws them runs all of them
-    const hit = shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
+    // ponytail: no story graph for these projects yet, so any selected package that draws them runs all of them,
+    // unless the change is only test specs, which select a package but draw nothing
+    const hit = !specOnly && shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
     if (reach && hit && shards.every((s) => !drawnBy.includes(s.shard.package) || s.sel.mode !== "all")) {
         return { mode: reach.length > 0 ? "files" : "none", files: reach, reasons: [] };
     }
@@ -1674,13 +1699,14 @@ function withDeps(names, deps) {
  * @param shards `[{ shard: SHARDS entry, sel: selectShards() entry }]`
  * @param drawnBy packages that draw the project
  * @param deps their dependencies, transitively
- * @param drawable the changed files that are not storyless
+ * @param drawable the changed files that are not storyless or test specs
  * @param packages every package's directory
+ * @param specOnly the change's drawable files are all test specs, so a package they select draws nothing new
  * @returns `{ mode, files, reasons }`
  */
-function unprovenStories(project, shards, drawnBy, deps, drawable, packages) {
+function unprovenStories(project, shards, drawnBy, deps, drawable, packages, specOnly) {
     const proof = `test-select-mutate --stories has not proven ${project}`;
-    const hit = shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
+    const hit = !specOnly && shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
     if (hit) {
         return { mode: "all", files: [], reasons: [`${hit.shard.package} is selected and ${proof}`] };
     }
@@ -1721,6 +1747,9 @@ export function selectStories({ projects, changed, everything, shards, selection
     const isStoryless = (f) => (rules.storyless ?? []).some((re) => re.test(f));
     const storyless = !everything && changed.length > 0 && changed.every(isStoryless);
     const drawable = changed.filter((f) => !isStoryless(f));
+    // a test spec selects its package's tests but draws nothing, so it never runs a story through drawnBy
+    const loadable = drawable.filter((f) => !SPEC_FILE.test(f));
+    const specOnly = drawable.length > 0 && loadable.length === 0;
     const packages = [...new Set(shards.map((s) => s.package))];
     return Object.entries(projects).map(([project, cfg]) => {
         const dir = cfg.storybook.replace(/\/storybook-static$/u, "");
@@ -1739,8 +1768,15 @@ export function selectStories({ projects, changed, everything, shards, selection
         } else if (!global) {
             const drawnBy = rules.drawnBy[project] ?? [pkg];
             sel = rules.selectProjects.includes(project)
-                ? storiesFromTests(project, pkg, known, drawnBy, storiesReaching(dir, drawable, graphs?.get(pkg)))
-                : unprovenStories(project, known, drawnBy, withDeps(drawnBy, deps), drawable, packages);
+                ? storiesFromTests(
+                      project,
+                      pkg,
+                      known,
+                      drawnBy,
+                      storiesReaching(dir, drawable, graphs?.get(pkg)),
+                      specOnly,
+                  )
+                : unprovenStories(project, known, drawnBy, withDeps(drawnBy, deps), loadable, packages, specOnly);
         }
         return { project, ...sel, baselines };
     });
@@ -1781,10 +1817,11 @@ export const STORY_BIN_LIMIT_MS = 3 * 60_000;
  * STORY_BIN_MAX_MS) until the bins fit. It was 9 after 37 bins of 3 min queued for runners (2026-10-29), but the
  * organization runs up to 500 Linux jobs at once: in PR runs 41061566840, 41067254808 and 41073371165 (2026-10-30)
  * every job started 2 to 3 s after it was created at up to 66 jobs at once, while the budget stretched bins to 9 to
- * 12 minutes of capture (graphty-2: 718 s planned, 662 s captured), the pull request's last job. At 36 a change
- * that runs every story keeps its bins at about 3 minutes (#3448).
+ * 12 minutes of capture (graphty-2: 718 s planned, 662 s captured), the pull request's last job. A change that runs
+ * every story plans 53 bins at 3 minutes (2026-10-30), so 36 still stretched them to 4.5 minutes; at 56 they stay
+ * at 3 (#3448).
  */
-export const STORY_JOB_BUDGET = 36;
+export const STORY_JOB_BUDGET = 56;
 /** The longest a Stories bin's capture may be planned when the job budget packs it: under the job's 20-minute limit. */
 export const STORY_BIN_MAX_MS = 12 * 60_000;
 
@@ -1813,7 +1850,9 @@ export const STORY_MS = {
     // for graphty-element-1, the pull request's last job in 7 of 19 runs), so it was 2.5 s; six PR runs of
     // 2026-10-28 (40613759747 to 40620698652) captured its bins at 1.11 times their plan at 2.5 s, so it is 2.8 s
     "graphty-element": 2_800,
-    "compact-mantine": 1_000,
+    // PR runs 41101050547, 41102606273 and 41102573361 (2026-10-30): its two bins, 270 and 240 stories planned at
+    // 1 s, captured in 354 to 434 s, 1.3 to 1.6 s a story, the pull request's last Stories jobs at 7.8 to 8.7 min
+    "compact-mantine": 1_600,
     algorithms: 1_200,
     layout: 900,
 };
@@ -1981,9 +2020,11 @@ const CODE = /\.[cm]?[jt]sx?$|\.vue$|\.svelte$/u;
  * @param root the checkout
  * @param pkg the package directory
  * @param config a config file (relative to the package) or null for the default
- * @returns `{ package, config, projects, imports, opaque }`, paths repo-relative
+ * @param reuseFrom a cached graph of this package and config from an earlier commit, or null: the files the change
+ *   since that commit cannot have touched keep their edges from it and are not transformed again
+ * @returns `{ package, config, projects, imports, opaque, raw, reused }`, paths repo-relative
  */
-async function buildGraph(root, pkg, config) {
+async function buildGraph(root, pkg, config, reuseFrom = null) {
     const dir = join(root, pkg);
     const { createVitest } = await import(
         pathToFileURL(createRequire(join(dir, "package.json")).resolve("vitest/node"))
@@ -1994,6 +2035,7 @@ async function buildGraph(root, pkg, config) {
     const imports = {};
     const projects = {};
     const failed = [];
+    const configDeps = [];
     const ctx = {
         walked: new Set(),
         imports,
@@ -2004,6 +2046,9 @@ async function buildGraph(root, pkg, config) {
         aliases: {},
         viaAlias: new Set(),
         blind: new Set(),
+        raw: {},
+        reuse: reuseFrom ? reusableEdges(root, JSON.parse(readFileSync(reuseFrom, "utf8"))) : null,
+        reused: 0,
     };
     try {
         const walk = (project, file) => walkFile(project, file, ctx);
@@ -2021,11 +2066,17 @@ async function buildGraph(root, pkg, config) {
                 await walk(project, s);
             }
         }
+        // the files the configs load (the configs, and helpers such as graphty's vite.aliases.ts): a change to one
+        // can change every edge, so the next walk from this graph starts over (reusableEdges)
+        for (const project of vitest.projects) {
+            configDeps.push(...(project.vite.config.configFileDependencies ?? []));
+        }
     } finally {
         await vitest.close();
     }
     return {
         package: pkg,
+        configDeps: [...new Set(configDeps.map(rel))].sort(),
         config,
         projects,
         imports,
@@ -2034,6 +2085,8 @@ async function buildGraph(root, pkg, config) {
         aliases: ctx.aliases,
         aliased: [...ctx.viaAlias].map(rel).sort(),
         blind: [...ctx.blind].sort(),
+        raw: ctx.raw,
+        reused: ctx.reused,
     };
 }
 
@@ -2053,7 +2106,7 @@ async function walkFile(project, file, ctx) {
     ctx.walked.add(key);
     let deps = new Set();
     if (CODE.test(file)) {
-        deps = await edgesOf(project, file, ctx);
+        deps = await codeEdges(project, file, ctx);
     } else if (STYLE.test(file)) {
         deps = styleEdges(file);
     }
@@ -2062,6 +2115,82 @@ async function walkFile(project, file, ctx) {
     for (const d of deps) {
         await walkFile(project, d, ctx);
     }
+}
+
+/**
+ * A code file's own edges (before throughSource): the ones kept from the earlier graph when the change cannot have
+ * touched the file, else Vite's. Each is kept in `raw`, grouped by the projects that gave the same edges, so the
+ * next walk can reuse it; a file the walk could not transform is not kept.
+ * @param project the Vitest project whose Vite server transforms the file
+ * @param file an absolute path
+ * @param ctx shared state of the run
+ * @returns Set of absolute paths
+ */
+async function codeEdges(project, file, ctx) {
+    const rel = ctx.rel(file);
+    const hit = ctx.reuse?.get(rel)?.find(([, names]) => names.includes(project.name));
+    if (hit) {
+        ctx.reused++;
+    }
+    const deps = hit ? new Set(hit[0].map((f) => join(ctx.root, f))) : await edgesOf(project, file, ctx);
+    if (!ctx.blind.has(rel)) {
+        const list = [...deps].map(ctx.rel);
+        const groups = (ctx.raw[rel] ??= []);
+        const same = groups.find(([d]) => d.join("\0") === list.join("\0"));
+        if (same) {
+            same[1].push(project.name);
+        } else {
+            groups.push([list, [project.name]]);
+        }
+    }
+    return deps;
+}
+
+/** A changed file outside the walk's code that can change how every file transforms or resolves: walk it all. */
+const WALK_INPUT =
+    /(^|\/)(package\.json|pnpm-lock\.yaml|tsconfig[^/]*\.json)$|(^|\/)(vite|vitest)[^/]*\.config\.[^/]+$|\/\.storybook\/|^tools\/test-select/u;
+
+/**
+ * The files of an earlier graph whose edges still hold: tracked, unchanged since its commit, and not an importer
+ * of a file added or deleted since (a file whose text names the file's stem, or its folder for an index file, or
+ * that globs). Edges depend only on the file's text and its resolution, so this gives the same graph as a full
+ * walk.
+ * @param root the checkout
+ * @param base the earlier graph (`commit`, `raw`)
+ * @returns Map(repo-relative file -> its `raw` groups), or null when the change since touched a walk input or a
+ *   file the configs load
+ */
+export function reusableEdges(root, base) {
+    const git = (...a) => execFileSync("git", a, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
+    const lines = (t) => t.split("\n").filter(Boolean);
+    let diff;
+    try {
+        diff = lines(git("diff", "--name-status", "--no-renames", base.commit, "--")).map((l) => l.split("\t"));
+    } catch {
+        return null; // no commit recorded, or not in this clone
+    }
+    const added = lines(git("ls-files", "--others", "--exclude-standard"));
+    const touched = [...diff.map(([, f]) => f), ...added];
+    const configDeps = new Set(base.configDeps);
+    if (!base.raw || !base.configDeps || touched.some((f) => WALK_INPUT.test(f) || configDeps.has(f))) {
+        return null;
+    }
+    const moved = [...diff.filter(([s]) => s !== "M").map(([, f]) => f), ...added];
+    const stems = moved.map((f) => {
+        const name = basename(f).replace(/\.[^.]*$/u, "");
+        return name === "index" ? basename(dirname(f)) : name;
+    });
+    const names = (text) =>
+        stems.length > 0 && (text.includes("import.meta.glob") || stems.some((s) => text.includes(s)));
+    const tracked = new Set(lines(git("ls-files")));
+    const skip = new Set(touched);
+    const keep = new Map();
+    for (const [file, groups] of Object.entries(base.raw)) {
+        if (tracked.has(file) && !skip.has(file) && !names(safeRead(join(root, file)))) {
+            keep.set(file, groups);
+        }
+    }
+    return keep;
 }
 
 /**
@@ -2514,13 +2643,14 @@ export const repoPath = (pkg, file) => `${pkg}/${file.replace(/^\.\.\/\.\.\//u, 
 // --- the command line -----------------------------------------------------------------------------------
 
 /**
- * Each package's graphs, one per vitest config its shards use, each built in a child process.
+ * Each package's graphs, one per vitest config its shards use, each built in a child process; every walk
+ * starts at once and runs in parallel.
  * @param root the checkout
  * @param dirs package directories
  * @param shards SHARDS entries (which configs each package needs)
- * @returns Map(dir -> [graph|null...])
+ * @returns Promise of Map(dir -> [graph|null...])
  */
-export function buildGraphs(root, dirs, shards) {
+export async function buildGraphs(root, dirs, shards) {
     const graphs = new Map();
     const cache = graphCache(root);
     for (const dir of dirs) {
@@ -2530,11 +2660,19 @@ export function buildGraphs(root, dirs, shards) {
         const on = mine.some((s) => s.flags === "on");
         graphs.set(
             dir,
-            [...(configs.size > 0 ? configs : [null])].map((config) =>
-                cache(dir, config, () => graphChild(root, dir, config, on), on ? "features-on" : ""),
+            Promise.all(
+                [...(configs.size > 0 ? configs : [null])].map((config) =>
+                    cache(dir, config, (base) => graphChild(root, dir, config, on, base), on ? "features-on" : ""),
+                ),
             ),
         );
     }
+    for (const [dir, pending] of graphs) {
+        graphs.set(dir, await pending);
+    }
+    console.error(
+        `test-select: import graphs: ${cache.stats.reused} reused from the cache, ${cache.stats.walked} walked`,
+    );
     return graphs;
 }
 
@@ -2542,7 +2680,9 @@ export function buildGraphs(root, dirs, shards) {
  * Graphs kept in <main checkout>/tmp/test-select/graphs/, keyed by the package's committed tree, so a
  * package nobody changed is not walked again. A package with uncommitted changes is always walked.
  * @param root the checkout
- * @returns `(dir, config, build, variant) => graph`, `variant` "features-on" for a graph with the On projects
+ * @returns `async (dir, config, build, variant) => graph`, `variant` "features-on" for a graph with the On projects;
+ *   `build(base)` returns a graph or a promise of one, `base` the cached graph file to walk from, or null;
+ *   its `stats` counts the graphs `reused` and `walked`
  */
 function graphCache(root) {
     const git = (args) =>
@@ -2558,24 +2698,31 @@ function graphCache(root) {
     }
     // the list of tests that read files is computed from the rules and kept in each graph
     const rulesHash = createHash("sha256").update(readFileSync(RULES)).digest("hex");
-    return (dir, config, build, variant = "") => {
+    const stats = { reused: 0, walked: 0 };
+    const lookup = async (dir, config, build, variant = "") => {
         let file = null;
+        let base = null;
         try {
             if (dirPath && git(["status", "--porcelain", "--", dir]) === "") {
                 const tree = git(["rev-parse", `HEAD:${dir}`]);
-                const key = createHash("sha256")
-                    .update([GRAPH_VERSION, rulesHash, tree, config, variant].join("\0"))
-                    .digest("hex");
-                file = join(dirPath, `${dir}-${key.slice(0, 16)}.json`);
+                // the family: graphs of this package any commit's walk could start from
+                const family = createHash("sha256")
+                    .update([GRAPH_VERSION, rulesHash, config, variant].join("\0"))
+                    .digest("hex")
+                    .slice(0, 8);
+                file = join(dirPath, `${dir}-${family}-${tree.slice(0, 16)}.json`);
                 const cached = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
                 if (cached && sameOutside(root, cached.outside) && sameAliases(root, cached.aliases)) {
+                    stats.reused++;
                     return cached;
                 }
+                base = nearestBase(dirPath, `${dir}-${family}-`, git);
             }
         } catch {
             file = null;
         }
-        const graph = build();
+        stats.walked++;
+        const graph = await build(base);
         if (graph?.failed?.length > 0) {
             const which = config ? `${dir} (${config})` : dir;
             console.error(
@@ -2589,10 +2736,49 @@ function graphCache(root) {
         }
         if (graph && file) {
             mkdirSync(dirPath, { recursive: true });
-            writeFileSync(file, JSON.stringify(graph));
+            // the commit first, so nearestBase reads it without parsing the graph
+            writeFileSync(file, JSON.stringify({ commit: git(["rev-parse", "HEAD"]), ...graph }));
         }
         return graph;
     };
+    lookup.stats = stats;
+    return lookup;
+}
+
+/**
+ * The cached graph of a package to walk from: of the family's graphs, the one whose commit is the nearest
+ * ancestor of HEAD (the restored CI cache holds graphs of earlier master commits).
+ * @param dirPath the cache folder
+ * @param prefix `<dir>-<family>-`
+ * @param git runs git in the checkout
+ * @returns a file path or null
+ */
+export function nearestBase(dirPath, prefix, git) {
+    // a cold cache (a fresh CI runner) has no folder yet; throwing here once kept every graph from being saved
+    if (!existsSync(dirPath)) {
+        return null;
+    }
+    const files = readdirSync(dirPath).filter((n) => n.startsWith(prefix) && n.endsWith(".json"));
+    if (files.length === 0) {
+        return null;
+    }
+    const depth = new Map(
+        git(["rev-list", "--max-count=5000", "HEAD"])
+            .split("\n")
+            .map((c, i) => [c, i]),
+    );
+    let best = null;
+    for (const name of files) {
+        const head = Buffer.alloc(64);
+        const fd = openSync(join(dirPath, name), "r");
+        readSync(fd, head, 0, 64, 0);
+        closeSync(fd);
+        const i = depth.get(/^\{"commit":"([0-9a-f]{40})"/u.exec(head.toString("latin1"))?.[1]);
+        if (i !== undefined && (best === null || i < best.i)) {
+            best = { i, file: join(dirPath, name) };
+        }
+    }
+    return best?.file ?? null;
 }
 
 /**
@@ -2617,7 +2803,7 @@ export function graphCacheKey(root, dirs) {
 }
 
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
-const GRAPH_VERSION = 8;
+const GRAPH_VERSION = 10;
 
 const fileHash = (root, f) => {
     try {
@@ -2923,22 +3109,33 @@ function configFiles(root, dir) {
         .filter((f) => f && (/\/(vite|vitest|eslint)[^/]*\.config\.[^/]+$/u.test(f) || f.includes("/.storybook/")));
 }
 
-function graphChild(root, dir, config, on = false) {
+const execFileAsync = promisify(execFile);
+
+async function graphChild(root, dir, config, on = false, base = null) {
     if (!existsSync(join(root, dir, "package.json"))) {
         return null;
     }
     try {
-        const out = execFileSync(
+        const walk = execFileAsync(
             process.execPath,
-            [fileURLToPath(import.meta.url), "--root", root, "--graph", dir, ...(config ? ["--config", config] : [])],
+            [
+                fileURLToPath(import.meta.url),
+                "--root",
+                root,
+                "--graph",
+                dir,
+                ...(config ? ["--config", config] : []),
+                ...(base ? ["--reuse", base] : []),
+            ],
             {
                 cwd: root,
                 encoding: "utf8",
                 maxBuffer: 1 << 30,
-                stdio: ["ignore", "pipe", "pipe"],
                 env: on ? { ...process.env, GRAPHTY_FEATURES_ON: "1" } : process.env,
             },
         );
+        walk.child.stdin.end(); // the walk reads nothing from stdin
+        const { stdout: out } = await walk;
         return JSON.parse(out.trim().split("\n").at(-1));
     } catch (e) {
         const why = String(e.stderr ?? e.message)
@@ -2970,7 +3167,7 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
     }
     useNamesRoot(root);
     const packages = new Map([...graph.roots].filter(([, d]) => shards.some((s) => s.package === d)));
-    const all = graphs ?? buildGraphs(root, [...packages.values()], shards);
+    const all = graphs ?? (await buildGraphs(root, [...packages.values()], shards));
     const rules = loadRules(root);
     const sel = selectPackages({
         changed,
@@ -3124,7 +3321,9 @@ async function main(argv) {
     }
     if (arg("--graph")) {
         process.env.GRAPHTY_TEST_SLOTS = "0";
-        const json = JSON.stringify(await buildGraph(root, arg("--graph"), arg("--config") ?? null));
+        const json = JSON.stringify(
+            await buildGraph(root, arg("--graph"), arg("--config") ?? null, arg("--reuse") ?? null),
+        );
         // a pipe is written asynchronously: exiting before the write is done would cut the graph short
         process.stdout.write(`${json}\n`, () => process.exit(0));
         return;

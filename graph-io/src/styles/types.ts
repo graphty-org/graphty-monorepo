@@ -228,12 +228,19 @@ export interface NodeStyleValues {
     readonly labelPaddingY: number;
     /** Whether a node that grows to fit its label stays as wide as it is tall (a circle, a square). */
     readonly labelFitSquare: boolean;
+    /**
+     * A length a node that grows to fit its label rounds its padded label box up to a multiple of, each way, before its
+     * outline is fitted round it (Graphviz's `quantum`).
+     */
+    readonly labelFitQuantum: number;
     /** The shape. */
     readonly shape: StyleNodeShape;
     /**
      * A `polygon` node's corners, each as `x,y` relative to the node's center as fractions of its half width and half
      * height, y up, separated by spaces: `"0,1 1,-1 -1,-1"` is a triangle filling the box. A corner past 1 reaches
-     * outside the box; a node that grows to hold its label (`labelFit`) then grows as far as its corners reach.
+     * outside the box; a node that grows to hold its label (`labelFit`) then grows as far as its corners reach. A
+     * coordinate may add a length in the units of `width` after its fraction, kept whatever the node's size: `"-1+24"`
+     * is 24 in from the left side (Graphviz's synthetic-biology glyphs).
      */
     readonly shapePoints: string;
     /**
@@ -286,6 +293,11 @@ export interface NodeStyleValues {
      */
     readonly outerBorderOffset: number;
     /**
+     * How many such rings are drawn, each `outerBorderOffset` beyond the one before (Graphviz's `peripheries` less the
+     * node's own outline); absent, one.
+     */
+    readonly outerBorderCount: number;
+    /**
      * The color of a filled shape drawn beneath the node, `underlayPadding` beyond its box on every side (Cytoscape.js
      * `underlay-*`); drawn only with an `underlayOpacity` above 0.
      */
@@ -322,6 +334,15 @@ export interface NodeStyleValues {
     readonly labelRuns: string;
     /** The tooltip text. */
     readonly tooltip: string;
+    /**
+     * A second label drawn outside the node, beside it, in the label's font, size and color (Graphviz's `xlabel`).
+     * Unset `xlabelOffsetX` and `xlabelOffsetY`, it sits against the node's top left corner, outside it.
+     */
+    readonly xlabel: string;
+    /** How far right of the node's center the middle of `xlabel` is drawn (a length). */
+    readonly xlabelOffsetX: number;
+    /** How far down from the node's center the middle of `xlabel` is drawn (a length). */
+    readonly xlabelOffsetY: number;
     /** The label's font family, as the file names it. */
     readonly labelFont: string;
     /** The label's font weight. */
@@ -864,6 +885,12 @@ export interface EdgeStyleValues {
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
+    /**
+     * A second label drawn beside the line's middle, in the label's font, size and color (Graphviz's `xlabel` on an
+     * edge that also has a label). Unset a place of its own, up and left of the line's middle, its lower right corner
+     * on it.
+     */
+    readonly xlabel: string;
     /** The label text at the source end. */
     readonly sourceLabel: string;
     /** The label text at the target end. */
@@ -917,6 +944,11 @@ export interface EdgeStyleValues {
 export interface GraphStyleValues {
     /** The background color. */
     readonly background: StyleColor;
+    /**
+     * How far the whole drawing (nodes, edges and labels) is turned counterclockwise on screen, in degrees, about its
+     * middle: Graphviz's `rotate=90` and `landscape` turn it 90. Absent, it is upright.
+     */
+    readonly rotation: number;
 }
 
 /**

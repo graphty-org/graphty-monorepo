@@ -415,7 +415,7 @@ async function main(argv) {
     const graphs =
         cache && existsSync(cache)
             ? new Map(Object.entries(JSON.parse(readFileSync(cache, "utf8"))))
-            : buildGraphs(ROOT, [...packages.values()], SHARDS);
+            : await buildGraphs(ROOT, [...packages.values()], SHARDS);
     if (cache && !existsSync(cache)) {
         writeFileSync(cache, JSON.stringify(Object.fromEntries(graphs)));
     }

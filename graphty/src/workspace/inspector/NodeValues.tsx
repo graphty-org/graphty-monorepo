@@ -207,6 +207,14 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                             stat
                             name={run.label}
                             value={`${formatNumber(value)}, #${String(rank)} of ${formatNumber(run.result.measured.nodes)}`}
+                            // A reading a keyboard reader reaches by Tab, as every other row here:
+                            // it opens the run it comes from, as a Memberships row opens its group.
+                            onClick={() => {
+                                store.set({ inspected: { kind: "measure-row", id: run.id } });
+                                requestAnimationFrame(() => {
+                                    focusInspectorTitle();
+                                });
+                            }}
                         />
                     ))}
                 </ControlSection>

@@ -1355,7 +1355,20 @@ describe("verification in CI (ciGate)", () => {
         rebuild({ TEST_LEDGER_DIR: join(dir, "ledger-green") });
         const note = "[FLAKY] s1: p/c.test.ts > t failed and passed on the same inputs, so it does not fail the shard";
         const filed = [];
-        const answer = { data: { node: { checkRuns: { nodes: [{ annotations: { nodes: [{ message: note }] } }] } } } };
+        // the Checks job runs the quarantine's own tests: their fixture [FLAKY] line is not a real flake (#3392)
+        const fixture = "[FLAKY] graphty-1: graphty/src/a.test.tsx > A > opens failed and passed on the same inputs";
+        const answer = {
+            data: {
+                node: {
+                    checkRuns: {
+                        nodes: [
+                            { name: "Verify / Checks", annotations: { nodes: [{ message: fixture }] } },
+                            { name: "Verify / Test (s1)", annotations: { nodes: [{ message: note }] } },
+                        ],
+                    },
+                },
+            },
+        };
         const { c, calls } = ciCtx(
             [
                 releaseIdle,
@@ -1373,7 +1386,7 @@ describe("verification in CI (ciGate)", () => {
             const r = await ciGate(c, tip);
             assert.equal(r.code, 0, "a green run stays green");
             assert.equal(calls.filter((l) => l.startsWith("api graphql")).length, 1, "one GraphQL call");
-            assert.equal(filed.length, 1);
+            assert.equal(filed.length, 1, "only the test shard's flake, not the Checks job's fixture line");
             assert.match(filed[0], /newly intermittent/);
             assert.match(filed[0], new RegExp(`${tip} gf1`), "the landing is a suspect");
             const days = readdirSync(join(dir, "ledger-green/records"));

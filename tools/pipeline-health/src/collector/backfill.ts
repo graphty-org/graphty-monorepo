@@ -403,7 +403,13 @@ async function pullRequestsAndIssues(
     const [owner, name] = o.repo.split("/");
     for (const [query, vars] of [
         [PR_QUERY, { withOpen: false }],
-        [ISSUE_QUERY, { held: `repo:${o.repo} is:issue is:open in:title "Release held"` }],
+        [
+            ISSUE_QUERY,
+            {
+                held: `repo:${o.repo} is:issue is:open in:title "Release held"`,
+                nightly: `repo:${o.repo} is:issue is:open in:title "Nightly held on"`,
+            },
+        ],
     ] as const) {
         let cursor: string | null = null;
         for (let page = 0; page < 100; page++) {

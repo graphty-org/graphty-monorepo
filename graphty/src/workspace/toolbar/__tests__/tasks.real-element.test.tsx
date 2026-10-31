@@ -127,14 +127,15 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
         });
-        assert.isNotNull(screen.getByText(/^PageRank (added, running|finished)$/));
+        assert.isNotNull(screen.getByText(/^PageRank (added, running|finished: .+ ranks first, .+)$/));
         // Focus goes back to Analyze, not to the page.
         await waitFor(() => {
             assert.equal(document.activeElement, analyzeTool());
         });
 
         const runId = await finished(session, "pagerank");
-        await screen.findByText("PageRank finished");
+        // It names the node that ranks first.
+        await screen.findByText(/^PageRank finished: .+ ranks first, .+$/);
         // The run's suggested style landed as a layer bound to the run: it paints.
         await waitFor(() => {
             assert.isAbove(session.runs.bindings(runId).length, 0);

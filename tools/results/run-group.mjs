@@ -102,7 +102,7 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
         }
         return `gh workflow run base-check.yml --ref master -f base=${base} -f file='${f.file}' -f variant='${variant}' -f repeat=${repeat}`;
     };
-    return (d, { firstOutcome }) => {
+    return (d, { firstOutcome, unretried }) => {
         if (firstOutcome !== "failed" || d.flaky.length + d.excused.length + d.failing.length === 0) return d;
         const lines = [];
         const failing = [];
@@ -127,14 +127,16 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
                     `[FLAKY-UNRELATED] ${shard}: ${idOf(f)} failed and passed; this pull request did not touch it. Base check: ${check(f, 5)}`,
                 );
         }
+        // "every time" only when a retry ran: a failure that was not retried failed once (#5128)
+        const how = unretried ? `failed (${unretried})` : "failed every time";
         for (const f of d.failing) {
             const k = !touched(f) && known(f);
             if (k) warn(`[KNOWN] ${shard}: ${idOf(f)} fails the same way on master ${k.sha}, ${issue(k)}`);
-            else if (touched(f)) fail(f, `[FAIL] ${shard}: ${idOf(f)} failed every time`);
+            else if (touched(f)) fail(f, `[FAIL] ${shard}: ${idOf(f)} ${how}`);
             else {
                 // #3925: a failure this pull request did not cause must not block it; the base check (dispatched
                 // in the background) files `Failing on master`, and the full run with bisect and revert is the net
-                const text = `[UNRELATED] ${shard}: ${idOf(f)} failed every time; this pull request did not touch it. Base check: ${check(f, 1)}`;
+                const text = `[UNRELATED] ${shard}: ${idOf(f)} ${how}; this pull request did not touch it. Base check: ${check(f, 1)}`;
                 warn(text);
                 summary(`- ${text}`);
             }
@@ -549,12 +551,14 @@ function judgeRules({ root, env, plan, touchedPlan, shardName, family, variant, 
  * @param [o.root] the checkout
  * @param [o.env] the environment
  * @param [o.gh] `(args) => stdout`, the GitHub CLI
+ * @param [o.storeMs] `{ record, retry }`: each record POST's deadline and the waits between its tries (the
+ * client's RECORD_MS and RETRY_MS when absent; a test that stubs a store which never answers shortens them)
  * @returns the exit code
  */
 export async function runGroup(
     shardName,
     command = undefined,
-    { root = process.cwd(), env = process.env, gh = ghCli } = {},
+    { root = process.cwd(), env = process.env, gh = ghCli, storeMs = {} } = {},
 ) {
     const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
     const shard = SHARDS.find((s) => s.shard === shardName);
@@ -597,7 +601,7 @@ export async function runGroup(
     const endedAt = Date.now();
     try {
         const facts = { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt };
-        await record(shardName, shard, { ...facts, command, head, gh });
+        await record(shardName, shard, { ...facts, command, head, gh, storeMs });
     } catch (e) {
         // The store never changes the verdict: a record that cannot be built, sent or spooled is only a warning.
         console.log(`run-group: ${shardName}: no record (${e.message.split("\n")[0]}); the shard's result stands`);
@@ -677,7 +681,7 @@ export function runShape(env, selected) {
  *   `endedAt`, `command`, `head`, `gh`
  */
 async function record(shardName, shard, o) {
-    const { command, cmd, root, env, id, runId, code, resultFile, startedAt, endedAt, head, gh } = o;
+    const { command, cmd, root, env, id, runId, code, resultFile, startedAt, endedAt, head, gh, storeMs } = o;
     const shardKey = (shard && shardKeys(root)?.()(shard)) || `unknown-${randomUUID()}`;
     const result = readResult(resultFile);
     const facts = { id, head, code, result, startedAt, endedAt, runId };
@@ -688,7 +692,8 @@ async function record(shardName, shard, o) {
         dir: join(root, "test-results"),
     });
     const cfg = config(env, root);
-    const answers = await postRecords(cfg, recs, join(root, "test-results/results-spool"));
+    if (cfg && storeMs.retry) cfg.retryMs = storeMs.retry;
+    const answers = await postRecords(cfg, recs, join(root, "test-results/results-spool"), storeMs.record);
     await fileIssues(cfg, recs, answers, result.failing ?? [], gh, Date.now(), {
         onMaster: env.RESULTS_FILE_FAILING !== "0",
         base: Boolean(env.RESULTS_REPEAT),

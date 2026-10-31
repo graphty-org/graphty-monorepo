@@ -4,6 +4,10 @@
  * @module test/ai/llm-regression-gemini.test
  */
 
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { assert, describe, it } from "vitest";
 import { z } from "zod";
 
@@ -309,6 +313,20 @@ describe("GeminiTransport", () => {
             transport.summary(),
             /^, prompt tokens 11200 \(cached 5000\), output tokens 60, thinking tokens 240, flex 2\/2, caches 1 \(5000 tokens\), cost \$0\.\d{4}$/,
         );
+    });
+
+    it("appends each cost to the usage file as it is spent, so a run stopped mid-file still shows it", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "llm-usage-"));
+        const usageFile = join(dir, "usage.jsonl");
+        const transport = new GeminiTransport({ apiKey: "k", tier: "flex", fetch: fakeGemini().fetch, usageFile });
+        await transport.fetch(GENERATE, request());
+        await transport.fetch(GENERATE, request());
+        // no close(): the run was stopped before its API calls line
+        const lines = readFileSync(usageFile, "utf8").trim().split("\n");
+        assert.isAtLeast(lines.length, 2);
+        const filed = lines.reduce((sum, line) => sum + (JSON.parse(line) as { usd: number }).usd, 0);
+        assert.closeTo(filed, transport.usage.usd ?? 0, 1e-12);
+        rmSync(dir, { recursive: true, force: true });
     });
 
     it("doubles every price from 2027-01-01, and leaves the cost unknown for a model it has no price for", async () => {

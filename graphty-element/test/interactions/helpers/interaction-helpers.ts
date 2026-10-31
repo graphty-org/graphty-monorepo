@@ -230,17 +230,17 @@ export function getSceneRotation(graph: Graph): Vector3D {
         return { x: 0, y: 0, z: 0 };
     }
 
-    // For 2D mode, rotation is stored on the parent TransformNode
+    // For 2D mode, rotation is the 2D camera's roll
     if (graph.getViewMode() === "2d") {
-        // Access the parent property which holds the rotation
+        // The camera holds the roll
         const twoDController = controller as unknown as {
-            parent?: { rotation?: { x?: number; y?: number; z?: number } };
+            camera?: { rotation?: { x?: number; y?: number; z?: number } };
         };
-        const parentRotation = twoDController.parent?.rotation;
+        const cameraRotation = twoDController.camera?.rotation;
         return {
-            x: parentRotation?.x ?? 0,
-            y: parentRotation?.y ?? 0,
-            z: parentRotation?.z ?? 0,
+            x: cameraRotation?.x ?? 0,
+            y: cameraRotation?.y ?? 0,
+            z: cameraRotation?.z ?? 0,
         };
     }
 

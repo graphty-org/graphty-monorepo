@@ -37,13 +37,13 @@
 <!-- default -->
 <g id="node5" class="node">
 <title>default</title>
-<ellipse fill="none" stroke="black" cx="209.67" cy="-447" rx="46.47" ry="18"/>
-<text xml:space="preserve" text-anchor="middle" x="209.67" y="-442.32" font-family="Times,serif" font-size="14.00">default</text>
+<ellipse fill="none" stroke="black" cx="209.67" cy="-447" rx="36.51" ry="18"/>
+<text xml:space="preserve" text-anchor="middle" x="209.67" y="-441.95" font-family="Times,serif" font-size="14.00">default</text>
 </g>
 <!-- cap&#45;default -->
 <g id="node6" class="node">
 <title>cap&#45;default</title>
-<text xml:space="preserve" text-anchor="middle" x="209.67" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">default</text>
+<text xml:space="preserve" text-anchor="middle" x="209.67" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">default</text>
 </g>
 <!-- edge&#45;through&#45;node&#45;n -->
 <g id="node7" class="node">
@@ -63,7 +63,7 @@
 <!-- cap&#45;edge&#45;through&#45;node -->
 <g id="node10" class="node">
 <title>cap&#45;edge&#45;through&#45;node</title>
-<text xml:space="preserve" text-anchor="middle" x="583" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">outputorder=edgesfirst edge across a node</text>
+<text xml:space="preserve" text-anchor="middle" x="583" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">outputorder=edgesfirst edge across a node</text>
 </g>
 <!-- zorder -->
 <g id="node11" class="node">
@@ -78,7 +78,7 @@
 <!-- cap&#45;zorder -->
 <g id="node13" class="node">
 <title>cap&#45;zorder</title>
-<text xml:space="preserve" text-anchor="middle" x="956.33" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">outputorder=edgesfirst red then blue</text>
+<text xml:space="preserve" text-anchor="middle" x="956.33" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">outputorder=edgesfirst red then blue</text>
 </g>
 </g>
 </svg>

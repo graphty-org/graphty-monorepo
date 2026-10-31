@@ -679,6 +679,7 @@ export type Channel =
     | "node.outerBorderOpacity"
     | "node.outerBorderStyle"
     | "node.outerBorderOffset"
+    | "node.outerBorderCount"
     | "node.underlayColor"
     | "node.underlayOpacity"
     | "node.underlayPadding"
@@ -701,6 +702,7 @@ export type Channel =
     | "node.labelPaddingX"
     | "node.labelPaddingY"
     | "node.labelFitSquare"
+    | "node.labelFitQuantum"
     | "node.gradientColor"
     | "node.gradientDirection"
     | "node.gradientColors"
@@ -921,7 +923,17 @@ export type Channel =
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
     | "edge.labelShiftX"
-    | "edge.labelShiftY";
+    | "edge.labelShiftY"
+    | "node.xlabel"
+    | "node.xlabelStyle"
+    | "node.xlabelLocation"
+    | "node.xlabelOffsetX"
+    | "node.xlabelOffsetY"
+    | "edge.xlabel"
+    | "edge.xlabelStyle"
+    | "edge.xlabelLocation"
+    | "edge.xlabelOffsetX"
+    | "edge.xlabelOffsetY";
 
 /**
  * The values the "edge.style" channel accepts.

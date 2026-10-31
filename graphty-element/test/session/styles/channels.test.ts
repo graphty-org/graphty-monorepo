@@ -103,6 +103,7 @@ const DECLARED = [
     "node.outerBorderOpacity",
     "node.outerBorderStyle",
     "node.outerBorderOffset",
+    "node.outerBorderCount",
     "node.underlayColor",
     "node.underlayOpacity",
     "node.underlayPadding",
@@ -183,6 +184,7 @@ const DECLARED = [
     "node.labelPaddingX",
     "node.labelPaddingY",
     "node.labelFitSquare",
+    "node.labelFitQuantum",
     "node.gradientColor",
     "node.gradientDirection",
     "node.gradientColors",
@@ -346,6 +348,16 @@ const DECLARED = [
     "edge.shaders",
     "edge.taper",
     "edge.lift",
+    "node.xlabel",
+    "node.xlabelStyle",
+    "node.xlabelLocation",
+    "node.xlabelOffsetX",
+    "node.xlabelOffsetY",
+    "edge.xlabel",
+    "edge.xlabelStyle",
+    "edge.xlabelLocation",
+    "edge.xlabelOffsetX",
+    "edge.xlabelOffsetY",
 ];
 
 describe("the channel set", () => {
@@ -372,9 +384,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and seventy-two node channels and one hundred and forty-six edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 172);
-        assert.strictEqual(channelsFor("edge").length, 146);
+    it("splits into one hundred and seventy-nine node channels and one hundred and fifty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 179);
+        assert.strictEqual(channelsFor("edge").length, 151);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -607,6 +619,18 @@ describe("what a style editor needs to draw a row", () => {
         "node.label",
         "node.labelStyle",
         "node.tooltip",
+        // Unset, a node has no external label, and one that has sits at its corner or where the layout put it.
+        "node.xlabel",
+        "node.xlabelStyle",
+        "node.xlabelLocation",
+        "node.xlabelOffsetX",
+        "node.xlabelOffsetY",
+        // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
+        "edge.xlabel",
+        "edge.xlabelStyle",
+        "edge.xlabelLocation",
+        "edge.xlabelOffsetX",
+        "edge.xlabelOffsetY",
         "node.tooltipStyle",
         // Unset, a node is highlighted when it is selected and not otherwise.
         "node.halo",

@@ -15,6 +15,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
+import omit from "lodash/omit.js";
 
 import type { ShaderUse } from "./catalog/shaders";
 import type { Rgba } from "./catalog/types";
@@ -80,6 +81,20 @@ export const SELECTION_HALO_MESH = "graphty-selection-halo";
 
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
+
+/** The label fields an external label does not take from the label: what it says, where it sits, its switch. */
+export const XLABEL_UNSHARED = [
+    "enabled",
+    "text",
+    "textPath",
+    "location",
+    "attachOffset",
+    "offsetX",
+    "offsetY",
+    "shiftX",
+    "shiftY",
+    "position",
+] as const;
 
 /*
  * The halo's colour, size and opacity are NOT constants any more: they are
@@ -395,6 +410,18 @@ export class Node implements ModelUser {
 
     /** What the further texts on screen were drawn from, or undefined for none. See {@link syncShapeTexts}. */
     private drawnShapeTexts?: string;
+
+    /** The external label on screen (`xlabel`), drawn beside the node. */
+    xlabelLabel?: RichTextLabel;
+
+    /** What the external label on screen was drawn from, or undefined for none. See {@link syncXlabel}. */
+    private drawnXlabel?: string;
+
+    /** The resolved style the external label was last drawn from, kept so a new layout place can redraw it. */
+    private wantedXlabel?: NodeStyleConfig;
+
+    /** Where the layout placed the external label when it was drawn, right and down of the node's center. */
+    private drawnXlabelPlace?: readonly [number, number];
 
     /**
      * The tooltip on screen, and undefined whenever the pointer is not over this node.
@@ -754,9 +781,16 @@ export class Node implements ModelUser {
         // rebuilt for the new zoom, and whether a second framing came along to measure that one
         // decided the zoom: the same file drew two pictures. The cameras' fit padding covers the
         // few pixels.
-        const reach = typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
+        return (extent + this.sceneBorderReach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
+    }
 
-        return (extent + reach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
+    /**
+     * {@link Node.borderReach} without a border drawn in screen pixels (`border.screenWidth`),
+     * whose reach in the scene changes with every zoom: what framing and layout count.
+     * @returns The reach.
+     */
+    private get sceneBorderReach(): number {
+        return typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
     }
 
     /**
@@ -915,20 +949,27 @@ export class Node implements ModelUser {
      * Rebuild a border drawn in screen pixels when the camera now draws it at another width on
      * screen. Called by the update loop on a frame the camera moved; does nothing for a node
      * whose border is in scene units.
+     *
+     * The ring's reach is where this node's edges end, so the caller re-trims them when this
+     * answers true (#3532). A layout is not woken: it spaces nodes by `layoutRadius`,
+     * which leaves this border out.
+     * @returns Whether the border's reach changed.
      * @internal
      */
-    refreshScreenBorder(): void {
+    refreshScreenBorder(): boolean {
         const built = this.borderBuilt;
         if (typeof built?.scale !== "number" || this.mesh.isDisposed()) {
-            return;
+            return false;
         }
 
         if (this.screenScale(built.style) === built.scale) {
-            return;
+            return false;
         }
 
+        const before = this.borderReach;
         this.border?.dispose();
         this.syncBorder(built.meshKey, built.style);
+        return this.borderReach !== before;
     }
 
     /**
@@ -1038,6 +1079,7 @@ export class Node implements ModelUser {
             this.setMeshPosition(at.x, at.y, at.z ?? 0);
         }
 
+        this.syncXlabelPlace();
         this.syncOverlayPositions();
 
         this.context.getStatsManager().endMeasurement("Node.update");
@@ -1150,6 +1192,7 @@ export class Node implements ModelUser {
         this.overlay = null;
 
         this.label?.reattach();
+        this.xlabelLabel?.reattach();
     }
 
     /**
@@ -1189,6 +1232,35 @@ export class Node implements ModelUser {
 
         this.sessionPaint = paint;
         this.paintFrom(paint.meshKey, paint.style, paint.color);
+    }
+
+    /**
+     * Build this node's texts again when a font they draw in has just loaded (issue #3531): a
+     * label measured and drawn while its web font was loading shows the fallback face, and a node
+     * sized to its label (`shape.labelFit`) has the fallback's size.
+     * @param families - The families that loaded, as `fontFamilies` gives them.
+     * @returns True when anything was rebuilt.
+     * @internal
+     */
+    refreshFonts(families: ReadonlySet<string>): boolean {
+        const texts = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels];
+        if (this.disposed || !texts.some((text) => text?.usesFont(families) === true)) {
+            return false;
+        }
+
+        // Forget what they were drawn from, so the repaint builds them again and fits the node anew.
+        this.drawnLabelStyle = undefined;
+        this.drawnShapeTexts = undefined;
+        this.drawnXlabel = undefined;
+        this.fittedFor = null;
+        const tooltipShown = this.tooltip !== undefined;
+        this.updateStyle();
+        if (tooltipShown) {
+            this.hideTooltip();
+            this.showTooltip();
+        }
+
+        return true;
     }
 
     /**
@@ -1683,8 +1755,10 @@ export class Node implements ModelUser {
         // A layout that keeps nodes apart by their drawn size (`nodeGap`) has to look again;
         // the frame loop steps it while it is not settled.
         const engine = this.context.getLayoutManager().layoutEngine;
-        if (engine instanceof NGraphEngine) {
-            engine.wakeForResize();
+        // Once the frame loop has seen it settle it stops stepping it, so a woken layout is
+        // started again too; otherwise it stays unsettled and nothing ever pushes the nodes apart.
+        if (engine instanceof NGraphEngine && engine.wakeForResize()) {
+            this.context.getLayoutManager().running = true;
         }
 
         if (resizedSink) {
@@ -1967,6 +2041,9 @@ export class Node implements ModelUser {
         }
         this.shapeTextLabels = [];
         this.drawnShapeTexts = undefined;
+        this.xlabelLabel?.dispose();
+        this.xlabelLabel = undefined;
+        this.drawnXlabel = undefined;
 
         // A tooltip outlives no node: its plane is not parented to the node's mesh, so nothing
         // else would take it down and a hovered node that is then removed would leave its words
@@ -2286,12 +2363,33 @@ export class Node implements ModelUser {
      * `graph-root`, and an XR gesture scales that root -- so measuring in world space would
      * count the gesture in a value that is compared with layout coordinates and local scalings.
      *
-     * Read by a layout that keeps nodes apart by their drawn size
-     * (`ngraph`'s `nodeGap`). Measured once per mesh and scaling: a bounding-box read per node per
-     * layout step is the cost {@link Node.roundRadius} documents.
+     * Counts the border as drawn now, so a border in screen pixels makes it change with the zoom;
+     * a layout reads `layoutRadius` instead.
      * @returns The radius; the style's own size when the mesh has no bounds yet.
      */
     get drawnRadius(): number {
+        return this.surfaceRadius + this.borderReach;
+    }
+
+    /**
+     * {@link Node.drawnRadius} without a border drawn in screen pixels (`border.screenWidth`):
+     * the radius a layout spaces this node by (`nodeGap`). That border's reach in the scene
+     * changes with every zoom, so counting it made the spacing depend on the camera the layout
+     * ran under; the few pixels it adds are left to the gap (#3532).
+     * @returns The radius.
+     * @internal
+     */
+    get layoutRadius(): number {
+        return this.surfaceRadius + this.sceneBorderReach;
+    }
+
+    /**
+     * How far the node's drawn surface reaches from its centre at most, without its border.
+     * Measured once per mesh and scaling: a bounding-box read per node per layout step is the cost
+     * {@link Node.roundRadius} documents.
+     * @returns The radius; the style's own size when the mesh has no bounds yet.
+     */
+    private get surfaceRadius(): number {
         const own = this.mesh.scaling;
         const scale = Math.max(Math.abs(own.x), Math.abs(own.y), Math.abs(own.z));
         if (this.drawnRadiusMesh !== this.mesh || this.drawnRadiusScale !== scale || this.drawnRadiusValue <= 0) {
@@ -2304,9 +2402,7 @@ export class Node implements ModelUser {
 
         // A mesh whose bounds have not been computed yet answers zero. Falling back to the
         // style's own size keeps the answer roughly right until the mesh is measured.
-        const radius = this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
-
-        return radius + this.borderReach;
+        return this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
     }
 
     /**
@@ -2701,6 +2797,7 @@ export class Node implements ModelUser {
     private syncLabel(o: NodeStyleConfig, rebuild: boolean): void {
         // the further texts first: the label's own early return must not skip them
         this.syncShapeTexts(o, rebuild);
+        this.syncXlabel(o, rebuild);
         const wanted = drawnText(o.label);
         const text = wanted === undefined ? undefined : this.extractLabelText(wanted);
 
@@ -2717,6 +2814,75 @@ export class Node implements ModelUser {
         // reference somebody else can still write to is a comparison that silently starts
         // passing. Paid only when the label actually changes.
         this.drawnLabelStyle = wanted === undefined ? undefined : cloneDeep(wanted);
+    }
+
+    /**
+     * Bring the external label (`xlabel`) on screen into line with one resolved style: drawn in the label's look with
+     * the external label's own fields over it, against the node's top left corner outside it, or centered where the
+     * layout placed it (a Graphviz layout's `xlp`) when its style names no location. Rebuilt only when what it is
+     * drawn from changes, or the mesh it hangs from was replaced.
+     * @param o - The resolved style.
+     * @param rebuild - True when the node's mesh has just been replaced.
+     */
+    private syncXlabel(o: NodeStyleConfig, rebuild: boolean): void {
+        // its words switch it on, whichever way they were written
+        const own = o.xlabel;
+        const wanted =
+            own?.text === undefined || own.text === "" || own.enabled === false
+                ? undefined
+                : drawnText({ ...own, enabled: true });
+        this.wantedXlabel = wanted === undefined ? undefined : o;
+        const place = this.xlabelPlace(wanted);
+        const key = wanted === undefined ? undefined : JSON.stringify([o.label, wanted, place]);
+        if (!rebuild && key === this.drawnXlabel) {
+            return;
+        }
+
+        this.xlabelLabel?.dispose();
+        this.xlabelLabel = undefined;
+        this.drawnXlabel = key;
+        this.drawnXlabelPlace = place;
+        if (wanted === undefined) {
+            return;
+        }
+
+        // the label's look, less where it sits and what it says; the external label's own fields win
+        const look = omit(o.label ?? {}, XLABEL_UNSHARED);
+        const style = {
+            ...look,
+            location: place === undefined ? ("top-left" as const) : ("center" as const),
+            attachOffset: 0,
+            ...(place === undefined ? {} : { offsetX: place[0], offsetY: place[1] }),
+            ...wanted,
+        };
+        this.xlabelLabel = new RichTextLabel(this.mesh.getScene(), this.createLabelOptions(String(wanted.text), style));
+    }
+
+    /**
+     * Redraw the external label when the layout has placed it somewhere new. Cheap when nothing moved: the key compare.
+     * @internal
+     */
+    syncXlabelPlace(): void {
+        const o = this.wantedXlabel;
+        if (o === undefined || this.disposed) {
+            return;
+        }
+        const place = this.xlabelPlace(o.xlabel);
+        const drawn = this.drawnXlabelPlace;
+        if (place?.[0] !== drawn?.[0] || place?.[1] !== drawn?.[1]) {
+            this.syncXlabel(o, true);
+        }
+    }
+
+    /**
+     * Where the layout placed the external label, when its style names no place of its own.
+     * @param wanted - The external label's resolved block.
+     * @returns Right and down of the node's center, in scene units, or undefined.
+     */
+    private xlabelPlace(wanted: NodeStyleConfig["xlabel"]): readonly [number, number] | undefined {
+        return wanted === undefined || wanted.location !== undefined
+            ? undefined
+            : this.context.getLayoutManager().layoutEngine?.getNodeXlabelOffset(this);
     }
 
     /**

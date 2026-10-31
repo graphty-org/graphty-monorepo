@@ -2342,8 +2342,6 @@ defects, open:
   unturned (`label.text`, `label.lines` on all four records).
 - `quantum=0.5` (`dot-specimen-node-sizes-opacity-p4`): Graphviz rounds a node sized to its label up to a multiple
   of half an inch (`quantum-label`, `quantum-box`); graphty draws them unrounded (`node.width`, `node.height`).
-- `rotate=90`, `landscape=true`, `orientation=landscape` on the root graph (`dot-specimen-groups-p9` to `-p11`):
-  Graphviz turns the whole drawing a quarter turn; graphty draws it unturned (`frame.rotation`).
 - `ratio=2` (`dot-specimen-groups-p12`): Graphviz stretches the stored positions to twice as tall as wide; graphty
   keeps them (`node.position`, `node.width`, `node.height` on every node of the page).
 - The root graph's label is never drawn, plain or HTML-like (`stray.present` on `dot-specimen-groups-p4`, `-p5`,
@@ -4231,7 +4229,9 @@ in `lowered` with the reason:
   does not read): `dot-synth-edges-clusters@matched` label.offLine 21 -> 20 of 54.
 - `dot-synth-nodes` n_hsv2 -> n_pen5: the orthogonal route's last stretch into pen5 is shorter than the arrowhead,
   and the comparator measures the head across it (edge.arrowWidth 1 of 108).
-- A patterned (dashed or dotted) line keeps its straight line under a laid route.
+- A patterned (dashed or dotted) line keeps its straight line under a laid route. Fixed in round 5 (issue #3102): it
+  is laid along the route as separate pieces. A dashed or dotted line whose bends the file stores is still drawn as one
+  joined line with its dashes measured along the whole route, so the two cases space their dashes differently.
 - edge.width on `dot-real-crazy` (graphty 0.84 of Graphviz's width, against the fitted positions) is not a route or
   unit defect: graphty's Graphviz run spaces the nodes about 1.25 times wider than Graphviz's own drawing, in units of
   the line width, because the nodes graphty hands it are not the nodes Graphviz sized to their labels (node.width
@@ -4329,7 +4329,9 @@ Fixed in graph-io and graphty-element (edges and layouts):
 Still open:
 
 - A dashed or patterned line is drawn straight (PatternedLineMesh), so a curved dashed edge fails edge.curve, and a
-  patterned line keeps its straight line under a laid Graphviz route.
+  patterned line keeps its straight line under a laid Graphviz route. Fixed in round 5 (issue #3102): a piece-drawn
+  pattern is laid along its curve, bends, laid route or self-loop, and a click picks it along that route. A zigzag or
+  sinewave piece, or a dash, that spans a corner runs straight past it, so tight self-loops show small kinks.
 - graphty's vee is notched 0.6 of its length and reads as thin barbs where vis-network, Graphviz and Cytoscape.js draw
   a broad head; Cytoscape desktop's source heads are drawn about 23 percent small, Graphviz's box heads 25 percent
   large, vis-network's crow and inv_triangle 34 percent wide; graphty draws stacked heads as one.

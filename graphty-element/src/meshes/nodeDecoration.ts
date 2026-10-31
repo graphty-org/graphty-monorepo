@@ -5,7 +5,7 @@
  */
 import type { NodeStyleConfig } from "../config";
 import { toColorValue } from "../session/styles/channels";
-import { isPositive, type Point2, strokeLine } from "./shapeOutlines";
+import { isPositive, placePoint, type Point2, type ShapePoint, shapePointList, strokeLine } from "./shapeOutlines";
 
 /** One colored piece over a node's face. */
 export interface ColorPiece {
@@ -369,24 +369,16 @@ export function databaseRim(
 
 /**
  * Lists of points as `node.shapeParts` and `node.shapeLines` write them: `x,y` pairs separated by spaces, one list
- * after another separated by ";". A list with a pair that is not two finite numbers is dropped.
+ * after another separated by ";", each coordinate a fraction optionally followed by a signed length (`-1+24`). A list
+ * with a pair that is not two coordinates is dropped.
  * @param text - The lists.
- * @returns The lists, in the units they were written in.
+ * @returns The lists, each point its x fraction and length and its y fraction and length.
  */
-export function pointLists(text: string | undefined): Point2[][] {
+export function pointLists(text: string | undefined): ShapePoint[][] {
     return (text ?? "")
         .split(";")
-        .map((list) =>
-            list
-                .trim()
-                .split(/\s+/)
-                .filter((pair) => pair !== "")
-                .map((pair): Point2 => {
-                    const [x, y, extra] = pair.split(",").map(Number);
-                    return extra === undefined ? [x, y] : [Number.NaN, Number.NaN];
-                }),
-        )
-        .filter((list) => list.length > 0 && list.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y)));
+        .map((list) => shapePointList(list))
+        .filter((list) => list !== null);
 }
 
 /**
@@ -431,7 +423,8 @@ function linePieces(
 
 /**
  * The lines a flat node draws over itself (`shape.lines`), in its border's color, `shape.lineWidth` wide (else its
- * border's width), each list of points relative to the node's center as fractions of its half width and half height.
+ * border's width), each list of points relative to the node's center as fractions of its half width and half height,
+ * plus any lengths in the units of the style's lengths.
  * @param shape - The node's shape block.
  * @param border - The node's border.
  * @param width - The face's width.
@@ -453,7 +446,7 @@ export function shapeLinePieces(
     }
     return pointLists(shape?.lines).flatMap((list) =>
         linePieces(
-            list.map(([x, y]): Point2 => [(x * width) / 2, (y * height) / 2]),
+            list.map((p) => placePoint(p, width / 2, height / 2, scale)),
             line,
             color,
         ),
@@ -484,7 +477,7 @@ export function shapePartPieces(
     const parts = pointLists(shape?.parts)
         .filter((list) => list.length >= 3)
         .map((list) => {
-            const placed = list.map(([x, y]): Point2 => [(x * width) / 2, (y * height) / 2]);
+            const placed = list.map((p) => placePoint(p, width / 2, height / 2, scale));
             const area = placed.reduce((sum, [x0, y0], i) => {
                 const [x1, y1] = placed[(i + 1) % placed.length];
                 return sum + x0 * y1 - x1 * y0;

@@ -259,7 +259,10 @@ export const NodeStyle = z.strictObject({
             // node's center as fractions of its half width and half height, y up ("0,1 1,-1 -1,-1"
             // is a triangle). The outline is stretched so its farthest corners reach the node's
             // sides. A node that grows to hold its label (`labelFit`) grows by as far as its corners
-            // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it.
+            // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it. A coordinate may
+            // add a length in the units of `size` after its fraction, so a piece keeps its size whatever the
+            // node's: "-1+24" is 24 in from the left side, "0+6" 6 above the middle (here, in `parts` and in
+            // `lines`).
             points: z.string().optional(),
             // Whether a "polygon" node's corners are stretched about its center until the farthest
             // on each axis reach its sides (unset or true), or drawn exactly where they say, as
@@ -289,11 +292,13 @@ export const NodeStyle = z.strictObject({
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and
             // `labelPaddingY` above and below, in the units of `size`, decides the rest. With
-            // `labelFitSquare` it stays as wide as it is tall. Unset, the node is the size it states.
+            // `labelFitSquare` it stays as wide as it is tall. `labelFitQuantum` rounds the padded box up to a
+            // multiple of it each way before the outline is fitted. Unset, the node is the size it states.
             labelFit: NodeLabelFits.optional(),
             labelPaddingX: z.number().nonnegative().optional(),
             labelPaddingY: z.number().nonnegative().optional(),
             labelFitSquare: z.boolean().optional(),
+            labelFitQuantum: z.number().nonnegative().optional(),
             // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
             // URL. `type` stays the placeholder while it loads and the fallback when it fails
             // (design/rendering/node-models.md).
@@ -394,7 +399,8 @@ export const NodeStyle = z.strictObject({
     /**
      * A second ring drawn outside the border, `offset` beyond its outer edge (Cytoscape.js
      * `outline-*`): its color, its width and offset in the units of the border's width, its
-     * opacity and its line style. No width, or an opacity of 0, draws none. Unlike
+     * opacity and its line style. `count` (default 1, a fraction rounded down) draws that many rings, each `offset` beyond
+     * the one before (Graphviz's `peripheries`). No width, or an opacity of 0, draws none. Unlike
      * `effect.outline`, a highlight drawn over the node's rim, this is a ring of its own.
      */
     outerBorder: z
@@ -404,6 +410,7 @@ export const NodeStyle = z.strictObject({
             opacity: z.number().min(0).max(1).optional(),
             style: NodeBorderStyles.optional(),
             offset: z.number().optional(),
+            count: z.number().min(1).optional(),
         })
         .optional(),
     /**
@@ -581,6 +588,13 @@ export const NodeStyle = z.strictObject({
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),
+    /**
+     * A second label drawn outside the node, beside it (Graphviz's `xlabel`), switched on by its words. It is drawn
+     * in the label's look -- font, size, color, outline -- and any field set here wins over the label's. Unset
+     * `location`, it sits against the node's top left corner outside it (its own lower right corner on the node's
+     * box's upper left), or where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
+     */
+    xlabel: RichTextStyle.optional(),
     tooltip: RichTextStyle.prefault({
         location: "top-right",
         textColor: "#000000",

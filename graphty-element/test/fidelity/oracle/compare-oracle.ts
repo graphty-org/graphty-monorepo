@@ -425,7 +425,13 @@ function rounded<T>(v: T): T {
 }
 
 const cmp = compareIds;
-const norm = (s: string): string => s.replace(/\s+/g, " ").trim();
+// a zero-width space or joiner draws nothing: Cytoscape.js's SVG folds them out of "HSPA8:\u200bSubstrate" and graphty
+// draws the label as the file spells it (json-cyjs-sbgn-sciluna's complex captions, #5118), so both sides drop them
+const norm = (s: string): string =>
+    s
+        .replace(/[\u200b-\u200d\u2060\ufeff]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
 
 /** A font's class, as a reader tells faces apart at a glance. */
 export type FontClass = "sans-serif" | "serif" | "monospace" | "cursive" | "fantasy" | "system-ui";
@@ -798,10 +804,8 @@ function wordsDrawnNear(words: string, box: PBox | null, texts: readonly { words
         const [x, y] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
         return x >= box.x0 - slack && x <= box.x1 + slack && y >= box.y0 - slack && y <= box.y1 + slack;
     };
-    // a zero-width space or joiner draws nothing (json-cyjs-sbgn-sciluna's "EEF1A1:\u200bGTP")
-    const bare = (w: string): string => w.replace(/[\u200b-\u200d\ufeff]/g, "");
-    const theirs = new Set(texts.filter((t) => near(t.box)).flatMap((t) => bare(t.words).split(" ")));
-    const mine = bare(words)
+    const theirs = new Set(texts.filter((t) => near(t.box)).flatMap((t) => norm(t.words).split(" ")));
+    const mine = norm(words)
         .split(" ")
         .filter((w) => w !== "");
     return mine.length > 0 && mine.filter((w) => theirs.has(w)).length >= mine.length / 2;
@@ -3080,8 +3084,30 @@ export function lineAlign(t: PText): "start" | "middle" | "end" | null {
     return by.sort((a, b) => a[1] - b[1])[0][0];
 }
 
-/** How many lines a label is drawn on. */
-const lineCount = (t: PText): number => t.lines?.length ?? t.content.split("\n").filter((l) => l.trim() !== "").length;
+/** How much of the shorter of two texts' heights they share to be on one row. */
+const SAME_ROW = 0.7;
+
+/**
+ * How many lines a label is drawn on: its rows, so words drawn side by side as separate texts are one line however far
+ * apart they are (Graphviz's HTML table cells a and b on one row, a `<SUB>` run set a little lower than the words round
+ * it: dot-specimen-labels-p2 html-table, html-sub), and a text sharing less than `SAME_ROW` of its height with a row
+ * is a line of its own (a record's field set half a line down between another field's two lines: record-escapes).
+ * @param t - the label
+ * @returns the number of rows
+ */
+function lineCount(t: PText): number {
+    if (t.lines === undefined) {
+        return t.content.split("\n").filter((l) => l.trim() !== "").length;
+    }
+    const rows: PBox[] = [];
+    for (const b of [...t.lines].sort((p, q) => p.y0 - q.y0)) {
+        const shared = (r: PBox): number => Math.min(r.y1, b.y1) - Math.max(r.y0, b.y0);
+        if (!rows.some((r) => shared(r) >= SAME_ROW * Math.min(r.y1 - r.y0, b.y1 - b.y0))) {
+            rows.push(b);
+        }
+    }
+    return rows.length;
+}
 
 /**
  * Where a point lies along a polyline: the arc length to its nearest point, the line's length, and its signed distance

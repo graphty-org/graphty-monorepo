@@ -20,6 +20,10 @@ permissions:
     pull-requests: read
     issues: read
 
+env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+
 jobs:
     lint-pr:
         name: Lint PR Title

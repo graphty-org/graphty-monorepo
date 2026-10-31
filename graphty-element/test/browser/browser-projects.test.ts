@@ -125,9 +125,11 @@ describe("browserProjects", () => {
 
     it("lists the newest first", async () => {
         const session = (await threeInARow()).getSession();
+        // A save is stamped with Date.now(): the second one is stamped a millisecond after the first.
+        let now = Date.now();
+        override(Date, "now", () => now);
         const first = await browserProjects.save(session);
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 5));
+        now += 1;
         const second = await browserProjects.save(session);
         assert.deepStrictEqual(
             (await browserProjects.list()).map((stored) => stored.id),

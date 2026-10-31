@@ -328,14 +328,23 @@ function readVertex(get: Param, put: Put, at: At, place: Place | null = null): v
     readColor(get("lc"), "labelColor", null, put, at);
     readNumber(get("fos"), "labelSize", put, at);
     readFont(get("font"), put, at);
-    readLabelPosition(get, put, at);
+    const empty = shape === "none";
+    readLabelPosition(get, put, at, empty ? EMPTY_LABEL_SIZE : null);
     readLabelAngle(get("la"), put, at, place);
-    if (shape === "none") {
-        // an `empty` vertex's label is drawn white at size 1 on its center, whatever the line sets
-        // (`pajek-synth-vertices` `empty *`, `pajek-lin-rel4` v226 to v233)
-        for (const [property, value] of EMPTY_LABEL) {
-            put(property, value);
+    if (empty) {
+        // an `empty` vertex's label is drawn white at size 1 where the line does not say otherwise, in the place
+        // `lr` and `lphi` give as any label's (`pajek-synth-vertices` `empty *`: `fos 18`, `lc Yellow`, `lr 12 lphi
+        // 225` all drawn; `pajek-lin-rel4` v226 to v233)
+        if (get("fos") === null) {
+            put("labelSize", EMPTY_LABEL_SIZE);
         }
+        if (get("lc") === null) {
+            put("labelColor", "#ffffff");
+        }
+        // and has no size: Pajek draws its lines to its center, whatever x_fact and y_fact say (`pajek-lin-rel4`
+        // v228 -> v23, `pajek-synth-vertices` 6 -> 7); a sized box stops graphty's lines short of it
+        put("width", 0);
+        put("height", 0);
     }
 }
 
@@ -420,15 +429,8 @@ function readOutline(get: Param, put: Put, shape: StyleValue | null): void {
     put("shapePointsStretch", false);
 }
 
-/** How Pajek 6.02's SVG export draws an `empty` vertex's label. */
-const EMPTY_LABEL: readonly (readonly [string, StyleValue])[] = [
-    ["labelSize", 1],
-    ["labelColor", "#ffffff"],
-    ["labelPosition", "center"],
-    ["labelOffsetX", 0],
-    ["labelOffsetY", 0],
-    ["labelShiftX", 0],
-];
+/** The size Pajek 6.02's SVG export draws an `empty` vertex's label at when the line sets no `fos`. */
+const EMPTY_LABEL_SIZE = 1;
 
 /** A vertex's place in the file's own coordinates, 0..1 across and down. */
 type Place = readonly [x: number, y: number];
@@ -535,19 +537,20 @@ const NEAREST_SIDES: ReadonlyMap<string, string> = new Map([
  * the text at that point, its baseline through it (`text-anchor` start at y = the point), so the label's left edge is
  * at the point's x (`labelShiftX` 0.5) and its middle `PAJEK_BASELINE_TO_MIDDLE` of its size above the point's y
  * (`pajek-specimen-labels` `lr-*`, `lphi-*`; every corpus label). A vertex that sets none of `lr`, `lphi` and `fos`
- * is left to the default beneath, the same place at the default size.
+ * is left to the default beneath, the same place at the default size, unless its label's default size is another.
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param at - the sites
+ * @param ownSize - the label's size where `fos` is unset, when it is not Pajek's default (an `empty` vertex's), or null
  */
-function readLabelPosition(get: Param, put: Put, at: At): void {
+function readLabelPosition(get: Param, put: Put, at: At, ownSize: number | null = null): void {
     const [lr, lphi, fos] = [get("lr"), get("lphi"), get("fos")];
-    if (lr === null && lphi === null && fos === null) {
+    if (lr === null && lphi === null && fos === null && ownSize === null) {
         return;
     }
     const radius = lr === null ? PAJEK_LABEL_RADIUS : canonNumber(lr, at("labelPosition"));
     const angle = lphi === null ? PAJEK_LABEL_ANGLE : canonNumber(lphi, at("labelPosition"));
-    const size = fos === null ? PAJEK_LABEL_SIZE : canonNumber(fos, at("labelSize"));
+    const size = fos === null ? (ownSize ?? PAJEK_LABEL_SIZE) : canonNumber(fos, at("labelSize"));
     if (radius === null || angle === null || size === null) {
         return;
     }
@@ -1560,8 +1563,13 @@ function vertexSizeParams(get: Get, out: Map<string, Written>): void {
     ] as const;
     // a man's or a woman's box is the figure's, which reaches past the size its x_fact and y_fact give (readSize)
     const figure = PAJEK_FIGURES.get(String(get("shape")));
+    // an empty vertex has no size whatever it says (readVertex): none is written
+    const sized = get("shape") !== "none";
     for (const [property, key, per] of numbers) {
         const v = get(property);
+        if (!sized && key !== "fos") {
+            continue;
+        }
         let over = 1;
         if (figure !== undefined && key !== "fos") {
             over = figure[key === "x_fact" ? 0 : 1];

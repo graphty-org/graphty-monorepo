@@ -45,7 +45,9 @@ import {
     releaseAttempt,
     releaseTags,
     runnerFlags,
+    screenshotReview,
     runnerUse,
+    waitsOnConcurrency,
     type StressCursorRun,
     STRESS_WEEKS,
     stressQuiet,
@@ -67,6 +69,7 @@ import {
     type GhJob,
     type GhRun,
     releaseMode,
+    type GqlHoldIssue,
     type GqlIssue,
     type GqlPr,
     type PrRun,
@@ -553,7 +556,8 @@ async function withStages(c: Cycle, item: PullRequestItem): Promise<PullRequestI
 
 /**
  * Runner use against the limits (4.3), counted in jobs of every unfinished run. Runs at the end of the GitHub parts,
- * after the pull requests part, so a run whose pull request is no longer open is left out (isGhostRun); when that part
+ * after the pull requests part, so a run whose pull request is no longer open is left out (isGhostRun), as is a run waiting on its own
+ * concurrency group (waitsOnConcurrency); when that part
  * failed, every unfinished run counts.
  */
 async function runners(c: Cycle, xs: Collected[], elapsed: number) {
@@ -561,7 +565,10 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
     const ghost = (x: Collected) => !!prs && x.repo === c.d.repo && isGhostRun(x.run, prs, prs.length < OPEN_PAGE);
     const open = xs.filter((x) => x.run.status !== "completed" && !ghost(x));
     const jobs = open.flatMap((x) => x.jobs ?? []);
-    const noJobs = open.filter((x) => !x.jobs?.length).map((x) => x.run);
+    const unfinished = (repo: string) => open.filter((x) => x.repo === repo).map((x) => x.run);
+    const noJobs = open
+        .filter((x) => !x.jobs?.length && !waitsOnConcurrency(x.run, unfinished(x.repo)))
+        .map((x) => x.run);
     const use = runnerUse(jobs, noJobs, c.now);
     const { saturated, unassigned } = runnerFlags(use, c.d.limits.linux_windows);
     const since = Number((await c.cursor("unassigned-since")) ?? 0);
@@ -571,6 +578,8 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
     c.o("ci.jobs_running", use.running.linux_windows);
     c.o("ci.running_macos", use.running.macos);
     c.o("ci.jobs_queued", use.queued);
+    // Only the jobs waiting for a runner, by the not-assigned flag's own rule: the runners page's count and gate.
+    c.o("ci.jobs_waiting_runner", use.queuedOver2);
     c.o("ci.longest_queued_ms", use.longestQueuedMs);
     c.o("ci.saturated_ms", saturated ? elapsed : 0);
     c.o("ci.unassigned_ms", unassigned ? c.now - start : 0);
@@ -578,12 +587,13 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
         at: c.now,
         running: use.running.linux_windows,
         queued: use.queued,
+        queuedOver2: use.queuedOver2,
         saturated,
         longestQueuedMs: use.longestQueuedMs,
     };
     if (c.d.slices) {
         // What slices cost other work (early-capture.md, plan step 6): 0 whenever no slice job holds a runner.
-        const cost = contention(open, c.d.slices.cfg.workflow, saturated, elapsed / MIN);
+        const cost = contention(open, c.d.slices.cfg.workflow, saturated, elapsed / MIN, c.now);
         c.o("slices.contended_min", cost.contendedMin);
         c.o("slices.queue_wait_min", cost.queueWaitMin);
     }
@@ -724,7 +734,20 @@ async function storeQuarantine(c: Cycle, read: () => Promise<QuarantineEntry[]>)
     await c.setJson("quarantine", (await read()).map(quarantineEntry));
 }
 
-/** Issues updated since the cursor, and the open "Release held" issues (their age is a hold's age). */
+/** The oldest open "Release held" issue's creation time (0 for none); records the nightly screenshot-review wait. */
+function readHolds(c: Cycle, held: (GqlIssue | null)[], nightly: (GqlHoldIssue | null)[]): number {
+    let heldSince = 0;
+    for (const i of held)
+        if (i?.title.startsWith("Release held") && i.state === "OPEN")
+            heldSince = Math.min(heldSince || Infinity, Date.parse(i.createdAt));
+    // The held nightly waiting only on the owner's screenshot review (section 13's reminder).
+    const review = screenshotReview(nightly);
+    c.o("release.review_wait_ms", review ? c.now - review.since : 0);
+    c.o("release.review_issue", review?.issue ?? 0);
+    return heldSince;
+}
+
+/** Issues updated since the cursor, the open "Release held" issues (their age is a hold's age), the nightly hold. */
 async function issues(c: Cycle, gh: GitHub): Promise<number> {
     const [owner, name] = c.d.repo.split("/");
     const since = Date.parse((await c.cursor("issues")) ?? iso(c.now - DAY));
@@ -732,19 +755,18 @@ async function issues(c: Cycle, gh: GitHub): Promise<number> {
     let heldSince = 0;
     for (let page = 0; page < 20; page++) {
         type Page = { nodes: GqlIssue[]; pageInfo: { hasNextPage: boolean; endCursor: string } };
-        const data: { repository: { recent: Page }; held: { nodes: (GqlIssue | null)[] } } = await gh.graphql(
-            ISSUE_QUERY,
-            {
-                owner,
-                name,
-                cursor,
-                held: `repo:${c.d.repo} is:issue is:open in:title "Release held"`,
-            },
-        );
-        if (page === 0)
-            for (const i of data.held.nodes)
-                if (i?.title.startsWith("Release held") && i.state === "OPEN")
-                    heldSince = Math.min(heldSince || Infinity, Date.parse(i.createdAt));
+        const data: {
+            repository: { recent: Page };
+            held: { nodes: (GqlIssue | null)[] };
+            nightly?: { nodes: (GqlHoldIssue | null)[] };
+        } = await gh.graphql(ISSUE_QUERY, {
+            owner,
+            name,
+            cursor,
+            held: `repo:${c.d.repo} is:issue is:open in:title "Release held"`,
+            nightly: `repo:${c.d.repo} is:issue is:open in:title "Nightly held on"`,
+        });
+        if (page === 0) heldSince = readHolds(c, data.held.nodes, data.nightly?.nodes ?? []);
         const recent = data.repository.recent;
         const newer = recent.nodes.filter((i) => Date.parse(i.updatedAt) >= since - 5 * MIN);
         for (const i of newer) c.items.push(toIssueItem(i, c.d.repo));
@@ -834,7 +856,36 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
     c.o("release.hold_open_ms", Number.isFinite(holdSince) ? c.now - holdSince : 0);
     c.o("release.train_skipped", trainSkipped(attempts, runs) ? 1 : 0);
     c.o("master.full_run_failed", candidate?.ciFailed ? 1 : 0);
+    // Since the newest scheduled slot started (the release scheduler dispatches mode full every 6 h). With none in
+    // the 12 runs (a dead scheduler while agents dispatch restarts), look back 100 runs, so the age is not that of
+    // the oldest restart. Section 13 pages on it.
+    const slot = await newestSlot(gh, repo, runs);
+    if (slot) c.o("release.since_slot_ms", c.now - Date.parse(slot.created_at));
+    await releaseWorkflows(c, gh, runs);
 
+    // Untested master age: the oldest master commit after the newest tested candidate.
+    if (candidate) {
+        const cmp = await gh.rest<{ commits: CompareCommit[] }>(`repos/${repo}/compare/${candidate.sha}...master`);
+        const oldest = oldestUntested(cmp?.commits ?? []);
+        c.o("master.untested_age_ms", oldest === undefined ? 0 : c.now - oldest);
+    }
+    if (newest) await recordSource(c.d.store, "release", newest.at, { ok: true });
+}
+
+/** The newest scheduled (mode full) release run, looking back 100 runs when the newest 12 hold none. */
+async function newestSlot(gh: GitHub, repo: string, runs: GhRun[]): Promise<GhRun | undefined> {
+    const full = (rs: GhRun[]) => rs.find((r) => releaseMode(r.display_title) === "full");
+    const slot = full(runs);
+    if (slot || !runs.length) return slot;
+    const more =
+        (await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/release.yml/runs?per_page=100`))?.workflow_runs ??
+        runs;
+    return full(more) ?? more.at(-1);
+}
+
+/** Each release workflow's failure streak, and how many are failing. */
+async function releaseWorkflows(c: Cycle, gh: GitHub, runs: GhRun[]) {
+    const repo = c.d.repo;
     let failing = 0;
     let maxInRow = 0;
     const wfs: WorkflowState[] = [];
@@ -855,14 +906,6 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
     await c.setJson("release-workflows", wfs);
     c.o("release.workflows_failing", failing);
     c.o("release.max_failed_in_row", maxInRow);
-
-    // Untested master age: the oldest master commit after the newest tested candidate.
-    if (candidate) {
-        const cmp = await gh.rest<{ commits: CompareCommit[] }>(`repos/${repo}/compare/${candidate.sha}...master`);
-        const oldest = oldestUntested(cmp?.commits ?? []);
-        c.o("master.untested_age_ms", oldest === undefined ? 0 : c.now - oldest);
-    }
-    if (newest) await recordSource(c.d.store, "release", newest.at, { ok: true });
 }
 
 /**
@@ -896,9 +939,6 @@ async function channels(c: Cycle, gh: GitHub) {
             ...(refs.production ? { production: refs.production.target.oid } : {}),
         },
     };
-    // A nightly promotion is channel/nightly moving to another commit.
-    if (prev?.refs.nightly && snap.refs.nightly && prev.refs.nightly !== snap.refs.nightly)
-        c.o("release.nightly_promotions", 1);
     await c.setJson("channels", snap);
 }
 
@@ -1164,12 +1204,19 @@ async function captureMetrics(c: Cycle, body: StoryCaptures) {
     await recordSource(c.d.store, "story-slices", c.now, { ok: true });
 }
 
-/** Every GitHub part of one cycle; the collector source is OK when the runs, pull requests and issues were. */
+/** The source of the GitHub parts other than the runs read. */
+const PARTS = "collector-parts";
+
+/**
+ * Every GitHub part of one cycle. The collector source is OK when the runs were read: its age is how long the
+ * dashboard has been blind (data.collector pages on it), and its error is the runs read's. The other parts are the
+ * collector-parts source, OK when the pull requests, runners and issues were: one of them failing is agent work and
+ * never pages.
+ */
 async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: boolean) {
     const d = c.d;
-    let ok = true;
     let collected: Collected[] | undefined;
-    ok &&= await c.part("github", "collector", async () => {
+    const ok = await c.part("github", "collector", async () => {
         const repos = await activeRepos(c, gh);
         const masterList = (
             (
@@ -1196,26 +1243,26 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         (await missing("non-gating")) ||
         (await missing("ci-jobs"))
     )
-        await c.part("repo files", "collector", () => repoFiles(c, gh));
+        await c.part("repo files", PARTS, () => repoFiles(c, gh));
     const readQuarantine = d.readQuarantine;
     if (readQuarantine) await c.part("quarantine", undefined, () => storeQuarantine(c, readQuarantine));
-    ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
+    let parts = await c.part("pull requests", PARTS, () => pullRequests(c, gh));
     const xs = collected;
-    if (xs) ok = (await c.part("runners", "collector", () => runners(c, xs, elapsed))) && ok;
+    if (xs) parts = (await c.part("runners", PARTS, () => runners(c, xs, elapsed))) && parts;
     let heldSince = 0;
     const readIssues = async () => {
         heldSince = await issues(c, gh);
     };
-    ok = (await c.part("issues", "collector", readIssues)) && ok;
+    parts = (await c.part("issues", PARTS, readIssues)) && parts;
     await c.part("releases", "release", () => releases(c, gh, heldSince));
     await c.part("channels", undefined, () => channels(c, gh));
     const open = c.openPrs;
     if (open)
-        await c.part("flaky", "collector", async () => {
+        await c.part("flaky", PARTS, async () => {
             for (const [metric, value] of Object.entries(await flakyMembers(d.store, gh, d.repo, open, c.now)))
                 c.o(metric, value);
         });
-    await c.part("jobs", "collector", async () => {
+    await c.part("jobs", PARTS, async () => {
         const { list, obs: o } = await jobMembers(d.store, gh, d.repo, c.now);
         await c.setJson("chronic-jobs", list);
         for (const [metric, value] of Object.entries(o)) c.o(metric, value);
@@ -1231,6 +1278,7 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
     if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
     const partial = c.skipped.join("; ").slice(0, 300);
     if (ok) await recordSource(d.store, "collector", d.now, { ok: true, ...(partial ? { partial } : {}) });
+    if (parts) await recordSource(d.store, PARTS, d.now, { ok: true });
 }
 
 export async function collect(d: Deps): Promise<CycleReport> {

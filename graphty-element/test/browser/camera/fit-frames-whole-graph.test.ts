@@ -34,14 +34,6 @@ const SHAPES = { wide: ring(40, 25), tall: ring(15, 40) };
 const WIDTH = 640;
 const HEIGHT = 480;
 
-/**
- * Let the element's own render loop draw a few frames.
- */
-async function frames(): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 200));
-}
-
 describe("fitToGraph frames the whole graph", () => {
     let container: HTMLDivElement;
     let element: Graphty;
@@ -53,7 +45,7 @@ describe("fitToGraph frames the whole graph", () => {
         document.body.appendChild(container);
         element = document.createElement("graphty-element");
         container.appendChild(element);
-        await frames();
+        await element.waitForStableFrame();
     });
 
     afterEach(() => {
@@ -76,10 +68,10 @@ describe("fitToGraph frames the whole graph", () => {
                 await element.graph.zoomToNodes("n0");
                 await element.graph.zoomStep("in");
                 await element.graph.zoomStep("in");
-                await frames();
+                await element.waitForStableFrame();
 
                 await element.applyCameraView("fitToGraph");
-                await frames();
+                await element.waitForStableFrame();
 
                 let left = Infinity;
                 let right = -Infinity;

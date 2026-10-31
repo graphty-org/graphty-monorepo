@@ -36,6 +36,7 @@ import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
+import { MINIMUM_PAINT_BATCH, minimumWorkPerFrame } from "./minimumWork";
 import { attachPendingWork, PendingWork } from "./PendingWork";
 import type { StatsManager } from "./StatsManager";
 import type { NodePaint, StylePainter } from "./StylePainter";
@@ -164,6 +165,7 @@ export function framingBox(nodes: Iterable<Node>, edges: Iterable<Edge>): Framin
     for (const edge of edges) {
         if (edge.isRenderVisible()) {
             growForLabel(box, edge.label?.labelMesh);
+            growForLabel(box, edge.xlabelLabel?.labelMesh);
             growForLabel(box, edge.arrowHeadText?.labelMesh);
             growForLabel(box, edge.arrowTailText?.labelMesh);
         }
@@ -374,6 +376,9 @@ export class UpdateManager implements Manager {
     /** The picture counter at the last frame drawn while nothing was pending; -1 before one. */
     private finishedEpoch = -1;
 
+    /** How many meshes the scene held when {@link UpdateManager.finishedEpoch} was taken. */
+    private finishedMeshCount = -1;
+
     /**
      * Whether the frame most recently DRAWN drew the finished picture: one was drawn while nothing
      * was pending, and nothing has changed the picture since (the counter has not moved).
@@ -383,7 +388,15 @@ export class UpdateManager implements Manager {
      * @returns True when the frame on screen was drawn at the current picture counter.
      */
     private get drawnFrameIsFinished(): boolean {
-        return this.finishedEpoch === this.pending.epoch;
+        // The mesh count as well as the counter: Babylon announces a new mesh a timer AFTER it is
+        // built (`Scene.addMesh` defers `onNewMeshAddedObservable` with `setTimeout`), so a wait
+        // asked for in that gap -- a tooltip the pointer just brought up -- found the counter
+        // unmoved and resolved on the frame from before the mesh (issue #5139). A removal is
+        // announced at once and moves the counter, so a count that only grew cannot be missed.
+        return (
+            this.finishedEpoch === this.pending.epoch &&
+            this.finishedMeshCount === this.graphContext.getScene().meshes.length
+        );
     }
 
     /**
@@ -412,6 +425,10 @@ export class UpdateManager implements Manager {
 
     /** Watches the engine for a new canvas size; see {@link UpdateManager.viewMoved}. */
     private resizeWatcher: Nullable<Observer<AbstractEngine>> = null;
+
+    /** Watch the scene for meshes built or taken down; see {@link UpdateManager.watchFrames}. */
+    private meshAddedWatcher: Nullable<Observer<AbstractMesh>> = null;
+    private meshRemovedWatcher: Nullable<Observer<AbstractMesh>> = null;
 
     /**
      * Creates a new update manager
@@ -514,6 +531,14 @@ export class UpdateManager implements Manager {
         this.resizeWatcher = scene.getEngine().onResizeObservable.add(() => {
             this.viewMoved();
         });
+        // A mesh built or taken down changes the picture wherever it happens -- in a pass, or
+        // outside one, as a tooltip the pointer brings up does (issue #3287) -- so the frame drawn
+        // before it is not the final one. A new mesh's shader is then waited for as well.
+        const pictureChanged = (): void => {
+            this.pending.changed();
+        };
+        this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(pictureChanged);
+        this.meshRemovedWatcher = scene.onMeshRemovedObservable.add(pictureChanged);
         this.lendShaderRepaint();
     }
 
@@ -534,6 +559,8 @@ export class UpdateManager implements Manager {
         scene.onAfterRenderObservable.remove(this.drawWatcher);
         scene.onBeforeDrawPhaseObservable.remove(this.drawPhaseWatcher);
         scene.getEngine().onResizeObservable.remove(this.resizeWatcher);
+        scene.onNewMeshAddedObservable.remove(this.meshAddedWatcher);
+        scene.onMeshRemovedObservable.remove(this.meshRemovedWatcher);
     }
 
     /**
@@ -902,6 +929,10 @@ export class UpdateManager implements Manager {
         // own announcement then finds the key unchanged and rebuilds nothing -- so a cap stayed
         // opaque, and a node drew another node's shape, for good (issue #440). What is pending
         // stays pending, and the frame after the pass announces draws all of it.
+        if (painter?.hasPending !== true) {
+            this.paintBatchesDone();
+        }
+
         if (painter === undefined || !painter.hasPending || painter.isPainting) {
             return;
         }
@@ -922,6 +953,23 @@ export class UpdateManager implements Manager {
         // Every element the pass moved has now left its old source mesh, so a mesh this left
         // with no instances is a look nothing on screen has any more.
         this.graphContext.getMeshCache().prune();
+
+        // Batches left for later frames are a token in the record of pending work, held until a
+        // frame applies the last of them (issue #4218): not left to the painter's flags staying up.
+        if (painter.hasPending) {
+            this.paintBatches ??= this.pending.begin("style", "a style repaint is still being applied in batches");
+        } else {
+            this.paintBatchesDone();
+        }
+    }
+
+    /** The token held while a repaint's batches remain; see {@link UpdateManager.syncStyles}. */
+    private paintBatches: (() => void) | null = null;
+
+    /** Release the token held while a repaint's batches remain, when one is held. */
+    private paintBatchesDone(): void {
+        this.paintBatches?.();
+        this.paintBatches = null;
     }
 
     /**
@@ -934,7 +982,7 @@ export class UpdateManager implements Manager {
         this.forceEdgeWalk();
 
         do {
-            for (const index of painter.takeEdges(EDGE_PAINT_BATCH)) {
+            for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
                 const edge = this.dataManager.edgesByIndex[index];
                 const paint = edge === undefined ? null : painter.edgePaint(index);
 
@@ -954,7 +1002,7 @@ export class UpdateManager implements Manager {
     private takeNodeBatch(painter: StylePainter, pending: ReadonlyMap<number, Node>): [Node, NodePaint][] {
         const painted: [Node, NodePaint][] = [];
 
-        for (const index of painter.takeNodes(NODE_PAINT_BATCH)) {
+        for (const index of painter.takeNodes(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : NODE_PAINT_BATCH)) {
             const node = pending.get(index);
             const paint = node === undefined ? null : painter.nodePaint(index);
 
@@ -1250,6 +1298,13 @@ export class UpdateManager implements Manager {
     picturesLoading: (() => boolean) | null = null;
 
     /**
+     * Called once a pass, after the nodes have moved and been sized: a file's annotation arrow that ends at a node
+     * stops at that node's outline as it is drawn now (issue #5231). Null when nothing needs it.
+     * @internal
+     */
+    fitAnnotations: (() => void) | null = null;
+
+    /**
      * Whether an operation is queued or running, so the graph is about to change. Null when nothing queues
      * operations. Kept for code that set it, and asked as one `wait` entry of {@link UpdateManager.pending}; new
      * work enters that record itself.
@@ -1532,6 +1587,7 @@ export class UpdateManager implements Manager {
         }
 
         this.finishedEpoch = this.pending.epoch;
+        this.finishedMeshCount = this.graphContext.getScene().meshes.length;
         this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
         this.wakeOwedWaiters();
     }
@@ -1582,6 +1638,7 @@ export class UpdateManager implements Manager {
             }
         }
         this.refreshScreenBorders();
+        this.fitAnnotations?.();
 
         // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
         // this frame rather than on the next one.
@@ -1683,7 +1740,9 @@ export class UpdateManager implements Manager {
             // A pass the render loop runs keeps to the frame budget. One pumped by hand states no
             // frame time (`Graph.update()` with no argument), so it has no frame to keep short and
             // applies the whole repaint, as a caller drawing one frame to read the result expects.
-            this.syncStyles(frameMs > 0 ? STYLE_FRAME_BUDGET_MS : Number.POSITIVE_INFINITY);
+            // In the minimum-work mode a frame applies one batch of each kind and leaves the rest.
+            const budget = minimumWorkPerFrame() ? 0 : STYLE_FRAME_BUDGET_MS;
+            this.syncStyles(frameMs > 0 ? budget : Number.POSITIVE_INFINITY);
         });
     }
 
@@ -1813,9 +1872,10 @@ export class UpdateManager implements Manager {
         const { layoutEngine } = this.layoutManager;
         const simulation = layoutEngine instanceof SimulationLayoutEngine;
         const accelerated = simulation && layoutEngine.isAccelerated;
-        const rounds = accelerated
-            ? 1
-            : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
+        const rounds =
+            accelerated || minimumWorkPerFrame()
+                ? 1
+                : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
         const started = rounds > 1 ? performance.now() : 0;
         const budget = Math.min(frameMs / 2, LAYOUT_FRAME_BUDGET_MS);
 
@@ -2521,9 +2581,28 @@ export class UpdateManager implements Manager {
             return;
         }
 
+        const resized = new Set<Node>();
         for (const node of this.dataManager.nodes.values()) {
-            node.refreshScreenBorder();
+            if (node.refreshScreenBorder()) {
+                resized.add(node);
+            }
         }
+
+        if (resized.size === 0) {
+            return;
+        }
+
+        // An edge ends at its node's border, so a ring rebuilt wider or narrower moves the edge's
+        // ends (#3532). Only the edges of the nodes whose ring changed, and only on a zoom that
+        // crossed one of the ring's 1/16-doubling steps.
+        for (const edge of this.dataManager.edges.values()) {
+            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
+                edge.invalidatePositionCache();
+            }
+        }
+
+        this.forceEdgeWalk();
+        this.updateEdges();
     }
 
     /**

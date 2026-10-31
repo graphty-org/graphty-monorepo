@@ -177,6 +177,35 @@ describe("a node's outer border", () => {
         assert.strictEqual(material.emissiveColor.toHexString().toLowerCase(), "#ff0000");
     });
 
+    test("draws count rings, each the offset and a width beyond the one before", async () => {
+        const reachOf = async (count: number): Promise<number> => {
+            graph?.dispose();
+            container?.remove();
+            await oneEdge(
+                {},
+                {
+                    "node.borderWidth": 0.1,
+                    "node.outerBorderWidth": 0.2,
+                    "node.outerBorderOffset": 0.1,
+                    "node.outerBorderCount": count,
+                },
+            );
+            assert(graph);
+            const ring = (graph.getDataManager().nodes.get("A") as unknown as { outerBorder: AbstractMesh | null })
+                .outerBorder;
+            assert(ring, "the node draws its outer rings");
+            ring.computeWorldMatrix(true);
+            const box = ring.getBoundingInfo().boundingBox;
+            return box.maximumWorld.x - box.centerWorld.x;
+        };
+        const one = await reachOf(1);
+        const two = await reachOf(2);
+        const three = await reachOf(3);
+        assert.isAbove(two, one);
+        // every further ring reaches out by the same step
+        assert.closeTo(three - two, two - one, 1e-3);
+    });
+
     test("draws none without a width", async () => {
         await oneEdge({}, { "node.outerBorderColor": "#ff0000" });
         assert(graph);

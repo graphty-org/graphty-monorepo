@@ -19,6 +19,7 @@ import {
     getPlan,
     getQuarantine,
     getReleaseState,
+    lastSeenFor,
     trackedIssues,
     trendFor,
 } from "./queries.js";
@@ -41,6 +42,8 @@ const MASTER_KINDS = {
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
     "deploy-pages.yml": "site",
+    // the nightly site job release.yml calls (and a hand-dispatched redeploy): its channel move only (#5135)
+    "nightly-site.yml": "nightly-site",
     // the rolling screenshot slices (design/visual-testing/early-capture.md): story captures only
     "story-slices.yml": "slice",
 };
@@ -48,6 +51,7 @@ const MASTER_KINDS = {
 const NO_TESTS = {
     deploy: "a site repository writes only durations",
     site: "deploy-pages.yml writes only its site and durations",
+    "nightly-site": "nightly-site.yml writes only its channel move and durations",
     master: "a push to master runs ci.yml as a build only, with no tests",
     slice: "story-slices.yml writes only story captures",
 };
@@ -392,9 +396,15 @@ async function postDurations(body, who, db, nowMs) {
         r.ms,
         r.conclusion,
     ]);
-    if (!values.length) return { stored: 0, kind: who.kind, trend: [] };
+    if (!values.length) return { stored: 0, kind: who.kind, trend: [], lastSeen: {} };
     await db.batch(inserts(db, "duration", columns, values));
-    return { stored: values.length, kind: who.kind, trend: await trendFor(db, who.kind, rows, body.budgets, nowMs) };
+    const workflows = [...new Set(rows.map((r) => r.workflow))];
+    return {
+        stored: values.length,
+        kind: who.kind,
+        trend: await trendFor(db, who.kind, rows, body.budgets, nowMs),
+        lastSeen: await lastSeenFor(db, who.kind, workflows, nowMs),
+    };
 }
 
 // A test shard's duration history (tools/vitest-time-budget.mjs). Any credential reads; only master's own runs
@@ -488,9 +498,11 @@ const SHA256 = /^[0-9a-f]{64}$/;
 // of the site asset and channel.json, one row per run: a re-run of the site job (which re-packs channel.json, so
 // its sha256 changes) replaces that run's hashes, so promote.yml compares against what is hung now. It keeps the
 // row's time: a re-run never makes an older promotion the newest nightly.
-// Only master's own release.yml writes it; age:nightly (GET /v1/release-state) counts from the newest row.
+// Only master's own release.yml writes it, through the nightly-site.yml it calls (whose token names that file: #5135,
+// every record was refused until then); age:nightly (GET /v1/release-state) counts from the newest row.
 async function postChannelMove(body, who, db, nowMs) {
-    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
+    const release = who.kind === "full" && String(who.claims.job_workflow_ref).includes("/release.yml@");
+    if (!release && who.kind !== "nightly-site") {
         refuse(403, "only master's own release.yml records a channel move");
     }
     if (body?.channel !== "nightly") refuse(400, "channel must be nightly");
@@ -521,6 +533,26 @@ async function postChannelMove(body, who, db, nowMs) {
         .bind(body.channel, body.sha, nowMs, body.versionCommit ?? null, body.siteSha256, body.channelSha256, runId)
         .run();
     return { stored: true };
+}
+
+// What promote.yml checks a nightly's assets and verdict against (`?sha=<sha>`, the tested commit of a site-<sha>
+// release): the newest nightly channel move of that commit, with the sha256 of site.tar.zst and channel.json its
+// site job hung, and the commit's latest verdict. No move recorded: 404, and the promotion refuses.
+async function getSite(query, _who, db) {
+    const sha = query.get("sha") ?? "";
+    if (!SHA.test(sha)) refuse(400, "sha must be a full commit id");
+    const move = await db
+        .prepare(
+            "SELECT version_commit AS versionCommit, site_sha256 AS siteSha256, channel_sha256 AS channelSha256, at AS movedAt FROM channel_move WHERE channel = 'nightly' AND sha = ? ORDER BY at DESC LIMIT 1",
+        )
+        .bind(sha)
+        .first();
+    if (!move) refuse(404, `no nightly channel move of ${sha}`);
+    const verdict = await db
+        .prepare("SELECT state FROM verdict WHERE sha = ? ORDER BY at DESC LIMIT 1")
+        .bind(sha)
+        .first();
+    return { sha, ...move, verdict: verdict?.state ?? null };
 }
 
 // The held nightly candidate (channels-pipeline.md section 3): release.yml's verdict sets it on a deciding run that
@@ -759,6 +791,7 @@ const ROUTES = {
     "GET /v1/quarantine": getQuarantine,
     "GET /v1/candidate": getCandidate,
     "GET /v1/release-state": getReleaseState,
+    "GET /v1/site": getSite,
     "GET /v1/failures": getFailures,
     "GET /v1/durations/medians": getMedians,
     "GET /v1/story-captures": getStoryCaptures,

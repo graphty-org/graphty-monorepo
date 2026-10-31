@@ -45,7 +45,8 @@ import { type LazyShaderHost, lendSceneShaders } from "../shaders/chunk";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
-import { trackOnScene } from "./PendingWork";
+import { minimumWorkPerFrame } from "./minimumWork";
+import { pendingWorkOf, trackOnScene } from "./PendingWork";
 import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, ShaderGuard } from "./ShaderGuard";
 
 /**
@@ -690,6 +691,9 @@ export class RenderManager implements Manager {
     private frameHolds = 0;
     /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
     private lastFrameFence: WebGLSync | null = null;
+    /** Flips every tick in the minimum-work test mode; see {@link RenderManager.minimumWorkSkips}. */
+    private minimumWorkTick = false;
+
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
     /**
@@ -1034,8 +1038,9 @@ export class RenderManager implements Manager {
                 return;
             }
 
-            // Loops at half rate (the frame guard): every other tick, skipped as a GPU wait is.
-            if (this.shaderGuard.skipTick()) {
+            // Loops at half rate (the frame guard): every other tick, skipped as a GPU wait is. The
+            // minimum-work test mode skips every other tick the same way (issue #4218).
+            if (this.shaderGuard.skipTick() || this.minimumWorkSkips()) {
                 this.skippedMs += this.engine.getDeltaTime();
                 this.workEndedAt = performance.now();
                 return;
@@ -1335,10 +1340,26 @@ export class RenderManager implements Manager {
      *
      * For a change the loop cannot see by itself: one that moves no node, queues no style work,
      * leaves the camera where it is and announces no event. A graph drawing every frame (the
-     * default) needs none of this.
+     * default) needs none of this to draw it, but the frame on screen is no longer the final one:
+     * every caller is saying the picture changed, so it is entered in the graph's record of
+     * pending work and `waitForStableFrame()` waits for a frame that draws it (issue #3287).
      */
     requestFrame(): void {
         this.drawOwed = true;
+        pendingWorkOf(this.scene)?.changed();
+    }
+
+    /**
+     * Whether the minimum-work test mode skips this tick: every other one, as a GPU wait does.
+     * @returns True to skip it.
+     */
+    private minimumWorkSkips(): boolean {
+        if (!minimumWorkPerFrame()) {
+            return false;
+        }
+
+        this.minimumWorkTick = !this.minimumWorkTick;
+        return this.minimumWorkTick;
     }
 
     /** See {@link setPixelRatio}. */

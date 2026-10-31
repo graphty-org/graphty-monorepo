@@ -128,9 +128,9 @@ describe("the Graph place", () => {
         renderPlace(await sessionWithGraph());
         const name = screen.getByText("Les Miserables");
         await userEvent.hover(name);
-        // Past the theme's 1000 ms open delay: a whole name has no tooltip.
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 1300));
+        // A name drawn whole mounts no tooltip at all (EllipsizedName), so whole-ness is the condition:
+        // a wait for a tooltip that never opens would only end at the hang guard.
+        assert.isAtMost(name.scrollWidth, name.clientWidth, "the name is drawn whole");
         assert.isNull(screen.queryByRole("tooltip"));
         await userEvent.unhover(name);
 

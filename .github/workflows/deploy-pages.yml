@@ -31,6 +31,8 @@ on:
                 required: true
 
 env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
     RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
     SHA: ${{ inputs.sha || github.event.workflow_run.head_sha }}
 

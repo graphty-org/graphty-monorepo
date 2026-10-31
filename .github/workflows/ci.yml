@@ -1343,9 +1343,13 @@ jobs:
             # Build unified documentation on every run that has a Docs job (a pull request only on a docs input,
             # the Build job's "Plan the optional jobs"), so one that breaks the docs (a dead link included:
             # VitePress fails the build on one) fails here rather than on master. The docs and both gh-pages builds are uploaded on every run because the
-            # "Links" job checks every link to graphty.app against the site they assemble into.
+            # "Links" job checks every link to graphty.app against the site they assemble into. A pull request's
+            # site is never published or link-checked, so it builds without the API sidebars (DOCS_API_SIDEBARS,
+            # docs/.vitepress/config.ts; every page and the dead-link check stay) and uploads nothing.
             - name: Build docs
               run: npm run docs:build
+              env:
+                  DOCS_API_SIDEBARS: ${{ github.event_name == 'pull_request' && 'off' || 'on' }}
 
             - name: Build algorithms gh-pages
               run: pnpm exec nx run algorithms:build:gh-pages --exclude-task-dependencies
@@ -1355,6 +1359,7 @@ jobs:
 
             # Upload documentation artifacts (deploy-pages publishes them; the Links job checks them)
             - name: Upload unified docs
+              if: github.event_name != 'pull_request'
               uses: actions/upload-artifact@v7
               with:
                   name: build-docs
@@ -1362,6 +1367,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload algorithms gh-pages
+              if: github.event_name != 'pull_request'
               uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-algorithms
@@ -1369,6 +1375,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload layout gh-pages
+              if: github.event_name != 'pull_request'
               uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-layout

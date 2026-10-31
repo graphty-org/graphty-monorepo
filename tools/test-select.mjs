@@ -43,9 +43,20 @@
 
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+    appendFileSync,
+    closeSync,
+    existsSync,
+    mkdirSync,
+    openSync,
+    readdirSync,
+    readFileSync,
+    readSync,
+    statSync,
+    writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, posix, relative, resolve } from "node:path";
+import { basename, dirname, join, posix, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
@@ -2009,9 +2020,11 @@ const CODE = /\.[cm]?[jt]sx?$|\.vue$|\.svelte$/u;
  * @param root the checkout
  * @param pkg the package directory
  * @param config a config file (relative to the package) or null for the default
- * @returns `{ package, config, projects, imports, opaque }`, paths repo-relative
+ * @param reuseFrom a cached graph of this package and config from an earlier commit, or null: the files the change
+ *   since that commit cannot have touched keep their edges from it and are not transformed again
+ * @returns `{ package, config, projects, imports, opaque, raw, reused }`, paths repo-relative
  */
-async function buildGraph(root, pkg, config) {
+async function buildGraph(root, pkg, config, reuseFrom = null) {
     const dir = join(root, pkg);
     const { createVitest } = await import(
         pathToFileURL(createRequire(join(dir, "package.json")).resolve("vitest/node"))
@@ -2022,6 +2035,7 @@ async function buildGraph(root, pkg, config) {
     const imports = {};
     const projects = {};
     const failed = [];
+    const configDeps = [];
     const ctx = {
         walked: new Set(),
         imports,
@@ -2032,6 +2046,9 @@ async function buildGraph(root, pkg, config) {
         aliases: {},
         viaAlias: new Set(),
         blind: new Set(),
+        raw: {},
+        reuse: reuseFrom ? reusableEdges(root, JSON.parse(readFileSync(reuseFrom, "utf8"))) : null,
+        reused: 0,
     };
     try {
         const walk = (project, file) => walkFile(project, file, ctx);
@@ -2049,11 +2066,17 @@ async function buildGraph(root, pkg, config) {
                 await walk(project, s);
             }
         }
+        // the files the configs load (the configs, and helpers such as graphty's vite.aliases.ts): a change to one
+        // can change every edge, so the next walk from this graph starts over (reusableEdges)
+        for (const project of vitest.projects) {
+            configDeps.push(...(project.vite.config.configFileDependencies ?? []));
+        }
     } finally {
         await vitest.close();
     }
     return {
         package: pkg,
+        configDeps: [...new Set(configDeps.map(rel))].sort(),
         config,
         projects,
         imports,
@@ -2062,6 +2085,8 @@ async function buildGraph(root, pkg, config) {
         aliases: ctx.aliases,
         aliased: [...ctx.viaAlias].map(rel).sort(),
         blind: [...ctx.blind].sort(),
+        raw: ctx.raw,
+        reused: ctx.reused,
     };
 }
 
@@ -2081,7 +2106,7 @@ async function walkFile(project, file, ctx) {
     ctx.walked.add(key);
     let deps = new Set();
     if (CODE.test(file)) {
-        deps = await edgesOf(project, file, ctx);
+        deps = await codeEdges(project, file, ctx);
     } else if (STYLE.test(file)) {
         deps = styleEdges(file);
     }
@@ -2090,6 +2115,82 @@ async function walkFile(project, file, ctx) {
     for (const d of deps) {
         await walkFile(project, d, ctx);
     }
+}
+
+/**
+ * A code file's own edges (before throughSource): the ones kept from the earlier graph when the change cannot have
+ * touched the file, else Vite's. Each is kept in `raw`, grouped by the projects that gave the same edges, so the
+ * next walk can reuse it; a file the walk could not transform is not kept.
+ * @param project the Vitest project whose Vite server transforms the file
+ * @param file an absolute path
+ * @param ctx shared state of the run
+ * @returns Set of absolute paths
+ */
+async function codeEdges(project, file, ctx) {
+    const rel = ctx.rel(file);
+    const hit = ctx.reuse?.get(rel)?.find(([, names]) => names.includes(project.name));
+    if (hit) {
+        ctx.reused++;
+    }
+    const deps = hit ? new Set(hit[0].map((f) => join(ctx.root, f))) : await edgesOf(project, file, ctx);
+    if (!ctx.blind.has(rel)) {
+        const list = [...deps].map(ctx.rel);
+        const groups = (ctx.raw[rel] ??= []);
+        const same = groups.find(([d]) => d.join("\0") === list.join("\0"));
+        if (same) {
+            same[1].push(project.name);
+        } else {
+            groups.push([list, [project.name]]);
+        }
+    }
+    return deps;
+}
+
+/** A changed file outside the walk's code that can change how every file transforms or resolves: walk it all. */
+const WALK_INPUT =
+    /(^|\/)(package\.json|pnpm-lock\.yaml|tsconfig[^/]*\.json)$|(^|\/)(vite|vitest)[^/]*\.config\.[^/]+$|\/\.storybook\/|^tools\/test-select/u;
+
+/**
+ * The files of an earlier graph whose edges still hold: tracked, unchanged since its commit, and not an importer
+ * of a file added or deleted since (a file whose text names the file's stem, or its folder for an index file, or
+ * that globs). Edges depend only on the file's text and its resolution, so this gives the same graph as a full
+ * walk.
+ * @param root the checkout
+ * @param base the earlier graph (`commit`, `raw`)
+ * @returns Map(repo-relative file -> its `raw` groups), or null when the change since touched a walk input or a
+ *   file the configs load
+ */
+export function reusableEdges(root, base) {
+    const git = (...a) => execFileSync("git", a, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
+    const lines = (t) => t.split("\n").filter(Boolean);
+    let diff;
+    try {
+        diff = lines(git("diff", "--name-status", "--no-renames", base.commit, "--")).map((l) => l.split("\t"));
+    } catch {
+        return null; // no commit recorded, or not in this clone
+    }
+    const added = lines(git("ls-files", "--others", "--exclude-standard"));
+    const touched = [...diff.map(([, f]) => f), ...added];
+    const configDeps = new Set(base.configDeps);
+    if (!base.raw || !base.configDeps || touched.some((f) => WALK_INPUT.test(f) || configDeps.has(f))) {
+        return null;
+    }
+    const moved = [...diff.filter(([s]) => s !== "M").map(([, f]) => f), ...added];
+    const stems = moved.map((f) => {
+        const name = basename(f).replace(/\.[^.]*$/u, "");
+        return name === "index" ? basename(dirname(f)) : name;
+    });
+    const names = (text) =>
+        stems.length > 0 && (text.includes("import.meta.glob") || stems.some((s) => text.includes(s)));
+    const tracked = new Set(lines(git("ls-files")));
+    const skip = new Set(touched);
+    const keep = new Map();
+    for (const [file, groups] of Object.entries(base.raw)) {
+        if (tracked.has(file) && !skip.has(file) && !names(safeRead(join(root, file)))) {
+            keep.set(file, groups);
+        }
+    }
+    return keep;
 }
 
 /**
@@ -2561,7 +2662,7 @@ export async function buildGraphs(root, dirs, shards) {
             dir,
             Promise.all(
                 [...(configs.size > 0 ? configs : [null])].map((config) =>
-                    cache(dir, config, () => graphChild(root, dir, config, on), on ? "features-on" : ""),
+                    cache(dir, config, (base) => graphChild(root, dir, config, on, base), on ? "features-on" : ""),
                 ),
             ),
         );
@@ -2577,7 +2678,7 @@ export async function buildGraphs(root, dirs, shards) {
  * package nobody changed is not walked again. A package with uncommitted changes is always walked.
  * @param root the checkout
  * @returns `async (dir, config, build, variant) => graph`, `variant` "features-on" for a graph with the On projects;
- *   `build` returns a graph or a promise of one
+ *   `build(base)` returns a graph or a promise of one, `base` the cached graph file to walk from, or null
  */
 function graphCache(root) {
     const git = (args) =>
@@ -2595,22 +2696,26 @@ function graphCache(root) {
     const rulesHash = createHash("sha256").update(readFileSync(RULES)).digest("hex");
     return async (dir, config, build, variant = "") => {
         let file = null;
+        let base = null;
         try {
             if (dirPath && git(["status", "--porcelain", "--", dir]) === "") {
                 const tree = git(["rev-parse", `HEAD:${dir}`]);
-                const key = createHash("sha256")
-                    .update([GRAPH_VERSION, rulesHash, tree, config, variant].join("\0"))
-                    .digest("hex");
-                file = join(dirPath, `${dir}-${key.slice(0, 16)}.json`);
+                // the family: graphs of this package any commit's walk could start from
+                const family = createHash("sha256")
+                    .update([GRAPH_VERSION, rulesHash, config, variant].join("\0"))
+                    .digest("hex")
+                    .slice(0, 8);
+                file = join(dirPath, `${dir}-${family}-${tree.slice(0, 16)}.json`);
                 const cached = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
                 if (cached && sameOutside(root, cached.outside) && sameAliases(root, cached.aliases)) {
                     return cached;
                 }
+                base = nearestBase(dirPath, `${dir}-${family}-`, git);
             }
         } catch {
             file = null;
         }
-        const graph = await build();
+        const graph = await build(base);
         if (graph?.failed?.length > 0) {
             const which = config ? `${dir} (${config})` : dir;
             console.error(
@@ -2624,10 +2729,43 @@ function graphCache(root) {
         }
         if (graph && file) {
             mkdirSync(dirPath, { recursive: true });
-            writeFileSync(file, JSON.stringify(graph));
+            // the commit first, so nearestBase reads it without parsing the graph
+            writeFileSync(file, JSON.stringify({ commit: git(["rev-parse", "HEAD"]), ...graph }));
         }
         return graph;
     };
+}
+
+/**
+ * The cached graph of a package to walk from: of the family's graphs, the one whose commit is the nearest
+ * ancestor of HEAD (the restored CI cache holds graphs of earlier master commits).
+ * @param dirPath the cache folder
+ * @param prefix `<dir>-<family>-`
+ * @param git runs git in the checkout
+ * @returns a file path or null
+ */
+function nearestBase(dirPath, prefix, git) {
+    const files = readdirSync(dirPath).filter((n) => n.startsWith(prefix) && n.endsWith(".json"));
+    if (files.length === 0) {
+        return null;
+    }
+    const depth = new Map(
+        git(["rev-list", "--max-count=5000", "HEAD"])
+            .split("\n")
+            .map((c, i) => [c, i]),
+    );
+    let best = null;
+    for (const name of files) {
+        const head = Buffer.alloc(64);
+        const fd = openSync(join(dirPath, name), "r");
+        readSync(fd, head, 0, 64, 0);
+        closeSync(fd);
+        const i = depth.get(/^\{"commit":"([0-9a-f]{40})"/u.exec(head.toString("latin1"))?.[1]);
+        if (i !== undefined && (best === null || i < best.i)) {
+            best = { i, file: join(dirPath, name) };
+        }
+    }
+    return best?.file ?? null;
 }
 
 /**
@@ -2652,7 +2790,7 @@ export function graphCacheKey(root, dirs) {
 }
 
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
-const GRAPH_VERSION = 8;
+const GRAPH_VERSION = 10;
 
 const fileHash = (root, f) => {
     try {
@@ -2960,14 +3098,22 @@ function configFiles(root, dir) {
 
 const execFileAsync = promisify(execFile);
 
-async function graphChild(root, dir, config, on = false) {
+async function graphChild(root, dir, config, on = false, base = null) {
     if (!existsSync(join(root, dir, "package.json"))) {
         return null;
     }
     try {
         const walk = execFileAsync(
             process.execPath,
-            [fileURLToPath(import.meta.url), "--root", root, "--graph", dir, ...(config ? ["--config", config] : [])],
+            [
+                fileURLToPath(import.meta.url),
+                "--root",
+                root,
+                "--graph",
+                dir,
+                ...(config ? ["--config", config] : []),
+                ...(base ? ["--reuse", base] : []),
+            ],
             {
                 cwd: root,
                 encoding: "utf8",
@@ -3162,7 +3308,9 @@ async function main(argv) {
     }
     if (arg("--graph")) {
         process.env.GRAPHTY_TEST_SLOTS = "0";
-        const json = JSON.stringify(await buildGraph(root, arg("--graph"), arg("--config") ?? null));
+        const json = JSON.stringify(
+            await buildGraph(root, arg("--graph"), arg("--config") ?? null, arg("--reuse") ?? null),
+        );
         // a pipe is written asynchronously: exiting before the write is done would cut the graph short
         process.stdout.write(`${json}\n`, () => process.exit(0));
         return;

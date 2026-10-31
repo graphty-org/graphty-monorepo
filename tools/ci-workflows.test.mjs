@@ -1715,6 +1715,12 @@ describe("ci.yml", () => {
             /if: steps.plan.outputs.full == 'true' && steps.reuse-build.outputs.artifacts-run == ''\n\s+run: pnpm exec nx run-many -t build/,
         );
         assert.match(job(ci, "docs"), /name: build-docs\n/);
+        // only a pull request's docs leave out the API sidebars and upload nothing; master's site keeps both
+        assert.match(
+            job(ci, "docs"),
+            /DOCS_API_SIDEBARS: \$\{\{ github.event_name == 'pull_request' && 'off' \|\| 'on' \}\}\n/,
+        );
+        assert.match(job(ci, "docs"), /- name: Upload unified docs\n\s+if: github.event_name != 'pull_request'\n/);
         assert.match(job(ci, "build"), /name: build-storybook-element\n/);
         assert.match(job(ci, "build"), /\n {8}needs: run-cap\n {8}runs-on:/, "build runs on master too");
         for (const name of ["lint", "checks", "docs"]) {

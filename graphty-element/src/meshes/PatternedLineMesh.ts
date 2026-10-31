@@ -69,6 +69,20 @@ export function patternElementPeriod(meshWidth: number): number {
 }
 
 /**
+ * The most pieces one patterned line draws (issue #4257). Past it the pieces spread further apart
+ * rather than multiply, so a huge or hostile length (a far-off bend in a file, a node flung away
+ * by the physics) cannot allocate without bound, and the line still reads as its pattern.
+ *
+ * Why 65536: the densest piece a default line draws is a dot of the default width (8, so 0.2 in
+ * world units, one every 0.3), which reaches the cap only on an edge about 19,600 world units long;
+ * a width-1 dotted line reaches it at about 2,450 and a zigzag or sine wave (one piece every 0.75)
+ * at about 49,000. The built-in layouts lay graphs out a few hundred units across at their default
+ * scales, so every realistic edge stays under the cap and draws exactly as before. A line at the cap
+ * shown whole on even an 8K screen puts its pieces under a pixel apart, below what a reader sees.
+ */
+const MAX_PATTERN_PIECES = 65536;
+
+/**
  * Number of meshes a discrete pattern needs to cover a line of the given length.
  *
  * The layout this counts for: the first element's left edge sits exactly on the start of
@@ -78,8 +92,9 @@ export function patternElementPeriod(meshWidth: number): number {
  * elements squeezed onto it would touch or overlap and draw a solid line (`pajek-synth-lines`
  * arc 2 -> 3, Pajek's 5 px dash on the 6 px of line between the source and the arrowhead).
  *
- * The count is unbounded by design: it follows the spacing rule, so a longer edge gets more
- * elements. A caller that needs a ceiling sets `line.patternCount`, which overrides the rule.
+ * The count follows the spacing rule, so a longer edge gets more elements, up to
+ * {@link MAX_PATTERN_PIECES}; past that the elements spread further apart. A length that is not
+ * finite gets one. A caller that wants fewer sets `line.patternCount`, which overrides the rule.
  * @param lineLength - Length of the line in world units, ALREADY trimmed for the node surface and the arrowhead by Edge.transformArrowCap
  * @param meshWidth - Rendered length of one pattern element along the line, in world units
  * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
@@ -90,7 +105,12 @@ export function discreteMeshCount(lineLength: number, meshWidth: number, pattern
     // An explicit count is the caller's decision and overrides the spacing rule entirely, so the
     // elements are spread evenly over the edge whatever its length or the line's width.
     if (patternCount !== undefined) {
-        return Math.max(2, Math.floor(patternCount));
+        return Math.min(MAX_PATTERN_PIECES, Math.max(2, Math.floor(patternCount)));
+    }
+
+    // no length to spread elements over: one, rather than an unbounded count (issue #4257)
+    if (!Number.isFinite(lineLength)) {
+        return 1;
     }
 
     // Space available between the first element's right edge and the last element's left
@@ -109,7 +129,8 @@ export function discreteMeshCount(lineLength: number, meshWidth: number, pattern
     // inside dynamicLength. Solving for K gives the line below.
     const numInterior = Math.floor((dynamicLength - minSpacing) / period);
 
-    return 2 + Math.max(0, numInterior);
+    // a zero element width makes the period 0 and the count infinite
+    return Math.min(MAX_PATTERN_PIECES, 2 + Math.max(0, Number.isNaN(numInterior) ? 0 : numInterior));
 }
 
 /**
@@ -331,7 +352,7 @@ export class PatternedLineMesh {
         const lastIndex = this.elements.length - 1;
 
         // Calculate how much of the last segment should be visible
-        const fullSegmentsLength = lastIndex * PatternedLineMesh.SEGMENT_LENGTH;
+        const fullSegmentsLength = lastIndex * this.pieceStep(lineLength);
         const remainingLength = Math.max(0, lineLength - fullSegmentsLength);
 
         // If remainder is nearly full segment (>0.74), don't clip
@@ -381,13 +402,16 @@ export class PatternedLineMesh {
      * @returns The route's length.
      */
     private lay(route: readonly Vector3[]): number {
-        let last = route[0].clone();
+        // A point that is not finite has no place on the line: it is passed over, as a repeat is, so
+        // its length is never infinite and never sizes the pattern (issue #4257).
+        const finite = route.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z));
+        let last = (finite.at(0) ?? Vector3.Zero()).clone();
         let length = 0;
         const points = [last];
         const along = [0];
-        for (const point of route.slice(1)) {
+        for (const point of finite.slice(1)) {
             const step = Vector3.Distance(last, point);
-            if (step > 0) {
+            if (step > 0 && Number.isFinite(length + step)) {
                 last = point.clone();
                 length += step;
                 points.push(last);
@@ -402,7 +426,7 @@ export class PatternedLineMesh {
         }
 
         this.laid = { points, along };
-        this.lineDirection = (route.at(-1) ?? last).subtract(route[0]).normalize();
+        this.lineDirection = last.subtract(points[0]).normalize();
         return length;
     }
 
@@ -496,7 +520,7 @@ export class PatternedLineMesh {
     private calculateOffsets(): number[] {
         const totalLength = this.laid?.along.at(-1) ?? 0;
         if (PATTERN_DEFINITIONS[this.pattern].connected) {
-            const step = this.wave?.period ?? PatternedLineMesh.SEGMENT_LENGTH;
+            const step = this.pieceStep(totalLength);
             return this.elements.map((_unused, i) => i * step);
         }
 
@@ -568,13 +592,29 @@ export class PatternedLineMesh {
             // fixed segment length; the last segment is clipped to the remainder (clipLastSegment).
             // `line.patternCount` does NOT apply here: segments sit at fixed intervals, so any
             // other count would stop the line short of its end or run it past the node.
-            const segments = Math.ceil(lineLength / PatternedLineMesh.SEGMENT_LENGTH);
-            return Math.max(1, segments);
+            const segments = Math.ceil(lineLength / this.pieceStep(lineLength));
+            return Math.min(MAX_PATTERN_PIECES, Math.max(1, segments));
         }
 
         // lineLength is ALREADY adjusted for node surface and arrow
         // (done by Edge.transformArrowCap()), so nothing is subtracted for those here.
         return discreteMeshCount(lineLength, this.getRenderedMeshSize(), this.patternCount);
+    }
+
+    /**
+     * How far apart a connected pattern's pieces sit along a line of a length: a wave's own period, or
+     * the fixed segment length, unless that would take more than {@link MAX_PATTERN_PIECES} pieces;
+     * then the pieces spread out to fit the cap, gaps opening between them, so the pattern still reads.
+     * @param length - The line's length.
+     * @returns The step, in world units.
+     */
+    private pieceStep(length: number): number {
+        if (this.wave !== undefined) {
+            // a wave holds one piece more than its whole periods
+            return Math.max(this.wave.period, length / (MAX_PATTERN_PIECES - 1));
+        }
+
+        return Math.max(PatternedLineMesh.SEGMENT_LENGTH, length / MAX_PATTERN_PIECES);
     }
 
     /**
@@ -586,7 +626,7 @@ export class PatternedLineMesh {
      * @returns How much of its period each piece draws, and its caps.
      */
     private waveStretches(length: number): ZigzagPiece[] {
-        const period = this.wave?.period ?? PatternedLineMesh.SEGMENT_LENGTH;
+        const period = this.pieceStep(length);
         if (this.pattern === "sinewave") {
             return Array.from({ length: Math.floor(length / period) + 1 }, () => ({ stretch: "period" }));
         }
@@ -683,7 +723,10 @@ export class PatternedLineMesh {
             const { inner, outer } = PatternedLineRenderer.wavePiece(this.pattern, this.width, wave, piece);
             return [...inner, ...outer].map(([x]) => x);
         };
-        return [Math.min(...along(first)), (this.stretches.length - 1) * wave.period + Math.max(...along(last))];
+        return [
+            Math.min(...along(first)),
+            (this.stretches.length - 1) * this.pieceStep(this.laid.along.at(-1) ?? 0) + Math.max(...along(last)),
+        ];
     }
 
     /**

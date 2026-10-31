@@ -429,6 +429,7 @@ export interface ChannelValues {
     "node.shapeParts": string;
     "node.shapeLines": string;
     "node.shapeTexts": string;
+    "node.labelTable": string;
     "node.shapeLineWidth": number;
     "node.labelFit": NodeLabelFitValue;
     "node.labelPaddingX": number;
@@ -3531,6 +3532,28 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             '`{ "size": 0.2, "color": "#404040", "font": "Arial", "rotation": 45 }`, the size a share of the ' +
             "node's height, the rotation in degrees clockwise (a chart's item labels). Drawn beside the node's " +
             "label, whatever it says.",
+    },
+    "node.labelTable": {
+        channel: "node.labelTable",
+        target: "node",
+        plainName: "Node Label Table",
+        shortName: "Label table",
+        group: "text",
+        accepts: "text",
+        stylePath: "shape.labelTable",
+        renderable: true,
+        caveat:
+            "The label laid out as a table of cells, as an HTML-like table is: JSON " +
+            '`{ "rows": [{ "cells": [{ "lines": [{ "text": "a" }] }, { "lines": [{ "text": "b" }] }] }] }` is two ' +
+            "cells side by side. The table may give `border`, `cellBorder`, `cellSpacing`, `cellPadding`, " +
+            "`width`, `height`, `fixedSize`, `align`, `valign` and `lineHeight` (a text line's height as a multiple " +
+            "of the label's size); a row `rule` (a line above it); a cell `colspan`, `rowspan`, `width`, " +
+            "`height`, `fixedSize`, `align` (`left`, `right`, `center`, `text`), `valign`, `balign`, `border`, " +
+            "`padding`, `rule` (a line on its left) and a `table` of its own in place of `lines`; a line `align`. " +
+            "Lengths are in the units of `node.size`, a line's `text` in label markup. Drawn in place of the " +
+            "label's words, in the label's font: each cell's outline a line in the border's color " +
+            "(`node.shapeLineWidth` wide, else the cell's border), each text line centered in its place. With " +
+            "`node.labelFit` the table is the label's box the node grows round.",
     },
     "node.shapeLineWidth": {
         channel: "node.shapeLineWidth",

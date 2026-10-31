@@ -4990,7 +4990,9 @@ export class Graph implements GraphContext {
      * so no fit puts a node under them: the automatic framing after a load or a layout,
      * `zoomToFit()`, and the `fitToGraph` view. In 3D the camera also centers what it looks at on
      * the part left free. Does not move the camera by itself; the element's own framing, when on,
-     * picks the margins up at its next fit. A preference of the view, not saved in a project file.
+     * picks the margins up at its next fit. A fit that landed and whose picture is not final yet
+     * counts as not done: margins set then are framed before `waitForStableFrame()` resolves. A
+     * preference of the view, not saved in a project file.
      * @param insets - CSS pixels per side; a side left out, negative or not finite is 0.
      */
     setViewInsets(insets: ViewInsets | undefined): void {

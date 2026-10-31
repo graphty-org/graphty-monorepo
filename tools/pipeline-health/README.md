@@ -315,8 +315,24 @@ servherd_start({ name: "pipeline-health-web", cwd: "<repo>",
   env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
 ```
 
-`VITE_HEALTH_API_URL` sets the API it reads (unset: the live API). The live API allows CORS only from
-health.graphty.app and `http://localhost:5173`, so on any other origin use `?fixtures`.
+`VITE_HEALTH_API_URL` sets the API it reads (unset: the live API). The dev server reads it through its own
+proxy at `/health-api`, so it works on any host and port without a CORS entry. `?fixtures` reads the
+sample data in `web/fixtures/` instead.
+
+### When the page cannot reach the API
+
+The page then says the pipeline's state is UNKNOWN: it cannot tell a healthy pipeline from a broken one
+without its data. It names the request that failed and the error, says whether `/v1/status` answered on
+its own, and shows the last data this browser loaded for the view, with its age, if it has one.
+
+- **"failed with no answer (Failed to fetch)"**: the browser got no usable answer. Either the request was
+  blocked by CORS, because the page's origin is not one the API allows (CORS allows only
+  https://health.graphty.app and `http://localhost:5173`; a dev server uses its proxy and needs neither),
+  or the network or the API is down. The browser console names which.
+- **"answered HTTP 5xx"**: the API is up and the read Lambda failed; its CloudWatch log has the error.
+- **"answered HTTP 404"**: the page asked for a route the deployed API does not have, usually a page newer
+  than the last deploy.
+- `/v1/status` answering while the view fails points at that view's route alone.
 
 ## Deployment
 

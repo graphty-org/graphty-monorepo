@@ -3383,6 +3383,10 @@ describe("actions/cache in the workflows", () => {
             // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file
             assert.match(target.options.command, /^eslint [^&]*\$ESLINT_CACHE &&/);
             assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
+            // never "--concurrency auto": it starts one type-aware worker (2.5 GB or more each) per two cores, 16 on
+            // the 32-core dev machine, which drove the machine out of memory and got the lint killed with SIGTERM
+            // ("Terminated", #5181); a fixed 2 is what auto gives on CI's 4-core runner
+            assert.doesNotMatch(target.options.command, /--concurrency auto/);
         }
     });
 

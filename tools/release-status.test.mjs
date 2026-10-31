@@ -82,7 +82,7 @@ describe("statusComment", () => {
         );
         assert.match(images, /\nACTION NEEDED: review the changed screenshots of the held candidate abcdef1\n/);
         assert.match(images, /serve --candidate next/, "with the review page");
-        assert.match(images, /&target=master/);
+        assert.match(images, /&change=master/);
         assert.equal(reportsFailure(images, RUN, "1"), false, "changed screenshots are not a failed run");
         assert.match(
             pushMessage("green-images", { run: RUN, sha: "abcdef123", what, hold: "update" }).message,

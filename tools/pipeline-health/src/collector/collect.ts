@@ -659,6 +659,7 @@ async function pullRequests(c: Cycle, gh: GitHub) {
     c.o("pr.automerge_armed_long", s.autoMergeArmedLong);
     c.o("pr.screenshot_backlog_ms", s.screenshotBacklogMs);
     c.o("pr.max_failing_same_check", s.maxFailingSameCheck);
+    await c.setJson("pr-stocks", s.prs);
     const prevShared = await c.json<SharedSnapshot | undefined>(SNAPSHOT.shared, undefined);
     await c.setJson(SNAPSHOT.shared, nextShared(prevShared, open, recentSeen, c.now));
     if (c.openRuns) {

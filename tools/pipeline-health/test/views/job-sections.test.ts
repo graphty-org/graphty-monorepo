@@ -105,6 +105,8 @@ describe("allowed to fail, and failing", () => {
             job(12, "CI / Story tests (graphty)", "cancelled"),
             // gating jobs are not listed here
             job(13, "CI / Build", "failure"),
+            // Cache hygiene: 1 of 3 failed, past a quarter but short of half
+            ...["failure", "success", "success"].map((c, i) => job(20 + i, "Cache hygiene", c, { workflow: "ci.yml" })),
         ];
         await putRaw(store, items, NOW);
         await setCursor(store, "non-gating", JSON.stringify(nonGatingJobs(CI_YML)), NOW);
@@ -116,6 +118,12 @@ describe("allowed to fail, and failing", () => {
             runs: { t: "num", n: 4 },
             failed: { t: "num", n: 3 },
             rate: { t: "mark", state: "bad", cell: { t: "num", n: 25, unit: "pct" } },
+        });
+        // a quarter of runs failed marks it yellow, as the heading says ("marked when a quarter of runs fail")
+        expect(row("Cache hygiene")?.rate).toEqual({
+            t: "mark",
+            state: "warn",
+            cell: { t: "num", n: 67, unit: "pct" },
         });
         // a gating job (Story tests is, since #4613) gets no row, however often it failed
         expect(row("Story tests (${{ matrix.name || matrix.project }})")).toBeUndefined();

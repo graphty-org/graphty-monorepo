@@ -148,9 +148,10 @@ export async function lanesTable(reads: Reads): Promise<Section> {
         const j = a.jobs?.[lane];
         return {
             cells: {
-                lane: { t: "name", v: lane },
+                lane: { t: "label", code: `lane.${lane}` },
                 result: r === "failed" ? { t: "mark", state: "bad", cell: fact("lane.failed") } : fact(`lane.${r}`),
-                since: j?.redAt ? { t: "time", at: iso(j.redAt) } : none,
+                // Red since: only while the lane is red; a lane that passed has no red span.
+                since: r === "failed" && j?.redAt ? { t: "time", at: iso(j.redAt) } : none,
                 job: laneJobCell(j),
             },
         };
@@ -158,7 +159,12 @@ export async function lanesTable(reads: Reads): Promise<Section> {
     if (skipped.length) {
         rows.push({
             past: true,
-            cells: { lane: { t: "name", v: skipped.join(", ") }, result: fact("lane.skipped"), since: none, job: none },
+            cells: {
+                lane: { t: "list", sep: "comma", items: skipped.map((l) => ({ t: "label", code: `lane.${l}` })) },
+                result: fact("lane.skipped"),
+                since: none,
+                job: none,
+            },
         });
     }
     return {
@@ -167,6 +173,22 @@ export async function lanesTable(reads: Reads): Promise<Section> {
         sub: f("releases.lanes.sub", { sha: a.sha.slice(0, 9), run: a.run ?? 0, at: iso(a.created ?? a.at) }),
         rows,
     };
+}
+
+/**
+ * Whether an attempt moved nightly: promoted (its nightly site job passed), held (it passed every lane but did not
+ * promote: changed screenshots wait for review, or a hold is open), or not promoted (it failed or tested nothing).
+ */
+function laneMark(failed: boolean, untested: boolean, lanes: Cell): Cell {
+    if (failed) return { t: "mark", state: "bad", cell: lanes };
+    return untested ? { t: "mark", state: "warn", cell: lanes } : lanes;
+}
+
+function nightlyCell(a: ReleaseSeen): Cell {
+    if (a.nightly === undefined) return none;
+    if (a.nightly === "passed") return fact("train.promoted");
+    if (a.tested && !a.red.length && a.ok !== false) return { t: "mark", state: "warn", cell: fact("train.held") };
+    return fact("train.not_promoted");
 }
 
 /** One attempt's outcome as a fact code and params. */
@@ -202,13 +224,16 @@ export async function trainsTable(reads: Reads): Promise<Section> {
             continue;
         }
         const lanes = fact(o.code, o.params);
+        // A failure is marked red, an untested new commit yellow; a pass or "nothing new" is plain.
+        const failed = o.code === "train.tested_failed" || o.code === "train.failed_before";
         rows.push({
             code: o.code,
             ...(o.code === "train.nothing_new" ? { past: true } : {}),
             cells: {
                 attempt: { t: "list", items: [time], sep: "comma" },
                 candidate: { t: "list", items: [sha], sep: "comma" },
-                lanes: o.code === "train.untested" ? { t: "mark", state: "warn", cell: lanes } : lanes,
+                lanes: laneMark(failed, o.code === "train.untested", lanes),
+                nightly: o.code === "train.nothing_new" ? none : nightlyCell(a),
             },
         });
     }

@@ -201,6 +201,10 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             if (descriptor.channel === "node.shapeTexts") {
                 return '[[0, 0, "CHANNEL PROBE WORDS"]]';
             }
+            // and its table label rows of cells
+            if (descriptor.channel === "node.labelTable") {
+                return '{"cellBorder":0.1,"rows":[{"cells":[{"lines":[{"text":"CHANNEL PROBE WORDS"}]}]}]}';
+            }
             return "CHANNEL PROBE WORDS";
         case "boolean":
             // The other state from the default: a switch that is on by default (`node.visible`)

@@ -62,7 +62,8 @@
             "^release-hold\\.json$",
             "^commitlint\\.config\\.js$",
             "^\\.gitattributes$",
-            "^\\.gitignore$"
+            "^\\.gitignore$",
+            "^tools/check-quick\\.sh$"
         ]
     },
     "wholePackage": {

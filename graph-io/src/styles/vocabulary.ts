@@ -114,6 +114,7 @@ export const STYLE_PROPERTIES: {
         ["labelPosition", "position"],
         ["labelTextAlign", "textAlign"],
         ["labelRuns", "text"],
+        ["labelTable", "text"],
         ["labelMinScreenSize", "number"],
         ["labelAvoidOverlap", "boolean"],
         ["labelMinNodeScreenSize", "number"],

@@ -58,7 +58,9 @@ const POSTSCRIPT_STYLES: ReadonlyMap<string, readonly [bold: boolean, italic: bo
 export interface GraphvizFont {
     /** The families, the last a generic one. */
     readonly family: string;
+    /** Whether the face is bold. */
     readonly bold: boolean;
+    /** Whether the face is italic or oblique. */
     readonly italic: boolean;
 }
 

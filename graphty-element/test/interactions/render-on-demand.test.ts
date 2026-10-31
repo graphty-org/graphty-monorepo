@@ -541,6 +541,34 @@ describe("renderOnDemand", () => {
         await restsOnTheCurrentPicture(element);
     });
 
+    // Ignoring a data issue writes only the issue state, which draws nothing, yet its pass drew a
+    // whole frame: on the airline sample each one cost 2.4 s of a software GPU (#3973).
+    it("draws no frame for ignoring a data issue, and one for the change after it", async () => {
+        const element = await mounted(true);
+        await element.session.data.import({ type: "csv", config: { data: "source,target\na,b\na,b\n" } });
+        await element.waitForStableFrame();
+        await untilResting(element);
+        const issues = element.session.data.issues();
+        assert.isNotEmpty(issues, "the repeated edge is an issue");
+        const before = loopTicks(element).drawn;
+
+        await element.session.data.ignoreIssues(issues);
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 0, "no frame for the issue state");
+        assert.isEmpty(element.session.data.issues(), "the issue is ignored");
+
+        const drawn = loopTicks(element).drawn;
+        await element.session.styles.add({
+            name: "Red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await untilResting(element);
+        assert.isAtLeast(loopTicks(element).drawn - drawn, 1, "the style after it is drawn");
+        await restsOnTheCurrentPicture(element);
+    });
+
     it("draws a time window and its ghosts, which a pass asks no frame for", async () => {
         const element = await mounted(true);
         await element.session.data.addNodes([

@@ -6,7 +6,7 @@ import { Button, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { APP_GLOBE_SOURCE } from "../../constants/globe";
-import { groupsAnnouncement, pathAnnouncement } from "../analyze/words";
+import { groupsAnnouncement, pathAnnouncement, topAnnouncement } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 import { selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
@@ -108,8 +108,12 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                 // A grouping run says what it made once its layers are in the tree.
                 const grouped = run?.result?.summary().groups !== undefined;
                 if (ended !== undefined && !grouped) {
-                    const path = run === undefined ? null : pathAnnouncement(session, run);
-                    store.set({ announcement: path ?? `${name} ${ended}` });
+                    // A path says its ends; a ranking says who ranks first.
+                    const said =
+                        run === undefined
+                            ? null
+                            : (pathAnnouncement(session, run) ?? topAnnouncement(session, run, name));
+                    store.set({ announcement: said ?? `${name} ${ended}` });
                 }
                 // The painting is decided once the element has finished painting for the run.
                 void session.styles.settled().then(() => {

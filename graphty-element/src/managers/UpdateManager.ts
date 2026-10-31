@@ -374,6 +374,9 @@ export class UpdateManager implements Manager {
     /** The picture counter at the last frame drawn while nothing was pending; -1 before one. */
     private finishedEpoch = -1;
 
+    /** How many meshes the scene held when {@link UpdateManager.finishedEpoch} was taken. */
+    private finishedMeshCount = -1;
+
     /**
      * Whether the frame most recently DRAWN drew the finished picture: one was drawn while nothing
      * was pending, and nothing has changed the picture since (the counter has not moved).
@@ -383,7 +386,15 @@ export class UpdateManager implements Manager {
      * @returns True when the frame on screen was drawn at the current picture counter.
      */
     private get drawnFrameIsFinished(): boolean {
-        return this.finishedEpoch === this.pending.epoch;
+        // The mesh count as well as the counter: Babylon announces a new mesh a timer AFTER it is
+        // built (`Scene.addMesh` defers `onNewMeshAddedObservable` with `setTimeout`), so a wait
+        // asked for in that gap -- a tooltip the pointer just brought up -- found the counter
+        // unmoved and resolved on the frame from before the mesh (issue #5139). A removal is
+        // announced at once and moves the counter, so a count that only grew cannot be missed.
+        return (
+            this.finishedEpoch === this.pending.epoch &&
+            this.finishedMeshCount === this.graphContext.getScene().meshes.length
+        );
     }
 
     /**
@@ -1546,6 +1557,7 @@ export class UpdateManager implements Manager {
         }
 
         this.finishedEpoch = this.pending.epoch;
+        this.finishedMeshCount = this.graphContext.getScene().meshes.length;
         this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
         this.wakeOwedWaiters();
     }

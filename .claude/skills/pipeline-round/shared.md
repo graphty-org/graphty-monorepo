@@ -127,7 +127,10 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > keeping both intents, then run the affected lint, typecheck and build, and only the test files you touched or
 > wrote plus those that exercise the code you changed, never whole shards (CI runs the rest, owner 2026-10-25;
 > `pnpm run test:changed --dry-run --base origin/master` names the candidates). Then run
-> `node tools/sonar-gate.mjs` on the merged code and commit. A long-lived branch (open more than about two days,
+> `node tools/sonar-gate.mjs` on the merged code and commit. A change that adds a graphty-element channel or a
+> graph-io style property also lists it in the graphty app's channel records (`graphty/src/workspace/style/words.ts`,
+> `style/coverage.ts`, `inspector/words.ts`), regenerates graph-io's docs (`npm run docs:reference`) and runs
+> `pnpm run lint:knip` and `npm run api:report` before its pull request. A long-lived branch (open more than about two days,
 > more than a day of work, or a merge of master that brought app or graphty-element changes or conflicts), or any
 > branch after a large change (a refactor of a shared component, a dependency or lockfile upgrade, a change to
 > graphty-element's styling, layout or rendering), whose change reaches the graphty app also runs

@@ -342,8 +342,8 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 variant="swap"
                 // Drawn at rest on every row, and named for what it does now.
                 data-at-rest=""
+                // Its tooltip is its name, as every icon button's is (decided.md, Names and looks).
                 label={row.hidden ? `Show ${row.name}` : `Hide ${row.name}`}
-                tooltip={`Turn this ${row.kind === "folder" ? "folder" : "layer"} ${row.hidden ? "on" : "off"}`}
                 checked={row.hidden}
                 icon={<GLYPHS.show size={14} />}
                 checkedIcon={<GLYPHS.hide size={14} />}

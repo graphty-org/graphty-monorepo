@@ -181,7 +181,7 @@ export function MainMenu({ start = false }: Readonly<{ start?: boolean }>): Reac
     return (
         <Menu position="bottom-start" withinPortal>
             <Menu.Target>
-                <Tooltip label="Main menu: open, save, export, settings">
+                <Tooltip label="Main menu">
                     <UnstyledButton aria-label="Main menu" className="ws-header-button">
                         <GLYPHS.menu size={16} aria-hidden />
                     </UnstyledButton>

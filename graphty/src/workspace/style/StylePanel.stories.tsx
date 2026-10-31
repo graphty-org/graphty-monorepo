@@ -7,6 +7,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { freshStore } from "../../stories/freshStore";
 import { fixWallClock } from "../../test/fixedWallClock";
+import { sampleTile } from "../../test/samples-dialog";
 import { Workspace } from "../Workspace";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
@@ -36,7 +37,7 @@ const page = (): ReturnType<typeof within> => within(document.body);
  * @returns the scene.
  */
 async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
-    await userEvent.click(await page().findByRole("button", { name: "Open the Les Miserables sample" }));
+    await userEvent.click(await page().findByRole("button", { name: sampleTile("Les Miserables") }));
     await customElements.whenDefined("graphty-element");
     const element = await waitFor(() => {
         const found = canvasElement.querySelector("graphty-element");
@@ -527,7 +528,7 @@ export const GraphSettings: Story = sceneStory(async () => {
  * @returns the element.
  */
 async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement> {
-    await userEvent.click(await page().findByRole("button", { name: "Open the College football sample" }));
+    await userEvent.click(await page().findByRole("button", { name: sampleTile("College football") }));
     await customElements.whenDefined("graphty-element");
     const element = await waitFor(() => {
         const found = canvasElement.querySelector("graphty-element");

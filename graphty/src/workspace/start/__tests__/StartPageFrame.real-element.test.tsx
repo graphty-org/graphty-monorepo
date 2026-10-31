@@ -17,6 +17,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
 import { swipeOver, wheelOver } from "../../../test/real-pointer";
+import { sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent } from "../../project/recent";
@@ -260,8 +261,8 @@ describe("the start page in the app's frame", () => {
     it("offers every dataset graph-samples lists that graphty-element opens, and opens one", async () => {
         const store = await startPage();
         const offered = screen
-            .getAllByRole("button", { name: /^Open the .+ sample$/ })
-            .map((button) => button.getAttribute("aria-label"));
+            .getAllByRole("button", { name: /^Open the .+ sample: / })
+            .map((button) => `${(button.getAttribute("aria-label") ?? "").split(" sample: ")[0]} sample`);
         const opens = DATASET_DESCRIPTORS.filter(
             (dataset) => dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn,
         );
@@ -276,7 +277,7 @@ describe("the start page in the app's frame", () => {
         }
 
         const opened = await openBy(store, () =>
-            userEvent.click(screen.getByRole("button", { name: "Open the Doubtful Sound dolphins sample" })),
+            userEvent.click(screen.getByRole("button", { name: sampleTile("Doubtful Sound dolphins") })),
         );
         assert.equal(opened.data.statistics().nodeCount, 62);
         assert.equal(opened.data.statistics().edgeCount, 159);
@@ -288,7 +289,7 @@ describe("the start page in the app's frame", () => {
         const store = await startPage();
 
         const opened = await openBy(store, () =>
-            userEvent.click(screen.getByRole("button", { name: "Open the Campus contacts sample" })),
+            userEvent.click(screen.getByRole("button", { name: sampleTile("Campus contacts") })),
         );
         assert.equal(opened.data.statistics().nodeCount, 615);
         assert.equal(opened.data.statistics().edgeCount, 8142);
@@ -305,7 +306,7 @@ describe("the start page in the app's frame", () => {
     it("says what a large dataset takes before it downloads, and leaves out one the element does not open", async () => {
         const store = await startPage();
 
-        const large = screen.getByRole("button", { name: "Open the Gene Ontology (go-basic) sample" });
+        const large = screen.getByRole("button", { name: sampleTile("Gene Ontology (go-basic)") });
         assert.include(large.textContent, "48,340 nodes, 71,496 edges");
         assert.include(large.textContent, "Large: 1.4 MB, slower to open");
         await userEvent.click(large);
@@ -330,7 +331,7 @@ describe("the start page in the app's frame", () => {
 
         // A dataset past graphty-element's published ceilings has no tile: it could only open empty.
         for (const dataset of DATASET_DESCRIPTORS) {
-            const tile = screen.queryByRole("button", { name: `Open the ${dataset.title} sample` });
+            const tile = screen.queryByRole("button", { name: sampleTile(dataset.title) });
             const fits = dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn;
             if (!fits) {
                 assert.isNull(tile, `${dataset.name} is left out`);

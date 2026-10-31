@@ -19,6 +19,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { START_SAMPLES } from "../../../data/sampleManifest";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { tooltipOf } from "../../../test/tooltip";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -212,6 +213,9 @@ describe("per-group settings", () => {
             assert.equal(drawn(session, inFirst, "node.shape"), "box", "the group draws the shape");
         });
         assert.equal(drawn(session, inSecond, "node.shape"), before, "every other group keeps its shape");
+        // The shape's Clear says on hover the words of its name.
+        const clearShape = within(detail).getByRole("button", { name: new RegExp(`^Clear .*${name}.* shape$`, "i") });
+        assert.equal(await tooltipOf(clearShape), clearShape.getAttribute("aria-label"));
 
         // Escape returns to the list; a second Escape closes the popover.
         await userEvent.keyboard("{Escape}");

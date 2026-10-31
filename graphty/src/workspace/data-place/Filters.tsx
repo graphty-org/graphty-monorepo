@@ -758,7 +758,7 @@ function TimeRow({ session, store }: Readonly<{ session: GraphSession; store: Wo
                 >
                     {name}
                 </Button>
-                <Tooltip label={window === null ? "Apply the time window" : "Show all time"}>
+                <Tooltip label="Apply the time window">
                     <Checkbox
                         size="xs"
                         aria-label="Apply the time window"

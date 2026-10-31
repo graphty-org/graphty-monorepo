@@ -20,6 +20,7 @@ import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { colorName } from "../words";
 import { showKind } from "./kindTab";
 
 /**
@@ -347,13 +348,20 @@ describe("focus after a style line is written or removed", () => {
             await userEvent.keyboard(`${typed}{Escape}`);
             assert.strictEqual(document.activeElement, box, `focus stays in the box, not on ${focusName()}`);
             const line = await lineOf(channel);
-            const kept = channel === "edge.width" ? "3" : "0000FF";
+            // A color is said as its box names it: the hex and its words.
+            const kept = channel === "edge.width" ? "3" : `0000FF ${colorName("#0000FF")}`;
             const words = `Edit discarded; this stays ${kept}.`;
-            await waitFor(() => {
-                const said = within(line)
+            // Waits for the note, whatever its words, so a wrong one fails rather than waits.
+            const said = await waitFor(() => {
+                const notes = within(line)
                     .getAllByRole("status")
-                    .map((status) => status.textContent);
-                assert.include(said, words, "said aloud");
+                    .map((status) => status.textContent)
+                    .filter((text) => text.startsWith("Edit discarded"));
+                assert.isNotEmpty(notes, "a discard is said");
+                return notes;
+            });
+            assert.include(said, words, "said aloud");
+            await waitFor(() => {
                 const shown = within(line)
                     .getAllByText(words)
                     .filter(

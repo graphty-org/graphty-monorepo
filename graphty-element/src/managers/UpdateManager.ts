@@ -2749,6 +2749,30 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Grow a framing box by the whole map, and face a map seen for the first time.
+     * @param box - The box around the nodes.
+     * @param frame - The map the layout draws on.
+     * @returns The box grown by the map: a globe as the whole sphere, the flat map as its whole box.
+     */
+    private frameMap(box: FramingBox, frame: LocationMapFrame): { min: Vector3; max: Vector3 } {
+        let { min, max } = box;
+        for (const corner of mapCorners(frame)) {
+            min = Vector3.Minimize(min, corner);
+            max = Vector3.Maximize(max, corner);
+        }
+
+        const orbit = this.camera.getActiveController();
+        if (frame !== this.facedFrame && frame.dimensions === 3 && orbit instanceof OrbitCameraController) {
+            // A globe is faced straight on. A flat map in 3D is seen from the south at a slant,
+            // so its edges read as arcs above it: straight down, an arc looks like a line.
+            orbit.pivot.rotationQuaternion = frame.surface === "flat" ? FLAT_MAP_TILT.clone() : Quaternion.Identity();
+        }
+
+        this.facedFrame = frame;
+        return { min, max };
+    }
+
+    /**
      * Frame the camera on a box {@link UpdateManager.willZoomToFit} has already approved.
      * @param box - The box to frame, or undefined when there is nothing to frame.
      */
@@ -2766,27 +2790,10 @@ export class UpdateManager implements Manager {
         // Update settled state for next frame
         this.wasSettled = isSettled;
 
-        let { min: boundingBoxMin, max: boundingBoxMax } = box;
         // On a map the map is framed too, and a new map is faced: seen from behind it is a mirror.
         const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
         const frame = engine?.geoFrame ?? null;
-        if (frame !== null) {
-            // The whole map: a globe opens as the whole sphere, the flat map as its whole box.
-            for (const corner of mapCorners(frame)) {
-                boundingBoxMin = Vector3.Minimize(boundingBoxMin, corner);
-                boundingBoxMax = Vector3.Maximize(boundingBoxMax, corner);
-            }
-
-            const orbit = this.camera.getActiveController();
-            if (frame !== this.facedFrame && frame.dimensions === 3 && orbit instanceof OrbitCameraController) {
-                // A globe is faced straight on. A flat map in 3D is seen from the south at a slant,
-                // so its edges read as arcs above it: straight down, an arc looks like a line.
-                orbit.pivot.rotationQuaternion =
-                    frame.surface === "flat" ? FLAT_MAP_TILT.clone() : Quaternion.Identity();
-            }
-
-            this.facedFrame = frame;
-        }
+        const { min: boundingBoxMin, max: boundingBoxMax } = frame === null ? box : this.frameMap(box, frame);
 
         const size = boundingBoxMax.subtract(boundingBoxMin);
         const active = this.camera.getActiveController();

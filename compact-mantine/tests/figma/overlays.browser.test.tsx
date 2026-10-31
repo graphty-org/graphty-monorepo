@@ -121,20 +121,6 @@ function fakeTooltipTimers(): void {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 }
 
-/**
- * The same fake setTimeout, keeping pace with the real clock: the tooltip delays run as they would,
- * and {@link runPendingTimers} can run whatever is still pending at once.
- */
-function pacedTooltipTimers(): void {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
-}
-
-/** Run every pending timer now (Mantine's delays, the focus hold), then let React commit what they scheduled. */
-async function runPendingTimers(): Promise<void> {
-    vi.runAllTimers();
-    await frames();
-}
-
 const realNow = performance.now.bind(performance);
 let clockOffset = 0;
 /**
@@ -745,11 +731,11 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         const filter = getByRole("button", { name: "Filter" });
         // Clicked before the open delay ran out: the tooltip mounts afterwards, under the resting
         // pointer, already showing the new label.
-        pacedTooltipTimers();
         const mounted = tooltipMount("Showing only these");
         await userEvent.click(filter);
         const tip = await mounted;
-        await runPendingTimers();
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        await new Promise((r) => setTimeout(r, 300));
         expect(isVisible(tip)).toBe(false);
         // Left and hovered again, it opens as usual.
         await commands.mouseAway();
@@ -832,11 +818,11 @@ describe("8.3 tooltip dismiss and focus delay", () => {
 
     it("a click on a caret inside a row keeps its new tooltip closed while the pointer rests", async () => {
         const { getByTestId } = await renderFigma(<CaretRow />);
-        pacedTooltipTimers();
         const mounted = tooltipMount("Collapse Group");
         await userEvent.click(getByTestId("caret"));
         const tip = await mounted;
-        await runPendingTimers();
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        await new Promise((r) => setTimeout(r, 300));
         expect(isVisible(tip)).toBe(false);
     });
 
@@ -1110,12 +1096,12 @@ describe("8.3 tooltip dismiss and focus delay", () => {
 
     it("a trigger that comes under a resting pointer shows no tooltip until the pointer moves", async () => {
         const { getByRole } = await renderFigma(<Swap />);
-        pacedTooltipTimers();
         const mounted = tooltipMount("Reset");
         await userEvent.click(getByRole("button", { name: "Load" }));
         // Chromium's hover update after the layout change opens the tooltip with the pointer still.
         const tip = await mounted;
-        await runPendingTimers();
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
+        await new Promise((r) => setTimeout(r, 300));
         expect(tip.hasAttribute("data-cm-still")).toBe(true);
         expect(isVisible(tip)).toBe(false);
         // The reader moves the pointer on the button: it shows after the usual delay.

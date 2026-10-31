@@ -221,7 +221,6 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter"
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
-import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
@@ -856,8 +855,6 @@ export class Graph implements GraphContext {
     private readonly xrAvailability: XrAvailability;
     /** Stops redrawing the canvas XR buttons on each availability change. */
     #unwatchXrButtons: (() => void) | null = null;
-    /** Stops rebuilding labels when a web font they use loads; see {@link refreshFonts}. */
-    #unwatchFonts: (() => void) | null = null;
 
     // GraphContext implementation
     private graphContext: DefaultGraphContext;
@@ -1428,10 +1425,6 @@ export class Graph implements GraphContext {
             "an annotation's picture is still loading",
             () => this.#annotations?.isLoading === true,
         );
-        // A label's web font still loading: its labels are rebuilt in the face when it lands.
-        this.updateManager.pending.watch("font", "a label's font is still loading", () =>
-            labelFontsLoading(this.scene),
-        );
         this.updateManager.pending.watch(
             "basemap",
             "the map under the graph is still loading",
@@ -1658,8 +1651,6 @@ export class Graph implements GraphContext {
         // the whole graph, its scene and its data alive for the life of the page.
         this.#unwatchXrButtons?.();
         this.#unwatchXrButtons = null;
-        this.#unwatchFonts?.();
-        this.#unwatchFonts = null;
         this.xrAvailability.dispose();
         this.basemapManager.dispose();
         this.xrUIManager?.dispose();
@@ -2143,10 +2134,6 @@ export class Graph implements GraphContext {
 
             // Watch for browser/canvas resize events
             window.addEventListener("resize", this.resizeHandler);
-            // A label drawn while its web font loaded shows the fallback face until it is rebuilt.
-            this.#unwatchFonts ??= watchFontLoads(this.scene, (families) => {
-                this.refreshFonts(families);
-            });
 
             this.initialized = true;
         } catch (error) {
@@ -4602,34 +4589,6 @@ export class Graph implements GraphContext {
         }
 
         return false;
-    }
-
-    /**
-     * Rebuild the labels drawn in font families that have just loaded, so they show and measure the
-     * loaded face rather than its fallback, and frame the graph again for their new size unless the
-     * camera was placed since the element last framed it. Nothing is rebuilt when no label uses them.
-     * @param families - The families that loaded, as `fontFamilies` gives them.
-     */
-    private refreshFonts(families: ReadonlySet<string>): void {
-        let rebuilt = false;
-        for (const node of this.dataManager.nodes.values()) {
-            rebuilt = node.refreshFonts(families) || rebuilt;
-        }
-
-        for (const edge of this.dataManager.edges.values()) {
-            rebuilt = edge.refreshFonts(families) || rebuilt;
-        }
-
-        if (!rebuilt) {
-            return;
-        }
-
-        if (!this.#cameraPlaced) {
-            this.autoFrame();
-        }
-
-        this.updateManager.pending.changed();
-        this.renderManager.requestFrame();
     }
 
     /**

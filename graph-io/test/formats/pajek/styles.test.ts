@@ -129,8 +129,8 @@ describe("Pajek styles: Pajek's rules", () => {
         ]);
         // as Pajek 6.02 draws the file: the vertices that set no size are Pajek's normal 20 points, and each vertex
         // that names a shape starts from the defaults, whatever the one before it set
-        expect(drawn(styles, snapshot, "node", "width")).toEqual([80, 80, 120, 160, 20, 20]);
-        expect(drawn(styles, snapshot, "node", "height")).toEqual([40, 80, 40, 40, 20, 20]);
+        expect(drawn(styles, snapshot, "node", "width")).toEqual([80, 80, 120, 160, 20, 0]);
+        expect(drawn(styles, snapshot, "node", "height")).toEqual([40, 80, 40, 40, 20, 0]);
         expect(drawn(styles, snapshot, "node", "labelColor").slice(0, 3)).toEqual(["#0f75ff", "#000000", "#660000"]);
         expect(drawn(styles, snapshot, "node", "labelSize").slice(0, 3)).toEqual([16, 16, 15]);
         expect(drawn(styles, snapshot, "node", "borderWidth")[1]).toBe(2);

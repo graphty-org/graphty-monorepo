@@ -242,6 +242,8 @@ export {
     type DotExportOptions,
     dotImporter,
     type DotImportOptions,
+    type GraphvizFont,
+    graphvizFont,
     graphvizPosBends,
     RANK_COLUMN,
     RANK_SET_COLUMN,

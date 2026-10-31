@@ -220,7 +220,7 @@
 <title>label&#45;fontname&#45;bold&#45;s&#45;&gt;label&#45;fontname&#45;bold&#45;t</title>
 <path fill="none" stroke="#505050" stroke-width="1.5" d="M131.48,-600.75C142.64,-600.75 165.88,-600.75 182.42,-600.75"/>
 <polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="182.27,-604.25 192.27,-600.75 182.27,-597.25 182.27,-604.25"/>
-<text xml:space="preserve" text-anchor="middle" x="149.45" y="-604" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="10.00" fill="#000000">lbl</text>
+<text xml:space="preserve" text-anchor="middle" x="150.95" y="-603.25" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="10.00" fill="#000000">lbl</text>
 </g>
 <!-- cap&#45;label&#45;fontname&#45;bold -->
 <g id="node31" class="node">

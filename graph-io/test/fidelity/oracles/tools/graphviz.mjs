@@ -13,11 +13,13 @@
 //
 // GRAPHVIZ_BIN: the directory holding dot, neato and gml2gv
 // (default <repo>/tmp/style-fidelity/tools/conda-graphviz/bin). Text is measured with the
-// repository's pinned fonts (visual-fonts/fonts.conf), so no host font changes a layout.
+// repository's pinned fonts (visual-fonts/), so no host font changes a layout, and in the face a browser draws
+// the SVG's text in (graphviz-fonts.conf), so each node is sized for the label its SVG shows.
 // Then run rasterize.mjs on the written SVGs for the PNGs.
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import console from "node:console";
@@ -29,7 +31,16 @@ const repo = resolve(here, "../../../../..");
 const testDir = resolve(here, "../../..");
 const mainCheckout = resolve(repo, "../..");
 const bin = process.env.GRAPHVIZ_BIN ?? join(mainCheckout, "tmp/style-fidelity/tools/conda-graphviz/bin");
-const fontconfig = join(repo, "visual-fonts/fonts.conf");
+// graphviz-fonts.conf with its paths filled in, and a cache of its own: its scan rules change what is cached.
+const fontDir = mkdtempSync(join(tmpdir(), "graphviz-fonts-"));
+const fontconfig = join(fontDir, "fonts.conf");
+process.on("exit", () => rmSync(fontDir, { recursive: true, force: true }));
+writeFileSync(
+    fontconfig,
+    readFileSync(join(here, "graphviz-fonts.conf"), "utf8")
+        .replaceAll("@VISUAL_FONTS@", join(repo, "visual-fonts"))
+        .replaceAll("@CACHE@", join(fontDir, "cache")),
+);
 
 // 1200 x 900 px at 96 px per inch: 12.5 x 9.375 in. "!" scales the finished drawing up or down
 // to fit; size never changes a dot, neato or twopi layout, only the final scale.
@@ -101,7 +112,9 @@ function write(id, file, svg, fields, rasterEnv = "", path = id) {
             widthPx: Math.round((Number(w) * 96) / 72),
             heightPx: Math.round((Number(h) * 96) / 72),
         },
-        fonts: "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+        fonts:
+            "FONTCONFIG_FILE=graph-io/test/fidelity/oracles/tools/graphviz-fonts.conf (the repository's pinned fonts, " +
+            "each font-family resolved to the face a browser draws it in)",
         svgPostprocessing: "none: the SVG is Graphviz's output byte for byte",
         date: new Date().toISOString().slice(0, 10),
         regenerate: `node ${relative(repo, fileURLToPath(import.meta.url))} ${id} && ${rasterEnv}node ${relative(repo, join(here, "rasterize.mjs"))} ${relative(repo, join(oracles, `${path}.svg`))}`,

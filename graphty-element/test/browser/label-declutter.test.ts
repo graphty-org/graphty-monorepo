@@ -94,6 +94,10 @@ describe("node labels do not overlap", () => {
             await nextFrame();
         }
 
+        // The label layer's repaint can take more passes than the frames above: on a slow frame, or
+        // under the minimum-work test mode, it is applied a few nodes at a time.
+        await g.waitForStableFrame();
+
         if (view) {
             await g.setCameraState(view);
             g.scene.render();

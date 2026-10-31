@@ -617,9 +617,10 @@ expires after 2 days (https://docs.npmjs.com/trusted-publishers/):
 The shards, their commands, groups and measured durations are in `tools/ci-test-matrix.mjs`
 (`./tools/run-tests.sh --list`). A pull request runs only the shards of affected packages, and within a shard
 only the selected test files where `test-select-rules.json` allows file-level selection; the full run runs all
-of them (25 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
+of them (29 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
 nx.json's `sharedGlobals` affects every package; a `pnpm-lock.yaml` change affects only the packages whose
-resolved dependencies changed. `graphty-element-lifecycle` runs only in the full run.
+resolved dependencies changed. `graphty-element-lifecycle` and `graphty-element-fidelity-1` to `-4` (the style
+fidelity gate over every oracle, in four slices) run only in the full run.
 
 ## Architecture & Key Patterns
 
@@ -783,7 +784,8 @@ closes or its entry expires (14 days at most).
   `local/no-test-timing` rule apply, and "timing" or "load" is not a cause without the mechanism.
 - **Close the issue with the fix** (`Fixes #N` in the commit), so the test leaves quarantine when it merges.
 - **Never add a test to `tools/test-quarantine.json` by hand.** Entries come only from the tooling.
-- **GPU tests are never quarantined** (`webgpu-graph-algorithms*`), nor the screenshot gate.
+- **GPU tests are never quarantined** (`webgpu-graph-algorithms*`), nor the screenshot gate, nor the style
+  fidelity slices (`graphty-element-fidelity-*`: a sample judged two ways on the same inputs is a determinism defect).
 - **A consistent failure still blocks.** A test that fails on the retry too fails CI unless it is already
   quarantined. Never re-run hoping for a pass when a non-quarantined test failed: fix it.
 - `GRAPHTY_TEST_QUARANTINE=0` switches it off, for debugging only.

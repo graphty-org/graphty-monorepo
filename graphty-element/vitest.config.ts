@@ -963,14 +963,19 @@ const config = defineConfig({
                 // fidelity sample with its file styles and writes what was drawn to
                 // test/fidelity/out/. It fails a sample only for an element failing that the known
                 // failures do not list (test/fidelity/oracle/floors.ts); a sample's layout can take
-                // longer than the browser project's budget to settle, and so it is in no CI shard and
-                // not in the pre-push gate. Run with: npm run test:fidelity, and on this workstation
-                // with GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
-                // annotation session draws about one frame a second and does not settle.
-                // GRAPHTY_ORACLE_BASELINE=<an earlier run's tmp/oracle-report> judges that run's
-                // drawings again with this comparator; npm run fidelity:ratchet applies a run.
+                // longer than the browser project's budget to settle, and so it is in no pull request's
+                // CI and not in the pre-push gate; the 6-hour full run runs oracle-report.test.ts in
+                // slices (below). Run with: npm run test:fidelity, or with GRAPHTY_BROWSER_GPU=nvidia (and
+                // GRAPHTY_EGL_LIB_DIR) on this workstation. Without a GPU (SwiftShader) every sample settles:
+                // all 563 in 807 s here, and 285 to 355 s a quarter on a CI runner (issue #4270), with the
+                // same gate elements as on the GPU path; only the raster regions differ.
+                // GRAPHTY_ORACLE_BASELINE=<an earlier run's tmp/oracle-report, copied under this package:
+                // the browser cannot read outside the workspace> judges that run's drawings again with this
+                // comparator; npm run fidelity:ratchet applies a run.
+                // GRAPHTY_ORACLE_SLICE=<n>/<count> runs one slice of oracle-report.test.ts: CI's full run
+                // runs it as the graphty-element-fidelity-<n> shards (tools/ci-test-matrix.mjs).
                 define: { ...define },
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_ORACLE_BASELINE"],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_ORACLE_BASELINE", "GRAPHTY_ORACLE_SLICE"],
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED, force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },

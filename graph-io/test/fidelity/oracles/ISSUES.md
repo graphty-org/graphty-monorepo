@@ -4598,6 +4598,68 @@ Only a person can judge whether the drawings got better. These stories of the gr
 12. `style-fidelity-graphviz-dot-samples--real-crazy`: the sample the Graphviz label-size decision is about; that
     branch is not in the Storybook, so compare it with the side-by-side image the branch's proof names.
 
+## The full-run gate's drift after round 4, explained (#4270, 2026-10-29)
+
+Before round 5 the full oracle gate (`oracle-known-failures.json`, run by `oracle-report.test.ts` over all 563
+samples) failed 27 samples, and the plain-view total had moved from round 4's 10,359 failing elements to 10,469.
+Nothing in CI ran the full comparison, so nobody saw it move. Measured by full runs of round 4's own measurement
+commit (f0b669df00), round 4's last recording commit (0ba5008d36), master before round 5 (780b7edbe6) and master on
+2026-10-29 (ea5b2c9f29):
+
+- **Not a GPU difference.** Master drawn on the workstation's NVIDIA card and without a GPU (headless Chromium's
+  SwiftShader, which is what CI uses) fails exactly the same elements on all 563 samples, in both views, and the 27
+  samples fail the same way on both paths at 0ba5008d36 and at 780b7edbe6. Only the raster regions differ between
+  the paths, and they are reported, never gated.
+- **26 of the 27 samples were already red at round 4's own measurement**: f0b669df00 fails 30 samples against its
+  own records (309 clean, 10,378 failing elements). Round 4 said so ("not green against its own records") and left
+  the recording pass undone. Their drawings did not change between 0ba5008d36 and 780b7edbe6.
+- **The +110, split.** 19 of it is already in a fresh run of round 4's own measurement commit: f0b669df00 fails
+  10,378 elements against the 10,359 round 4 reported. The other +91, from f0b669df00 to 780b7edbe6, is two changes
+  that partly cancel (+251 - 160). `dot-real-siblings` went from 225 to 476 failing elements: all 284 edges now fail
+  edge.width. The edges are as wide as before. A bisect over the 1,351 commits between f0b669df00 and 0ba5008d36
+  names f987a1bc9a (2026-10-26, labels drawn and measured unhinted so their pixels do not depend on load order): the
+  unhinted labels measure a little differently, this file's nodes are sized to their labels, so graphty's Graphviz
+  run spaces them 2.7 percent differently (fitted scale 1.047 to 1.075), and on lines 0.22 units wide that moves the
+  width ratio from inside [0.9, 1.1] to 1.101. No reader can see it; the comparator's edge.width is too strict on
+  sub-pixel lines (#4451). It moved no other sample. Against it, eight `gml-specimen-*` pages went from 160 failing
+  elements to none when their oracle became OGDF's own drawing, with the two stand-ins judged beside it
+  (802cb125e1): an oracle change, not a drawing change.
+- **The 11 samples round 5 added** are elements its comparator newly judges (listed under "Round 5", "The full-run
+  gate"). Three more were classified element by element against round 5's own run, judged again by today's
+  comparator (`GRAPHTY_ORACLE_BASELINE`; until this change a baseline outside the worktree was silently unreadable,
+  so every element came out "unclassified"): of their 76 elements, 33 already failed in round 5's run (most of
+  `json-cyjs-perf`'s arrows, `json-cyjs-tokyo`'s extra nodes and sizes, failing since round 4), 24 appear with the
+  comparator's twin pairing (#4265) on round 5's drawings, and 19 in the position-matched views of `cx2-wp1449-tlr`
+  and `json-cyjs-tokyo` come from a drawing change since round 5 that is not explained yet (#4452). Whether the
+  twin pairing pairs twins rightly is not settled.
+- **One element is a drawing regression.** The four `syn-mappings` copies each add one route since round 5's
+  arrowheads (#4254): the sinewave line stops short of its larger half arrow, open as #4253.
+
+What changed:
+
+- The 6-hour full run runs the whole comparison: four shards, `graphty-element-fidelity-1` to `-4`
+  (`tools/ci-test-matrix.mjs`), each judging every fourth sample (`GRAPHTY_ORACLE_SLICE`), without a GPU, never on a
+  pull request or in the pre-push gate. A sample fails only for an element the known failures do not list. Timed on
+  CI runners by a dispatch of the four shards (run 40890370190): 285 to 355 s of samples a slice, 6 to 8 minutes a
+  job, against the job's 30. The runner fails exactly the elements the workstation fails. A sample judged two ways
+  on the same inputs is never quarantined as flaky: it fails the run.
+- Nothing above is recorded in `oracle-known-failures.json`: only the owner adds known failures. So the lane stays
+  off (pull request #4455 a draft) until these samples pass or the owner records them.
+
+The gate on master 37488cb8 (2026-10-30, workstation, all four slices): 36 samples fail, slice 1 4, slice 2
+11, slice 3 8, slice 4 13. By cause:
+
+- Failing since round 4's measurement, never recorded: the Cytoscape annotation arrows (`*-specimen-images-charts-p6`,
+  `cys-annotation-example`, #5117), the missing captions of `json-cyjs-sbgn-sciluna` (#5118), and the untraced rest,
+  real-program and stand-in oracles (`cx2-signor-aml`, `xgmml-aracne-mycccnd1`, `pajek-1crn`, `gexf-hsk-chars`, the
+  draw.io and Graphviz stand-ins; #5119).
+- Already traced to an issue: `syn-mappings` x4 (#4253), `cx2-wp1449-tlr` and `json-cyjs-tokyo` (#4452),
+  `json-cyjs-perf` (#4523), `cx-radiation-bibliography` (#3103), `cx-syn-bypass` (#4515), `pajek-synth-lines`
+  (#4514), `pajek-synth-vertices` and `dot-specimen-edge-labels` (#4524).
+- The Graphviz label-size change (#4203, pull request #4410, merged): `dot-real-siblings`, `dot-synth-edges-clusters`,
+  `dot-synth-nodes`, `dot-profile` and `dot-real-depcruise` fail on node positions, routes and edge labels off their
+  lines (#5116). The owner accepted the trade on 2026-10-29; recording what is left is his.
+
 ## Round 6: comparator blind spots, line widths, stacked arrowheads, chart axes, label shifts and one file scale (2026-10-29)
 
 Round 6 closed the comparator's remaining blind spots (#4272), then worked the largest drawing problems the round 5

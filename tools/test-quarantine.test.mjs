@@ -110,6 +110,15 @@ describe("decide", () => {
         );
         const gpu = decide({ family: "webgpu-graph-algorithms-node", first, firstOutcome: "failed", second, list: [] });
         assert.deepEqual(gpu.flaky, []);
+        // a fidelity sample judged differently on the same inputs is a determinism defect to see, not to quarantine
+        const fidelity = decide({
+            family: "graphty-element-fidelity",
+            first,
+            firstOutcome: "failed",
+            second,
+            list: [],
+        });
+        assert.deepEqual(fidelity.flaky, []);
         const crashed = decide({ family: "graphty", first, firstOutcome: "error", second, list: [] });
         assert.equal(crashed.pass, false, "an unhandled error or a coverage failure is not judged here");
     });

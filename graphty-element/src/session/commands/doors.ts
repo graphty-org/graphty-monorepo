@@ -1808,6 +1808,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setMeshPosition: RENDER,
             updateStyle: RENDER,
             refreshFonts: RENDER,
+            refitPicture: RENDER,
             applySessionPaint: RENDER,
             dispose: RENDER,
             isDisposed: READ,

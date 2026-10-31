@@ -236,6 +236,7 @@ function render(sample: FidelitySample, fileUrl: string): HTMLElement {
                     blobUrl,
                     oracleGraphName(meta),
                     oracleFormatOptions(meta, sample.format),
+                    new URL(fileUrl, document.baseURI).href,
                 );
             } finally {
                 URL.revokeObjectURL(blobUrl);

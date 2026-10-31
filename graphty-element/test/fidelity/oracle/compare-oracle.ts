@@ -3067,12 +3067,33 @@ export function labelAnchor(t: PText, b: PBox): string {
  * @returns the alignment, or null under two lines or where the lines are too alike in width to tell
  */
 export function lineAlign(t: PText): "start" | "middle" | "end" | null {
-    const lines = t.lines ?? [];
+    // a table's cells side by side are read apart: a cell's lines overlap across, the cell beside them does not
+    // (dot-specimen-labels-p2 html-td-balign-left); the cell with the most lines decides
+    const cells: PBox[][] = [];
+    for (const b of [...(t.lines ?? [])].sort((p, q) => p.x0 - q.x0)) {
+        const last = cells.at(-1);
+        if (last !== undefined && b.x0 < Math.max(...last.map((l) => l.x1))) {
+            last.push(b);
+        } else {
+            cells.push([b]);
+        }
+    }
+    const most = [...cells].sort((p, q) => q.length - p.length)[0];
+    return most === undefined ? null : alignOfLines(most, t.sizePx);
+}
+
+/**
+ * How lines of one cell are aligned.
+ * @param lines - the lines' boxes
+ * @param sizePx - their font size
+ * @returns the alignment, or null under two lines or where they are too alike in width to tell
+ */
+function alignOfLines(lines: readonly PBox[], sizePx: number): "start" | "middle" | "end" | null {
     if (lines.length < 2) {
         return null;
     }
     const widths = lines.map((b) => b.x1 - b.x0);
-    if (Math.max(...widths) - Math.min(...widths) < ORACLE_TOLERANCES.lineAlignOfSize * t.sizePx) {
+    if (Math.max(...widths) - Math.min(...widths) < ORACLE_TOLERANCES.lineAlignOfSize * sizePx) {
         return null;
     }
     const spread = (xs: number[]): number => Math.max(...xs) - Math.min(...xs);

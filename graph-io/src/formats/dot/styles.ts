@@ -950,7 +950,11 @@ function readNodeLabel(n: NodeRead, label: string | null, shown: string, names: 
         readHtmlRuns(label, cx.html, n.scheme, put, at);
         if (n.table !== null) {
             // Graphviz's text line is its line height (LINESPACING) of font sizes tall
-            put("labelTable", JSON.stringify({ ...n.table.cells, lineHeight: LINE_SPACING }));
+            // a cell sized by its picture counts each of its pixels as Graphviz does
+            put(
+                "labelTable",
+                JSON.stringify({ ...n.table.cells, lineHeight: HTML_LINE_SPACING, imagePixel: IMAGE_POINTS_PER_PIXEL }),
+            );
         }
         if (cx.cluster) {
             put("labelPosition", clusterLabelPosition(get));
@@ -1125,6 +1129,33 @@ function readNodeImage(n: NodeRead): void {
     if (pos.length === 2 && "tmb".includes(pos[0]) && "lcr".includes(pos[1])) {
         put("imagePositionX", x);
         put("imagePositionY", y);
+    }
+    readNodeImageFit(n);
+}
+
+/** How long one of a picture's pixels is when Graphviz sizes something by it, in points: 96 pixels an inch. */
+const IMAGE_POINTS_PER_PIXEL = 0.75;
+
+/**
+ * A node that is not `fixedsize` grows round its picture as round its label (Graphviz's `poly_init`): the picture's
+ * own size, 2 points more each way ("some fixed padding"), and the larger of that and the padded label decides. A
+ * node with no words pads nothing but its picture.
+ * @param n - the node
+ */
+function readNodeImageFit(n: NodeRead): void {
+    const { get, put, shape } = n;
+    if (isTrue(get("fixedsize")) || RECORD.has(shape)) {
+        return;
+    }
+    put("labelFitImage", IMAGE_POINTS_PER_PIXEL);
+    put("labelFitImagePadding", 1);
+    if (get(LABEL_ATTRIBUTE) === "") {
+        put("labelFit", GRAPHVIZ_GLYPH_SHAPES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
+        put("labelPaddingX", 0);
+        put("labelPaddingY", 0);
+        if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {
+            put("labelFitSquare", true);
+        }
     }
 }
 
@@ -1847,6 +1878,16 @@ const LABEL_PAD = { x: 8, y: 4 } as const;
 
 /** Graphviz's line height, as a multiple of the font size (`LINESPACING`, lib/common/const.h). */
 const LINE_SPACING = 1.2;
+
+/**
+ * How tall Graphviz makes a line of an HTML-like table's text, as a multiple of its font size: not `LINESPACING`, but
+ * the line box its text layout gives the font, each of its ascent and descent rounded up to whole pixels at 96 dpi
+ * (DejaVu Sans at 10 points: 13 and 4 pixels, 12.75 points; dot-specimen-labels-p2 html-td-balign-left draws its two
+ * lines 12.75 points apart).
+ * ponytail: one ratio, DejaVu Sans's at 10 points, for every font and size; the element measuring the font's own
+ * ascent and descent would carry it to others
+ */
+const HTML_LINE_SPACING = 1.275;
 
 /**
  * Reads how a node that is not drawn at a fixed size grows to hold its label (`poly_init`, lib/common/shapes.c):

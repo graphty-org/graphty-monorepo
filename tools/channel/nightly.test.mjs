@@ -279,7 +279,7 @@ describe("the missed-slot alarm (#5052)", () => {
         const a = missedSlot(ran({ state: "green-images", hold: "start" }), STARTED);
         assert.match(a.cause, /^waiting on the owner's screenshot review of aaaaaaa$/);
         assert.match(a.detail, /serve --candidate next/);
-        assert.match(a.detail, /&target=master/);
+        assert.match(a.detail, /&change=master/);
     });
     it("a green-images run behind a held candidate awaiting review, and one behind a hold nobody can review", () => {
         const H = "e87f65b".padEnd(40, "0");

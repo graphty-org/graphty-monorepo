@@ -4869,6 +4869,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
+    refitPicture(): void;
+    // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
     refreshScreenBorder(): boolean;
@@ -5190,6 +5192,8 @@ export const NodeStyle: z.ZodObject<{
         labelPaddingY: z.ZodOptional<z.ZodNumber>;
         labelFitSquare: z.ZodOptional<z.ZodBoolean>;
         labelFitQuantum: z.ZodOptional<z.ZodNumber>;
+        labelFitImage: z.ZodOptional<z.ZodNumber>;
+        labelFitImagePadding: z.ZodOptional<z.ZodNumber>;
         model: z.ZodOptional<z.ZodString>;
         modelSourceUp: z.ZodOptional<z.ZodEnum<{
             x: "x";

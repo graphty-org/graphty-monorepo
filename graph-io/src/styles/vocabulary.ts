@@ -76,6 +76,8 @@ export const STYLE_PROPERTIES: {
         ["labelPaddingY", "number"],
         ["labelFitSquare", "boolean"],
         ["labelFitQuantum", "number"],
+        ["labelFitImage", "number"],
+        ["labelFitImagePadding", "number"],
         ["shape", "shape"],
         ["shapePoints", "text"],
         ["shapePointsStretch", "boolean"],

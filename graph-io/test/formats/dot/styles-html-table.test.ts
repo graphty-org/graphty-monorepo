@@ -171,7 +171,8 @@ describe("DOT styles: an HTML-like table's cells (labelTable)", () => {
 
     it("reads spans, sizes and rules between rows and cells", async () => {
         const t = (await tables()).get("spans") as { rows: unknown[]; lineHeight: number };
-        expect(t.lineHeight).toBe(1.2);
+        // the line its text layout gives DejaVu Sans at 10 points, 12.75 points (dot-specimen-labels-p2 html-td-balign-left)
+        expect(t.lineHeight).toBe(1.275);
         expect(t.rows).toEqual([
             {
                 cells: [

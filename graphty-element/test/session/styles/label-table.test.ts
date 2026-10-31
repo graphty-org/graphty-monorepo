@@ -4,7 +4,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { labelTableForElement } from "../../../src/session/styles/fileStyles/translate";
+import { labelTableForElement, pictureUrl } from "../../../src/session/styles/fileStyles/translate";
 
 describe("labelTableForElement", () => {
     it("scales every length of the table and its cells, nested tables included, and keeps the rest", () => {
@@ -77,6 +77,34 @@ describe("labelTableForElement", () => {
             { image: { src: "a.png", scale: "width", pixelSize: 0.5 }, fill: "#4477aa" },
             {},
         ]);
+    });
+
+    it("resolves a cell's picture against the file's location when the load gives one", () => {
+        const file = {
+            rows: [{ cells: [{ image: { src: "img/a.png" } }, { image: { src: "data:image/png;base64,AA" } }] }],
+        };
+        const read = (base?: string): unknown[] =>
+            (
+                JSON.parse(labelTableForElement(JSON.stringify(file), 1, base) ?? "null") as {
+                    rows: { cells: { image: { src: string } }[] }[];
+                }
+            ).rows[0].cells.map((c) => c.image.src);
+        assert.deepEqual(read("https://example.test/sheets/one.gv"), [
+            "https://example.test/sheets/img/a.png",
+            "data:image/png;base64,AA",
+        ]);
+        // no location: as the file wrote it, which the browser resolves against the page
+        assert.deepEqual(read(), ["img/a.png", "data:image/png;base64,AA"]);
+    });
+
+    it("resolves a picture path only against a base that makes a URL", () => {
+        assert.strictEqual(pictureUrl("a.png", "https://example.test/x/f.gv"), "https://example.test/x/a.png");
+        assert.strictEqual(
+            pictureUrl("https://other.test/b.png", "https://example.test/x/f.gv"),
+            "https://other.test/b.png",
+        );
+        assert.strictEqual(pictureUrl("a.png", undefined), "a.png");
+        assert.strictEqual(pictureUrl("a.png", "not a url"), "a.png");
     });
 
     it("draws nothing for a value that is not a table", () => {

@@ -6,6 +6,7 @@
 import { commands, page } from "vitest/browser";
 
 import type { FidelitySample } from "../../../graph-io/test/fidelity/samples";
+import samplesNotes from "../../../graph-io/test/fidelity/SAMPLES.md?url";
 import type { Scene } from "../../../graph-io/test/fidelity/scene";
 import type { Graphty } from "../../index.js";
 import { createSampleElement, importSample, PRE_STEPS, sampleData, SEED } from "./load-sample";
@@ -81,7 +82,9 @@ export async function mountSample(
     document.body.style.margin = "0";
     document.body.appendChild(element);
     mounted = element;
-    const loaded = await importSample(element, sample.format, blobUrl, graphName, formatOptions);
+    // the file's own address on the test server, so a picture it names beside it is found (graph-io/test/<file>)
+    const fileUrl = new URL(`../${sample.file}`, new URL(samplesNotes, document.baseURI)).href;
+    const loaded = await importSample(element, sample.format, blobUrl, graphName, formatOptions, fileUrl);
     const command = `${loaded}, url = ${sample.file}${sample.file.endsWith(".gz") ? " gunzipped" : ""}; 2D, ${String(size.width)}x${String(size.height)}, layoutConfig.seed ${String(SEED)}, layout preSteps ${String(PRE_STEPS)}, GRAPHTY_BROWSER_GPU=${GPU}`;
     return { element, sha256, command };
 }

@@ -303,6 +303,12 @@ export const NodeStyle = z.strictObject({
             labelPaddingY: z.number().nonnegative().optional(),
             labelFitSquare: z.boolean().optional(),
             labelFitQuantum: z.number().nonnegative().optional(),
+            // With `labelFit`, the node holds its picture (`image.src`) too: the picture's own pixels, each this
+            // long in the units of `size`, padded by `labelFitImagePadding` on each side; the larger of the padded
+            // label and the padded picture decides each way. The node is fitted again once the picture's size is
+            // read. Unset, the picture does not size the node.
+            labelFitImage: z.number().nonnegative().optional(),
+            labelFitImagePadding: z.number().nonnegative().optional(),
             // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
             // URL. `type` stays the placeholder while it loads and the fallback when it fails
             // (design/rendering/node-models.md).

@@ -172,13 +172,13 @@ function child(c: Cell, k: number): Cell {
 export function hypot(a: number, b: number): number {
     const x = Math.abs(a);
     const y = Math.abs(b);
-    const max = x > y ? x : y;
+    const max = Math.max(x, y);
     if (!(max > 0 && max < Infinity)) {
         return Math.hypot(a, b);
     }
     const p = x / max;
     const q = y / max;
-    return Math.sqrt(p * p + q * q) * max;
+    return Math.sqrt(p * p + q * q) * max; // NOSONAR(typescript:S7769): this is Math.hypot's own sum, inlined for speed
 }
 
 /** The cells {@link repulsionOn} has still to visit, kept from call to call. */
@@ -197,7 +197,6 @@ const STACK: Cell[] = [];
 function repulsionOn(root: Cell, self: number, x: number, y: number, forces: SupportForces): [number, number] {
     // the sum in the same order as before, with no array made per cell: this runs for every support point on every
     // step (json-vis-siblings: 284 points, up to 1,500 steps each time its nodes move)
-    const bh = forces.model === "barnesHut";
     let fx = 0;
     let fy = 0;
     const stack = STACK;
@@ -208,26 +207,48 @@ function repulsionOn(root: Cell, self: number, x: number, y: number, forces: Sup
         if (c.mass === 0 || c.body === self) {
             continue;
         }
-        const d = hypot(c.mx - x, c.my - y);
-        const { kids } = c;
-        if (kids !== null && c.size / Math.max(d, 1e-12) >= THETA) {
-            for (const kid of kids) {
-                if (kid !== null) {
-                    stack[top++] = kid;
-                }
-            }
+        const dx = c.mx - x;
+        const dy = c.my - y;
+        const d = hypot(dx, dy);
+        if (c.kids !== null && c.size / Math.max(d, 1e-12) >= THETA) {
+            top = pushKids(c.kids, stack, top);
             continue;
         }
         // vis-network: two bodies at one place are taken as 0.1 apart along x
-        const at = d === 0;
-        const dd = at ? 0.1 : d;
-        const dx = at ? 0.1 : c.mx - x;
-        const dy = at ? 0 : c.my - y;
-        const g = (forces.repulsion * c.mass) / (bh ? dd * dd * dd : dd * dd);
-        fx += -dx * g;
-        fy += -dy * g;
+        const g = pushPerUnit(c.mass, d, forces);
+        fx += -(d === 0 ? 0.1 : dx) * g;
+        fy += -(d === 0 ? 0 : dy) * g;
     }
     return [fx, fy];
+}
+
+/**
+ * Put a cell's quarters on the stack, in order.
+ * @param kids - The quarters.
+ * @param stack - The stack.
+ * @param top - Its height.
+ * @returns Its new height.
+ */
+function pushKids(kids: readonly (Cell | null)[], stack: Cell[], top: number): number {
+    let t = top;
+    for (const kid of kids) {
+        if (kid !== null) {
+            stack[t++] = kid;
+        }
+    }
+    return t;
+}
+
+/**
+ * How hard a cell, taken as its center of mass, pushes per unit of the offset to it.
+ * @param mass - The cell's mass.
+ * @param distance - How far its center of mass is; 0 is taken as 0.1.
+ * @param forces - The pushed body's force law.
+ * @returns The factor.
+ */
+function pushPerUnit(mass: number, distance: number, forces: SupportForces): number {
+    const d = distance === 0 ? 0.1 : distance;
+    return (forces.repulsion * mass) / (forces.model === "barnesHut" ? d * d * d : d * d);
 }
 
 /**

@@ -11,12 +11,12 @@
     "canvas": {
         "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
         "widthPt": 900,
-        "heightPt": 458,
+        "heightPt": 467,
         "widthPx": 1200,
-        "heightPx": 611
+        "heightPx": 623
     },
-    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "fonts": "FONTCONFIG_FILE=graph-io/test/fidelity/oracles/tools/graphviz-fonts.conf (the repository's pinned fonts, each font-family resolved to the face a browser draws it in)",
     "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-31",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-synth-edges-clusters && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-synth-edges-clusters.svg"
 }

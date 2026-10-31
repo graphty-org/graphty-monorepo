@@ -20,8 +20,8 @@
 <!-- default -->
 <g id="node1" class="node">
 <title>default</title>
-<ellipse fill="none" stroke="black" cx="163" cy="-819.73" rx="46.47" ry="18"/>
-<text xml:space="preserve" text-anchor="middle" x="163" y="-815.05" font-family="Times,serif" font-size="14.00">default</text>
+<ellipse fill="none" stroke="black" cx="163" cy="-819.73" rx="36.51" ry="18"/>
+<text xml:space="preserve" text-anchor="middle" x="163" y="-814.68" font-family="Times,serif" font-size="14.00">default</text>
 </g>
 <!-- cap&#45;default -->
 <g id="node2" class="node">

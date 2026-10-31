@@ -22,9 +22,11 @@ import { UsageDataCard } from "../privacy/UsageDataCard";
 import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
+import { count } from "../inspector/words";
 import { agoWords } from "../project/words";
 import { openServerForm } from "../server/commands";
 import type { WorkspaceStore } from "../state/store";
+import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
 import lockupOnLight from "./brand/graphty-lockup-color-on-light.svg";
@@ -507,6 +509,8 @@ function SampleLibrary(): React.JSX.Element {
     );
     const samples = tiles.filter((tile) => tile.field !== GENERATED);
     const generators = tiles.filter((tile) => tile.field === GENERATED);
+    // How many the box and the field filter leave, said as they change; never on arrival.
+    useAnnounceChange(`${count(tiles.length, "sample")} shown`);
     return (
         <section className="ws-land-band" id="ws-land-samples" aria-label="Sample library">
             <h2 className="ws-land-h2">Sample library</h2>

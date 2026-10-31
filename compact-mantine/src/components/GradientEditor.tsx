@@ -12,7 +12,8 @@ import { mixHex } from "../utils/color-utils";
 import { shieldDragSelection } from "./chrome/dragSelectionShield";
 import { Chit } from "./color/Chit";
 import { ColorPickerPanel } from "./color/ColorPickerPanel";
-import { revertOnEscape } from "./color/escape";
+import { useDiscardedEdit } from "./color/escape";
+import { DiscardNote } from "./inputs/DiscardNote";
 import { typedColor } from "./color/typed-color";
 
 // Figma's gradient editor (design/figma-spec.md 7.5, measured on
@@ -114,6 +115,7 @@ export function UnitField({
 }: Readonly<UnitFieldProps>): React.JSX.Element {
     const parse = useNumberParser();
     const [draft, setDraft] = useState(format(value));
+    const discarded = useDiscardedEdit();
 
     useEffect(() => {
         setDraft(format(value));
@@ -137,48 +139,54 @@ export function UnitField({
     };
 
     return (
-        <input
-            className={className}
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            spellCheck={false}
-            role={role}
-            aria-label={ariaLabel}
-            aria-valuenow={role === undefined ? undefined : value}
-            aria-valuemin={role === undefined ? undefined : min}
-            aria-valuemax={role === undefined ? undefined : max}
-            aria-valuetext={role === undefined ? undefined : format(value)}
-            data-testid={testId}
-            style={style}
-            value={draft}
-            onChange={(event) => {
-                setDraft(event.currentTarget.value);
-            }}
-            onFocus={(event) => {
-                event.currentTarget.select();
-            }}
-            onBlur={(event) => {
-                commitDraft(event);
-            }}
-            onKeyDown={(event) => {
-                if (event.key === "Enter") {
+        <>
+            <input
+                className={className}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                spellCheck={false}
+                role={role}
+                aria-label={ariaLabel}
+                aria-valuenow={role === undefined ? undefined : value}
+                aria-valuemin={role === undefined ? undefined : min}
+                aria-valuemax={role === undefined ? undefined : max}
+                aria-valuetext={role === undefined ? undefined : format(value)}
+                data-testid={testId}
+                style={style}
+                value={draft}
+                onChange={(event) => {
+                    discarded.clear();
+                    setDraft(event.currentTarget.value);
+                }}
+                onFocus={(event) => {
+                    event.currentTarget.select();
+                }}
+                onBlur={(event) => {
+                    discarded.clear();
                     commitDraft(event);
-                } else if (event.key === "Escape") {
-                    revertOnEscape(
-                        event,
-                        () => {
-                            setDraft(format(value));
-                        },
-                        draft !== format(value),
-                    );
-                } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-                    event.preventDefault();
-                    const step = (event.shiftKey ? SHIFT_STEP : 1) * (event.key === "ArrowUp" ? 1 : -1);
-                    commit(value + step, event);
-                }
-            }}
-        />
+                }}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                        commitDraft(event);
+                    } else if (event.key === "Escape") {
+                        discarded.revert(
+                            event,
+                            () => {
+                                setDraft(format(value));
+                            },
+                            draft !== format(value),
+                            format(value),
+                        );
+                    } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                        event.preventDefault();
+                        const step = (event.shiftKey ? SHIFT_STEP : 1) * (event.key === "ArrowUp" ? 1 : -1);
+                        commit(value + step, event);
+                    }
+                }}
+            />
+            <DiscardNote text={discarded.text} />
+        </>
     );
 }
 
@@ -201,6 +209,7 @@ interface StopHexFieldProps {
 function StopHexField({ color, onCommit, ariaLabel }: Readonly<StopHexFieldProps>): React.JSX.Element {
     const shown = color.replace("#", "").toUpperCase();
     const [draft, setDraft] = useState(shown);
+    const discarded = useDiscardedEdit();
 
     useEffect(() => {
         setDraft(shown);
@@ -216,37 +225,43 @@ function StopHexField({ color, onCommit, ariaLabel }: Readonly<StopHexFieldProps
     };
 
     return (
-        <input
-            className="cm-paint-input cm-paint-hex"
-            type="text"
-            autoComplete="off"
-            spellCheck={false}
-            aria-label={ariaLabel}
-            data-testid="gradient-editor-stop-hex"
-            value={draft}
-            onChange={(event) => {
-                setDraft(event.currentTarget.value.toUpperCase());
-            }}
-            onFocus={(event) => {
-                event.currentTarget.select();
-            }}
-            onBlur={(event) => {
-                commit(event);
-            }}
-            onKeyDown={(event) => {
-                if (event.key === "Enter") {
+        <>
+            <input
+                className="cm-paint-input cm-paint-hex"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                aria-label={ariaLabel}
+                data-testid="gradient-editor-stop-hex"
+                value={draft}
+                onChange={(event) => {
+                    discarded.clear();
+                    setDraft(event.currentTarget.value.toUpperCase());
+                }}
+                onFocus={(event) => {
+                    event.currentTarget.select();
+                }}
+                onBlur={(event) => {
+                    discarded.clear();
                     commit(event);
-                } else if (event.key === "Escape") {
-                    revertOnEscape(
-                        event,
-                        () => {
-                            setDraft(shown);
-                        },
-                        draft !== shown,
-                    );
-                }
-            }}
-        />
+                }}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                        commit(event);
+                    } else if (event.key === "Escape") {
+                        discarded.revert(
+                            event,
+                            () => {
+                                setDraft(shown);
+                            },
+                            draft !== shown,
+                            shown,
+                        );
+                    }
+                }}
+            />
+            <DiscardNote text={discarded.text} />
+        </>
     );
 }
 

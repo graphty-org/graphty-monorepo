@@ -241,6 +241,12 @@ export interface HistogramRowProps {
     brush?: HistogramBrushProps;
     /** A line over the bars, such as the selection's activity, named for assistive technology. */
     overlay?: HistogramOverlay;
+    /**
+     * Whether the visually hidden table of every bin's count follows the drawing (the default).
+     * Set it false where the chart sits before its controls and the table is placed after them, so
+     * a screen reader reaches the first control without reading every bin.
+     */
+    valueTable?: boolean;
 }
 
 /**
@@ -465,7 +471,7 @@ interface ChartValueTableProps {
  * @param props.testId - Identifies the table in tests
  * @returns The visually hidden table of values
  */
-function ChartValueTable({ caption, rows, testId }: Readonly<ChartValueTableProps>): React.JSX.Element {
+export function ChartValueTable({ caption, rows, testId }: Readonly<ChartValueTableProps>): React.JSX.Element {
     // The table IS the visually hidden element rather than sitting inside one:
     // a table nested in Mantine's VisuallyHidden span would be invalid markup,
     // and a server-rendered page would come back from the browser's parser with
@@ -610,6 +616,7 @@ export function HistogramRow({
     trailing,
     brush,
     overlay,
+    valueTable = true,
 }: HistogramRowProps): React.JSX.Element {
     useCompactStyles();
     const formatNumber = useNumberFormatter();
@@ -862,7 +869,7 @@ export function HistogramRow({
                 </Box>
             </Box>
 
-            <ChartValueTable caption={label} rows={valueRows} testId="histogram-values" />
+            {valueTable && <ChartValueTable caption={label} rows={valueRows} testId="histogram-values" />}
 
             {holdsSomething(trailing) && <TrailingSlot>{trailing}</TrailingSlot>}
         </Box>

@@ -685,13 +685,13 @@ export function HeroGraph({
                         {turning ? <GLYPHS.pause aria-hidden /> : <GLYPHS.play aria-hidden />}
                     </UnstyledButton>
                 </div>
-                {lines.length > 0 ? (
-                    <div className="ws-land-said" aria-live="polite">
-                        {lines.map((line) => (
-                            <p key={line}>{line}</p>
-                        ))}
-                    </div>
-                ) : null}
+                {/* On the page, empty, before its first line: a live region that arrives already
+                    holding its words is not read. Empty, it draws nothing (start.css). */}
+                <div className="ws-land-said" aria-live="polite">
+                    {lines.map((line) => (
+                        <p key={line}>{line}</p>
+                    ))}
+                </div>
             </div>
             {card === null || session === null ? null : (
                 <NodeCard

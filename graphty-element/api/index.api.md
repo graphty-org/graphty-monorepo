@@ -1179,9 +1179,11 @@ export interface EdgePosition {
     bends?: readonly number[];
     // (undocumented)
     dst: Position;
+    headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
     // (undocumented)
     src: Position;
+    tailLabelAt?: readonly [along: number, across: number];
 }
 
 // @public

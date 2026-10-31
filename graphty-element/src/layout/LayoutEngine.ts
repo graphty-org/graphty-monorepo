@@ -54,11 +54,18 @@ export interface EdgePosition {
      */
     bends?: readonly number[];
     /**
-     * Where the layout put the edge's label, when it placed one (Graphviz's `lp`): `along` of the way from the source
+     * Where the layout put the edge's label, when it placed one (Graphviz's `lp`, or `xlp` for an external label): `along` of the way from the source
      * to the target and `across` that length to the left of the line, as one pair of `bends` is given. Absent, the
      * label goes at the middle of the edge's line.
      */
     labelAt?: readonly [along: number, across: number];
+    /**
+     * Where the layout put the caption at the edge's target end, when it placed one (Graphviz's `head_lp`), given as
+     * {@link EdgePosition.labelAt} is. Absent, or when the caption's style places it itself, it hangs beside the end.
+     */
+    headLabelAt?: readonly [along: number, across: number];
+    /** Where the layout put the caption at the edge's source end (Graphviz's `tail_lp`), as {@link EdgePosition.headLabelAt}. */
+    tailLabelAt?: readonly [along: number, across: number];
 }
 
 /**

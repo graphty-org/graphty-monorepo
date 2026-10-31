@@ -14,16 +14,24 @@ import { type DotEdge, type DotStructure, isHtmlLabel } from "./toDot";
 
 /**
  * The edge attributes that move dot's nodes -- how hard an edge pulls, how many ranks it spans, whether it ranks its
- * ends, and the label it makes room for -- and those that shape its route: the ports it leaves and meets its nodes
- * at, and the arrowheads its spline stops short for.
+ * ends, and the label it makes room for -- those that shape its route: the ports it leaves and meets its nodes
+ * at, and the arrowheads its spline stops short for -- and its external and end labels, which Graphviz places where
+ * nothing else is drawn (`xlp`, `head_lp`, `tail_lp`), in their font, at their angle and distance.
  */
 const EDGE_ATTRIBUTES = [
     "weight",
     "minlen",
     "constraint",
     "label",
+    "xlabel",
+    "headlabel",
+    "taillabel",
     "fontsize",
     "fontname",
+    "labelfontsize",
+    "labelfontname",
+    "labelangle",
+    "labeldistance",
     "tailport",
     "headport",
     "dir",
@@ -73,6 +81,9 @@ const NODE_SIZE_ATTRIBUTES = [
  * `labelloc` is its clusters' default too), and its margin.
  */
 const CLUSTER_ATTRIBUTES = ["label", "fontsize", "fontname", "labelloc", "margin"] as const;
+
+/** The attributes that hold a label's words. */
+const LABELS = new Set(["label", "xlabel", "headlabel", "taillabel"]);
 
 /** A label escape that names the graph (`\G`), which the layout does not know. */
 const GRAPH_NAME_ESCAPE = String.raw`\G`;
@@ -143,7 +154,7 @@ function labelSizedAttributes(data: Readonly<Record<string, unknown>>, id: NodeI
  * @returns the value
  */
 function attributeText(name: string, value: string): string {
-    if (name === "label") {
+    if (LABELS.has(name)) {
         return labelText(value);
     }
     // `plain` is as big as its label, and Graphviz is handed no label: `plaintext` keeps the size

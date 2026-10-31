@@ -231,7 +231,7 @@ async function computeWith(
 ): Promise<{
     positions: F32;
     bends: ReadonlyMap<number, string>;
-    labels: ReadonlyMap<number, readonly [number, number]>;
+    labels: ReadonlyMap<number, EdgeLabelsAt>;
     xlabels: ReadonlyMap<number, readonly [number, number]>;
     margins: ReadonlyMap<number, GroupMargins>;
 }> {
@@ -293,7 +293,7 @@ async function computeWith(
     return {
         positions: fromJson(reply.json, n).map((value) => value * scale),
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
-        labels: edgeLabelPlaces(reply.json, structure.edges ?? []),
+        labels: edgeLabelsAt(reply.json, structure.edges ?? []),
         xlabels: new Map(
             [...nodeXlabelPlaces(reply.json)].map(([row, [x, y]]) => [
                 row,
@@ -312,6 +312,36 @@ async function computeWith(
             ]),
         ),
     };
+}
+
+/** Where Graphviz put an edge's label (its `lp`, or its `xlp` when it has only an external label) and end labels. */
+type EdgeLabelsAt = Pick<EdgePosition, "labelAt" | "headLabelAt" | "tailLabelAt">;
+
+/**
+ * Where Graphviz put each edge's labels, by its place in the list handed over.
+ * @param json - the `-Tjson` text
+ * @param edges - the edges handed over
+ * @returns each edge's label places; absent for an edge Graphviz placed none of
+ */
+function edgeLabelsAt(
+    json: string,
+    edges: readonly { readonly src: number; readonly dst: number }[],
+): Map<number, EdgeLabelsAt> {
+    const out = new Map<number, EdgeLabelsAt>();
+    // an edge with a label and an external label draws only its label, at `lp`
+    const places = [
+        ["labelAt", edgeLabelPlaces(json, edges, "xlp")],
+        ["labelAt", edgeLabelPlaces(json, edges)],
+        ["headLabelAt", edgeLabelPlaces(json, edges, "head_lp")],
+        ["tailLabelAt", edgeLabelPlaces(json, edges, "tail_lp")],
+    ] as const;
+    for (const [name, byEdge] of places) {
+        for (const [k, place] of byEdge) {
+            out.set(k, { ...out.get(k), [name]: place });
+        }
+    }
+
+    return out;
 }
 
 /**
@@ -444,8 +474,8 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         protected readonly options: Readonly<Record<string, unknown>>;
         /** The route Graphviz laid each edge along, as bends, for the edges it did not draw straight. */
         private routes = new Map<Edge, readonly number[]>();
-        /** Where Graphviz put each labelled edge's label, as `along, across` its two ends. */
-        private labelPlaces = new Map<Edge, readonly [number, number]>();
+        /** Where Graphviz put each labelled edge's label and end labels, as `along, across` its two ends. */
+        private labelPlaces = new Map<Edge, EdgeLabelsAt>();
         /** Where Graphviz put each node's external label, right and down of its center in scene units, by node id as text. */
         private xlabelPlaces = new Map<string, readonly [number, number]>();
 
@@ -512,17 +542,12 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
          * Where an edge's ends are, the route Graphviz laid it along when it did not draw it straight, and where it
          * put the edge's label.
          * @param e - the edge
-         * @returns its ends, its bends when it has a route, and its label's place when Graphviz placed one
+         * @returns its ends, its bends when it has a route, and its label's and end labels' places where Graphviz placed them
          */
         override getEdgePosition(e: Edge): EdgePosition {
             const ends = super.getEdgePosition(e);
             const bends = this.routes.get(e);
-            const labelAt = this.labelPlaces.get(e);
-            return {
-                ...ends,
-                ...(bends === undefined ? {} : { bends }),
-                ...(labelAt === undefined ? {} : { labelAt }),
-            };
+            return { ...ends, ...(bends === undefined ? {} : { bends }), ...this.labelPlaces.get(e) };
         }
     };
 }

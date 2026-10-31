@@ -12562,15 +12562,15 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.991,
-            "edge.curve": 0.997,
+            "edge.route": 0.994,
+            "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.997,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
@@ -12625,15 +12625,15 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.994,
-            "edge.curve": 0.997,
+            "edge.route": 0.997,
+            "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.997,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
@@ -13128,7 +13128,7 @@
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
-            "edge.arrowParts": 0.877,
+            "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
@@ -13430,7 +13430,7 @@
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
-            "edge.arrowParts": 0.877,
+            "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
@@ -15902,7 +15902,7 @@
             "label.offset": 0.92,
             "label.opacity": 1,
             "label.family": 1,
-            "label.lines": 0.28,
+            "label.lines": 0.92,
             "label.align": 0.6,
             "label.anchor": 0.82,
             "label.outline": 1,
@@ -15942,7 +15942,7 @@
             "label.offset": 0.92,
             "label.opacity": 1,
             "label.family": 1,
-            "label.lines": 0.28,
+            "label.lines": 0.92,
             "label.align": 0.6,
             "label.anchor": 0.82,
             "label.outline": 1,
@@ -15978,7 +15978,7 @@
             "label.offset": 0.636,
             "label.opacity": 1,
             "label.family": 1,
-            "label.lines": 0.364,
+            "label.lines": 1,
             "label.align": 0,
             "label.anchor": 0.591,
             "label.outline": 1,
@@ -16018,7 +16018,7 @@
             "label.offset": 0.636,
             "label.opacity": 1,
             "label.family": 1,
-            "label.lines": 0.364,
+            "label.lines": 1,
             "label.align": 0,
             "label.anchor": 0.591,
             "label.outline": 1,
@@ -17116,15 +17116,15 @@
             "label.lines": 1,
             "label.align": 0,
             "label.anchor": 1,
-            "label.alongLine": 0.833,
+            "label.alongLine": 0.87,
             "label.offLine": 0.389,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.99,
-            "edge.route": 0.9,
-            "edge.curve": 0.93,
+            "edge.route": 0.92,
+            "edge.curve": 0.95,
             "edge.color": 0.99,
             "edge.width": 1,
             "edge.opacity": 1,
@@ -17133,7 +17133,7 @@
             "edge.gradient": 0.99,
             "edge.arrow": 1,
             "edge.arrowShape": 0.951,
-            "edge.arrowParts": 0.951,
+            "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 0.99,
@@ -17186,15 +17186,15 @@
             "label.lines": 1,
             "label.align": 0,
             "label.anchor": 1,
-            "label.alongLine": 0.833,
+            "label.alongLine": 0.87,
             "label.offLine": 0.37,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.99,
-            "edge.route": 0.83,
-            "edge.curve": 0.92,
+            "edge.route": 0.84,
+            "edge.curve": 0.94,
             "edge.color": 0.99,
             "edge.width": 1,
             "edge.opacity": 1,
@@ -17203,7 +17203,7 @@
             "edge.gradient": 0.99,
             "edge.arrow": 1,
             "edge.arrowShape": 0.951,
-            "edge.arrowParts": 0.951,
+            "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 0.99,
@@ -17254,7 +17254,7 @@
             "label.offset": 0.971,
             "label.opacity": 1,
             "label.family": 1,
-            "label.lines": 0.98,
+            "label.lines": 0.99,
             "label.align": 1,
             "label.anchor": 0.931,
             "label.outline": 1,
@@ -17318,7 +17318,7 @@
             "label.offset": 0.971,
             "label.opacity": 1,
             "label.family": 1,
-            "label.lines": 0.98,
+            "label.lines": 0.99,
             "label.align": 1,
             "label.anchor": 0.931,
             "label.outline": 1,
@@ -27755,7 +27755,8 @@
             "raster.edge": 0.93,
             "raster.label": 0.91,
             "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.93
+            "raster.nodeOutline": 0.93,
+            "edge.wiggle": 1
         },
         "pajek-1crn@matched": {
             "node.present": 1,
@@ -27802,7 +27803,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 0,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-c": {
             "node.present": 1,
@@ -27852,7 +27854,8 @@
             "raster.edge": 0.81,
             "raster.label": 0.85,
             "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.84
+            "raster.nodeOutline": 0.84,
+            "edge.wiggle": 1
         },
         "pajek-c@matched": {
             "node.present": 1,
@@ -27897,7 +27900,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-football": {
             "node.present": 1,
@@ -27956,7 +27960,8 @@
             "raster.edge": 0.95,
             "raster.label": 0.87,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.91
+            "raster.nodeOutline": 0.91,
+            "edge.wiggle": 1
         },
         "pajek-football@matched": {
             "node.present": 1,
@@ -28009,7 +28014,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-graphstream-b": {
             "node.present": 1,
@@ -28053,7 +28059,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0,
+            "edge.arrowPlace": 0.57,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28068,7 +28074,8 @@
             "raster.edge": 0.87,
             "raster.label": 0.86,
             "raster.nodeBody": 0.95,
-            "raster.nodeOutline": 0.88
+            "raster.nodeOutline": 0.88,
+            "edge.wiggle": 1
         },
         "pajek-graphstream-b@matched": {
             "node.present": 1,
@@ -28112,7 +28119,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0,
+            "edge.arrowPlace": 0.57,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28121,7 +28128,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-iliad": {
             "node.present": 1,
@@ -28180,7 +28188,8 @@
             "raster.edge": 0.9,
             "raster.label": 0.83,
             "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.92
+            "raster.nodeOutline": 0.92,
+            "edge.wiggle": 1
         },
         "pajek-iliad@matched": {
             "node.present": 1,
@@ -28233,7 +28242,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-kdorola": {
             "node.present": 1,
@@ -28283,7 +28293,8 @@
             "raster.edge": 0.87,
             "raster.label": 0.85,
             "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.84
+            "raster.nodeOutline": 0.84,
+            "edge.wiggle": 1
         },
         "pajek-kdorola@matched": {
             "node.present": 1,
@@ -28328,16 +28339,17 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-lin-rel4": {
             "node.present": 1,
             "node.extra": 1,
-            "node.position": 0.962,
-            "node.width": 0.962,
-            "node.height": 0.962,
-            "node.sizeToSpacing": 0.962,
-            "node.sizeToExtent": 0.962,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
@@ -28362,7 +28374,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.917,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -28387,16 +28399,17 @@
             "raster.edge": 0.81,
             "raster.label": 0.79,
             "raster.nodeBody": 0.82,
-            "raster.nodeOutline": 0.81
+            "raster.nodeOutline": 0.81,
+            "edge.wiggle": 1
         },
         "pajek-lin-rel4@matched": {
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.962,
-            "node.height": 0.962,
-            "node.sizeToSpacing": 0.962,
-            "node.sizeToExtent": 0.962,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
@@ -28421,7 +28434,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.917,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -28429,7 +28442,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.958,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
@@ -28440,7 +28453,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 0,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-specimen-arrows": {
             "node.present": 1,
@@ -28485,7 +28499,8 @@
             "raster.edge": 0.95,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "pajek-specimen-arrows-p2": {
             "node.present": 1,
@@ -28529,7 +28544,8 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.93,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.96,
+            "edge.wiggle": 1
         },
         "pajek-specimen-arrows-p2@matched": {
             "node.present": 1,
@@ -28568,7 +28584,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-specimen-arrows-p3": {
             "node.present": 1,
@@ -28598,7 +28615,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.81,
+            "edge.arrowPlace": 0.857,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28613,7 +28630,8 @@
             "raster.edge": 0.94,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "pajek-specimen-arrows-p3@matched": {
             "node.present": 1,
@@ -28643,7 +28661,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.81,
+            "edge.arrowPlace": 0.857,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28652,7 +28670,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-specimen-arrows@matched": {
             "node.present": 1,
@@ -28691,7 +28710,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edge-labels": {
             "node.present": 1,
@@ -28750,7 +28770,8 @@
             "raster.edge": 0.94,
             "raster.label": 0.88,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edge-labels-p2": {
             "node.present": 1,
@@ -28795,7 +28816,8 @@
             "raster.edge": 0.95,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edge-labels-p2@matched": {
             "node.present": 1,
@@ -28834,7 +28856,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edge-labels@matched": {
             "node.present": 1,
@@ -28887,7 +28910,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edges-lines": {
             "node.present": 1,
@@ -28932,7 +28956,8 @@
             "raster.edge": 0.94,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edges-lines-p2": {
             "node.present": 1,
@@ -28977,7 +29002,8 @@
             "raster.edge": 0.93,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edges-lines-p2@matched": {
             "node.present": 1,
@@ -29016,7 +29042,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edges-lines-p3": {
             "node.present": 1,
@@ -29061,7 +29088,8 @@
             "raster.edge": 0.97,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edges-lines-p3@matched": {
             "node.present": 1,
@@ -29100,7 +29128,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edges-lines-p4": {
             "node.present": 1,
@@ -29145,7 +29174,8 @@
             "raster.edge": 0.94,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edges-lines-p4@matched": {
             "node.present": 1,
@@ -29184,7 +29214,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edges-lines-p5": {
             "node.present": 1,
@@ -29229,7 +29260,8 @@
             "raster.edge": 0.97,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edges-lines-p5@matched": {
             "node.present": 1,
@@ -29268,7 +29300,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-specimen-edges-lines@matched": {
             "node.present": 1,
@@ -29307,7 +29340,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-specimen-labels": {
             "node.present": 1,
@@ -30065,7 +30099,8 @@
             "raster.edge": 0.87,
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.88
+            "raster.nodeOutline": 0.88,
+            "edge.wiggle": 1
         },
         "pajek-synth-lines@matched": {
             "node.present": 1,
@@ -30118,16 +30153,17 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "pajek-synth-vertices": {
             "node.present": 1,
             "node.extra": 0.987,
-            "node.position": 0.896,
-            "node.width": 0.896,
-            "node.height": 0.87,
-            "node.sizeToSpacing": 0.935,
-            "node.sizeToExtent": 0.935,
+            "node.position": 1,
+            "node.width": 0.974,
+            "node.height": 0.974,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
             "node.shape": 0.87,
             "node.fill": 1,
             "node.fillOpacity": 1,
@@ -30137,10 +30173,10 @@
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
-            "label.size": 0.958,
+            "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
-            "label.color": 0.972,
+            "label.color": 1,
             "label.rotation": 1,
             "label.offset": 1,
             "label.opacity": 1,
@@ -30152,7 +30188,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.705,
+            "edge.route": 0.893,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -30170,16 +30206,17 @@
             "raster.edge": 0.83,
             "raster.label": 0.83,
             "raster.nodeBody": 0.89,
-            "raster.nodeOutline": 0.86
+            "raster.nodeOutline": 0.86,
+            "edge.wiggle": 1
         },
         "pajek-synth-vertices@matched": {
             "node.present": 1,
             "node.extra": 0.987,
             "node.position": 1,
-            "node.width": 0.896,
-            "node.height": 0.87,
-            "node.sizeToSpacing": 0.935,
-            "node.sizeToExtent": 0.935,
+            "node.width": 0.974,
+            "node.height": 0.974,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
             "node.shape": 0.87,
             "node.fill": 1,
             "node.fillOpacity": 1,
@@ -30189,10 +30226,10 @@
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
-            "label.size": 0.958,
+            "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
-            "label.color": 0.985,
+            "label.color": 1,
             "label.rotation": 1,
             "label.offset": 1,
             "label.opacity": 1,
@@ -30204,7 +30241,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.741,
+            "edge.route": 0.929,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -30217,7 +30254,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 0,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "vis-network-specimen-arrows": {
             "node.present": 1,

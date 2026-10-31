@@ -395,19 +395,19 @@ Tool values are elements drawn with the writing program's default.
 | pajek/fidelity/c.net | ok | 65 | 125 | 3 | 3 | 2 | 100% | 0% | 0 | 1080 | 0 |  |
 | pajek/fidelity/football.net | ok | 35 | 118 | 2 | 4 | 207 | 33% | 33% | 0 | 1150 | 0 |  |
 | pajek/fidelity/kdorola.net | ok | 127 | 152 | 5 | 3 | 109 | 0% | 0% | 0 | 2030 | 0 |  |
-| pajek/fidelity/lin-rel4.net | ok | 234 | 604 | 4 | 3 | 300 | 0% | 0% | 0 | 6846 | 0 |  |
+| pajek/fidelity/lin-rel4.net | ok | 234 | 604 | 4 | 3 | 300 | 0% | 0% | 0 | 6828 | 0 |  |
 | pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 5 | 263 | 63% | 54% | 0 | 720 | 0 |  |
-| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 272 | 100% | 0% | 0 | 1326 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 281 | 100% | 0% | 0 | 1320 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 5 | 4 | 29 | 55% | 14% | 0 | 250 | 0 |  |
 | pajek/generated/color-forms.net | ok | 8 | 5 | 3 | 4 | 12 | 100% | 25% | 0 | 139 | 0 | W_STYLE_BAD_VALUE |
 | pajek/generated/colors-mix.net | ok | 80 | 80 | 3 | 8 | 292 | 82% | 25% | 0 | 1250 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/graphty-written.net | ok | 6 | 7 | 2 | 5 | 27 | 81% | 22% | 0 | 38 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/graphty-written.net | ok | 6 | 7 | 2 | 5 | 27 | 89% | 22% | 0 | 38 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/nan-values.net | ok | 4 | 16 | 3 | 3 | 0 | - | - | 0 | 148 | 0 |  |
 | pajek/generated/proto-color-names.net | ok | 3 | 2 | 3 | 5 | 4 | 100% | 25% | 0 | 50 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/shapes-and-lines.net | ok | 6 | 7 | 2 | 5 | 21 | 100% | 29% | 0 | 73 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 5 | 20 | 100% | 30% | 0 | 74 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 5 | 27 | 81% | 22% | 0 | 38 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 5 | 20 | 100% | 30% | 0 | 83 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/shapes-and-lines.net | ok | 6 | 7 | 2 | 5 | 23 | 100% | 26% | 0 | 71 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 5 | 22 | 100% | 27% | 0 | 72 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 5 | 27 | 89% | 22% | 0 | 38 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 5 | 24 | 100% | 25% | 0 | 79 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
 | pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 6 | 4 | 151 | 0% | 0% | 0 | 1631 | 0 |  |
 | pajek/kjhealy_kjhnet__iliad_killedby.net | ok | 311 | 292 | 4 | 3 | 75 | 76% | 76% | 0 | 6417 | 0 |  |
 | roles/by-group-0 | ok | 0 | 0 | 0 | 0 | 0 | - | - | 0 | 0 | 0 |  |

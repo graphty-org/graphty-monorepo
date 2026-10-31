@@ -112,6 +112,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "shapeLines",
         "shapeLineWidth",
         "tooltip",
+        "xlabel",
         "visible",
     ] as const),
     edge: Object.freeze([
@@ -171,6 +172,7 @@ const NODE_ATTRIBUTES: readonly string[] = [
     "fontsize",
     "fontcolor",
     "tooltip",
+    "xlabel",
 ];
 
 /** Every edge attribute the reader reads; the writer replaces them all. */
@@ -198,7 +200,7 @@ const EDGE_ATTRIBUTES: readonly string[] = [
 ];
 
 /** Attributes the reader notes as not carried. */
-const NOTED_ATTRIBUTES: readonly string[] = ["peripheries", "xlabel"];
+const NOTED_ATTRIBUTES: readonly string[] = ["peripheries"];
 
 const CIRCLE_LIKE: ReadonlySet<string> = new Set(["circle", "doublecircle", "mcircle", "square", "msquare"]);
 const BOX_LIKE: ReadonlySet<string> = new Set(["box", "rect", "rectangle", "square"]);
@@ -2784,6 +2786,10 @@ function nodeAttributes(
         out.set(LABEL_ATTRIBUTE, escapeLabel(label));
     } else if (label === null && shown !== null) {
         out.set(LABEL_ATTRIBUTE, "");
+    }
+    const xlabel = get("xlabel");
+    if (!cx.cluster && typeof xlabel === "string") {
+        out.set("xlabel", escapeLabel(xlabel));
     }
     noteLabelPosition(get("labelPosition"), cx, raw, approximate);
     if (tokens.length > 0) {

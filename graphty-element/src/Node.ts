@@ -1755,8 +1755,10 @@ export class Node implements ModelUser {
         // A layout that keeps nodes apart by their drawn size (`nodeGap`) has to look again;
         // the frame loop steps it while it is not settled.
         const engine = this.context.getLayoutManager().layoutEngine;
-        if (engine instanceof NGraphEngine) {
-            engine.wakeForResize();
+        // Once the frame loop has seen it settle it stops stepping it, so a woken layout is
+        // started again too; otherwise it stays unsettled and nothing ever pushes the nodes apart.
+        if (engine instanceof NGraphEngine && engine.wakeForResize()) {
+            this.context.getLayoutManager().running = true;
         }
 
         if (resizedSink) {

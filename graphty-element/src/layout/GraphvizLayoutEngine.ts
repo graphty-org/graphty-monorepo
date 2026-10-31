@@ -500,12 +500,6 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         }
 
         /**
-         * Where an edge's ends are, the route Graphviz laid it along when it did not draw it straight, and where it
-         * put the edge's label.
-         * @param e - the edge
-         * @returns its ends, its bends when it has a route, and its label's place when Graphviz placed one
-         */
-        /**
          * Where Graphviz put a node's external label (its `xlp`).
          * @param n - the node
          * @returns right and down of the node's center, in scene units, or undefined when Graphviz placed none
@@ -514,6 +508,12 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
             return this.xlabelPlaces.get(String(n.id));
         }
 
+        /**
+         * Where an edge's ends are, the route Graphviz laid it along when it did not draw it straight, and where it
+         * put the edge's label.
+         * @param e - the edge
+         * @returns its ends, its bends when it has a route, and its label's place when Graphviz placed one
+         */
         override getEdgePosition(e: Edge): EdgePosition {
             const ends = super.getEdgePosition(e);
             const bends = this.routes.get(e);

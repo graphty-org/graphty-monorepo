@@ -56,6 +56,8 @@ const SIZE_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(["node.size", "edge
 const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
     "node.label",
     "node.labelStyle",
+    "node.xlabel",
+    "node.xlabelStyle",
     "edge.labelStyle",
     "node.tooltip",
     "edge.label",

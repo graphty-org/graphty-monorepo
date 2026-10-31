@@ -741,7 +741,7 @@ export class NodeMesh {
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             // each further ring (`count`, Graphviz's peripheries) starts the offset beyond the one before
             const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
-            const pieces = Array.from({ length: outerBorder?.count ?? 1 }, (_, i) => {
+            const pieces = Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
                 const at = gap + i * step;
                 return borderRing(at > 0 ? offsetOutline(outline, at) : outline, width, outerBorder?.style ?? "solid");
             }).flat();

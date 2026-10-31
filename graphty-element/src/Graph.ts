@@ -242,7 +242,7 @@ import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js"
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
-import { addsRows, type DataMutation } from "./session/commands/data";
+import { addsRows, COLUMNS_VALUE, type DataMutation, SOURCE_VALUE, SOURCES_VALUE } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
 import { assertViewName } from "./session/commands/view";
@@ -255,6 +255,7 @@ import {
     sessionRunsOf,
     setsNotifierOfSession,
 } from "./session/GraphSession";
+import { ISSUES_VALUE } from "./session/issues";
 import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
@@ -270,6 +271,7 @@ import { reportCaught, strictStateEnabled, strictViolation } from "./session/pro
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import { shadersControllerOf } from "./session/shaders";
+import { PROVENANCE_VALUE } from "./session/sources/provenance";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
@@ -394,6 +396,13 @@ function disposeEdgeMeshes(edge: Edge): void {
  *   version (`UpdateManager.viewMasksPending`), so the frame a moved mask needs is drawn unasked.
  * - The time field and its unit: they say which column holds time, and nothing is drawn from
  *   them; what a window then hides is a mask.
+ * - The graph values no layer reads and nothing draws (#3973): the issue state, which issues are
+ *   ignored or settled; where the graph was loaded from, its loads and their provenance; and the
+ *   column settings, whose hiding, types and rename bookkeeping repaint nothing (the rows' own
+ *   edits do, and a rename's declarations are keys of their own). The graph hook repaints for a
+ *   pass of graph values alone only when an earlier write left the paint owed, and that pass asks
+ *   for its frame itself (`#passRepainted`). The annotations and the file styles are graph values
+ *   that draw, so they are not here.
  */
 const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string> | null>>> = {
     visibility: null,
@@ -403,6 +412,9 @@ const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string
         "data.knownFields.edgeTimePath",
         "data.knownFields.edgeTimeUnit",
     ]),
+    graph: new Set(
+        [ISSUES_VALUE, SOURCE_VALUE, SOURCES_VALUE, PROVENANCE_VALUE, COLUMNS_VALUE].map((name) => `v:${name}`),
+    ),
 };
 
 /**
@@ -768,6 +780,9 @@ export class Graph implements GraphContext {
     /** Rows a forward add brought that the layout has not placed yet: an import still reading. */
     #placementOwed = false;
 
+    /** The running pass repainted the whole graph, so it needs a frame whatever keys it wrote. */
+    #passRepainted = false;
+
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
 
@@ -1129,6 +1144,7 @@ export class Graph implements GraphContext {
             // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
             if (paintsWhole) {
                 dispatcher.paintOwed = false;
+                this.#passRepainted = true;
                 await this.repaintFromSession();
                 // The whole graph is painted, whatever an import stopped part way left waiting.
                 this.dataManager.notePainted(null);
@@ -1292,9 +1308,11 @@ export class Graph implements GraphContext {
         // a pass that wrote only keys that draw nothing (see KEYS_THAT_DRAW_NOTHING): on a software
         // GPU every frame costs the page 200 to 800 ms of its main thread under load (#4196).
         lane.passEnded = (dirty) => {
-            if (!drawsNothing(dirty)) {
+            if (this.#passRepainted || !drawsNothing(dirty)) {
                 this.renderManager.requestFrame();
             }
+
+            this.#passRepainted = false;
         };
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same

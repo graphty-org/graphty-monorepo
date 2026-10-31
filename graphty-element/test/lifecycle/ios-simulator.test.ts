@@ -36,7 +36,7 @@ import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, writeFileSy
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { afterAll, assert, beforeAll, describe, it, onTestFailed } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it, onTestFailed } from "vitest";
 
 import { kill } from "./engines";
 import { type Fixture, startFixture } from "./fixture";
@@ -235,7 +235,6 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
     let safariLog: SafariLog;
 
     beforeAll(async () => {
-        fx = await startFixture();
         udid = pickDevice();
         try {
             simctl("boot", udid);
@@ -252,15 +251,26 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         terminateSafari(udid);
     });
 
-    afterAll(async () => {
+    afterAll(() => {
         safariLog?.stop();
         try {
             simctl("shutdown", udid);
         } catch {
             // Not booted.
         }
+    });
 
-        await fx?.close();
+    // A fixture server, so an origin, per test. Safari keeps the tabs of earlier tests and reloads
+    // them in the background when it relaunches; on a shared origin such a self-driving page wrote
+    // to the same autosave database and iOS suspended it mid-transaction, and every write of the
+    // next test queued behind that transaction until the watchdog reported E_AUTOSAVE_STALLED
+    // (issue #5148). With its server closed, an earlier test's tab loads nothing.
+    beforeEach(async () => {
+        fx = await startFixture();
+    });
+
+    afterEach(async () => {
+        await fx.close();
     });
 
     /**

@@ -22,7 +22,8 @@ export function dotPositions(snapshot: GraphSnapshot): ImporterPositions | null 
         return null;
     }
     const bb = snapshot.graph.get("bb");
-    const laidOut = bb !== null && bb.isSet(0) && boxOf(bb.value(0)) !== null;
+    const box = bb !== null && bb.isSet(0) ? boxOf(bb.value(0)) : null;
+    const laidOut = box !== null;
     const width = snapshot.nodes.get("width");
     const widths: number[] = [];
     for (let row = 0; width !== null && row < width.length; row++) {
@@ -34,12 +35,33 @@ export function dotPositions(snapshot: GraphSnapshot): ImporterPositions | null 
     return {
         units: laidOut ? "px" : "file",
         // input inches are drawn beside the styles' point lengths at 72 points each
-        ...(laidOut ? {} : { pxPerUnit: POINTS_PER_INCH }),
+        ...(laidOut ? ratioStretch(snapshot, box) : { pxPerUnit: POINTS_PER_INCH }),
         yAxis: "up",
         groups: clusterBoxes(snapshot),
         medianNodeSize: median(widths),
         ...(laidOut ? { tool: "graphviz" } : {}),
     };
+}
+
+/**
+ * How Graphviz stretches a laid-out drawing to a numeric `ratio` (height over width): the height is scaled up when
+ * the drawing is wider than that, else the width; the nodes keep their sizes. ponytail: the positions are stretched,
+ * a cluster's `bb` and an edge's spline `pos` are not; stretch them too when a file sets both.
+ * @param snapshot - the graph
+ * @param box - the drawing's `bb`
+ * @returns each axis's points per unit, or nothing for a ratio that is not a number above 0
+ */
+function ratioStretch(
+    snapshot: GraphSnapshot,
+    box: ImporterGroupBox["box"],
+): { pxPerUnit?: number; pxPerUnitY?: number } {
+    const raw = snapshot.graph.get("ratio");
+    const ratio = raw !== null && raw.isSet(0) ? Number(raw.value(0)) : Number.NaN;
+    if (!Number.isFinite(ratio) || ratio <= 0 || box.width <= 0 || box.height <= 0) {
+        return {};
+    }
+    const actual = box.height / box.width;
+    return actual < ratio ? { pxPerUnit: 1, pxPerUnitY: ratio / actual } : { pxPerUnit: actual / ratio, pxPerUnitY: 1 };
 }
 
 /**

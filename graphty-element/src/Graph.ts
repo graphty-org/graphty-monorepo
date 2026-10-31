@@ -1411,6 +1411,9 @@ export class Graph implements GraphContext {
         );
         // A picture the frame on screen does not show yet: an image annotation still loading, or a
         // scene shader's (the background, a group outline) still loading, compiling or owed a draw.
+        this.updateManager.fitAnnotations = () => {
+            this.#annotations?.refit();
+        };
         this.updateManager.picturesLoading = () =>
             this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
         this.layoutManager.drawArrivedPaint = () => {
@@ -8383,10 +8386,14 @@ export class Graph implements GraphContext {
     private drawAnnotations(value: unknown): void {
         if (this.#annotations?.scene !== this.scene) {
             // a picture that arrives after the frame was called final has to be drawn, on demand too
-            this.#annotations = new AnnotationMeshes(this.scene, () => {
-                this.updateManager.pending.changed();
-                this.renderManager.requestFrame();
-            });
+            this.#annotations = new AnnotationMeshes(
+                this.scene,
+                () => {
+                    this.updateManager.pending.changed();
+                    this.renderManager.requestFrame();
+                },
+                () => this.dataManager.nodes.values(),
+            );
         }
 
         this.#annotations.update(value);

@@ -62,6 +62,7 @@ import {
     parseJunit,
 } from "./test-ledger.mjs";
 import { selectedCommand } from "./test-select.mjs";
+import { WAIT_GUARD_MS } from "./test-wait-guard.mjs";
 
 const DAY = 86_400_000;
 export const PASSES_TO_LEAVE = 20;
@@ -416,8 +417,22 @@ function notRetried(outcome, first, list, family) {
     if (outcome !== "failed") return `not retried: the run ended "${outcome}", not in test failures alone`;
     const open = new Set((first?.failures ?? []).filter((f) => !quarantined(list, family, f)).map((f) => f.file));
     if (open.size > MAX_RETRY_FILES) return `not retried: ${open.size} files failed, more than ${MAX_RETRY_FILES}`;
+    const hung = waitedOutGuard(first?.failures ?? []);
+    if (hung.length > 0) {
+        const s = Math.round(WAIT_GUARD_MS / 1000);
+        return `not retried: ${hung.map((f) => f.name).join(", ")} waited out the ${s} s hang guard, and a retry would wait it out again`;
+    }
     return "not retried: its command cannot be narrowed to the failed files";
 }
+
+/**
+ * The failures that ran as long as the wait guard (tools/test-wait-guard.mjs): a wait that never came true.
+ * Their retry waits the guard out again, and two guards do not fit in a CI test job, which GitHub then
+ * cancels with no result recorded (#5255: 15 min first, the retry cancelled at the job's 30 min).
+ * @param failures parseJunit() failures
+ * @returns those that hit the guard
+ */
+export const waitedOutGuard = (failures) => failures.filter((f) => (f.ms ?? 0) >= WAIT_GUARD_MS);
 
 /**
  * Runs the failed test files of a shard once more, when there are a few and one of them is not quarantined.
@@ -436,7 +451,8 @@ async function retryFailed({ root, shard, first, family, list, env, viaRunTests,
     const failed = first?.failures ?? [];
     const open = [...new Set(failed.filter((f) => !quarantined(list, family, f)).map((f) => f.file))];
     const files = [...new Set(failed.map((f) => f.file))];
-    const cmd = shard && open.length > 0 && open.length <= MAX_RETRY_FILES ? selectedCommand(root, shard, files) : null;
+    const retryable = open.length > 0 && open.length <= MAX_RETRY_FILES && waitedOutGuard(failed).length === 0;
+    const cmd = shard && retryable ? selectedCommand(root, shard, files) : null;
     if (!cmd) return null;
     console.log(`${RETRY_MARK} the ${files.length} failed test file(s) of ${shard.shard} once: ${files.join(", ")}`);
     const retryId = reports.id ? `${reports.id}.retry` : null;

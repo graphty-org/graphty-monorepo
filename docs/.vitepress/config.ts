@@ -9,7 +9,11 @@ const env = loadEnv("development", process.cwd(), "");
 function loadTypedocSidebar(path: string): Array<{ text: string; link: string }> {
     // a file that is missing, or empty because a TypeDoc run was interrupted, gives no sidebar
     const text = existsSync(path) ? readFileSync(path, "utf-8").trim() : "";
-    return text === "" ? [] : JSON.parse(text);
+    const sidebar = text === "" ? [] : JSON.parse(text);
+    // DOCS_API_SIDEBARS=off (a pull request's Docs check, whose site nobody publishes) still parses the file
+    // and renders every page, but without the API sidebars: each holds up to ~1,500 entries that VitePress
+    // renders again on every one of ~2,500 pages, which is most of the "rendering pages" time.
+    return process.env.DOCS_API_SIDEBARS === "off" ? [] : sidebar;
 }
 
 const graphtyTypedoc = loadTypedocSidebar("./docs/graphty-element/api/generated/typedoc-sidebar.json");

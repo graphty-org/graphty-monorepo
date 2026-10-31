@@ -401,8 +401,9 @@ describe("the pre-push gate matches CI", () => {
         // and the advisory test selector it starts beside the shards
         "test-select.mjs",
         "test-select-rules.json",
-        // the quarantine wrapper every shard runs through, and the ledger it reads JUnit with
+        // the quarantine wrapper every shard runs through, and the ledger it reads JUnit with (and the hang guard it reads)
         "test-quarantine.mjs",
+        "test-wait-guard.mjs",
         // the test ledger, and the scratch worktree a land check re-runs a failure on golden's tip in
         "test-ledger.mjs",
         "land.mjs",
@@ -555,6 +556,7 @@ describe("the pre-push gate matches CI", () => {
                 "push-base.mjs",
                 "shard-verdict.mjs",
                 "test-quarantine.mjs",
+                "test-wait-guard.mjs",
                 "test-ledger.mjs",
                 "test-select.mjs",
                 "test-select-rules.json",
@@ -1715,6 +1717,12 @@ describe("ci.yml", () => {
             /if: steps.plan.outputs.full == 'true' && steps.reuse-build.outputs.artifacts-run == ''\n\s+run: pnpm exec nx run-many -t build/,
         );
         assert.match(job(ci, "docs"), /name: build-docs\n/);
+        // only a pull request's docs leave out the API sidebars and upload nothing; master's site keeps both
+        assert.match(
+            job(ci, "docs"),
+            /DOCS_API_SIDEBARS: \$\{\{ github.event_name == 'pull_request' && 'off' \|\| 'on' \}\}\n/,
+        );
+        assert.match(job(ci, "docs"), /- name: Upload unified docs\n\s+if: github.event_name != 'pull_request'\n/);
         assert.match(job(ci, "build"), /name: build-storybook-element\n/);
         assert.match(job(ci, "build"), /\n {8}needs: run-cap\n {8}runs-on:/, "build runs on master too");
         for (const name of ["lint", "checks", "docs"]) {
@@ -6517,6 +6525,7 @@ describe("a failed pre-push test shard (#1562)", () => {
                 "push-base.mjs",
                 "shard-verdict.mjs",
                 "test-quarantine.mjs",
+                "test-wait-guard.mjs",
                 "test-ledger.mjs",
                 "test-select.mjs",
                 "test-select-rules.json",

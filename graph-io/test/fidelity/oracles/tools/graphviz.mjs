@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Re-creates the Graphviz oracles: each DOT sample drawn by the Graphviz 14.1.2 CLI with -Tsvg,
 // and each GML sample whose only other route was gml2gv drawn by gml2gv | neato -n2 -Tsvg (a
-// stand-in: the program that wrote those files, yEd, cannot run here). The SVG is written exactly
-// as Graphviz printed it; nothing is stripped (Graphviz writes no timestamp or run-dependent data).
+// stand-in: the program that wrote those files, yEd, cannot run here). The SVG is written as Graphviz
+// printed it (Graphviz writes no timestamp or run-dependent data), but for one thing: a font-family that
+// names no generic family gets sans-serif after it (withSansFallback), the face Graphviz measured it in.
 //
 //   node graphviz.mjs [sample-id ...]      (no ids: every sample below, every DOT specimen sheet and every GML
 //                                          specimen sheet whose stand-in is gml2gv)
@@ -39,6 +40,7 @@ writeFileSync(
     fontconfig,
     readFileSync(join(here, "graphviz-fonts.conf"), "utf8")
         .replaceAll("@VISUAL_FONTS@", join(repo, "visual-fonts"))
+        .replaceAll("@TOOLS@", here)
         .replaceAll("@CACHE@", join(fontDir, "cache")),
 );
 
@@ -94,9 +96,27 @@ const version = /version (\S+ \(\S+\))/.exec(
 if (!version) throw new Error(`no Graphviz at ${bin}`);
 const wanted = new Set(process.argv.slice(2));
 
-function write(id, file, svg, fields, rasterEnv = "", path = id) {
+const GENERIC = new Set(["serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"]);
+/**
+ * The SVG with each font-family list that names no generic family followed by sans-serif. Graphviz writes a name it
+ * has no PostScript alias for (Helvetica-Outline, Verdana) as it is, and a browser draws a name it does not know in
+ * its standard font, a serif; but Graphviz measured it in fontconfig's default sans face (graphviz-fonts.conf), as
+ * graph-io's reading of the fontname draws it. A fontconfig pattern (DejaVu Sans:bold) is left alone: graph-io reads
+ * it as the viewer's default face, which the SVG as written is drawn in.
+ * @param svg - the SVG as Graphviz printed it
+ * @returns the SVG to write
+ */
+function withSansFallback(svg) {
+    return svg.toString().replace(/font-family="([^"]*)"/g, (whole, list) => {
+        const names = list.split(",").map((n) => n.trim().toLowerCase());
+        return list.includes(":") || names.some((n) => GENERIC.has(n)) ? whole : `font-family="${list},sans-serif"`;
+    });
+}
+
+function write(id, file, printed, fields, rasterEnv = "", path = id) {
     const bytes = readFileSync(join(testDir, file));
-    const [, w, h] = /<svg width="([\d.]+)pt" height="([\d.]+)pt"/.exec(svg.toString()) ?? [];
+    const svg = withSansFallback(printed);
+    const [, w, h] = /<svg width="([\d.]+)pt" height="([\d.]+)pt"/.exec(svg) ?? [];
     writeFileSync(join(oracles, `${path}.svg`), svg);
     const meta = {
         sample: id,
@@ -114,8 +134,10 @@ function write(id, file, svg, fields, rasterEnv = "", path = id) {
         },
         fonts:
             "FONTCONFIG_FILE=graph-io/test/fidelity/oracles/tools/graphviz-fonts.conf (the repository's pinned fonts, " +
-            "each font-family resolved to the face a browser draws it in)",
-        svgPostprocessing: "none: the SVG is Graphviz's output byte for byte",
+            "each font-family resolved to the face a browser draws it in, Verdana to the test pages' Inter)",
+        svgPostprocessing:
+            "a font-family naming no generic family gets sans-serif after it, the face Graphviz measured it in; " +
+            "otherwise Graphviz's output byte for byte",
         date: new Date().toISOString().slice(0, 10),
         regenerate: `node ${relative(repo, fileURLToPath(import.meta.url))} ${id} && ${rasterEnv}node ${relative(repo, join(here, "rasterize.mjs"))} ${relative(repo, join(oracles, `${path}.svg`))}`,
     };

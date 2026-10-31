@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -19,6 +20,7 @@ import {
     failingFiles,
     globToRe,
     graphCacheKey,
+    nearestBase,
     lightPlan,
     planSummary,
     reusableEdges,
@@ -2533,6 +2535,15 @@ describe("the import graphs' cache key", () => {
         } finally {
             rmSync(repo, { recursive: true, force: true });
         }
+    });
+});
+
+describe("nearestBase", () => {
+    it("finds no base in a cold cache whose folder does not exist yet, instead of throwing", () => {
+        assert.equal(
+            nearestBase(join(tmpdir(), "test-select-no-such-cache"), "pkg-x-", () => ""),
+            null,
+        );
     });
 });
 

@@ -472,6 +472,11 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.xlabelLocation": "content",
     "node.xlabelOffsetX": "content",
     "node.xlabelOffsetY": "content",
+    "edge.xlabel": "content",
+    "edge.xlabelStyle": "content",
+    "edge.xlabelLocation": "content",
+    "edge.xlabelOffsetX": "content",
+    "edge.xlabelOffsetY": "content",
 });
 
 /**

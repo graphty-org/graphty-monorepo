@@ -83,7 +83,7 @@ export const SELECTION_HALO_MESH = "graphty-selection-halo";
 const CONTEXT_POINT_MESH = "graphty-context-point";
 
 /** The label fields an external label does not take from the label: what it says, where it sits, its switch. */
-const XLABEL_UNSHARED = [
+export const XLABEL_UNSHARED = [
     "enabled",
     "text",
     "textPath",

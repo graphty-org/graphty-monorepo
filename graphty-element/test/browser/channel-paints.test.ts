@@ -123,6 +123,10 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "node.xlabelLocation": { "node.xlabel": "OUT" },
     "node.xlabelOffsetX": { "node.xlabel": "OUT" },
     "node.xlabelOffsetY": { "node.xlabel": "OUT" },
+    "edge.xlabelStyle": { "edge.xlabel": "OUT" },
+    "edge.xlabelLocation": { "edge.xlabel": "OUT" },
+    "edge.xlabelOffsetX": { "edge.xlabel": "OUT" },
+    "edge.xlabelOffsetY": { "edge.xlabel": "OUT" },
 };
 
 /** How wide the canvas is. */

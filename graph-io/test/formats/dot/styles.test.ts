@@ -701,10 +701,11 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         }
     });
 
-    it("reads an edge's xlabel as its label when it has none, and notes one it cannot carry beside a label", async () => {
+    it("reads an edge's xlabel as its label when it has none, and as its xlabel beside a label", async () => {
         const { snapshot, styles } = await load('digraph { a -> b [xlabel="x"]; a -> c [label="l", xlabel="x"] }');
         expect(drawn(styles, snapshot, "edge", "label")).toEqual(["x", "l"]);
-        expect(codes(styles)).toContain("W_STYLE_NOT_CARRIED");
+        expect(drawn(styles, snapshot, "edge", "xlabel")).toEqual([null, "x"]);
+        expect(codes(styles)).not.toContain("W_STYLE_NOT_CARRIED");
     });
 
     it("carries a node's xlabel, and its stored xlp as an offset from the node's stored center", async () => {

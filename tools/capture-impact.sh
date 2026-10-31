@@ -28,7 +28,8 @@ if [[ "$mode" == changed ]]; then
     # --no-renames: a file moved out of a watched folder counts by its old path too
     files=$(git diff --name-only --no-renames "$base" "$head")
     if grep -qE '^(visual-review/capture/|visual-fonts/|visual-review\.config\.json$|(.+/)?\.storybook/preview)' <<<"$files" ||
-        git diff "$base" "$head" -- visual-review/package.json pnpm-lock.yaml | grep -qE '^[-+][^-+].*(playwright|chromium)'; then
+        # a here-string, not a pipe: grep -q stops early, and pipefail would read git diff's SIGPIPE as no match
+        grep -qE '^[-+][^-+].*(playwright|chromium)' <<<"$(git diff "$base" "$head" -- visual-review/package.json pnpm-lock.yaml)"; then
         echo true
     else
         echo false

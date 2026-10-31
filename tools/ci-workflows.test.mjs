@@ -8352,6 +8352,8 @@ describe("the Capture impact job (#5304)", () => {
             assert.equal(changed({ [f]: "x\n" }), "true", f);
         }
         assert.equal(changed({ "pnpm-lock.yaml": "  playwright@1.58.0:\n" }), "true", "a Playwright version");
+        const big = `  playwright@1.58.0:\n${"  other@1.0.0:\n".repeat(20_000)}`;
+        assert.equal(changed({ "pnpm-lock.yaml": big }), "true", "a Playwright version in a large lockfile diff");
         for (const f of ["graph-samples/src/a.ts", "visual-review/trusted/gate.mjs", "layout/.storybook/main.ts"]) {
             assert.equal(changed({ [f]: "x\n" }), "false", f);
         }

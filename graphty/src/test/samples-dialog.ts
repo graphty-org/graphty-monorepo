@@ -3,17 +3,10 @@
  */
 import { userEvent } from "vitest/browser";
 
+import { sampleTile } from "./sample-tile";
 import { screen } from "./test-utils";
 
-/**
- * A sample tile's accessible name, which begins "Open the <name> sample" and goes on with the
- * tile's visible title ("Open the Les Miserables sample: Who holds the novel together").
- * @param name - the sample's name.
- * @returns a pattern for the tile's name.
- */
-export function sampleTile(name: string): RegExp {
-    return new RegExp(`^Open the ${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} sample: `);
-}
+export { sampleTile };
 
 /**
  * Opens one of the start page's samples by its tile, once the start page shows (it waits for the

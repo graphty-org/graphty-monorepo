@@ -7,7 +7,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { freshStore } from "../../stories/freshStore";
 import { fixWallClock } from "../../test/fixedWallClock";
-import { sampleTile } from "../../test/samples-dialog";
+import { sampleTile } from "../../test/sample-tile";
 import { Workspace } from "../Workspace";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];

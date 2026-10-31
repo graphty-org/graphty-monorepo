@@ -24,7 +24,7 @@ export function revertOnEscape(event: KeyboardEvent<HTMLInputElement>, revert: (
 }
 
 /** What Escape last took back in a box, for its DiscardNote, and the Escape that says so. */
-export interface DiscardedEdit {
+interface DiscardedEdit {
     /** "Edit discarded; this stays 40.", or "" when there is nothing to say. */
     readonly text: string;
     /** Empties the note: the reader typed or left the box. */

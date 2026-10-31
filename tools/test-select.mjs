@@ -41,12 +41,13 @@
  *       Vitest sets NODE_ENV and VITEST* in the process that does it
  */
 
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, posix, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 
 import { pathRefs, projectGraph } from "./prepush-inputs.mjs";
 
@@ -2522,13 +2523,14 @@ export const repoPath = (pkg, file) => `${pkg}/${file.replace(/^\.\.\/\.\.\//u, 
 // --- the command line -----------------------------------------------------------------------------------
 
 /**
- * Each package's graphs, one per vitest config its shards use, each built in a child process.
+ * Each package's graphs, one per vitest config its shards use, each built in a child process; every walk
+ * starts at once and runs in parallel.
  * @param root the checkout
  * @param dirs package directories
  * @param shards SHARDS entries (which configs each package needs)
- * @returns Map(dir -> [graph|null...])
+ * @returns Promise of Map(dir -> [graph|null...])
  */
-export function buildGraphs(root, dirs, shards) {
+export async function buildGraphs(root, dirs, shards) {
     const graphs = new Map();
     const cache = graphCache(root);
     for (const dir of dirs) {
@@ -2538,10 +2540,15 @@ export function buildGraphs(root, dirs, shards) {
         const on = mine.some((s) => s.flags === "on");
         graphs.set(
             dir,
-            [...(configs.size > 0 ? configs : [null])].map((config) =>
-                cache(dir, config, () => graphChild(root, dir, config, on), on ? "features-on" : ""),
+            Promise.all(
+                [...(configs.size > 0 ? configs : [null])].map((config) =>
+                    cache(dir, config, () => graphChild(root, dir, config, on), on ? "features-on" : ""),
+                ),
             ),
         );
+    }
+    for (const [dir, pending] of graphs) {
+        graphs.set(dir, await pending);
     }
     return graphs;
 }
@@ -2550,7 +2557,8 @@ export function buildGraphs(root, dirs, shards) {
  * Graphs kept in <main checkout>/tmp/test-select/graphs/, keyed by the package's committed tree, so a
  * package nobody changed is not walked again. A package with uncommitted changes is always walked.
  * @param root the checkout
- * @returns `(dir, config, build, variant) => graph`, `variant` "features-on" for a graph with the On projects
+ * @returns `async (dir, config, build, variant) => graph`, `variant` "features-on" for a graph with the On projects;
+ *   `build` returns a graph or a promise of one
  */
 function graphCache(root) {
     const git = (args) =>
@@ -2566,7 +2574,7 @@ function graphCache(root) {
     }
     // the list of tests that read files is computed from the rules and kept in each graph
     const rulesHash = createHash("sha256").update(readFileSync(RULES)).digest("hex");
-    return (dir, config, build, variant = "") => {
+    return async (dir, config, build, variant = "") => {
         let file = null;
         try {
             if (dirPath && git(["status", "--porcelain", "--", dir]) === "") {
@@ -2583,7 +2591,7 @@ function graphCache(root) {
         } catch {
             file = null;
         }
-        const graph = build();
+        const graph = await build();
         if (graph?.failed?.length > 0) {
             const which = config ? `${dir} (${config})` : dir;
             console.error(
@@ -2931,22 +2939,25 @@ function configFiles(root, dir) {
         .filter((f) => f && (/\/(vite|vitest|eslint)[^/]*\.config\.[^/]+$/u.test(f) || f.includes("/.storybook/")));
 }
 
-function graphChild(root, dir, config, on = false) {
+const execFileAsync = promisify(execFile);
+
+async function graphChild(root, dir, config, on = false) {
     if (!existsSync(join(root, dir, "package.json"))) {
         return null;
     }
     try {
-        const out = execFileSync(
+        const walk = execFileAsync(
             process.execPath,
             [fileURLToPath(import.meta.url), "--root", root, "--graph", dir, ...(config ? ["--config", config] : [])],
             {
                 cwd: root,
                 encoding: "utf8",
                 maxBuffer: 1 << 30,
-                stdio: ["ignore", "pipe", "pipe"],
                 env: on ? { ...process.env, GRAPHTY_FEATURES_ON: "1" } : process.env,
             },
         );
+        walk.child.stdin.end(); // the walk reads nothing from stdin
+        const { stdout: out } = await walk;
         return JSON.parse(out.trim().split("\n").at(-1));
     } catch (e) {
         const why = String(e.stderr ?? e.message)
@@ -2978,7 +2989,7 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
     }
     useNamesRoot(root);
     const packages = new Map([...graph.roots].filter(([, d]) => shards.some((s) => s.package === d)));
-    const all = graphs ?? buildGraphs(root, [...packages.values()], shards);
+    const all = graphs ?? (await buildGraphs(root, [...packages.values()], shards));
     const rules = loadRules(root);
     const sel = selectPackages({
         changed,

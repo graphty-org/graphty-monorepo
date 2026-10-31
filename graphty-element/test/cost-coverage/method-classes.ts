@@ -827,6 +827,7 @@ export const READ_ONLY: readonly string[] = [
     "LayoutEngine.getClass",
     "LayoutEngine.getEdgePosition",
     "LayoutEngine.getNodePosition",
+    "LayoutEngine.getNodeXlabelOffset",
     "LayoutEngine.getOptionsForDimension",
     "LayoutEngine.getOptionsForDimensionByType",
     "LayoutEngine.getRegisteredTypes",

@@ -113,6 +113,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "shapeLines",
         "shapeLineWidth",
         "tooltip",
+        "xlabel",
         "visible",
     ] as const),
     edge: Object.freeze([
@@ -172,6 +173,7 @@ const NODE_ATTRIBUTES: readonly string[] = [
     "fontsize",
     "fontcolor",
     "tooltip",
+    "xlabel",
 ];
 
 /** Every edge attribute the reader reads; the writer replaces them all. */
@@ -199,7 +201,7 @@ const EDGE_ATTRIBUTES: readonly string[] = [
 ];
 
 /** Attributes the reader notes as not carried. */
-const NOTED_ATTRIBUTES: readonly string[] = ["peripheries", "xlabel"];
+const NOTED_ATTRIBUTES: readonly string[] = ["peripheries"];
 
 const CIRCLE_LIKE: ReadonlySet<string> = new Set(["circle", "doublecircle", "mcircle", "square", "msquare"]);
 const BOX_LIKE: ReadonlySet<string> = new Set(["box", "rect", "rectangle", "square"]);
@@ -1075,8 +1077,29 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     readNodeOutline(n);
     readNodeShape(n);
     readNodeLabelAndSize(n, names);
-    if (nonEmpty(get("xlabel")) !== null) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
+}
+
+/**
+ * Reads a node's external label (`xlabel`), drawn outside it in its label's face, and where a laid-out file stored it
+ * (`xlp`, its center, kept only beside the node's stored `pos`) as an offset from the node's center, y down.
+ * @param get - the node's attributes
+ * @param cx - its name and the file's HTML strings
+ * @param center - its stored center, in points, y up; null when the file stores none
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readNodeXlabel(get: Attr, cx: NodeContext, center: readonly number[] | null, put: Put, at: At): void {
+    const raw = nonEmpty(get("xlabel"));
+    if (cx.cluster || raw === null) {
+        return;
+    }
+    const names: DotEscapeNames = { node: cx.name, graph: cx.graph, edge: "" };
+    put("xlabel", labelText(raw, names, cx.html, false, at("xlabel")));
+    const [px, py] = center ?? [];
+    const [lx, ly] = (get("xlp") ?? "").split(",").map(Number);
+    if ([px, py, lx, ly].every(Number.isFinite)) {
+        put("xlabelOffsetX", num6(lx - px));
+        put("xlabelOffsetY", num6(py - ly));
     }
 }
 
@@ -2475,6 +2498,7 @@ function writeGraphRotation(graph: GraphSnapshot["graph"], rotation: StyleValue 
 export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles {
     const notes = new StyleNotes();
     const cx = contexts(snapshot);
+    const places = labelPlaceContext(snapshot);
     const node = valueColumns(snapshot.nodeCount);
     const nameColumn = new Array<StyleValue | null>(snapshot.nodeCount).fill(null);
     const clusterColumn = new Array<StyleValue | null>(snapshot.nodeCount).fill(null);
@@ -2485,14 +2509,11 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         const get: Attr = (name) => cellText(snapshot.nodes, name, i);
         const ncx = cx.node(i);
         const at: At = (property) => ({ notes, target: "node", property, element: i, budget: context.budget });
-        readNode(
-            get,
-            ncx,
-            (p, v) => {
-                node.put(i, p, v);
-            },
-            at,
-        );
+        const put: Put = (p, v) => {
+            node.put(i, p, v);
+        };
+        readNode(get, ncx, put, at);
+        readNodeXlabel(get, ncx, places.center(i), put, at);
         const shown = defaultLabel(ncx, (get("shape") ?? "").toLowerCase(), notes);
         if (shown !== null) {
             nameColumn[i] = shown;
@@ -2508,7 +2529,6 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     // `splines=none` and `splines=""` draw no edges at all (https://graphviz.org/docs/attrs/splines/)
     const splines = cellText(snapshot.graph, "splines", 0)?.trim().toLowerCase();
     const noEdges = splines === "" || splines === "none";
-    const places = labelPlaceContext(snapshot);
     for (let e = 0; e < snapshot.edgeCount; e++) {
         context.budget.spend("edge", EDGE_ATTRIBUTES.length);
         const get: Attr = (name) => cellText(snapshot.edges, name, e);
@@ -2825,6 +2845,10 @@ function nodeAttributes(
         out.set(LABEL_ATTRIBUTE, escapeLabel(label));
     } else if (label === null && shown !== null) {
         out.set(LABEL_ATTRIBUTE, "");
+    }
+    const xlabel = get("xlabel");
+    if (!cx.cluster && typeof xlabel === "string") {
+        out.set("xlabel", escapeLabel(xlabel));
     }
     noteLabelPosition(get("labelPosition"), cx, raw, approximate);
     if (tokens.length > 0) {

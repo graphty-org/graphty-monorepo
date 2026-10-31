@@ -469,6 +469,12 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // attributes and a lift is the route, so neither keys a line batch (Edge.syncShading).
     "edge.taper": "content",
     "edge.lift": "content",
+    // A second label, drawn beside the node by the label renderer like the first.
+    "node.xlabel": "content",
+    "node.xlabelStyle": "content",
+    "node.xlabelLocation": "content",
+    "node.xlabelOffsetX": "content",
+    "node.xlabelOffsetY": "content",
 });
 
 /**

@@ -706,6 +706,17 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         expect(drawn(styles, snapshot, "edge", "label")).toEqual(["x", "l"]);
         expect(codes(styles)).toContain("W_STYLE_NOT_CARRIED");
     });
+
+    it("carries a node's xlabel, and its stored xlp as an offset from the node's stored center", async () => {
+        const { snapshot, styles } = await load(
+            'graph { a [xlabel="ext \\N"]; b [xlabel="x", pos="376,95!", xlp="402,121"]; c [xlabel="y", xlp="1,2"] }',
+        );
+        expect(drawn(styles, snapshot, "node", "xlabel")).toEqual(["ext a", "x", "y"]);
+        // right 26 points and up 26 points (DOT's y grows upward, the offset's downward)
+        expect(drawn(styles, snapshot, "node", "xlabelOffsetX")).toEqual([null, 26, null]);
+        expect(drawn(styles, snapshot, "node", "xlabelOffsetY")).toEqual([null, -26, null]);
+        expect(codes(styles)).not.toContain("W_STYLE_NOT_CARRIED");
+    });
 });
 
 describe("DOT design rule 5: none and invis are transparent, a list is never its first color where Graphviz draws black", () => {

@@ -58,7 +58,7 @@ const RULES = join(HERE, "test-select-rules.json");
 const TEST_SIDE = /(^|\/)(test|tests|__tests__|e2e|stories|\.storybook|benchmarks?)\//u;
 /** A test spec: no build or Storybook loads it (a test helper under test/ can be: graph-io's fidelity stories import some). */
 const SPEC_FILE = /\.(test|spec)\.[cm]?[jt]sx?$|\.test-d\.ts$/u;
-const TEST_FILE = new RegExp(`${SPEC_FILE.source}|\\.stories\\.[cm]?[jt]sx?$|\\.md$`, "u");
+const TEST_FILE = new RegExp(String.raw`${SPEC_FILE.source}|\.stories\.[cm]?[jt]sx?$|\.md$`, "u");
 export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.test(pkgPath);
 
 /**

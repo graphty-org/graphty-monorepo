@@ -558,8 +558,8 @@ describe("the policy's conditions", () => {
     it("a publish hold or a red hold open a day never sends the screenshot reminder", async () => {
         const p = pushover();
         const m: MemberStatus = {
-            ...member("release.lanes_red", "releases"),
-            value: 2,
+            ...member("release.review_wait", "releases"),
+            value: 0,
             facts: { "release.review_wait_ms": 0, "release.review_issue": 0, "release.hold_open_ms": 30 * HOUR },
         };
         const store = new MemoryStore();

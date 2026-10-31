@@ -822,9 +822,12 @@ function GroupActionsCell({
             {/* Drawn in the list's own box, not in the row, whose cell would clip it. */}
             <Menu withinPortal portalProps={{ target: menuHost ?? undefined }} position="bottom-end">
                 <Menu.Target>
-                    <ActionIcon variant="subtle" size="sm" aria-label={`${source} ${row.name} actions`}>
-                        <GLYPHS.more size={14} aria-hidden />
-                    </ActionIcon>
+                    {/* An icon alone, so it says its name on hover. */}
+                    <Tooltip label={`${source} ${row.name} actions`}>
+                        <ActionIcon variant="subtle" size="sm" aria-label={`${source} ${row.name} actions`}>
+                            <GLYPHS.more size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
                 </Menu.Target>
                 <Menu.Dropdown>
                     {from.detail === undefined ? null : (
@@ -1503,7 +1506,7 @@ export function GroupDetail({
                         </Box>
                         <Box w={24} style={{ flex: "none" }}>
                             {anySet ? (
-                                <Tooltip label="Clear: back to the layer's value">
+                                <Tooltip label={`Clear ${title} ${name.toLowerCase()}`}>
                                     <ActionIcon
                                         variant="subtle"
                                         size="sm"

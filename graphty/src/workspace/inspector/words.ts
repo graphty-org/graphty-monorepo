@@ -592,7 +592,11 @@ export function selectionNameWords(session: GraphSession): string {
  * @returns the words.
  */
 export function selectedNameWords(session: GraphSession): string {
-    return `${selectionNameWords(session)} selected`;
+    const words = selectionNameWords(session);
+    // One node named by a number ("34") would read as a count beside "34 nodes selected".
+    const isOneNode = session.selection.nodes.length === 1 && session.selection.edges.length === 0;
+    const prefix = isOneNode && /^[\d.,]+$/.test(words) ? "node " : "";
+    return `${prefix}${words} selected`;
 }
 
 /**

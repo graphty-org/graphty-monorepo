@@ -39,7 +39,9 @@ async function opened(u) {
  */
 async function openSample(u, sample) {
     await u.click("Samples");
-    await u.click(`Open the ${sample} sample`);
+    // A card is named "Open the <name> sample: <its title>".
+    const name = sample.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+    await u.click(u.button(new RegExp(`^Open the ${name} sample: `)));
     await opened(u);
 }
 

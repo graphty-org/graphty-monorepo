@@ -7,6 +7,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
+import { sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -26,7 +27,7 @@ describe("the sample library's pictures", () => {
         resetSiteConfig();
         render(<Workspace store={createWorkspaceStore()} />);
         const tile = within(screen.getByRole("region", { name: "Sample library" })).getByRole("button", {
-            name: "Open the Venice public transport sample",
+            name: sampleTile("Venice public transport"),
         });
 
         const file = { site: "canary", datasets: "https://canary.example/data/v1/" };

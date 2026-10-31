@@ -690,20 +690,25 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
     // about 30 px.
     const fixed = typed || typing;
     const sourceWord = fixed ? FIXED_TEXT : source;
+    // The button is narrow and cuts its words short ("Fixed t..."), so its tooltip says them whole,
+    // in the words of its name.
+    const sourceName = `${kind.name} source: ${sourceWord}`;
     const sourceControl = sourcePicker(
-        <Button
-            size="compact-xs"
-            variant="default"
-            c={words === undefined ? "dimmed" : undefined}
-            fullWidth
-            justify="flex-start"
-            aria-label={`${kind.name} source: ${sourceWord}`}
-            aria-haspopup="dialog"
-            aria-expanded={sourceOpen}
-            style={{ flex: 1, minWidth: 0 }}
-        >
-            {sourceWord}
-        </Button>,
+        <Tooltip label={sourceName}>
+            <Button
+                size="compact-xs"
+                variant="default"
+                c={words === undefined ? "dimmed" : undefined}
+                fullWidth
+                justify="flex-start"
+                aria-label={sourceName}
+                aria-haspopup="dialog"
+                aria-expanded={sourceOpen}
+                style={{ flex: 1, minWidth: 0 }}
+            >
+                {sourceWord}
+            </Button>
+        </Tooltip>,
     );
 
     return (
@@ -725,7 +730,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                 {sourceControl}
                 <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>
                     <Popout.Trigger>
-                        <Tooltip label={`${kind.name} settings`}>
+                        <Tooltip label={`${where} settings`}>
                             <PopoutButton
                                 icon={<GLYPHS.settings size={14} aria-hidden />}
                                 aria-label={`${where} settings`}

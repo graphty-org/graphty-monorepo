@@ -1621,6 +1621,8 @@ export function CardBody({
         case "yes-no":
             return (
                 <MatchSelect
+                    // Its choices are the values themselves (Yes, No), so it is named for them.
+                    label={`${card.field.name} is`}
                     name={card.field.name}
                     value={blank ? null : card.match}
                     data={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, ...PRESENCE]}
@@ -1673,6 +1675,7 @@ function fixedText(leaf: RuleTree): string {
  * A card's Match select.
  * @param props - Component props
  * @param props.name - the field's name
+ * @param props.label - its accessible name, when it is not "<name>: how to match"
  * @param props.value - the chosen value, or null while none is
  * @param props.data - the choices
  * @param props.onChange - takes the card as edited
@@ -1680,11 +1683,13 @@ function fixedText(leaf: RuleTree): string {
  */
 function MatchSelect({
     name,
+    label,
     value,
     data,
     onChange,
 }: Readonly<{
     name: string;
+    label?: string;
     value: string | null;
     data: readonly { value: string; label: string }[];
     onChange: (value: string) => void;
@@ -1704,7 +1709,7 @@ function MatchSelect({
             ref={input}
             size="xs"
             // Named for what it chooses beside the card's column; the select says its own value.
-            aria-label={`${name}: how to match`}
+            aria-label={label ?? `${name}: how to match`}
             allowDeselect={false}
             data={[...data]}
             value={value}

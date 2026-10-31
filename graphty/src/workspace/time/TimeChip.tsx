@@ -36,7 +36,7 @@ export function TimeChip(): React.JSX.Element | null {
                     {words}
                 </Button>
             </Tooltip>
-            <Tooltip label="Show all time">
+            <Tooltip label="Clear the time window">
                 <ActionIcon
                     variant="subtle"
                     size="sm"

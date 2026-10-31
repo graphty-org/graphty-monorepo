@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { CompactColorInput, compactTheme, PopoutManager } from "../../src";
+import { colorWord } from "../../src/utils/color-utils";
 
 /**
  * Render a color field with no opacity and open its picker, which focuses the picker itself.
@@ -67,7 +68,7 @@ describe("ColorPickerPanel value box", () => {
 });
 
 describe("ColorPickerPanel Escape", () => {
-    it("Escape in the value box takes typing back, keeps focus there, and says so aloud", async () => {
+    it("Escape in the value box takes typing back, keeps focus there, and says so aloud, with the color's words", async () => {
         const value = await openPicker();
         await userEvent.keyboard("FF0000{Escape}");
 
@@ -76,7 +77,7 @@ describe("ColorPickerPanel Escape", () => {
         expect(document.activeElement).toBe(value);
         await expect
             .element(page.getByTestId("color-picker-panel").getByRole("status"))
-            .toHaveTextContent("Edit discarded; this stays 6366F1.");
+            .toHaveTextContent(`Edit discarded; this stays 6366F1 ${colorWord("#6366F1")}.`);
     });
 });
 

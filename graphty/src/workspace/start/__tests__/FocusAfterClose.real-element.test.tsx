@@ -21,7 +21,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { openBy } from "../../../test/open";
-import { pickSample } from "../../../test/samples-dialog";
+import { pickSample, sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { forgetUsageAnswer } from "../../privacy/usageData";
@@ -100,7 +100,7 @@ describe("focus after the control holding it goes away, on the real element", ()
     it("a sample opened with Enter hands focus to the graph's heading, which says its size", async () => {
         const store = createWorkspaceStore();
         const { unmount } = render(<Workspace store={store} />);
-        const sample = screen.getByRole("button", { name: "Open the Florentine families sample" });
+        const sample = screen.getByRole("button", { name: sampleTile("Florentine families") });
         sample.focus();
         const session = await openBy(store, () => userEvent.keyboard("{Enter}"));
         assertFocusOnGraphHeading(15, session.data.statistics().edgeCount);

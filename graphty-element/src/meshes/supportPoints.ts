@@ -163,6 +163,28 @@ function child(c: Cell, k: number): Cell {
 }
 
 /**
+ * `Math.hypot(a, b)`, bit for bit as V8 computes it (its builtin scales by the larger term and sums the squares), at
+ * half the cost of the call: {@link repulsionOn} takes one for every cell it visits.
+ * @param a - One term.
+ * @param b - The other.
+ * @returns The length.
+ */
+export function hypot(a: number, b: number): number {
+    const x = Math.abs(a);
+    const y = Math.abs(b);
+    const max = x > y ? x : y;
+    if (!(max > 0 && max < Infinity)) {
+        return Math.hypot(a, b);
+    }
+    const p = x / max;
+    const q = y / max;
+    return Math.sqrt(p * p + q * q) * max;
+}
+
+/** The cells {@link repulsionOn} has still to visit, kept from call to call. */
+const STACK: Cell[] = [];
+
+/**
  * The push every body but `self` gives the body at (x, y): the Barnes-Hut sum, a far cell taken as its center of
  * mass.
  * @param root - The tree.
@@ -173,40 +195,39 @@ function child(c: Cell, k: number): Cell {
  * @returns The push, x and y.
  */
 function repulsionOn(root: Cell, self: number, x: number, y: number, forces: SupportForces): [number, number] {
+    // the sum in the same order as before, with no array made per cell: this runs for every support point on every
+    // step (json-vis-siblings: 284 points, up to 1,500 steps each time its nodes move)
+    const bh = forces.model === "barnesHut";
     let fx = 0;
     let fy = 0;
-    const stack: Cell[] = [root];
-    while (stack.length > 0) {
-        const c = stack.pop() as Cell;
+    const stack = STACK;
+    let top = 0;
+    stack[top++] = root;
+    while (top > 0) {
+        const c = stack[--top];
         if (c.mass === 0 || c.body === self) {
             continue;
         }
-        const d = Math.hypot(c.mx - x, c.my - y);
-        if (c.kids !== null && c.size / Math.max(d, 1e-12) >= THETA) {
-            stack.push(...c.kids.filter((kid): kid is Cell => kid !== null));
+        const d = hypot(c.mx - x, c.my - y);
+        const { kids } = c;
+        if (kids !== null && c.size / Math.max(d, 1e-12) >= THETA) {
+            for (const kid of kids) {
+                if (kid !== null) {
+                    stack[top++] = kid;
+                }
+            }
             continue;
         }
-        const [px, py] = pushFrom(c, x, y, d, forces);
-        fx += px;
-        fy += py;
+        // vis-network: two bodies at one place are taken as 0.1 apart along x
+        const at = d === 0;
+        const dd = at ? 0.1 : d;
+        const dx = at ? 0.1 : c.mx - x;
+        const dy = at ? 0 : c.my - y;
+        const g = (forces.repulsion * c.mass) / (bh ? dd * dd * dd : dd * dd);
+        fx += -dx * g;
+        fy += -dy * g;
     }
     return [fx, fy];
-}
-
-/**
- * The push one cell, taken as its center of mass, gives the body at (x, y).
- * @param c - The cell.
- * @param x - The body's x.
- * @param y - Its y.
- * @param distance - How far the cell's center of mass is.
- * @param forces - The body's force law.
- * @returns The push, x and y.
- */
-function pushFrom(c: Cell, x: number, y: number, distance: number, forces: SupportForces): [number, number] {
-    // vis-network: two bodies at one place are taken as 0.1 apart along x
-    const [d, dx, dy] = distance === 0 ? [0.1, 0.1, 0] : [distance, c.mx - x, c.my - y];
-    const g = (forces.repulsion * c.mass) / (forces.model === "barnesHut" ? d * d * d : d * d);
-    return [-dx * g, -dy * g];
 }
 
 /**

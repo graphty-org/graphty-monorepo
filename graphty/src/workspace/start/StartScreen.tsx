@@ -735,8 +735,11 @@ export function StartScreen(): React.JSX.Element {
 
     const returning = recent.length > 0;
     const [latest] = recent;
+    // Focus goes with the scroll, to the library's search, so the next key lands there.
     const showSamples = (): void => {
-        document.getElementById("ws-land-samples")?.scrollIntoView({ behavior: "smooth" });
+        const library = document.getElementById("ws-land-samples");
+        library?.querySelector<HTMLElement>('input[type="search"]')?.focus({ preventScroll: true });
+        library?.scrollIntoView({ behavior: "smooth" });
     };
     const privacy = (
         <Text size="xs" c="dimmed" className="ws-land-privacy">

@@ -653,11 +653,9 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         const polygonPoints = byId(polygon, polygonSnapshot, "shapePoints");
         expect(points.get("h")).toBe(polygonPoints.get("h"));
         expect(points.get("e")).toBe(polygonPoints.get("e"));
-        // box3d as dot -Tjson draws it at 0.75 by 0.5 inch: a box with its back edge 4 points up and right
-        expect(points.get("b")).toBe("1,1 -0.851852,1 -1,0.777778 -1,-1 0.851852,-1 1,-0.777778");
-        expect(byId(styles, snapshot, "shapeLines").get("b")).toBe(
-            "0.851852,0.777778 -1,0.777778; 0.851852,0.777778 0.851852,-1; 0.851852,0.777778 1,1",
-        );
+        // box3d as dot -Tjson draws it: a box with its back edge 4 points up and right, 4 points whatever its size
+        expect(points.get("b")).toBe("1,1 -1+4,1 -1,1-4 -1,-1 1-4,-1 1,-1+4");
+        expect(byId(styles, snapshot, "shapeLines").get("b")).toBe("1-4,1-4 -1,1-4; 1-4,1-4 1-4,-1; 1-4,1-4 1,1");
         // a decorated box holds its label exactly, as a box does; a polygon holds it inside its ellipse
         const fit = byId(styles, snapshot, "labelFit");
         expect(["h", "b", "c"].map((id) => fit.get(id))).toEqual(["inside", "bounds", "bounds"]);
@@ -680,14 +678,14 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
             p [shape=promoter]; a [shape=assembly]; u [shape=underline];
         }`);
         const get = (property: string, id: string): unknown => byId(styles, snapshot, property).get(id);
+        // each piece a fraction of the half width or height plus a length in points, so it keeps its size when the
+        // node grows to hold its label
         expect(get("shapePoints", "p")).toBe(
-            "0.25,1 -0.5,1 -0.5,0 -0.166667,0 -0.166667,0.666667 0.25,0.666667 0.25,0.5 0.916667,0.833333 0.25,1.16667",
+            "0.25,0+18 -0.5,0+18 -0.5,0 -0.5+6,0 -0.5+6,0+12 0.25,0+12 0.25,0+9 0.25+12,0+15 0.25,0+21",
         );
         expect(get("shapePointsStretch", "p")).toBe(false);
         expect(get("shapeLines", "p")).toBe("-1,0 1,0");
-        expect(get("shapeParts", "a")).toBe(
-            "-0.666667,-0.416667 0.666667,-0.416667 0.666667,-0.0833333 -0.666667,-0.0833333",
-        );
+        expect(get("shapeParts", "a")).toBe("0-12,0-7.5 0+12,0-7.5 0+12,0-1.5 0-12,0-1.5");
         expect(get("borderWidth", "u")).toBe(0);
         expect(get("shapeLineWidth", "u")).toBe(2);
         expect(get("shapeLines", "u")).toBe("-1,-1 1,-1");
@@ -699,6 +697,19 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         ]) {
             expect(text).toMatch(new RegExp(`\\b${id}\\s*\\[[^\\]]*shape=${name}\\b`));
         }
+    });
+
+    it("draws a glyph's pieces at their sizes in points from the node's sides, whatever size the node grows to", async () => {
+        // Graphviz's five-prime overhang: a bar 24 points long against the left side, its lower bar 12 points in
+        const { snapshot, styles } = await load(`digraph { f [shape=fivepoverhang, label="a long label"]; }`);
+        const get = (property: string): unknown => byId(styles, snapshot, property).get("f");
+        expect(get("shapePoints")).toBe("-1,0+1.5 -1+24,0+1.5 -1+24,0+7.5 -1,0+7.5");
+        expect(get("shapeParts")).toBe("-1+12,0-7.5 -1+24,0-7.5 -1+24,0-1.5 -1+12,0-1.5");
+        expect(get("shapeLines")).toBe("-1+24,0 1,0");
+        // it holds its label as a box, as Graphviz's four-sided glyphs do
+        expect(get("labelFit")).toBe("bounds");
+        const text = await registry.exportGraphToString(snapshot, "dot", { styles });
+        expect(text).toMatch(/\bf\s*\[[^\]]*shape=fivepoverhang\b/);
     });
 
     it("reads an edge's xlabel as its label when it has none, and as its xlabel beside a label", async () => {

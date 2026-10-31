@@ -189,6 +189,17 @@ describe("flat shape outlines", () => {
         assert.closeTo(Math.max(...triangle.map(([x]) => x)), 24 * 0.866, 1e-9);
     });
 
+    test("a polygon's corners may add a length to their fraction, kept whatever the box's size", () => {
+        // a bar 24 long against the left side, as Graphviz draws a five-prime overhang's
+        for (const width of [100, 200]) {
+            const bar = flatShapeOutline("polygon", width, 20, undefined, "-1,0 -1+24,0 -1+24,1 -1,1", false);
+            const xs = bar.map(([x]) => x);
+            assert.closeTo(Math.min(...xs), -width / 2, 1e-9);
+            assert.closeTo(Math.max(...xs), -width / 2 + 24, 1e-9);
+            assert.isAbove(areaOf(bar), 0);
+        }
+    });
+
     test("a node with no body takes up its box and has no face", () => {
         const outline = flatShapeOutline("none", 4, 1);
         assert.deepEqual(boxOf(outline), { width: 4, height: 1 });

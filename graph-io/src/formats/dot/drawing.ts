@@ -213,13 +213,13 @@ export const GRAPHVIZ_POLYGON_SHAPES: ReadonlyMap<string, GraphvizPolygon> = new
 );
 
 /** A point in points, relative to a node's center, y up. */
-type GlyphPoint = readonly [number, number];
+export type GlyphPoint = readonly [number, number];
 
 /**
  * A Graphviz shape drawn as pieces of its own (`round_corners`, lib/common/shapes.c): its outline, further closed
  * pieces beside it, and open lines, every point in points relative to the node's center, y up.
  */
-interface GraphvizGlyph {
+export interface GraphvizGlyph {
     /** The outline the node's fill and border follow. */
     readonly outline: readonly GlyphPoint[];
     /** Further closed pieces, filled and outlined as the outline is (an `assembly`'s second bar). */

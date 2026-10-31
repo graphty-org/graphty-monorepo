@@ -906,17 +906,17 @@ export class NodeMesh {
     }
 
     private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
-        const corner = shape.cornerRadius === undefined ? undefined : shape.cornerRadius * this.extentPerSize(shape);
-
+        // drawn in units of size, where a polygon's lengths (`-1+24`) and the corner radius are, then in world units
+        const perSize = this.extentPerSize(shape);
         const outline = flatShapeOutline(
             shape.type ?? "",
-            extents.x ?? extents.across,
-            extents.y ?? extents.across,
-            corner,
+            (extents.x ?? extents.across) / perSize,
+            (extents.y ?? extents.across) / perSize,
+            shape.cornerRadius,
             shape.points,
             shape.stretchPoints !== false,
             shape.exactCornerRadius === true,
-        );
+        ).map(([x, y]): Point2 => [x * perSize, y * perSize]);
         if (shape.sizeMode !== "diameter" || this.hasExplicitExtent(shape) || outline.length === 0) {
             return outline;
         }

@@ -3462,7 +3462,9 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "node's center as fractions of its half width and half height, y up: `0,1 1,-1 -1,-1` is a " +
             "triangle. The outline is stretched so its farthest corners reach the node's sides. A node that " +
             "grows to hold its label (`node.labelFit`) grows by as far as its corners reach past 1. Other " +
-            "shapes ignore it.",
+            "shapes ignore it. A coordinate may add a length in the units of `node.size` after its fraction, " +
+            "so the corner keeps its distance whatever the node's size: `-1+24` is 24 in from the left side, " +
+            "`0+6` 6 above the middle (in `node.shapeParts` and `node.shapeLines` too).",
     },
     "node.shapeStretchPoints": {
         channel: "node.shapeStretchPoints",

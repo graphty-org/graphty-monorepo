@@ -306,20 +306,73 @@ function fitToBox(unit: readonly Point2[], halfWidth: number, halfHeight: number
 }
 
 /**
- * A polygon's corners from its `x,y x,y ...` text (`shape.points`), counter-clockwise.
- * @param text - The corners, as `x,y` pairs separated by spaces.
- * @returns The corners, or null when there are fewer than three or one is not two finite numbers.
+ * A point of a shape's corners, parts or lines (`shape.points`, `shape.parts`, `shape.lines`): its x as a fraction of
+ * the half width plus a length, and its y as a fraction of the half height plus a length.
  */
-export function polygonPoints(text: string | undefined): Point2[] | null {
-    const pairs = (text ?? "").trim().split(/\s+/);
-    const points = pairs.map((pair): Point2 => {
-        const [x, y, extra] = pair.split(",").map(Number);
+export type ShapePoint = readonly [x: number, xLength: number, y: number, yLength: number];
 
-        return extra === undefined ? [x, y] : [Number.NaN, Number.NaN];
-    });
-    if (points.length < 3 || !points.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))) {
+/**
+ * A coordinate of a shape's points: a number, a fraction, or a fraction and the length added to it (`-1+24`: 24 in
+ * from the left side).
+ * @param text - The coordinate.
+ * @returns The fraction and the length, NaN when it is neither.
+ */
+function coordinate(text: string | undefined): [number, number] {
+    const plain = text === undefined ? Number.NaN : Number(text);
+    if (text === undefined || Number.isFinite(plain)) {
+        return [plain, 0];
+    }
+    // the length starts at the last sign that is not the fraction's own
+    const at = Math.max(text.lastIndexOf("+"), text.lastIndexOf("-"));
+    const [fraction, length] = at > 0 ? [Number(text.slice(0, at)), Number(text.slice(at))] : [Number.NaN, Number.NaN];
+    return Number.isFinite(fraction) && Number.isFinite(length) ? [fraction, length] : [Number.NaN, Number.NaN];
+}
+
+/**
+ * One list of a shape's points from its `x,y x,y ...` text, each coordinate a fraction of the half width or height,
+ * optionally followed by a signed length (`-1+24,0`).
+ * @param text - The points, as `x,y` pairs separated by spaces.
+ * @returns The points, or null when there are none or one is not two coordinates.
+ */
+export function shapePointList(text: string | undefined): ShapePoint[] | null {
+    const points = (text ?? "")
+        .trim()
+        .split(/\s+/)
+        .filter((pair) => pair !== "")
+        .map((pair): ShapePoint => {
+            const [x, y, extra] = pair.split(",");
+            return extra === undefined ? [...coordinate(x), ...coordinate(y)] : [Number.NaN, 0, Number.NaN, 0];
+        });
+    return points.length > 0 && points.every((p) => p.every((v) => Number.isFinite(v))) ? points : null;
+}
+
+/**
+ * Where a shape's point is drawn in a box.
+ * @param point - The point.
+ * @param halfWidth - The box's half width.
+ * @param halfHeight - Its half height.
+ * @param perLength - The box's units per unit of the point's lengths.
+ * @returns The point, relative to the box's center.
+ */
+export function placePoint(point: ShapePoint, halfWidth: number, halfHeight: number, perLength = 1): Point2 {
+    const [x, xLength, y, yLength] = point;
+    return [x * halfWidth + xLength * perLength, y * halfHeight + yLength * perLength];
+}
+
+/**
+ * A polygon's corners from its `x,y x,y ...` text (`shape.points`), counter-clockwise, placed in a box: as fractions
+ * of its half width and half height when it is 1 by 1, its corners' lengths in the box's units.
+ * @param text - The corners, as `x,y` pairs separated by spaces.
+ * @param halfWidth - The box's half width.
+ * @param halfHeight - Its half height.
+ * @returns The corners, or null when there are fewer than three or one is not two coordinates.
+ */
+export function polygonPoints(text: string | undefined, halfWidth = 1, halfHeight = 1): Point2[] | null {
+    const corners = shapePointList(text);
+    if (corners === null || corners.length < 3) {
         return null;
     }
+    const points = corners.map((p) => placePoint(p, halfWidth, halfHeight));
 
     const area = points.reduce((sum, [x0, y0], i) => {
         const [x1, y1] = points[(i + 1) % points.length];
@@ -331,8 +384,7 @@ export function polygonPoints(text: string | undefined): Point2[] | null {
 }
 
 /**
- * How far a polygon's corners reach from its center along x and along y, as fractions of its half
- * width and half height.
+ * How far a polygon's corners reach from its center along x and along y, in the units they are in.
  * @param points - The corners.
  * @returns The farthest |x| and |y|.
  */
@@ -528,13 +580,36 @@ function database(halfWidth: number, halfHeight: number): Point2[] {
 }
 
 /**
+ * A polygon's outline in a box: its corners where they say, or stretched about its center, not its box, so the
+ * corners stay where they are around the node's position and the farthest on each axis reach the node's side.
+ * @param points - The corners (`shape.points`), their lengths in the box's units.
+ * @param halfWidth - The box's half width.
+ * @param halfHeight - Its half height.
+ * @param stretch - Whether the corners are stretched.
+ * @returns The outline, counter-clockwise; the box without usable corners.
+ */
+function polygonOutline(points: string | undefined, halfWidth: number, halfHeight: number, stretch: boolean): Point2[] {
+    const corners = polygonPoints(points, halfWidth, halfHeight);
+    if (corners === null) {
+        return fitToBox(UNIT_OUTLINES.rectangle, halfWidth, halfHeight);
+    }
+    if (!stretch) {
+        return corners;
+    }
+    const [reachX, reachY] = polygonReach(corners);
+    const toX = reachX > 0 ? halfWidth / reachX : 1;
+    const toY = reachY > 0 ? halfHeight / reachY : 1;
+    return corners.map(([x, y]): Point2 => [x * toX, y * toY]);
+}
+
+/**
  * The outline of one flat shape, filling a box centred on the origin.
  * @param shape - A flat shape name.
  * @param width - The box's width.
  * @param height - Its height.
  * @param cornerRadius - A round-rectangle's or a round-* polygon's largest corner radius, in the box's units.
- * @param points - A polygon's corners (`shape.points`); a polygon without usable ones is drawn as a
- *   rectangle.
+ * @param points - A polygon's corners (`shape.points`), their lengths in the box's units; a polygon without
+ *   usable ones is drawn as a rectangle.
  * @param stretch - Whether a polygon's corners are stretched to reach the box's sides (`shape.stretchPoints`), or
  *   drawn where they say.
  * @param exact - Whether `cornerRadius` is drawn as given (`shape.exactCornerRadius`), up to half the shorter side,
@@ -554,16 +629,7 @@ export function flatShapeOutline(
     const halfHeight = height / 2;
 
     if (shape === "polygon") {
-        const corners = polygonPoints(points);
-        if (corners === null) {
-            return fitToBox(UNIT_OUTLINES.rectangle, halfWidth, halfHeight);
-        }
-
-        // Stretched about its center, not its box: the corners stay where they are around the
-        // node's position, the farthest on each axis reaching the node's side.
-        const [reachX, reachY] = stretch ? polygonReach(corners) : [1, 1];
-
-        return corners.map(([x, y]): Point2 => [(x / reachX) * halfWidth, (y / reachY) * halfHeight]);
+        return polygonOutline(points, halfWidth, halfHeight, stretch);
     }
 
     if (shape === "ellipse") {

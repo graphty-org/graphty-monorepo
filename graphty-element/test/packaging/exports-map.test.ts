@@ -101,6 +101,15 @@ const REGISTRATION_MODULES = [
 const SOURCE_ENTRY_MODULES = ["./index.ts", "./src/graphty-element.ts"];
 
 /**
+ * The guide's example files (docs/examples/), which stories run as the reader would. A plugin
+ * example registers itself when it is imported -- `defineAlgorithm(...)`, `definePalette(...)` --
+ * and exports nothing, so a build told it is pure emits an empty chunk for it: the built
+ * Storybook's simple-tier algorithm and palette stories then ran with nothing registered (#5201).
+ * Not published, so it changes nothing for a consumer.
+ */
+const DOC_EXAMPLE_MODULES = ["./docs/examples/**/*.ts"];
+
+/**
  * Names that mean three incompatible things across this package and its siblings, so no barrel
  * may re-export one of them from a sibling package.
  */
@@ -247,7 +256,7 @@ describe("what the package promises about side effects and size", () => {
     it("declares a side effect for every published file that has one, and for nothing else", () => {
         assert.deepEqual(
             [...manifest.sideEffects].sort(),
-            [...SIDE_EFFECTFUL, ...REGISTRATION_MODULES, ...SOURCE_ENTRY_MODULES].sort(),
+            [...SIDE_EFFECTFUL, ...REGISTRATION_MODULES, ...SOURCE_ENTRY_MODULES, ...DOC_EXAMPLE_MODULES].sort(),
         );
     });
 

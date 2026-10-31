@@ -210,6 +210,7 @@ import {
     type NodeLabelCounts,
 } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
+import type { PendingWork } from "./managers/PendingWork";
 import {
     openWebGPUEngine,
     type PixelRatio,
@@ -569,18 +570,19 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     return queue;
 }
 
-/** What each graph's settle waits wait for before the queue; see {@link waitFirstFor}. */
-const loadsAhead = new WeakMap<Graph, () => Promise<void>>();
+/** Each graph's record of pending picture work (its update manager's); see {@link waitFirstFor}. */
+const PENDING = new WeakMap<Graph, PendingWork>();
 
 /**
- * Make the graph's settle waits (`waitForSettled`, `waitForStableFrame`) wait for loads that have
- * not reached the queue yet: the element's page loads, held while autosave decides its restore.
- * No entry point exports it.
+ * Enter loads that have not reached the queue yet -- the element's page loads, held while
+ * autosave decides its restore -- in the graph's record of pending work, so its settle waits
+ * (`waitForSettled`, `waitForStableFrame`) wait for them (issue #4219). No entry point exports it.
  * @param graph - The graph.
- * @param pending - Settles once those loads are queued.
+ * @param held - Whether such loads are held now; asked live.
+ * @param queued - Settles once the loads held when it is called are queued.
  */
-export function waitFirstFor(graph: Graph, pending: () => Promise<void>): void {
-    loadsAhead.set(graph, pending);
+export function waitFirstFor(graph: Graph, held: () => boolean, queued: () => Promise<void>): void {
+    PENDING.get(graph)?.watch("load", "a page load is held while autosave decides its restore", held, "wait", queued);
 }
 
 /** Where each graph's session reads the experiments its element asked for; see {@link featuresFrom}. */
@@ -786,9 +788,6 @@ export class Graph implements GraphContext {
 
     /** Aborted and replaced each time the data is cleared, so a repaint in flight stops. */
     #dataGeneration = new AbortController();
-
-    /** Settles once every `applySuggestedStyles` call has stacked its layers in order. */
-    #suggestionsStacked: Promise<void> = Promise.resolve();
 
     // Managers
     /** Event manager for adding/removing event listeners */
@@ -1423,19 +1422,22 @@ export class Graph implements GraphContext {
         this.updateManager.deriving = () => dispatcherOf(this.session).lane.deriving;
         // A queued operation, or a queued command waiting beside the queue for a key, is going to
         // change the picture, so a wait for the final picture waits for it too (issue #3528).
+        PENDING.set(this, this.updateManager.pending);
         this.updateManager.pending.watch(
             "operation",
             "a queued operation has not finished",
             () => this.operationsPending(),
             "wait",
+            () => this.untilQueueDrained(),
         );
-        // A load that holds a place in the session's load line and has not dispatched its step yet:
-        // its module import, download, unzip or format detection is still running.
+        // A style edit is written at once and repainted on the session's derivation lane; until the
+        // repaint of every edit so far has ended, the settle waits wait for it (issue #4219).
         this.updateManager.pending.watch(
-            "load",
-            "a data load has not reached the graph yet",
-            () => loadLineOf(dispatcherOf(this.session)).size > 0,
+            "style",
+            "a style edit has not been repainted yet",
+            () => dispatcherOf(this.session).lane.deriving || this.getStylePainter().isPainting,
             "wait",
+            () => this.session.styles.settled(),
         );
         // Work the graph starts outside the update pass that will still change the picture, entered
         // in the one record of it (issue #3546): a file's picture annotation, painted onto its
@@ -1454,6 +1456,27 @@ export class Graph implements GraphContext {
             "basemap",
             "the map under the graph is still loading",
             () => this.basemapManager.loading,
+        );
+        // The node label counts the picture drew are announced a few frames after it
+        // (`graphty-label-change`): a page that shows them is not final until they are. Asking it
+        // asks the counts to be published on the first frame with nothing left to re-decide, so it
+        // is entered after the picture's own work and asked only once that is done.
+        this.updateManager.pending.watch(
+            "labels",
+            "the node label counts have not been announced",
+            () => {
+                const declutter: unknown = this.scene.metadata?.labelDeclutter;
+                return declutter instanceof LabelDeclutter && !declutter.published();
+            },
+            "wait",
+        );
+        // A load that holds a place in the session's load line and has not dispatched its step yet:
+        // its module import, download, unzip or format detection is still running.
+        this.updateManager.pending.watch(
+            "load",
+            "a data load has not reached the graph yet",
+            () => loadLineOf(dispatcherOf(this.session)).size > 0,
+            "wait",
         );
 
         // Initialize AlgorithmManager
@@ -3558,9 +3581,14 @@ export class Graph implements GraphContext {
                 { fact: { code: "style.suggested", params: { algorithms: [...keys] } } },
             )
             .then(undefined, report);
-        // Kept, so `waitForStableFrame()` and `waitForSettled()` wait for the layers to land.
-        // Chained, so a second call does not replace the first one's promise.
-        this.#suggestionsStacked = Promise.all([this.#suggestionsStacked, applied]).then(() => undefined);
+        // Entered in the record of pending work until the layers are stacked, so
+        // `waitForStableFrame()` and `waitForSettled()` wait for them to land (issue #4219).
+        void this.updateManager.pending.track(
+            "style",
+            "suggested style layers have not been stacked yet",
+            applied,
+            "wait",
+        );
 
         return painted.length > 0;
     }
@@ -5739,10 +5767,9 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForSettled(): Promise<void> {
-        await this.untilNothingIsAhead();
         // Style edits are not queued: they are written at once and repainted on the session's
-        // derivation lane, which this waits for, along with anything a finished run painted.
-        await this.session.styles.settled();
+        // derivation lane, which is one of the entries this waits for.
+        await this.untilNothingIsAhead();
     }
 
     /**
@@ -5877,27 +5904,20 @@ export class Graph implements GraphContext {
             // The queue first: a layout change or a data load that has not run yet is going to move
             // the picture, so a frame that is final right now is final about the wrong graph.
             await this.untilNothingIsAhead();
+            // Then the frame, and what only frames end: the picture, and the label counts it drew.
             await this.untilNothingIsOwed(wait);
-
-            // The picture is final, but the label counts it drew are announced a few frames later
-            // (`graphty-label-change`); a page that shows them is not final until they are.
-            const declutter: unknown = this.scene.metadata?.labelDeclutter;
-            if (declutter instanceof LabelDeclutter) {
-                await declutter.whenPublished();
-            }
         } while (!wait.gaveUp && !this.updateManager.nothingIsOwed());
     }
 
     /**
-     * Wait for what both settle waits wait for first, written once so the two cannot drift
-     * (issue #3376 had to add the loads twice): loads not queued yet (the element's, held behind
-     * the autosave restore), then suggested styles, which queue their reordering only once they
-     * are due, then the queue.
+     * Wait for what both settle waits wait for first, written once so the two cannot drift: the
+     * queue, then the `wait` work in the record of pending work that ends without a frame -- loads
+     * held behind the autosave restore, suggested styles still being stacked, the repaint of style
+     * edits, and the queue again for anything they queued (issue #4219).
      */
     private async untilNothingIsAhead(): Promise<void> {
-        await loadsAhead.get(this)?.();
-        await this.#suggestionsStacked;
         await this.untilQueueDrained();
+        await this.updateManager.pending.settled();
     }
 
     /**
@@ -5949,7 +5969,8 @@ export class Graph implements GraphContext {
         }
 
         if (this.updateManager.frameIsStable) {
-            return "the node label counts have not been announced";
+            // Only `wait` work is left: the label counts, a load held behind the restore, ...
+            return this.updateManager.pending.firstPending("wait")?.reason ?? "the picture is final";
         }
 
         return this.updateManager.whyFrameIsNotStable();

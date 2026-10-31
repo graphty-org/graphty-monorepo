@@ -571,6 +571,8 @@ const ALARM_TITLE = /^CI budget: (.+) \(([a-z-]+)\) /;
  * @returns the actions taken, `{ action: "vanished", key, kind, number }[]`
  */
 export async function closeVanished(gh, run, kind, lastSeen) {
+    // an older store answers no lastSeen: then nothing is judged gone
+    if (!lastSeen || !Object.keys(lastSeen).length) return [];
     const workflow = basename(run.path ?? "ci.yml");
     const open = await gh(`/issues?state=open&labels=ci-budget&per_page=100`);
     const done = [];
@@ -578,8 +580,8 @@ export async function closeVanished(gh, run, kind, lastSeen) {
         const [, key, k] = ALARM_TITLE.exec(issue.title) ?? [];
         const [level, wf, job, ...step] = key?.split(":") ?? [];
         if (k !== kind || wf !== workflow || !["job", "step", "queue"].includes(level)) continue;
-        const seen =
-            lastSeen[level === "job" ? key : `step:${wf}:${job}:${level === "queue" ? QUEUE_STEP : step.join(":")}`];
+        const stepName = level === "queue" ? QUEUE_STEP : step.join(":");
+        const seen = lastSeen[level === "job" ? key : `step:${wf}:${job}:${stepName}`];
         if (seen && seen.runsSince < VANISHED_RUNS) continue;
         const last = seen
             ? `Its last sample was run ${seen.runId} on ${String(seen.sha).slice(0, 10)} at ${new Date(seen.at).toISOString()}, and ${seen.runsSince} ${kind} runs of ${workflow} have had none since.`
@@ -640,19 +642,17 @@ async function report(v) {
     const pr = v.pr ?? run.pull_requests?.[0]?.number;
     if (body && pr) await failOpen("the pull request comment", () => upsertComment(gh, pr, body));
     const stored = await failOpen("sending the rows", () => sendRows(run, rows, evals));
-    if (ISSUE_KINDS.has(stored?.kind) && stored.trend?.length) {
-        // ponytail: two master timings jobs finishing together can both file one key's issue; a lock if seen
-        const done = await failOpen("the trend alarm issues", () => applyTrend(gh, run, rows, stored.trend, file));
-        for (const a of done ?? []) console.log(`${a.action} #${a.number}: ${a.key} (${a.kind})`);
-    }
-    // an older store answers no lastSeen: then nothing is judged gone
-    if (ISSUE_KINDS.has(stored?.kind) && stored.lastSeen && Object.keys(stored.lastSeen).length) {
-        const gone = await failOpen("closing vanished alarms", () =>
-            closeVanished(gh, run, stored.kind, stored.lastSeen),
-        );
-        for (const a of gone ?? []) console.log(`${a.action} #${a.number}: ${a.key} (${a.kind})`);
-    }
+    if (ISSUE_KINDS.has(stored?.kind)) await alarmIssues(gh, run, rows, stored, file);
     return 0;
+}
+
+async function alarmIssues(gh, run, rows, stored, file) {
+    // ponytail: two master timings jobs finishing together can both file one key's issue; a lock if seen
+    const done = stored.trend?.length
+        ? await failOpen("the trend alarm issues", () => applyTrend(gh, run, rows, stored.trend, file))
+        : [];
+    const gone = await failOpen("closing vanished alarms", () => closeVanished(gh, run, stored.kind, stored.lastSeen));
+    for (const a of [...(done ?? []), ...(gone ?? [])]) console.log(`${a.action} #${a.number}: ${a.key} (${a.kind})`);
 }
 
 async function trendCommand(v) {

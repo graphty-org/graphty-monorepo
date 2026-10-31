@@ -47,6 +47,7 @@ import {
     runnerFlags,
     screenshotReview,
     runnerUse,
+    waitsOnConcurrency,
     type StressCursorRun,
     STRESS_WEEKS,
     stressQuiet,
@@ -555,7 +556,8 @@ async function withStages(c: Cycle, item: PullRequestItem): Promise<PullRequestI
 
 /**
  * Runner use against the limits (4.3), counted in jobs of every unfinished run. Runs at the end of the GitHub parts,
- * after the pull requests part, so a run whose pull request is no longer open is left out (isGhostRun); when that part
+ * after the pull requests part, so a run whose pull request is no longer open is left out (isGhostRun), as is a run waiting on its own
+ * concurrency group (waitsOnConcurrency); when that part
  * failed, every unfinished run counts.
  */
 async function runners(c: Cycle, xs: Collected[], elapsed: number) {
@@ -563,7 +565,10 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
     const ghost = (x: Collected) => !!prs && x.repo === c.d.repo && isGhostRun(x.run, prs, prs.length < OPEN_PAGE);
     const open = xs.filter((x) => x.run.status !== "completed" && !ghost(x));
     const jobs = open.flatMap((x) => x.jobs ?? []);
-    const noJobs = open.filter((x) => !x.jobs?.length).map((x) => x.run);
+    const unfinished = (repo: string) => open.filter((x) => x.repo === repo).map((x) => x.run);
+    const noJobs = open
+        .filter((x) => !x.jobs?.length && !waitsOnConcurrency(x.run, unfinished(x.repo)))
+        .map((x) => x.run);
     const use = runnerUse(jobs, noJobs, c.now);
     const { saturated, unassigned } = runnerFlags(use, c.d.limits.linux_windows);
     const since = Number((await c.cursor("unassigned-since")) ?? 0);

@@ -1297,6 +1297,12 @@ export class UpdateManager implements Manager {
     picturesLoading: (() => boolean) | null = null;
 
     /**
+     * Called once a pass, after the nodes have moved and been sized: a file's annotation arrow that ends at a node
+     * stops at that node's outline as it is drawn now (issue #5231). Null when nothing needs it.
+     */
+    fitAnnotations: (() => void) | null = null;
+
+    /**
      * Whether an operation is queued or running, so the graph is about to change. Null when nothing queues
      * operations. Kept for code that set it, and asked as one `wait` entry of {@link UpdateManager.pending}; new
      * work enters that record itself.
@@ -1630,6 +1636,7 @@ export class UpdateManager implements Manager {
             }
         }
         this.refreshScreenBorders();
+        this.fitAnnotations?.();
 
         // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
         // this frame rather than on the next one.

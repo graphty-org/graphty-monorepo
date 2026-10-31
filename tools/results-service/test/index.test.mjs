@@ -327,7 +327,7 @@ describe("POST /v1/durations", () => {
         };
         assert.deepEqual(
             (await call("POST", "/v1/durations", { token: master("ci.yml"), body: { rows: [row] } })).body,
-            { stored: 1, kind: "full", trend: [] },
+            { stored: 1, kind: "full", trend: [], lastSeen: {} },
         );
         const site = oidc({
             repository: "graphty-org/graphty-site",
@@ -347,6 +347,7 @@ describe("POST /v1/durations", () => {
             stored: 1,
             kind: "deploy",
             trend: [],
+            lastSeen: {},
         });
         assert.deepEqual(
             rows("SELECT kind FROM duration ORDER BY kind").map((r) => r.kind),
@@ -1228,6 +1229,34 @@ describe("POST /v1/durations trend", () => {
         env.DB.sqlite.prepare("DELETE FROM duration WHERE run_id = 4010").run();
         const [t] = (await post({ "job:ci.yml:Build": 600 })).body.trend;
         assert.deepEqual([t.alarm, t.earlier], [false, null]);
+    });
+});
+
+describe("POST /v1/durations lastSeen", () => {
+    it("names each key's last sample and how many runs of its workflow and kind came after it", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        // job "CI / visual (graphty)" ran in runs 1 and 2, then was removed; Build ran in every run
+        for (let i = 1; i <= 12; i++) s.duration(i, 60_000, NOW - DAY + i);
+        for (const i of [1, 2]) s.duration(i, 900_000, NOW - DAY + i, "full", "CI / visual (graphty)");
+        s.duration(3, 900_000, NOW - DAY + 3, "pr", "CI / visual (graphty)"); // another kind
+        const row = {
+            runId: 4010,
+            attempt: 1,
+            workflow: "ci.yml",
+            job: "Build",
+            ms: 60_000,
+            startedAt: NOW,
+            sha: "new",
+        };
+        const { body } = await call("POST", "/v1/durations", { token: master("ci.yml"), body: { rows: [row] } });
+        assert.deepEqual(body.lastSeen["job:ci.yml:CI / visual (graphty)"], {
+            runId: 2,
+            sha: "sha2",
+            at: NOW - DAY + 2,
+            runsSince: 11,
+        });
+        assert.equal(body.lastSeen["job:ci.yml:Build"].runsSince, 0);
     });
 });
 

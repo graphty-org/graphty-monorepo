@@ -19,6 +19,7 @@ import {
     getPlan,
     getQuarantine,
     getReleaseState,
+    lastSeenFor,
     trackedIssues,
     trendFor,
 } from "./queries.js";
@@ -395,9 +396,15 @@ async function postDurations(body, who, db, nowMs) {
         r.ms,
         r.conclusion,
     ]);
-    if (!values.length) return { stored: 0, kind: who.kind, trend: [] };
+    if (!values.length) return { stored: 0, kind: who.kind, trend: [], lastSeen: {} };
     await db.batch(inserts(db, "duration", columns, values));
-    return { stored: values.length, kind: who.kind, trend: await trendFor(db, who.kind, rows, body.budgets, nowMs) };
+    const workflows = [...new Set(rows.map((r) => r.workflow))];
+    return {
+        stored: values.length,
+        kind: who.kind,
+        trend: await trendFor(db, who.kind, rows, body.budgets, nowMs),
+        lastSeen: await lastSeenFor(db, who.kind, workflows, nowMs),
+    };
 }
 
 // A test shard's duration history (tools/vitest-time-budget.mjs). Any credential reads; only master's own runs

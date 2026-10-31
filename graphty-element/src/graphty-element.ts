@@ -212,6 +212,11 @@ export class Graphty extends LitElement {
     readonly #progressAt = new Map<string, number>();
     readonly #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
+    /**
+     * Whether the connect path's wiring stands: set by `connectedCallback`, cleared when the
+     * element is shut down. A move reconnects while it still stands, so nothing is wired twice.
+     */
+    #wired = false;
 
     /**
      * Creates a new Graphty element instance.
@@ -713,6 +718,13 @@ export class Graphty extends LitElement {
      */
     connectedCallback(): void {
         super.connectedCallback();
+        // Moved: removed and inserted again before the shutdown its removal scheduled (see
+        // `disconnectedCallback`). The graph, its observers and its mirrors are all still live.
+        if (this.#wired) {
+            return;
+        }
+
+        this.#wired = true;
         this.renderRoot.appendChild(this.#element);
         this.#reportStrayObjectAttributes();
 
@@ -745,8 +757,8 @@ export class Graphty extends LitElement {
         // "@graphty/graphty-element/webgpu", in which case this probes, attaches and reports.
         //
         // A Graph is built once, in this element's constructor, and never rebuilt, so an element
-        // that has been disconnected is a shut-down element: its controller was disposed with the
-        // rest of the graph and re-attaching probes nothing.
+        // that stayed disconnected is a shut-down element: its controller was disposed with the
+        // rest of the graph and re-attaching probes nothing. (A move does not get here.)
         const controller = this.#ensureAcceleration();
 
         if (!controller.disposed) {
@@ -1028,9 +1040,28 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Called when the element is removed from the DOM. Cleans up resources and shuts down the graph.
+     * Called when the element is removed from the DOM. Shuts the graph down unless the element is
+     * back in a document by the next microtask.
+     *
+     * A portal or a layout change moves an element by removing it and inserting it again in the
+     * same task, and a web component must survive that: the reader keeps the graph, its undo
+     * history and the camera (#3599). So the shutdown waits one microtask -- long enough for any
+     * move made in one go, short enough that an element really removed still frees its engine
+     * and GPU resources before the page's next task, and deterministic in a hidden tab, where an
+     * animation frame would never come.
      */
     disconnectedCallback(): void {
+        super.disconnectedCallback();
+        queueMicrotask(() => {
+            if (!this.isConnected && this.#wired) {
+                this.#shutDown();
+            }
+        });
+    }
+
+    /** Releases everything the connect path wired and shuts the graph down for good. */
+    #shutDown(): void {
+        this.#wired = false;
         // Disconnect the resize observer
         if (this.#resizeObserver) {
             this.#resizeObserver.disconnect();
@@ -1064,7 +1095,6 @@ export class Graphty extends LitElement {
         this.#autosaveControl.depart();
 
         this.#graph.shutdown();
-        super.disconnectedCallback();
     }
 
     /** Autosave for this element: off until the `autosave` attribute or property turns it on. */

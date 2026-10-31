@@ -555,12 +555,14 @@ export function drawnPrimitives(
         // that border, as the oracle reads a ring clear of the outline; a ring with no border is the node's outline
         const outer = d?.outer ?? null;
         const split = outer !== null && (d?.innerBorder ?? null) !== null;
-        const own = split ? (d?.innerBorder ?? null) : (d?.border ?? null);
+        // a table's background drawn as the node's body has its cells' outline as its own, as an SVG draws it
+        const table = split || n.border.width > 0 ? null : (d?.tableOutline ?? null);
+        const own = split ? (d?.innerBorder ?? null) : (d?.border ?? table);
         // the rings inside the outermost are the node's own outlines, as the program's further peripheries are
         const rings = outer?.ringsPx ?? 0;
         const gap = split ? 2 * (outer.gapPx - rings) : 0;
-        const borderColor = split ? (own?.color ?? null) : n.border.color;
-        const borderWidth = split ? (own?.widthPx ?? 0) : n.border.width;
+        const borderColor = split ? (own?.color ?? null) : (table?.color ?? n.border.color);
+        const borderWidth = split ? (own?.widthPx ?? 0) : (table?.widthPx ?? n.border.width);
         // a line waving round the node is as thick as it is drawn, in a ring as wide as the border
         const waved = split ? null : (d?.border?.lineWidthPx ?? null);
         nodes.push({

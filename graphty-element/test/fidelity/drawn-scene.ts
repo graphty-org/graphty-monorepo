@@ -685,6 +685,8 @@ export interface DrawnNode {
     insetPx: number;
     /** The border ring drawn outside the fill, or null when the node has none. */
     border: DrawnBorder | null;
+    /** Where a table label's background is the node's body, its cells' outline, else null. */
+    tableOutline?: DrawnBorder | null;
     /**
      * Where the node also draws an outer ring (`outer`), its own border ring at the fill, else null: `border` and the
      * box are then the outer ring's.
@@ -732,8 +734,9 @@ export interface DrawnBorder {
 }
 
 /**
- * The outline a table label's cells draw (in the border's color, as wide as their border), read as the
- * node's border where the table's background is its body.
+ * The outline a table label's cells draw (in the border's color, as wide as their border), which an SVG drawing
+ * reads as the node's outline where the table's background is its body (a program's scene keeps the node's own
+ * border apart).
  * @param node - the node
  * @param p - the projector
  * @returns the outline, or null when the cells draw none
@@ -1024,7 +1027,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         shown: node.getRenderState() === "visible" && mesh.isEnabled(),
         ring: ring ?? null,
         insetPx: readInset(node, p),
-        border: border ?? tableOutline,
+        border,
+        tableOutline,
         innerBorder: outer === null ? null : own,
         outer,
         label: readLabel(node.label, p),

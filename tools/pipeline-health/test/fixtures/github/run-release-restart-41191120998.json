@@ -1,0 +1,23 @@
+{
+    "check_suite_node_id": "CS_kwDOQuemQs8AAAAZ_zp8fg",
+    "conclusion": null,
+    "created_at": "2026-10-31T10:02:42Z",
+    "display_title": "Release (restart)",
+    "event": "workflow_dispatch",
+    "head_branch": "master",
+    "head_sha": "61ec68a76364fd3f58efcf738b955976715293a6",
+    "id": 41191120998,
+    "name": "Release (restart)",
+    "path": ".github/workflows/release.yml",
+    "pull_requests": [],
+    "repository": {
+        "full_name": "graphty-org/graphty-monorepo"
+    },
+    "run_attempt": 1,
+    "run_started_at": "2026-10-31T10:02:42Z",
+    "status": "queued",
+    "triggering_actor": {
+        "login": "github-actions[bot]"
+    },
+    "updated_at": "2026-10-31T10:25:35Z"
+}

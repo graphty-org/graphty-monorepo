@@ -169,6 +169,11 @@ describe("selectPackages", () => {
         const sel = select(["pa/test/b.test.ts"]).packages;
         assert.equal(sel.get("pb").mode, "none");
         assert.equal(sel.get("pc").mode, "all", "but a package that reads its files still runs");
+        // a holder whose path names nothing of pa stands for pa's build parts, never its test specs (PR #5212)
+        const held = new Map([["pc", [{ target: "pa", prefix: "pa/", holder: "pc/test/c.test.ts", build: false }]]]);
+        const run = (f) => selectPackages({ changed: [f], packages, deps, refs: held, graphs, rules }).packages;
+        assert.equal(run("pa/test/b.test.ts").get("pc").mode, "none", "a test spec is no part of it");
+        assert.notEqual(run("pa/test/fixtures/k.json").get("pc").mode, "none", "a fixture still is");
     });
 
     it("runs the whole package for a data folder, and for a code file no graph or rule explains", () => {
@@ -2169,6 +2174,18 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
         assert.deepEqual(out["graphty-element"].files, [story]);
         assert.equal(out.graphty.mode, "none");
         assert.equal(out.layout.mode, "none");
+    });
+
+    it("runs no drawnBy story for a change only to a package's test specs (#3448, PR #5212)", () => {
+        const selection = none.map((s) =>
+            s.shard === "graphty-element-storybook-1" ? sel(s.shard, "files", ["graphty-element/test/x.test.ts"]) : s,
+        );
+        const spec = pick(selection, ["graphty-element/test/lifecycle/ios-simulator.test.ts"]);
+        assert.equal(spec["graph-io-fidelity"].mode, "none", "a test spec draws nothing");
+        const src = pick(selection, ["graphty-element/src/Graph.ts"]);
+        assert.equal(src["graph-io-fidelity"].mode, "all", "a source file still runs every fidelity story");
+        const helper = pick(selection, ["graphty-element/test/fidelity/load-sample.ts"]);
+        assert.equal(helper["graph-io-fidelity"].mode, "all", "a test helper the fidelity stories import");
     });
 
     it("runs every story of a project with no story graph when a package that draws it is selected", () => {

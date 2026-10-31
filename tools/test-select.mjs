@@ -56,7 +56,9 @@ const RULES = join(HERE, "test-select-rules.json");
 
 /** A path that goes into a package's build: not a test, a story, a doc or a test folder. */
 const TEST_SIDE = /(^|\/)(test|tests|__tests__|e2e|stories|\.storybook|benchmarks?)\//u;
-const TEST_FILE = /\.(test|spec|stories)\.[cm]?[jt]sx?$|\.test-d\.ts$|\.md$/u;
+/** A test spec: no build or Storybook loads it (a test helper under test/ can be: graph-io's fidelity stories import some). */
+const SPEC_FILE = /\.(test|spec)\.[cm]?[jt]sx?$|\.test-d\.ts$/u;
+const TEST_FILE = new RegExp(String.raw`${SPEC_FILE.source}|\.stories\.[cm]?[jt]sx?$|\.md$`, "u");
 export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.test(pkgPath);
 
 /**
@@ -934,8 +936,12 @@ function readsOf(file, fdir, { gs, upstream, target, refs }) {
     if (!viaBuild && gs?.some((g) => knows(g, file))) {
         out.push({ file, holder: file });
     }
+    // a holder's path that names nothing of the package stands for the whole package (refOf): a file built from
+    // parts, never one of its test specs (graph-io's fidelity stories hold oracle-known-failures.json, whose stack
+    // strings resolve to such paths, so every graphty-element test spec selected all of them: PR #5212)
+    const wholePkg = (r) => r.holder && r.prefix === `${fdir}/` && SPEC_FILE.test(file);
     for (const r of refs) {
-        if (!r.build && r.target === target && file.startsWith(r.prefix)) {
+        if (!r.build && r.target === target && file.startsWith(r.prefix) && !wholePkg(r)) {
             out.push({ file, holder: r.holder });
         }
     }
@@ -1632,10 +1638,11 @@ function storiesGlobal(project, dir, changed, rules, lockMoved) {
  * @param shards `[{ shard: SHARDS entry, sel: selectShards() entry }]`
  * @param drawnBy packages whose selection runs the project whole when it has no story graph
  * @param reach storiesReaching() for the project's package: its stories when its shard runs no storybook project
+ * @param specOnly the change's drawable files are all test specs, so a package they select draws nothing new
  *   (compact-mantine's play test imports every story file), or null
  * @returns `{ mode, files, reasons }`
  */
-function storiesFromTests(project, pkg, shards, drawnBy, reach = null) {
+function storiesFromTests(project, pkg, shards, drawnBy, reach = null, specOnly = false) {
     const own = shards.filter((s) => s.shard.package === pkg && storyShard(s.shard));
     if (own.length > 0) {
         const all = own.find((s) => s.sel.mode === "all");
@@ -1645,8 +1652,9 @@ function storiesFromTests(project, pkg, shards, drawnBy, reach = null) {
         const files = [...new Set(own.flatMap((s) => (s.sel.files ?? []).map((f) => f.file)))].sort();
         return { mode: files.length > 0 ? "files" : "none", files, reasons: [] };
     }
-    // ponytail: no story graph for these projects yet, so any selected package that draws them runs all of them
-    const hit = shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
+    // ponytail: no story graph for these projects yet, so any selected package that draws them runs all of them,
+    // unless the change is only test specs, which select a package but draw nothing
+    const hit = !specOnly && shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
     if (reach && hit && shards.every((s) => !drawnBy.includes(s.shard.package) || s.sel.mode !== "all")) {
         return { mode: reach.length > 0 ? "files" : "none", files: reach, reasons: [] };
     }
@@ -1680,13 +1688,14 @@ function withDeps(names, deps) {
  * @param shards `[{ shard: SHARDS entry, sel: selectShards() entry }]`
  * @param drawnBy packages that draw the project
  * @param deps their dependencies, transitively
- * @param drawable the changed files that are not storyless
+ * @param drawable the changed files that are not storyless or test specs
  * @param packages every package's directory
+ * @param specOnly the change's drawable files are all test specs, so a package they select draws nothing new
  * @returns `{ mode, files, reasons }`
  */
-function unprovenStories(project, shards, drawnBy, deps, drawable, packages) {
+function unprovenStories(project, shards, drawnBy, deps, drawable, packages, specOnly) {
     const proof = `test-select-mutate --stories has not proven ${project}`;
-    const hit = shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
+    const hit = !specOnly && shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
     if (hit) {
         return { mode: "all", files: [], reasons: [`${hit.shard.package} is selected and ${proof}`] };
     }
@@ -1727,6 +1736,9 @@ export function selectStories({ projects, changed, everything, shards, selection
     const isStoryless = (f) => (rules.storyless ?? []).some((re) => re.test(f));
     const storyless = !everything && changed.length > 0 && changed.every(isStoryless);
     const drawable = changed.filter((f) => !isStoryless(f));
+    // a test spec selects its package's tests but draws nothing, so it never runs a story through drawnBy
+    const loadable = drawable.filter((f) => !SPEC_FILE.test(f));
+    const specOnly = drawable.length > 0 && loadable.length === 0;
     const packages = [...new Set(shards.map((s) => s.package))];
     return Object.entries(projects).map(([project, cfg]) => {
         const dir = cfg.storybook.replace(/\/storybook-static$/u, "");
@@ -1745,8 +1757,15 @@ export function selectStories({ projects, changed, everything, shards, selection
         } else if (!global) {
             const drawnBy = rules.drawnBy[project] ?? [pkg];
             sel = rules.selectProjects.includes(project)
-                ? storiesFromTests(project, pkg, known, drawnBy, storiesReaching(dir, drawable, graphs?.get(pkg)))
-                : unprovenStories(project, known, drawnBy, withDeps(drawnBy, deps), drawable, packages);
+                ? storiesFromTests(
+                      project,
+                      pkg,
+                      known,
+                      drawnBy,
+                      storiesReaching(dir, drawable, graphs?.get(pkg)),
+                      specOnly,
+                  )
+                : unprovenStories(project, known, drawnBy, withDeps(drawnBy, deps), loadable, packages, specOnly);
         }
         return { project, ...sel, baselines };
     });

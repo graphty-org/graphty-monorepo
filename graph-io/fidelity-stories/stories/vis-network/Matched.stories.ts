@@ -1,9 +1,8 @@
 /**
  * The vis-network samples drawn at vis-network's own node positions, with the elements failing there outlined
  * (../matched.ts draws each one). The `sample` arg picks any vis-network sample with an oracle.
- * vis-siblings has no story of its own: laid out, settled and compared twice at 200 nodes and 284 curved edges it
- * takes over 30 s on a CI runner, past the story tests' limit; pick it with the `sample` arg (graphty-element's oracle
- * tests judge its `@matched` drawing on every run).
+ * vis-siblings (200 nodes, 284 curved edges) is the slowest: its oracle SVG is read once for both comparisons
+ * (`readSvgOnce` in graphty-element's oracle library), not once per comparison.
  */
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
@@ -33,6 +32,7 @@ export const VisLesmiserables: StoryObj = {
     ...matchedStory(FILES, "json-vis-lesmiserables"),
     name: "vis-lesmiserables",
 };
+export const VisSiblings: StoryObj = { ...matchedStory(FILES, "json-vis-siblings"), name: "vis-siblings" };
 export const VisTransparency: StoryObj = {
     ...matchedStory(FILES, "json-vis-transparency"),
     name: "vis-transparency",

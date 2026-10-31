@@ -33,7 +33,7 @@ import { drawnPrimitives } from "./drawn-primitives";
 import { judgesFor, type Reference, SHEET_JUDGES, specificationScene } from "./judges";
 import type { PScene } from "./primitives";
 import { pngPixels } from "./raster";
-import { readSvgPrimitives } from "./svg-primitives";
+import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
 
 /** The oracle canvas every program draws at, where it allows one. */
 export const ORACLE_CANVAS = { width: 1200, height: 900 };
@@ -342,6 +342,23 @@ export async function compareWithOracle(
     });
 }
 
+/** The SVG read last, and what was read from it. */
+let lastRead: { svg: string; read: SvgPrimitives } | undefined;
+
+/**
+ * Reads an oracle SVG's primitives, once for back-to-back comparisons of the same drawing: a matched run compares
+ * twice, and reading a large SVG through the DOM is a second of its work (json-vis-siblings, 1,000 elements, 128
+ * points sampled along each curve). Each caller gets its own copy.
+ * @param svg - the SVG's text
+ * @returns its primitives
+ */
+function readSvgOnce(svg: string): SvgPrimitives {
+    if (lastRead?.svg !== svg) {
+        lastRead = { svg, read: readSvgPrimitives(svg) };
+    }
+    return structuredClone(lastRead.read);
+}
+
 /**
  * Judges a drawing of graphty's, already read and named (`compareWithOracle`, or one kept in an earlier run's report),
  * against the program's own SVG of the same sample: the comparator alone, so a drawing kept from another run is judged
@@ -367,7 +384,7 @@ export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInp
         drawnBy: Record<string, unknown>,
         reference: Reference,
     ): Promise<{ association: Association; report: OracleReport; width: number; height: number }> => {
-        const read = readSvgPrimitives(svg);
+        const read = readSvgOnce(svg);
         const associated = await associateOracle(
             id,
             drawnBy,

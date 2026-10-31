@@ -1755,8 +1755,8 @@ describe("packBins", () => {
         ["p/d.test.ts", 1 * MIN],
     ]);
 
-    it("packs the longest files first into bins of at most 8 minutes", () => {
-        const bins = packBins(["p/d.test.ts", "p/c.test.ts", "p/b.test.ts", "p/a.test.ts"], ms, BIN_LIMIT_MS, 0);
+    it("packs the longest files first into bins of at most the limit given", () => {
+        const bins = packBins(["p/d.test.ts", "p/c.test.ts", "p/b.test.ts", "p/a.test.ts"], ms, 8 * MIN, 0);
         assert.deepEqual(bins, [
             { files: ["p/a.test.ts", "p/c.test.ts"], ms: 8 * MIN },
             { files: ["p/b.test.ts", "p/d.test.ts"], ms: 5 * MIN },
@@ -1764,19 +1764,16 @@ describe("packBins", () => {
     });
 
     it("counts a file with no recorded time as the family's longest", () => {
-        const bins = packBins(["p/new.test.ts", "p/d.test.ts"], ms, BIN_LIMIT_MS, 0);
+        const bins = packBins(["p/new.test.ts", "p/d.test.ts"], ms, 8 * MIN, 0);
         assert.deepEqual(bins, [{ files: ["p/d.test.ts", "p/new.test.ts"], ms: 6 * MIN }]);
     });
 
     it("gives a file over the limit a bin of its own, and a family with no history 30 s a file", () => {
-        assert.deepEqual(
-            packBins(["p/x.test.ts", "p/y.test.ts"], new Map([["p/x.test.ts", 9 * MIN]]), BIN_LIMIT_MS, 0),
-            [
-                { files: ["p/x.test.ts"], ms: 9 * MIN },
-                { files: ["p/y.test.ts"], ms: 9 * MIN },
-            ],
-        );
-        assert.deepEqual(packBins(["p/x.test.ts", "p/x.test.ts"], new Map(), BIN_LIMIT_MS, 0), [
+        assert.deepEqual(packBins(["p/x.test.ts", "p/y.test.ts"], new Map([["p/x.test.ts", 9 * MIN]]), 8 * MIN, 0), [
+            { files: ["p/x.test.ts"], ms: 9 * MIN },
+            { files: ["p/y.test.ts"], ms: 9 * MIN },
+        ]);
+        assert.deepEqual(packBins(["p/x.test.ts", "p/x.test.ts"], new Map(), 8 * MIN, 0), [
             { files: ["p/x.test.ts"], ms: 30_000 },
         ]);
         assert.deepEqual(packBins([], ms), []);
@@ -1833,8 +1830,8 @@ describe("packBins", () => {
     });
 
     it("packs a family that runs its files in parallel workers by its small per-file cost (#5048)", () => {
-        // graphty-element-default: 95 files, 52 s recorded, ran 38 s; 5 s a file made it one of ten bins
-        const files = Array.from({ length: 380 }, (_, i) => `p/f${i}.test.ts`);
+        // graphty-element-default: 95 files, 52 s recorded, ran 38 s; 5 s a file made 190 such files twenty bins
+        const files = Array.from({ length: 190 }, (_, i) => `p/f${i}.test.ts`);
         const ms = new Map(files.map((f) => [f, 550]));
         const { overheadMs, scale } = binCost("graphty-element-default");
         assert.equal(packBins(files, ms, BIN_LIMIT_MS, overheadMs, scale).length, 1);
@@ -1872,7 +1869,7 @@ describe("light-check-replay", () => {
                 sel("graph-format", "graph-format", "none"),
             ],
         };
-        const r = replayRecord(record, durations, fileLevel);
+        const r = replayRecord(record, durations, fileLevel, 8 * MIN);
         assert.deepEqual(r, {
             key: "run:ci.yml:pr",
             at: record.at,
@@ -1885,7 +1882,7 @@ describe("light-check-replay", () => {
 
     it("runs a whole family with its unrecorded files at the family's longest", () => {
         const record = { selection: [sel("graph-io", "graph-io", "all", [], { total: 5 })] };
-        const r = replayRecord(record, durations, fileLevel);
+        const r = replayRecord(record, durations, fileLevel, 8 * MIN);
         assert.equal(r.key, "run:ci.yml:pr-graph-io", "a package off fileLevel has its own key");
         assert.equal(r.bins, 2, "five 2-minute files plus their overhead make bins of three and two files");
         assert.equal(r.testMs, 6 * MIN + 3 * FILE_OVERHEAD_MS);
@@ -1952,7 +1949,7 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
     const sel = (shard, mode, files = []) => ({ shard, mode, files: files.map((file) => ({ file })), reasons: [] });
     const many = (n) => Array.from({ length: n }, (_, i) => `graphty/src/t${i}.test.tsx`);
 
-    it("packs a one-package change into bins of at most 8 minutes, one vitest run of its files each", () => {
+    it("packs a one-package change into bins of at most BIN_LIMIT_MS, one vitest run of its files each", () => {
         const app = many(10);
         const shards = ["graphty-1", "graphty-2", "layout", "githerd"].map(byName);
         const selection = [
@@ -1961,8 +1958,8 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             sel("layout", "none"),
             sel("githerd", "all"),
         ];
-        // 2 min recorded is 2.7 min planned with graphty's cost (binCost()): two files a bin
-        const durations = { graphty: Object.fromEntries(app.map((f) => [f, 2 * MIN])) };
+        // 1 min recorded is 1.4 min planned with graphty's cost (binCost()): two files a bin
+        const durations = { graphty: Object.fromEntries(app.map((f) => [f, 1 * MIN])) };
         const out = lightPlan(ROOT, shards, selection, durations);
         assert.deepEqual(out.whole, ["githerd"]);
         assert.deepEqual(out.none, ["layout"]);
@@ -1971,8 +1968,8 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             ["graphty-1", "graphty-2", "graphty-3", "graphty-4", "graphty-5"],
         );
         assert.ok(
-            out.bins.every((b) => b.ms <= 8 * MIN),
-            "every bin is under 8 minutes",
+            out.bins.every((b) => b.ms <= BIN_LIMIT_MS),
+            "every bin is under the limit",
         );
         assert.deepEqual(out.bins.flatMap((b) => b.files).sort(), [...app].sort(), "every file runs once");
         for (const b of out.bins) {

@@ -32,7 +32,7 @@
  *       shards that run whole and why, the shards that run nothing
  *   node tools/test-select.mjs [--root <checkout>] [--base <ref>] [--head <ref>] --plan [--durations <file.json>]
  *       the pull request light check's plan as JSON: each shard family's selected files packed into bins of at
- *       most 8 min (lightPlan(); --durations is `{ "<family>": { "<file>": ms } }`), the shards that run whole
+ *       most 4 min (lightPlan(); --durations is `{ "<family>": { "<file>": ms } }`), the shards that run whole
  *       or not at all, and the stories of each visual-review project (selectStories())
  *   node tools/test-select.mjs [--root <checkout>] --cache-key
  *       the key of the import graphs cached in <main checkout>/tmp/test-select/graphs (graphCacheKey())
@@ -1329,8 +1329,13 @@ export function planRuns(root, shards, selection) {
     return plan;
 }
 
-/** The longest a light-check test bin is planned to run (design/ci/channels-pipeline/merging.md section 4.1). */
-export const BIN_LIMIT_MS = 8 * 60_000;
+/**
+ * The longest a light-check test bin is planned to run (design/ci/channels-pipeline/merging.md section 4.1). At 8
+ * min the bins were the pull request tail (#3448): Build ends about 4.6 min in, a Test job spends about 45 s on
+ * setup, and its bin ran up to the limit (graphty-1: 22 files, vitest 430 s; graphty-element-storybook-1: 31 files,
+ * 490 s; runs 41128974826 and 41178964261), so those runs took 13 to 14 min. 4 min bins end near 10 min.
+ */
+export const BIN_LIMIT_MS = 4 * 60_000;
 /** Milliseconds counted for a file of a family with no recorded file at all. */
 const NO_HISTORY_MS = 30_000;
 /**

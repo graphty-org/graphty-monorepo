@@ -1055,6 +1055,43 @@ describe("POST /v1/channel-moves", () => {
     });
 });
 
+describe("GET /v1/site (promote.yml's record of a nightly, #4495)", () => {
+    const C = "c".repeat(40);
+    const move = (over = {}) => ({
+        channel: "nightly",
+        sha: C,
+        versionCommit: "d".repeat(40),
+        siteSha256: "1".repeat(64),
+        channelSha256: "2".repeat(64),
+        ...over,
+    });
+    it("answers the newest nightly move of the commit with its latest verdict", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.verdict(C, "green-images", NOW - 2 * HOUR);
+        s.verdict(C, "approved", NOW - HOUR);
+        s.nightly(C, NOW - 3 * DAY); // an older move of the same commit (a rollback and a re-promotion)
+        await call("POST", "/v1/channel-moves", { token: master("release.yml"), body: move() });
+        const res = await call("GET", `/v1/site?sha=${C}`, { token: LOCAL_TOKEN });
+        assert.equal(res.status, 200);
+        assert.deepEqual(res.body, {
+            sha: C,
+            versionCommit: "d".repeat(40),
+            siteSha256: "1".repeat(64),
+            channelSha256: "2".repeat(64),
+            movedAt: NOW,
+            verdict: "approved",
+        });
+    });
+    it("is 404 for a commit nightly never moved to, 400 for a malformed sha, 401 without a credential", async () => {
+        const { call } = service();
+        const missing = await call("GET", `/v1/site?sha=${C}`, { token: LOCAL_TOKEN });
+        assert.deepEqual([missing.status, missing.body.error], [404, `no nightly channel move of ${C}`]);
+        assert.equal((await call("GET", "/v1/site?sha=abc", { token: LOCAL_TOKEN })).status, 400);
+        assert.equal((await call("GET", `/v1/site?sha=${C}`)).status, 401);
+    });
+});
+
 describe("GET /v1/failures", () => {
     it("lists a run's failing tests by shard, and those master saw fail before the good commit", async () => {
         const { call, env } = service();

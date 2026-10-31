@@ -135,7 +135,10 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > start each long run once and end your turn; do not re-check it again and again. When you stop, done or not, write
 > where the work stands on the branch's issue:
 > `node tools/branch-note.mjs update --done "<what is done>" --left "<what is left>" --next "<the next step>"`.
-> Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL.
+> Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL. A change to the graphty app's
+> UI follows the owner's UI rules: no sentences as UI in the data screens (use Figma patterns: property rows, chips,
+> dropdowns, + sections, pop-overs, context menus); every hotkey has a visible button showing its key; never remove
+> or restyle owner-approved UI; compact-mantine's look stays locked to Figma.
 
 ## Escalation
 

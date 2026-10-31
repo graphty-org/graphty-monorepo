@@ -184,6 +184,47 @@ export function withExample(entry: SourceCatalogEntry, form: ServerFormState, id
 }
 
 /**
+ * Whether a field still holds what an example put there.
+ * @param held - what the form holds.
+ * @param filled - what the example filled.
+ * @returns true when unchanged.
+ */
+function untouched(held: unknown, filled: unknown): boolean {
+    return JSON.stringify(held) === JSON.stringify(filled);
+}
+
+/**
+ * The form with its example let go: the endpoint, sign-in and params the example filled and the
+ * reader left as they were go back to a fresh form's, so nothing of the example's server rides
+ * along to the reader's; whatever the reader typed stays.
+ * @param entry - the source.
+ * @param form - the form now.
+ * @returns the form with no example.
+ */
+export function withoutExample(entry: SourceCatalogEntry, form: ServerFormState): ServerFormState {
+    const { example, ...rest } = form;
+    const sample = (entry.descriptor.samples ?? []).find((each) => each.plainName === example);
+    if (sample === undefined) {
+        return rest;
+    }
+    const fresh = freshForm(entry).params;
+    const params: Record<string, unknown> = { ...form.params };
+    for (const [name, value] of Object.entries(sample.params)) {
+        if (name !== "mode" && untouched(params[name], value)) {
+            params[name] = fresh[name];
+        }
+    }
+    const login = sample.publicLogin;
+    return {
+        ...rest,
+        endpoint: untouched(form.endpoint, sample.endpoint ?? "") ? "" : form.endpoint,
+        params: Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)),
+        user: untouched(form.user, login?.username ?? "") ? "" : form.user,
+        secret: untouched(form.secret, login?.password ?? "") ? "" : form.secret,
+    };
+}
+
+/**
  * Splits a comma list into its trimmed, non-empty items.
  * @param text - the list.
  * @returns the items.

@@ -33,6 +33,7 @@ import {
     START_WORDS,
     STARTER_QUERY,
     withExample,
+    withoutExample,
 } from "./commands";
 import { CodeChip, PreviewRows } from "./PreviewRows";
 import { failureOf } from "./words";
@@ -329,6 +330,11 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
         setPreview(null);
         setFailure(null);
     };
+    const refill = (next: ServerFormState): void => {
+        setForm(next);
+        setPreview(null);
+        setFailure(null);
+    };
     const setParam = (name: string, value: unknown): void => {
         change({ params: { ...form.params, [name]: value } });
     };
@@ -418,11 +424,13 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                         size="xs"
                         aria-label="Example"
                         placeholder="none"
+                        clearable
+                        clearButtonProps={{ "aria-label": "Clear Example" }}
                         comboboxProps={IN_PLACE}
                         data={samples.map((each) => ({ value: each.id, label: each.plainName }))}
                         value={samples.find((each) => each.plainName === form.example)?.id ?? null}
                         onChange={(id) => {
-                            change(withExample(entry, form, id));
+                            refill(id === null ? withoutExample(entry, form) : withExample(entry, form, id));
                         }}
                     />
                 </Row>
@@ -434,7 +442,8 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                     placeholder={descriptor.defaultEndpoint ?? "https://"}
                     value={form.endpoint}
                     onChange={(event) => {
-                        change({ endpoint: event.currentTarget.value });
+                        // A new endpoint is another server: the example, and what it filled, go.
+                        refill({ ...withoutExample(entry, form), endpoint: event.currentTarget.value });
                     }}
                 />
             </Row>

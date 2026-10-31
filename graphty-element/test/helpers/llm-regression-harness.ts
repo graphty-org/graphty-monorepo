@@ -84,10 +84,12 @@ export interface TestExpectations {
  * Options for retry behavior when API calls fail
  */
 export interface RetryOptions {
-    /** Maximum number of retry attempts (default: 2) */
+    /**
+     * Maximum number of retry attempts (default: 2). A retry is sent at once: each attempt's request
+     * already waits as the provider asks between its own retries (the AI SDK's backoff, which reads
+     * the provider's retry headers), so the harness adds no wait of its own.
+     */
     maxRetries?: number;
-    /** Delay between retry attempts in milliseconds (default: 1000) */
-    retryDelayMs?: number;
     /** Custom function to determine if an error should trigger a retry */
     retryOn?: (error: Error) => boolean;
 }
@@ -162,7 +164,6 @@ function geminiTransport(apiKey: string): GeminiTransport {
  */
 const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, "retryOn">> = {
     maxRetries: 2,
-    retryDelayMs: 1000,
 };
 
 /**
@@ -345,7 +346,6 @@ export class LlmRegressionTestHarness {
         }
 
         const maxRetries = retryOptions?.maxRetries ?? DEFAULT_RETRY_OPTIONS.maxRetries;
-        const retryDelayMs = retryOptions?.retryDelayMs ?? DEFAULT_RETRY_OPTIONS.retryDelayMs;
         const shouldRetry = retryOptions?.retryOn ?? this.defaultRetryCondition;
         const startTime = Date.now();
         let resentRejectedFirstRequest = false;
@@ -388,7 +388,6 @@ export class LlmRegressionTestHarness {
                 }
 
                 if (attempt < maxRetries && shouldRetry(failure)) {
-                    await this.delay(retryDelayMs);
                     continue;
                 }
 
@@ -443,14 +442,6 @@ export class LlmRegressionTestHarness {
             message.includes("timeout") ||
             message.includes("econnreset")
         );
-    }
-
-    /**
-     * Delay helper for retry logic.
-     */
-    private delay(ms: number): Promise<void> {
-        // eslint-disable-next-line local/no-test-timing -- backoff before calling a remote LLM provider again after a rate limit or transient error; the provider offers no condition to wait on, tracked in #1636
-        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     /**

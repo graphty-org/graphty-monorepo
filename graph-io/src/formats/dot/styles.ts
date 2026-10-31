@@ -1358,9 +1358,8 @@ export const SHAPE_PERIPHERIES: ReadonlyMap<string, number> = new Map([
 export const PERIPHERY_GAP = 4;
 
 /**
- * Reads a node's second outline (`peripheries=2`, `doublecircle`): Graphviz draws it `PERIPHERY_GAP` points outside
- * the first, in the same color, width and dashes. graphty draws one outer ring, so a third and later outline is
- * noted as not carried.
+ * Reads a node's further outlines (`peripheries=2` and up, `doublecircle`, `tripleoctagon`): Graphviz draws each
+ * `PERIPHERY_GAP` points outside the one before, in the same color, width and dashes.
  * @param n - the node
  */
 function readNodeRings(n: NodeRead): void {
@@ -1392,7 +1391,7 @@ function readNodeRings(n: NodeRead): void {
         n.put("outerBorderStyle", n.tokens.includes("dashed") ? "dashed" : "dotted");
     }
     if (count > 2) {
-        noteAt(n.at("outerBorderWidth"), STYLE_ISSUE.NOT_CARRIED, `peripheries=${String(count)}`);
+        n.put("outerBorderCount", count - 1);
     }
 }
 

@@ -630,8 +630,8 @@ function readGv2gmlNode(g: Rec, writer: GmlWriter, put: Put, at: At): void {
 
 /**
  * Reads the second outline Graphviz draws round a `doublecircle`, `doubleoctagon` or `tripleoctagon` (shapes.c):
- * `PERIPHERY_GAP` points outside the first, in its color, width and dashes, as the DOT reader reads it. graphty draws
- * one outer ring, so a third outline is noted as not carried.
+ * `PERIPHERY_GAP` points outside the first, in its color, width and dashes, as the DOT reader reads it (a
+ * `tripleoctagon`'s third outline as a second ring).
  * @param g - the record
  * @param shape - its Graphviz shape, lowercase
  * @param style - its outline's dashes, as read
@@ -661,7 +661,7 @@ function readGv2gmlRings(g: Rec, shape: string, style: string | null, writer: Gm
         put("outerBorderStyle", style);
     }
     if (count > 2) {
-        noteAt(at("outerBorderWidth"), STYLE_ISSUE.NOT_CARRIED, `type ${shape}`);
+        put("outerBorderCount", count - 1);
     }
 }
 

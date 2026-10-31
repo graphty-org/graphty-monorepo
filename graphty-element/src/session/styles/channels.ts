@@ -411,6 +411,7 @@ export interface ChannelValues {
     "node.outerBorderOpacity": number;
     "node.outerBorderStyle": NodeBorderStyleValue;
     "node.outerBorderOffset": number;
+    "node.outerBorderCount": number;
     "node.cornerRadius": number;
     "node.exactCornerRadius": boolean;
     "node.underlayColor": ColorValue;
@@ -1061,7 +1062,8 @@ const NODE_STRIPES_CAVEAT =
 const NODE_OUTER_BORDER_CAVEAT =
     "A second ring outside the node's border, `node.outerBorderOffset` beyond the border's outer edge " +
     "(Cytoscape.js's outline): drawn only with a width above 0. Widths and the offset are in the units " +
-    "of `node.borderWidth`. It is not `node.outline`, which is a highlight drawn over the node's rim.";
+    "of `node.borderWidth`; `node.outerBorderCount` draws that many rings, each the offset beyond the one before. " +
+    "It is not `node.outline`, which is a highlight drawn over the node's rim.";
 
 const ARROW_CAPTION_CAVEAT =
     "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
@@ -2666,6 +2668,19 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         default: 0,
         accepts: "number",
         stylePath: "outerBorder.offset",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.outerBorderCount": {
+        channel: "node.outerBorderCount",
+        target: "node",
+        plainName: "Node Outer Border Count",
+        shortName: "Outer border count",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 1,
+        stylePath: "outerBorder.count",
         renderable: true,
         caveat: NODE_OUTER_BORDER_CAVEAT,
     },

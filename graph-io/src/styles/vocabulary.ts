@@ -91,6 +91,7 @@ export const STYLE_PROPERTIES: {
         ["outerBorderOpacity", "opacity"],
         ["outerBorderStyle", "borderStyle"],
         ["outerBorderOffset", "number"],
+        ["outerBorderCount", "number"],
         ["underlayColor", "color"],
         ["underlayOpacity", "opacity"],
         ["underlayPadding", "number"],

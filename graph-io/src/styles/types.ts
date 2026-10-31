@@ -286,6 +286,11 @@ export interface NodeStyleValues {
      */
     readonly outerBorderOffset: number;
     /**
+     * How many such rings are drawn, each `outerBorderOffset` beyond the one before (Graphviz's `peripheries` less the
+     * node's own outline); absent, one.
+     */
+    readonly outerBorderCount: number;
+    /**
      * The color of a filled shape drawn beneath the node, `underlayPadding` beyond its box on every side (Cytoscape.js
      * `underlay-*`); drawn only with an `underlayOpacity` above 0.
      */

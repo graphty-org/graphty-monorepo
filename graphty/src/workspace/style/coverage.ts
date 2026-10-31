@@ -149,6 +149,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.outerBorderOpacity": NOT_PLACED,
     "node.outerBorderStyle": NOT_PLACED,
     "node.outerBorderOffset": NOT_PLACED,
+    "node.outerBorderCount": NOT_PLACED,
     "node.underlayColor": NOT_PLACED,
     "node.underlayOpacity": NOT_PLACED,
     "node.underlayPadding": NOT_PLACED,

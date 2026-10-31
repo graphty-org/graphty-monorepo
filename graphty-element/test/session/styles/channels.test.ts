@@ -103,6 +103,7 @@ const DECLARED = [
     "node.outerBorderOpacity",
     "node.outerBorderStyle",
     "node.outerBorderOffset",
+    "node.outerBorderCount",
     "node.underlayColor",
     "node.underlayOpacity",
     "node.underlayPadding",
@@ -372,8 +373,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and seventy-two node channels and one hundred and forty-six edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 172);
+    it("splits into one hundred and seventy-three node channels and one hundred and forty-six edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 173);
         assert.strictEqual(channelsFor("edge").length, 146);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

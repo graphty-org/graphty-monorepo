@@ -647,7 +647,7 @@ export interface DrawnNode {
      */
     innerBorder?: DrawnBorder | null;
     /** The outer ring (Cytoscape.js's outline) and how far its inner edge is out from the fill, or null for none. */
-    outer?: { border: DrawnBorder; gapPx: number } | null;
+    outer?: { border: DrawnBorder; gapPx: number; ringsPx?: number } | null;
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
     pieces: { kind: "shape" | "image"; box: ScreenBox }[];
     /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
@@ -764,19 +764,23 @@ function frontThickness(mesh: AbstractMesh): number {
 }
 
 /**
- * A node's outer border ring (`outerBorder`): its color, width and style, and how far its inner edge is out from the
- * node's fill, in screen pixels; null when none is drawn.
+ * A node's outer border ring (`outerBorder`): its color, width and style, how far the outermost ring's inner edge is
+ * out from the node's fill, and how far out the rings inside it reach (`ringsPx`, 0 for one ring), in screen pixels;
+ * null when none is drawn. A program reads every outline but the outermost as the node's own.
  * @param node - the node
  * @param p - the projector
  * @returns the ring and its gap, or null
  */
-function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx: number } | null {
+function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx: number; ringsPx: number } | null {
     const { outerBorder, drawnStyle } = node as unknown as NodeInternals;
     const style = drawnStyle?.outerBorder;
     if (outerBorder === null || outerBorder.isDisposed() || !outerBorder.isEnabled() || style === undefined) {
         return null;
     }
     const perSize = NodeMesh.extentPerSize(drawnStyle?.shape);
+    const count = style.count ?? 1;
+    const offset = Math.max(0, style.offset ?? 0);
+    const width = style.width ?? 0;
     const at = node.mesh.getAbsolutePosition();
     const o = p.point(at);
     const px = (world: number): number => {
@@ -793,7 +797,9 @@ function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx
             screen: false,
             opacity: (material?.alpha ?? 1) * outerBorder.visibility,
         },
-        gapPx: px(node.borderReach + Math.max(0, style.offset ?? 0) * perSize),
+        // out to the outermost ring's inner edge (`count` rings, each the offset beyond the one before)
+        gapPx: px(node.borderReach + (offset * count + width * (count - 1)) * perSize),
+        ringsPx: px((offset + width) * (count - 1) * perSize),
     };
 }
 

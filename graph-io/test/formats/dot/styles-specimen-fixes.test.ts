@@ -112,6 +112,18 @@ describe("DOT styles: outlines and shapes", () => {
         expect(width.e ?? 0).toBe(0);
     });
 
+    it("draws every further outline as a ring of its own: peripheries=3 and tripleoctagon draw two", async () => {
+        const doc = `digraph {
+            a [shape=box, peripheries=3];
+            b [shape=tripleoctagon];
+            c [shape=doublecircle, peripheries=4];
+            d [shape=doublecircle];
+        }`;
+        const count = await nodes(doc, "outerBorderCount");
+        expect([count.a, count.b, count.c]).toEqual([2, 2, 3]);
+        expect(count.d ?? 1).toBe(1);
+    });
+
     it("draws a striped cluster's color list as stripes left to right, as on a box", async () => {
         const doc = `digraph { subgraph cluster_s { style=striped; fillcolor="red:green:blue"; a } }`;
         expect((await nodes(doc, "stripeColors")).cluster_s).toBe("#ff0000 #008000 #0000ff");

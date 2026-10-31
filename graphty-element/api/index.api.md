@@ -5081,6 +5081,7 @@ export const NodeStyle: z.ZodObject<{
             dotted: "dotted";
         }>>;
         offset: z.ZodOptional<z.ZodNumber>;
+        count: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     underlay: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;

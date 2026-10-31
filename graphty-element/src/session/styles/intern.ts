@@ -105,6 +105,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.outerBorderOpacity": "mesh",
     "node.outerBorderStyle": "mesh",
     "node.outerBorderOffset": "mesh",
+    "node.outerBorderCount": "mesh",
     "node.underlayColor": "mesh",
     "node.underlayOpacity": "mesh",
     "node.underlayPadding": "mesh",

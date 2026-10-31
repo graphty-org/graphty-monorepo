@@ -696,6 +696,7 @@ function channelPlans(
             ["outerBorderOpacity", [id("node.outerBorderOpacity")]],
             ["outerBorderStyle", [table("node.outerBorderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["outerBorderOffset", [length("node.outerBorderOffset")]],
+            ["outerBorderCount", [id("node.outerBorderCount")]],
             ["underlayColor", [id("node.underlayColor")]],
             ["underlayOpacity", [id("node.underlayOpacity")]],
             ["underlayPadding", [length("node.underlayPadding")]],

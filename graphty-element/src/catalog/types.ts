@@ -679,6 +679,7 @@ export type Channel =
     | "node.outerBorderOpacity"
     | "node.outerBorderStyle"
     | "node.outerBorderOffset"
+    | "node.outerBorderCount"
     | "node.underlayColor"
     | "node.underlayOpacity"
     | "node.underlayPadding"

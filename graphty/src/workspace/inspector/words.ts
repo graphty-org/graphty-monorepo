@@ -226,6 +226,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.outerBorderOpacity": "Outer border opacity",
     "node.outerBorderStyle": "Outer border style",
     "node.outerBorderOffset": "Outer border offset",
+    "node.outerBorderCount": "Outer border count",
     "node.underlayColor": "Underlay color",
     "node.underlayOpacity": "Underlay opacity",
     "node.underlayPadding": "Underlay padding",

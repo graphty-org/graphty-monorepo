@@ -311,24 +311,21 @@ function fitToBox(unit: readonly Point2[], halfWidth: number, halfHeight: number
  */
 export type ShapePoint = readonly [x: number, xLength: number, y: number, yLength: number];
 
-/** A coordinate written as a fraction and a signed length after it (`-1+24`: 24 in from the left side). */
-const WITH_LENGTH = /^([+-]?(?:\d+\.?\d*|\.\d+))([+-](?:\d+\.?\d*|\.\d+))$/;
-
 /**
- * A coordinate of a shape's points: a number, a fraction, or a fraction and the length added to it (`-1+24`).
+ * A coordinate of a shape's points: a number, a fraction, or a fraction and the length added to it (`-1+24`: 24 in
+ * from the left side).
  * @param text - The coordinate.
  * @returns The fraction and the length, NaN when it is neither.
  */
 function coordinate(text: string | undefined): [number, number] {
-    if (text === undefined) {
-        return [Number.NaN, Number.NaN];
-    }
-    const plain = Number(text);
-    if (Number.isFinite(plain)) {
+    const plain = text === undefined ? Number.NaN : Number(text);
+    if (text === undefined || Number.isFinite(plain)) {
         return [plain, 0];
     }
-    const split = WITH_LENGTH.exec(text);
-    return split === null ? [Number.NaN, Number.NaN] : [Number(split[1]), Number(split[2])];
+    // the length starts at the last sign that is not the fraction's own
+    const at = Math.max(text.lastIndexOf("+"), text.lastIndexOf("-"));
+    const [fraction, length] = at > 0 ? [Number(text.slice(0, at)), Number(text.slice(at))] : [Number.NaN, Number.NaN];
+    return Number.isFinite(fraction) && Number.isFinite(length) ? [fraction, length] : [Number.NaN, Number.NaN];
 }
 
 /**
@@ -583,6 +580,29 @@ function database(halfWidth: number, halfHeight: number): Point2[] {
 }
 
 /**
+ * A polygon's outline in a box: its corners where they say, or stretched about its center, not its box, so the
+ * corners stay where they are around the node's position and the farthest on each axis reach the node's side.
+ * @param points - The corners (`shape.points`), their lengths in the box's units.
+ * @param halfWidth - The box's half width.
+ * @param halfHeight - Its half height.
+ * @param stretch - Whether the corners are stretched.
+ * @returns The outline, counter-clockwise; the box without usable corners.
+ */
+function polygonOutline(points: string | undefined, halfWidth: number, halfHeight: number, stretch: boolean): Point2[] {
+    const corners = polygonPoints(points, halfWidth, halfHeight);
+    if (corners === null) {
+        return fitToBox(UNIT_OUTLINES.rectangle, halfWidth, halfHeight);
+    }
+    if (!stretch) {
+        return corners;
+    }
+    const [reachX, reachY] = polygonReach(corners);
+    const toX = reachX > 0 ? halfWidth / reachX : 1;
+    const toY = reachY > 0 ? halfHeight / reachY : 1;
+    return corners.map(([x, y]): Point2 => [x * toX, y * toY]);
+}
+
+/**
  * The outline of one flat shape, filling a box centred on the origin.
  * @param shape - A flat shape name.
  * @param width - The box's width.
@@ -609,20 +629,7 @@ export function flatShapeOutline(
     const halfHeight = height / 2;
 
     if (shape === "polygon") {
-        const corners = polygonPoints(points, halfWidth, halfHeight);
-        if (corners === null) {
-            return fitToBox(UNIT_OUTLINES.rectangle, halfWidth, halfHeight);
-        }
-        if (!stretch) {
-            return corners;
-        }
-
-        // Stretched about its center, not its box: the corners stay where they are around the
-        // node's position, the farthest on each axis reaching the node's side.
-        const [reachX, reachY] = polygonReach(corners);
-        const [toX, toY] = [reachX > 0 ? halfWidth / reachX : 1, reachY > 0 ? halfHeight / reachY : 1];
-
-        return corners.map(([x, y]): Point2 => [x * toX, y * toY]);
+        return polygonOutline(points, halfWidth, halfHeight, stretch);
     }
 
     if (shape === "ellipse") {

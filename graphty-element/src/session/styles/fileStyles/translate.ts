@@ -522,7 +522,7 @@ function channelPlans(
         channel,
         convert: (value) =>
             typeof value === "string"
-                ? value.replace(
+                ? value.replaceAll(
                       SHAPE_POINT_LENGTH,
                       (_all, before: string, length: string) =>
                           `${before}${length.startsWith("-") ? "" : "+"}${String(round(Number(length) * factor))}`,

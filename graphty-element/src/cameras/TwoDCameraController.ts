@@ -110,6 +110,10 @@ export class TwoDCameraController {
         return -this.camera.rotation.z;
     }
 
+    /**
+     * Turn the view so the drawing stands at this angle, counterclockwise, in radians.
+     * @param angle - The angle.
+     */
     public set rotation(angle: number) {
         this.camera.rotation.z = -angle;
     }

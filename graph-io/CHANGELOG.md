@@ -1,3 +1,31 @@
+## 0.3.51 (2026-10-31)
+
+### 🩹 Fixes
+
+- **graph-io:** decode the fidelity story pictures only when awaited ([#4615](https://github.com/graphty-org/graphty-monorepo/issues/4615), [#4991](https://github.com/graphty-org/graphty-monorepo/issues/4991), [#4238](https://github.com/graphty-org/graphty-monorepo/issues/4238), [#4499](https://github.com/graphty-org/graphty-monorepo/issues/4499), [#4512](https://github.com/graphty-org/graphty-monorepo/issues/4512))
+- **graphty:** give edge.supportScale a home, and drop the vis-siblings matched story ([16e36c50ac](https://github.com/graphty-org/graphty-monorepo/commit/16e36c50ac))
+- **graphty-element:** bow vis-network's dynamic curves as deep as it does on files it lays out ([#4455](https://github.com/graphty-org/graphty-monorepo/issues/4455), [#4271](https://github.com/graphty-org/graphty-monorepo/issues/4271))
+- **graph-io:** never hang on a chart range far from zero ([#4249](https://github.com/graphty-org/graphty-monorepo/issues/4249))
+- **graph-io:** read at most four shapes of a Graphviz arrow name, as Graphviz does ([#4267](https://github.com/graphty-org/graphty-monorepo/issues/4267))
+- **graph-io:** never throw on a malformed chart axis option, and cap a range axis at 100 ticks ([#4249](https://github.com/graphty-org/graphty-monorepo/issues/4249))
+- **graphty-element:** draw each part of a stacked arrowhead in a row along the line ([#4267](https://github.com/graphty-org/graphty-monorepo/issues/4267))
+- **graph-io:** draw Cytoscape chart axes' words and shrink the plot for them as JFreeChart does ([#404040](https://github.com/graphty-org/graphty-monorepo/issues/404040), [#4249](https://github.com/graphty-org/graphty-monorepo/issues/4249))
+- **graph-io:** draw vis-network lines at least 0.3 screen pixels wide ([#4268](https://github.com/graphty-org/graphty-monorepo/issues/4268))
+- **graph-io:** drop the fidelity story's off-screen element once its screenshot is shown ([#4314](https://github.com/graphty-org/graphty-monorepo/issues/4314))
+- **graph-io:** a DOT table label's padding survives graphty's own round trip ([#4248](https://github.com/graphty-org/graphty-monorepo/issues/4248))
+- **graph-io:** a DOT table's size is a least size, its border drawn only on its own box ([#4248](https://github.com/graphty-org/graphty-monorepo/issues/4248))
+- **graph-io:** take heat-strip and up-down bar colors from a scheme as Cytoscape's BarLayer does ([07938da807](https://github.com/graphty-org/graphty-monorepo/commit/07938da807))
+- **graph-io:** size file arrowheads as Cytoscape, vis-network and Graphviz draw them ([#4202](https://github.com/graphty-org/graphty-monorepo/issues/4202))
+- **graph-io:** a DOT plain node ignores its margin, as Graphviz does ([#4248](https://github.com/graphty-org/graphty-monorepo/issues/4248))
+- **graph-io:** read Cytoscape chart color schemes and a chart's own values ([#4249](https://github.com/graphty-org/graphty-monorepo/issues/4249))
+- **graph-io:** draw a DOT HTML table label's border and frame round its node ([#4248](https://github.com/graphty-org/graphty-monorepo/issues/4248))
+- **graphty-element:** style comparator round 5: own-layout and zigzag blind spots, false failures ([#4222](https://github.com/graphty-org/graphty-monorepo/issues/4222))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.38
+- Updated graph-format to 1.4.10
+
 ## 0.3.50 (2026-10-29)
 
 ### 🚀 Features

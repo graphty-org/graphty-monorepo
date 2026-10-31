@@ -1,3 +1,22 @@
+## 0.9.36 (2026-10-31)
+
+### 🩹 Fixes
+
+- **compact-mantine:** keep a submenu open while the mouse travels to it ([#4631](https://github.com/graphty-org/graphty-monorepo/issues/4631))
+- **compact-mantine:** select a committed number again once its owner draws it ([#3385](https://github.com/graphty-org/graphty-monorepo/issues/3385), [#3545](https://github.com/graphty-org/graphty-monorepo/issues/3545), [#3534](https://github.com/graphty-org/graphty-monorepo/issues/3534))
+- **compact-mantine:** read keys by when they were typed; select a value before the next key ([#3381](https://github.com/graphty-org/graphty-monorepo/issues/3381), [#3534](https://github.com/graphty-org/graphty-monorepo/issues/3534), [#3545](https://github.com/graphty-org/graphty-monorepo/issues/3545))
+- **cytoscape-extensions:** keep the script-tag bundle's lazy file formats under Vite 8 ([#4230](https://github.com/graphty-org/graphty-monorepo/issues/4230))
+- **compact-mantine:** cap every dropdown at the visual viewport's height ([f3dbeb5303](https://github.com/graphty-org/graphty-monorepo/commit/f3dbeb5303))
+- **graphty:** shader settings as property rows; motion, undo words, outline and key follow the panel ([3c31ca0ea1](https://github.com/graphty-org/graphty-monorepo/commit/3c31ca0ea1))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.38
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.35 (2026-10-29)
 
 ### 🧱 Updated Dependencies

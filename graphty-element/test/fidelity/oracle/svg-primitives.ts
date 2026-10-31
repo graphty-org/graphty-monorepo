@@ -928,6 +928,8 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
         const prims: Prim[] = [];
         // the `d` of the last filled path read, whose outline a stroke-only twin may draw
         let lastFilledPath = "";
+        // the geometry read last (a path's `d`, matrix and sample count) and its points
+        let lastGeometry: { key: string; points: Pt[] } = { key: "", points: [] };
         const opacities = new Map<Element, number>();
         // the outline of a label stroked as an unfilled text of its own, kept for the filled text drawn over it: right
         // after it (Cytoscape.js) or after every other outline (Gephi writes all its label outlines, then the labels)
@@ -1027,7 +1029,14 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             lastFilledPath = fill !== null ? d : lastFilledPath;
             const open =
                 fill === null && !outlineOfFill && !CLOSED.has(tag) && !/[Zz]\s*$/.test(el.getAttribute("d") ?? "");
-            let points = geometryPoints(el as SVGGeometryElement, m, open ? PATH_SAMPLES : SAMPLES);
+            // a path drawn again at once with the same geometry (vis-network's outline over its fill) is not sampled
+            // through the DOM again: the same points, copied
+            const samples = open ? PATH_SAMPLES : SAMPLES;
+            const geometry = d === "" ? "" : [d, m.a, m.b, m.c, m.d, m.e, m.f, samples].join("\u0000");
+            if (geometry === "" || geometry !== lastGeometry.key) {
+                lastGeometry = { key: geometry, points: geometryPoints(el as SVGGeometryElement, m, samples) };
+            }
+            let points = lastGeometry.points.map(([x, y]): Pt => [x, y]);
             const band = fill === null && stroke !== null ? clippedBand(el, root) : null;
             if (band !== null && stroke !== null) {
                 points = bandCenter(points, band === "inside" ? -stroke.width / 4 : stroke.width / 4);

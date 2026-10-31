@@ -2301,7 +2301,7 @@ export class Node implements ModelUser {
      * count the gesture in a value that is compared with layout coordinates and local scalings.
      *
      * Counts the border as drawn now, so a border in screen pixels makes it change with the zoom;
-     * a layout reads {@link Node.layoutRadius} instead.
+     * a layout reads `layoutRadius` instead.
      * @returns The radius; the style's own size when the mesh has no bounds yet.
      */
     get drawnRadius(): number {

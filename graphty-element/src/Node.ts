@@ -49,6 +49,7 @@ import {
     type NodeShaderState,
     type SurfacePath,
 } from "./meshes/NodeShaderDrawing";
+import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
@@ -84,6 +85,20 @@ export const SELECTION_HALO_MESH = "graphty-selection-halo";
 
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
+
+/**
+ * The picture a node that grows round its picture holds (`shape.labelFitImage`), once its size is known.
+ * @param o - The resolved style.
+ * @param picture - A picture's own size, once read.
+ * @returns Its size in pixels, or null when the node holds none or it is not known yet.
+ */
+function heldPicture(
+    o: NodeStyleConfig,
+    picture: (src: string) => { width: number; height: number } | null,
+): { width: number; height: number } | null {
+    const src = o.image?.src ?? "";
+    return (o.shape?.labelFitImage ?? 0) > 0 && src !== "" ? picture(src) : null;
+}
 
 /** A resolved style as a node draws it: with what its table label draws over its face, once laid out. */
 type DecoratedStyle = NodeStyleConfig & { readonly table?: TableDecoration };
@@ -1247,6 +1262,16 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Fit this node again when a picture it is sized by (`shape.labelFitImage`, a table cell's picture) has been
+     * read: the fit it was drawn with did not have the picture's size yet.
+     * @internal
+     */
+    refitPicture(): void {
+        this.fittedFor = null;
+        this.updateStyle();
+    }
+
+    /**
      * Build this node's texts again when a font they draw in has just loaded (issue #3531): a
      * label measured and drawn while its web font was loading shows the fallback face, and a node
      * sized to its label (`shape.labelFit`) has the fallback's size.
@@ -1645,7 +1670,7 @@ export class Node implements ModelUser {
      * @returns True when the mesh has to be fitted again.
      */
     private fitIsStale(o: NodeStyleConfig): boolean {
-        if (o.shape?.labelFit === undefined || this.drawnAsGroup) {
+        if ((o.shape?.labelFit === undefined && o.shape?.labelTable === undefined) || this.drawnAsGroup) {
             return false;
         }
 
@@ -1681,9 +1706,12 @@ export class Node implements ModelUser {
             const m = RichTextLabel.measureWords(this.context.getScene(), this.createLabelOptions(words, o.label));
             return { width: m.width / perSize, height: m.height / perSize };
         };
-        const drawn = table === null ? null : layoutLabelTable(table, measure);
+        // a picture sizes the node or its cell once its own size is read; this node is fitted again then
+        const scene = this.context.getScene();
+        const picture = (src: string): { width: number; height: number } | null => pictureSize(scene, src, this);
+        const drawn = table === null ? null : layoutLabelTable(table, measure, picture);
         const box = drawn ?? measure(text);
-        const extent = labelFitExtent(shape, box);
+        const extent = labelFitExtent(shape, box, heldPicture(o, picture));
         const own = shape?.size ?? 0;
         const width = Number((extent?.width ?? shape?.width ?? own).toPrecision(6));
         const height = Number((extent?.height ?? shape?.height ?? own).toPrecision(6));

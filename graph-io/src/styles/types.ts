@@ -233,6 +233,14 @@ export interface NodeStyleValues {
      * outline is fitted round it (Graphviz's `quantum`).
      */
     readonly labelFitQuantum: number;
+    /**
+     * How long each of the node's picture's (`image`) own pixels is when a node that grows to fit its label holds its
+     * picture too: the picture's box, padded by `labelFitImagePadding` on each side, is held as the padded label box
+     * is, the larger each way deciding (Graphviz grows a node round its `image`).
+     */
+    readonly labelFitImage: number;
+    /** The room on each side of a picture a node holds (`labelFitImage`). */
+    readonly labelFitImagePadding: number;
     /** The shape. */
     readonly shape: StyleNodeShape;
     /**
@@ -335,11 +343,12 @@ export interface NodeStyleValues {
     /**
      * The label laid out as a table of cells (Graphviz's HTML-like `<TABLE>`), as JSON: `{ "border", "cellBorder",
      * "cellSpacing", "cellPadding", "width"?, "height"?, "fixedSize"?, "align"?, "valign"?, "fill"?, "lineHeight"?,
-     * "rows" }`,
+     * "imagePixel"?, "rows" }`,
      * lengths in the unit of `width`. `border` is the table's outline width, `cellBorder` and `cellPadding` every
      * cell's own unless the cell gives one, `cellSpacing` the room between cells and round them, `width` and
      * `height` a least size (exact with `fixedSize`), `align` (`left`, `right`) and `valign` (`top`, `bottom`) where
-     * the table sits in a cell larger than it, `fill` its background color, `lineHeight` how tall a text line is as a multiple of its font size.
+     * the table sits in a cell larger than it, `fill` its background color, `lineHeight` how tall a text line is as a multiple of its font size,
+     * `imagePixel` how long each of a picture's own pixels is when its cell is sized by it (unset, as it is drawn).
      * Each row is `{ "cells", "rule"? }` (`rule`: a line between it and the row above); each cell
      * `{ "lines"?, "table"?, "image"?, "colspan"?, "rowspan"?, "width"?, "height"?, "fixedSize"?, "align"?, "valign"?,
      * "balign"?, "border"?, "padding"?, "fill"?, "rule"? }`: its text as lines `{ "runs", "align"? }` (runs as in

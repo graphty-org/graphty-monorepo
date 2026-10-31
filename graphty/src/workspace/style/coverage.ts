@@ -183,6 +183,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.labelPaddingY": NOT_PLACED,
     "node.labelFitSquare": NOT_PLACED,
     "node.labelFitQuantum": NOT_PLACED,
+    "node.labelFitImage": NOT_PLACED,
+    "node.labelFitImagePadding": NOT_PLACED,
     "node.gradientColor": NOT_PLACED,
     "node.gradientDirection": NOT_PLACED,
     "node.gradientColors": NOT_PLACED,

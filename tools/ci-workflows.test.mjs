@@ -2785,8 +2785,8 @@ jobs:
 describe("the summary checks fail as soon as a required job fails", () => {
     const ci = workflow("ci.yml");
     const jobs = parseJobs(ci);
-    // The jobs "All Checks Pass" fails on: every job it needs.
-    const deciding = jobs["all-checks"].needs;
+    // The jobs "All Checks Pass" fails on: every job it needs, less a report-only one (continue-on-error).
+    const deciding = jobs["all-checks"].needs.filter((name) => jobs[name].coe !== "true");
 
     it("ends every job whose failure fails them with the early-verdict step, on pull requests only", () => {
         assert.deepEqual([...deciding].sort(), [
@@ -8315,6 +8315,60 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
             ids: [],
         });
         assert.throws(() => storiesPlan({ storyBins: [{ name: "x-1", storybook: "x/storybook-static" }] }), /x-1/);
+    });
+});
+
+describe("the Capture impact job (#5304)", () => {
+    const ci = workflow("ci.yml");
+    const jobs = parseYaml(ci).jobs;
+
+    // tools/capture-impact.sh changed, in a throwaway repository whose second commit writes `files`
+    const changed = (files) => {
+        const dir = mkdtempSync(join(TMP, "capture-impact-"));
+        const git = (...a) => assert.equal(spawnSync("git", a, { cwd: dir }).status, 0);
+        git("init", "-q", "-b", "master");
+        git("commit", "-q", "--allow-empty", "-m", "base");
+        for (const [f, text] of Object.entries(files)) {
+            mkdirSync(join(dir, f, ".."), { recursive: true });
+            writeFileSync(join(dir, f), text);
+        }
+        git("add", ".");
+        git("commit", "-qm", "change", "--allow-empty");
+        const r = spawnSync("bash", [join(process.cwd(), "tools/capture-impact.sh"), "changed", "HEAD^", "HEAD"], {
+            cwd: dir,
+            encoding: "utf8",
+        });
+        assert.equal(r.status, 0, r.stderr);
+        return r.stdout.trim();
+    };
+
+    it("fires on a change to how every picture is drawn, and on nothing else", () => {
+        for (const f of [
+            "visual-review/capture/capture.mjs",
+            "visual-fonts/fonts.conf",
+            "visual-review.config.json",
+            "compact-mantine/.storybook/preview.tsx",
+        ]) {
+            assert.equal(changed({ [f]: "x\n" }), "true", f);
+        }
+        assert.equal(changed({ "pnpm-lock.yaml": "  playwright@1.58.0:\n" }), "true", "a Playwright version");
+        const big = `  playwright@1.58.0:\n${"  other@1.0.0:\n".repeat(20_000)}`;
+        assert.equal(changed({ "pnpm-lock.yaml": big }), "true", "a Playwright version in a large lockfile diff");
+        for (const f of ["graph-samples/src/a.ts", "visual-review/trusted/gate.mjs", "layout/.storybook/main.ts"]) {
+            assert.equal(changed({ [f]: "x\n" }), "false", f);
+        }
+        assert.equal(changed({ "pnpm-lock.yaml": "  vite@8.0.0:\n" }), "false", "another version");
+    });
+
+    it("runs only when planned, never fails the run, and holds All Checks Pass while its label is on", () => {
+        assert.match(jobs["capture-impact"].if, /needs\.packages\.outputs\.capture-impact == 'true'/);
+        assert.equal(jobs["capture-impact"]["continue-on-error"], true);
+        assert.ok(jobs["all-checks"].needs.includes("capture-impact"));
+        const hold = jobs["all-checks"].steps.find(
+            (x) => x.name === "Hold a capture-impact pull request until its label is removed",
+        );
+        assert.equal(hold.if, "github.event_name == 'pull_request' && needs.capture-impact.outputs.held == 'true'");
+        assert.match(hold.run, /grep -qx capture-impact; then\n.*\n\s+exit 1/);
     });
 });
 

@@ -3,8 +3,8 @@
  * the file's edges the graph already holds (the element's `repeated.seen`) and offers to replace
  * the graph's source with the file, beside Load, and Load's description carries that warning. A file with no repeated edge shows neither.
  * When every edge in the file repeats, Load would only double them, so Replace is the primary
- * button and takes the focus, and replaces at once with no second page; when some edges are new,
- * Load stays the primary.
+ * button and takes the focus, and replaces at once with no second page, reading the file with the
+ * column roles the reader set on the page; when some edges are new, Load stays the primary.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -36,6 +36,25 @@ function loadDescription(): string {
         .join(" ");
 }
 
+/**
+ * Draws the workspace with the real element and loads friends.csv.
+ * @returns the store and the live session.
+ */
+async function openFriends(): Promise<{ store: ReturnType<typeof createWorkspaceStore>; live: GraphSession }> {
+    const store = createWorkspaceStore({ project: { name: "friends", id: 1 }, place: "graph" });
+    render(<Workspace store={store} />);
+    let session: GraphSession | undefined;
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
+    if (session === undefined) {
+        throw new Error("the element never came up");
+    }
+    await session.data.import({ type: "csv", config: { data: FRIENDS }, name: "friends.csv" });
+    return { store, live: session };
+}
+
 describe("Add a file whose edges the graph already holds", () => {
     it("words the count", () => {
         assert.equal(
@@ -49,18 +68,7 @@ describe("Add a file whose edges the graph already holds", () => {
     });
 
     it("says so and offers Replace beside Load, which leaves 41 edges; a file of other edges shows neither", async () => {
-        const store = createWorkspaceStore({ project: { name: "friends", id: 1 }, place: "graph" });
-        render(<Workspace store={store} />);
-        let session: GraphSession | undefined;
-        await waitFor(() => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        });
-        if (session === undefined) {
-            throw new Error("the element never came up");
-        }
-        const live = session;
-        await live.data.import({ type: "csv", config: { data: FRIENDS }, name: "friends.csv" });
+        const { store, live } = await openFriends();
 
         // Nothing repeats: no line, no Replace.
         act(() => {
@@ -119,5 +127,27 @@ describe("Add a file whose edges the graph already holds", () => {
         await waitFor(() => {
             assert.strictEqual(live.data.sources()[0]?.name, "friends.csv");
         });
+    });
+
+    it("Replace keeps the column roles the reader changed on the page", async () => {
+        const { store, live } = await openFriends();
+        act(() => {
+            openDataPage(store, { intent: "add", files: [new File([FRIENDS_V2], "friends-v2.csv")] });
+        });
+        await screen.findByTestId("repeats", {});
+        // The element reads weight as the edges' weight; the reader makes it a plain attribute.
+        await userEvent.click(screen.getByRole("combobox", { name: "Role of weight" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Attribute" }));
+        await waitFor(() => {
+            assert.equal(screen.getByRole<HTMLInputElement>("combobox", { name: "Role of weight" }).value, "Attribute");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Replace friends.csv" }));
+
+        await waitFor(() => {
+            assert.match(store.get().notice?.message ?? "", /^Replaced friends\.csv with friends-v2\.csv/);
+        });
+        const [table] = Object.values(live.data.sources()[0]?.mapping?.tables ?? {});
+        assert.isDefined(table, "the replaced load says how its table was read");
+        assert.isUndefined(table.weight ?? undefined, "weight stays an attribute, as the reader chose");
     });
 });

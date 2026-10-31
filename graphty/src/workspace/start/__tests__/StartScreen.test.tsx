@@ -7,6 +7,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { ariaKey, formatKey } from "../../keys/keys";
 import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
@@ -260,7 +261,11 @@ describe("the start screen", () => {
         // The browser's own file picker, as where a browser has no File System Access picker.
         vi.stubGlobal("showOpenFilePicker", undefined);
         await commands.chooseNextFile("my network.gml", "text/plain", "graph [ ]");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Open a file..." }));
+        const open = within(dialog).getByRole("button", { name: /^Open a file/ });
+        // Its key is on the button, as every key is.
+        assert.equal(open.getAttribute("aria-keyshortcuts"), ariaKey("Mod+O"));
+        assert.include(open.textContent, formatKey("Mod+O"));
+        await userEvent.click(open);
 
         await waitFor(() => {
             assert.equal(store.get().project?.name, "my network");

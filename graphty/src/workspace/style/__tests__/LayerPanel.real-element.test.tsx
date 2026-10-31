@@ -137,7 +137,7 @@ describe("the layer panel", () => {
         });
     });
 
-    it("keeps a text condition that matches no node on Enter, and says the layer styles nothing", async () => {
+    it("keeps a text condition that matches no node on Enter, and flags it with a 0 badge", async () => {
         const { session } = await openScene();
         const where = { kind: "text" as const, reads: "data.name", mode: "substring" as const, text: "Co" };
         const layer = await openLayer(session, { name: "Group one", selector: { match: "rule", where } });
@@ -146,8 +146,11 @@ describe("the layer panel", () => {
         const box = await within(region).findByRole("combobox", { name: "name: text to match" });
         await userEvent.clear(box);
         await userEvent.type(box, "missing{Enter}");
-        await noticeSays(/^No node passes the name condition, so .+ styles nothing/);
-        // Kept as the reader wrote it: the warning does not take the condition back.
+        // Kept as the reader wrote it, and flagged on the condition's chip: a 0 badge, no sentence.
+        const row = await screen.findByRole("button", { name: /^Which nodes, .*no node matches/ });
+        const badge = await within(row).findByLabelText("No node matches");
+        assert.equal(badge.textContent, "0");
+        assert.isNotNull(badge.closest("[data-chip]"), "the badge sits on the condition");
         assert.equal(session.styles.counts(layer.id).matched, 0);
         assert.isNull(screen.queryByRole("group", { name: "Which nodes" }), "the cards closed");
     });

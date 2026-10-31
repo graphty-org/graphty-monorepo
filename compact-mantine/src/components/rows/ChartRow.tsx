@@ -591,6 +591,7 @@ function useAxisIds(): AxisIds {
  * @param props.trailing - The 24px trailing slot: an advanced settings button, a reset control, or nothing
  * @param props.brush - A range brush on the bars' scale
  * @param props.overlay - A line over the bars, such as the selection's activity
+ * @param props.valueTable - Whether the table of every bin's count follows the drawing (the default)
  * @returns The histogram row
  * @example
  * ```tsx

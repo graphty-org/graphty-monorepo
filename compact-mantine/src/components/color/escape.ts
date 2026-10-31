@@ -1,5 +1,4 @@
-import type React from "react";
-import { useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { useLabels } from "../../i18n";
@@ -13,7 +12,7 @@ import { useLabels } from "../../i18n";
  * @param revert - redraws the committed value
  * @param dirty - whether the field holds something typed that differs from its value
  */
-export function revertOnEscape(event: React.KeyboardEvent<HTMLInputElement>, revert: () => void, dirty = true): void {
+export function revertOnEscape(event: KeyboardEvent<HTMLInputElement>, revert: () => void, dirty = true): void {
     const input = event.currentTarget;
     if (!dirty && input.closest("[data-popout-id]") !== null) {
         return;
@@ -37,12 +36,7 @@ export interface DiscardedEdit {
      * @param dirty - whether the field holds something typed that differs from its value
      * @param kept - the value the box goes back to, as the box shows it
      */
-    readonly revert: (
-        event: React.KeyboardEvent<HTMLInputElement>,
-        revert: () => void,
-        dirty: boolean,
-        kept: string,
-    ) => void;
+    readonly revert: (event: KeyboardEvent<HTMLInputElement>, revert: () => void, dirty: boolean, kept: string) => void;
 }
 
 /**

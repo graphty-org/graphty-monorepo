@@ -13,8 +13,8 @@ import { shieldDragSelection } from "./chrome/dragSelectionShield";
 import { Chit } from "./color/Chit";
 import { ColorPickerPanel } from "./color/ColorPickerPanel";
 import { useDiscardedEdit } from "./color/escape";
-import { DiscardNote } from "./inputs/DiscardNote";
 import { typedColor } from "./color/typed-color";
+import { DiscardNote } from "./inputs/DiscardNote";
 
 // Figma's gradient editor (design/figma-spec.md 7.5, measured on
 // popovers-and-menus/color-picker-gradient-existing): a direction row, 24px square stop handles

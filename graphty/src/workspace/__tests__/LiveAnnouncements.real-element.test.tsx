@@ -91,7 +91,7 @@ async function openWithGraph(): Promise<{ session: GraphSession; store: Workspac
     const session = await waitFor(() => {
         const found = document.querySelector("graphty-element")?.session;
         assert.isDefined(found);
-        return found as GraphSession;
+        return found;
     });
     await session.layout.set("fixed");
     await session.data.addNodes(NODES.map((node) => ({ ...node })));
@@ -132,7 +132,7 @@ describe("live announcements", () => {
         const box = await waitFor(() => {
             const focused = document.activeElement;
             assert.instanceOf(focused, HTMLInputElement);
-            return focused as HTMLInputElement;
+            return focused;
         });
         heard = [];
         await userEvent.keyboard("{Control>}a{/Control}23{Enter}");

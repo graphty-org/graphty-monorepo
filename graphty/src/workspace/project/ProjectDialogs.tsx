@@ -85,9 +85,16 @@ function DiscardDialog(): React.JSX.Element {
     const close = (): void => {
         store.set({ dialog: null });
     };
+    // Cancel hands focus back to where the dialog opened. Discard does not: what it continues
+    // (an open, Back to start) puts focus where it points the reader, and Mantine's hand-back,
+    // on a timer a busy page runs late, would otherwise land after it and take it away.
+    const [discarding, setDiscarding] = useState(false);
+    if (opened && discarding) {
+        setDiscarding(false);
+    }
 
     return (
-        <Modal opened={opened} onClose={close} title="Discard unsaved changes?">
+        <Modal opened={opened} onClose={close} returnFocus={!discarding} title="Discard unsaved changes?">
             <Text size="sm">{name} has changes that are not saved. They are lost if you continue.</Text>
             <ModalFooter mt="md">
                 <Button variant="default" onClick={close} data-autofocus>
@@ -96,6 +103,7 @@ function DiscardDialog(): React.JSX.Element {
                 <Button
                     color="red"
                     onClick={() => {
+                        setDiscarding(true);
                         void discardAndContinue(store);
                     }}
                 >

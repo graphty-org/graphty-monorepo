@@ -1,7 +1,7 @@
 /**
  * Where keyboard focus lands after a command that moves the reader, on the REAL graphty-element,
  * driven by real keys (issue #5163): every such command names its target, as a graph's open does
- * (the inspector's heading). Samples on the start page goes to the library's search; removing a
+ * (the inspector's heading). Samples on the start page goes to the library's heading; removing a
  * style line goes to its own section's "+"; Discard goes to the opened graph's heading; Filter
  * to... goes to the new card's value; the Graph place's title goes to the inspector's heading;
  * Enter on an unticked condition value ticks it; Escape on Back to analyses steps back; and Open
@@ -92,15 +92,21 @@ afterEach(() => {
 });
 
 describe("focus after a command that moves the reader", () => {
-    it("Enter on the start page's Samples puts focus in the library's search", async () => {
+    it("Enter on the start page's Samples puts focus on the library's heading, and Tab reaches its search", async () => {
         render(<Workspace store={createWorkspaceStore()} />);
         const samples = await screen.findByRole("button", { name: "Samples" });
         samples.focus();
         await userEvent.keyboard("{Enter}");
-        const search = screen.getByRole("searchbox", { name: "Search samples" });
+        const heading = screen.getByRole("heading", { name: "Sample library" });
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, search, focused());
+            assert.strictEqual(document.activeElement, heading, focused());
         });
+        await userEvent.keyboard("{Tab}");
+        assert.strictEqual(
+            document.activeElement,
+            screen.getByRole("searchbox", { name: "Search samples" }),
+            focused(),
+        );
     });
 
     it("Enter on Remove puts focus on that line's own section's +", async () => {

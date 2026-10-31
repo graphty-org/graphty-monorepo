@@ -235,14 +235,35 @@ function readRowTag(
     } else if (tag.name === "vr") {
         state.cellRule = true;
     } else if (tag.name === "td" && !tag.closing && state.row !== null) {
-        const end = tag.empty ? null : cellEnd(r.body, tag.end);
-        const content = end === null ? "" : r.body.slice(tag.end, end.start);
-        const cell = readCell(r, r.attributes(tag.text), content, nest);
-        state.row.cells.push(state.cellRule ? { ...cell, rule: true } : cell);
-        state.cellRule = false;
-        return end === null ? tag.end : end.end;
+        return readCellTag(r, state.row, state, tag, nest);
     }
     return tag.end;
+}
+
+/**
+ * Reads a `<TD>` and its content into its row.
+ * @param r - the label and the helpers
+ * @param row - the row, its cells added to
+ * @param state - where reading the rows is: whether a rule comes before the cell, cleared
+ * @param tag - the cell's tag
+ * @param nest - the font tags open round the table, and how deep it is inside other tables
+ * @param nest.fonts - the font tags, outermost first
+ * @param nest.depth - the depth
+ * @returns where reading goes on: after its `</TD>`
+ */
+function readCellTag(
+    r: Reading,
+    row: TableRow,
+    state: RowState,
+    tag: Tag,
+    nest: { fonts: readonly string[]; depth: number },
+): number {
+    const end = tag.empty ? null : cellEnd(r.body, tag.end);
+    const content = end === null ? "" : r.body.slice(tag.end, end.start);
+    const cell = readCell(r, r.attributes(tag.text), content, nest);
+    row.cells.push(state.cellRule ? { ...cell, rule: true } : cell);
+    state.cellRule = false;
+    return end === null ? tag.end : end.end;
 }
 
 /**

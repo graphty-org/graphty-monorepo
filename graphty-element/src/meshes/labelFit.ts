@@ -49,7 +49,8 @@ const SIDES: ReadonlyMap<string, number> = new Map([
  *
  * A star grows until the box fits between its arms (Graphviz's `star_size`).
  *
- * `labelFitSquare` then makes both sides the larger one.
+ * `labelFitQuantum` first rounds the padded box up to a multiple of it each way. `labelFitSquare` then makes both
+ * sides the larger one.
  * @param shape - The node's shape block.
  * @param box - Its label's box, in the units of its size.
  * @returns The width and height, or null when the node does not grow to hold its label.
@@ -64,8 +65,11 @@ export function labelFitExtent(
 
     const size = shape.size ?? 0;
     const least = { width: shape.width ?? size, height: shape.height ?? size };
-    let width = box.width + 2 * (shape.labelPaddingX ?? 0);
-    let height = box.height + 2 * (shape.labelPaddingY ?? 0);
+    // the padded box, rounded up to a multiple of the quantum each way (Graphviz's `quant`)
+    const q = shape.labelFitQuantum ?? 0;
+    const quantize = (v: number): number => (q > 0 ? Math.ceil(v / q) * q : v);
+    let width = quantize(box.width + 2 * (shape.labelPaddingX ?? 0));
+    let height = quantize(box.height + 2 * (shape.labelPaddingY ?? 0));
     const type = shape.type ?? "";
     const polygon = type === "polygon" ? polygonPoints(shape.points) : null;
     if (shape.labelFit === "inside" && type === "star") {

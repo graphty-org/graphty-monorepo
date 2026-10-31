@@ -746,6 +746,7 @@ function channelPlans(
             ["labelPaddingX", [length("node.labelPaddingX")]],
             ["labelPaddingY", [length("node.labelPaddingY")]],
             ["labelFitSquare", [id("node.labelFitSquare")]],
+            ["labelFitQuantum", [length("node.labelFitQuantum")]],
             // Screen pixels, so never scaled by the file's lengths.
             ["labelMinScreenSize", [id("node.labelMinScreenSize")]],
             ["labelMinNodeScreenSize", [id("node.labelMinNodeScreenSize")]],

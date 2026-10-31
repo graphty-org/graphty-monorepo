@@ -1726,27 +1726,15 @@ function readSize(get: Attr, shape: string, point: boolean, put: Put, at: At): v
 
 /**
  * Reads the graph's `quantum` for a node that grows to hold its label: Graphviz rounds the padded label box up to a
- * multiple of it before fitting the outline round it (`poly_init`), so the node is at least one quantum across, an
- * ellipse's box times the square root of 2.
+ * multiple of it each way before fitting the outline round it (`poly_init`).
  * @param n - the node
  * @param label - its `label` attribute, or null
  */
 function readQuantum(n: NodeRead, label: string | null): void {
-    const { get, put, shape } = n;
-    let scale: number | null = BOX_LIKE.has(shape) ? 1 : null;
-    if (ELLIPSE_LIKE.has(shape)) {
-        scale = Math.SQRT2;
-    }
-    const w = Number(get("width") ?? Number.NaN);
-    const h = Number(get("height") ?? Number.NaN);
-    // ponytail: one quantum is the least size; a label box over one quantum is not rounded up to the next, and only
-    // boxes and ellipses with their size given are read (other polygons fit their box by factors of their own)
-    if (n.cx.quantum === 0 || scale === null || label === "" || isTrue(get("fixedsize")) || !(w >= 0 && h >= 0)) {
+    if (n.cx.quantum === 0 || label === "" || isTrue(n.get("fixedsize"))) {
         return;
     }
-    const least = n.cx.quantum * scale;
-    put("width", num6(Math.max(w * DOT_POINTS_PER_INCH, least)));
-    put("height", num6(Math.max(h * DOT_POINTS_PER_INCH, least)));
+    n.put("labelFitQuantum", num6(n.cx.quantum));
 }
 
 /** Graphviz's padding around a node's label when it has no `margin`: 8 points left and right, 4 above and below. */

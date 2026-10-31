@@ -228,6 +228,11 @@ export interface NodeStyleValues {
     readonly labelPaddingY: number;
     /** Whether a node that grows to fit its label stays as wide as it is tall (a circle, a square). */
     readonly labelFitSquare: boolean;
+    /**
+     * A length a node that grows to fit its label rounds its padded label box up to a multiple of, each way, before its
+     * outline is fitted round it (Graphviz's `quantum`).
+     */
+    readonly labelFitQuantum: number;
     /** The shape. */
     readonly shape: StyleNodeShape;
     /**

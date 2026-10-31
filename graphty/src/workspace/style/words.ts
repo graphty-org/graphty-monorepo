@@ -335,6 +335,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelPaddingX": "Label padding across",
     "node.labelPaddingY": "Label padding down",
     "node.labelFitSquare": "Keep square when fitted",
+    "node.labelFitQuantum": "Round fitted size to",
     "edge.color": "Color",
     "edge.width": "Width",
     "edge.opacity": "Opacity",

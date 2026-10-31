@@ -289,11 +289,13 @@ export const NodeStyle = z.strictObject({
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and
             // `labelPaddingY` above and below, in the units of `size`, decides the rest. With
-            // `labelFitSquare` it stays as wide as it is tall. Unset, the node is the size it states.
+            // `labelFitSquare` it stays as wide as it is tall. `labelFitQuantum` rounds the padded box up to a
+            // multiple of it each way before the outline is fitted. Unset, the node is the size it states.
             labelFit: NodeLabelFits.optional(),
             labelPaddingX: z.number().nonnegative().optional(),
             labelPaddingY: z.number().nonnegative().optional(),
             labelFitSquare: z.boolean().optional(),
+            labelFitQuantum: z.number().nonnegative().optional(),
             // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
             // URL. `type` stays the placeholder while it loads and the fallback when it fails
             // (design/rendering/node-models.md).

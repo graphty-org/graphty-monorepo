@@ -46,6 +46,15 @@ describe("labelFitExtent", () => {
         assert.equal(fitted?.height, 4);
     });
 
+    it("rounds the padded box up to a multiple of the quantum before fitting the outline round it", () => {
+        const shape = { labelFit: "inside" as const, labelPaddingX: 1, labelPaddingY: 1, size: 0, labelFitQuantum: 5 };
+        // 12 by 4 rounds up to 15 by 5
+        assert.deepEqual(labelFitExtent({ ...shape, type: "rectangle" }, box), { width: 15, height: 5 });
+        const ellipse = labelFitExtent({ ...shape, type: "ellipse" }, box);
+        assert.closeTo(ellipse?.width ?? 0, 15 * Math.SQRT2, 1e-9);
+        assert.closeTo(ellipse?.height ?? 0, 5 * Math.SQRT2, 1e-9);
+    });
+
     it("grows a star until the box fits inside its inner points, as Graphviz's star_size does", () => {
         const fitted = labelFitExtent({ type: "star", labelFit: "inside", size: 0 }, { width: 40, height: 22.4 });
         // the outer radius that holds the box between the star's arms, its bounding box drawn

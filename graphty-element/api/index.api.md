@@ -4976,6 +4976,7 @@ export const NodeStyle: z.ZodObject<{
         labelPaddingX: z.ZodOptional<z.ZodNumber>;
         labelPaddingY: z.ZodOptional<z.ZodNumber>;
         labelFitSquare: z.ZodOptional<z.ZodBoolean>;
+        labelFitQuantum: z.ZodOptional<z.ZodNumber>;
         model: z.ZodOptional<z.ZodString>;
         modelSourceUp: z.ZodOptional<z.ZodEnum<{
             x: "x";

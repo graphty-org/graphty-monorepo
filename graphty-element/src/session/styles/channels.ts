@@ -434,6 +434,7 @@ export interface ChannelValues {
     "node.labelPaddingX": number;
     "node.labelPaddingY": number;
     "node.labelFitSquare": boolean;
+    "node.labelFitQuantum": number;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
     "node.gradientColors": string;
@@ -3556,6 +3557,22 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "A node that grows to hold its label (`node.labelFit`) stays as wide as it is tall, as a " +
             "circle or a square does. Without `node.labelFit` it changes nothing.",
+    },
+    "node.labelFitQuantum": {
+        channel: "node.labelFitQuantum",
+        target: "node",
+        plainName: "Node Label Fit Quantum",
+        shortName: "Fit quantum",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.labelFitQuantum",
+        renderable: true,
+        caveat:
+            "A node that grows to hold its label (`node.labelFit`) rounds its padded label box up to a " +
+            "multiple of this length each way before its outline is fitted round it, as Graphviz's " +
+            "`quantum` does. 0 rounds nothing; without `node.labelFit` it changes nothing.",
     },
     "node.gradientColor": {
         channel: "node.gradientColor",

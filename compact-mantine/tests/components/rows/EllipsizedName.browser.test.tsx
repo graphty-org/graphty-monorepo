@@ -2,7 +2,8 @@
  * A name cut short by its row gets the whole string as a themed tooltip on hover; a name drawn
  * whole gets none. Real layout in Chromium, so the ellipsis is real.
  */
-import { screen } from "@testing-library/react";
+import { Tooltip } from "@mantine/core";
+import { screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -13,6 +14,29 @@ import { renderThemed, resetHarness } from "../../harness/measure";
 afterEach(resetHarness);
 
 const LONG = "Mrs_Henderson_from_the_house_on_the_corner_of_the_street";
+
+/** The label of {@link Probe}'s tooltip. */
+const PROBE = "probe";
+
+/**
+ * A themed tooltip on `target`, an element inside a row. The pointer enters the row before the
+ * element, so a tooltip of the row's starts its open delay first and shows no later than this one.
+ * @param props - Component props
+ * @param props.target - a selector for the element inside the row
+ * @returns the tooltip
+ */
+function Probe({ target }: Readonly<{ target: string }>): React.JSX.Element {
+    return <Tooltip label={PROBE} target={target} />;
+}
+
+/** Wait for the probe's tooltip to show, then check that it is the only tooltip that opened. */
+async function onlyTheProbeOpens(): Promise<void> {
+    const tips = (): (string | null)[] => screen.queryAllByRole("tooltip").map((tip) => tip.textContent);
+    await waitFor(() => {
+        expect(tips()).toContain(PROBE);
+    });
+    expect(tips()).toEqual([PROBE]);
+}
 
 describe("a name that ellipsizes", () => {
     it("shows the whole name as a tooltip while a DataRow cuts it short", async () => {
@@ -40,12 +64,11 @@ describe("a name that ellipsizes", () => {
         await renderThemed(
             <div style={{ width: 240 }}>
                 <DataRow stat name="Nodes" value="77" />
+                <Probe target='[data-testid="data-row-name"]' />
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-name"));
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        expect(screen.queryByRole("tooltip")).toBeNull();
+        await onlyTheProbeOpens();
     });
 
     it("shows the whole name as a tooltip while a Tree row cuts it short", async () => {
@@ -175,12 +198,11 @@ describe("a name that ellipsizes", () => {
                         },
                     ]}
                 />
+                <Probe target='input[aria-label="Apply step"]' />
             </div>,
         );
         await userEvent.hover(screen.getByRole("checkbox", { name: "Apply step" }));
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        expect(screen.queryByRole("tooltip")).toBeNull();
+        await onlyTheProbeOpens();
     });
 
     it("shows the whole name when the pointer rests on a DataRow's value", async () => {

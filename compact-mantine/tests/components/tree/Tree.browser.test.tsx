@@ -6,7 +6,7 @@
 import { Menu, ScrollArea } from "@mantine/core";
 import { screen, within } from "@testing-library/react";
 import React from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { ToggleIconButton } from "../../../src/components/buttons";
@@ -925,11 +925,14 @@ describe("Tree: pointer", () => {
 describe("Tree: pointer drag (touch, mouse)", () => {
     const FLAT: TreeNodeData[] = ["A", "B", "C", "D"].map((n) => ({ id: n.toLowerCase(), name: n }));
     const HOLD = 600;
-    const wait = (ms: number): Promise<void> =>
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        new Promise((resolve) => {
-            setTimeout(resolve, ms);
-        });
+    // The hold runs on setTimeout. A fake one that keeps pace with the real clock leaves every other
+    // timer (the row menu's transitions) running as usual and steps the hold exactly.
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
 
     /**
      * Send one pointer event at a point, to whatever is drawn there.
@@ -970,7 +973,7 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         await renderThemed(<Tree items={FLAT} onMove={onMove} />);
         const a = middle("A");
         send("pointerdown", a.x, a.y);
-        await wait(HOLD);
+        vi.advanceTimersByTime(HOLD);
         send("pointermove", a.x, a.y + 12);
         await vi.waitFor(() => {
             expect(row("A")).toHaveAttribute("data-dragging");
@@ -991,7 +994,7 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         const a = middle("A");
         send("pointerdown", a.x, a.y);
         send("pointermove", a.x, a.y + 20);
-        await wait(HOLD);
+        vi.advanceTimersByTime(HOLD);
         const to = afterC();
         send("pointermove", to.x, to.y);
         expect(screen.queryByTestId("tree-drop-line")).toBeNull();
@@ -1004,7 +1007,7 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         await renderThemed(<Tree items={FLAT} onMove={onMove} canDrop={() => false} />);
         const a = middle("A");
         send("pointerdown", a.x, a.y);
-        await wait(HOLD);
+        vi.advanceTimersByTime(HOLD);
         send("pointermove", a.x, a.y + 12);
         const to = afterC();
         send("pointermove", to.x, to.y);
@@ -1019,7 +1022,7 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         await renderThemed(<Tree items={items} onMove={onMove} />);
         const a = middle("A");
         send("pointerdown", a.x, a.y);
-        await wait(HOLD);
+        vi.advanceTimersByTime(HOLD);
         send("pointermove", a.x, a.y + 12);
         expect(row("A")).not.toHaveAttribute("data-dragging");
         const to = afterC();
@@ -1040,7 +1043,7 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         );
         const b = middle("B");
         send("pointerdown", b.x, b.y);
-        await wait(HOLD);
+        vi.advanceTimersByTime(HOLD);
         await vi.waitFor(() => {
             expect(screen.getByRole("menuitem", { name: "Delete B" })).toBeVisible();
         });

@@ -29,7 +29,6 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
         it("supports custom retry options", async () => {
             const retryOptions: RetryOptions = {
                 maxRetries: 2,
-                retryDelayMs: 100,
             };
 
             // Test with retry options - should work normally
@@ -42,7 +41,6 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
         it("respects maximum retry count", async () => {
             const retryOptions: RetryOptions = {
                 maxRetries: 0, // No retries allowed
-                retryDelayMs: 100,
             };
 
             // With maxRetries: 0, errors should not be retried
@@ -66,7 +64,6 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
         it("completes successfully without retries for valid prompts", async () => {
             const result = await harness.testPrompt("How many edges exist?", undefined, {
                 maxRetries: 3,
-                retryDelayMs: 100,
             });
 
             assert.ok(result.toolWasCalled, "Expected tool to be called");
@@ -76,7 +73,6 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
         it("includes retry options in complex prompts", async () => {
             const retryOptions: RetryOptions = {
                 maxRetries: 2,
-                retryDelayMs: 200,
             };
 
             const result = await harness.testPrompt("Find all server nodes and make them red", undefined, retryOptions);
@@ -93,7 +89,6 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
             // rate limiting is controlled by the API provider.
             const retryOptions: RetryOptions = {
                 maxRetries: 2,
-                retryDelayMs: 1000,
                 retryOn: (error: Error) => {
                     // Would retry on rate limit errors
                     return error.message.includes("rate") || error.message.includes("429");
@@ -128,10 +123,9 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
     });
 
     describe("latency tracking with retries", () => {
-        it("tracks total latency including retry delays", async () => {
+        it("tracks total latency including retries", async () => {
             const result = await harness.testPrompt("Show me some example nodes", undefined, {
                 maxRetries: 2,
-                retryDelayMs: 100,
             });
 
             // Latency should be tracked regardless of retry configuration

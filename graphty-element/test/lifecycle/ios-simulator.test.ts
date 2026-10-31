@@ -340,7 +340,9 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const tail = await fx.waitFor((e) => e.tab === tab && e.type === "auto-tail");
 
         const what = await between(from);
-        const lastSaved = fx.lastSaved(tab);
+        // The "saved" reports are separate requests that may still be on their way: the auto-saved
+        // report already says what was saved.
+        const lastSaved = Math.max(fx.lastSaved(tab), saved.revision as number);
         const mark = fx.log.length;
 
         // Opened again. Safari may also reload the tab it had, in the background, at the same moment:
@@ -348,7 +350,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         // The reopened page is in front, so it always reports: the wait ends on its ready, or on a
         // restore the old tab reported first -- never on the old tab alone, which iOS may suspend.
         const reopened = `${tab}.reopened`;
-        const entry = fx.events(tab, "saved").at(-1)?.entry as string;
+        const entry = saved.entry as string;
         await openInSafari(fx.url({ key, tab: reopened, webgl: "off" }));
         const ready = await fx.waitFor(
             (e) =>
@@ -444,7 +446,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const safari = await openInSafari(fx.url({ key: tab, tab, auto: 2, list: 1, webgl: "off" }));
         const saved = await fx.waitFor((e) => e.tab === tab && e.type === "auto-saved");
         assert.strictEqual(saved.state, "saved", "the page saved its edits");
-        const entry = fx.events(tab, "saved").at(-1)?.entry as string | undefined;
+        const entry = saved.entry as string | undefined;
         assert.isString(entry, "the page reported the entry it writes");
 
         // Discard: switch away, then kill the page's web content process, as iOS does to a

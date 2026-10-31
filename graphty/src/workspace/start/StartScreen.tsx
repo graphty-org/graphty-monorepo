@@ -824,7 +824,6 @@ export function StartScreen(): React.JSX.Element {
             </header>
 
             <section className="ws-land-hero" aria-label="Start a project, over a live graph you can turn and explore">
-                <HeroGraph sample={HERO} background={CANVAS[scheme]} scheme={scheme} onSession={onSession} />
                 <div className="ws-land-over">
                     <Lockup className="ws-land-lockup" boxRef={lockup} />
                     <RecoveredWork />
@@ -911,6 +910,9 @@ export function StartScreen(): React.JSX.Element {
                         </>
                     )}
                 </div>
+                {/* After the words in the markup, so Tab reaches "Open a file" before the demo graph and
+                    its buttons; the CSS places each part, so the look is unchanged. */}
+                <HeroGraph sample={HERO} background={CANVAS[scheme]} scheme={scheme} onSession={onSession} />
                 <FactBar session={session} />
             </section>
 

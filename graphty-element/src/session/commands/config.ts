@@ -49,6 +49,7 @@ type ConfigGroup =
     | "runPlacement"
     | "layoutBehavior"
     | "layoutTransition"
+    | "viewRotation"
     | "author"
     | "name";
 
@@ -110,6 +111,7 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
         { group: "layoutBehavior", schema: LAYOUT.shape[name] as z.ZodType },
     ]),
     ["layoutTransition", { group: "layoutTransition", schema: LayoutTransition.optional() }],
+    ["viewRotation", { group: "viewRotation", schema: z.number().min(-360).max(360).optional() }],
     // Who is writing, stamped on each note. Never blank: a blank name is written as no name.
     [
         "author",
@@ -316,6 +318,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
     const author = slice.get("author");
     const name = slice.get("name");
     const layoutTransition = read("layoutTransition") as LayoutTransitionConfig | undefined;
+    const viewRotation = read("viewRotation") as number | undefined;
     const pinned = slice.has("pinnedStyle") ? (read("pinnedStyle") as GraphSelectionStyleConfig) : undefined;
     return Object.freeze({
         data: Object.freeze(data) as SessionDataConfig,
@@ -332,6 +335,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
             minDelta: read("layoutBehavior.minDelta") as number,
         }),
         ...(layoutTransition === undefined ? {} : { layoutTransition }),
+        ...(viewRotation === undefined ? {} : { viewRotation }),
         ...(typeof author === "string" ? { author } : {}),
         ...(typeof name === "string" ? { name } : {}),
     });

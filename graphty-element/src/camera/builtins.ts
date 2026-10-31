@@ -171,15 +171,25 @@ function fitToGraph(input: CameraViewInput): CameraState {
         // of that side the insets leave free. The zoom is the half-width at zoom 1 over half of
         // that. NOT pixels per unit: the camera never reads a zoom that way, and on a graph tens
         // of units wide that number put a single edge across the whole screen.
-        const extent = Math.max(bounds.size.x / free.width, (bounds.size.y * input.aspect) / free.height);
+        // A turned view (`rotation`, counterclockwise) shows the box's extent along its own axes.
+        const turn = input.current.rotation ?? 0;
+        const cos = Math.cos(turn);
+        const sin = Math.sin(turn);
+        const sizeX = Math.abs(cos) * bounds.size.x + Math.abs(sin) * bounds.size.y;
+        const sizeY = Math.abs(sin) * bounds.size.x + Math.abs(cos) * bounds.size.y;
+        const extent = Math.max(sizeX / free.width, (sizeY * input.aspect) / free.height);
         const halfWidth = (extent * FLAT_PADDING) / 2;
         const halfHeight = input.aspect > 0 ? halfWidth / input.aspect : halfWidth;
+        // Centered on the free area, not on the canvas: its offset is along the screen's axes.
+        const [offsetX, offsetY] = [free.x * halfWidth, free.y * halfHeight];
 
         return {
             type: "orthographic",
             zoom: FLAT_HALF_WIDTH_AT_ZOOM_ONE / halfWidth,
-            // Centered on the free area, not on the canvas.
-            pan: { x: center.x - free.x * halfWidth, y: center.y - free.y * halfHeight },
+            pan: {
+                x: center.x - (offsetX * cos + offsetY * sin),
+                y: center.y - (-offsetX * sin + offsetY * cos),
+            },
         };
     }
 

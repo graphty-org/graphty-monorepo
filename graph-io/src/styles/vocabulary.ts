@@ -307,7 +307,10 @@ export const STYLE_PROPERTIES: {
         ["labelOnTop", "boolean"],
         ["visible", "boolean"],
     ]),
-    graph: new Map<string, StyleValueKind>([["background", "color"]]),
+    graph: new Map<string, StyleValueKind>([
+        ["background", "color"],
+        ["rotation", "number"],
+    ]),
 });
 
 /**

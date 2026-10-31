@@ -364,6 +364,7 @@ is kept as `other:<the file's spelling>` and noted.
 | `sourceLabelFont`           |       | yes   |       | text                                                                                                                                                                                                                                                 |
 | `targetLabelFont`           |       | yes   |       | text                                                                                                                                                                                                                                                 |
 | `background`                |       |       | yes   | a color, `#rrggbb`                                                                                                                                                                                                                                   |
+| `rotation`                  |       |       | yes   | a number                                                                                                                                                                                                                                             |
 
 <!-- generated:end -->
 

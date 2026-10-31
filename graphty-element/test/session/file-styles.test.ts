@@ -420,6 +420,24 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
+    it("turns the view a quarter turn for a DOT file Graphviz draws landscape, and leaves an upright one alone", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "dot", config: { data: "digraph { a -> b }" } }, { styles: "file" });
+        assert.isUndefined(session.config.viewRotation);
+        for (const attrs of ["rotate=90;", "landscape=true;", "orientation=landscape;"]) {
+            await session.undo();
+            await session.data.import(
+                { type: "dot", config: { data: `digraph { ${attrs} a -> b }` } },
+                { styles: "file" },
+            );
+            assert.strictEqual(session.config.viewRotation, 90, attrs);
+        }
+        // One undo takes the import and its turn back together
+        await session.undo();
+        assert.isUndefined(session.config.viewRotation);
+        session.dispose();
+    });
+
     it("draws a Cytoscape font size mapped over a ramp as the whole number Cytoscape draws", async () => {
         const doc = JSON.stringify([
             { CXVersion: "2.0", hasFragments: false },

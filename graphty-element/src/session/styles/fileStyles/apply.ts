@@ -325,6 +325,11 @@ async function applyRead(
             });
     }
 
+    // The file turns the whole drawing (Graphviz's rotate=90 and landscape): the 2D view turns, labels and all.
+    if (translation.rotation !== null) {
+        await ctx.inline({ op: "config.set", values: { viewRotation: translation.rotation } });
+    }
+
     // The stored positions take the styles' unit, so they are drawn at the file's proportions. Where
     // the lengths are kept as the file has them (it sizes nothing, or the load keeps file lengths),
     // they are drawn in that unit too; a file graphty wrote holds positions in graphty's own units.

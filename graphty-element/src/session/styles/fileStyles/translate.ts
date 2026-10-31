@@ -159,6 +159,8 @@ export interface Translation {
     readonly hidden: Readonly<Record<StyleTarget, { readonly key: string; readonly count: number } | null>>;
     /** The graph's background color, or null. */
     readonly background: string | null;
+    /** How far the file turns the whole drawing counterclockwise, in degrees, or null when it is upright. */
+    readonly rotation: number | null;
     /** What the file's reading and its translation met. */
     readonly notes: readonly FileStyleNote[];
     /**
@@ -1382,12 +1384,13 @@ export function translateFileStyles(input: TranslateInput): Translation {
 
     const layers = inRuleOrder(byKind, extracted.styles.rules);
 
-    const { background } = extracted.styles.graph;
+    const { background, rotation } = extracted.styles.graph;
     return {
         layers,
         columns,
         hidden,
         background: typeof background === "string" ? background : null,
+        rotation: typeof rotation === "number" && rotation % 360 !== 0 ? ((rotation % 360) + 360) % 360 : null,
         notes: notes.list(),
         predicted,
         sceneScale: factors.scene,

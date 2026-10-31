@@ -52,6 +52,23 @@ const BEHIND = 0.05;
 
 let measureContext: CanvasRenderingContext2D | null = null;
 
+/** A drawn node, as an arrow that ends at it needs it: where it is and how far it reaches, in scene units. */
+export interface AnnotationNode {
+    /** Its center. */
+    getPosition(): { readonly x: number; readonly y: number };
+    /** How far its surface reaches from its center along each axis. */
+    readonly drawnHalfExtents: { readonly x: number; readonly y: number };
+    /** How far its border reaches past its surface. */
+    readonly borderReach: number;
+}
+
+/** An arrow that ends at a node, the mesh drawing it, and how far short of the node's center it stops. */
+interface NodeArrow {
+    readonly arrow: ArrowAnnotation;
+    mesh: Mesh | null;
+    reach: number | null;
+}
+
 /** Draws a graph's annotations and replaces them when the graph value changes. */
 export class AnnotationMeshes {
     /** The scene drawn into. */
@@ -61,16 +78,83 @@ export class AnnotationMeshes {
     /** The pictures still loading, which the frame on screen does not show yet. */
     private readonly loading = new Set<HTMLImageElement>();
     private readonly onPicture: () => void;
+    private readonly nodes: () => Iterable<AnnotationNode>;
+    /** The drawn arrows that end at a node, which {@link AnnotationMeshes.refit} keeps at its outline. */
+    private nodeArrows: NodeArrow[] = [];
+    private scale = 1;
 
     /**
      * Draw nothing yet.
      * @param scene - The scene to draw into.
      * @param onPicture - Called when a picture that was loading has been painted, or failed to load, so the frame
      *     that shows it is drawn.
+     * @param nodes - The graph's drawn nodes, which an arrow that ends at a node stops at the outline of.
      */
-    constructor(scene: Scene, onPicture: () => void = () => undefined) {
+    constructor(
+        scene: Scene,
+        onPicture: () => void = () => undefined,
+        nodes: () => Iterable<AnnotationNode> = () => [],
+    ) {
         this.scene = scene;
         this.onPicture = onPicture;
+        this.nodes = nodes;
+    }
+
+    /**
+     * Stop each arrow that ends at a node at that node's outline as it is drawn now, redrawing an arrow whose node has
+     * changed size, or has come to or left the arrow's end, since it was drawn. Cheap when nothing changed.
+     */
+    refit(): void {
+        for (const entry of this.nodeArrows) {
+            const reach = this.reachAt(entry.arrow);
+            if (
+                reach === entry.reach ||
+                (reach !== null && entry.reach !== null && Math.abs(reach - entry.reach) < 1e-9)
+            ) {
+                continue;
+            }
+
+            entry.reach = reach;
+            if (entry.mesh !== null) {
+                this.meshes = this.meshes.filter((m) => m !== entry.mesh);
+                disposeMesh(entry.mesh);
+            }
+
+            entry.mesh = this.draw(stopShort(entry.arrow, reach), this.scale);
+            if (entry.mesh !== null) {
+                this.meshes.push(entry.mesh);
+            }
+        }
+    }
+
+    /**
+     * How far short of an arrow's end its line stops: the outline of the node drawn at its end, along the line, in
+     * file units. Cytoscape stops a line at the node's outline, its border's middle (`specimen-images-charts-p6`: a
+     * node 11 wide with a border of 1 stops the line 6 short of its center).
+     * @param a - The arrow, its end a node's center.
+     * @returns The distance, or null when no node is drawn there.
+     */
+    private reachAt(a: ArrowAnnotation): number | null {
+        const k = this.scale;
+        const [dx, dy] = [a.from.x - a.to.x, a.from.y - a.to.y];
+        const length = Math.hypot(dx, dy);
+        if (length === 0 || k === 0) {
+            return null;
+        }
+
+        // ponytail: one pass over every node per arrow that ends at a node; index nodes by place if a file has many
+        for (const node of this.nodes()) {
+            const p = node.getPosition();
+            const h = node.drawnHalfExtents;
+            // the node drawn at the end: its center within half its size of where the file saved it
+            if (Math.abs(p.x - a.to.x * k) <= h.x / 2 && Math.abs(p.y - a.to.y * k) <= h.y / 2 && h.x > 0 && h.y > 0) {
+                // where the line meets the ellipse of its half extents, then the border past it
+                const surface = 1 / Math.hypot(dx / length / h.x, dy / length / h.y);
+                return (surface + node.borderReach) / k;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -98,10 +182,25 @@ export class AnnotationMeshes {
             return;
         }
 
+        this.scale = read.scale;
         for (const a of read.annotations) {
-            const mesh = this.draw(a, read.scale);
+            if (a.kind === "arrow" && a.toNode === true) {
+                this.nodeArrows.push({ arrow: leaveText(a, read.annotations), mesh: null, reach: null });
+                continue;
+            }
+
+            const mesh = this.draw(a.kind === "arrow" ? leaveText(a, read.annotations) : a, read.scale);
             if (mesh !== null) {
                 this.meshes.push(mesh);
+            }
+        }
+
+        // drawn to the node's center until a node is found there
+        for (const entry of this.nodeArrows) {
+            entry.reach = this.reachAt(entry.arrow);
+            entry.mesh = this.draw(stopShort(entry.arrow, entry.reach), read.scale);
+            if (entry.mesh !== null) {
+                this.meshes.push(entry.mesh);
             }
         }
     }
@@ -121,14 +220,11 @@ export class AnnotationMeshes {
 
         this.loading.clear();
         for (const mesh of this.meshes) {
-            mesh.material?.getActiveTextures().forEach((t) => {
-                t.dispose();
-            });
-            mesh.material?.dispose();
-            mesh.dispose();
+            disposeMesh(mesh);
         }
 
         this.meshes = [];
+        this.nodeArrows = [];
     }
 
     /**
@@ -231,6 +327,65 @@ export class AnnotationMeshes {
         mesh.metadata = metadata;
         return mesh;
     }
+}
+
+/**
+ * Dispose a drawn annotation's mesh, its material and its texture.
+ * @param mesh - The mesh.
+ */
+function disposeMesh(mesh: Mesh): void {
+    mesh.material?.getActiveTextures().forEach((t) => {
+        t.dispose();
+    });
+    mesh.material?.dispose();
+    mesh.dispose();
+}
+
+/**
+ * An arrow that leaves a text, started where Cytoscape starts it: where a line from the center of the text's measured
+ * box toward the arrow's end crosses the box, an X there pushed out by half its length as the file's reader does.
+ * @param a - The arrow.
+ * @param all - Every annotation drawn with it.
+ * @returns The arrow, its start moved; unchanged when it leaves no text that is drawn.
+ */
+function leaveText(a: ArrowAnnotation, all: readonly DrawnAnnotation[]): ArrowAnnotation {
+    const text = a.sourceText === undefined ? undefined : all.find((t) => t.kind === "text" && t.id === a.sourceText);
+    if (text?.kind !== "text") {
+        return a;
+    }
+
+    // ponytail: a turned text's box is taken unturned; turn it when a file arrows from a turned text
+    const box = boxOf(text);
+    const c = { x: (box.x0 + box.x1) / 2, y: (box.y0 + box.y1) / 2 };
+    const [dx, dy] = [a.to.x - c.x, a.to.y - c.y];
+    const length = Math.hypot(dx, dy);
+    if (length === 0) {
+        return a;
+    }
+
+    const t = Math.min(
+        dx === 0 ? Infinity : (box.x1 - box.x0) / 2 / Math.abs(dx),
+        dy === 0 ? Infinity : (box.y1 - box.y0) / 2 / Math.abs(dy),
+    );
+    const out = a.sourceArrow === "other:x" ? headSize(a, "source").length / 2 / length : 0;
+    return { ...a, from: { x: c.x + dx * (t + out), y: c.y + dy * (t + out) } };
+}
+
+/**
+ * An arrow stopped short of its end along its line.
+ * @param a - The arrow.
+ * @param reach - How far short, in file units, or null for not at all.
+ * @returns The arrow, its end moved; unchanged when it would stop before it starts.
+ */
+function stopShort(a: ArrowAnnotation, reach: number | null): ArrowAnnotation {
+    const [dx, dy] = [a.to.x - a.from.x, a.to.y - a.from.y];
+    const length = Math.hypot(dx, dy);
+    if (reach === null || reach <= 0 || reach >= length) {
+        return a;
+    }
+
+    const k = (length - reach) / length;
+    return { ...a, to: { x: a.from.x + dx * k, y: a.from.y + dy * k } };
 }
 
 /**

@@ -136,6 +136,17 @@ export interface ArrowAnnotation extends AnnotationBase {
     readonly targetHeadLength?: number;
     /** How wide the end's arrowhead is across the line, as `sourceHeadLength` says. */
     readonly targetHeadWidth?: number;
+    /**
+     * The id of the text annotation the line leaves, when it leaves one. The file keeps no size for a text, so `from`
+     * is only near it; a drawing that measures the text starts the line where a line from the text's box's center
+     * toward `to` crosses the box, as Cytoscape does.
+     */
+    readonly sourceText?: string;
+    /**
+     * True when `to` is a node's center as the file saved it. A drawing that knows the node's size stops the line at
+     * the node's outline, as Cytoscape does.
+     */
+    readonly toNode?: boolean;
 }
 
 /**
@@ -448,7 +459,8 @@ function textOf(
  * draws the line from the middle of the side of the source annotation's box that faces the end, to the end point or
  * the middle of the facing side of the target annotation's box, at half the saved `lineThickness` and never under
  * 1 (measured on Cytoscape 3.10.5's SVG of `specimen-images-charts-p6` and of the tutorial session). A source with
- * no saved size (a text annotation) leaves from the arrow's saved `x`, `y` corner.
+ * no saved size (a text annotation) leaves from the arrow's saved `x`, `y` corner, and names the text (`sourceText`); an
+ * end at a node is the node's center (`toNode`).
  * @param f - its fields
  * @param base - its id, layer and order
  * @param zoom - the zoom its line width was saved at
@@ -476,9 +488,12 @@ function arrowOf(
         sourceBox !== null && sourceBox.width > 0 && sourceBox.height > 0
             ? facing(sourceBox, aim)
             : { x: aim.x > corner.x ? corner.x : sourceCenter.x, y: aim.y > corner.y ? corner.y : sourceCenter.y };
-    // ponytail: a node end stops at its center; Cytoscape stops at the node's box, which needs the node's size, as a text source needs its measured box (#5231)
+    // a node end is its center and a text source's start is a guess: the drawing has the node's size and the text's
+    // measured box, and moves both ends by them (`toNode`, `sourceText`)
     const to = toPoint ?? facing(targetBox ?? { x: aim.x, y: aim.y, width: 0, height: 0 }, sourceCenter);
     const sourceSize = positive(f.get("sourceSize")) ?? 1;
+    const sourceType = (byId.get(f.get("sourceAnnotation") ?? "")?.get("type") ?? "").replace(TYPE_PREFIX, "");
+    const sourceText = sourceType === "TextAnnotation" ? f.get("sourceAnnotation") : undefined;
     const start = xOut(from, to, f.get("sourceType"), sourceSize);
     const color = javaColor(f.get("lineColor")) ?? { color: "#000000", alpha: 1 };
     const sourceColor = javaColor(f.get("sourceColor"))?.color ?? color.color;
@@ -500,6 +515,8 @@ function arrowOf(
             targetColor,
             ...heads("source", f.get("sourceType"), sourceSize),
             ...heads("target", f.get("targetType"), positive(f.get("targetSize")) ?? 1),
+            ...(sourceText === undefined ? {} : { sourceText }),
+            ...(point(f.get("targetPoint")) === null && toPoint !== null ? { toNode: true } : {}),
         },
     ];
 }

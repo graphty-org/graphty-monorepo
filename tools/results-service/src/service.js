@@ -535,6 +535,26 @@ async function postChannelMove(body, who, db, nowMs) {
     return { stored: true };
 }
 
+// What promote.yml checks a nightly's assets and verdict against (`?sha=<sha>`, the tested commit of a site-<sha>
+// release): the newest nightly channel move of that commit, with the sha256 of site.tar.zst and channel.json its
+// site job hung, and the commit's latest verdict. No move recorded: 404, and the promotion refuses.
+async function getSite(query, _who, db) {
+    const sha = query.get("sha") ?? "";
+    if (!SHA.test(sha)) refuse(400, "sha must be a full commit id");
+    const move = await db
+        .prepare(
+            "SELECT version_commit AS versionCommit, site_sha256 AS siteSha256, channel_sha256 AS channelSha256, at AS movedAt FROM channel_move WHERE channel = 'nightly' AND sha = ? ORDER BY at DESC LIMIT 1",
+        )
+        .bind(sha)
+        .first();
+    if (!move) refuse(404, `no nightly channel move of ${sha}`);
+    const verdict = await db
+        .prepare("SELECT state FROM verdict WHERE sha = ? ORDER BY at DESC LIMIT 1")
+        .bind(sha)
+        .first();
+    return { sha, ...move, verdict: verdict?.state ?? null };
+}
+
 // The held nightly candidate (channels-pipeline.md section 3): release.yml's verdict sets it on a deciding run that
 // is not green-clean, a fix forward moves its head, a promotion or an abandon clears it ({ clear: true, base, head }).
 // Only master's own release.yml writes it, release-rerun.yml for a red run it does not re-run, and
@@ -771,6 +791,7 @@ const ROUTES = {
     "GET /v1/quarantine": getQuarantine,
     "GET /v1/candidate": getCandidate,
     "GET /v1/release-state": getReleaseState,
+    "GET /v1/site": getSite,
     "GET /v1/failures": getFailures,
     "GET /v1/durations/medians": getMedians,
     "GET /v1/story-captures": getStoryCaptures,

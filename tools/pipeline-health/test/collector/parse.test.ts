@@ -259,8 +259,18 @@ describe("replaced runs (recorded 2026-10-27)", () => {
     });
 
     it("does not count replaced release runs as failed", () => {
-        const w = workflowState("release.yml", releases, Date.parse("2026-10-27T13:30:00Z"));
-        expect(w).toMatchObject({ runs: 4, failed: 0 });
+        const now = Date.parse("2026-10-27T13:30:00Z");
+        const w = workflowState("release.yml", releases, now);
+        // All 11 runs completed in the last 24 h failed or were cancelled; the 6 cancelled runs a newer run replaced
+        // are not failures.
+        const bad = releases.filter(
+            (r) =>
+                r.status === "completed" &&
+                (r.conclusion === "failure" || r.conclusion === "cancelled") &&
+                now - Date.parse(r.created_at) <= 24 * 3600_000,
+        );
+        expect(bad).toHaveLength(11);
+        expect(w).toMatchObject({ runs: 11, failed: 5 });
     });
 });
 

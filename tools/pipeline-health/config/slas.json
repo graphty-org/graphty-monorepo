@@ -1108,7 +1108,7 @@
         },
         {
             "id": "data.stress_run",
-            "category": "data_sources",
+            "category": "flaky",
             "label": "Stress run",
             "window": "now",
             "measure": {

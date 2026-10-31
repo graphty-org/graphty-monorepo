@@ -32,11 +32,11 @@
  */
 
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
-import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, cpSync, existsSync, mkdirSync, openSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it, onTestFailed } from "vitest";
+import { afterAll, assert, beforeAll, beforeEach, describe, it, onTestFailed } from "vitest";
 
 import { kill } from "./engines";
 import { type Fixture, startFixture } from "./fixture";
@@ -99,20 +99,43 @@ function pickDevice(): string {
  * When a scenario fails, keep what the Simulator showed and what Safari and WebKit logged, in
  * test-results/ios/<tab> (the workflow uploads it): whether the app switch happened and what became of
  * the page's reports cannot be read from the page.
+ * The log covers only the scenario's own minutes and goes straight to the file: `--last 20m`
+ * buffered in memory overflowed execFileSync's 256 MB buffer (ENOBUFS) after blocking the test
+ * process for 13 minutes, until the job hit its time limit (issue #5225).
  * @param udid - The Simulator.
  * @param tab - The scenario.
+ * @param since - When the scenario started (ms since the epoch).
  */
-function diagnose(udid: string, tab: string): void {
+function diagnose(udid: string, tab: string, since: number): void {
     const dir = join("test-results", "ios", tab);
     mkdirSync(dir, { recursive: true });
     try {
         simctl("io", udid, "screenshot", join(dir, "screen.png"));
         const predicate =
             'process == "MobileSafari" OR process BEGINSWITH "com.apple.WebKit" OR process == "SpringBoard"';
-        writeFileSync(
-            join(dir, "log.txt"),
-            simctl("spawn", udid, "log", "show", "--last", "20m", "--style", "compact", "--predicate", predicate),
-        );
+        const minutes = Math.ceil((Date.now() - since) / 60_000) + 1;
+        const out = openSync(join(dir, "log.txt"), "w");
+        try {
+            execFileSync(
+                "xcrun",
+                [
+                    "simctl",
+                    "spawn",
+                    udid,
+                    "log",
+                    "show",
+                    "--last",
+                    `${minutes}m`,
+                    "--style",
+                    "compact",
+                    "--predicate",
+                    predicate,
+                ],
+                { stdio: ["ignore", out, "pipe"] },
+            );
+        } finally {
+            closeSync(out);
+        }
         // A WebKit process that crashed (the GPU process on a virtual GPU) leaves its report on the host.
         const reports = join(homedir(), "Library", "Logs", "DiagnosticReports");
         for (const name of existsSync(reports) ? readdirSync(reports) : []) {
@@ -251,26 +274,30 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         terminateSafari(udid);
     });
 
-    afterAll(() => {
+    afterAll(async () => {
         safariLog?.stop();
         try {
             simctl("shutdown", udid);
         } catch {
             // Not booted.
         }
+
+        await Promise.all(servers.map((server) => server.close()));
     });
 
     // A fixture server, so an origin, per test. Safari keeps the tabs of earlier tests and reloads
     // them in the background when it relaunches; on a shared origin such a self-driving page wrote
     // to the same autosave database and iOS suspended it mid-transaction, and every write of the
     // next test queued behind that transaction until the watchdog reported E_AUTOSAVE_STALLED
-    // (issue #5148). With its server closed, an earlier test's tab loads nothing.
+    // (issue #5148). Each origin has its own database, so such a tab works on its own. The servers
+    // stay up until the end, so a tab Safari reloads later still gets its page, as before #5148,
+    // never a refused connection, and no test waits on closing a server Safari is connected to.
+    const servers: Fixture[] = [];
+    let started = 0;
     beforeEach(async () => {
+        started = Date.now();
         fx = await startFixture();
-    });
-
-    afterEach(async () => {
-        await fx.close();
+        servers.push(fx);
     });
 
     /**
@@ -341,7 +368,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const tab = key;
         onTestFailed(() => {
             console.log(`[ios] reports: ${JSON.stringify(fx.log.filter((e) => e.tab.startsWith(tab)))}`);
-            diagnose(udid, tab);
+            diagnose(udid, tab, started);
         });
         const from = safariLog.lines.length;
         await openInSafari(fx.url({ key, tab, auto: 3, tail: 1, delay: 600_000, webgl: "off" }));
@@ -450,7 +477,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const tab = "ios-return";
         onTestFailed(() => {
             console.log(`[ios] reports: ${JSON.stringify(fx.log.filter((e) => e.tab.startsWith(tab)))}`);
-            diagnose(udid, tab);
+            diagnose(udid, tab, started);
         });
         const from = safariLog.lines.length;
         const safari = await openInSafari(fx.url({ key: tab, tab, auto: 2, list: 1, webgl: "off" }));

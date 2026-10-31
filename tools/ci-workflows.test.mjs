@@ -4596,8 +4596,8 @@ describe("release.yml", () => {
     it("runs the paid LLM tests in every release test of a candidate, with no once-a-day gate (owner, 2026-10-29)", () => {
         // no step decides whether the lane is due: every step runs whenever the job runs
         assert.doesNotMatch(llm, /steps\.due|llm-due/);
-        // (the cost step after the tests, which runs after a failed test step too, is not a gate)
-        const steps = llm.slice(llm.indexOf("\n        steps:"), llm.indexOf('- name: "LLM regression cost:'));
+        // (the cost steps after the tests, which run after a failed test step too, are not a gate)
+        const steps = llm.slice(llm.indexOf("\n        steps:"), llm.indexOf("- name: Price the LLM regression run"));
         assert.doesNotMatch(steps, /\n\s+if: /, "no step-level gate");
         // the job runs only when the pick chose a candidate to test, never in promote-nightly (which tests nothing)
         assert.match(
@@ -4613,13 +4613,27 @@ describe("release.yml", () => {
         assert.match(script, /const MONTHLY_CEILING = 60;/);
         assert.match(llm, /- name: LLM regression tests\n/, "the step llm-spend.mjs counts");
         // the run's logged cost reaches llm-spend.mjs and the health dashboard as the next step's name
+        // priced in a step of its own from the usage file the transport appends to as it spends (else the log), so a
+        // failed, cancelled or cut-off test step still logs what it spent (#5062)
+        assert.match(llm, /LLM_REGRESSION_USAGE_FILE: \$\{\{ runner\.temp \}\}\/llm-usage\.jsonl\n/);
         assert.match(
             llm,
-            /echo "usd=\$\(node \.\.\/tools\/llm-spend\.mjs cost "\$RUNNER_TEMP\/llm-regression\.log"\)" >> "\$GITHUB_OUTPUT"/,
+            /- name: Price the LLM regression run\n\s+id: cost\n\s+if: \$\{\{ always\(\) && steps\.llm\.outcome != 'skipped' \}\}\n\s+run: echo "usd=\$\(node tools\/llm-spend\.mjs cost "\$RUNNER_TEMP\/llm-usage\.jsonl" "\$RUNNER_TEMP\/llm-regression\.log"\)" >> "\$GITHUB_OUTPUT"\n/,
         );
         assert.match(
             llm,
-            /- name: "LLM regression cost: \$\{\{ steps\.llm\.outputs\.usd \}\} USD"\n\s+if: \$\{\{ always\(\) && steps\.llm\.outputs\.usd != '' \}\}\n/,
+            /- name: "LLM regression cost: \$\{\{ steps\.cost\.outputs\.usd \}\} USD"\n\s+if: \$\{\{ always\(\) && steps\.cost\.outputs\.usd != '' \}\}\n/,
+        );
+        // a hung test is ended by the test hang guard (25 min) inside the job's limit, so the cost steps run
+        const guard = Number(
+            /TEST_GUARD_MS = ([\d_]+)/
+                .exec(readFileSync(new URL("./test-wait-guard.mjs", import.meta.url), "utf8"))[1]
+                .replaceAll("_", ""),
+        );
+        const jobMinutes = Number(/\n {8}timeout-minutes: (\d+)/.exec(llm)[1]);
+        assert.ok(
+            jobMinutes * 60_000 >= guard + 10 * 60_000,
+            `job limit ${jobMinutes} min is above the hang guard and the build`,
         );
         assert.match(script, /export const COST_STEP = /);
         // the paid project runs nowhere else: not on a pull request, a master push or any other workflow
@@ -7237,6 +7251,38 @@ describe("bisect.yml's LLM points", () => {
         assert.equal(release.llm.environment, "full-run");
         assert.equal(jobs.point.environment, "${{ inputs.lane == 'llm' && 'full-run' || '' }}");
         assert.match(JSON.stringify(jobs.point.steps), /secrets.GOOGLE_API_KEY/);
+    });
+
+    it("log their real cost in a cost step's name, a cut-off point's too, as release.yml's llm job does (#5062)", () => {
+        const steps = parseYaml(readFileSync(".github/workflows/bisect.yml", "utf8")).jobs.point.steps;
+        const run = steps.find((x) => x.name === "Run the failing files");
+        assert.equal(
+            run.env.LLM_REGRESSION_USAGE_FILE,
+            "${{ inputs.lane == 'llm' && format('{0}/llm-usage.jsonl', runner.temp) || '' }}",
+        );
+        assert.match(run.run, /\| tee "\$RUNNER_TEMP\/point\.log"/);
+        const price = steps.find((x) => x.id === "cost");
+        assert.equal(price.if, "${{ always() && inputs.lane == 'llm' }}");
+        const named = steps[steps.indexOf(price) + 1];
+        assert.equal(named.name, "LLM regression cost: ${{ steps.cost.outputs.usd }} USD");
+        assert.equal(named.if, "${{ always() && steps.cost.outputs.usd != '' }}");
+        // replay the price step on a point whose vitest was killed mid-file: the usage file holds its spend
+        const temp = mkdtempSync(join(tmpdir(), "bisect-price-"));
+        try {
+            mkdirSync(join(temp, "bisect-tools/tools"), { recursive: true });
+            copyFileSync("tools/llm-spend.mjs", join(temp, "bisect-tools/tools/llm-spend.mjs"));
+            writeFileSync(join(temp, "llm-usage.jsonl"), '{"usd":0.12}\n{"usd":0.03}\n{"usd":0.0');
+            writeFileSync(join(temp, "point.log"), "no API calls line: the file hung\n");
+            const out = join(temp, "output");
+            const r = spawnSync("bash", ["-eo", "pipefail", "-c", price.run], {
+                encoding: "utf8",
+                env: { ...process.env, RUNNER_TEMP: temp, GITHUB_OUTPUT: out },
+            });
+            assert.equal(r.status, 0, r.stderr);
+            assert.equal(readFileSync(out, "utf8"), "usd=0.1500\n");
+        } finally {
+            rmSync(temp, { recursive: true, force: true });
+        }
     });
 });
 

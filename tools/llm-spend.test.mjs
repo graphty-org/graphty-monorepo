@@ -2,6 +2,9 @@
 //
 //   node --test tools/llm-spend.test.mjs
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import {
@@ -12,9 +15,11 @@ import {
     loggedCost,
     paidSteps,
     RETRY,
+    runCost,
     runJobs,
     spendWarning,
     STEP,
+    usageCost,
 } from "./llm-spend.mjs";
 
 RETRY.waitMs = 0;
@@ -170,6 +175,27 @@ describe("logCost", () => {
     it("is null when no line carries a cost: an older harness, or a provider it has no price for", () => {
         assert.equal(logCost("[llm-regression] API calls: 27\n[llm-regression] API calls: 3, cost unknown"), null);
         assert.equal(logCost(""), null);
+    });
+});
+
+describe("usageCost and runCost", () => {
+    it("sums the usage file's lines and skips a line torn by a killed run", () => {
+        assert.equal(usageCost('{"usd":0.01}\n{"usd":0.0025}\n{"usd":0.00').toFixed(4), "0.0125");
+        assert.equal(usageCost(""), null);
+    });
+
+    it("prices a run from its usage file first, from its log when the file has no cost or is missing", () => {
+        const dir = mkdtempSync(join(tmpdir(), "llm-spend-"));
+        const usage = join(dir, "usage.jsonl");
+        const log = join(dir, "run.log");
+        writeFileSync(log, "[llm-regression] API calls: 3, cost $0.0071\n");
+        // a hung run: the file holds what it spent, the log printed no line for the file that hung
+        writeFileSync(usage, '{"usd":0.004}\n{"usd":0.005}\n');
+        assert.equal(runCost(usage, log).toFixed(4), "0.0090");
+        // a point whose harness writes no usage file
+        assert.equal(runCost(join(dir, "none.jsonl"), log).toFixed(4), "0.0071");
+        assert.equal(runCost(join(dir, "none.jsonl")), null);
+        rmSync(dir, { recursive: true, force: true });
     });
 });
 

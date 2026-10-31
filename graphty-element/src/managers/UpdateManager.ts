@@ -1299,6 +1299,7 @@ export class UpdateManager implements Manager {
     /**
      * Called once a pass, after the nodes have moved and been sized: a file's annotation arrow that ends at a node
      * stops at that node's outline as it is drawn now (issue #5231). Null when nothing needs it.
+     * @internal
      */
     fitAnnotations: (() => void) | null = null;
 

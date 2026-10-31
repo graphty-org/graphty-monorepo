@@ -587,6 +587,7 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
         at: c.now,
         running: use.running.linux_windows,
         queued: use.queued,
+        queuedOver2: use.queuedOver2,
         saturated,
         longestQueuedMs: use.longestQueuedMs,
     };

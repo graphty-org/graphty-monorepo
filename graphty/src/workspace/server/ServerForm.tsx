@@ -299,6 +299,61 @@ function ApiKeyRow({
 }
 
 /**
+ * The Sign in row, for a source that takes a basic login or a bearer token; nothing for any other.
+ * @param props - Component props
+ * @param props.entry - the source.
+ * @param props.user - the user typed.
+ * @param props.secret - the password or token typed.
+ * @param props.onChange - takes the changed field.
+ * @returns the row, or nothing.
+ */
+function SignInRow({
+    entry,
+    user,
+    secret,
+    onChange,
+}: Readonly<{
+    entry: SourceCatalogEntry;
+    user: string;
+    secret: string;
+    onChange: (next: { user: string } | { secret: string }) => void;
+}>): React.JSX.Element | null {
+    const { auth = [], authRequired } = entry.descriptor;
+    const basic = auth.includes("basic");
+    if (authRequired === "none" || (!basic && !auth.includes("bearer"))) {
+        return null;
+    }
+    return (
+        <Row label="Sign in">
+            <div className="sv-pair">
+                {basic ? (
+                    <TextInput
+                        size="xs"
+                        aria-label="User"
+                        placeholder="user"
+                        autoComplete="off"
+                        value={user}
+                        onChange={(event) => {
+                            onChange({ user: event.currentTarget.value });
+                        }}
+                    />
+                ) : null}
+                <PasswordInput
+                    size="xs"
+                    aria-label={basic ? "Password" : "Token"}
+                    placeholder={basic ? "password" : "token"}
+                    autoComplete="off"
+                    value={secret}
+                    onChange={(event) => {
+                        onChange({ secret: event.currentTarget.value });
+                    }}
+                />
+            </div>
+        </Row>
+    );
+}
+
+/**
  * The server form (spec section 3.9): Kind, Example, Endpoint, Sign in, Start, the query or the
  * source's own params, Limit and Expand on double-click; Test reads a preview, Load loads. Rows a
  * source cannot use are absent.
@@ -321,8 +376,6 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
         return <div className="sv-form" />;
     }
     const { descriptor } = entry;
-    const auth = descriptor.auth ?? [];
-    const signIn = descriptor.authRequired !== "none" && (auth.includes("basic") || auth.includes("bearer"));
     const modes = descriptor.params.find((p) => p.name === "mode")?.values ?? [];
     const samples = descriptor.samples ?? [];
     const change = (next: Partial<ServerFormState>): void => {
@@ -447,34 +500,14 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                     }}
                 />
             </Row>
-            {signIn ? (
-                <Row label="Sign in">
-                    <div className="sv-pair">
-                        {auth.includes("basic") ? (
-                            <TextInput
-                                size="xs"
-                                aria-label="User"
-                                placeholder="user"
-                                autoComplete="off"
-                                value={form.user}
-                                onChange={(event) => {
-                                    change({ user: event.currentTarget.value });
-                                }}
-                            />
-                        ) : null}
-                        <PasswordInput
-                            size="xs"
-                            aria-label={auth.includes("basic") ? "Password" : "Token"}
-                            placeholder={auth.includes("basic") ? "password" : "token"}
-                            autoComplete="off"
-                            value={form.secret}
-                            onChange={(event) => {
-                                change({ secret: event.currentTarget.value });
-                            }}
-                        />
-                    </div>
-                </Row>
-            ) : null}
+            <SignInRow
+                entry={entry}
+                user={form.user}
+                secret={form.secret}
+                onChange={(next) => {
+                    change(next);
+                }}
+            />
             <ApiKeyRow
                 entry={entry}
                 value={form.apiKey}

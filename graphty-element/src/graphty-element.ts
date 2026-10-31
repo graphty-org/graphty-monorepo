@@ -232,7 +232,11 @@ export class Graphty extends LitElement {
         if (this.#builtGraph === undefined) {
             const graph = new Graph(this.#element);
             this.#builtGraph = graph;
-            waitFirstFor(graph, () => this.#pageLoadsQueued());
+            waitFirstFor(
+                graph,
+                () => this.#pageLoadsHeld(),
+                () => this.#pageLoadsQueued(),
+            );
             featuresFrom(graph, () => this.#featuresValue);
             // The graph is never rebuilt, so this subscription lives as long as the element.
             graph.onNodeLabelCounts.add((counts) => {
@@ -1135,6 +1139,8 @@ export class Graphty extends LitElement {
     #autosaveOptionsValue: Partial<AutosaveOptions> = {};
     /** Page-supplied loads, one after another, after the restore. */
     #pageGate: Promise<unknown> = Promise.resolve();
+    /** How many steps on the page gate have not run yet; see `#gateStep`. */
+    #gateSteps = 0;
     /** A data-source pair is waiting its turn on the gate. */
     #pairQueued = false;
     /** The last page-supplied load of each kind, run again by `autosaver.discard()`. */
@@ -1268,7 +1274,8 @@ export class Graphty extends LitElement {
         this.#pageGate = this.#pageGate
             .then(() => this.#autosaveControl.ready)
             .then(() => this.#autosaveControl.admit(source, load))
-            .catch(() => undefined);
+            .catch(() => undefined)
+            .finally(this.#gateStep());
     }
 
     /**
@@ -1282,6 +1289,27 @@ export class Graphty extends LitElement {
         }
 
         return this.#autosaveControl.ready.then(() => this.#pageGate).then(() => undefined);
+    }
+
+    /**
+     * Count one more step on the page gate until it has run, so the graph's record of pending work
+     * can ask `#pageLoadsHeld` without waiting.
+     * @returns Called once the step has run.
+     */
+    #gateStep(): () => void {
+        this.#gateSteps++;
+        return () => {
+            this.#gateSteps--;
+        };
+    }
+
+    /**
+     * Whether page loads are held: autosave has not decided its restore, or a load held behind it
+     * has not run its turn yet. What `#pageLoadsQueued` waits for, asked now.
+     * @returns True while the settle waits wait for page loads to reach the queue.
+     */
+    #pageLoadsHeld(): boolean {
+        return this.#autosaveOn() && this.isConnected && (this.#autosaveControl.holding || this.#gateSteps > 0);
     }
 
     /**
@@ -1773,7 +1801,8 @@ export class Graphty extends LitElement {
                         this.#pageLoads.delete("edges");
                         return this.#autosaveControl.admit(page, load);
                     })
-                    .catch(() => undefined);
+                    .catch(() => undefined)
+                    .finally(this.#gateStep());
             }
 
             return;

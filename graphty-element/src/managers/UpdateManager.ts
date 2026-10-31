@@ -36,6 +36,7 @@ import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
+import { MINIMUM_PAINT_BATCH, minimumWorkPerFrame } from "./minimumWork";
 import { attachPendingWork, PendingWork } from "./PendingWork";
 import type { StatsManager } from "./StatsManager";
 import type { NodePaint, StylePainter } from "./StylePainter";
@@ -927,6 +928,10 @@ export class UpdateManager implements Manager {
         // own announcement then finds the key unchanged and rebuilds nothing -- so a cap stayed
         // opaque, and a node drew another node's shape, for good (issue #440). What is pending
         // stays pending, and the frame after the pass announces draws all of it.
+        if (painter?.hasPending !== true) {
+            this.paintBatchesDone();
+        }
+
         if (painter === undefined || !painter.hasPending || painter.isPainting) {
             return;
         }
@@ -947,6 +952,23 @@ export class UpdateManager implements Manager {
         // Every element the pass moved has now left its old source mesh, so a mesh this left
         // with no instances is a look nothing on screen has any more.
         this.graphContext.getMeshCache().prune();
+
+        // Batches left for later frames are a token in the record of pending work, held until a
+        // frame applies the last of them (issue #4218): not left to the painter's flags staying up.
+        if (painter.hasPending) {
+            this.paintBatches ??= this.pending.begin("style", "a style repaint is still being applied in batches");
+        } else {
+            this.paintBatchesDone();
+        }
+    }
+
+    /** The token held while a repaint's batches remain; see {@link UpdateManager.syncStyles}. */
+    private paintBatches: (() => void) | null = null;
+
+    /** Release the token held while a repaint's batches remain, when one is held. */
+    private paintBatchesDone(): void {
+        this.paintBatches?.();
+        this.paintBatches = null;
     }
 
     /**
@@ -959,7 +981,7 @@ export class UpdateManager implements Manager {
         this.forceEdgeWalk();
 
         do {
-            for (const index of painter.takeEdges(EDGE_PAINT_BATCH)) {
+            for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
                 const edge = this.dataManager.edgesByIndex[index];
                 const paint = edge === undefined ? null : painter.edgePaint(index);
 
@@ -979,7 +1001,7 @@ export class UpdateManager implements Manager {
     private takeNodeBatch(painter: StylePainter, pending: ReadonlyMap<number, Node>): [Node, NodePaint][] {
         const painted: [Node, NodePaint][] = [];
 
-        for (const index of painter.takeNodes(NODE_PAINT_BATCH)) {
+        for (const index of painter.takeNodes(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : NODE_PAINT_BATCH)) {
             const node = pending.get(index);
             const paint = node === undefined ? null : painter.nodePaint(index);
 
@@ -1709,7 +1731,9 @@ export class UpdateManager implements Manager {
             // A pass the render loop runs keeps to the frame budget. One pumped by hand states no
             // frame time (`Graph.update()` with no argument), so it has no frame to keep short and
             // applies the whole repaint, as a caller drawing one frame to read the result expects.
-            this.syncStyles(frameMs > 0 ? STYLE_FRAME_BUDGET_MS : Number.POSITIVE_INFINITY);
+            // In the minimum-work mode a frame applies one batch of each kind and leaves the rest.
+            const budget = minimumWorkPerFrame() ? 0 : STYLE_FRAME_BUDGET_MS;
+            this.syncStyles(frameMs > 0 ? budget : Number.POSITIVE_INFINITY);
         });
     }
 
@@ -1839,9 +1863,10 @@ export class UpdateManager implements Manager {
         const { layoutEngine } = this.layoutManager;
         const simulation = layoutEngine instanceof SimulationLayoutEngine;
         const accelerated = simulation && layoutEngine.isAccelerated;
-        const rounds = accelerated
-            ? 1
-            : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
+        const rounds =
+            accelerated || minimumWorkPerFrame()
+                ? 1
+                : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
         const started = rounds > 1 ? performance.now() : 0;
         const budget = Math.min(frameMs / 2, LAYOUT_FRAME_BUDGET_MS);
 

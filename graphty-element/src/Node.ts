@@ -53,7 +53,7 @@ import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
-import { isFlatShape, shapeTexts } from "./meshes/shapeOutlines";
+import { drawnAgainstBox, isFlatShape, shapeTexts } from "./meshes/shapeOutlines";
 import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
@@ -2561,12 +2561,13 @@ export class Node implements ModelUser {
             value.x <= 0
         ) {
             const extent = this.mesh.isDisposed() ? null : this.mesh.getBoundingInfo().boundingBox.extendSize;
+            const box = this.glyphBoxHalf();
             this.halfExtentsMesh = this.mesh;
             seen.x = own.x;
             seen.y = own.y;
             seen.z = own.z;
-            value.x = extent ? extent.x * Math.abs(own.x) : 0;
-            value.y = extent ? extent.y * Math.abs(own.y) : 0;
+            value.x = (box?.x ?? extent?.x ?? 0) * Math.abs(own.x);
+            value.y = (box?.y ?? extent?.y ?? 0) * Math.abs(own.y);
             value.z = extent ? extent.z * Math.abs(own.z) : 0;
         }
 
@@ -2576,6 +2577,31 @@ export class Node implements ModelUser {
 
         const fallback = this.drawnRadius;
         return { x: fallback, y: fallback, z: fallback };
+    }
+
+    /**
+     * Whether the node's surface is its box rather than its drawn mesh: a polygon drawn against its box
+     * ({@link drawnAgainstBox}), whose pieces may fill little of it. Its edges end at the box -- its size, or the size
+     * its label fit gave it -- as Graphviz's do.
+     * @returns True for such a node.
+     * @internal
+     */
+    get surfaceIsBox(): boolean {
+        return this.glyphBoxHalf() !== null;
+    }
+
+    /**
+     * The half size of the box a polygon drawn against its box is drawn in, or null (see {@link Node.surfaceIsBox}).
+     * @returns The half width and half height, in the mesh's own units, or null.
+     */
+    private glyphBoxHalf(): { x: number; y: number } | null {
+        const shape = this.drawnStyle?.shape;
+        if (shape?.type !== "polygon" || !drawnAgainstBox(shape.points)) {
+            return null;
+        }
+        const sized = this.fittedExtent === null ? shape : { ...shape, ...this.fittedExtent };
+        const extents = NodeMesh.extentsOf(sized, Math.max(shape.size ?? this.size, 1e-3));
+        return { x: (extents.x ?? extents.across) / 2, y: (extents.y ?? extents.across) / 2 };
     }
 
     /**

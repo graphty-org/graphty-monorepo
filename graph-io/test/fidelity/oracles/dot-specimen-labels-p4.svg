@@ -38,18 +38,18 @@
 <!-- cap&#45;default -->
 <g id="node6" class="node">
 <title>cap&#45;default</title>
-<text xml:space="preserve" text-anchor="middle" x="209.67" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">default</text>
+<text xml:space="preserve" text-anchor="middle" x="209.67" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">default</text>
 </g>
 <!-- xlabel&#45;free -->
 <g id="node7" class="node">
 <title>xlabel&#45;free</title>
 <ellipse fill="#c8c8c8" stroke="#505050" cx="583" cy="-447" rx="18" ry="18"/>
-<text xml:space="preserve" text-anchor="middle" x="557.12" y="-468.25" font-family="DejaVu Sans" font-size="10.00" fill="#000000">ext</text>
+<text xml:space="preserve" text-anchor="middle" x="557.12" y="-468.25" font-family="DejaVu Sans,sans-serif" font-size="10.00" fill="#000000">ext</text>
 </g>
 <!-- cap&#45;xlabel&#45;free -->
 <g id="node8" class="node">
 <title>cap&#45;xlabel&#45;free</title>
-<text xml:space="preserve" text-anchor="middle" x="583" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">forcelabels=false xlabel with room</text>
+<text xml:space="preserve" text-anchor="middle" x="583" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">forcelabels=false xlabel with room</text>
 </g>
 <!-- xlabel&#45;crowded -->
 <g id="node9" class="node">
@@ -99,7 +99,7 @@
 <!-- cap&#45;xlabel&#45;crowded -->
 <g id="node18" class="node">
 <title>cap&#45;xlabel&#45;crowded</title>
-<text xml:space="preserve" text-anchor="middle" x="956.33" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">forcelabels=false xlabel with no room</text>
+<text xml:space="preserve" text-anchor="middle" x="956.33" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">forcelabels=false xlabel with no room</text>
 </g>
 </g>
 </svg>

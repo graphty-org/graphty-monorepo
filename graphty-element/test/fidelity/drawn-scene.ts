@@ -248,7 +248,8 @@ function readTableLabel(node: Node, p: Projector): DrawnLabel | null {
     if (first === undefined) {
         return null;
     }
-    const edge = (key: keyof ScreenBox, pick: (...v: number[]) => number): number => pick(...cells.map((c) => c.box[key]));
+    const edge = (key: keyof ScreenBox, pick: (...v: number[]) => number): number =>
+        pick(...cells.map((c) => c.box[key]));
     return {
         ...first,
         text: cells.map((c) => c.text).join("\n"),

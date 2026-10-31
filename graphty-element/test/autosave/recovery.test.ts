@@ -373,6 +373,55 @@ describe("a restore that does not finish", () => {
         );
     });
 
+    it("keeps the graph imported right after a clear cancels a restore(id) waiting in line (#3674)", async () => {
+        const memory = memoryAutosaveStore();
+        const { id } = await earlier(memory, (session) => session.config.set({ name: "Picked by hand" }));
+        // The cancelled restore takes its attempt back with a commit a real store takes a while to
+        // land: it is held here until the page's import is in.
+        let takingBack: () => void = () => undefined;
+        let landed: () => void = () => undefined;
+        const reached = new Promise<void>((resolve) => {
+            takingBack = resolve;
+        });
+        const held = new Promise<void>((resolve) => {
+            landed = resolve;
+        });
+        const store: AutosaveStore = Object.assign(Object.create(memory) as AutosaveStore, {
+            commit: async (writes: readonly AutosaveWrite[], options?: Parameters<AutosaveStore["commit"]>[1]) => {
+                if (writes.some((write) => write.id === id && Number(write.meta.restoreAttempts ?? 0) === 0)) {
+                    takingBack();
+                    await held;
+                }
+                return memory.commit(writes, options);
+            },
+        });
+        const page = load(store);
+        assert.isNull(await page.saver.recover({ restore: "manual" }));
+        const line = loadLineOf(dispatcherOf(page.session));
+        const reading = line.join();
+        const restoring = page.saver.restore(id, true).catch((error: unknown) => (error as { code?: string }).code);
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        // The page clears and loads at once, while the cancelled restore unwinds.
+        const clearing = page.session.data.clear();
+        const importing = rows(["a", "b"]).apply(page.session)();
+        reading.leave();
+        await Promise.all([clearing, importing, reached]);
+        landed();
+        assert.strictEqual(await restoring, "E_SUPERSEDED");
+
+        await page.saver.flush();
+        assert.isNotNull(page.saver.status.entry, "the imported graph started an entry");
+        const written = page.saver.status.entry ?? "";
+        page.saver.stop();
+
+        const reload = load(memory);
+        await reload.saver.restore(written, true);
+        assert.strictEqual(reload.session.data.snapshot().nodeCount, 2, "the imported graph was written");
+    });
+
     it("a copied entry the restore gives way to a page load for is removed again", async () => {
         const store = memoryAutosaveStore();
         const own = await earlier(store, (session) => session.config.set({ name: "Mine" }));

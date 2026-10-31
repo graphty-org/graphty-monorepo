@@ -23,7 +23,7 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { dispatcherOf } from "../session/GraphSession";
-import { loadLineOf, supersededError } from "../session/loadLine";
+import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
@@ -412,8 +412,10 @@ export class Autosaver {
     #maxWait: (() => void) | null = null;
     #idle: (() => void) | null = null;
     #told = "";
-    /** A restore is opening an entry: its changes and its boundary are not new work. */
-    #restoring = false;
+    /** A restore is opening an entry, or a discard reloads: see {@link #restoring}. */
+    #restoringFlag = false;
+    /** The restore's place in the session's load line, once its turn has come. */
+    #restoreTurn: LoadTurn | null = null;
     /** A page-supplied load is running: its changes do not start an entry. */
     #quiet = 0;
     /** Changes made during a page load, and the parts they touched, until the load says whose they were. */
@@ -1172,11 +1174,11 @@ export class Autosaver {
 
         entry.release?.();
         entry.release = null;
-        this.#restoring = true;
+        this.#restoringFlag = true;
         try {
             await reload();
         } finally {
-            this.#restoring = false;
+            this.#restoringFlag = false;
             this.#tell();
         }
     }
@@ -1464,16 +1466,28 @@ export class Autosaver {
         }
 
         let report: AutosaveRestored["report"];
-        this.#restoring = true;
+        // The open's place in line, taken now. The restore counts as writing only once its turn
+        // has come and until a clear cancels it: a change made while it waits behind a load, or
+        // right after a clear cancelled it, is the reader's (issue #3674).
+        const line = loadLineOf(dispatcherOf(this.#session));
+        const turn = line.join();
         try {
-            report = await this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } });
+            await turn.wait();
+            this.#restoreTurn = turn;
+            this.#restoringFlag = true;
+            report = await line.within(turn, () =>
+                this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } }),
+            );
         } catch (error) {
+            this.#restoringFlag = false;
+            turn.leave();
             // Before the lock goes, so no other tab commits over the entry meanwhile.
             await this.#restoreFailed(current, untried, error, copy);
             release?.();
             return null;
         } finally {
-            this.#restoring = false;
+            this.#restoringFlag = false;
+            this.#restoreTurn = null;
         }
 
         // The work comes back as it was: unsaved to a file if it was, and at its revision.
@@ -1603,6 +1617,15 @@ export class Autosaver {
             this.#quiet = quiet;
             this.#releasedSteps = this.#readerStepsInLoad();
         }
+    }
+
+    /**
+     * Whether the changes now are a restore's or a discard's reload, not new work: a restore's
+     * open only from when its turn in the load line came, and never once a clear cancelled it.
+     * @returns True while they are.
+     */
+    get #restoring(): boolean {
+        return this.#restoringFlag && this.#restoreTurn?.superseded !== true;
     }
 
     /**

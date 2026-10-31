@@ -166,7 +166,9 @@ describe("the start page in the app's frame", () => {
             const focus = document.activeElement;
             trail.push(`${String(at)} ms ${what}: top ${String(scrolled())}, focus ${focus?.tagName ?? "none"}`);
         };
+        let ends = 0;
         const onEnd = (): void => {
+            ends++;
             note("scrollend");
         };
         const onKey = (event: KeyboardEvent): void => {
@@ -181,17 +183,33 @@ describe("the start page in the app's frame", () => {
         try {
             await showSamples();
             note("at the samples");
+            // In a text box Home and End move the caret and never scroll, so the waits below would never come
+            // true and this test would fail only at the 900 s hang guard (#5255: Samples once focused the search).
+            assert.isFalse(
+                document.activeElement?.matches("input, textarea, [contenteditable]") ?? false,
+                "Samples left focus out of a text box",
+            );
+            let before = ends;
             await userEvent.keyboard("{Home}");
             note("Home pressed");
+            // Home's smooth scroll reaches the top a few frames before it ends, and Chromium drops an
+            // End pressed in those frames: the page stays at the top and only Home's scrollend follows
+            // (issue #4170, full run 41103133086; reproduced here by pressing End as the page reached
+            // the top). A reader presses the next key on a page that has stopped.
             await waitFor(() => {
                 assert.equal(scrolled(), 0, "Home scrolled it back up");
+                assert.isAbove(ends, before, "Home's scroll came to rest");
             });
             note("at the top");
+            before = ends;
             await userEvent.keyboard("{End}");
             note("End pressed");
+            // Wait for End's own scroll to end, then read where it left the page, so a lost End fails
+            // at once instead of waiting out the hang guard.
             await waitFor(() => {
-                assert.isAbove(scrolled(), 0, "End scrolled it down");
+                assert.isAbove(ends, before, "End's scroll came to rest");
             });
+            assert.isAbove(scrolled(), 0, "End scrolled it down");
         } finally {
             document.removeEventListener("scrollend", onEnd);
             globalThis.removeEventListener("keydown", onKey);

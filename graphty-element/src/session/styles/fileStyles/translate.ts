@@ -66,6 +66,9 @@ const MAX_TERMS = 8;
 
 /** The key of the copy graph-io writes of a data column a format cannot keep, and the column it copies. */
 const CARRIED_INPUT = /^input\.(?:[^.]+\.)?data\.(.+)$/;
+
+/** A length added to a shape point's fraction (`-1+24`): the digit before it, and the signed length. */
+const SHAPE_POINT_LENGTH = /([\d.])([+-](?:\d+\.?\d*|\.\d+))/g;
 /** A mapping table with more keys present than this is kept as values per element. */
 const MAX_TABLE_KEYS = 256;
 /** The key `ext` carries graphty-element's own layer under, in a file graphty wrote. */
@@ -159,6 +162,8 @@ export interface Translation {
     readonly hidden: Readonly<Record<StyleTarget, { readonly key: string; readonly count: number } | null>>;
     /** The graph's background color, or null. */
     readonly background: string | null;
+    /** How far the file turns the whole drawing counterclockwise, in degrees, or null when it is upright. */
+    readonly rotation: number | null;
     /** What the file's reading and its translation met. */
     readonly notes: readonly FileStyleNote[];
     /**
@@ -514,6 +519,19 @@ function channelPlans(
             ? {}
             : { nearest: (value: StyleValue) => typeof value === "string" && nearest.has(value) }),
     });
+    // a shape's points in fractions, their lengths (`-1+24`) in the file's lengths, converted as every length is
+    const points = (channel: Channel, factor = factors[kind]): ChannelPlan => ({
+        channel,
+        convert: (value) =>
+            typeof value === "string"
+                ? value.replaceAll(
+                      SHAPE_POINT_LENGTH,
+                      (_all, before: string, length: string) =>
+                          `${before}${length.startsWith("-") ? "" : "+"}${String(round(Number(length) * factor))}`,
+                  )
+                : null,
+        identity: factor === 1,
+    });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
     const stack = (channel: Channel): ChannelPlan => ({
         channel,
@@ -605,10 +623,10 @@ function channelPlans(
                 ],
             ],
             [CORNER_CAP, [length("node.cornerRadius")]],
-            ["shapePoints", [id("node.shapePoints")]],
+            ["shapePoints", [points("node.shapePoints")]],
             ["shapePointsStretch", [id("node.shapeStretchPoints")]],
-            ["shapeParts", [id("node.shapeParts")]],
-            ["shapeLines", [id("node.shapeLines")]],
+            ["shapeParts", [points("node.shapeParts")]],
+            ["shapeLines", [points("node.shapeLines")]],
             ["shapeTexts", [id("node.shapeTexts")]],
             ["shapeLineWidth", [length("node.shapeLineWidth")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
@@ -696,6 +714,7 @@ function channelPlans(
             ["outerBorderOpacity", [id("node.outerBorderOpacity")]],
             ["outerBorderStyle", [table("node.outerBorderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["outerBorderOffset", [length("node.outerBorderOffset")]],
+            ["outerBorderCount", [id("node.outerBorderCount")]],
             ["underlayColor", [id("node.underlayColor")]],
             ["underlayOpacity", [id("node.underlayOpacity")]],
             ["underlayPadding", [length("node.underlayPadding")]],
@@ -708,6 +727,21 @@ function channelPlans(
             ["overlayCornerRadius", [length("node.overlayCornerRadius")]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
+            ["xlabel", [id("node.xlabel")]],
+            // where the file stored its external label: its center, from the node's, in the scene's units as a label
+            // offset is; a stored place centers the label there instead of against the node's corner
+            [
+                "xlabelOffsetX",
+                [
+                    length("node.xlabelOffsetX", factors.node * SCENE_PER_UNIT.node),
+                    {
+                        channel: "node.xlabelLocation",
+                        convert: (value) => (typeof value === "number" ? "center" : null),
+                        identity: false,
+                    },
+                ],
+            ],
+            ["xlabelOffsetY", [length("node.xlabelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
             ["shape", [table("node.shape", shapeTable, nearShapes)]],
             ["labelColor", [label("labelColor")]],
             ["labelSize", labelSize("node.labelSize", "node.labelLetterSize")],
@@ -745,6 +779,7 @@ function channelPlans(
             ["labelPaddingX", [length("node.labelPaddingX")]],
             ["labelPaddingY", [length("node.labelPaddingY")]],
             ["labelFitSquare", [id("node.labelFitSquare")]],
+            ["labelFitQuantum", [length("node.labelFitQuantum")]],
             // Screen pixels, so never scaled by the file's lengths.
             ["labelMinScreenSize", [id("node.labelMinScreenSize")]],
             ["labelMinNodeScreenSize", [id("node.labelMinNodeScreenSize")]],
@@ -863,6 +898,7 @@ function channelPlans(
         ["label", [id("edge.label")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
+        ["xlabel", [id("edge.xlabel")]],
         // Along the line, in the scene's units, as a node's lengths are.
         ["targetLabelOffset", [length("edge.arrowHeadTextDistance", factors.node * SCENE_PER_UNIT.node)]],
         ["sourceLabelOffset", [length("edge.arrowTailTextDistance", factors.node * SCENE_PER_UNIT.node)]],
@@ -1307,12 +1343,13 @@ export function translateFileStyles(input: TranslateInput): Translation {
 
     const layers = inRuleOrder(byKind, extracted.styles.rules);
 
-    const { background } = extracted.styles.graph;
+    const { background, rotation } = extracted.styles.graph;
     return {
         layers,
         columns,
         hidden,
         background: typeof background === "string" ? background : null,
+        rotation: typeof rotation === "number" && rotation % 360 !== 0 ? ((rotation % 360) + 360) % 360 : null,
         notes: notes.list(),
         predicted,
         sceneScale: factors.scene,

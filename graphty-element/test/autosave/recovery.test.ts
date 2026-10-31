@@ -283,27 +283,66 @@ describe("choosing what to restore", () => {
 });
 
 describe("a restore that does not finish", () => {
-    it("a clear asked for while the restore waits cancels it, reports nothing and takes the attempt back", async () => {
+    it("a load the page asked for before the restore opens wins: the attempt is taken back and the work offered", async () => {
         const store = memoryAutosaveStore();
-        const { id } = await earlier(store, (session) => session.config.set({ name: "Cleared at startup" }));
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Kept out at startup" }));
         const page = load(store);
         const line = loadLineOf(dispatcherOf(page.session));
-        // A load the page started, still reading: the restore's open waits behind it.
+        // A load the page started, still reading: the restore would queue behind it and replace it.
         const reading = line.join();
-        const recovering = page.saver.recover();
-        await vi.waitFor(() => {
-            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
-        });
 
-        await page.session.data.clear();
+        assert.isNull(await page.saver.recover());
         reading.leave();
 
-        assert.isNull(await recovering);
-        assert.deepStrictEqual(page.available, [], "a clear the reader asked for is no failed restore");
-        assert.strictEqual(
-            Number((await store.read(id))?.meta.restoreAttempts ?? 0),
-            0,
-            "the cancelled attempt was taken back",
+        assert.strictEqual(line.size, 0, "the restore took no place in line");
+        assert.deepStrictEqual(
+            page.available.map((each) => [each.entry.id, each.reason]),
+            [[id, "page-data-changed"]],
+            "the work is offered instead",
+        );
+        assert.strictEqual(Number((await store.read(id))?.meta.restoreAttempts ?? 0), 0, "the attempt was taken back");
+    });
+
+    it("a page that leaves while the entry is read releases the entry's lock", async () => {
+        const memory = memoryAutosaveStore();
+        const { id } = await earlier(memory, (session) => session.config.set({ name: "Left at startup" }));
+        let reading = (): void => undefined;
+        const reached = new Promise<void>((resolve) => {
+            reading = resolve;
+        });
+        let finish = (): void => undefined;
+        const finished = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        const slow: AutosaveStore = Object.assign(Object.create(memory) as AutosaveStore, {
+            read: async (entry: string) => {
+                reading();
+                await finished;
+                return memory.read(entry);
+            },
+        });
+        const page = load(slow);
+        const recovering = page.saver.recover();
+        await reached;
+        page.session.dispose();
+        finish();
+
+        assert.isNull(await recovering, "the restore settles instead of throwing");
+        assert.isFalse((await page.locks.held()).has(lockName(KEY, id)), "the entry's lock was released");
+    });
+
+    it("a graph the page already holds is not replaced by the restore at the start", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Older work" }));
+        const page = load(store);
+        await page.session.data.addNodes([{ id: "fresh" }]);
+
+        assert.isNull(await page.saver.recover());
+        assert.strictEqual(page.session.data.snapshot().nodeCount, 1, "the page's graph stays");
+        assert.notStrictEqual(page.session.project.name, "Older work");
+        assert.deepStrictEqual(
+            page.available.map((each) => [each.entry.id, each.reason]),
+            [[id, "page-data-changed"]],
         );
     });
 
@@ -334,7 +373,56 @@ describe("a restore that does not finish", () => {
         );
     });
 
-    it("a clear that cancels the restore of a copied entry removes the copy", async () => {
+    it("keeps the graph imported right after a clear cancels a restore(id) waiting in line (#3674)", async () => {
+        const memory = memoryAutosaveStore();
+        const { id } = await earlier(memory, (session) => session.config.set({ name: "Picked by hand" }));
+        // The cancelled restore takes its attempt back with a commit a real store takes a while to
+        // land: it is held here until the page's import is in.
+        let takingBack: () => void = () => undefined;
+        let landed: () => void = () => undefined;
+        const reached = new Promise<void>((resolve) => {
+            takingBack = resolve;
+        });
+        const held = new Promise<void>((resolve) => {
+            landed = resolve;
+        });
+        const store: AutosaveStore = Object.assign(Object.create(memory) as AutosaveStore, {
+            commit: async (writes: readonly AutosaveWrite[], options?: Parameters<AutosaveStore["commit"]>[1]) => {
+                if (writes.some((write) => write.id === id && Number(write.meta.restoreAttempts ?? 0) === 0)) {
+                    takingBack();
+                    await held;
+                }
+                return memory.commit(writes, options);
+            },
+        });
+        const page = load(store);
+        assert.isNull(await page.saver.recover({ restore: "manual" }));
+        const line = loadLineOf(dispatcherOf(page.session));
+        const reading = line.join();
+        const restoring = page.saver.restore(id, true).catch((error: unknown) => (error as { code?: string }).code);
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        // The page clears and loads at once, while the cancelled restore unwinds.
+        const clearing = page.session.data.clear();
+        const importing = rows(["a", "b"]).apply(page.session)();
+        reading.leave();
+        await Promise.all([clearing, importing, reached]);
+        landed();
+        assert.strictEqual(await restoring, "E_SUPERSEDED");
+
+        await page.saver.flush();
+        assert.isNotNull(page.saver.status.entry, "the imported graph started an entry");
+        const written = page.saver.status.entry ?? "";
+        page.saver.stop();
+
+        const reload = load(memory);
+        await reload.saver.restore(written, true);
+        assert.strictEqual(reload.session.data.snapshot().nodeCount, 2, "the imported graph was written");
+    });
+
+    it("a copied entry the restore gives way to a page load for is removed again", async () => {
         const store = memoryAutosaveStore();
         const own = await earlier(store, (session) => session.config.set({ name: "Mine" }));
         const before = await raw(store, own.id);
@@ -343,19 +431,14 @@ describe("a restore that does not finish", () => {
         const page = load(store, locks);
         const line = loadLineOf(dispatcherOf(page.session));
         const reading = line.join();
-        const recovering = page.saver.recover({ own: own.id });
-        await vi.waitFor(() => {
-            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
-        });
 
-        await page.session.data.clear();
+        assert.isNull(await page.saver.recover({ own: own.id }));
         reading.leave();
 
-        assert.isNull(await recovering);
         assert.deepStrictEqual(
             (await store.list(KEY)).map((each) => each.id),
             [own.id],
-            "the cancelled copy was not removed",
+            "the copy made for the restore was removed",
         );
         assert.deepStrictEqual(await raw(store, own.id), before, "the held entry is untouched");
     });

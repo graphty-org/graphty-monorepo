@@ -330,7 +330,7 @@ async function writePeriod(store: Store, step: Step, start: number, buckets: Buc
     for (const [m, b] of buckets) {
         ops.push({ put: { ...rollKey(m, step, start), metric: m, step, start, ttl, ...pick(b) } });
     }
-    ops.push({ put: { ...idxKey(step, start), metrics: [...buckets.keys()].sort(), ttl } });
+    ops.push({ put: { ...idxKey(step, start), metrics: [...buckets.keys()].sort(), ttl } }); // NOSONAR(S2871): code-unit order, the same in every locale, keeps the index stable
     await store.batch(ops);
     return buckets.size;
 }

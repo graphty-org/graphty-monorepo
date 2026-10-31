@@ -15,7 +15,8 @@ import {
     type GraphvizEngine,
     graphvizLayoutId,
 } from "./graphviz/engines";
-import { clusterMargins, edgeBends, edgeLabelPlaces, fromJson } from "./graphviz/fromJson";
+import { canvasMeasure, withDrawnFonts } from "./graphviz/fonts";
+import { clusterMargins, edgeBends, edgeLabelPlaces, fromJson, nodeXlabelPlaces } from "./graphviz/fromJson";
 import type { GraphvizFailureCode, GraphvizReply } from "./graphviz/protocol";
 import { graphvizStructure } from "./graphviz/structure";
 import { type DotStructure, POINTS_PER_UNIT, toDot } from "./graphviz/toDot";
@@ -230,12 +231,19 @@ async function computeWith(
 ): Promise<{
     positions: F32;
     bends: ReadonlyMap<number, string>;
-    labels: ReadonlyMap<number, readonly [number, number]>;
+    labels: ReadonlyMap<number, EdgeLabelsAt>;
+    xlabels: ReadonlyMap<number, readonly [number, number]>;
     margins: ReadonlyMap<number, GroupMargins>;
 }> {
     const n = input.graph.nodeCount;
     if (n === 0) {
-        return { positions: new Float32Array(0), bends: new Map(), labels: new Map(), margins: new Map() };
+        return {
+            positions: new Float32Array(0),
+            bends: new Map(),
+            labels: new Map(),
+            xlabels: new Map(),
+            margins: new Map(),
+        };
     }
 
     const limit = options.maxNodes as number;
@@ -262,7 +270,12 @@ async function computeWith(
         attributes.ranksep = String(TWOPI_RANKSEP_PER_INCH * widest(sizes));
     }
 
-    const dot = toDot(input.stored, attributes, sizes, extents, groups, structure, engine === "patchwork");
+    // graph-io reads a spline into bends as it does for a file that stores its routes, and says which font the element
+    // draws a `fontname` in, which is the font Graphviz must size the label in
+    const { graphvizFont, graphvizPosBends } = await import("@graphty/graph-io/dot");
+    const measure = canvasMeasure();
+    const handed = measure === null ? structure : withDrawnFonts(structure, graphvizFont, measure);
+    const dot = toDot(input.stored, attributes, sizes, extents, groups, handed, engine === "patchwork");
     const { probeGraphviz, runGraphviz } = await import("./graphviz/host");
     if (!(await probeGraphviz())) {
         throw graphvizError("graphviz.unavailable", { engine });
@@ -277,12 +290,16 @@ async function computeWith(
         throw graphvizError(reply.code, reply.params);
     }
 
-    // graph-io reads a spline into bends as it does for a file that stores its routes
-    const { graphvizPosBends } = await import("@graphty/graph-io/dot");
     return {
         positions: fromJson(reply.json, n).map((value) => value * scale),
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
-        labels: edgeLabelPlaces(reply.json, structure.edges ?? []),
+        labels: edgeLabelsAt(reply.json, structure.edges ?? []),
+        xlabels: new Map(
+            [...nodeXlabelPlaces(reply.json)].map(([row, [x, y]]) => [
+                row,
+                [(x / POINTS_PER_UNIT) * scale, (y / POINTS_PER_UNIT) * scale] as const,
+            ]),
+        ),
         margins: new Map(
             [...clusterMargins(reply.json)].map(([row, m]) => [
                 row,
@@ -295,6 +312,41 @@ async function computeWith(
             ]),
         ),
     };
+}
+
+/**
+ * Where Graphviz put an edge's label (its `lp`, or its `xlp` when it has only an external label), its external label
+ * beside a label (`xlp`) and its end labels.
+ */
+type EdgeLabelsAt = Pick<EdgePosition, "labelAt" | "headLabelAt" | "tailLabelAt" | "xlabelAt">;
+
+/**
+ * Where Graphviz put each edge's labels, by its place in the list handed over.
+ * @param json - the `-Tjson` text
+ * @param edges - the edges handed over
+ * @returns each edge's label places; absent for an edge Graphviz placed none of
+ */
+function edgeLabelsAt(
+    json: string,
+    edges: readonly { readonly src: number; readonly dst: number }[],
+): Map<number, EdgeLabelsAt> {
+    const out = new Map<number, EdgeLabelsAt>();
+    // an edge with only an external label draws it as its label; beside a label it is drawn at `xlp` on its own
+    const external = edgeLabelPlaces(json, edges, "xlp");
+    const places = [
+        ["labelAt", external],
+        ["xlabelAt", external],
+        ["labelAt", edgeLabelPlaces(json, edges)],
+        ["headLabelAt", edgeLabelPlaces(json, edges, "head_lp")],
+        ["tailLabelAt", edgeLabelPlaces(json, edges, "tail_lp")],
+    ] as const;
+    for (const [name, byEdge] of places) {
+        for (const [k, place] of byEdge) {
+            out.set(k, { ...out.get(k), [name]: place });
+        }
+    }
+
+    return out;
 }
 
 /**
@@ -427,8 +479,10 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         protected readonly options: Readonly<Record<string, unknown>>;
         /** The route Graphviz laid each edge along, as bends, for the edges it did not draw straight. */
         private routes = new Map<Edge, readonly number[]>();
-        /** Where Graphviz put each labelled edge's label, as `along, across` its two ends. */
-        private labelPlaces = new Map<Edge, readonly [number, number]>();
+        /** Where Graphviz put each labelled edge's label and end labels, as `along, across` its two ends. */
+        private labelPlaces = new Map<Edge, EdgeLabelsAt>();
+        /** Where Graphviz put each node's external label, right and down of its center in scene units, by node id as text. */
+        private xlabelPlaces = new Map<string, readonly [number, number]>();
 
         /**
          * Build the engine for one `setLayout`.
@@ -459,7 +513,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 false,
                 this.options.nodeSize === "label",
             );
-            const { positions, bends, labels, margins } = await computeWith(
+            const { positions, bends, labels, xlabels, margins } = await computeWith(
                 engine,
                 input,
                 this.options,
@@ -473,25 +527,32 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 laidGroupMargins.set(this, margins);
                 this.routes = routesOf(bends, structure.edgeOf);
                 this.labelPlaces = new Map([...labels].map(([k, place]) => [structure.edgeOf[k], place]));
+                this.xlabelPlaces = new Map(
+                    [...xlabels].map(([row, place]) => [String(input.stored.ids.idOf(row)), place]),
+                );
             }
             return positions;
+        }
+
+        /**
+         * Where Graphviz put a node's external label (its `xlp`).
+         * @param n - the node
+         * @returns right and down of the node's center, in scene units, or undefined when Graphviz placed none
+         */
+        override getNodeXlabelOffset(n: Node): readonly [number, number] | undefined {
+            return this.xlabelPlaces.get(String(n.id));
         }
 
         /**
          * Where an edge's ends are, the route Graphviz laid it along when it did not draw it straight, and where it
          * put the edge's label.
          * @param e - the edge
-         * @returns its ends, its bends when it has a route, and its label's place when Graphviz placed one
+         * @returns its ends, its bends when it has a route, and its label's and end labels' places where Graphviz placed them
          */
         override getEdgePosition(e: Edge): EdgePosition {
             const ends = super.getEdgePosition(e);
             const bends = this.routes.get(e);
-            const labelAt = this.labelPlaces.get(e);
-            return {
-                ...ends,
-                ...(bends === undefined ? {} : { bends }),
-                ...(labelAt === undefined ? {} : { labelAt }),
-            };
+            return { ...ends, ...(bends === undefined ? {} : { bends }), ...this.labelPlaces.get(e) };
         }
     };
 }

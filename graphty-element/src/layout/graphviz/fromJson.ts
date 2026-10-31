@@ -17,7 +17,13 @@ interface JsonObject {
     readonly id?: unknown;
     readonly pos?: unknown;
     readonly lp?: unknown;
+    readonly xlp?: unknown;
+    readonly head_lp?: unknown;
+    readonly tail_lp?: unknown;
 }
+
+/** The places `-Tjson` gives an edge's labels: its label, its external label, and its head and tail labels. */
+type EdgeLabelKey = "lp" | "xlp" | "head_lp" | "tail_lp";
 
 /** The part of the `-Tjson` answer this reads. */
 interface JsonGraph {
@@ -110,24 +116,29 @@ export function edgeBends(
 /**
  * Read where Graphviz put each edge's label (its `lp`, the label's center) out of its json output, as `along` of the
  * way from the source node's center to the target's and `across` that length to the left of the line, as an edge's
- * bends are given: the edges are named `e<k>` by their place in the list handed over (see `toDot`).
+ * bends are given: the edges are named `e<k>` by their place in the list handed over (see `toDot`). The external,
+ * head and tail labels' places (`xlp`, `head_lp`, `tail_lp`) are read the same way when `key` names them.
  * @param json - the `-Tjson` text
  * @param edges - the edges handed over, each with its end rows
- * @returns each labelled edge's label place, by place in the list; absent for an edge with no `lp` or a self-loop
+ * @param key - which label's place to read
+ * @returns each labelled edge's label place, by place in the list; absent for an edge with no such place or a self-loop
  */
 export function edgeLabelPlaces(
     json: string,
     edges: readonly { readonly src: number; readonly dst: number }[],
+    key: EdgeLabelKey = "lp",
 ): Map<number, readonly [along: number, across: number]> {
     const parsed = JSON.parse(json) as JsonGraph;
     const centers = nodeCenters(parsed);
     const out = new Map<number, readonly [number, number]>();
-    for (const { id, lp } of parsed.edges ?? []) {
+    for (const object of parsed.edges ?? []) {
+        const { id } = object;
+        const place = object[key];
         const k = typeof id === "string" && /^e\d+$/.test(id) ? Number(id.slice(1)) : -1;
         const edge = k >= 0 ? edges[k] : undefined;
         const source = edge && centers.get(`n${edge.src}`);
         const target = edge && centers.get(`n${edge.dst}`);
-        const [x, y] = typeof lp === "string" ? lp.split(",").map(Number) : [];
+        const [x, y] = typeof place === "string" ? place.split(",").map(Number) : [];
         if (source === undefined || target === undefined || !Number.isFinite(x) || !Number.isFinite(y)) {
             continue;
         }
@@ -139,6 +150,27 @@ export function edgeLabelPlaces(
             const vx = x - source[0];
             const vy = y - source[1];
             out.set(k, [(vx * dx + vy * dy) / length2, (vy * dx - vx * dy) / length2]);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * Read where Graphviz put each node's external label (its `xlp`, the label's center) out of its json output, as an
+ * offset from the node's center in Graphviz's points, right and down.
+ * @param json - the `-Tjson` text
+ * @returns each placed external label's offset, by row
+ */
+export function nodeXlabelPlaces(json: string): Map<number, readonly [right: number, down: number]> {
+    const parsed = JSON.parse(json) as JsonGraph;
+    const out = new Map<number, readonly [number, number]>();
+    for (const { name, pos, xlp } of parsed.objects ?? []) {
+        const row = typeof name === "string" && /^n\d+$/.test(name) ? Number(name.slice(1)) : -1;
+        const [px, py] = typeof pos === "string" ? pos.split(",").map(Number) : [];
+        const [lx, ly] = typeof xlp === "string" ? xlp.split(",").map(Number) : [];
+        if (row >= 0 && [px, py, lx, ly].every(Number.isFinite)) {
+            out.set(row, [lx - px, py - ly]);
         }
     }
 

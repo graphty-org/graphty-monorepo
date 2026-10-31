@@ -306,6 +306,12 @@ export interface GraphWriter {
      */
     setGraphValues(values: Readonly<Record<string, unknown>>): void;
     /**
+     * Read one node's record as this command's writes have left it.
+     * @param id - The node id.
+     * @returns The record, or undefined when the graph holds none.
+     */
+    nodeRecord(id: NodeId): GraphRecord | undefined;
+    /**
      * Read one graph-level value as this command's writes have left it.
      * @param name - The value's name.
      * @returns The value, or undefined when none is set.
@@ -1202,6 +1208,10 @@ class Writer implements GraphWriter {
             bumpFields(this.store, "edge", priorRecord, record, this.bumped);
             this.record({ kind: "record", target: "edge", id, prior: priorRecord, next: record }, edgeKey(id), null);
         }
+    }
+
+    nodeRecord(id: NodeId): GraphRecord | undefined {
+        return this.graph.slice.nodes.get(id);
     }
 
     setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord, replace = false): boolean {

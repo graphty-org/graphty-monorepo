@@ -69,7 +69,7 @@ import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_3 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
-import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
+import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
@@ -123,7 +123,7 @@ import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector';
+import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
 import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
@@ -446,7 +446,6 @@ export interface CameraState {
         z: number;
     };
     radius?: number;
-    // (undocumented)
     rotation?: number;
     // (undocumented)
     target?: {
@@ -810,6 +809,8 @@ export class Edge {
     // (undocumented)
     ray: Ray;
     // @internal
+    refreshFonts(families: ReadonlySet<string>): boolean;
+    // @internal
     refreshShaderPaint(): void;
     setRenderVisible(visible: boolean): boolean;
     setSelected(selected: boolean): boolean;
@@ -827,6 +828,7 @@ export class Edge {
     // @deprecated
     static updateRays(_g: Graph | GraphContext): void;
     updateStyle(): void;
+    xlabelLabel: RichTextLabel | null;
 }
 
 // @public (undocumented)
@@ -842,9 +844,12 @@ export interface EdgePosition {
     bends?: readonly number[];
     // (undocumented)
     dst: Position;
+    headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
     // (undocumented)
     src: Position;
+    tailLabelAt?: readonly [along: number, across: number];
+    xlabelAt?: readonly [along: number, across: number];
 }
 
 // @public
@@ -1916,6 +1921,7 @@ export abstract class LayoutEngine {
     abstract getEdgePosition(e: Edge): EdgePosition;
     // (undocumented)
     abstract getNodePosition(n: Node_2): Position;
+    getNodeXlabelOffset(_n: Node_2): readonly [right: number, down: number] | undefined;
     static getOptionsForDimension(dimension: 2 | 3): object | null;
     static getOptionsForDimensionByType(type: string, dimension: 2 | 3): object | null;
     static getRegisteredTypes(): string[];
@@ -2081,6 +2087,8 @@ class Node_2 implements ModelUser {
     isSelected(): boolean;
     // (undocumented)
     label?: RichTextLabel;
+    // @internal
+    get layoutRadius(): number;
     // (undocumented)
     mesh: AbstractMesh;
     // @internal
@@ -2105,7 +2113,9 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
-    refreshScreenBorder(): void;
+    refreshFonts(families: ReadonlySet<string>): boolean;
+    // @internal
+    refreshScreenBorder(): boolean;
     refreshSelectionOverlay(): void;
     // @internal
     refreshShaderPaint(): void;
@@ -2123,6 +2133,8 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    syncXlabelPlace(): void;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;
@@ -2130,6 +2142,7 @@ class Node_2 implements ModelUser {
     updateStyle(): void;
     // @internal
     get wordedLabel(): RichTextLabel | null;
+    xlabelLabel?: RichTextLabel;
 }
 export { Node_2 as Node }
 

@@ -293,9 +293,9 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
             ref={ref}
             component="section"
             aria-label="Legend"
-            className="ws-legend-card"
+            className="ws-legend-card cm-focus-inside"
             // A key that scrolls takes focus, so the keyboard can scroll it too; its scrollbar says
-            // that more lies below.
+            // that more lies below. Its ring is the app's shared inset one, on the card's own edge.
             tabIndex={scrolls ? 0 : undefined}
             withBorder
             shadow="xs"

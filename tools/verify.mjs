@@ -1255,17 +1255,24 @@ async function passed(ctx, job, run, jobs) {
 }
 
 const FLAKES_QUERY = `query($id: ID!) { node(id: $id) { ... on CheckSuite { checkRuns(first: 100) { nodes {
-  annotations(first: 50) { nodes { message } } } } } } }`;
+  name annotations(first: 50) { nodes { message } } } } } } }`;
+// Only a test shard's job runs tests through the quarantine; another job's [FLAKY] line is a tool test's fixture
+// (the Checks job runs tools/test-quarantine.test.mjs), never a real retry-pass (#3392, #3370).
+const TEST_JOB = /(^|\/ )Test \(/;
 const FLAKY_NOTE = /^\[FLAKY\] (\S+): (\S+) > (.+) failed and passed on the same inputs/;
 
 /**
- * The tests a green run's quarantine wrapper let through as flaky (its `[FLAKY]` warnings), as targets.
+ * The tests a green run's quarantine wrapper let through as flaky (its `[FLAKY]` warnings on test-shard jobs), as
+ * targets.
  * @param answer the GraphQL answer
  * @returns `[{ id, shard, family, file, name }]`
  */
 export function flakyNotes(answer) {
     const runs = answer?.data?.node?.checkRuns?.nodes ?? [];
-    const notes = runs.flatMap((r) => r.annotations?.nodes ?? []).map((a) => FLAKY_NOTE.exec(a.message ?? ""));
+    const notes = runs
+        .filter((r) => TEST_JOB.test(r.name ?? ""))
+        .flatMap((r) => r.annotations?.nodes ?? [])
+        .map((a) => FLAKY_NOTE.exec(a.message ?? ""));
     const tests = notes
         .filter(Boolean)
         .map(([, shard, file, name]) => ({ id: `${file} > ${name}`, shard, file, name }));

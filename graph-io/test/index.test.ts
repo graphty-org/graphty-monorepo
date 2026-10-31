@@ -69,6 +69,7 @@ const VALUE_EXPORTS = [
     "DOT_STYLE_CAPABILITIES",
     "dotExporter",
     "dotImporter",
+    "graphvizFont",
     "graphvizPosBends",
     "RANK_COLUMN",
     "RANK_SET_COLUMN",

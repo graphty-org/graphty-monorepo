@@ -201,6 +201,8 @@ env:
     # The package builds ci.yml uploads (its build-<package> artifacts), as one download-artifact pattern for every
     # job that keeps or publishes them: a package missing here is published with no dist
     PACKAGE_BUILDS: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,babylonjs-map,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
 
 jobs:
     # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
@@ -759,7 +761,8 @@ jobs:
     # or a key or balance the provider refuses (the harness prints ACCOUNT_REFUSED_MARKER), sets the job's
     # owner_item output, and the held job files the issue as the owner's to fix rather than a code defect. Each
     # case has a per-provider limit, 120 s on Google (graphty-element/test/helpers/llm-regression-env.ts), so the
-    # job ends on its own.
+    # job ends on its own. A test that hangs anyway is ended by the one test hang guard (tools/test-wait-guard.mjs,
+    # 25 min), so the job's limit sits above it plus the build: the cost steps then run and log what the run spent.
     #
     # Every release test of a candidate runs it, once its CI lane is green (owner, 2026-10-29: "LLM tests should only
     # be running during the full release testing, and should run for each of the 4 canary->nightly releases per
@@ -771,7 +774,7 @@ jobs:
         needs: [pick, ci]
         if: ${{ !cancelled() && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && (needs.ci.result == 'success' || (needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success')) }}
         runs-on: ubuntu-24.04
-        timeout-minutes: 20
+        timeout-minutes: 40 # above the test hang guard (25 min) plus install and build
         environment: full-run # GOOGLE_API_KEY
         permissions:
             actions: read # this month's release.yml runs' jobs, for tools/llm-spend.mjs
@@ -821,6 +824,8 @@ jobs:
               env:
                   LLM_REGRESSION_PROVIDER: google
                   GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+                  # each priced cost as it is spent, so a run cut off mid-file still logs it (the cost steps below)
+                  LLM_REGRESSION_USAGE_FILE: ${{ runner.temp }}/llm-usage.jsonl
               run: |
                   set -uo pipefail
                   if [ -z "${GOOGLE_API_KEY}" ]; then
@@ -830,19 +835,25 @@ jobs:
                   fi
                   npx vitest run --project llm-regression 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
                   status=${PIPESTATUS[0]}
-                  # the run's cost at the tier and cache prices it was billed at, summed from its log (tools/llm-spend.mjs)
-                  echo "usd=$(node ../tools/llm-spend.mjs cost "$RUNNER_TEMP/llm-regression.log")" >> "$GITHUB_OUTPUT"
                   if [ "$status" != 0 ] && grep -q '\[llm-regression\] provider refused the account' "$RUNNER_TEMP/llm-regression.log"; then
                       echo "owner_item=Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left)" >> "$GITHUB_OUTPUT"
                       echo "::error::Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left): an owner item, not a code defect"
                   fi
                   exit "$status"
 
+            # The run's cost at the tier and cache prices it was billed at, from the usage file the transport appends to as
+            # it spends, else the log's per-file lines (tools/llm-spend.mjs cost). Its own step, so a test step that
+            # failed, was cancelled or was cut off still gets priced: that run cost money too.
+            - name: Price the LLM regression run
+              id: cost
+              if: ${{ always() && steps.llm.outcome != 'skipped' }}
+              run: echo "usd=$(node tools/llm-spend.mjs cost "$RUNNER_TEMP/llm-usage.jsonl" "$RUNNER_TEMP/llm-regression.log")" >> "$GITHUB_OUTPUT"
+
             # The run's cost in this step's NAME, so tools/llm-spend.mjs and the health dashboard read it from the
-            # jobs list they already fetch (no log download). It runs after a failed test step too: that run cost money.
-            - name: "LLM regression cost: ${{ steps.llm.outputs.usd }} USD"
-              if: ${{ always() && steps.llm.outputs.usd != '' }}
-              run: echo "::notice::the LLM regression tests cost ${{ steps.llm.outputs.usd }} USD"
+            # jobs list they already fetch (no log download).
+            - name: "LLM regression cost: ${{ steps.cost.outputs.usd }} USD"
+              if: ${{ always() && steps.cost.outputs.usd != '' }}
+              run: echo "::notice::the LLM regression tests cost ${{ steps.cost.outputs.usd }} USD"
 
     # The version and major-bump dry run, a lane like the others (design/ci/channels-pipeline/channels.md, "A planned
     # major or a first publish"; #3455): versions the candidate locally as the version job will, then fails when
@@ -2406,6 +2417,12 @@ jobs:
                       mkdir -p "${pkg}/dist"
                       cp -a "${dir}/." "${pkg}/dist/"
                   done
+
+            # Every published package's exports, main, types, bin and files must name files its pack holds: a build
+            # missing from PACKAGE_BUILDS publishes a package with no dist/ (#3275). npm pack --dry-run reads only
+            # the files, so this runs before anything is installed or published.
+            - name: Check every export is in its pack
+              run: node tools/check-packed-exports.mjs
 
             - uses: pnpm/action-setup@v6
 

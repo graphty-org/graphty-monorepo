@@ -255,6 +255,12 @@ tester.run("no-test-timing", rule, {
             output: "await el.waitForStableFrame();",
             errors: [deadline],
         },
+        {
+            code: "await page.evaluate(() => document.querySelector('graphty-element').waitForStableFrame?.({ timeoutMs: 15000 }));",
+            output: "await page.evaluate(() => document.querySelector('graphty-element').waitForStableFrame?.());",
+            errors: [deadline],
+        },
+        { code: "const opts = { timeoutMs: 1 }; await el.waitForStableFrame(opts);", errors: [deadline] },
         { code: "await settle(page, { pollIntervalMs: 50 });", output: "await settle(page);", errors: [deadline] },
         { code: "configure({ asyncUtilTimeout: 5000 });", errors: [deadline] },
         { code: "async function until(fn, timeoutMs = 5000) { await fn(); }", errors: [deadline] },

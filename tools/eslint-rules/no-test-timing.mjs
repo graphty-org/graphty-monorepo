@@ -703,13 +703,22 @@ const rule = {
             ) {
                 return;
             }
+            const isDeadline = (p) => {
+                const key = keyName(p);
+                return key && DEADLINE_KEY.test(key) && !CONFIG_DEADLINE_KEYS.has(key) && !isGuard(p.value);
+            };
             for (const arg of node.arguments) {
+                // A const holding the options: `const opts = { timeoutMs: 1 }; el.waitForStableFrame(opts)`.
+                const def = arg.type === "Identifier" ? resolve(arg)?.defs[0] : undefined;
+                const init = def?.type === "Variable" && def.parent.kind === "const" ? def.node.init : undefined;
+                if (init?.type === "ObjectExpression" && init.properties.some(isDeadline)) {
+                    context.report({ node: arg, messageId: "deadline" });
+                }
                 if (arg.type !== "ObjectExpression") {
                     continue;
                 }
                 for (const p of arg.properties) {
-                    const key = keyName(p);
-                    if (key && DEADLINE_KEY.test(key) && !CONFIG_DEADLINE_KEYS.has(key) && !isGuard(p.value)) {
+                    if (isDeadline(p)) {
                         const args = node.arguments;
                         context.report({
                             node: p,

@@ -158,6 +158,36 @@ describe("Graphviz layouts in the element", () => {
         assert.isAbove(off / length, 0.05, "it bows off the line between its nodes, round b");
     });
 
+    it("draws a dashed edge along the route dot laid it too, its dashes round b (issue #3102)", async () => {
+        await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await graph.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+            { src: "a", dst: "c" },
+        ]);
+        await graph.getSession().styles.add({
+            name: "dashed",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.style": "dash" },
+        });
+        await graph.setLayout("graphviz-dot");
+        await settled();
+        await graph.waitForStableFrame();
+
+        const edge = [...graph.getDataManager().edges.values()].find((e) => e.srcId === "a" && e.dstId === "c");
+        const dashes = edge?.drawnPattern ?? [];
+        assert.isAbove(dashes.length, 2, "the edge is drawn as dashes");
+        const [a, c] = [at("a"), at("c")];
+        const length = Math.hypot(c.x - a.x, c.y - a.y);
+        const off = Math.max(
+            ...dashes.map(
+                ({ position: p }) => Math.abs((p.x - a.x) * (c.y - a.y) - (p.y - a.y) * (c.x - a.x)) / length,
+            ),
+        );
+        assert.isAbove(off / length, 0.05, "its dashes bow off the line between its nodes, round b");
+    });
+
     it("draws a DOT file loaded with layout recommended with the engine the file names", async () => {
         const session = graph.getSession();
         await session.data.import(
@@ -448,6 +478,79 @@ describe("Graphviz layouts in the element", () => {
         const off = ((label?.x ?? 0) - a.x) * (b.y - a.y) - ((label?.y ?? 0) - a.y) * (b.x - a.x);
         // y grows upward: a negative turn from a -> b is to its right
         assert.isBelow(off / length / length, -0.1, "right of the line going from a to b");
+    });
+
+    it("draws a DOT edge's xlabel, headlabel and taillabel where dot put them (issue #5273)", async () => {
+        const session = graph.getSession();
+        await session.data.import(
+            { type: "dot", config: { data: 'digraph { a -> b [xlabel="outside", headlabel="H", taillabel="T"] }' } },
+            { styles: "file", layout: "recommended" },
+        );
+        await settled();
+        await graph.waitForStableFrame();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        const edge = [...graph.getDataManager().edges.values()][0];
+        const laid = graph.getLayoutManager().layoutEngine?.getEdgePosition(edge);
+        const [a, b] = [at("a"), at("b")];
+        /**
+         * Where a place given along and across the edge is.
+         * @param place - the place, from the layout
+         * @param name - which label
+         * @returns the point
+         */
+        const point = (place: readonly [number, number] | undefined, name: string): { x: number; y: number } => {
+            assert.isDefined(place, `Graphviz placed the ${name}`);
+            const [along, across] = place ?? [Number.NaN, Number.NaN];
+            return {
+                x: a.x + along * (b.x - a.x) - across * (b.y - a.y),
+                y: a.y + along * (b.y - a.y) + across * (b.x - a.x),
+            };
+        };
+        const drawn = [
+            ["external label", edge.label, point(laid?.labelAt, "external label")],
+            ["head label", edge.arrowHeadText, point(laid?.headLabelAt, "head label")],
+            ["tail label", edge.arrowTailText, point(laid?.tailLabelAt, "tail label")],
+        ] as const;
+        const length = Math.hypot(b.x - a.x, b.y - a.y);
+        for (const [name, label, want] of drawn) {
+            const position = label?.labelMesh?.position;
+            assert.isDefined(position, `the ${name} is drawn`);
+            assert.closeTo(position?.x ?? Number.NaN, want.x, 0.02 * length, `the ${name} centered where dot put it`);
+            assert.closeTo(position?.y ?? Number.NaN, want.y, 0.02 * length, `the ${name} centered where dot put it`);
+        }
+    });
+
+    it("draws a DOT edge's label at lp and its xlabel beside it at xlp (issue #5288)", async () => {
+        const session = graph.getSession();
+        await session.data.import(
+            { type: "dot", config: { data: 'digraph { a -> b [label="inside", xlabel="outside"] }' } },
+            { styles: "file", layout: "recommended" },
+        );
+        await settled();
+        await graph.waitForStableFrame();
+
+        const edge = [...graph.getDataManager().edges.values()][0];
+        const laid = graph.getLayoutManager().layoutEngine?.getEdgePosition(edge);
+        const [a, b] = [at("a"), at("b")];
+        const length = Math.hypot(b.x - a.x, b.y - a.y);
+        const drawn = [
+            ["label", edge.label, laid?.labelAt],
+            ["external label", edge.xlabelLabel, laid?.xlabelAt],
+        ] as const;
+        for (const [name, label, place] of drawn) {
+            assert.isDefined(place, `Graphviz placed the ${name}`);
+            const [along, across] = place ?? [Number.NaN, Number.NaN];
+            const want = {
+                x: a.x + along * (b.x - a.x) - across * (b.y - a.y),
+                y: a.y + along * (b.y - a.y) + across * (b.x - a.x),
+            };
+            const position = label?.labelMesh?.position;
+            assert.isDefined(position, `the ${name} is drawn`);
+            assert.closeTo(position?.x ?? Number.NaN, want.x, 0.02 * length, `the ${name} centered where dot put it`);
+            assert.closeTo(position?.y ?? Number.NaN, want.y, 0.02 * length, `the ${name} centered where dot put it`);
+        }
+        assert.notDeepEqual(laid?.labelAt, laid?.xlabelAt, "two places");
     });
 
     it('lays a DOT file out with lengths "file" at a point to the scene unit, 72 to the inch', async () => {

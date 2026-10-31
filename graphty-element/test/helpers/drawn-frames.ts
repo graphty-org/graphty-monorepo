@@ -1,4 +1,4 @@
-import type { Scene } from "@babylonjs/core/scene";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 /**
  * Wait until the element has drawn `count` more frames.

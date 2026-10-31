@@ -403,6 +403,13 @@ export const EdgeStyle = z.strictObject({
     line: LineStyle.optional(),
     label: RichTextStyle.prefault({ location: "top" }).optional(),
     /**
+     * A second label drawn beside the line's middle (Graphviz's `xlabel` on an edge that also has a label), switched
+     * on by its words. It is drawn in the label's look -- font, size, color, outline -- and any field set here wins
+     * over the label's. Unset `location`, it sits up and left of the line's middle, its lower right corner on it, or
+     * centered where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
+     */
+    xlabel: RichTextStyle.optional(),
+    /**
      * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
      * Drawn only when it names a colour. `scale` is a multiple of twice the line's width; the
      * `edge.band*` channels write it.

@@ -420,6 +420,24 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
+    it("turns the view a quarter turn for a DOT file Graphviz draws landscape, and leaves an upright one alone", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "dot", config: { data: "digraph { a -> b }" } }, { styles: "file" });
+        assert.isUndefined(session.config.viewRotation);
+        for (const attrs of ["rotate=90;", "landscape=true;", "orientation=landscape;"]) {
+            await session.undo();
+            await session.data.import(
+                { type: "dot", config: { data: `digraph { ${attrs} a -> b }` } },
+                { styles: "file" },
+            );
+            assert.strictEqual(session.config.viewRotation, 90, attrs);
+        }
+        // One undo takes the import and its turn back together
+        await session.undo();
+        assert.isUndefined(session.config.viewRotation);
+        session.dispose();
+    });
+
     it("draws a Cytoscape font size mapped over a ramp as the whole number Cytoscape draws", async () => {
         const doc = JSON.stringify([
             { CXVersion: "2.0", hasFragments: false },
@@ -465,6 +483,27 @@ describe("a file's styles drawn by the load", () => {
             return (label as { sizePx?: unknown } | undefined)?.sizePx;
         });
         assert.deepStrictEqual(sizes, [10, 12, 14, 15, 40]);
+        session.dispose();
+    });
+
+    it("converts the lengths in a shape's points as it converts the node's size", async () => {
+        const session = createGraphSession();
+        await session.data.import(
+            { type: "dot", config: { data: "digraph { f [shape=fivepoverhang, width=1, height=0.5]; }" } },
+            { styles: "file" },
+        );
+        const merged = session.styles.explain({ node: "f" }).merged as Record<string, unknown>;
+        // 72 points wide in the file: a point is this many of the element's units
+        const perPoint = (merged["node.width"] as number) / 72;
+        assert.notStrictEqual(perPoint, 1);
+        const lengths = String(merged["node.shapePoints"])
+            .split(/[\s,]+/)
+            .map((term) => /[\d.]([+-][\d.]+)$/.exec(term)?.[1])
+            .filter((length) => length !== undefined)
+            .map(Number);
+        const points = [1.5, 24, 1.5, 24, 7.5, 7.5];
+        assert.strictEqual(lengths.length, points.length);
+        lengths.forEach((v, i) => assert.closeTo(v / perPoint, points[i], 0.01));
         session.dispose();
     });
 

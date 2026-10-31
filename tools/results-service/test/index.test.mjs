@@ -327,7 +327,7 @@ describe("POST /v1/durations", () => {
         };
         assert.deepEqual(
             (await call("POST", "/v1/durations", { token: master("ci.yml"), body: { rows: [row] } })).body,
-            { stored: 1, kind: "full", trend: [] },
+            { stored: 1, kind: "full", trend: [], lastSeen: {} },
         );
         const site = oidc({
             repository: "graphty-org/graphty-site",
@@ -347,6 +347,7 @@ describe("POST /v1/durations", () => {
             stored: 1,
             kind: "deploy",
             trend: [],
+            lastSeen: {},
         });
         assert.deepEqual(
             rows("SELECT kind FROM duration ORDER BY kind").map((r) => r.kind),
@@ -1020,6 +1021,21 @@ describe("POST /v1/channel-moves", () => {
         const st = (await call("GET", "/v1/release-state", { token: LOCAL_TOKEN })).body;
         assert.deepEqual([st.nightly.sha, st.ageNightlyMs, st.blocking], [C, 0, null]);
     });
+    it("records the promotion from the nightly-site.yml job release.yml calls (#5135: run 40900642303 got 403)", async () => {
+        const { call, rows } = service();
+        // the site job's token as release.yml's call of nightly-site.yml mints it
+        const site = oidc({
+            event_name: "workflow_dispatch",
+            ref: "refs/heads/master",
+            workflow_ref: `${REPO}/.github/workflows/release.yml@refs/heads/master`,
+            job_workflow_ref: `${REPO}/.github/workflows/nightly-site.yml@refs/heads/master`,
+        });
+        assert.deepEqual((await call("POST", "/v1/channel-moves", { token: site, body })).body, { stored: true });
+        assert.equal(rows("SELECT sha FROM channel_move")[0].sha, C);
+        // and nothing else: it writes no test records
+        const inv = { id: "4010.1.test.x.1", sha: C, shard: "x", group: "x", outcome: "passed" };
+        assert.equal((await call("POST", "/v1/invocations", { token: site, body: inv })).status, 403);
+    });
     it("refuses every other writer and a malformed record", async () => {
         const { call, rows } = service();
         const post = (token, b = body) => call("POST", "/v1/channel-moves", { token, body: b });
@@ -1036,6 +1052,43 @@ describe("POST /v1/channel-moves", () => {
             assert.equal((await post(master("release.yml"), { ...body, ...bad })).status, 400, JSON.stringify(bad));
         }
         assert.deepEqual(rows("SELECT * FROM channel_move"), []);
+    });
+});
+
+describe("GET /v1/site (promote.yml's record of a nightly, #4495)", () => {
+    const C = "c".repeat(40);
+    const move = (over = {}) => ({
+        channel: "nightly",
+        sha: C,
+        versionCommit: "d".repeat(40),
+        siteSha256: "1".repeat(64),
+        channelSha256: "2".repeat(64),
+        ...over,
+    });
+    it("answers the newest nightly move of the commit with its latest verdict", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.verdict(C, "green-images", NOW - 2 * HOUR);
+        s.verdict(C, "approved", NOW - HOUR);
+        s.nightly(C, NOW - 3 * DAY); // an older move of the same commit (a rollback and a re-promotion)
+        await call("POST", "/v1/channel-moves", { token: master("release.yml"), body: move() });
+        const res = await call("GET", `/v1/site?sha=${C}`, { token: LOCAL_TOKEN });
+        assert.equal(res.status, 200);
+        assert.deepEqual(res.body, {
+            sha: C,
+            versionCommit: "d".repeat(40),
+            siteSha256: "1".repeat(64),
+            channelSha256: "2".repeat(64),
+            movedAt: NOW,
+            verdict: "approved",
+        });
+    });
+    it("is 404 for a commit nightly never moved to, 400 for a malformed sha, 401 without a credential", async () => {
+        const { call } = service();
+        const missing = await call("GET", `/v1/site?sha=${C}`, { token: LOCAL_TOKEN });
+        assert.deepEqual([missing.status, missing.body.error], [404, `no nightly channel move of ${C}`]);
+        assert.equal((await call("GET", "/v1/site?sha=abc", { token: LOCAL_TOKEN })).status, 400);
+        assert.equal((await call("GET", `/v1/site?sha=${C}`)).status, 401);
     });
 });
 
@@ -1213,6 +1266,34 @@ describe("POST /v1/durations trend", () => {
         env.DB.sqlite.prepare("DELETE FROM duration WHERE run_id = 4010").run();
         const [t] = (await post({ "job:ci.yml:Build": 600 })).body.trend;
         assert.deepEqual([t.alarm, t.earlier], [false, null]);
+    });
+});
+
+describe("POST /v1/durations lastSeen", () => {
+    it("names each key's last sample and how many runs of its workflow and kind came after it", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        // job "CI / visual (graphty)" ran in runs 1 and 2, then was removed; Build ran in every run
+        for (let i = 1; i <= 12; i++) s.duration(i, 60_000, NOW - DAY + i);
+        for (const i of [1, 2]) s.duration(i, 900_000, NOW - DAY + i, "full", "CI / visual (graphty)");
+        s.duration(3, 900_000, NOW - DAY + 3, "pr", "CI / visual (graphty)"); // another kind
+        const row = {
+            runId: 4010,
+            attempt: 1,
+            workflow: "ci.yml",
+            job: "Build",
+            ms: 60_000,
+            startedAt: NOW,
+            sha: "new",
+        };
+        const { body } = await call("POST", "/v1/durations", { token: master("ci.yml"), body: { rows: [row] } });
+        assert.deepEqual(body.lastSeen["job:ci.yml:CI / visual (graphty)"], {
+            runId: 2,
+            sha: "sha2",
+            at: NOW - DAY + 2,
+            runsSince: 11,
+        });
+        assert.equal(body.lastSeen["job:ci.yml:Build"].runsSince, 0);
     });
 });
 

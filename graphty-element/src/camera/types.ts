@@ -78,6 +78,11 @@ export interface CameraState {
      */
     zoom?: number;
     pan?: { x: number; y: number };
+    /**
+     * How far a 2D view is turned: the angle the drawing is turned counterclockwise on screen, in
+     * radians, about the view's center (`pan`). 0 is unturned. A reader's two-finger turn and the
+     * project setting `viewRotation` both set it.
+     */
     rotation?: number;
 
     // Orthographic frustum (advanced)

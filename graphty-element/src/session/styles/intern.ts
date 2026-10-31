@@ -105,6 +105,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.outerBorderOpacity": "mesh",
     "node.outerBorderStyle": "mesh",
     "node.outerBorderOffset": "mesh",
+    "node.outerBorderCount": "mesh",
     "node.underlayColor": "mesh",
     "node.underlayOpacity": "mesh",
     "node.underlayPadding": "mesh",
@@ -192,6 +193,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelPaddingX": "mesh",
     "node.labelPaddingY": "mesh",
     "node.labelFitSquare": "mesh",
+    "node.labelFitQuantum": "mesh",
     // A gradient fill is a ramp texture in the source mesh's material, not per-instance state:
     // each distinct gradient is its own source mesh (NodeMesh interns the ramps).
     "node.gradientColor": "mesh",
@@ -464,6 +466,17 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // attributes and a lift is the route, so neither keys a line batch (Edge.syncShading).
     "edge.taper": "content",
     "edge.lift": "content",
+    // A second label, drawn beside the node by the label renderer like the first.
+    "node.xlabel": "content",
+    "node.xlabelStyle": "content",
+    "node.xlabelLocation": "content",
+    "node.xlabelOffsetX": "content",
+    "node.xlabelOffsetY": "content",
+    "edge.xlabel": "content",
+    "edge.xlabelStyle": "content",
+    "edge.xlabelLocation": "content",
+    "edge.xlabelOffsetX": "content",
+    "edge.xlabelOffsetY": "content",
 });
 
 /**

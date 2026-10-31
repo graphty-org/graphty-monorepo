@@ -139,6 +139,14 @@ export interface QuickActionsProps {
      * @default "first"
      */
     activeOnOpen?: "first" | "none";
+    /**
+     * Whether Tab, with a search typed and a row active that can run, runs that row before focus
+     * moves on, as Tab takes the highlighted option of a list the reader typed toward (a value
+     * picker). With nothing typed Tab only moves on. Off by default: a command palette's Tab never
+     * runs a command.
+     * @default false
+     */
+    tabTakes?: boolean;
     /** Panel width. Default 529 (Figma's, the toolbar's width). */
     width?: number;
     /** Panel height. Default 354. */
@@ -194,6 +202,7 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props.emptyText - What an empty list says before any search
  * @param props.highlight - The action highlighted when the list opens
  * @param props.activeOnOpen - Whether the first action or no row is active before a search
+ * @param props.tabTakes - Whether Tab with a search typed runs the active row
  * @param props.placeholder - Placeholder of the search field
  * @param props.width - Panel width
  * @param props.height - Panel height
@@ -217,6 +226,7 @@ export function QuickActions({
     emptyText,
     highlight,
     activeOnOpen = "first",
+    tabTakes = false,
     placeholder,
     width = 529,
     height = 354,
@@ -294,6 +304,16 @@ export function QuickActions({
             document.getElementById(optionId(next.value))?.scrollIntoView?.({ block: "nearest" });
         } else if (event.key === "Enter" && current !== undefined && enabled.some((a) => a.value === current)) {
             event.preventDefault();
+            onRun(current);
+        } else if (
+            tabTakes &&
+            event.key === "Tab" &&
+            !event.shiftKey &&
+            search.trim() !== "" &&
+            current !== undefined &&
+            enabled.some((a) => a.value === current)
+        ) {
+            // Not prevented: the host moves focus on as Tab does.
             onRun(current);
         } else if (event.key === "Escape" && onClose) {
             event.preventDefault();

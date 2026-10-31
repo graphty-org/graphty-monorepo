@@ -93,7 +93,7 @@ Detail: [merging.md](channels-pipeline/merging.md).
   today's ci.yml Checks job runs, plus `nx affected -t lint typecheck`, offline links, the
   signing-bypass check moved out of `prepush-source-checks.sh`, `ci-budgets.mjs lint` and
   `check-features.mjs`; **tool tests** only when `.github/`, `tools/`, `nx.json` or a root config
-  changed; **tests**: a shard family's selected files are packed into bins of at most 8 min from the
+  changed; **tests**: a shard family's selected files are packed into bins of at most 4 min from the
   store's per-file durations (unknown files count as the shard's longest), the matrix sized from the
   selected seconds, no coverage; selected stories (no Storybook build); Docs when docs inputs changed.
   Coverage thresholds, the network link check, `graphty-element-lifecycle`, Cost Estimate Accuracy and

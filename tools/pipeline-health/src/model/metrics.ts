@@ -49,7 +49,7 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys`;
 
 /**
  * When a job started on a runner, or undefined when it never did. GitHub gives a job cancelled before any runner
@@ -347,6 +347,21 @@ export const METRICS: MetricDef[] = [
     {
         id: "release.trains",
         from: [src("run", "completedAt", (r) => (r.workflow === "release.yml" && r.tested ? { n: 1 } : null))],
+    },
+    // A nightly promotion is release.yml's "Deploy the nightly site" job passing (a green-clean full run or a
+    // promote-nightly run), counted from the stored jobs, so a promotion before the collector first ran still counts.
+    // ponytail: a promote.yml nightly rollback moves channel/nightly too and is not counted.
+    {
+        id: "release.nightly_promotions",
+        from: [
+            src("job", "completedAt", (j) =>
+                j.workflow === "release.yml" &&
+                j.conclusion === "success" &&
+                /^Deploy the nightly site( \/ |$)/.test(j.name)
+                    ? { sum: 1 }
+                    : null,
+            ),
+        ],
     },
     // 4.7 Data sources: rows of CI results per CI test job, for "thin for its activity" (section 9). Each Test (...)
     // job (ci.yml, or "CI / Test (...)" in a release.yml or bisect.yml full run) posts one shard run, its invocation

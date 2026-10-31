@@ -69,7 +69,7 @@ import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
-import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
+import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PhotoDome } from '@babylonjs/core';
@@ -127,7 +127,7 @@ import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { UniformBuffer } from '@babylonjs/core';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector';
+import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
 import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
@@ -573,7 +573,6 @@ export interface CameraState {
         z: number;
     };
     radius?: number;
-    // (undocumented)
     rotation?: number;
     // (undocumented)
     target?: {
@@ -1084,6 +1083,8 @@ export class Edge {
     // (undocumented)
     ray: Ray;
     // @internal
+    refreshFonts(families: ReadonlySet<string>): boolean;
+    // @internal
     refreshShaderPaint(): void;
     setRenderVisible(visible: boolean): boolean;
     setSelected(selected: boolean): boolean;
@@ -1101,6 +1102,7 @@ export class Edge {
     // @deprecated
     static updateRays(_g: Graph | GraphContext): void;
     updateStyle(): void;
+    xlabelLabel: RichTextLabel | null;
 }
 
 // @public (undocumented)
@@ -1178,9 +1180,12 @@ export interface EdgePosition {
     bends?: readonly number[];
     // (undocumented)
     dst: Position;
+    headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
     // (undocumented)
     src: Position;
+    tailLabelAt?: readonly [along: number, across: number];
+    xlabelAt?: readonly [along: number, across: number];
 }
 
 // @public
@@ -2060,6 +2065,211 @@ export const EdgeStyle: z.ZodObject<{
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>>;
+    xlabel: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textPath: z.ZodOptional<z.ZodString>;
+        location: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            top: "top";
+            "top-right": "top-right";
+            "top-left": "top-left";
+            left: "left";
+            center: "center";
+            right: "right";
+            bottom: "bottom";
+            "bottom-left": "bottom-left";
+            "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
+            automatic: "automatic";
+        }>>>;
+        text: z.ZodOptional<z.ZodString>;
+        font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
+        letterSize: z.ZodOptional<z.ZodNumber>;
+        wrapWidth: z.ZodOptional<z.ZodNumber>;
+        wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
+        wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
+        wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        runAlign: z.ZodOptional<z.ZodEnum<{
+            baseline: "baseline";
+            hanging: "hanging";
+            middle: "middle";
+        }>>;
+        rotation: z.ZodOptional<z.ZodNumber>;
+        fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            normal: "normal";
+            italic: "italic";
+        }>>>;
+        lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        minScreenSize: z.ZodOptional<z.ZodNumber>;
+        declutter: z.ZodOptional<z.ZodEnum<{
+            size: "size";
+            degree: "degree";
+        }>>;
+        minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
+        textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
+        backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
+            colorType: z.ZodLiteral<"solid">;
+            value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>, z.ZodObject<{
+            colorType: z.ZodLiteral<"gradient">;
+            direction: z.ZodNumber;
+            colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>, z.ZodObject<{
+            colorType: z.ZodLiteral<"radial-gradient">;
+            colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
+        borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        borderOpacity: z.ZodOptional<z.ZodNumber>;
+        borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            width: z.ZodNumber;
+            color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
+            spacing: z.ZodNumber;
+        }, z.core.$strict>>>;
+        marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        marginRight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textAlign: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            left: "left";
+            center: "center";
+            right: "right";
+        }>>>;
+        cornerRadius: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        autoSize: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        resolution: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        billboardMode: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        position: z.ZodOptional<z.ZodObject<{
+            x: z.ZodNumber;
+            y: z.ZodNumber;
+            z: z.ZodNumber;
+        }, z.core.$strict>>;
+        attachPosition: z.ZodOptional<z.ZodEnum<{
+            top: "top";
+            "top-right": "top-right";
+            "top-left": "top-left";
+            left: "left";
+            center: "center";
+            right: "right";
+            bottom: "bottom";
+            "bottom-left": "bottom-left";
+            "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
+        }>>;
+        attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
+        sizeMode: z.ZodOptional<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>;
+        keepInView: z.ZodOptional<z.ZodBoolean>;
+        depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
+        pickable: z.ZodOptional<z.ZodBoolean>;
+        textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
+        textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            round: "round";
+            bevel: "bevel";
+            miter: "miter";
+        }>>>;
+        textShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        boxPadding: z.ZodOptional<z.ZodNumber>;
+        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            linear: "linear";
+            radial: "radial";
+        }>>>;
+        backgroundGradientColors: z.ZodOptional<z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        backgroundGradientDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            vertical: "vertical";
+            horizontal: "horizontal";
+            diagonal: "diagonal";
+        }>>>;
+        pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            top: "top";
+            left: "left";
+            right: "right";
+            bottom: "bottom";
+            auto: "auto";
+        }>>>;
+        pointerWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        pointerHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        pointerOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        pointerCurve: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        animation: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            none: "none";
+            fill: "fill";
+            pulse: "pulse";
+            bounce: "bounce";
+            shake: "shake";
+            glow: "glow";
+        }>>>;
+        animationSpeed: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        badge: z.ZodOptional<z.ZodEnum<{
+            notification: "notification";
+            label: "label";
+            "label-success": "label-success";
+            "label-warning": "label-warning";
+            "label-danger": "label-danger";
+            count: "count";
+            icon: "icon";
+            progress: "progress";
+            dot: "dot";
+        }>>;
+        icon: z.ZodOptional<z.ZodString>;
+        iconPosition: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            left: "left";
+            right: "right";
+        }>>>;
+        progress: z.ZodOptional<z.ZodNumber>;
+        smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+    }, z.core.$strict>>;
     band: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         scale: z.ZodOptional<z.ZodNumber>;
@@ -4342,6 +4552,7 @@ export abstract class LayoutEngine {
     abstract getEdgePosition(e: Edge): EdgePosition;
     // (undocumented)
     abstract getNodePosition(n: Node_2): Position;
+    getNodeXlabelOffset(_n: Node_2): readonly [right: number, down: number] | undefined;
     static getOptionsForDimension(dimension: 2 | 3): object | null;
     static getOptionsForDimensionByType(type: string, dimension: 2 | 3): object | null;
     static getRegisteredTypes(): string[];
@@ -4632,6 +4843,8 @@ class Node_2 implements ModelUser {
     isSelected(): boolean;
     // (undocumented)
     label?: RichTextLabel;
+    // @internal
+    get layoutRadius(): number;
     // (undocumented)
     mesh: AbstractMesh;
     // @internal
@@ -4656,7 +4869,9 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
-    refreshScreenBorder(): void;
+    refreshFonts(families: ReadonlySet<string>): boolean;
+    // @internal
+    refreshScreenBorder(): boolean;
     refreshSelectionOverlay(): void;
     // @internal
     refreshShaderPaint(): void;
@@ -4674,6 +4889,8 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    syncXlabelPlace(): void;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;
@@ -4681,6 +4898,7 @@ class Node_2 implements ModelUser {
     updateStyle(): void;
     // @internal
     get wordedLabel(): RichTextLabel | null;
+    xlabelLabel?: RichTextLabel;
 }
 export { Node_2 as Node }
 
@@ -4970,6 +5188,7 @@ export const NodeStyle: z.ZodObject<{
         labelPaddingX: z.ZodOptional<z.ZodNumber>;
         labelPaddingY: z.ZodOptional<z.ZodNumber>;
         labelFitSquare: z.ZodOptional<z.ZodBoolean>;
+        labelFitQuantum: z.ZodOptional<z.ZodNumber>;
         model: z.ZodOptional<z.ZodString>;
         modelSourceUp: z.ZodOptional<z.ZodEnum<{
             x: "x";
@@ -5075,6 +5294,7 @@ export const NodeStyle: z.ZodObject<{
             dotted: "dotted";
         }>>;
         offset: z.ZodOptional<z.ZodNumber>;
+        count: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     underlay: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -5500,6 +5720,211 @@ export const NodeStyle: z.ZodObject<{
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>>;
+    xlabel: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textPath: z.ZodOptional<z.ZodString>;
+        location: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            top: "top";
+            "top-right": "top-right";
+            "top-left": "top-left";
+            left: "left";
+            center: "center";
+            right: "right";
+            bottom: "bottom";
+            "bottom-left": "bottom-left";
+            "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
+            automatic: "automatic";
+        }>>>;
+        text: z.ZodOptional<z.ZodString>;
+        font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
+        letterSize: z.ZodOptional<z.ZodNumber>;
+        wrapWidth: z.ZodOptional<z.ZodNumber>;
+        wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
+        wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
+        wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        runAlign: z.ZodOptional<z.ZodEnum<{
+            baseline: "baseline";
+            hanging: "hanging";
+            middle: "middle";
+        }>>;
+        rotation: z.ZodOptional<z.ZodNumber>;
+        fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            normal: "normal";
+            italic: "italic";
+        }>>>;
+        lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        minScreenSize: z.ZodOptional<z.ZodNumber>;
+        declutter: z.ZodOptional<z.ZodEnum<{
+            size: "size";
+            degree: "degree";
+        }>>;
+        minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
+        textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
+        backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
+            colorType: z.ZodLiteral<"solid">;
+            value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>, z.ZodObject<{
+            colorType: z.ZodLiteral<"gradient">;
+            direction: z.ZodNumber;
+            colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>, z.ZodObject<{
+            colorType: z.ZodLiteral<"radial-gradient">;
+            colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
+        borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        borderOpacity: z.ZodOptional<z.ZodNumber>;
+        borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            width: z.ZodNumber;
+            color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
+            spacing: z.ZodNumber;
+        }, z.core.$strict>>>;
+        marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        marginRight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textAlign: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            left: "left";
+            center: "center";
+            right: "right";
+        }>>>;
+        cornerRadius: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        autoSize: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        resolution: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        billboardMode: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        position: z.ZodOptional<z.ZodObject<{
+            x: z.ZodNumber;
+            y: z.ZodNumber;
+            z: z.ZodNumber;
+        }, z.core.$strict>>;
+        attachPosition: z.ZodOptional<z.ZodEnum<{
+            top: "top";
+            "top-right": "top-right";
+            "top-left": "top-left";
+            left: "left";
+            center: "center";
+            right: "right";
+            bottom: "bottom";
+            "bottom-left": "bottom-left";
+            "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
+        }>>;
+        attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
+        sizeMode: z.ZodOptional<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>;
+        keepInView: z.ZodOptional<z.ZodBoolean>;
+        depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
+        pickable: z.ZodOptional<z.ZodBoolean>;
+        textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
+        textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            round: "round";
+            bevel: "bevel";
+            miter: "miter";
+        }>>>;
+        textShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        boxPadding: z.ZodOptional<z.ZodNumber>;
+        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            linear: "linear";
+            radial: "radial";
+        }>>>;
+        backgroundGradientColors: z.ZodOptional<z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        backgroundGradientDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            vertical: "vertical";
+            horizontal: "horizontal";
+            diagonal: "diagonal";
+        }>>>;
+        pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            top: "top";
+            left: "left";
+            right: "right";
+            bottom: "bottom";
+            auto: "auto";
+        }>>>;
+        pointerWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        pointerHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        pointerOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        pointerCurve: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        animation: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            none: "none";
+            fill: "fill";
+            pulse: "pulse";
+            bounce: "bounce";
+            shake: "shake";
+            glow: "glow";
+        }>>>;
+        animationSpeed: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        badge: z.ZodOptional<z.ZodEnum<{
+            notification: "notification";
+            label: "label";
+            "label-success": "label-success";
+            "label-warning": "label-warning";
+            "label-danger": "label-danger";
+            count: "count";
+            icon: "icon";
+            progress: "progress";
+            dot: "dot";
+        }>>;
+        icon: z.ZodOptional<z.ZodString>;
+        iconPosition: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            left: "left";
+            right: "right";
+        }>>>;
+        progress: z.ZodOptional<z.ZodNumber>;
+        smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+    }, z.core.$strict>>;
     tooltip: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textPath: z.ZodOptional<z.ZodString>;
@@ -7088,6 +7513,8 @@ export class UpdateManager implements Manager {
     dispose(): void;
     drawArrivedPaint(frameMs?: number): void;
     enableZoomToFit(explicit?: boolean): void;
+    // @internal
+    fitAnnotations: (() => void) | null;
     forceEdgeWalk(): void;
     get frameIsStable(): boolean;
     getRenderFrameCount(): number;

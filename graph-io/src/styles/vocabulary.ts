@@ -75,6 +75,7 @@ export const STYLE_PROPERTIES: {
         ["labelPaddingX", "number"],
         ["labelPaddingY", "number"],
         ["labelFitSquare", "boolean"],
+        ["labelFitQuantum", "number"],
         ["shape", "shape"],
         ["shapePoints", "text"],
         ["shapePointsStretch", "boolean"],
@@ -91,6 +92,7 @@ export const STYLE_PROPERTIES: {
         ["outerBorderOpacity", "opacity"],
         ["outerBorderStyle", "borderStyle"],
         ["outerBorderOffset", "number"],
+        ["outerBorderCount", "number"],
         ["underlayColor", "color"],
         ["underlayOpacity", "opacity"],
         ["underlayPadding", "number"],
@@ -103,6 +105,9 @@ export const STYLE_PROPERTIES: {
         ["overlayCornerRadius", "number"],
         ["label", "text"],
         ["tooltip", "text"],
+        ["xlabel", "text"],
+        ["xlabelOffsetX", "signed"],
+        ["xlabelOffsetY", "signed"],
         ["labelFont", "text"],
         ["labelWeight", "weight"],
         ["labelItalic", "boolean"],
@@ -256,6 +261,7 @@ export const STYLE_PROPERTIES: {
         ["targetPort", "text"],
         ["label", "text"],
         ["tooltip", "text"],
+        ["xlabel", "text"],
         ["labelFont", "text"],
         ["labelWeight", "weight"],
         ["labelTextAlign", "textAlign"],
@@ -304,7 +310,10 @@ export const STYLE_PROPERTIES: {
         ["labelOnTop", "boolean"],
         ["visible", "boolean"],
     ]),
-    graph: new Map<string, StyleValueKind>([["background", "color"]]),
+    graph: new Map<string, StyleValueKind>([
+        ["background", "color"],
+        ["rotation", "number"],
+    ]),
 });
 
 /**

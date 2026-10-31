@@ -652,6 +652,22 @@ export function pathAnnouncement(session: GraphSession, run: Run): string | null
 }
 
 /**
+ * The status line for a finished ranking run, naming who ranks first from the element's summary:
+ * "Degree finished: Valjean ranks first, 36". Null for a run whose summary ranks nothing.
+ * @param session - the element's session.
+ * @param run - the run.
+ * @param name - the run's name in words.
+ * @returns the line, or null.
+ */
+export function topAnnouncement(session: GraphSession, run: Run, name: string): string | null {
+    const top = run.result?.summary().top[0];
+    if (top === undefined) {
+        return null;
+    }
+    return `${name} finished: ${session.data.name(top.id) ?? top.label} ranks first, ${formatNumber(top.value)}`;
+}
+
+/**
  * The status line for a finished grouping run, from its result and the layers it made: "Louvain
  * finished: 6 groups, each a layer in the Louvain folder of Style layers" (or "...: 6 groups"
  * when no folder holds its layers).

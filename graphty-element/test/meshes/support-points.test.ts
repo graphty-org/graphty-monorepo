@@ -10,6 +10,7 @@ import { assert, describe, it } from "vitest";
 import type { Xyz } from "../../src/meshes/edgeRoute";
 import {
     balancedUnit,
+    hypot,
     stepSupportPoints,
     SUPPORT_DEFAULTS,
     type SupportEdge,
@@ -261,5 +262,24 @@ describe("support points", () => {
             support.update(() => nodes, edges, read, false),
             "and it stays at rest",
         );
+    });
+
+    it("measure distances bit for bit as Math.hypot does, so the points rest where they did with it", () => {
+        let seed = 1;
+        const next = (): number => {
+            seed = (seed * 16807) % 2147483647;
+            return seed / 2147483647;
+        };
+        const special = [0, -0, 1e-300, 5e-324, 1e300, Infinity, -Infinity, Number.NaN];
+        for (const a of special) {
+            for (const b of special) {
+                assert.ok(Object.is(hypot(a, b), Math.hypot(a, b)), `hypot(${String(a)}, ${String(b)})`);
+            }
+        }
+        for (let i = 0; i < 200_000; i++) {
+            const a = (next() - 0.5) * 10 ** (next() * 24 - 12);
+            const b = (next() - 0.5) * 10 ** (next() * 24 - 12);
+            assert.ok(Object.is(hypot(a, b), Math.hypot(a, b)), `hypot(${String(a)}, ${String(b)})`);
+        }
     });
 });

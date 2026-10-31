@@ -26,6 +26,7 @@ import {
     uploadPremultiplied,
 } from "./LabelBatch";
 import { closeGlyphRect, closeHitFractions, closeReserve, drawCloseGlyph, markCloseLabel } from "./labelClose";
+import { fontFamilies, noteLabelFont } from "./labelFonts";
 import { fitToScreen, type LabelPlacement, type PlacementBounds } from "./labelScreenFit";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
@@ -503,6 +504,24 @@ export class RichTextLabel {
     }
 
     /**
+     * Whether this label draws any of its words in one of some font families: its own font, or one
+     * a `<font>` tag in its words names.
+     * @param families - Family names, as {@link fontFamilies} gives them.
+     * @returns True when it does.
+     * @internal
+     */
+    public usesFont(families: ReadonlySet<string>): boolean {
+        const fonts = new Set([this.options.font]);
+        for (const line of this.parsedContent) {
+            for (const segment of line) {
+                fonts.add(segment.style.font);
+            }
+        }
+
+        return [...fonts].some((font) => fontFamilies(font).some((family) => families.has(family)));
+    }
+
+    /**
      * Factory method to create a rich text label
      * @param scene - Babylon.js scene
      * @param userOptions - Label configuration options
@@ -701,6 +720,11 @@ export class RichTextLabel {
 
     private _create(): void {
         this._parseRichText();
+        // A web font still loading draws in its fallback: load it, and the label is rebuilt when it lands.
+        for (const { style } of this.parsedContent.flat()) {
+            noteLabelFont(this.scene, `${style.style} ${style.weight}`, style.font);
+        }
+
         this._calculateDimensions();
         this._createTexture();
         this._createMaterial();
@@ -1614,7 +1638,7 @@ export class RichTextLabel {
             this.unmarkClose = markCloseLabel(this.mesh, () => this.closeBounds);
         }
 
-        this.mesh.billboardMode = this.options.billboardMode;
+        this.mesh.billboardMode = this.billboard();
         // Turned in its own plane, which faces the camera: clockwise on screen is a negative turn about z.
         this.mesh.rotation.z = (-(this.options.rotation ?? 0) * Math.PI) / 180;
         // A label sorts by depth with the nodes and edges it belongs to unless its style sets
@@ -1914,7 +1938,7 @@ export class RichTextLabel {
         if (center === null) {
             this.dropPivot();
             mesh.parent = target;
-            mesh.billboardMode = this.options.billboardMode;
+            mesh.billboardMode = this.billboard();
             return Vector3.Zero();
         }
 
@@ -1922,10 +1946,23 @@ export class RichTextLabel {
         this.centerPivot.parent = target;
         this.centerPivot.position =
             this.options.centerAtOrigin === true ? Vector3.Zero() : center.min.add(center.max).scaleInPlace(0.5);
-        this.centerPivot.billboardMode = this.options.billboardMode;
+        this.centerPivot.billboardMode = this.billboard();
         mesh.parent = this.centerPivot;
         mesh.billboardMode = Mesh.BILLBOARDMODE_NONE;
         return Vector3.Zero();
+    }
+
+    /**
+     * The billboard mode the label is drawn with. In the 2D view a label that faces the camera
+     * keeps no upright of its own: it turns with the view, as the rest of the drawing does
+     * (Graphviz's landscape turns its labels too).
+     * @returns The mode.
+     */
+    private billboard(): number {
+        const mode = this.options.billboardMode;
+        return mode === Mesh.BILLBOARDMODE_ALL && this.scene.metadata?.twoD === true
+            ? Mesh.BILLBOARDMODE_X | Mesh.BILLBOARDMODE_Y
+            : mode;
     }
 
     /** Dispose the pivot a "center" label hung from, once the label no longer hangs from it. */

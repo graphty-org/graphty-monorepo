@@ -68,6 +68,8 @@ const union = (boxes: readonly PBox[]): PBox =>
     );
 /** Whether a box lies wholly inside another. */
 const within = (a: PBox, b: PBox): boolean => a.x0 >= b.x0 && a.y0 >= b.y0 && a.x1 <= b.x1 && a.y1 <= b.y1;
+/** How far, in px, a line's end may lie off the box of the arrow annotation graphty draws along it. */
+const NOTE_LINE_SLACK = 3;
 const inside = (p: Pt, b: PBox, slack = 0): boolean =>
     p[0] >= b.x0 - slack && p[0] <= b.x1 + slack && p[1] >= b.y0 - slack && p[1] <= b.y1 + slack;
 /**
@@ -749,16 +751,24 @@ function capAxis(outline: readonly Pt[], line: readonly Pt[], dir: Pt): Pt {
  * @returns the points
  */
 function middleRun(path: readonly Pt[]): Pt[] {
-    const at = pointAlong(path, 0.5);
-    let left = pathLength(path) / 2;
-    for (let i = 1; i < path.length; i++) {
-        const step = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
-        if (left <= step) {
-            return [path[i - 1], at, path[i]];
-        }
-        left -= step;
+    const kept = middles.get(path);
+    if (kept !== undefined) {
+        return [...kept];
     }
-    return [...path];
+    const run = ((): Pt[] => {
+        const at = pointAlong(path, 0.5);
+        let left = pathLength(path) / 2;
+        for (let i = 1; i < path.length; i++) {
+            const step = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+            if (left <= step) {
+                return [path[i - 1], at, path[i]];
+            }
+            left -= step;
+        }
+        return [...path];
+    })();
+    middles.set(path, run);
+    return [...run];
 }
 
 /**
@@ -1076,12 +1086,61 @@ const longestPath = (prims: readonly Prim[]): Prim | undefined => {
         .sort((a, b) => pathLength(b.points) - pathLength(a.points) || a.index - b.index)[0];
 };
 
+// A drawing's point lists are never changed once read, so what is measured along one is kept by the list: matching
+// a shape against every line's ends and middle asks again for each shape (json-vis-siblings: about 400 shapes against
+// 284 curves of 128 points each, measured afresh over 2 s of its 7 s story, past the capture's limit on a CI runner).
+const lengths = new WeakMap<readonly Pt[], number>();
+const middles = new WeakMap<readonly Pt[], Pt[]>();
+const reversals = new WeakMap<readonly Pt[], Pt[]>();
+const drawnEnds = new WeakMap<PNode, WeakMap<readonly Pt[], Pt>>();
+const nodesById = new WeakMap<readonly PNode[], Map<string, PNode>>();
+
+/**
+ * The first node of a list with an id, as `nodes.find` gives it, from a map kept per list: an arrowhead's ends are
+ * looked up for every line it might cap, which searched the whole list each time (json-vis-siblings: 284 heads, 284
+ * lines, 200 nodes).
+ * @param nodes - the nodes
+ * @param id - the id
+ * @returns the node, or undefined
+ */
+function nodeById(nodes: readonly PNode[], id: string): PNode | undefined {
+    let byId = nodesById.get(nodes);
+    if (byId === undefined) {
+        byId = new Map();
+        for (const n of nodes) {
+            if (!byId.has(n.id)) {
+                byId.set(n.id, n);
+            }
+        }
+        nodesById.set(nodes, byId);
+    }
+    return byId.get(id);
+}
+
 function pathLength(pts: readonly Pt[]): number {
-    let s = 0;
-    for (let i = 1; i < pts.length; i++) {
-        s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    let s = lengths.get(pts);
+    if (s === undefined) {
+        s = 0;
+        for (let i = 1; i < pts.length; i++) {
+            s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        }
+        lengths.set(pts, s);
     }
     return s;
+}
+
+/**
+ * A line's points last to first, one list per line, so what is measured along the reversed line is kept too.
+ * @param pts - the line
+ * @returns its points reversed
+ */
+function reversedOf(pts: readonly Pt[]): Pt[] {
+    let r = reversals.get(pts);
+    if (r === undefined) {
+        r = [...pts].reverse();
+        reversals.set(pts, r);
+    }
+    return r;
 }
 
 const sameBox = (a: PBox, b: PBox): boolean =>
@@ -1132,12 +1191,31 @@ export function lineCapSize(e: Pick<PEdge, "stroke">): number {
  * @returns the point
  */
 function drawnEnd(pts: readonly Pt[], end: "source" | "target", node: PNode | undefined): Pt {
-    const run = end === "source" ? pts : [...pts].reverse();
+    const run = end === "source" ? pts : reversedOf(pts);
     // only a line that runs on to the node's very center: one that ends inside a large box (a group's) ends there
     if (node === undefined || Math.hypot(run[0][0] - node.cx, run[0][1] - node.cy) > 2) {
         return run[0];
     }
-    const box = boxOfNode(node);
+    let byLine = drawnEnds.get(node);
+    if (byLine === undefined) {
+        byLine = new WeakMap();
+        drawnEnds.set(node, byLine);
+    }
+    let at = byLine.get(run);
+    if (at === undefined) {
+        at = leaveBox(run, boxOfNode(node));
+        byLine.set(run, at);
+    }
+    return at;
+}
+
+/**
+ * Where a line starting inside a box first crosses its outline.
+ * @param run - the line, starting inside the box
+ * @param box - the box
+ * @returns the crossing, or the line's start where it does not start inside
+ */
+function leaveBox(run: readonly Pt[], box: PBox): Pt {
     const under = (p: Pt): boolean => p[0] > box.x0 + 1 && p[0] < box.x1 - 1 && p[1] > box.y0 + 1 && p[1] < box.y1 - 1;
     const out = run.findIndex((p) => !under(p));
     if (out <= 0) {
@@ -1183,11 +1261,7 @@ const endOf = (e: PEdge, end: "source" | "target"): Pt =>
  */
 function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[]): number {
     const id = end === "source" ? e.source : e.target;
-    const q = drawnEnd(
-        e.points,
-        end,
-        nodes.find((n) => n.id === id),
-    );
+    const q = drawnEnd(e.points, end, nodeById(nodes, id));
     return Math.min(...p.points.map((v) => Math.hypot(v[0] - q[0], v[1] - q[1])));
 }
 
@@ -1202,12 +1276,8 @@ function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNo
  */
 function alongGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[]): number {
     const id = end === "source" ? e.source : e.target;
-    const q = drawnEnd(
-        e.points,
-        end,
-        nodes.find((n) => n.id === id),
-    );
-    const run = end === "source" ? e.points : [...e.points].reverse();
+    const q = drawnEnd(e.points, end, nodeById(nodes, id));
+    const run = end === "source" ? e.points : reversedOf(e.points);
     const far = run.at(-1) ?? q;
     const len = Math.hypot(far[0] - q[0], far[1] - q[1]);
     if (len < 1e-9) {
@@ -1338,7 +1408,7 @@ function capsAcross(stroke: readonly Pt[], e: PEdge, end: ArrowEnd): boolean {
  * @returns true when it is centered on the line
  */
 function centeredOnLine(box: PBox, e: PEdge, end: ArrowEnd): boolean {
-    const pts = end === "source" ? [...e.points].reverse() : e.points;
+    const pts = end === "source" ? reversedOf(e.points) : e.points;
     const [a, b] = end === "middle" ? middleRun(pts) : [pts.at(-2) ?? pts[0], pts.at(-1) ?? pts[0]];
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (len < 1e-9) {
@@ -1458,11 +1528,18 @@ export function arrowheadEdge(
         const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
         const across =
             len > 0 ? Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / len : Infinity;
+        // the cheap tests first: this runs for every line
+        if (!(
+            across <= Math.max(1, 0.2 * size) &&
+            from(endOf(e, "source")) > size &&
+            from(endOf(e, "target")) > size
+        )) {
+            return Number.POSITIVE_INFINITY;
+        }
         // an end's arrowhead reaches its line's end, or, where the line runs on to the node's center, its outline:
         // measured along the line, as a crow's foot's tines reach the outline beside the line rather than on it
         const touches = alongGap(p, e, "source", nodes) <= 3 || alongGap(p, e, "target", nodes) <= 3;
-        const clear = !touches && from(endOf(e, "source")) > size && from(endOf(e, "target")) > size;
-        return clear && across <= Math.max(1, 0.2 * size) ? from(pointAlong(e.points, 0.5)) : Number.POSITIVE_INFINITY;
+        return touches ? Number.POSITIVE_INFINITY : from(pointAlong(e.points, 0.5));
     };
     const middle = nearestEnd(edges, (e) => middleGap(e), reach, ["middle"]);
     const held = ends !== null && ends.d <= 0.75 * size + 2;
@@ -1474,13 +1551,30 @@ export function arrowheadEdge(
     // the nearest tip gave 23 heads to a neighbor's line, leaving 20 lines headless); lines it lies on alike (two
     // edges drawn over one another, a line's two ends) go by the nearest tip
     const mid = (p.closed ? areaCentroid(p.points) : null) ?? c;
+    // both searches below measure the same tips and the same distances off each line: each is measured once
+    const tips = new Map<PEdge, { source?: number; target?: number }>();
+    const tipOf = (e: PEdge, end: "source" | "target"): number => {
+        let byEnd = tips.get(e);
+        if (byEnd === undefined) {
+            byEnd = {};
+            tips.set(e, byEnd);
+        }
+        return (byEnd[end] ??= tipGap(p, e, end, nodes));
+    };
+    const offs = new Map<PEdge, number>();
+    const offOf = (e: PEdge): number => {
+        let d = offs.get(e);
+        if (d === undefined) {
+            d = offPath(mid, e.points);
+            offs.set(e, d);
+        }
+        return d;
+    };
     const onLine = centerLines
-        ? nearestEnd(
-              edges,
-              (e, end) => (tipGap(p, e, end, nodes) <= 3 ? offPath(mid, e.points) : Number.POSITIVE_INFINITY),
-              Number.MAX_VALUE,
-              ["source", "target"],
-          )
+        ? nearestEnd(edges, (e, end) => (tipOf(e, end) <= 3 ? offOf(e) : Number.POSITIVE_INFINITY), Number.MAX_VALUE, [
+              "source",
+              "target",
+          ])
         : null;
     const best =
         (onLine === null
@@ -1488,8 +1582,8 @@ export function arrowheadEdge(
             : nearestEnd(
                   edges,
                   (e, end) => {
-                      const tip = tipGap(p, e, end, nodes);
-                      return tip <= 3 && offPath(mid, e.points) <= onLine.d + 0.5 ? tip : Number.POSITIVE_INFINITY;
+                      const tip = tipOf(e, end);
+                      return tip <= 3 && offOf(e) <= onLine.d + 0.5 ? tip : Number.POSITIVE_INFINITY;
                   },
                   3,
                   ["source", "target"],
@@ -1733,6 +1827,33 @@ function bandsAlongLines(edges: readonly PEdge[], drawnAt: ReadonlyMap<PEdge, nu
     return taken;
 }
 
+/** How close the line ends at a node drawn as nothing must lie to be one point, in oracle pixels. */
+const ONE_POINT = 1;
+
+/**
+ * Places a node the markup names but draws no body for where its lines meet, not at its label: Pajek draws an `empty`
+ * vertex as its label alone, set off from the vertex, and runs every line to the vertex's center (pajek-lin-rel4 v228,
+ * whose label sits 16 px from where its lines end; pajek-synth-vertices `empty 6`). Only where two or more line ends
+ * meet at one point: a Graphviz plaintext node's lines end round its label's box, each at another point.
+ * @param nodes - the nodes the markup named, changed in place
+ * @param edges - the edges the markup named
+ */
+function placeUndrawnBodies(nodes: Map<string, PNode>, edges: readonly PEdge[]): void {
+    for (const [id, n] of nodes) {
+        if (n.shape !== null || n.fill !== null || n.stroke !== null || n.pictures !== undefined) {
+            continue;
+        }
+        const ends = edges.flatMap((e) => [
+            ...(e.source === id ? [e.points[0]] : []),
+            ...(e.target === id ? [e.points.at(-1) ?? e.points[0]] : []),
+        ]);
+        const box = boxOfPoints(ends);
+        if (ends.length >= 2 && Math.max(bw(box), bh(box)) <= ONE_POINT) {
+            nodes.set(id, { ...n, cx: cx(box), cy: cy(box), w: 0, h: 0 });
+        }
+    }
+}
+
 /**
  * Associates an oracle's primitives with graph elements.
  * @param prims - the oracle's primitives (`readSvgPrimitives`)
@@ -1941,6 +2062,7 @@ export function associate(
             });
         }
     }
+    placeUndrawnBodies(nodes, edges);
     const fromMarkup = nodes.size;
 
     // ---- geometry, guided by graphty's drawing, for what the markup did not name
@@ -2339,8 +2461,30 @@ export function associate(
         bandLines.set(line, { ends, own });
         return [line];
     });
+    // The lines of the arrow annotations graphty draws, carried into the oracle's frame: a line along one with an end on
+    // no node's outline is that annotation's, not an edge (cys-annotation-example: the "NAB2 upregulated" note's arrow,
+    // its tail 9 px off node 169409, read as an edge 169409->169421 the file does not have)
+    const noteLines =
+        frame === null
+            ? []
+            : guide.strays.filter((x) => x.tag === "annotation-arrow").map((x) => carryBox(frame, x.box));
+    // and the arrowheads drawn right after such a line are its own, never an edge's (its "GCN3 downregulated" arrow's
+    // head was read as an arrowhead of the edge 169422->169421 beside it)
+    const noteHeads = new Set<Prim>();
+    const alongNote = (p: Prim): boolean => {
+        const ends: [Pt, Pt] = [p.points[0], p.points.at(-1) ?? p.points[0]];
+        const note =
+            noteLines.some((b) => ends.every((q) => inside(q, b, NOTE_LINE_SLACK))) &&
+            ends.some((q) => (nodesOn(q)[0]?.d ?? Infinity) > 2);
+        if (note) {
+            ownHeads(p, ends, p.stroke?.width ?? 0)
+                .flat()
+                .forEach((h) => noteHeads.add(h));
+        }
+        return note;
+    };
     for (const p of [...free().filter((q) => q.kind === "path"), ...bands]) {
-        if (p.kind !== "path" || p.stroke === null || p.points.length < 2) {
+        if (p.kind !== "path" || p.stroke === null || p.points.length < 2 || alongNote(p)) {
             continue;
         }
         const placed = bandLines.get(p);
@@ -2491,6 +2635,7 @@ export function associate(
             (p.kind !== "shape" && !picture) ||
             p.lettering === true ||
             annotated.some((b) => boxIoU(b, p.box) >= 0.5) ||
+            noteHeads.has(p) ||
             wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))
         ) {
             continue;

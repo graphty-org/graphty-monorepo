@@ -4,8 +4,8 @@ import "./layout/index"; // register all internal layouts
 import "./algorithms/index"; // register all internal algorithms
 // Babylon.js installs scene.pick and scene.beginAnimation / stopAnimation only when these load.
 // test/packaging/babylon-side-effects.test.ts requires them wherever those methods are called.
-import "@babylonjs/core/Culling/ray";
-import "@babylonjs/core/Animations/animatable";
+import "@babylonjs/core/Culling/ray.js";
+import "@babylonjs/core/Animations/animatable.js";
 
 import {
     AbstractMesh,
@@ -85,9 +85,17 @@ const EDGE_PICK_TOLERANCE_PX = 6;
  */
 function edgeWorldPoints(edge: Edge): Vector3[] {
     const curve = edge.drawnCurve;
-    if (curve !== null && !(edge.mesh instanceof PatternedLineMesh)) {
-        // A curve's points are in its batch's space, which an XR gesture moves with graph-root.
-        const world = edge.mesh.getWorldMatrix();
+    if (curve !== null) {
+        // A curve's points are in graph-root's space, which an XR gesture moves. A patterned
+        // line's pieces are slots in batches parented to graph-root, and it has no mesh of its own.
+        const root =
+            edge.mesh instanceof PatternedLineMesh
+                ? edge.srcNode.mesh.getScene().getTransformNodeByName("graph-root")
+                : edge.mesh;
+        if (root === null) {
+            return curve;
+        }
+        const world = root.getWorldMatrix();
         return curve.map((point) => Vector3.TransformCoordinates(point, world));
     }
 
@@ -202,6 +210,7 @@ import {
     type NodeLabelCounts,
 } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
+import type { PendingWork } from "./managers/PendingWork";
 import {
     openWebGPUEngine,
     type PixelRatio,
@@ -213,6 +222,7 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter"
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
+import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
@@ -232,7 +242,7 @@ import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js"
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
-import { addsRows, type DataMutation } from "./session/commands/data";
+import { addsRows, COLUMNS_VALUE, type DataMutation, SOURCE_VALUE, SOURCES_VALUE } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
 import { assertViewName } from "./session/commands/view";
@@ -245,6 +255,7 @@ import {
     sessionRunsOf,
     setsNotifierOfSession,
 } from "./session/GraphSession";
+import { ISSUES_VALUE } from "./session/issues";
 import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
@@ -260,6 +271,7 @@ import { reportCaught, strictStateEnabled, strictViolation } from "./session/pro
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import { shadersControllerOf } from "./session/shaders";
+import { PROVENANCE_VALUE } from "./session/sources/provenance";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
@@ -384,6 +396,13 @@ function disposeEdgeMeshes(edge: Edge): void {
  *   version (`UpdateManager.viewMasksPending`), so the frame a moved mask needs is drawn unasked.
  * - The time field and its unit: they say which column holds time, and nothing is drawn from
  *   them; what a window then hides is a mask.
+ * - The graph values no layer reads and nothing draws (#3973): the issue state, which issues are
+ *   ignored or settled; where the graph was loaded from, its loads and their provenance; and the
+ *   column settings, whose hiding, types and rename bookkeeping repaint nothing (the rows' own
+ *   edits do, and a rename's declarations are keys of their own). The graph hook repaints for a
+ *   pass of graph values alone only when an earlier write left the paint owed, and that pass asks
+ *   for its frame itself (`#passRepainted`). The annotations and the file styles are graph values
+ *   that draw, so they are not here.
  */
 const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string> | null>>> = {
     visibility: null,
@@ -393,6 +412,9 @@ const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string
         "data.knownFields.edgeTimePath",
         "data.knownFields.edgeTimeUnit",
     ]),
+    graph: new Set(
+        [ISSUES_VALUE, SOURCE_VALUE, SOURCES_VALUE, PROVENANCE_VALUE, COLUMNS_VALUE].map((name) => `v:${name}`),
+    ),
 };
 
 /**
@@ -548,18 +570,19 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     return queue;
 }
 
-/** What each graph's settle waits wait for before the queue; see {@link waitFirstFor}. */
-const loadsAhead = new WeakMap<Graph, () => Promise<void>>();
+/** Each graph's record of pending picture work (its update manager's); see {@link waitFirstFor}. */
+const PENDING = new WeakMap<Graph, PendingWork>();
 
 /**
- * Make the graph's settle waits (`waitForSettled`, `waitForStableFrame`) wait for loads that have
- * not reached the queue yet: the element's page loads, held while autosave decides its restore.
- * No entry point exports it.
+ * Enter loads that have not reached the queue yet -- the element's page loads, held while
+ * autosave decides its restore -- in the graph's record of pending work, so its settle waits
+ * (`waitForSettled`, `waitForStableFrame`) wait for them (issue #4219). No entry point exports it.
  * @param graph - The graph.
- * @param pending - Settles once those loads are queued.
+ * @param held - Whether such loads are held now; asked live.
+ * @param queued - Settles once the loads held when it is called are queued.
  */
-export function waitFirstFor(graph: Graph, pending: () => Promise<void>): void {
-    loadsAhead.set(graph, pending);
+export function waitFirstFor(graph: Graph, held: () => boolean, queued: () => Promise<void>): void {
+    PENDING.get(graph)?.watch("load", "a page load is held while autosave decides its restore", held, "wait", queued);
 }
 
 /** Where each graph's session reads the experiments its element asked for; see {@link featuresFrom}. */
@@ -757,14 +780,14 @@ export class Graph implements GraphContext {
     /** Rows a forward add brought that the layout has not placed yet: an import still reading. */
     #placementOwed = false;
 
+    /** The running pass repainted the whole graph, so it needs a frame whatever keys it wrote. */
+    #passRepainted = false;
+
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
 
     /** Aborted and replaced each time the data is cleared, so a repaint in flight stops. */
     #dataGeneration = new AbortController();
-
-    /** Settles once every `applySuggestedStyles` call has stacked its layers in order. */
-    #suggestionsStacked: Promise<void> = Promise.resolve();
 
     // Managers
     /** Event manager for adding/removing event listeners */
@@ -847,6 +870,8 @@ export class Graph implements GraphContext {
     private readonly xrAvailability: XrAvailability;
     /** Stops redrawing the canvas XR buttons on each availability change. */
     #unwatchXrButtons: (() => void) | null = null;
+    /** Stops rebuilding labels when a web font they use loads; see {@link refreshFonts}. */
+    #unwatchFonts: (() => void) | null = null;
 
     // GraphContext implementation
     private graphContext: DefaultGraphContext;
@@ -1119,6 +1144,7 @@ export class Graph implements GraphContext {
             // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
             if (paintsWhole) {
                 dispatcher.paintOwed = false;
+                this.#passRepainted = true;
                 await this.repaintFromSession();
                 // The whole graph is painted, whatever an import stopped part way left waiting.
                 this.dataManager.notePainted(null);
@@ -1190,6 +1216,10 @@ export class Graph implements GraphContext {
                     this.eventManager.emit("skybox-loaded", { graph: this, url });
                 });
                 this.updateManager.meshesAdded();
+            }
+
+            if (changed("viewRotation")) {
+                this.applyViewRotation(true);
             }
 
             if (changed("selectionStyle") || changed("startingRows")) {
@@ -1282,9 +1312,11 @@ export class Graph implements GraphContext {
         // a pass that wrote only keys that draw nothing (see KEYS_THAT_DRAW_NOTHING): on a software
         // GPU every frame costs the page 200 to 800 ms of its main thread under load (#4196).
         lane.passEnded = (dirty) => {
-            if (!drawsNothing(dirty)) {
+            if (this.#passRepainted || !drawsNothing(dirty)) {
                 this.renderManager.requestFrame();
             }
+
+            this.#passRepainted = false;
         };
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
@@ -1383,6 +1415,9 @@ export class Graph implements GraphContext {
         );
         // A picture the frame on screen does not show yet: an image annotation still loading, or a
         // scene shader's (the background, a group outline) still loading, compiling or owed a draw.
+        this.updateManager.fitAnnotations = () => {
+            this.#annotations?.refit();
+        };
         this.updateManager.picturesLoading = () =>
             this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
         this.layoutManager.drawArrivedPaint = () => {
@@ -1394,19 +1429,22 @@ export class Graph implements GraphContext {
         this.updateManager.deriving = () => dispatcherOf(this.session).lane.deriving;
         // A queued operation, or a queued command waiting beside the queue for a key, is going to
         // change the picture, so a wait for the final picture waits for it too (issue #3528).
+        PENDING.set(this, this.updateManager.pending);
         this.updateManager.pending.watch(
             "operation",
             "a queued operation has not finished",
             () => this.operationsPending(),
             "wait",
+            () => this.untilQueueDrained(),
         );
-        // A load that holds a place in the session's load line and has not dispatched its step yet:
-        // its module import, download, unzip or format detection is still running.
+        // A style edit is written at once and repainted on the session's derivation lane; until the
+        // repaint of every edit so far has ended, the settle waits wait for it (issue #4219).
         this.updateManager.pending.watch(
-            "load",
-            "a data load has not reached the graph yet",
-            () => loadLineOf(dispatcherOf(this.session)).size > 0,
+            "style",
+            "a style edit has not been repainted yet",
+            () => dispatcherOf(this.session).lane.deriving || this.getStylePainter().isPainting,
             "wait",
+            () => this.session.styles.settled(),
         );
         // Work the graph starts outside the update pass that will still change the picture, entered
         // in the one record of it (issue #3546): a file's picture annotation, painted onto its
@@ -1417,10 +1455,35 @@ export class Graph implements GraphContext {
             "an annotation's picture is still loading",
             () => this.#annotations?.isLoading === true,
         );
+        // A label's web font still loading: its labels are rebuilt in the face when it lands.
+        this.updateManager.pending.watch("font", "a label's font is still loading", () =>
+            labelFontsLoading(this.scene),
+        );
         this.updateManager.pending.watch(
             "basemap",
             "the map under the graph is still loading",
             () => this.basemapManager.loading,
+        );
+        // The node label counts the picture drew are announced a few frames after it
+        // (`graphty-label-change`): a page that shows them is not final until they are. Asking it
+        // asks the counts to be published on the first frame with nothing left to re-decide, so it
+        // is entered after the picture's own work and asked only once that is done.
+        this.updateManager.pending.watch(
+            "labels",
+            "the node label counts have not been announced",
+            () => {
+                const declutter: unknown = this.scene.metadata?.labelDeclutter;
+                return declutter instanceof LabelDeclutter && !declutter.published();
+            },
+            "wait",
+        );
+        // A load that holds a place in the session's load line and has not dispatched its step yet:
+        // its module import, download, unzip or format detection is still running.
+        this.updateManager.pending.watch(
+            "load",
+            "a data load has not reached the graph yet",
+            () => loadLineOf(dispatcherOf(this.session)).size > 0,
+            "wait",
         );
 
         // Initialize AlgorithmManager
@@ -1643,6 +1706,8 @@ export class Graph implements GraphContext {
         // the whole graph, its scene and its data alive for the life of the page.
         this.#unwatchXrButtons?.();
         this.#unwatchXrButtons = null;
+        this.#unwatchFonts?.();
+        this.#unwatchFonts = null;
         this.xrAvailability.dispose();
         this.basemapManager.dispose();
         this.xrUIManager?.dispose();
@@ -2115,6 +2180,7 @@ export class Graph implements GraphContext {
             this.renderManager.applyBackground(this.styles.config.graph.background, (url) => {
                 this.eventManager.emit("skybox-loaded", { graph: this, url });
             });
+            this.applyViewRotation(false);
 
             // Start the graph system (render loop, etc.)
             this.lifecycleManager.startGraph((frameMs) => {
@@ -2126,6 +2192,10 @@ export class Graph implements GraphContext {
 
             // Watch for browser/canvas resize events
             window.addEventListener("resize", this.resizeHandler);
+            // A label drawn while its web font loaded shows the fallback face until it is rebuilt.
+            this.#unwatchFonts ??= watchFontLoads(this.scene, (families) => {
+                this.refreshFonts(families);
+            });
 
             this.initialized = true;
         } catch (error) {
@@ -3519,9 +3589,14 @@ export class Graph implements GraphContext {
                 { fact: { code: "style.suggested", params: { algorithms: [...keys] } } },
             )
             .then(undefined, report);
-        // Kept, so `waitForStableFrame()` and `waitForSettled()` wait for the layers to land.
-        // Chained, so a second call does not replace the first one's promise.
-        this.#suggestionsStacked = Promise.all([this.#suggestionsStacked, applied]).then(() => undefined);
+        // Entered in the record of pending work until the layers are stacked, so
+        // `waitForStableFrame()` and `waitForSettled()` wait for them to land (issue #4219).
+        void this.updateManager.pending.track(
+            "style",
+            "suggested style layers have not been stacked yet",
+            applied,
+            "wait",
+        );
 
         return painted.length > 0;
     }
@@ -4567,6 +4642,24 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Turn the 2D view as the project setting `viewRotation` says.
+     * @param reframe - Whether to frame the turned drawing again, when the view is 2D and the
+     *     element frames on its own initiative.
+     */
+    private applyViewRotation(reframe: boolean): void {
+        const twoD = this.camera.getController("2d");
+        if (!(twoD instanceof TwoDCameraController)) {
+            return;
+        }
+
+        twoD.rotation = ((this.session.config.viewRotation ?? 0) * Math.PI) / 180;
+        this.updateManager.viewMoved();
+        if (reframe && this.scene.metadata?.twoD === true) {
+            this.autoFrame();
+        }
+    }
+
+    /**
      * Frame the graph on the element's own initiative -- after a data load, a new layout, or the
      * first settlement -- unless framing was switched off with {@link setAutoFrame} or the
      * configuration placed the camera itself with `startingCameraDistance`. An explicit
@@ -4581,6 +4674,34 @@ export class Graph implements GraphContext {
         }
 
         return false;
+    }
+
+    /**
+     * Rebuild the labels drawn in font families that have just loaded, so they show and measure the
+     * loaded face rather than its fallback, and frame the graph again for their new size unless the
+     * camera was placed since the element last framed it. Nothing is rebuilt when no label uses them.
+     * @param families - The families that loaded, as `fontFamilies` gives them.
+     */
+    private refreshFonts(families: ReadonlySet<string>): void {
+        let rebuilt = false;
+        for (const node of this.dataManager.nodes.values()) {
+            rebuilt = node.refreshFonts(families) || rebuilt;
+        }
+
+        for (const edge of this.dataManager.edges.values()) {
+            rebuilt = edge.refreshFonts(families) || rebuilt;
+        }
+
+        if (!rebuilt) {
+            return;
+        }
+
+        if (!this.#cameraPlaced) {
+            this.autoFrame();
+        }
+
+        this.updateManager.pending.changed();
+        this.renderManager.requestFrame();
     }
 
     /**
@@ -5672,10 +5793,9 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForSettled(): Promise<void> {
-        await this.untilNothingIsAhead();
         // Style edits are not queued: they are written at once and repainted on the session's
-        // derivation lane, which this waits for, along with anything a finished run painted.
-        await this.session.styles.settled();
+        // derivation lane, which is one of the entries this waits for.
+        await this.untilNothingIsAhead();
     }
 
     /**
@@ -5718,7 +5838,9 @@ export class Graph implements GraphContext {
      * error names what was still moving. A wait for a final frame that quietly gives up and
      * returns a moving one is worse than no wait at all: the caller cannot tell the two apart.
      * @param options - How the wait is bounded.
-     * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
+     * @param options.timeoutMs - Deprecated: how long to wait before giving up; 30 seconds by default.
+     *   Leave it out. To ask whether the picture is final now, without waiting, read
+     *   {@link Graph.isFrameStable}.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      * It also rejects, at once, when the graph is shut down -- the element was removed from the page
      * -- before the picture came to rest, or had been already when the wait started: a graph that
@@ -5736,8 +5858,20 @@ export class Graph implements GraphContext {
      * const screenshot = await graph.captureScreenshot();
      * ```
      */
-    async waitForStableFrame(options: { timeoutMs?: number } = {}): Promise<void> {
-        const timeoutMs = options.timeoutMs ?? defaultStableFrameTimeoutMs();
+    async waitForStableFrame(
+        options: {
+            /**
+             * How long to wait before the wait rejects; 30 seconds by default.
+             * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
+             * machine while the picture is still on its way. To ask whether the picture is final
+             * now, without waiting, read {@link Graph.isFrameStable}. Still honored.
+             */
+            timeoutMs?: number;
+        } = {},
+    ): Promise<void> {
+        // Read through a plain type: the option is deprecated for callers, not for its own implementation.
+        const bound: { timeoutMs?: number } = options;
+        const timeoutMs = bound.timeoutMs ?? defaultStableFrameTimeoutMs();
         // Counted so a timeout can tell a picture that kept changing from a page that stopped
         // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
         // frame left unfinished is then all the reason names.
@@ -5810,27 +5944,20 @@ export class Graph implements GraphContext {
             // The queue first: a layout change or a data load that has not run yet is going to move
             // the picture, so a frame that is final right now is final about the wrong graph.
             await this.untilNothingIsAhead();
+            // Then the frame, and what only frames end: the picture, and the label counts it drew.
             await this.untilNothingIsOwed(wait);
-
-            // The picture is final, but the label counts it drew are announced a few frames later
-            // (`graphty-label-change`); a page that shows them is not final until they are.
-            const declutter: unknown = this.scene.metadata?.labelDeclutter;
-            if (declutter instanceof LabelDeclutter) {
-                await declutter.whenPublished();
-            }
         } while (!wait.gaveUp && !this.updateManager.nothingIsOwed());
     }
 
     /**
-     * Wait for what both settle waits wait for first, written once so the two cannot drift
-     * (issue #3376 had to add the loads twice): loads not queued yet (the element's, held behind
-     * the autosave restore), then suggested styles, which queue their reordering only once they
-     * are due, then the queue.
+     * Wait for what both settle waits wait for first, written once so the two cannot drift: the
+     * queue, then the `wait` work in the record of pending work that ends without a frame -- loads
+     * held behind the autosave restore, suggested styles still being stacked, the repaint of style
+     * edits, and the queue again for anything they queued (issue #4219).
      */
     private async untilNothingIsAhead(): Promise<void> {
-        await loadsAhead.get(this)?.();
-        await this.#suggestionsStacked;
         await this.untilQueueDrained();
+        await this.updateManager.pending.settled();
     }
 
     /**
@@ -5882,7 +6009,8 @@ export class Graph implements GraphContext {
         }
 
         if (this.updateManager.frameIsStable) {
-            return "the node label counts have not been announced";
+            // Only `wait` work is left: the label counts, a load held behind the restore, ...
+            return this.updateManager.pending.firstPending("wait")?.reason ?? "the picture is final";
         }
 
         return this.updateManager.whyFrameIsNotStable();
@@ -6331,6 +6459,9 @@ export class Graph implements GraphContext {
                 x: twoDController.camera.position.x,
                 y: twoDController.camera.position.y,
             };
+            if (controller instanceof TwoDCameraController) {
+                state.rotation = controller.rotation;
+            }
         } else if ("position" in camera) {
             // Fallback for other camera types
             state.position = {
@@ -6547,15 +6678,15 @@ export class Graph implements GraphContext {
                 twoDController.updateOrtho(targetSize); // Reuse controller method
             }
 
-            // Set pan (camera position)
-            if (state.pan) {
-                // Reuse controller's pan method for consistency
-                const dx = state.pan.x - twoDController.camera.position.x;
-                const dy = state.pan.y - twoDController.camera.position.y;
+            if (controller instanceof TwoDCameraController) {
+                if (state.rotation !== undefined) {
+                    controller.rotation = state.rotation;
+                }
 
-                // Use controller's pan method (adds delta)
-                const panMethod = twoDController as unknown as { pan: (dx: number, dy: number) => void };
-                panMethod.pan(dx, dy);
+                // Set pan (camera position): the view's center, in world units however the view is turned
+                if (state.pan) {
+                    controller.panTo(state.pan.x, state.pan.y);
+                }
             }
         } else {
             // Fallback for other camera types
@@ -6947,6 +7078,11 @@ export class Graph implements GraphContext {
         if (!controller || !("velocity" in controller)) {
             this.applyCameraStateImmediate(targetState);
             return;
+        }
+
+        // The turn is not animated: it is set at the start, so the pan and zoom glide in the turned view.
+        if (targetState.rotation !== undefined && controller instanceof TwoDCameraController) {
+            controller.rotation = targetState.rotation;
         }
 
         const twoDController = controller as unknown as {
@@ -7754,7 +7890,9 @@ export class Graph implements GraphContext {
      */
     async enableAiControl(config: import("./ai/AiManager").AiManagerConfig): Promise<void> {
         // Dynamically import to avoid loading AI code when not needed
-        const { AiManager } = await import("./ai/AiManager");
+        const { AiManager, loadEncryptStorage } = await import("./ai/AiManager");
+        // Its key manager restores persisted keys as it is built, so the store's package loads first.
+        await loadEncryptStorage();
 
         // The in-browser provider loads asynchronously, and only when it is picked. Built before
         // the old assistant goes, so a missing package leaves the current one in place.
@@ -7965,7 +8103,8 @@ export class Graph implements GraphContext {
      * ```
      */
     static async createApiKeyManager(): Promise<ApiKeyManager> {
-        const { ApiKeyManager: KeyManager } = await import("./ai/keys");
+        const { ApiKeyManager: KeyManager, loadEncryptStorage } = await import("./ai/keys");
+        await loadEncryptStorage();
 
         return new KeyManager();
     }
@@ -8278,10 +8417,14 @@ export class Graph implements GraphContext {
     private drawAnnotations(value: unknown): void {
         if (this.#annotations?.scene !== this.scene) {
             // a picture that arrives after the frame was called final has to be drawn, on demand too
-            this.#annotations = new AnnotationMeshes(this.scene, () => {
-                this.updateManager.pending.changed();
-                this.renderManager.requestFrame();
-            });
+            this.#annotations = new AnnotationMeshes(
+                this.scene,
+                () => {
+                    this.updateManager.pending.changed();
+                    this.renderManager.requestFrame();
+                },
+                () => this.dataManager.nodes.values(),
+            );
         }
 
         this.#annotations.update(value);

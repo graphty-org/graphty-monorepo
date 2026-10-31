@@ -314,6 +314,20 @@ describe("the workflows", () => {
         assert.match(wf, /name: PR Integrity\n/);
         assert.match(wf, /node tools\/pr-integrity\.mjs --base origin\/master/);
     });
+    it("PR Integrity runs master's copy of the check and reads the head only as data (#4421)", () => {
+        const wf = read("pr-integrity.yml");
+        // the only checkout is master, so a check fix on master reaches every open pull request
+        assert.deepEqual(
+            [...wf.matchAll(/uses: actions\/checkout@v\d+\n\s+with:\n\s+ref: ([^\n]+)/g)].map((m) => m[1]),
+            ["master"],
+        );
+        assert.doesNotMatch(wf, /ref: \$\{\{ ?github\.event\.pull_request\.head/);
+        assert.match(
+            wf,
+            /HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}\n\s+run: git fetch --no-tags origin "\$HEAD_SHA"/,
+        );
+        assert.match(wf, /permissions:\n\s+contents: read\n\s+pull-requests: read\n/);
+    });
     it("Dependabot auto-merge never checks out the pull request and leaves Actions updates alone", () => {
         const wf = read("dependabot-automerge.yml");
         assert.doesNotMatch(wf, /actions\/checkout/);

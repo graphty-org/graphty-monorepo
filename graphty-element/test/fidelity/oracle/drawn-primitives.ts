@@ -556,7 +556,9 @@ export function drawnPrimitives(
         const outer = d?.outer ?? null;
         const split = outer !== null && (d?.innerBorder ?? null) !== null;
         const own = split ? (d?.innerBorder ?? null) : (d?.border ?? null);
-        const gap = split ? 2 * outer.gapPx : 0;
+        // the rings inside the outermost are the node's own outlines, as the program's further peripheries are
+        const rings = outer?.ringsPx ?? 0;
+        const gap = split ? 2 * (outer.gapPx - rings) : 0;
         const borderColor = split ? (own?.color ?? null) : n.border.color;
         const borderWidth = split ? (own?.widthPx ?? 0) : n.border.width;
         // a line waving round the node is as thick as it is drawn, in a ring as wide as the border
@@ -598,7 +600,7 @@ export function drawnPrimitives(
                           width: outer.border.widthPx,
                           dash: null,
                           dashClass: LINE_CLASS[outer.border.style] ?? "other",
-                          reach: outer.gapPx + outer.border.widthPx,
+                          reach: outer.gapPx - rings + outer.border.widthPx,
                       }
                     : null,
             label,

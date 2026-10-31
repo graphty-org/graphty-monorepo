@@ -94,6 +94,12 @@ Each entry below is new unless it says what it narrows, corrects or reverses.
   region. (2026-10-19.) Whether a keyboard participant finds F6 is for the sessions.
 - **Enter on a layer row opens its inspector and keeps focus in the tree**; F6 goes to the
   inspector. (2026-10-19.) A tree's Enter does not move focus out of the tree.
+- **The F6 ring, widened** (2026-10-31, #5162): the top bar, the places rail, the left panel, the
+  inspector, the drawing, the timeline dock while shown, the canvas toolbar, the table while open,
+  the Data page while it stands in for the panels, and the status bar, then round again. The left
+  panel stays next to the inspector (one press from a layer to its style, as above). A resize
+  handle stays a Tab stop and is never where F6 lands. The ring is defined once, in
+  `graphty/src/workspace/frame/focus.ts`; inside a region Tab follows the drawn order.
 - **Tab out of a box that writes moves to the next control**, in the panel as the write leaves
   it; the redraw after a write never pulls focus back into the box or up to the tabs.
   (2026-10-19.)

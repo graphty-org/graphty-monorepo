@@ -254,7 +254,17 @@ describe("views", () => {
             obs("release.review_lag_ms", 30 * HOUR, T0 - HOUR),
             ...[1, 0, 0, 1].map((v, k) => obs("release.green_clean", v, T0 - (k + 1) * 6 * HOUR)),
             ...[1, 1, 1, 0].map((v, k) => obs("release.slot_unreviewed", v, T0 - (k + 1) * 6 * HOUR)),
-            ...[1, 2, 3].map((k) => obs("release.nightly_promotions", 1, T0 - k * DAY)),
+            // Three promotions: release.yml's "Deploy the nightly site" passed (a called workflow's job is named
+            // "<job> / <job>"); a skipped one and a ci.yml job of the same name are none (#5125).
+            ...[1, 2, 3].map((k) =>
+                job(900 + k, {
+                    workflow: "release.yml",
+                    name: k === 1 ? "Deploy the nightly site / Deploy the nightly site" : "Deploy the nightly site",
+                    completedAt: T0 - k * DAY,
+                }),
+            ),
+            job(905, { workflow: "release.yml", name: "Deploy the nightly site", conclusion: "skipped" }),
+            job(906, { workflow: "ci.yml", name: "Deploy the nightly site", completedAt: T0 - DAY }),
         ];
         const member = async (fresh: string[], page: string, id: string) => {
             const vs = await views(await world(items, T0, fresh));
@@ -282,6 +292,29 @@ describe("views", () => {
         });
         const promotions = await member(live, "releases", "releases.nightly_promotions");
         expect(promotions.value).toMatchObject({ n: 0.43 });
+    });
+
+    it("Lanes red at 0 that is red for a held candidate says what holds it (#5125)", async () => {
+        const lanes = async (items: RawItem[]) => {
+            const vs = await views(await world(items));
+            const p = vs.find((v) => v.route.kind === "page" && v.route.page === "releases" && v.route.range === "1h")!
+                .body as PageResponse;
+            return p.members.find((m) => m.id === "releases.lanes_red")!;
+        };
+        const at = T0 - 5 * MIN;
+        const quiet = [obs("release.lanes_red", 0, at), obs("release.hold_open_ms", 0, at)];
+        expect(
+            await lanes([...quiet, obs("release.review_wait_ms", 7 * HOUR, at), obs("release.review_issue", 5065, at)]),
+        ).toMatchObject({
+            state: "bad",
+            value: { n: 0 },
+            note: { code: "releases.review_wait.note", params: { h: 7, issue: 5065 } },
+        });
+        const held = await lanes([obs("release.lanes_red", 0, at), obs("release.hold_open_ms", 9 * HOUR, at)]);
+        expect(held).toMatchObject({ state: "bad", note: { code: "releases.held.note", params: { h: 9 } } });
+        const ok = await lanes([...quiet, obs("release.review_wait_ms", HOUR, at)]);
+        expect(ok.state).toBe("ok");
+        expect(ok.note).toBeUndefined();
     });
 
     it("Flaky shows every flaky source: CI detections, the quarantine list, the stress run and the rerun rate", async () => {

@@ -39,6 +39,7 @@ import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel"
 import { pixelsPerUnit } from "../../src/meshes/screenSize";
 import { piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
 import type { Node } from "../../src/Node";
+import { spansAlongCenters } from "./pattern-spans";
 
 /**
  * Drawn values a third-party consumer cannot read through the public API today, so cannot check
@@ -223,7 +224,6 @@ interface PatternInternals {
     color: string;
     opacity: number;
     wave: WaveShape | undefined;
-    laidAt: { start: Vector3; direction: Vector3; length: number } | null;
 }
 interface NodeInternals {
     border: AbstractMesh | null;
@@ -647,7 +647,7 @@ export interface DrawnNode {
      */
     innerBorder?: DrawnBorder | null;
     /** The outer ring (Cytoscape.js's outline) and how far its inner edge is out from the fill, or null for none. */
-    outer?: { border: DrawnBorder; gapPx: number } | null;
+    outer?: { border: DrawnBorder; gapPx: number; ringsPx?: number } | null;
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
     pieces: { kind: "shape" | "image"; box: ScreenBox }[];
     /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
@@ -764,19 +764,23 @@ function frontThickness(mesh: AbstractMesh): number {
 }
 
 /**
- * A node's outer border ring (`outerBorder`): its color, width and style, and how far its inner edge is out from the
- * node's fill, in screen pixels; null when none is drawn.
+ * A node's outer border ring (`outerBorder`): its color, width and style, how far the outermost ring's inner edge is
+ * out from the node's fill, and how far out the rings inside it reach (`ringsPx`, 0 for one ring), in screen pixels;
+ * null when none is drawn. A program reads every outline but the outermost as the node's own.
  * @param node - the node
  * @param p - the projector
  * @returns the ring and its gap, or null
  */
-function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx: number } | null {
+function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx: number; ringsPx: number } | null {
     const { outerBorder, drawnStyle } = node as unknown as NodeInternals;
     const style = drawnStyle?.outerBorder;
     if (outerBorder === null || outerBorder.isDisposed() || !outerBorder.isEnabled() || style === undefined) {
         return null;
     }
     const perSize = NodeMesh.extentPerSize(drawnStyle?.shape);
+    const count = style.count ?? 1;
+    const offset = Math.max(0, style.offset ?? 0);
+    const width = style.width ?? 0;
     const at = node.mesh.getAbsolutePosition();
     const o = p.point(at);
     const px = (world: number): number => {
@@ -793,7 +797,9 @@ function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx
             screen: false,
             opacity: (material?.alpha ?? 1) * outerBorder.visibility,
         },
-        gapPx: px(node.borderReach + Math.max(0, style.offset ?? 0) * perSize),
+        // out to the outermost ring's inner edge (`count` rings, each the offset beyond the one before)
+        gapPx: px(node.borderReach + (offset * count + width * (count - 1)) * perSize),
+        ringsPx: px((offset + width) * (count - 1) * perSize),
     };
 }
 
@@ -929,7 +935,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         innerBorder: outer === null ? null : own,
         outer,
         label: readLabel(node.label, p),
-        texts: node.shapeTextLabels.flatMap((l) => {
+        // the further texts, and the external label beside the node (Graphviz's xlabel), each a text of the node
+        texts: [...node.shapeTextLabels, ...(node.xlabelLabel === undefined ? [] : [node.xlabelLabel])].flatMap((l) => {
             const read = readLabel(l, p);
             return read === null ? [] : [read];
         }),
@@ -1111,16 +1118,11 @@ function elementDashes(elements: readonly ArrowCap[], p: Projector): number[] | 
         const s = p.point(el.position);
         return [s.x, s.y] as const;
     });
-    const [a, b] = [centers[0], centers[centers.length - 1]];
-    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (L < 1e-9) {
+    // along the line as it was laid, its corners and curves too (issue #3102)
+    const spans = spansAlongCenters(centers, outlines as [number, number][][]);
+    if (spans === null) {
         return null;
     }
-    const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
-    const spans = (outlines as [number, number][][]).map((o) => {
-        const t = o.map(([x, y]) => (x - a[0]) * u[0] + (y - a[1]) * u[1]);
-        return [Math.min(...t), Math.max(...t)] as const;
-    });
     const pairs = spans.slice(0, -1).flatMap(([t0, t1], i) => [t1 - t0, spans[i + 1][0] - t1]);
     // the last element too (a dash-dot of two elements is a dash and a dot), followed by the line's usual gap
     const gaps = pairs.filter((_, i) => i % 2 === 1).sort((x, y) => x - y);
@@ -1245,12 +1247,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         // a dash or dot pattern's line runs from where it was laid to its end, as a stroke's dashes do, not from its
         // first element's middle to its last's: a wide dotted line's route started half a dot late, and one element
         // on a line too short for two had no route at all (`pajek-synth-lines` 12 -> 13, 2 -> 3)
-        const laid = fields.laidAt;
-        world =
-            pm.drawnEnds() ??
-            (laid === null
-                ? pm.elements.map((el: ArrowCap) => el.position)
-                : [laid.start, laid.start.add(laid.direction.scale(laid.length))]);
+        // and along the route it was laid on, its bends, curve or loop too (issue #3102)
+        world = pm.drawnRoute() ?? pm.elements.map((el: ArrowCap) => el.position);
         const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
         // a wave with a swing of its own is a line `width` thick waving across its path: as thick as the band one
         // period of it draws, read as an outline drawn as a fill is (twice its area over its edges)

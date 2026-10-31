@@ -60,3 +60,22 @@ describe("DOT styles: an edge label Graphviz places itself", () => {
         expect(await edges(stored, "labelShiftX")).toEqual([null]);
     });
 });
+
+describe("DOT styles: an edge with both a label and an xlabel (issue #5288)", () => {
+    const doc = `digraph { a -> b [xlabel="x"]; a -> c [label="l", xlabel="x \\E"] }`;
+
+    it("carries the xlabel beside the label, and an xlabel alone as the label", async () => {
+        expect(await edges(doc, "label")).toEqual(["x", "l"]);
+        expect(await edges(doc, "xlabel")).toEqual([null, "x a->c"]);
+        const result = await registry.importGraph(doc, { format: "dot", styles: true });
+        expect(result.styles?.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_NOT_CARRIED");
+    });
+
+    it("writes both back, and they read back as the same values", async () => {
+        const r = await registry.importGraph(doc, { format: "dot", styles: true });
+        const written = await registry.exportGraphToString(r.snapshot, "dot", { styles: r.styles ?? undefined });
+        expect(written).toMatch(/xlabel="x a->c"/);
+        expect(await edges(written, "label")).toEqual(["x", "l"]);
+        expect(await edges(written, "xlabel")).toEqual([null, "x a->c"]);
+    });
+});

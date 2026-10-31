@@ -1,5 +1,5 @@
 // Installs Mesh.prototype.thinInstanceSetBuffer and its siblings. See EdgeLineBatch.
-import "@babylonjs/core/Meshes/thinInstanceMesh";
+import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import {
     Buffer,

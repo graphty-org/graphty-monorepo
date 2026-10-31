@@ -21,8 +21,6 @@ export const OWN_TOOLS = {
     "ci.yml/checks": "runs the commit's tool tests and checks against its own workflows and packages",
     "ci.yml/docs": "builds the commit's docs with its own copy-docs-content.js and sanitize-api-docs.js",
     "base-check.yml/check": "the base's own tests are what is checked; master's tools run from $RUNNER_TEMP/trusted",
-    "pr-integrity.yml/integrity":
-        "a pull request is checked by its own head's pr-integrity.mjs, which takes master's trusted code itself",
     "bisect.yml/point":
         "the point's run-tests.sh and ci-test-matrix.mjs are what is bisected; bisect-ci.mjs runs from the workflow's copy",
 };

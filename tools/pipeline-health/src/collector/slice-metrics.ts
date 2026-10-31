@@ -3,8 +3,8 @@
 // long a changed picture waits for the owner's approval. Pure functions; collect.ts feeds them and writes the
 // observations, config/slas.json gives each its target.
 
-import { DAY, HOUR } from "../model/items.js";
-import { type GhJob, type GhRun, pool, workflowFile } from "./parse.js";
+import { DAY, HOUR, MIN } from "../model/items.js";
+import { type GhJob, type GhRun, pool, waitsForRunner, workflowFile } from "./parse.js";
 import type { SliceConfig, SliceSpend } from "./slices.js";
 
 /** A unit not rendered for this long is taken to be gone (a renamed story file, a re-split heavy file): the store keeps a story's rows 7 days. */
@@ -53,35 +53,38 @@ export function budgetShares(spent: SliceSpend[], now: number, cfg: SliceConfig)
     };
 }
 
-const QUEUED = new Set(["queued", "waiting", "pending"]);
-
 /**
  * What one cycle of slices cost other work, in the pool GitHub limits (machine.dev and self-hosted jobs left out):
- * slice runner-minutes held while the pool was saturated or another job queued, and the queue minutes of other jobs
- * while a slice job held a runner.
+ * slice runner-minutes held while the pool was saturated or another job waited for a runner, and the minutes other
+ * jobs spent waiting for a runner inside the cycle while a slice job held one. A job waits for a runner by the
+ * runner-use rule (waitsForRunner: queued over 2 minutes), so a job created seconds ago, one held by a concurrency
+ * group or one waiting for an environment approval costs nothing, and a job queued 3 minutes counts 3, not the cycle.
  * @param open every unfinished run with its jobs
  * @param workflow the slice workflow's file
  * @param saturated this cycle's saturation flag
  * @param minutes the cycle's length
+ * @param nowMs the time of the sample
  */
 export function contention(
     open: { run: GhRun; jobs?: GhJob[] }[],
     workflow: string,
     saturated: boolean,
     minutes: number,
+    nowMs: number,
 ): { contendedMin: number; queueWaitMin: number } {
     let held = 0;
-    let waiting = 0;
+    let waited = 0;
     for (const { run, jobs } of open) {
         const slice = workflowFile(run.path) === workflow;
         for (const j of jobs ?? []) {
             if (pool(j.labels) === "other") continue;
             if (slice && j.status === "in_progress") held++;
-            else if (!slice && QUEUED.has(j.status)) waiting++;
+            else if (!slice && waitsForRunner(j, nowMs))
+                waited += Math.min(minutes, (nowMs - Date.parse(j.created_at)) / MIN);
         }
     }
     if (!held) return { contendedMin: 0, queueWaitMin: 0 };
-    return { contendedMin: saturated || waiting ? held * minutes : 0, queueWaitMin: waiting * minutes };
+    return { contendedMin: saturated || waited ? held * minutes : 0, queueWaitMin: waited };
 }
 
 /** Changed pictures waiting for the owner (key project/story/mode), and the approval merges seen. */

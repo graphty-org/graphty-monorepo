@@ -18,6 +18,7 @@ import { RecoveredWork } from "../autosave/RecoveredWork";
 import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
+import { count } from "../inspector/words";
 import { UsageDataCard } from "../privacy/UsageDataCard";
 import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
@@ -25,6 +26,7 @@ import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
 import { openServerForm } from "../server/commands";
 import type { WorkspaceStore } from "../state/store";
+import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
 import lockupOnLight from "./brand/graphty-lockup-color-on-light.svg";
@@ -507,9 +509,13 @@ function SampleLibrary(): React.JSX.Element {
     );
     const samples = tiles.filter((tile) => tile.field !== GENERATED);
     const generators = tiles.filter((tile) => tile.field === GENERATED);
+    // How many the box and the field filter leave, said as they change; never on arrival.
+    useAnnounceChange(`${count(tiles.length, "sample")} shown`);
     return (
         <section className="ws-land-band" id="ws-land-samples" aria-label="Sample library">
-            <h2 className="ws-land-h2">Sample library</h2>
+            <h2 className="ws-land-h2 cm-focus-inside" id="ws-land-samples-title" tabIndex={-1}>
+                Sample library
+            </h2>
             <p className="ws-land-intro">
                 {DATASET_COUNT} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
                 routes, and {GENERATOR_DESCRIPTORS.length} ways to generate one.
@@ -735,7 +741,10 @@ export function StartScreen(): React.JSX.Element {
 
     const returning = recent.length > 0;
     const [latest] = recent;
+    // Focus goes with the scroll, to the library's heading: not editable, so Home, End and the Page
+    // keys still scroll the page, and the next Tab reaches the search.
     const showSamples = (): void => {
+        document.getElementById("ws-land-samples-title")?.focus({ preventScroll: true });
         document.getElementById("ws-land-samples")?.scrollIntoView({ behavior: "smooth" });
     };
     const privacy = (
@@ -815,7 +824,6 @@ export function StartScreen(): React.JSX.Element {
             </header>
 
             <section className="ws-land-hero" aria-label="Start a project, over a live graph you can turn and explore">
-                <HeroGraph sample={HERO} background={CANVAS[scheme]} scheme={scheme} onSession={onSession} />
                 <div className="ws-land-over">
                     <Lockup className="ws-land-lockup" boxRef={lockup} />
                     <RecoveredWork />
@@ -902,6 +910,9 @@ export function StartScreen(): React.JSX.Element {
                         </>
                     )}
                 </div>
+                {/* After the words in the markup, so Tab reaches "Open a file" before the demo graph and
+                    its buttons; the CSS places each part, so the look is unchanged. */}
+                <HeroGraph sample={HERO} background={CANVAS[scheme]} scheme={scheme} onSession={onSession} />
                 <FactBar session={session} />
             </section>
 
@@ -938,6 +949,11 @@ export function StartScreen(): React.JSX.Element {
                     setNetwork(false);
                     openServerForm(workspace.store);
                 }}
+                onOpenFile={() => {
+                    setNetwork(false);
+                    openDoor?.run();
+                }}
+                openFileKey={openDoor?.command.keys?.[0]}
             />
 
             {dragging ? (

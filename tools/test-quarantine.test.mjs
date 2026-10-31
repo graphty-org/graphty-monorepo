@@ -28,6 +28,7 @@ import {
     splitLog,
 } from "./test-quarantine.mjs";
 import { selectedCommand } from "./test-select.mjs";
+import { WAIT_GUARD_MS } from "./test-wait-guard.mjs";
 
 const TMP = mkdtempSync(join(tmpdir(), "test-quarantine-"));
 after(() => rmSync(TMP, { recursive: true, force: true }));
@@ -132,7 +133,15 @@ describe("the list", () => {
 // `suite`: the first run fails as a whole file (a hook timed out), so vitest counts it under "Failed Suites", not
 // under "Tests N failed". `oldNaming`: the checkout predates the run-id JUnit names (vitest.ci-junit.mjs before
 // e3f94aced7) and writes junit-<package>-<pid>.xml whatever TEST_LEDGER_RUN says.
-function checkout({ retryFails, quarantine = [], suite = false, oldNaming = false, retryReport = "full" }) {
+// `firstSeconds`: how long T1 ran in the first run (its JUnit time).
+function checkout({
+    retryFails,
+    quarantine = [],
+    suite = false,
+    oldNaming = false,
+    retryReport = "full",
+    firstSeconds = 0,
+}) {
     const root = fresh();
     mkdirSync(join(root, "tools"));
     mkdirSync(join(root, "test-results"));
@@ -142,14 +151,14 @@ function checkout({ retryFails, quarantine = [], suite = false, oldNaming = fals
     );
     writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine }));
     const run = oldNaming ? "" : "$TEST_LEDGER_RUN-";
-    const junit = (failures) =>
+    const junit = (failures, seconds = 0) =>
         `<testsuites><testsuite>${[T1, T2]
             .map(
                 (t) =>
-                    `<testcase classname="${t.file.slice(8)}" name="${t.name.replace(">", "&gt;")}">${failures.includes(t) ? '<failure message="boom">AssertionError: boom</failure>' : ""}</testcase>`,
+                    `<testcase classname="${t.file.slice(8)}" name="${t.name.replace(">", "&gt;")}" time="${t === T1 ? seconds : 0}">${failures.includes(t) ? '<failure message="boom">AssertionError: boom</failure>' : ""}</testcase>`,
             )
             .join("")}</testsuite></testsuites>`;
-    writeFileSync(join(root, "first.xml"), junit([T1]));
+    writeFileSync(join(root, "first.xml"), junit([T1], firstSeconds));
     writeFileSync(
         join(root, "retry.xml"),
         retryReport === "empty" ? "<testsuites></testsuites>" : junit(retryFails ? [T1] : []),
@@ -227,9 +236,9 @@ describe("shardOfRun", () => {
 });
 
 describe("runShard", () => {
-    const run = async (c, env = {}) => {
+    const run = async (c, env = {}, name = "graphty-1") => {
         const result = join(c.root, "result.json");
-        const code = await runShard("graphty-1", c.first, {
+        const code = await runShard(name, c.first, {
             root: c.root,
             viaRunTests: true,
             state: emptyState(),
@@ -273,6 +282,19 @@ describe("runShard", () => {
             [T1.name],
         );
         assert.deepEqual(result.ran.sort(), [T1.file, T2.file]);
+    });
+
+    // #5128: a pull request's light-check bin (graphty-7, past the family's shards) found no SHARDS entry of its
+    // name, so a test that failed once was never retried and was reported as failing every time.
+    it("retries a light-check bin's failed files as a shard of its family", async () => {
+        const c = checkout({ retryFails: false });
+        const { code, result } = await run(c, {}, "graphty-7");
+        assert.equal(result.retried, true);
+        assert.equal(code, 0);
+        assert.deepEqual(
+            result.flaky.map((f) => f.name),
+            [T1.name],
+        );
     });
 
     // A story leg once retried its stories under the unit config, which found no test files: with no report
@@ -325,6 +347,20 @@ describe("runShard", () => {
         assert.equal(listed.result.retried, false, "only quarantined tests failed: nothing to retry");
         assert.deepEqual(
             listed.result.excused.map((f) => f.name),
+            [T1.name],
+        );
+    });
+
+    // #5255: a test whose wait never came true failed after the 900 s wait guard, and its retry waited the guard out
+    // again until GitHub cancelled the 30-minute job, with no result recorded. It fails once instead.
+    it("does not retry a test that waited out the hang guard, and fails it", async () => {
+        const c = checkout({ retryFails: false, firstSeconds: WAIT_GUARD_MS / 1000 + 3 });
+        const { code, result } = await run(c);
+        assert.equal(code, 1);
+        assert.equal(result.retried, false);
+        assert.equal(existsSync(join(c.root, "retry-command")), false, "no retry ran");
+        assert.deepEqual(
+            result.failing.map((f) => f.name),
             [T1.name],
         );
     });

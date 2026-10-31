@@ -332,6 +332,34 @@ export async function pinch(element: Element, center: Point, fromGap: number, to
     await send()("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 }
 
+/**
+ * A two-finger turn: both fingers `gap` apart through `center`, turned together about it.
+ * @param element - The element the fingers are on.
+ * @param center - The midpoint between the fingers, which stays put.
+ * @param gap - The distance between the fingers, which stays the same.
+ * @param degrees - How far the fingers turn, clockwise on screen.
+ * @param steps - How many moves between.
+ */
+export async function twist(element: Element, center: Point, gap: number, degrees: number, steps = 8): Promise<void> {
+    const fingers = (turn: number): Record<string, number>[] =>
+        [-1, 1].map((side, id) => {
+            const angle = (turn * Math.PI) / 180;
+            const at = toPage(element, {
+                x: center.x + (side * gap * Math.cos(angle)) / 2,
+                y: center.y + (side * gap * Math.sin(angle)) / 2,
+            });
+            return { x: at.x, y: at.y, id, radiusX: 1, radiusY: 1, force: 1 };
+        });
+
+    await send()("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(0) });
+    for (let i = 1; i <= steps; i++) {
+        await send()("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: fingers((degrees * i) / steps) });
+        await nextFrame();
+    }
+
+    await send()("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+}
+
 /** Keys `holdKey` pressed and nothing has released yet. */
 const heldKeys = new Set<string>();
 

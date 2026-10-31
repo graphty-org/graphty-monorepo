@@ -4,17 +4,27 @@
  * and its sections, and the ways in, for a first visit and a returning reader. `StartScreen.real-element.test.tsx` opens the samples.
  */
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
-
-const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
-vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
+import { commands, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { forgetUsageAnswer } from "../../privacy/usageData";
+import { ariaKey, formatKey } from "../../keys/keys";
+import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Answers the next file picker with this file (graphty/vitest.config.ts). */
+        chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
+    }
+}
+
+/** Where Sentry would start and stop: the usage data card's Share and No call these instead. */
+const initSentry = vi.fn();
+const stopSentry = vi.fn();
+setUsageSenderForTests({ start: initSentry, stop: stopSentry });
 
 const OWNER_WORDS =
     "We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions.";
@@ -39,6 +49,7 @@ beforeEach(async () => {
 afterEach(() => {
     forgetUsageAnswer();
     localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
+    vi.unstubAllGlobals();
 });
 
 describe("the start screen", () => {
@@ -240,6 +251,26 @@ describe("the start screen", () => {
 
         assert.equal(store.get().project?.name, "trade routes");
         assert.equal(store.get().opening?.name, "trade routes");
+    });
+
+    it("leads a reader who came with a file on this computer to Open a file", async () => {
+        const store = renderStart();
+
+        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
+        // The browser's own file picker, as where a browser has no File System Access picker.
+        vi.stubGlobal("showOpenFilePicker", undefined);
+        await commands.chooseNextFile("my network.gml", "text/plain", "graph [ ]");
+        const open = within(dialog).getByRole("button", { name: /^Open a file/ });
+        // Its key is on the button, as every key is.
+        assert.equal(open.getAttribute("aria-keyshortcuts"), ariaKey("Mod+O"));
+        assert.include(open.textContent, formatKey("Mod+O"));
+        await userEvent.click(open);
+
+        await waitFor(() => {
+            assert.equal(store.get().project?.name, "my network");
+        });
+        assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }), "the chooser closed");
     });
 
     it("opens the server form on the Data place for a network source", async () => {

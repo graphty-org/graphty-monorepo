@@ -407,6 +407,9 @@ describe("postRecords", () => {
 });
 
 describe("runGroup", () => {
+    // the store below never answers: each record POST costs its deadline, not RECORD_MS and RETRY_MS (19 s)
+    const NEVER_ANSWERS = { record: 300, retry: [10, 10] };
+
     it("keeps the verdict and spools the record when the store never answers", async () => {
         const s = await serve(false);
         const root = join(TMP, "checkout");
@@ -422,7 +425,7 @@ describe("runGroup", () => {
             cwd: root,
         });
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "5" };
-        const code = await runGroup("fake", undefined, { root, env });
+        const code = await runGroup("fake", undefined, { root, env, storeMs: NEVER_ANSWERS });
         assert.equal(code, 3);
         const spooled = readdirSync(join(root, "test-results/results-spool"));
         assert.deepEqual(spooled, ["5.1.job.fake.1.json"]);
@@ -446,8 +449,8 @@ describe("runGroup", () => {
         execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "7" };
         const spool = join(root, "test-results/results-spool");
-        await runGroup("plain", undefined, { root, env });
-        await runGroup("pkg-features-on-1", undefined, { root, env });
+        await runGroup("plain", undefined, { root, env, storeMs: NEVER_ANSWERS });
+        await runGroup("pkg-features-on-1", undefined, { root, env, storeMs: NEVER_ANSWERS });
         const read = (f) => JSON.parse(readFileSync(join(spool, f), "utf8"));
         assert.equal(read("7.1.job.plain.1.json").variant, "plain|flags=off|whole");
         assert.equal(read("7.1.job.pkg-features-on-1.1.json").variant, "pkg-features-on|flags=on|whole");
@@ -476,7 +479,7 @@ describe("runGroup", () => {
         mkdirSync(join(root, "test-results"), { recursive: true });
         writeFileSync(join(root, "test-results/results-spool"), "");
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "6" };
-        assert.equal(await runGroup("fake", undefined, { root, env }), 0);
+        assert.equal(await runGroup("fake", undefined, { root, env, storeMs: NEVER_ANSWERS }), 0);
     });
 });
 
@@ -747,6 +750,22 @@ describe("the pull request rules", () => {
         // a plan with no `affected` (the everything plan) counts every test as touched
         const everything = { quarantine: [], failingOnBase: [] };
         assert.deepEqual(tags(judge(everything, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
+    });
+
+    // #5128: a failure with no retry failed once; it must not read "failed every time"
+    it("says a failing test was not retried when no retry ran", () => {
+        const plan = { quarantine: [], failingOnBase: [], affected: ["a.test.ts"] };
+        const d = decide({
+            family: FAMILY,
+            first: report(fail("once")),
+            firstOutcome: "failed",
+            list: storeList(plan),
+        });
+        const why = "not retried: its command cannot be narrowed to the failed files";
+        const once = prJudge(plan, o)(d, { firstOutcome: "failed", unretried: why });
+        assert.equal(once.lines[0].text, `[FAIL] ${o.shard}: a.test.ts > once failed (${why})`);
+        const again = judge(plan, report(fail("once")), report(fail("once")));
+        assert.equal(again.lines[0].text, `[FAIL] ${o.shard}: a.test.ts > once failed every time`);
     });
 
     it("writes the base checks it names for ci.yml's base-checks job, which dispatches only valid ones", async () => {

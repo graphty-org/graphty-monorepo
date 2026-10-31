@@ -27,6 +27,7 @@ import {
     releaseTags,
     runnerFlags,
     runnerUse,
+    waitsOnConcurrency,
     STRESS_FOUND,
     stressQuiet,
     stressRunState,
@@ -827,6 +828,37 @@ describe("ghost runs", () => {
         // A truncated open list proves nothing.
         expect(isGhostRun(ghost, open("some/other-branch"), false)).toBe(false);
         expect(isGhostRun({ ...ghost, event: "push" }, [], true)).toBe(false);
+    });
+});
+
+describe("runs waiting on their own concurrency group", () => {
+    // 2026-10-31 10:20Z: Release restart 41191120998 waited in release.yml's release-train group, with no jobs and
+    // status "queued", behind full run 41188440989; the collector read it as a 15.5 min wait for a runner.
+    const at = Date.parse("2026-10-31T10:20:00Z");
+    const full: GhRun = {
+        ...fixture<GhRun>("run-release-full-41188440989.json"),
+        status: "in_progress",
+        conclusion: null,
+    };
+    const restart: GhRun = {
+        ...fixture<GhRun>("run-release-restart-41191120998.json"),
+        status: "queued",
+        conclusion: null,
+    };
+
+    it("calls a no-job run behind an older in-progress run of its workflow on its branch a concurrency wait", () => {
+        expect(waitsOnConcurrency(restart, [full, restart])).toBe(true);
+        expect(waitsOnConcurrency({ ...restart, status: "pending" }, [restart])).toBe(true);
+    });
+
+    it("still counts a no-job run with nothing ahead of it as waiting for a runner", () => {
+        expect(waitsOnConcurrency(restart, [restart])).toBe(false);
+        expect(waitsOnConcurrency(restart, [{ ...full, head_branch: "other" }, restart])).toBe(false);
+        expect(waitsOnConcurrency(restart, [{ ...full, path: ".github/workflows/ci.yml" }, restart])).toBe(false);
+        expect(waitsOnConcurrency(restart, [{ ...full, status: "queued" }, restart])).toBe(false);
+        // A newer run cannot hold the group against an older one.
+        expect(waitsOnConcurrency(full, [full, { ...restart, status: "in_progress" }])).toBe(false);
+        expect(runnerUse([], [restart], at).longestQueuedMs).toBe(at - Date.parse(restart.created_at));
     });
 });
 

@@ -5812,7 +5812,9 @@ export class Graph implements GraphContext {
      * error names what was still moving. A wait for a final frame that quietly gives up and
      * returns a moving one is worse than no wait at all: the caller cannot tell the two apart.
      * @param options - How the wait is bounded.
-     * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
+     * @param options.timeoutMs - Deprecated: how long to wait before giving up; 30 seconds by default.
+     *   Leave it out. To ask whether the picture is final now, without waiting, read
+     *   {@link Graph.isFrameStable}.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      * It also rejects, at once, when the graph is shut down -- the element was removed from the page
      * -- before the picture came to rest, or had been already when the wait started: a graph that
@@ -5830,8 +5832,20 @@ export class Graph implements GraphContext {
      * const screenshot = await graph.captureScreenshot();
      * ```
      */
-    async waitForStableFrame(options: { timeoutMs?: number } = {}): Promise<void> {
-        const timeoutMs = options.timeoutMs ?? defaultStableFrameTimeoutMs();
+    async waitForStableFrame(
+        options: {
+            /**
+             * How long to wait before the wait rejects; 30 seconds by default.
+             * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
+             * machine while the picture is still on its way. To ask whether the picture is final
+             * now, without waiting, read {@link Graph.isFrameStable}. Still honored.
+             */
+            timeoutMs?: number;
+        } = {},
+    ): Promise<void> {
+        // Read through a plain type: the option is deprecated for callers, not for its own implementation.
+        const bound: { timeoutMs?: number } = options;
+        const timeoutMs = bound.timeoutMs ?? defaultStableFrameTimeoutMs();
         // Counted so a timeout can tell a picture that kept changing from a page that stopped
         // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
         // frame left unfinished is then all the reason names.

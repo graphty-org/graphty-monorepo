@@ -151,10 +151,13 @@ export function formReady(entry: SourceCatalogEntry, form: ServerFormState): boo
  * picks it from the endpoint when the example names none). The reader's Start is kept.
  * @param entry - the source.
  * @param form - the form now.
- * @param id - the example's id.
- * @returns the filled form, or the form unchanged for an unknown id.
+ * @param id - the example's id; null clears the example.
+ * @returns the filled form, the form with no example for null, or the form unchanged for an unknown id.
  */
 export function withExample(entry: SourceCatalogEntry, form: ServerFormState, id: string | null): ServerFormState {
+    if (id === null) {
+        return withoutExample(entry, form);
+    }
     const samples = entry.descriptor.samples ?? [];
     const sample = samples.find((each) => each.id === id);
     if (sample === undefined) {
@@ -181,6 +184,64 @@ export function withExample(entry: SourceCatalogEntry, form: ServerFormState, id
         user: sample.publicLogin?.username ?? "",
         secret: sample.publicLogin?.password ?? "",
     };
+}
+
+/**
+ * Whether a field still holds what an example put there.
+ * @param held - what the form holds.
+ * @param filled - what the example filled.
+ * @returns true when unchanged.
+ */
+function untouched(held: unknown, filled: unknown): boolean {
+    return JSON.stringify(held) === JSON.stringify(filled);
+}
+
+/**
+ * The form with its example let go: the endpoint, sign-in and params the example filled and the
+ * reader left as they were go back to a fresh form's, so nothing of the example's server rides
+ * along to the reader's; whatever the reader typed stays.
+ * @param entry - the source.
+ * @param form - the form now.
+ * @returns the form with no example.
+ */
+export function withoutExample(entry: SourceCatalogEntry, form: ServerFormState): ServerFormState {
+    const { example, ...rest } = form;
+    const sample = (entry.descriptor.samples ?? []).find((each) => each.plainName === example);
+    if (sample === undefined) {
+        return rest;
+    }
+    const fresh = freshForm(entry).params;
+    const params: Record<string, unknown> = { ...form.params };
+    for (const [name, value] of Object.entries(sample.params)) {
+        if (name !== "mode" && untouched(params[name], value)) {
+            params[name] = fresh[name];
+        }
+    }
+    const login = sample.publicLogin;
+    return {
+        ...rest,
+        endpoint: untouched(form.endpoint, sample.endpoint ?? "") ? "" : form.endpoint,
+        params: Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)),
+        user: untouched(form.user, login?.username ?? "") ? "" : form.user,
+        secret: untouched(form.secret, login?.password ?? "") ? "" : form.secret,
+    };
+}
+
+/**
+ * The form with a new Start: a Query start gets the starter query when its box is empty.
+ * @param entry - the source.
+ * @param form - the form now.
+ * @param mode - the Start picked.
+ * @returns the form.
+ */
+export function withStart(entry: SourceCatalogEntry, form: ServerFormState, mode: string): ServerFormState {
+    const query = entry.descriptor.params.find((p) => p.type === "query");
+    const starter = query?.language === undefined ? undefined : STARTER_QUERY[query.language];
+    const fill =
+        mode === "query" && query !== undefined && starter !== undefined && !form.params[query.name]
+            ? { [query.name]: starter }
+            : {};
+    return { ...form, params: { ...form.params, ...fill, mode } };
 }
 
 /**

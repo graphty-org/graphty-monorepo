@@ -493,6 +493,42 @@ export async function trendFor(db, kind, posted, budgets, now) {
         .map(([key, rs]) => ({ key, kind, ...judgeTrend(rs, budgets?.[key]) }));
 }
 
+/**
+ * Each key's last sample within a run kind, and how many runs of its workflow and kind came after it (#5176): a
+ * key that stops getting samples (its job or step was renamed or removed) has an alarm the trend never judges
+ * again, and the posting `timings` job closes it once the key has missed enough runs. 30 days, cancelled rows
+ * left out; a key with no sample in the window is not named at all.
+ * @param db the D1 database
+ * @param kind the run kind
+ * @param workflows the posted run's workflow files
+ * @param now milliseconds
+ * @returns `{ [key]: { runId, sha, at, runsSince } }`
+ */
+export async function lastSeenFor(db, kind, workflows, now) {
+    const where = `kind = ? AND workflow IN (${placeholders(workflows)}) AND started_at >= ?
+        AND coalesce(conclusion, '') != 'cancelled'`;
+    const args = [kind, ...workflows, now - 30 * DAY];
+    // SQLite answers the bare columns (sha, started_at) from the row holding max(run_id)
+    const last = await all(
+        db,
+        `SELECT workflow, job, step, task, max(run_id) AS run_id, sha, started_at FROM duration WHERE ${where}
+         GROUP BY workflow, job, step, task`,
+        ...args,
+    );
+    const runs = Map.groupBy(
+        await all(db, `SELECT DISTINCT workflow, run_id FROM duration WHERE ${where}`, ...args),
+        (r) => r.workflow,
+    );
+    const out = {};
+    for (const r of last) {
+        const key = keyOf(r);
+        if (out[key] && out[key].runId >= r.run_id) continue;
+        const runsSince = (runs.get(r.workflow) ?? []).filter((x) => x.run_id > r.run_id).length;
+        out[key] = { runId: r.run_id, sha: r.sha, at: r.started_at, runsSince };
+    }
+    return out;
+}
+
 // Tests two master-evidence runs of one variant, commit and inputs key disagree on: one failed the test, the other
 // ran its file to the end (the same test count and skip count) without failing it (6.1): a file that did not load
 // or was cut short is no pass of the test. Only pairs that include `id` are asked.

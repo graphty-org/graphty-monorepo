@@ -51,7 +51,8 @@ describe("the structure a Graphviz layout reads from the graph's data", () => {
                     fontsize: "9",
                 },
             },
-            { src: 0, dst: 1, attributes: { label: "plain <not html" } },
+            // an external label is handed over too, for Graphviz to place (issue #5273)
+            { src: 0, dst: 1, attributes: { label: "plain <not html", xlabel: "x" } },
         ]);
     });
 

@@ -54,11 +54,18 @@ export interface EdgePosition {
      */
     bends?: readonly number[];
     /**
-     * Where the layout put the edge's label, when it placed one (Graphviz's `lp`): `along` of the way from the source
+     * Where the layout put the edge's label, when it placed one (Graphviz's `lp`, or `xlp` for an external label): `along` of the way from the source
      * to the target and `across` that length to the left of the line, as one pair of `bends` is given. Absent, the
      * label goes at the middle of the edge's line.
      */
     labelAt?: readonly [along: number, across: number];
+    /**
+     * Where the layout put the caption at the edge's target end, when it placed one (Graphviz's `head_lp`), given as
+     * {@link EdgePosition.labelAt} is. Absent, or when the caption's style places it itself, it hangs beside the end.
+     */
+    headLabelAt?: readonly [along: number, across: number];
+    /** Where the layout put the caption at the edge's source end (Graphviz's `tail_lp`), as {@link EdgePosition.headLabelAt}. */
+    tailLabelAt?: readonly [along: number, across: number];
 }
 
 /**
@@ -432,6 +439,16 @@ export abstract class LayoutEngine {
      */
     protected abstract setNodePosition(n: Node, p: Position): void;
     abstract getEdgePosition(e: Edge): EdgePosition;
+    /**
+     * Where the layout put a node's external label (`xlabel`), when it places one (Graphviz's `xlp`): the label's
+     * center, right and down of the node's center, in scene units. Undefined by default: the label then sits against
+     * the node's top left corner.
+     * @param _n - The node.
+     * @returns The offset, or undefined when the layout places no external label.
+     */
+    getNodeXlabelOffset(_n: Node): readonly [right: number, down: number] | undefined {
+        return undefined;
+    }
     // for animated layouts
     abstract step(): void;
     /** Hold a node where it is; protected for the reason {@link LayoutEngine.setNodePosition} is. */

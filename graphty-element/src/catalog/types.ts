@@ -923,7 +923,12 @@ export type Channel =
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
     | "edge.labelShiftX"
-    | "edge.labelShiftY";
+    | "edge.labelShiftY"
+    | "node.xlabel"
+    | "node.xlabelStyle"
+    | "node.xlabelLocation"
+    | "node.xlabelOffsetX"
+    | "node.xlabelOffsetY";
 
 /**
  * The values the "edge.style" channel accepts.

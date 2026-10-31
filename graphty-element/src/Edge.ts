@@ -1097,13 +1097,15 @@ export class Edge {
             bent = this.placeLine(src, dst, lnk.bends);
         }
 
+        // the layout's place (Graphviz's `lp` and `xlp`) is the label's center
+        const laidLabel = lnk.labelAt !== undefined && !this.lifted;
         this.label?.attachTo(
             this.labelPoint(src, dst, bent, lnk.labelAt),
-            this._labelAttachPosition,
-            this._labelOffset,
+            laidLabel ? "center" : this._labelAttachPosition,
+            laidLabel ? 0 : this._labelOffset,
         );
 
-        this.placeArrowCaptions(src, dst);
+        this.placeArrowCaptions(src, dst, lnk);
 
         // Cache positions for next frame
         this._lastSrcPos = srcPos.clone();
@@ -1211,15 +1213,19 @@ export class Edge {
 
     /**
      * Put each end's caption, if it has one, beside the arrow cap where the cap now sits, or, at an
-     * end drawn with no arrow, where the line leaves the node.
+     * end drawn with no arrow, where the line leaves the node; centered where the layout put it
+     * (Graphviz's `head_lp` and `tail_lp`) when its style does not place it.
      * @param src - The source node's center.
      * @param dst - The target node's center.
+     * @param laid - Where the layout put the end labels, if it placed them.
      */
-    private placeArrowCaptions(src: Vector3, dst: Vector3): void {
+    private placeArrowCaptions(src: Vector3, dst: Vector3, laid: EdgePosition): void {
         // ponytail: a capless end is found along the straight line between the centers, not along a bent route
         const style = this.currentStyle;
         if (this.arrowHeadText) {
-            const along = this.captionOnLine(style.arrowHead, this.dstNode, dst, src);
+            const along =
+                this.captionOnLine(style.arrowHead, this.dstNode, dst, src) ??
+                this.captionLaid(style.arrowHead, src, dst, laid.headLabelAt);
             this.arrowHeadText.attachTo(
                 along?.at ?? this.arrowCap?.position ?? this.leaveNode(this.dstNode, dst, src),
                 along?.attachPosition ?? this._arrowHeadTextAttachPosition,
@@ -1228,13 +1234,37 @@ export class Edge {
         }
 
         if (this.arrowTailText) {
-            const along = this.captionOnLine(style.arrowTail, this.srcNode, src, dst);
+            const along =
+                this.captionOnLine(style.arrowTail, this.srcNode, src, dst) ??
+                this.captionLaid(style.arrowTail, src, dst, laid.tailLabelAt);
             this.arrowTailText.attachTo(
                 along?.at ?? this.arrowTailCap?.position ?? this.leaveNode(this.srcNode, src, dst),
                 along?.attachPosition ?? this._arrowTailTextAttachPosition,
                 along?.offset ?? this._arrowTailTextOffset,
             );
         }
+    }
+
+    /**
+     * Where an end's caption sits when the layout placed it and its style names no location of its own: centered on
+     * the layout's place. Null otherwise.
+     * @param arrow - The end's arrow block.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @param place - The layout's place, relative to the two ends.
+     * @returns The point, where the caption hangs from it and how far, or null.
+     */
+    private captionLaid(
+        arrow: EdgeStyleConfig["arrowHead"],
+        src: Vector3,
+        dst: Vector3,
+        place: EdgePosition["headLabelAt"],
+    ): { at: Vector3; attachPosition: AttachPosition; offset: number } | null {
+        if (place === undefined || this.lifted || arrow?.text?.location !== undefined) {
+            return null;
+        }
+
+        return { at: Vector3.FromArray(bendPoints(src, dst, place)), attachPosition: "center", offset: 0 };
     }
 
     /**

@@ -187,6 +187,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.outline", plan(color, "borderColor")],
         ["node.label", plan(text, "label")],
         ["node.tooltip", plan(text, "tooltip")],
+        ["node.xlabel", plan(text, "xlabel")],
         ["node.labelColor", plan(color, "labelColor")],
         ["node.labelSize", plan(number, "labelSize")],
         ["node.labelFont", plan(text, "labelFont")],

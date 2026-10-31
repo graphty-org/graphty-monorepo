@@ -280,6 +280,8 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     // Edges
     // ------------------------------------------------------------------------------------------
     ...namedBlockOf("edge", "label", LABEL_RESIDUE),
+    // An edge's external label: its words, its place and its appearance are channels, as the node's.
+    ...namedBlockOf("edge", "xlabel", LABEL_RESIDUE),
 
     // A caption at each end of an edge, published as four channels -- the words and the
     // appearance at each end -- so what is left is the same sixteen leaves a label leaves, for

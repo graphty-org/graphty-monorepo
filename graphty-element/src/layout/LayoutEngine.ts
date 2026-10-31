@@ -66,6 +66,12 @@ export interface EdgePosition {
     headLabelAt?: readonly [along: number, across: number];
     /** Where the layout put the caption at the edge's source end (Graphviz's `tail_lp`), as {@link EdgePosition.headLabelAt}. */
     tailLabelAt?: readonly [along: number, across: number];
+    /**
+     * Where the layout put the edge's external label, drawn beside its label, when it placed one (Graphviz's `xlp`),
+     * given as {@link EdgePosition.labelAt} is. Absent, or when the external label's style places it itself, it sits
+     * up and left of the line's middle.
+     */
+    xlabelAt?: readonly [along: number, across: number];
 }
 
 /**

@@ -262,6 +262,7 @@ export const STYLE_PROPERTIES: {
         ["targetPort", "text"],
         ["label", "text"],
         ["tooltip", "text"],
+        ["xlabel", "text"],
         ["labelFont", "text"],
         ["labelWeight", "weight"],
         ["labelTextAlign", "textAlign"],

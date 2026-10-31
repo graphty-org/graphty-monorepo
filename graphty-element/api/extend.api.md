@@ -828,6 +828,7 @@ export class Edge {
     // @deprecated
     static updateRays(_g: Graph | GraphContext): void;
     updateStyle(): void;
+    xlabelLabel: RichTextLabel | null;
 }
 
 // @public (undocumented)
@@ -848,6 +849,7 @@ export interface EdgePosition {
     // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];
+    xlabelAt?: readonly [along: number, across: number];
 }
 
 // @public

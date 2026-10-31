@@ -662,6 +662,11 @@ export interface ChannelValues {
     "node.xlabelLocation": LabelLocation;
     "node.xlabelOffsetX": number;
     "node.xlabelOffsetY": number;
+    "edge.xlabel": string;
+    "edge.xlabelStyle": LabelStyle;
+    "edge.xlabelLocation": LabelLocation;
+    "edge.xlabelOffsetX": number;
+    "edge.xlabelOffsetY": number;
 }
 
 /**
@@ -1542,6 +1547,11 @@ function labelLocationChannel(target: "node" | "edge"): ChannelDescriptor {
 const XLABEL_CAVEAT =
     "A second label drawn outside the node, in the label's font, size and color (Graphviz's `xlabel`): " +
     "against the node's top left corner, or where a Graphviz layout placed it. The words switch it on.";
+
+/** What the edge external label channels draw, written once and read by each. */
+const EDGE_XLABEL_CAVEAT =
+    "A second label drawn beside the line's middle, in the label's font, size and color (Graphviz's `xlabel` " +
+    "beside a `label`): up and left of the middle, or where a Graphviz layout placed it. The words switch it on.";
 
 /** Every order `node.labelDeclutter` takes. */
 const LABEL_DECLUTTER_VALUES: readonly LabelDeclutterOrder[] = ["degree", "size"];
@@ -4447,6 +4457,64 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         channel: "node.xlabelOffsetY",
         target: "node",
         plainName: "Node External Label Offset Y",
+        shortName: "External label offset y",
+        group: "text",
+        accepts: "number",
+        stylePath: "xlabel.offsetY",
+        renderable: true,
+        caveat: "How far the external label is moved down from where its location puts it, in scene units.",
+    },
+    "edge.xlabel": {
+        channel: "edge.xlabel",
+        target: "edge",
+        plainName: "Edge External Label",
+        shortName: "External label",
+        group: "text",
+        accepts: "text",
+        stylePath: "xlabel.text",
+        renderable: true,
+        caveat: EDGE_XLABEL_CAVEAT,
+    },
+    "edge.xlabelStyle": {
+        channel: "edge.xlabelStyle",
+        target: "edge",
+        plainName: "Edge External Label Style",
+        shortName: "External label style",
+        group: "text",
+        accepts: "labelStyle",
+        stylePath: "xlabel",
+        renderable: true,
+        caveat: `${EDGE_XLABEL_CAVEAT} A field it leaves unset is drawn as the label's.`,
+    },
+    "edge.xlabelLocation": {
+        channel: "edge.xlabelLocation",
+        target: "edge",
+        plainName: "Edge External Label Location",
+        shortName: "External label location",
+        group: "text",
+        accepts: "enum",
+        values: LABEL_LOCATION_VALUES,
+        stylePath: "xlabel.location",
+        renderable: true,
+        caveat:
+            "Where the external label sits against the line's middle, as `labelLocation` places the label. Unset, " +
+            "up and left of the middle, or where the layout placed it (Graphviz's `xlp`).",
+    },
+    "edge.xlabelOffsetX": {
+        channel: "edge.xlabelOffsetX",
+        target: "edge",
+        plainName: "Edge External Label Offset X",
+        shortName: "External label offset x",
+        group: "text",
+        accepts: "number",
+        stylePath: "xlabel.offsetX",
+        renderable: true,
+        caveat: "How far the external label is moved right of where its location puts it, in scene units.",
+    },
+    "edge.xlabelOffsetY": {
+        channel: "edge.xlabelOffsetY",
+        target: "edge",
+        plainName: "Edge External Label Offset Y",
         shortName: "External label offset y",
         group: "text",
         accepts: "number",

@@ -929,7 +929,12 @@ export type Channel =
     | "node.xlabelStyle"
     | "node.xlabelLocation"
     | "node.xlabelOffsetX"
-    | "node.xlabelOffsetY";
+    | "node.xlabelOffsetY"
+    | "edge.xlabel"
+    | "edge.xlabelStyle"
+    | "edge.xlabelLocation"
+    | "edge.xlabelOffsetX"
+    | "edge.xlabelOffsetY";
 
 /**
  * The values the "edge.style" channel accepts.

@@ -165,6 +165,7 @@ export function framingBox(nodes: Iterable<Node>, edges: Iterable<Edge>): Framin
     for (const edge of edges) {
         if (edge.isRenderVisible()) {
             growForLabel(box, edge.label?.labelMesh);
+            growForLabel(box, edge.xlabelLabel?.labelMesh);
             growForLabel(box, edge.arrowHeadText?.labelMesh);
             growForLabel(box, edge.arrowTailText?.labelMesh);
         }

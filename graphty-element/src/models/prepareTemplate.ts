@@ -18,16 +18,16 @@
  * Reached only through the model chunk (src/models/chunk.ts), so it costs the main entry nothing.
  */
 
-import type { AssetContainer } from "@babylonjs/core/assetContainer";
-import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo";
-import type { Material } from "@babylonjs/core/Materials/material";
-import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
-import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture";
-import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
-import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { Mesh } from "@babylonjs/core/Meshes/mesh";
-import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData";
-import type { Scene } from "@babylonjs/core/scene";
+import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
+import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
+import type { Material } from "@babylonjs/core/Materials/material.js";
+import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
+import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ModelTemplate, TemplateOptions } from "./ModelCache";
 

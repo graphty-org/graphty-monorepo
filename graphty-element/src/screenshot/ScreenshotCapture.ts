@@ -1,6 +1,7 @@
 import {
     type AbstractMesh,
     type Camera,
+    Constants,
     CreateScreenshotAsync,
     CreateScreenshotUsingRenderTarget,
     DefaultRenderingPipeline,
@@ -922,6 +923,61 @@ interface EnhancementState {
 }
 
 /**
+ * Make a render target's read-back wait on the GPU without holding the main thread. Babylon's WebGL
+ * read is a synchronous `readPixels` into client memory, which stalls the main thread until the GPU
+ * has finished everything queued -- one stall per capture, so a key of thirty node pictures blocked
+ * for seconds. On WebGL2 the read goes into a pixel buffer behind a fence, polled from timers, and
+ * is copied out once the fence has passed. WebGPU's read already waits on `mapAsync`, and WebGL1
+ * has no pixel buffers, so both keep Babylon's read.
+ * @param engine - the scene's engine
+ * @param texture - the capture's render target
+ * @param fail - rejects the capture when the fenced read fails (a lost context)
+ */
+function readWithoutBlocking(
+    engine: Engine | WebGPUEngine,
+    texture: RenderTargetTexture,
+    fail: (error: unknown) => void,
+): void {
+    const webgl = engine as Engine;
+    if (engine.isWebGPU || webgl.webGLVersion < 2) {
+        return;
+    }
+
+    const original = texture.readPixels.bind(texture);
+    texture.readPixels = (...args) => {
+        const internal = texture.getInternalTexture();
+        if (internal?.type !== Constants.TEXTURETYPE_UNSIGNED_BYTE) {
+            return original(...args);
+        }
+
+        const gl = webgl._gl;
+        const { width, height } = texture.getSize();
+        const framebuffer = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.framebufferTexture2D(
+            gl.FRAMEBUFFER,
+            gl.COLOR_ATTACHMENT0,
+            gl.TEXTURE_2D,
+            internal._hardwareTexture?.underlyingResource as WebGLTexture,
+            0,
+        );
+        const pixels = new Uint8Array(4 * width * height);
+        const pending = webgl._readPixelsAsync(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, webgl._currentFramebuffer);
+        // The read is already queued; GL keeps the framebuffer alive until it is done.
+        gl.deleteFramebuffer(framebuffer);
+        if (pending === null) {
+            return original(...args);
+        }
+
+        return pending.catch((error: unknown) => {
+            fail(error);
+            return pixels;
+        });
+    };
+}
+
+/**
  * Babylon's render-target capture, with its encode step owned here. Babylon encodes the pixels in a
  * promise nobody awaits, on a shared engine it disposes when the last scene engine goes; a graph
  * torn down mid-capture then threw an unhandled rejection and left the capture pending forever.
@@ -970,7 +1026,10 @@ export async function renderTargetCapture(
             false,
             true,
             undefined,
-            customize,
+            (texture) => {
+                readWithoutBlocking(engine, texture, reject);
+                customize?.(texture);
+            },
             encode,
             undefined,
             () => {

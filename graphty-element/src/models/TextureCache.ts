@@ -11,10 +11,10 @@
  * held: a flat node cuts it out, a solid one shows white there.
  */
 
-import type { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture";
-import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
-import { Texture } from "@babylonjs/core/Materials/Textures/texture";
-import type { Scene } from "@babylonjs/core/scene";
+import type { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
+import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { NetworkApiInternal } from "../session/network";
 import type { CodedFact } from "../session/shared";

@@ -69,7 +69,7 @@ import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
-import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
+import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PhotoDome } from '@babylonjs/core';
@@ -127,7 +127,7 @@ import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { UniformBuffer } from '@babylonjs/core';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector';
+import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
 import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
@@ -4632,6 +4632,8 @@ class Node_2 implements ModelUser {
     isSelected(): boolean;
     // (undocumented)
     label?: RichTextLabel;
+    // @internal
+    get layoutRadius(): number;
     // (undocumented)
     mesh: AbstractMesh;
     // @internal
@@ -4656,7 +4658,7 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
-    refreshScreenBorder(): void;
+    refreshScreenBorder(): boolean;
     refreshSelectionOverlay(): void;
     // @internal
     refreshShaderPaint(): void;

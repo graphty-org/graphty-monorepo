@@ -1020,6 +1020,21 @@ describe("POST /v1/channel-moves", () => {
         const st = (await call("GET", "/v1/release-state", { token: LOCAL_TOKEN })).body;
         assert.deepEqual([st.nightly.sha, st.ageNightlyMs, st.blocking], [C, 0, null]);
     });
+    it("records the promotion from the nightly-site.yml job release.yml calls (#5135: run 40900642303 got 403)", async () => {
+        const { call, rows } = service();
+        // the site job's token as release.yml's call of nightly-site.yml mints it
+        const site = oidc({
+            event_name: "workflow_dispatch",
+            ref: "refs/heads/master",
+            workflow_ref: `${REPO}/.github/workflows/release.yml@refs/heads/master`,
+            job_workflow_ref: `${REPO}/.github/workflows/nightly-site.yml@refs/heads/master`,
+        });
+        assert.deepEqual((await call("POST", "/v1/channel-moves", { token: site, body })).body, { stored: true });
+        assert.equal(rows("SELECT sha FROM channel_move")[0].sha, C);
+        // and nothing else: it writes no test records
+        const inv = { id: "4010.1.test.x.1", sha: C, shard: "x", group: "x", outcome: "passed" };
+        assert.equal((await call("POST", "/v1/invocations", { token: site, body: inv })).status, 403);
+    });
     it("refuses every other writer and a malformed record", async () => {
         const { call, rows } = service();
         const post = (token, b = body) => call("POST", "/v1/channel-moves", { token, body: b });

@@ -11,6 +11,10 @@
  * `encrypt-storage` peer the AI key manager persists with, like `./ai`. Experimental.
  */
 
+// encrypt-storage, which ApiKeyManager persists with: this entry point's consumers construct it
+// synchronously (src/ai/keys/encryptStorage.ts).
+import "./src/ai/keys/withEncryptStorage";
+
 export type { ApiKeyManagerOptions, PassphrasePersistenceConfig, PersistenceConfig } from "./src/ai/keys/ApiKeyManager";
 export { ApiKeyManager } from "./src/ai/keys/ApiKeyManager";
 export {

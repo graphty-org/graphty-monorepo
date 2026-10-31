@@ -11,7 +11,7 @@
  * whole duration once its answer arrives.
  */
 
-import type { Scene } from "@babylonjs/core/scene";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { Vec3 } from "../camera/types";
 import { resolveOptionValues } from "../catalog/options";

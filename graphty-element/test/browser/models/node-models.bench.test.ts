@@ -27,7 +27,7 @@
  * ones, so both are timed in the same state of V8's optimized code.
  */
 
-import type { Engine } from "@babylonjs/core/Engines/engine";
+import type { Engine } from "@babylonjs/core/Engines/engine.js";
 import { assert, describe, it } from "vitest";
 
 import { operationQueueOf } from "../../../src/Graph";

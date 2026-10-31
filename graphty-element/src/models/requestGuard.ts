@@ -9,7 +9,7 @@
  * refused. `data:` URLs pass, because the intake allowed only image and octet-stream ones.
  */
 
-import { Tools } from "@babylonjs/core/Misc/tools";
+import { Tools } from "@babylonjs/core/Misc/tools.js";
 
 import { matchInSet, normalizePath } from "../session/assets/references";
 

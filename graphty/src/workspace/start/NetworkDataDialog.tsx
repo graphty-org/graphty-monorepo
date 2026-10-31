@@ -1,8 +1,9 @@
 import { FileSource } from "@graphty/compact-mantine";
-import { Modal, UnstyledButton } from "@mantine/core";
+import { Button, Kbd, Modal, UnstyledButton } from "@mantine/core";
 import type React from "react";
 
 import { GLYPHS } from "../glyphs";
+import { ariaKey, formatKey } from "../keys/keys";
 
 /** The network sources the server form connects to: a badge, the name, and what each is. */
 const SOURCES = [
@@ -12,8 +13,9 @@ const SOURCES = [
 ] as const;
 
 /**
- * Open network data: the network sources, each of which opens the server form, and a web address
- * (or a file from this computer) to open.
+ * Open network data: the network sources, each of which opens the server form, a web address
+ * (or a file from this computer) to open, and Open a file with its key, for a reader who came
+ * here with a file on this computer.
  * @param props - Component props
  * @param props.opened - Whether the chooser is open
  * @param props.scheme - The page's color scheme
@@ -21,6 +23,8 @@ const SOURCES = [
  * @param props.onOpenLink - Opens the graph file at an address
  * @param props.onOpenFiles - Opens files chosen or dropped on the address row
  * @param props.onOpenServer - Opens the server form
+ * @param props.onOpenFile - Opens the browser's file picker, as Open a file does
+ * @param props.openFileKey - Open a file's key, such as "Mod+O", shown on its button
  * @returns The chooser
  */
 export function NetworkDataDialog({
@@ -30,6 +34,8 @@ export function NetworkDataDialog({
     onOpenLink,
     onOpenFiles,
     onOpenServer,
+    onOpenFile,
+    openFileKey,
 }: Readonly<{
     opened: boolean;
     scheme: "light" | "dark";
@@ -37,6 +43,8 @@ export function NetworkDataDialog({
     onOpenLink: (url: string) => void;
     onOpenFiles: (files: File[]) => void;
     onOpenServer: () => void;
+    onOpenFile: () => void;
+    openFileKey?: string;
 }>): React.JSX.Element {
     return (
         <Modal.Root opened={opened} onClose={onClose} centered size={520} radius={16} padding={0}>
@@ -69,6 +77,15 @@ export function NetworkDataDialog({
                             onUrl={onOpenLink}
                             onFiles={onOpenFiles}
                         />
+                        <Button
+                            variant="default"
+                            leftSection={<GLYPHS.openFile size={16} aria-hidden />}
+                            rightSection={openFileKey === undefined ? undefined : <Kbd>{formatKey(openFileKey)}</Kbd>}
+                            aria-keyshortcuts={openFileKey === undefined ? undefined : ariaKey(openFileKey)}
+                            onClick={onOpenFile}
+                        >
+                            Open a file
+                        </Button>
                     </div>
                 </div>
             </Modal.Content>

@@ -2,6 +2,7 @@ import { focusWithRing, useNumberParser } from "@graphty/compact-mantine";
 import type { GraphSession, HistoryStepId, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
 import {
     Autocomplete,
+    Badge,
     Button,
     Checkbox,
     CloseButton,
@@ -517,6 +518,13 @@ function WhichRow({
     });
     const empty = `All ${many(total, side)}: add a condition to narrow`;
     const hint = `All ${many(total, side)}`;
+    // A layer whose conditions leave nothing is flagged on its count, or on a chip that leaves none.
+    const none =
+        held === undefined &&
+        rows.length === 1 &&
+        shown.length > 0 &&
+        session.styles.counts(rows[0].layer.id).matched === 0;
+    const together = none && !Object.values(counts).includes(0);
     // A heading at the level of the sections around it, holding its disclosure button (the
     // accordion pattern), so a heading walk lands on it as on "Shape" or "Fill".
     return (
@@ -531,7 +539,12 @@ function WhichRow({
                 aria-expanded={false}
                 aria-controls={regionId}
                 // The rule is in the name, so it is heard while the cards are folded: "Which nodes, 10 of 24, kind: agency, company".
-                aria-label={[`Which ${NOUN[side].many}`, head, ...(shown.length === 0 ? [empty] : spoken)]
+                aria-label={[
+                    `Which ${NOUN[side].many}`,
+                    head,
+                    none ? `no ${NOUN[side].one} matches` : "",
+                    ...(shown.length === 0 ? [empty] : spoken),
+                ]
                     .filter((part) => part !== "")
                     .join(", ")}
                 onClick={(event) => {
@@ -547,6 +560,7 @@ function WhichRow({
                     <Text size="xs" c="dimmed" span ml="auto">
                         {head}
                     </Text>
+                    {together && <NoneBadge side={side} />}
                 </Group>
                 <span className="ws-which-chips">
                     {shown.length === 0 ? (
@@ -664,9 +678,24 @@ function Chip({
             <span className="ws-chip" data-chip={shown.key} data-todo={finished ? undefined : ""}>
                 {words}
                 {/* Named, so a count never reads as a second copy of a number in the words; kept on one line. */}
-                {count === undefined ? "" : `, ${many(count, side).replace(" ", "\u00a0")}`}
+                {count === undefined || count === 0 ? "" : `, ${many(count, side).replace(" ", "\u00a0")}`}
+                {count === 0 && <NoneBadge side={side} />}
             </span>
         </Tooltip>
+    );
+}
+
+/**
+ * The warning a condition, or a layer's conditions together, leave when nothing matches: a 0 badge.
+ * @param props - Component props
+ * @param props.side - nodes or edges
+ * @returns The badge
+ */
+function NoneBadge({ side }: Readonly<{ side: Side }>): React.JSX.Element {
+    return (
+        <Badge component="span" color="yellow" variant="light" aria-label={`No ${NOUN[side].one} matches`} ml={4}>
+            0
+        </Badge>
     );
 }
 

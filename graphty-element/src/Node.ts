@@ -924,7 +924,7 @@ export class Node implements ModelUser {
      * whose border is in scene units.
      *
      * The ring's reach is where this node's edges end, so the caller re-trims them when this
-     * answers true (#3532). A layout is not woken: it spaces nodes by {@link Node.layoutRadius},
+     * answers true (#3532). A layout is not woken: it spaces nodes by `layoutRadius`,
      * which leaves this border out.
      * @returns Whether the border's reach changed.
      * @internal

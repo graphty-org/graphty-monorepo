@@ -47,6 +47,15 @@ import { mapTileCommands } from "../vitest.map-tiles.mjs";
  * shard at once, each deleting chunks the others load ("error when mocking a module", "The file
  * does not exist ... in the optimize deps directory", issue #3319). Outside the gate, Vite's
  * default directory.
+ *
+ * Every browser project also sets `optimizeDeps.force`, so each run scans the test files and
+ * bundles their dependencies before the first test page loads. Without it Vite trusts a cache an
+ * earlier run in the same checkout wrote, as long as the lockfile and this config are unchanged
+ * ("Hash is consistent. Skipping."), and a test file or import that arrived since -- by a merge of
+ * master, a new test, an edit -- is found mid-run: Vite re-bundles, reloads the page under the
+ * running test, and the run stops with "Vite unexpectedly reloaded a test" (#5134). The scan costs
+ * a few seconds a run; the shard directories above keep side-by-side runs from deleting each
+ * other's bundles.
  */
 const SHARD_CACHE_DIR = shardCacheDir();
 
@@ -610,7 +619,7 @@ const config = defineConfig({
                     },
                 },
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: PREBUNDLED },
+                optimizeDeps: { include: PREBUNDLED, force: true },
                 test: {
                     // The contract lane: the handful of browser tests that read what the element actually
                     // PAINTED -- pixels in the frame buffer, the order style layers landed in, whether a
@@ -695,7 +704,7 @@ const config = defineConfig({
                 // the fixed cost of starting a browser project. These files are excluded from
                 // "browser" below, so CI runs them once, through this project, in its browser shards.
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
                 test: {
                     name: "xr",
                     setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
@@ -720,7 +729,7 @@ const config = defineConfig({
                 // npx vitest run --project=browser-bench. Not "bench-browser": that is the
                 // sets timing rows' project below, which never runs in CI.
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: PREBUNDLED },
+                optimizeDeps: { include: PREBUNDLED, force: true },
                 test: {
                     name: "browser-bench",
                     setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
@@ -763,7 +772,7 @@ const config = defineConfig({
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
@@ -825,7 +834,7 @@ const config = defineConfig({
                 // Vite re-optimizes and reloads the page under the running test.
                 define: { ...define },
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES] },
+                optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES], force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "autosave-engines",
@@ -876,7 +885,8 @@ const config = defineConfig({
                 // such a fetch has failed before. Chromium runs the same files through "browser",
                 // with coverage; v8 coverage cannot instrument WebKit, so this project runs without.
                 define: { ...define },
-                optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES] },
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES], force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "models-webkit",
@@ -908,7 +918,7 @@ const config = defineConfig({
                 define: { ...define },
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_ORACLE_BASELINE"],
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: PREBUNDLED },
+                optimizeDeps: { include: PREBUNDLED, force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "fidelity",
@@ -956,7 +966,7 @@ const config = defineConfig({
             {
                 define: { ...define },
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
                 test: {
                     name: "interactions",
                     setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
@@ -998,6 +1008,8 @@ const config = defineConfig({
                     }),
                 ],
                 ...(VISUAL && { mode: PRODUCTION.mode, appType: PRODUCTION.appType }),
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { force: true },
                 resolve: {
                     alias: {
                         // Mock @mlc-ai/web-llm in storybook tests - the package is CDN-only

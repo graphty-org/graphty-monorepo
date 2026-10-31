@@ -6,6 +6,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
+import { shardCacheDir } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest } from "../vitest.base.mjs";
 
@@ -323,8 +324,11 @@ const browserCommands = {
 // imported since then (react/jsx-dev-runtime from the stories, @testing-library/react from the
 // tests and their setup files) is discovered mid-run: Vite re-optimizes and reloads the page, the file
 // being imported fails with "Vitest failed to find the runner", and every story rendered after that
-// comes out empty.
-const browserOptimizeDeps = { include: ["react/jsx-dev-runtime", "@testing-library/react"] };
+// comes out empty. `force` makes every run scan and bundle afresh, so an import added since the last run (a
+// merge, a new test) is bundled before the first page loads too (#5134); each pre-push gate shard bundles into
+// its own directory (tools/test-slots.mjs shardCacheDir()), so side-by-side runs keep each other's bundles.
+const browserOptimizeDeps = { include: ["react/jsx-dev-runtime", "@testing-library/react"], force: true };
+const browserCacheDir = shardCacheDir();
 
 const config = defineConfig({
     plugins: [react()],
@@ -351,6 +355,7 @@ const config = defineConfig({
             },
             // Browser project - runs in real Chromium via Playwright
             {
+                cacheDir: browserCacheDir,
                 optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "browser",
@@ -375,6 +380,7 @@ const config = defineConfig({
             // Touch project - the files named *.touch.browser.test.tsx again, on a touch screen. Its own
             // browser context, because touch emulation leaves `(hover: none)` on for the rest of a run.
             {
+                cacheDir: browserCacheDir,
                 optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "touch",
@@ -394,6 +400,7 @@ const config = defineConfig({
             // Scrollbars project - the files named *.scrollbars.browser.test.tsx, with the native
             // scrollbars drawn and pressable, which headless Chromium hides (--hide-scrollbars).
             {
+                cacheDir: browserCacheDir,
                 optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "scrollbars",
@@ -412,6 +419,7 @@ const config = defineConfig({
             },
             // Storybook project - every story rendered and its play function run, in Chromium
             {
+                cacheDir: browserCacheDir,
                 optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "storybook",

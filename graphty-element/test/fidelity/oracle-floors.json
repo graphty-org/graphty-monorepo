@@ -13626,7 +13626,7 @@
             "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
             "raster.edge": 0.86,
-            "raster.label": 0.93,
+            "raster.label": 0.94,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -15912,7 +15912,7 @@
             "label.family": 1,
             "label.lines": 1,
             "label.align": 1,
-            "label.anchor": 0.96,
+            "label.anchor": 0.98,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -15921,7 +15921,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.93,
+            "raster.label": 0.94,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.93
         },
@@ -15952,7 +15952,7 @@
             "label.family": 1,
             "label.lines": 1,
             "label.align": 1,
-            "label.anchor": 0.96,
+            "label.anchor": 0.98,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -15998,7 +15998,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.93,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.94
         },
         "dot-specimen-labels-p3@matched": {

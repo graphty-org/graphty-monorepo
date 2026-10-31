@@ -79,7 +79,6 @@ jobs:
                   OVERLAY: .github/actions
               run: |
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # kind `base` is master evidence: refuse a commit that is not on master (a pull request's head by mistake)

@@ -1699,12 +1699,17 @@ export class Node implements ModelUser {
 
         const { text, label } = this.labelOf(o);
         const perSize = NodeMesh.extentPerSize(shape);
-        const measure = (words: string): { width: number; height: number } => {
+        const measure = (words: string): { width: number; height: number; ascent?: number; descent?: number } => {
             if (words === "") {
                 return { width: 0, height: 0 };
             }
             const m = RichTextLabel.measureWords(this.context.getScene(), this.createLabelOptions(words, o.label));
-            return { width: m.width / perSize, height: m.height / perSize };
+            return {
+                width: m.width / perSize,
+                height: m.height / perSize,
+                ascent: m.ascent / perSize,
+                descent: m.descent / perSize,
+            };
         };
         // a picture sizes the node or its cell once its own size is read; this node is fitted again then
         const scene = this.context.getScene();

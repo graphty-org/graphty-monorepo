@@ -14,7 +14,9 @@ describe("labelTableForElement", () => {
             cellSpacing: 2,
             cellPadding: 4,
             width: 80,
-            lineHeight: 1.2,
+            lineHeight: "font",
+            textPixel: 0.75,
+            baseline: 0.95,
             rows: [
                 {
                     rule: true,
@@ -27,9 +29,10 @@ describe("labelTableForElement", () => {
         };
         const out = JSON.parse(labelTableForElement(JSON.stringify(file), 0.5) ?? "null") as typeof file;
         assert.deepEqual(
-            [out.border, out.cellBorder, out.cellSpacing, out.cellPadding, out.width, out.lineHeight],
-            [0.5, 1, 1, 2, 40, 1.2],
+            [out.border, out.cellBorder, out.cellSpacing, out.cellPadding, out.width, out.lineHeight, out.textPixel],
+            [0.5, 1, 1, 2, 40, "font", 0.375],
         );
+        assert.equal(out.baseline, 0.95);
         assert.deepEqual(out.rows[0].cells[0], { colspan: 2, width: 5, border: 1.5, padding: 0.5, align: "text" });
         assert.deepEqual(out.rows[0].cells[1], {
             table: { border: 0.5, cellSpacing: 1, rows: [{ cells: [{ height: 3 }] }] },

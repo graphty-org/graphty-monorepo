@@ -170,9 +170,10 @@ describe("DOT styles: an HTML-like table's cells (labelTable)", () => {
     }
 
     it("reads spans, sizes and rules between rows and cells", async () => {
-        const t = (await tables()).get("spans") as { rows: unknown[]; lineHeight: number };
-        // the line its text layout gives DejaVu Sans at 10 points, 12.75 points (dot-specimen-labels-p2 html-td-balign-left)
-        expect(t.lineHeight).toBe(1.275);
+        const t = (await tables()).get("spans") as { rows: unknown[] };
+        // a line set as Graphviz 14 sets it: its font's ascent and descent rounded up to 96 dpi pixels, its baseline
+        // 0.95 font sizes under its top
+        expect(t).toMatchObject({ lineHeight: "font", textPixel: 0.75, baseline: 0.95 });
         expect(t.rows).toEqual([
             {
                 cells: [

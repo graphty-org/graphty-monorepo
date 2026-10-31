@@ -2670,6 +2670,9 @@ export async function buildGraphs(root, dirs, shards) {
     for (const [dir, pending] of graphs) {
         graphs.set(dir, await pending);
     }
+    console.error(
+        `test-select: import graphs: ${cache.stats.reused} reused from the cache, ${cache.stats.walked} walked`,
+    );
     return graphs;
 }
 
@@ -2678,7 +2681,8 @@ export async function buildGraphs(root, dirs, shards) {
  * package nobody changed is not walked again. A package with uncommitted changes is always walked.
  * @param root the checkout
  * @returns `async (dir, config, build, variant) => graph`, `variant` "features-on" for a graph with the On projects;
- *   `build(base)` returns a graph or a promise of one, `base` the cached graph file to walk from, or null
+ *   `build(base)` returns a graph or a promise of one, `base` the cached graph file to walk from, or null;
+ *   its `stats` counts the graphs `reused` and `walked`
  */
 function graphCache(root) {
     const git = (args) =>
@@ -2694,7 +2698,8 @@ function graphCache(root) {
     }
     // the list of tests that read files is computed from the rules and kept in each graph
     const rulesHash = createHash("sha256").update(readFileSync(RULES)).digest("hex");
-    return async (dir, config, build, variant = "") => {
+    const stats = { reused: 0, walked: 0 };
+    const lookup = async (dir, config, build, variant = "") => {
         let file = null;
         let base = null;
         try {
@@ -2708,6 +2713,7 @@ function graphCache(root) {
                 file = join(dirPath, `${dir}-${family}-${tree.slice(0, 16)}.json`);
                 const cached = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
                 if (cached && sameOutside(root, cached.outside) && sameAliases(root, cached.aliases)) {
+                    stats.reused++;
                     return cached;
                 }
                 base = nearestBase(dirPath, `${dir}-${family}-`, git);
@@ -2715,6 +2721,7 @@ function graphCache(root) {
         } catch {
             file = null;
         }
+        stats.walked++;
         const graph = await build(base);
         if (graph?.failed?.length > 0) {
             const which = config ? `${dir} (${config})` : dir;
@@ -2734,6 +2741,8 @@ function graphCache(root) {
         }
         return graph;
     };
+    lookup.stats = stats;
+    return lookup;
 }
 
 /**
@@ -2744,7 +2753,11 @@ function graphCache(root) {
  * @param git runs git in the checkout
  * @returns a file path or null
  */
-function nearestBase(dirPath, prefix, git) {
+export function nearestBase(dirPath, prefix, git) {
+    // a cold cache (a fresh CI runner) has no folder yet; throwing here once kept every graph from being saved
+    if (!existsSync(dirPath)) {
+        return null;
+    }
     const files = readdirSync(dirPath).filter((n) => n.startsWith(prefix) && n.endsWith(".json"));
     if (files.length === 0) {
         return null;

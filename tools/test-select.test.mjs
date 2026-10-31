@@ -20,6 +20,7 @@ import {
     graphCacheKey,
     lightPlan,
     planSummary,
+    reusableEdges,
     lockMoves,
     literalPaths,
     loadRules,
@@ -643,7 +644,11 @@ describe("building a package's import graph from an earlier commit's graph", () 
             git("init", "-q");
             put(".gitignore", "node_modules\n");
             put("pi/package.json", JSON.stringify({ name: "pi", type: "module" }));
-            put("pi/vitest.config.mjs", "export default { test: { include: ['test/**/*.test.ts'] } };\n");
+            put("pi/helper.mjs", "export const include = ['test/**/*.test.ts'];\n");
+            put(
+                "pi/vitest.config.mjs",
+                'import { include } from "./helper.mjs";\nexport default { test: { include } };\n',
+            );
             put("pi/src/top.ts", 'export { v } from "./middle";\n');
             put("pi/src/middle.ts", "export const v = 1;\n");
             put("pi/src/legacy.ts", 'export { v } from "./doomed";\n');
@@ -670,6 +675,12 @@ describe("building a package's import graph from an earlier commit's graph", () 
                 assert.deepEqual([...selectInGraph(inc, [f]).specs], [...selectInGraph(full, [f]).specs], f);
             }
             assert.deepEqual([...selectInGraph(inc, ["pi/src/fresh.ts"]).specs.keys()], ["pi/test/top.test.ts"]);
+            // a file the config loads (graphty's vite.aliases.ts) can move every edge: no reuse
+            assert.ok(full.configDeps.includes("pi/helper.mjs"), full.configDeps.join());
+            const graph2 = { commit: git("rev-parse", "HEAD"), ...full };
+            assert.ok(reusableEdges(fixture, graph2).size > 0);
+            put("pi/helper.mjs", "export const include = ['test/**/*.test.ts', 'more/**/*.test.ts'];\n");
+            assert.equal(reusableEdges(fixture, graph2), null);
         } finally {
             rmSync(fixture, { recursive: true, force: true });
         }

@@ -2035,6 +2035,7 @@ async function buildGraph(root, pkg, config, reuseFrom = null) {
     const imports = {};
     const projects = {};
     const failed = [];
+    const configDeps = [];
     const ctx = {
         walked: new Set(),
         imports,
@@ -2065,11 +2066,17 @@ async function buildGraph(root, pkg, config, reuseFrom = null) {
                 await walk(project, s);
             }
         }
+        // the files the configs load (the configs, and helpers such as graphty's vite.aliases.ts): a change to one
+        // can change every edge, so the next walk from this graph starts over (reusableEdges)
+        for (const project of vitest.projects) {
+            configDeps.push(...(project.vite.config.configFileDependencies ?? []));
+        }
     } finally {
         await vitest.close();
     }
     return {
         package: pkg,
+        configDeps: [...new Set(configDeps.map(rel))].sort(),
         config,
         projects,
         imports,
@@ -2150,7 +2157,8 @@ const WALK_INPUT =
  * walk.
  * @param root the checkout
  * @param base the earlier graph (`commit`, `raw`)
- * @returns Map(repo-relative file -> its `raw` groups), or null when the change since touched a walk input
+ * @returns Map(repo-relative file -> its `raw` groups), or null when the change since touched a walk input or a
+ *   file the configs load
  */
 export function reusableEdges(root, base) {
     const git = (...a) => execFileSync("git", a, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
@@ -2163,7 +2171,8 @@ export function reusableEdges(root, base) {
     }
     const added = lines(git("ls-files", "--others", "--exclude-standard"));
     const touched = [...diff.map(([, f]) => f), ...added];
-    if (!base.raw || touched.some((f) => WALK_INPUT.test(f))) {
+    const configDeps = new Set(base.configDeps);
+    if (!base.raw || !base.configDeps || touched.some((f) => WALK_INPUT.test(f) || configDeps.has(f))) {
         return null;
     }
     const moved = [...diff.filter(([s]) => s !== "M").map(([, f]) => f), ...added];
@@ -2781,7 +2790,7 @@ export function graphCacheKey(root, dirs) {
 }
 
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
-const GRAPH_VERSION = 9;
+const GRAPH_VERSION = 10;
 
 const fileHash = (root, f) => {
     try {

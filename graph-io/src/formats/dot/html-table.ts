@@ -190,33 +190,87 @@ function readTable(
         ...(alignFields(attrs, false) as Pick<LabelTable, "align" | "valign">),
         rows: [],
     };
-    let row: TableRow | null = null;
-    let rowRule = false;
-    let cellRule = false;
+    const state: RowState = { row: null, rowRule: false, cellRule: false };
     let at = from;
     for (let tag = nextTag(r.body, at); tag !== null; tag = nextTag(r.body, at)) {
-        at = tag.end;
         if (tag.name === "table" && tag.closing) {
-            break;
+            return { table, next: tag.end };
         }
-        if (tag.name === "tr" && !tag.closing) {
-            row = { cells: [], ...(rowRule ? { rule: true as const } : {}) };
-            table.rows.push(row);
-            rowRule = false;
-        } else if (tag.name === "hr") {
-            rowRule = true;
-        } else if (tag.name === "vr") {
-            cellRule = true;
-        } else if (tag.name === "td" && !tag.closing && row !== null) {
-            const end = tag.empty ? null : cellEnd(r.body, tag.end);
-            const content = end === null ? "" : r.body.slice(tag.end, end.start);
-            const cell = readCell(r, r.attributes(tag.text), content, fonts, depth);
-            row.cells.push(cellRule ? { ...cell, rule: true } : cell);
-            cellRule = false;
-            at = end === null ? tag.end : end.end;
-        }
+        at = readRowTag(r, table, state, tag, { fonts, depth });
     }
     return { table, next: at };
+}
+
+/** Where reading a table's rows is: the row being read, and whether a rule comes before the next row or cell. */
+interface RowState {
+    row: TableRow | null;
+    rowRule: boolean;
+    cellRule: boolean;
+}
+
+/**
+ * Reads one tag of a table's rows: a row, a rule, or a cell with its content.
+ * @param r - the label and the helpers
+ * @param table - the table, its rows added to
+ * @param state - where reading its rows is, changed in place
+ * @param tag - the tag
+ * @param nest - the font tags open round the table, and how deep it is inside other tables
+ * @param nest.fonts - the font tags, outermost first
+ * @param nest.depth - the depth
+ * @returns where reading goes on
+ */
+function readRowTag(
+    r: Reading,
+    table: LabelTable,
+    state: RowState,
+    tag: Tag,
+    nest: { fonts: readonly string[]; depth: number },
+): number {
+    if (tag.name === "tr" && !tag.closing) {
+        state.row = { cells: [], ...(state.rowRule ? { rule: true as const } : {}) };
+        table.rows.push(state.row);
+        state.rowRule = false;
+    } else if (tag.name === "hr") {
+        state.rowRule = true;
+    } else if (tag.name === "vr") {
+        state.cellRule = true;
+    } else if (tag.name === "td" && !tag.closing && state.row !== null) {
+        const end = tag.empty ? null : cellEnd(r.body, tag.end);
+        const content = end === null ? "" : r.body.slice(tag.end, end.start);
+        const cell = readCell(r, r.attributes(tag.text), content, nest);
+        state.row.cells.push(state.cellRule ? { ...cell, rule: true } : cell);
+        state.cellRule = false;
+        return end === null ? tag.end : end.end;
+    }
+    return tag.end;
+}
+
+/**
+ * The `<TABLE>` tag a markup opens with, perhaps inside font tags, and those font tags; null when it opens with text
+ * or any other tag.
+ * @param markup - the markup
+ * @returns the table tag and the font tags round it, outermost first, or null
+ */
+function openingTable(markup: string): { tag: Tag; fonts: string[] } | null {
+    const fonts: string[] = [];
+    for (let tag = nextTag(markup, 0); tag !== null; tag = nextTag(markup, tag.end)) {
+        if (
+            markup
+                .slice(0, tag.start)
+                .replaceAll(/<[^<>]*>/g, "")
+                .trim() !== ""
+        ) {
+            return null;
+        }
+        if (tag.name === "table" && !tag.closing) {
+            return { tag, fonts };
+        }
+        if (!FONT_TAGS.has(tag.name) || tag.closing) {
+            return null;
+        }
+        fonts.push(`<${tag.text}>`);
+    }
+    return null;
 }
 
 /**
@@ -224,16 +278,16 @@ function readTable(
  * @param r - the label and the helpers
  * @param attrs - the cell tag's attributes
  * @param content - the markup between `<TD>` and `</TD>`
- * @param fonts - the font tags open round its table, outermost first
- * @param depth - how deep its table is inside other tables
+ * @param nest - the font tags open round its table, and how deep that table is inside other tables
+ * @param nest.fonts - the font tags, outermost first
+ * @param nest.depth - the depth
  * @returns the cell
  */
 function readCell(
     r: Reading,
     attrs: ReadonlyMap<string, string>,
     content: string,
-    fonts: readonly string[],
-    depth: number,
+    nest: { fonts: readonly string[]; depth: number },
 ): TableCell {
     const balign = (attrs.get("balign") ?? "").toLowerCase();
     const colspan = whole(attrs, "colspan", 1, 65535) ?? 1;
@@ -250,34 +304,16 @@ function readCell(
         ...(padding === null ? {} : { padding }),
     };
     // a table inside the cell, perhaps inside font tags
-    const inner: string[] = [...fonts];
-    for (let tag = nextTag(content, 0); tag !== null; tag = nextTag(content, tag.end)) {
-        if (
-            content
-                .slice(0, tag.start)
-                .replace(/<[^<>]*>/g, "")
-                .trim() !== ""
-        ) {
-            break;
+    const inner = openingTable(content);
+    if (inner !== null) {
+        if (nest.depth + 1 < MAX_DEPTH) {
+            const fonts = [...nest.fonts, ...inner.fonts];
+            const body = { ...r, body: content };
+            cell.table = readTable(body, r.attributes(inner.tag.text), inner.tag.end, fonts, nest.depth + 1).table;
         }
-        if (tag.name === "table" && !tag.closing) {
-            if (depth + 1 < MAX_DEPTH) {
-                cell.table = readTable(
-                    { ...r, body: content },
-                    r.attributes(tag.text),
-                    tag.end,
-                    inner,
-                    depth + 1,
-                ).table;
-            }
-            return cell;
-        }
-        if (!FONT_TAGS.has(tag.name) || tag.closing) {
-            break;
-        }
-        inner.push(`<${tag.text}>`);
+        return cell;
     }
-    const lines = cellLines(content, fonts, r.runFont);
+    const lines = cellLines(content, nest.fonts, r.runFont);
     if (lines.length > 0) {
         cell.lines = lines;
     }
@@ -303,7 +339,7 @@ function cellLines(content: string, fonts: readonly string[], runFont: RunFont):
             if (i > 0) {
                 lines.push({ runs: [] });
             }
-            const line = lines[lines.length - 1];
+            const line = lines.at(-1) ?? { runs: [] };
             const last = line.runs.at(-1);
             if (last !== undefined && JSON.stringify({ ...last, text: "" }) === JSON.stringify({ ...font, text: "" })) {
                 last.text = `${String(last.text)}${text}`;
@@ -354,23 +390,15 @@ export function readLabelTable(
     attributes: (tag: string) => Map<string, string>,
     runFont: RunFont,
 ): LabelTable | null {
-    const fonts: string[] = [];
-    for (let tag = nextTag(markup, 0); tag !== null; tag = nextTag(markup, tag.end)) {
-        if (
-            markup
-                .slice(0, tag.start)
-                .replace(/<[^<>]*>/g, "")
-                .trim() !== ""
-        ) {
-            return null;
-        }
-        if (tag.name === "table" && !tag.closing) {
-            return readTable({ body: markup, attributes, runFont }, attributes(tag.text), tag.end, fonts, 0).table;
-        }
-        if (!FONT_TAGS.has(tag.name) || tag.closing) {
-            return null;
-        }
-        fonts.push(`<${tag.text}>`);
+    const opened = openingTable(markup);
+    if (opened === null) {
+        return null;
     }
-    return null;
+    return readTable(
+        { body: markup, attributes, runFont },
+        attributes(opened.tag.text),
+        opened.tag.end,
+        opened.fonts,
+        0,
+    ).table;
 }

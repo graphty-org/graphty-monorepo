@@ -4,10 +4,19 @@
  * `pos_html_tbl`, `pos_html_cell`). Nothing here reaches Babylon.js, Lit or the DOM: the caller measures the text.
  */
 
+/** Which way something lines up across its room. */
+export type TableAlign = "left" | "right" | "center";
+
+/** Which way something lines up down its room. */
+export type TableVAlign = "top" | "bottom" | "middle";
+
+/** Which way a length lines up in a longer one: toward its start, its end, or in its middle. */
+type Way = "start" | "end" | "middle";
+
 /** One line of a cell's text: its words in label markup, and which way it lines up in the cell's text box. */
 export interface LabelTableLine {
     readonly text: string;
-    readonly align?: "left" | "right" | "center";
+    readonly align?: TableAlign;
 }
 
 /** One cell of a table. Lengths are in the units of the node's size. */
@@ -19,9 +28,9 @@ export interface LabelTableCell {
     readonly width?: number;
     readonly height?: number;
     readonly fixedSize?: boolean;
-    readonly align?: "left" | "right" | "center" | "text";
-    readonly valign?: "top" | "bottom" | "middle";
-    readonly balign?: "left" | "right" | "center";
+    readonly align?: TableAlign | "text";
+    readonly valign?: TableVAlign;
+    readonly balign?: TableAlign;
     readonly border?: number;
     readonly padding?: number;
     readonly rule?: boolean;
@@ -42,8 +51,8 @@ export interface LabelTable {
     readonly width?: number;
     readonly height?: number;
     readonly fixedSize?: boolean;
-    readonly align?: "left" | "right" | "center";
-    readonly valign?: "top" | "bottom" | "middle";
+    readonly align?: TableAlign;
+    readonly valign?: TableVAlign;
     readonly lineHeight?: number;
     readonly rows: readonly LabelTableRow[];
 }
@@ -223,10 +232,10 @@ function sizeCell(
         const m = measure(line.text);
         return { text: line.text, align: line.align, width: m.width, height: m.height * lineHeight };
     });
-    const content =
-        inner === null
-            ? { width: Math.max(0, ...lines.map((l) => l.width)), height: lines.reduce((s, l) => s + l.height, 0) }
-            : inner;
+    const content = inner ?? {
+        width: Math.max(0, ...lines.map((l) => l.width)),
+        height: lines.reduce((sum, l) => sum + l.height, 0),
+    };
     const margin = 2 * (cellPadding(table, cell) + cellBorder(table, cell));
     const fixed = isFixed(cell);
     return {
@@ -267,7 +276,7 @@ function cellBorder(table: LabelTable, cell: LabelTableCell): number {
  * @param way - which way it lines up: toward the start ("left", "top"), the end, or the middle
  * @returns where the shorter one starts
  */
-function lineUp(start: number, room: number, size: number, way: "start" | "end" | "middle"): number {
+function lineUp(start: number, room: number, size: number, way: Way): number {
     if (way === "start") {
         return start;
     }
@@ -279,7 +288,7 @@ function lineUp(start: number, room: number, size: number, way: "start" | "end" 
  * @param align - the alignment
  * @returns the way
  */
-function across(align: string | undefined): "start" | "end" | "middle" {
+function across(align: string | undefined): Way {
     if (align === "left") {
         return "start";
     }
@@ -291,7 +300,7 @@ function across(align: string | undefined): "start" | "end" | "middle" {
  * @param valign - the alignment
  * @returns the way
  */
-function down(valign: string | undefined): "start" | "end" | "middle" {
+function down(valign: string | undefined): Way {
     if (valign === "top") {
         return "start";
     }

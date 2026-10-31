@@ -3164,7 +3164,7 @@ export class Node implements ModelUser {
 function hashText(text: string): string {
     let h = 5381;
     for (let i = 0; i < text.length; i++) {
-        h = (Math.imul(h, 33) + text.charCodeAt(i)) | 0;
+        h = (Math.imul(h, 33) + (text.codePointAt(i) ?? 0)) >>> 0;
     }
-    return (h >>> 0).toString(36);
+    return h.toString(36);
 }

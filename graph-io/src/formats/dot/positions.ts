@@ -22,7 +22,7 @@ export function dotPositions(snapshot: GraphSnapshot): ImporterPositions | null 
         return null;
     }
     const bb = snapshot.graph.get("bb");
-    const box = bb !== null && bb.isSet(0) ? boxOf(bb.value(0)) : null;
+    const box = bb?.isSet(0) === true ? boxOf(bb.value(0)) : null;
     const laidOut = box !== null;
     const width = snapshot.nodes.get("width");
     const widths: number[] = [];
@@ -56,7 +56,7 @@ function ratioStretch(
     box: ImporterGroupBox["box"],
 ): { pxPerUnit?: number; pxPerUnitY?: number } {
     const raw = snapshot.graph.get("ratio");
-    const ratio = raw !== null && raw.isSet(0) ? Number(raw.value(0)) : Number.NaN;
+    const ratio = raw?.isSet(0) === true ? Number(raw.value(0)) : Number.NaN;
     if (!Number.isFinite(ratio) || ratio <= 0 || box.width <= 0 || box.height <= 0) {
         return {};
     }

@@ -28,6 +28,7 @@ import {
     type Point,
     rightClick,
     touchDrag,
+    twist,
     wheel,
     withDevicePixelRatio,
 } from "../helpers/real-input";
@@ -497,6 +498,25 @@ describe("the 2D view", () => {
             assert.closeTo(element.getNode(id)?.getPosition().z ?? Number.NaN, 0, 1e-6, `node ${id} is on the plane`);
         }
     });
+
+    it("viewRotation turns the drawing counterclockwise, framed, and a finger still drags it along", async () => {
+        const element = await mounted("2d");
+        await element.session.config.set({ viewRotation: 90 });
+        await applied(element);
+
+        // Unturned, b is right of a; a quarter turn counterclockwise puts b straight above a.
+        const a = at(element, "a");
+        const b = at(element, "b");
+        assert.closeTo(b.x - a.x, 0, 2, "a and b stand one above the other");
+        assert.isBelow(b.y - a.y, -20, "b is above a");
+        assert.closeTo(element.getCameraState().rotation ?? Number.NaN, Math.PI / 2, 1e-6);
+
+        await touchDrag(element, EMPTY, { x: EMPTY.x + 40, y: EMPTY.y - 80 });
+        await applied(element);
+        const moved = at(element, "a");
+        assert.closeTo(moved.x - a.x, 40, 3, "the turned drawing followed the finger across");
+        assert.closeTo(moved.y - a.y, -80, 3, "the turned drawing followed the finger up");
+    });
 });
 
 /**
@@ -845,6 +865,25 @@ describe("touch", () => {
         await applied(element);
 
         assert.isAbove(spread(element), gap * 1.5, "the drawing grew with the fingers");
+    });
+
+    it("turning two fingers turns the 2D view with them, and the camera reports the turn", async () => {
+        const element = await mounted("2d");
+        // The way from node a to node b on screen, in degrees clockwise (screen y runs down).
+        const heading = (): number => {
+            const a = at(element, "a");
+            const b = at(element, "b");
+            return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+        };
+        const before = heading();
+        assert.closeTo(element.getCameraState().rotation ?? Number.NaN, 0, 1e-9, "the view starts unturned");
+
+        await twist(element, { x: WIDTH / 2, y: HEIGHT / 2 }, 120, 40);
+        await applied(element);
+
+        assert.closeTo(heading() - before, 40, 4, "the drawing turned clockwise with the fingers");
+        // The camera reports the drawing's turn counterclockwise, in radians: 40 degrees clockwise is -40.
+        assert.closeTo(element.getCameraState().rotation ?? Number.NaN, (-40 * Math.PI) / 180, 0.07);
     });
 
     it("spreading two fingers zooms the 3D view in", async () => {

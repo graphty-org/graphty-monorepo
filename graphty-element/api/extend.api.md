@@ -446,7 +446,6 @@ export interface CameraState {
         z: number;
     };
     radius?: number;
-    // (undocumented)
     rotation?: number;
     // (undocumented)
     target?: {

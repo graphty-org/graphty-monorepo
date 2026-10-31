@@ -596,9 +596,15 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "releases.lanes_red": {
         name: "Red lanes on the candidate",
         short: "red lanes on the candidate",
-        def: "Lanes of the full run (CI, T4 GPU, host matrix, macOS autosave, audit, LLM tests) that failed on the newest tested commit, the candidate for nightly. A run that passed but changed pictures counts on Full runs held for screenshot review instead, unless an open 'Nightly held' issue holds it.",
-        red: "A lane has been red 6 h or more, or a held candidate with an open 'Nightly held' issue has waited 6 h for screenshot review, so nightly cannot move. Agents fix forward from the candidate; changed screenshots wait on the owner.",
+        def: "Lanes of the full run (CI, T4 GPU, host matrix, macOS autosave, audit, LLM tests) that failed on the newest tested commit, the candidate for nightly. A run that passed but changed pictures counts on Nightly waiting on screenshot review instead.",
+        red: "A lane has been red 6 h or more, or a release hold has been open 6 h, so nightly cannot move. Agents fix forward from the candidate.",
         headline: "Release lanes red",
+    },
+    "releases.review_wait": {
+        name: "Nightly waiting on screenshot review",
+        short: "screenshot review wait",
+        def: "Hours the held nightly candidate, whose full run passed every test but changed pictures, has waited on its open 'Nightly held' issue for the owner's screenshot review.",
+        red: "It has waited 6 h or more, so nightly cannot move until the owner approves or rejects the changed screenshots.",
     },
     "releases.workflows_failing": {
         name: "Release workflows failing",

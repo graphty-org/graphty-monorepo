@@ -191,6 +191,7 @@ export const MEMBER_IDS = [
     "flaky.net_new",
     "flaky.detected_to_fixed",
     "releases.lanes_red",
+    "releases.review_wait",
     "releases.workflows_failing",
     "releases.train_skipped",
     "releases.tagged_not_npm",

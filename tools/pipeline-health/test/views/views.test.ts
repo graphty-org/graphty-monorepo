@@ -295,24 +295,28 @@ describe("views", () => {
     });
 
     it("Lanes red at 0 that is red for a held candidate says what holds it (#5125)", async () => {
-        const lanes = async (items: RawItem[]) => {
+        const member = async (items: RawItem[], id: string) => {
             const vs = await views(await world(items));
             const p = vs.find((v) => v.route.kind === "page" && v.route.page === "releases" && v.route.range === "1h")!
                 .body as PageResponse;
-            return p.members.find((m) => m.id === "releases.lanes_red")!;
+            return p.members.find((m) => m.id === id)!;
         };
         const at = T0 - 5 * MIN;
         const quiet = [obs("release.lanes_red", 0, at), obs("release.hold_open_ms", 0, at)];
-        expect(
-            await lanes([...quiet, obs("release.review_wait_ms", 7 * HOUR, at), obs("release.review_issue", 5065, at)]),
-        ).toMatchObject({
+        const held = await member(
+            [obs("release.lanes_red", 0, at), obs("release.hold_open_ms", 9 * HOUR, at)],
+            "releases.lanes_red",
+        );
+        expect(held).toMatchObject({ state: "bad", note: { code: "releases.held.note", params: { h: 9 } } });
+        // A green-images hold waiting on the screenshot review is its own member, never "lanes red" at 0 (#5294).
+        const waiting = [...quiet, obs("release.review_wait_ms", 7 * HOUR, at), obs("release.review_issue", 5065, at)];
+        expect((await member(waiting, "releases.lanes_red")).state).toBe("ok");
+        expect(await member(waiting, "releases.review_wait")).toMatchObject({
             state: "bad",
-            value: { n: 0 },
+            value: { n: 7, unit: "h" },
             note: { code: "releases.review_wait.note", params: { h: 7, issue: 5065 } },
         });
-        const held = await lanes([obs("release.lanes_red", 0, at), obs("release.hold_open_ms", 9 * HOUR, at)]);
-        expect(held).toMatchObject({ state: "bad", note: { code: "releases.held.note", params: { h: 9 } } });
-        const ok = await lanes([...quiet, obs("release.review_wait_ms", HOUR, at)]);
+        const ok = await member([...quiet, obs("release.review_wait_ms", HOUR, at)], "releases.review_wait");
         expect(ok.state).toBe("ok");
         expect(ok.note).toBeUndefined();
     });

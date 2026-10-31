@@ -129,6 +129,14 @@ export const SPEC: Record<string, Spec> = {
         red: f("sla.lanes_open", { h: 6 }),
         also: {
             "release.hold_open_ms": (v) => f("releases.held.note", { h: round(v * toH) }),
+        },
+    },
+    "release.review_wait": {
+        id: "releases.review_wait",
+        unit: "h",
+        k: toH,
+        link: "/releases/lanes",
+        also: {
             "release.review_wait_ms": (v, facts) =>
                 f("releases.review_wait.note", { h: round(v * toH), issue: facts["release.review_issue"] ?? 0 }),
         },

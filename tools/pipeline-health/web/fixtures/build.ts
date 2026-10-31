@@ -540,6 +540,12 @@ const lanesRed = member({
 const releaseMembers: Member[] = [
     lanesRed,
     member({
+        id: "releases.review_wait",
+        value: num(0, "h"),
+        sla: { target: cmp("<", 6, "h") },
+        link: "/releases/lanes",
+    }),
+    member({
         id: "releases.workflows_failing",
         state: "bad",
         value: num(1),

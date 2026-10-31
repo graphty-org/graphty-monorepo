@@ -124,8 +124,10 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > the gate step and visual job in ci.yml to make a check pass; decide every two-way door yourself and say the choice in the commit message; a breaking change or a one-way decision: commit
 > nothing, comment the question on the issue with the `needs-decision` label, and stop. Before your final tests:
 > `git fetch origin`, `git merge origin/master` (never rebase), `pnpm install --frozen-lockfile`, resolve any conflict
-> keeping both intents, then run the affected lint, build and tests (`pnpm run test:changed --base origin/master`)
-> and `node tools/sonar-gate.mjs` on the merged code and commit. A long-lived branch (open more than about two days,
+> keeping both intents, then run the affected lint, typecheck and build, and only the test files you touched or
+> wrote plus those that exercise the code you changed, never whole shards (CI runs the rest, owner 2026-10-25;
+> `pnpm run test:changed --dry-run --base origin/master` names the candidates). Then run
+> `node tools/sonar-gate.mjs` on the merged code and commit. A long-lived branch (open more than about two days,
 > more than a day of work, or a merge of master that brought app or graphty-element changes or conflicts), or any
 > branch after a large change (a refactor of a shared component, a dependency or lockfile upgrade, a change to
 > graphty-element's styling, layout or rendering), whose change reaches the graphty app also runs

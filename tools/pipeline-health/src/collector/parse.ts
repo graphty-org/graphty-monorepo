@@ -344,6 +344,26 @@ export function isGhostRun(run: GhRun, open: GqlPr[], complete: boolean): boolea
     return !open.some((p) => listed.has(p.number) || p.headRefName === run.head_branch);
 }
 
+/**
+ * An unfinished run with no jobs that waits on its own workflow's concurrency group, not for a runner: GitHub creates
+ * no job until the group is free, and reports the run as "pending" or, as for Release restart 41191120998 behind full
+ * run 41188440989 in release.yml's `release-train` group (2026-10-31, 10:02-10:25Z), as "queued". So a run is taken to
+ * wait on its group when it is "pending", or when an older run of the same workflow on the same branch is in progress.
+ * It holds no runner, so runner use leaves it out. `unfinished` is the unfinished runs of the run's repository.
+ */
+export function waitsOnConcurrency(run: GhRun, unfinished: GhRun[]): boolean {
+    if (run.status === "pending") return true;
+    const created = Date.parse(run.created_at);
+    return unfinished.some(
+        (o) =>
+            o.id !== run.id &&
+            o.status === "in_progress" &&
+            o.path === run.path &&
+            o.head_branch === run.head_branch &&
+            Date.parse(o.created_at) < created,
+    );
+}
+
 /** Saturated: jobs queued > 2 min while running >= limit - 3. Not assigned: queued > 2 min while running < 75%. */
 export function runnerFlags(use: RunnerUse, limit: number): { saturated: boolean; unassigned: boolean } {
     const waiting = use.queuedOver2 > 0;

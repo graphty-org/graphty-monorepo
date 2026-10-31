@@ -145,4 +145,17 @@ describe("a label built while its web font loads", () => {
             "framed for the loaded font",
         );
     });
+
+    it("reaches a final picture in the fallback when its font fails to load", async () => {
+        family++;
+        const name = `Missing Font ${String(family)}`;
+        document.fonts.add(new FontFace(name, "url(/no-such-font-3531.woff2)"));
+        const fallback = await mount("No Such Family 3531");
+        const fallbackNode = labelWidth(fallback);
+        unmount(fallback);
+
+        const graph = await mount(name);
+
+        assert.strictEqual(labelWidth(graph), fallbackNode, "the label stays in the fallback face");
+    });
 });

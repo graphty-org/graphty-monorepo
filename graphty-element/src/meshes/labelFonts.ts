@@ -89,15 +89,20 @@ export function noteLabelFont(scene: Scene, style: string, list: string): void {
         }
 
         fonts.loading.add(family);
+        // Settled either way, the font is not asked for again: a face that failed to load still fails
+        // `check`, and asking again from the rebuilt labels would load, fail and rebuild for ever.
+        const settled = (): void => {
+            fonts.loaded.add(spec);
+            fonts.loading.delete(family);
+        };
         const landed = (): void => {
+            settled();
             // The font boxes read while the family drew in its fallback are the fallback's.
             forgetFontBoxes();
-            fonts.loading.delete(family);
             fonts.onLoaded?.(new Set([family]));
         };
-        // A face that fails to load leaves the fallback for good: rebuilding is harmless, and the
-        // wait for the final picture must end either way.
-        void set.load(spec).then(landed, landed);
+        // A face that fails to load leaves the labels in the fallback they were drawn in.
+        void set.load(spec).then(landed, settled);
     }
 }
 

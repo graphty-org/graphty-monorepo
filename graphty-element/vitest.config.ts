@@ -76,6 +76,7 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/camera/view-insets.test.ts",
     "test/browser/groups-follow-members.test.ts",
     "test/browser/label-declutter.test.ts",
+    "test/browser/curves-rest-the-same-however-frames-split.test.ts",
     "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
 ];
 

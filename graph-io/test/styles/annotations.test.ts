@@ -92,4 +92,27 @@ describe("readAnnotations", () => {
         expect(annotations[1]).toMatchObject({ targetHeadLength: 17, targetHeadWidth: 10 });
         expect(annotations[1]).not.toHaveProperty("sourceHeadLength");
     });
+
+    it("starts a line with an X at its source half the X's length out from its source, the X centered there", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addNode("a");
+        const arrow = (uuid: string, source: string, sourceType: number, sourceSize: number): string =>
+            `type=org.cytoscape.view.presentation.annotations.ArrowAnnotation|uuid=${uuid}|x=0|y=0` +
+            `|sourceAnnotation=${source}|targetPoint=100,5|sourceType=${String(sourceType)}` +
+            `|sourceSize=${String(sourceSize)}|targetType=1|zoom=1`;
+        b.setGraphValue("__Annotations", [
+            "type=org.cytoscape.view.presentation.annotations.ShapeAnnotation|uuid=box|x=0|y=0|width=14|height=10|zoom=1",
+            arrow("x", "box", 6, 1),
+            arrow("x2", "box", 6, 2),
+            arrow("closed", "box", 1, 1),
+        ]);
+        const arrows = readAnnotations(b.freeze()).annotations.filter((a) => a.kind === "arrow");
+        // Cytoscape 3.10.5's SVG of specimen-images-charts-p6 ("arrow sourceType=X Arrow"): the source box ends at 249,
+        // the X spans 249..259 and the line starts at 254; every other head's tip is the box's side
+        expect(arrows.map((a) => a.kind === "arrow" && a.from)).toEqual([
+            { x: 19, y: -5 },
+            { x: 24, y: -5 },
+            { x: 14, y: -5 },
+        ]);
+    });
 });

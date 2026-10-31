@@ -6,15 +6,17 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
-vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
-
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { forgetUsageAnswer } from "../../privacy/usageData";
+import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+/** Where Sentry would start and stop: the usage data card's Share and No call these instead. */
+const initSentry = vi.fn();
+const stopSentry = vi.fn();
+setUsageSenderForTests({ start: initSentry, stop: stopSentry });
 
 const OWNER_WORDS =
     "We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions.";

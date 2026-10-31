@@ -8,6 +8,8 @@ import { type AttachmentData, captureUserFeedback, type FeedbackResult } from ".
 interface FeedbackModalProps {
     opened: boolean;
     onClose: () => void;
+    /** Sends the feedback; Sentry's by default. Tests pass one that records it. */
+    send?: typeof captureUserFeedback;
 }
 
 /**
@@ -29,9 +31,14 @@ async function fileToAttachment(file: File): Promise<AttachmentData> {
  * @param root0 - Component props
  * @param root0.opened - Whether the modal is open
  * @param root0.onClose - Close the modal
+ * @param root0.send - Sends the feedback; Sentry's by default
  * @returns The feedback modal component
  */
-export function FeedbackModal({ opened, onClose }: Readonly<FeedbackModalProps>): React.JSX.Element {
+export function FeedbackModal({
+    opened,
+    onClose,
+    send = captureUserFeedback,
+}: Readonly<FeedbackModalProps>): React.JSX.Element {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [message, setMessage] = useState("");
@@ -46,7 +53,7 @@ export function FeedbackModal({ opened, onClose }: Readonly<FeedbackModalProps>)
         // Convert files to attachments and submit
         void Promise.all(files.map(fileToAttachment))
             .then((attachments) => {
-                const feedbackResult = captureUserFeedback({
+                const feedbackResult = send({
                     name: name || undefined,
                     email: email || undefined,
                     message,

@@ -25,7 +25,7 @@ import { Workspace } from "../../Workspace";
 
 /** The fraud fixture's issues as the element counts them, and the header that carries each. */
 const ISSUES: readonly { label: string; tab: "Nodes" | "Edges"; header: string }[] = [
-    { label: "18 unknown ends", tab: "Edges", header: "from" },
+    { label: "18 edges with an unknown target", tab: "Edges", header: "to" },
     { label: "2 repeated ids", tab: "Nodes", header: "account" },
     { label: "row 412 refused", tab: "Edges", header: "from" },
     { label: "5 repeated edges", tab: "Edges", header: "from" },
@@ -172,10 +172,10 @@ describe("the table dock's configuration", () => {
         // Maximized: the Issues list beside the table; Sources, Fields and Filters once, in the
         // Data place on the left.
         const config = await within(dock).findByRole("complementary", { name: "Table configuration" });
-        assert.isNull(within(config).queryByRole("list", { name: "Sources" }));
+        assert.isNull(within(config).queryByRole("list", { name: "Data sources" }));
         const left = screen.getByRole("complementary", { name: "Left panel" });
-        assert.lengthOf(screen.getAllByRole("list", { name: "Sources" }), 1);
-        within(left).getByRole("list", { name: "Sources" });
+        assert.lengthOf(screen.getAllByRole("list", { name: "Data sources" }), 1);
+        within(left).getByRole("list", { name: "Data sources" });
         const list = within(config).getByRole("list", { name: "Issues" });
         for (const { label, tab } of ISSUES) {
             const item = within(list).getByText(label).closest("li");
@@ -189,9 +189,13 @@ describe("the table dock's configuration", () => {
         }
         // The fix the data already shows is pressed: the made nodes are kept.
         assert.strictEqual(
-            within(list).getByRole("button", { name: "Add nodes: 18 unknown ends" }).getAttribute("aria-pressed"),
+            within(list)
+                .getByRole("button", { name: "Add nodes: 18 edges with an unknown target" })
+                .getAttribute("aria-pressed"),
             "true",
         );
+        // Its other fix says what it does: the made nodes and their edges go.
+        within(list).getByRole("button", { name: "Remove nodes and edges: 18 edges with an unknown target" });
 
         // Every issue is in its header: the warning's hover lists it with its buttons, and the
         // header's menu offers the same fixes and Ignore for the keyboard.

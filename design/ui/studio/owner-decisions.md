@@ -4,6 +4,204 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-30 -- For the owner: two compact-mantine behaviors the tier 4 round faulted (compact-mantine)
+
+From the tier 4 round 1 fix pass (`tier4/rounds/round-1/scores.md`). Both change how a Figma-locked
+component looks or behaves, so neither is built without the owner's `Figma-Approved` trailer.
+
+- **A data table column's "..." is not drawn at rest** (problem 22; s05, s06, s07, s08, s19 and the
+  accessibility walk). It appears only on hover or focus, so readers looking for a column's menu found
+  nothing to click. Drawing it at rest changes DataTable's look. Its tooltip now names its key
+  (Alt+Down), which needed no look change.
+  **Owner, 2026-10-30: draw it at rest,** "maintain consistency with figma for now, we might come back to this
+  later": Figma's Export row keeps its "..." settings button always visible; hover-reveal is Figma's layer tree only.
+  Built in #5055 with the owner's Figma-Approved trailer.
+- **A Popout closes when the reader drags the table's scrollbar** (problem 25, repro `r1-s16-script`).
+  The source row's issue list is a compact-mantine Popout, which closes on any pointer press outside it.
+  Keeping it open while a scrollbar is dragged changes Popout's dismiss behavior.
+  **Owner, 2026-10-30: rejected.** "if the scrollbar is part of the popout, then clicking on it shouldn't close
+  the popout. if it's a scrollbar outside the popout, obviously clicking on it counts as a click outside the
+  popout." The table's scrollbar is outside, so closing is correct; a Popout's own scrollbar must never close it.
+
+## 2026-10-30 -- Decided by the team: the tier 4 round 1 fix pass (graphty-element, compact-mantine, babylonjs-map)
+
+From the tier 4 round 1 fix pass (`tier4/report.md`, section 7; `tier4/decided.md`, "Fix pass after
+round 1").
+
+- **graphty-element, non-breaking.** `JoinChoices.unknownEnds?: "add" | "leave-out"`: for an edge join,
+  a row with an end the graph lacks adds that end as a new node (`"add"`, the default and today's
+  behavior) or is left out. `JoinReport.rowFates` (new type `JoinRowFate`: `"joined"`, `"new-end"`,
+  `"repeat"`, `"left-out"`, an open union) says per incoming row what Join does with it, and
+  `JoinReport.unknownEndRows` counts the edge rows with an unknown end. Why: the join screen tagged the
+  wrong rows (round 1's most severe open problem) and could not decide an unknown end before Join; the
+  app needed the row-by-row outcome as an element fact rather than recomputing the join.
+- **graphty-element, part of the unreleased `within` addition (`@beta`).**
+  `FilterConditionMatches.total` is the graph's count for every condition, a select condition within
+  the picture included; `matched` still counts what it would mark. This supersedes the 2026-10-29 entry
+  below that made `total` the count drawn. Why: a Select card and a Filter to card beside it read
+  against different totals (problem 16); one basis makes the cards comparable. `within` and its count
+  were never released.
+- **compact-mantine, non-breaking.** `FileSource` takes an opt-in `openLabel`: a button with that text
+  beside the URL field that does what Enter does. Without it nothing is drawn differently.
+- **babylonjs-map, unreleased (0.0.0).** The DMS reader refuses text with no hemisphere, no degree,
+  minute or second mark and no space or comma between parts: "555-0101" no longer reads as 5 55' N,
+  101 W, so a column of phone numbers is no longer detected as a location (problem 26).
+
+## 2026-10-29 -- Decided by the team: a select condition's `within` after master's select rule (graphty-element)
+
+- **graphty-element, non-breaking.** Master now makes every select condition select only among the
+  visible elements and recompute when a keep or exclude condition changes (neither published to npm).
+  The studio branch's optional `within` field stays, with its default turned around to match: absent or
+  `"picture"`, a select condition selects among what is visible; `"graph"` selects over the whole
+  graph, visible or not, and applies only when every select condition that is on reads `"graph"`. Why:
+  master's rule is the product's rule (what is ringed and what is reported as selected never differ),
+  and `"graph"` keeps the choice open for a consumer that reveals hidden matches. The graphty app's
+  Select cards still write `"picture"`, which is now the same as leaving it out.
+
+## 2026-10-29 -- Decided by the team: an unknown-end issue says which end is unknown (graphty-element)
+
+From the tier 4 dry run, pass 4 (`tier4/dry-run-r1-2.md`, unit U2).
+
+- **graphty-element, non-breaking.** The `unknown-end` issue that `session.data.issues()` lists gains
+  `params.ends`: `"source"`, `"target"` or `"both"`, by which end of the edges it counts names a node no
+  node row gave. `params` is an open record, so adding a key changes nothing a consumer reads today; the
+  issue's id, count, fixes and other params are unchanged, so an ignored issue stays ignored. Why: a
+  consumer that marks the column holding the problem had only up to five example ids, so the graphty
+  app marked the edge's first column for every unknown end and drew a known site as the one that did
+  not fit (T61). A per-cell fact was not added: no consumer needs it yet.
+
+## 2026-10-29 -- Decided by the team: a within-picture Select card counts what it marks (graphty-element)
+
+From the tier 4 dry run, pass 3 (`tier4/dry-run-r1-3.md`, unit U1).
+
+- **graphty-element, part of the unreleased `within` addition.** `visibility.conditionCounts()` counts a
+  select condition with `within: "picture"` as what it would select: `matched` is its rule's matches
+  among what the on keep and exclude conditions leave drawn, `total` is how many are drawn, on or off.
+  Every other condition's count is unchanged (over the whole graph, independent of the other
+  conditions). Why: with the selection limited to the picture, a count over the whole graph put "5 of
+  24" on the card that marks 4 (T65). Not breaking: `within` exists only on the studio branch, never
+  released, so this defines the count of the same new field rather than changing an existing return
+  value; a condition without `within` counts exactly as before. The count's cache must key on the
+  picture for these conditions.
+
+## 2026-10-29 -- Decided by the team: a select condition can select only what is in the picture (graphty-element)
+
+From the tier 4 dry run, pass 2 (`tier4/dry-run-r1-2.md` as committed at 8f1aa15875, unit U1).
+
+- **graphty-element, non-breaking.** `FilterCondition` takes an optional `within: "graph" | "picture"`
+  (the type exported as `FilterSelectWithin`, an open union), read only when `effect` is `"select"`. Absent, or `"graph"`, the condition selects over the whole graph,
+  exactly as today. With `"picture"`, the selection is the AND of the on select conditions intersected
+  with what the on keep and exclude conditions leave drawn; it is recomputed when a keep or exclude
+  condition, its rule or its on box changes, and on undo and redo of such a change, and it never depends
+  on the order of the conditions. A project file that holds the field reads it back; one without it
+  reads as before. Why: the team settled that a select condition selects only what is in the picture
+  (`interaction-patterns.md` lines 321 and 333; this file's "tier 4 data management questions", item 9),
+  and the T65 pilots read "5 nodes selected" with 4 rings. An opt-in field, not a changed default,
+  because changing what `effect: "select"` does for every consumer would be a breaking change and
+  another consumer may want selection over the whole graph (a select that reaches hidden matches is a
+  reasonable choice for an app that reveals them). The graphty app's Filters Select cards write
+  `within: "picture"`.
+- **graphty-element, defect fix.** A run's reuse (`runs.start()` handing back a stored run, and
+  `runs.answered()`) takes into account the weight the Data role supplies by default and its reading, so
+  a run asked again after the weight role or its reading changed computes again. No API change.
+
+## 2026-10-29 -- Decided by the team: an import error that dropped only a value says so (graph-io, graphty-element)
+
+- **graph-io, non-breaking.** An `ImportIssue` of severity "error" that dropped one value while its
+  node or edge was kept now carries `params: { skipped: "value" }`; the new export `SKIPPED_VALUE`
+  is that object, and `ImportReportBuilder.recordError` takes it as an optional third argument. The
+  GraphML `<data>` reader and the GEXF `<attvalue>` reader set it. Every other field of the issue is
+  as before. Why: graphty-element counted every error with a line as a refused row, so a GraphML
+  file whose number columns hold "null" on two nodes reported "6 rows refused" while every node and
+  all 361 edges were loaded. Nothing in the issue said whether the row survived; a flag on the
+  issue is the smallest fact that does, and a consumer that ignores `params` sees no change.
+- **graphty-element, defect fix.** The `refused-row` data issue counts only reader errors whose row
+  the graph does not hold; a dropped value is no longer reported as a refused row.
+
+## 2026-10-29 -- Decided by the team: a range over dates, and a weight given after the load (graphty-element)
+
+From the tier 4 dry run (`tier4/dry-run-r1-1.md`).
+
+- **A range leaf can compare dates.** graphty-element, non-breaking: the `range` rule leaf takes an
+  optional `as: "time"`. With it, `min` and `max` are instants in milliseconds and each value is read
+  by the session's time parser (the one the timeline uses); without it, a range reads numbers exactly
+  as today. Why: a filter or style condition on a date column ("put in before 2005") had no rule to
+  write, so T65 B could not be done. An option on the existing leaf, not a new leaf kind, because the
+  test is the same "between min and max" and every consumer that already walks `range` leaves keeps
+  working. As built: on the designated time field the leaf reads the timeline's own instants, so
+  the two agree on every value; any other column (a column typed as dates) is read by the same
+  parser `session.time.parse` uses (a date written with no zone is UTC). An `as` other than "time"
+  is refused.
+- **A weight role given after the load is the weight runs read.** graphty-element: `data.setRole(column,
+"weight")` documents the role as "the edge weight", but runs and `data.loadedWeight()` read only the
+  weight a load mapped, so a weight given in Data > Fields never reached an analysis (T64). Treated as
+  a defect fix, not a change of behavior: no consumer sets the weight role to have runs ignore it, and
+  a run with an explicit `weight` option reads that option as before. If the owner reads it as a
+  change to what `loadedWeight()` returns, the fallback is a new `data.weight()` that the run plan
+  reads, leaving `loadedWeight()` as it is. Built as: `loadedWeight()` reports the edge column the
+  weight role names (`data.knownFields.edgeWeightPath`) when it is an edge column the load did not read
+  weights from, none when the role was taken away, and otherwise the loaded column as before; runs and
+  `plan()` read the same answer, so the role, its undo and the runs move together. A configured weight
+  path naming no column of the data keeps today's behavior (the loaded column).
+
+## 2026-10-29 -- Decided by the team: tier 4 data management questions (graphty app, graphty-element, compact-mantine)
+
+Raised by the tier 4 expert walkthroughs (`tier4/review/*.md`; screenshots under the main
+checkout's `tmp/design-studio/tier4/review/`). None is a one-way door: each is settled by an
+existing owner statement, the framework docs or an additive change, so nothing waits for the
+owner. Binding entries are in `tier4/decided.md`; the buildable parts are in `tier4/backlog.md`.
+
+1. **The filter card's effect words.** Settled by `design/ui/framework/glossary.md` ("Filter to" /
+   "Filter out", line ~235; "Show only" and "Hide" rejected for a filter step, lines ~183, ~421,
+   ~474). Build `Select | Filter to | Filter out`: Filter out writes `exclude`, Filter to writes
+   `keep`. A new card starts on Filter out (T65B-9). The T65 and T66 answer keys follow the new
+   words; T66 is answered with Filter out on the second file's node.
+2. **Where a column's kind is set.** Keep Type and Role in the table header menu (option a). The
+   owner, 2026-10-20 04:36: "we lost the preferred route of how to configure data from the first
+   round -- directly in the header of the table" and "I don't know what value 'other fields'
+   adds"; the approved spec `ui/data-prototype/spec.md` lines 166, 189 and 210 puts Type in the
+   header menu and has no other-fields list. His "view-only" rule is read with that sentence.
+3. **A Select card after a hand selection change.** By `interaction-patterns.md` line 321 (what is
+   ringed and what is described never differ): graphty-element turns a select condition off when
+   the reader changes the selection by hand, so the card never claims a selection that is gone.
+4. **Detected roles on load.** The owner, 2026-10-23: "automatically detected fields should be
+   automatically added to the list". Detected roles stay applied. Ship the phone-number detection
+   fix (`tier4/backlog.md`, role detection row) and draw `ui/data-prototype/spec.md` line 161's
+   warning mark on a detected row (the app reads `LocationColumns.from`).
+5. **CSV writes a date-only value as a timestamp.** Additive: a date-only value is kept date-only
+   through an additive option or value type (graphty-element's `ValueType` is an open union); the
+   app asks for date-only output; the exporter's default output is unchanged.
+6. **Glossary renames.** Per `glossary.md` lines 107 and 415: "Fields" becomes "Attributes" and
+   "Sources" becomes "Data sources". Source / Target stays (`glossary.md` line 75 keeps it and
+   rejects "from/to"). "Type": the defect is the Kind role colliding with the Type control; the
+   next round runs an A/B, "Type" against "Kind of value" with the Kind role renamed, measuring
+   first-try success on T62.
+7. **"Alt+Down" in the column "..." tooltip.** The owner's rule that every hotkey has a visible
+   button showing its key, and `compact-mantine/design/figma-spec.md` section 8.3 (TooltipShortcut):
+   the DataTable header "..." tooltip uses TooltipShortcut with the key. If a Figma test or
+   `tools/check-figma-lock.mjs` fires on it, the build stops and reports it.
+8. **An Open button beside the web address box.** The owner's hotkey rule and `tier4/decided.md`
+   R8; FileSource has no Figma counterpart, so an opt-in `openLabel` prop is additive and changes
+   no existing look. Add it and use it in Open network data.
+9. **A Select card and nodes out of the picture.** By `interaction-patterns.md` line 333 ("A
+   filter step drops from the selection the ids it leaves out") and line 321: the selection is the
+   AND of the on select conditions intersected with what is in the picture, recomputed when a keep
+   or exclude condition changes; it depends only on the set of conditions, never their order.
+   `design/data/filter-cards.md` "Selection" says so.
+
+## 2026-10-29 -- Decided by the team: the roles a column can take are an element fact (graphty-element, compact-mantine)
+
+graphty-element, non-breaking: a new export `COLUMN_ROLES` from `./session` lists, per kind of
+column, the roles `data.setRole` gives a column of loaded rows (`inPlace`) and the roles the rows
+are made from, which take effect only by reading the load again (`atLoad`). Facts only, no order or
+words. The app drew two role lists from its own copies (the table header's Role menu and Data >
+Fields); the header's Role menu now reads this, filtered to the app's own role order and
+words, and Fields "+" keeps its entry list in the same order and words (tier 4, R10). A role the
+element adds still needs its words and place in the app before either list shows it.
+compact-mantine, non-breaking: `ListboxCheck` (the themed list's check column) is exported, so a
+list option drawn with a glyph and a detail keeps the list's check. No look, token or Figma test
+changes.
+
 ## 2026-10-23 -- Owner approval: compact-mantine is locked to its Figma spec (compact-mantine)
 
 Owner approved the 24 departures in figma-spec.md section 14; any other departure, or a change to one

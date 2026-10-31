@@ -206,9 +206,9 @@ describe("the Data output", () => {
             },
         );
 
-        assert.isNull(screen.queryByLabelText("Column Separator"));
+        assert.isNull(screen.queryByLabelText("Column separator"));
         await userEvent.click(screen.getByRole("button", { name: /Advanced/ }));
-        const separator = screen.getByLabelText("Column Separator");
+        const separator = screen.getByLabelText("Column separator");
         assert.equal((separator as HTMLInputElement).placeholder, ",");
         await userEvent.type(separator, ";");
         await waitFor(() => {

@@ -54,7 +54,7 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     "folder-row": "Folder",
     rows: "Style layers",
     attribute: "Attribute",
-    "filter-step": "Filter step",
+    "filter-step": "Time window",
     source: "Source",
 };
 

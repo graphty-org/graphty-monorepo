@@ -22,6 +22,7 @@ import {
 } from "@graphty/graph-samples";
 import { generateGraph, type GeneratorParams } from "@graphty/graph-samples/generators";
 
+import { designatedWeight } from "../algorithms/input/weight";
 import { detectFormat, undetectedFormat } from "../catalog/detect";
 import { sourceDescriptors } from "../catalog/sources";
 import type {
@@ -87,7 +88,16 @@ import {
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "./commands/data";
-import { Draft, draftStyles, fileName, type JoinedTable, keyExpression, LABEL_COLUMNS, readSource } from "./draft";
+import {
+    Draft,
+    draftStyles,
+    fileName,
+    type JoinedTable,
+    keyExpression,
+    LABEL_COLUMNS,
+    LOAD_ROLES,
+    readSource,
+} from "./draft";
 import {
     type DataIssue,
     findIssues,
@@ -573,6 +583,35 @@ const ROLE_FIELDS: Readonly<Record<"node" | "edge", Partial<Readonly<Record<Colu
         edgeId: "edgeIdPath",
     },
 };
+
+/**
+ * The roles a column of each kind can take, facts only, in no particular order (an application
+ * orders and names them): `inPlace`, the roles `data.setRole` gives a column of rows already
+ * loaded; `atLoad`, the roles the rows are made from, which take effect only when the rows are
+ * read again with the column in that role (`data.reloadSource` with a mapping).
+ */
+export const COLUMN_ROLES: Readonly<
+    Record<"node" | "edge", { readonly inPlace: readonly ColumnRole[]; readonly atLoad: readonly ColumnRole[] }>
+> = Object.freeze({
+    node: rolesOf("node", "nodes"),
+    edge: rolesOf("edge", "edges"),
+});
+
+/**
+ * One kind's `COLUMN_ROLES`.
+ * @param kind - The kind of column.
+ * @param table - The kind's table, as `LOAD_ROLES` names it.
+ * @returns The roles it takes in place and at load.
+ */
+function rolesOf(
+    kind: "node" | "edge",
+    table: "nodes" | "edges",
+): { readonly inPlace: readonly ColumnRole[]; readonly atLoad: readonly ColumnRole[] } {
+    const structural = (role: ColumnRole): boolean => role === "key" || STRUCTURAL_EDGE_ROLES.has(role);
+    const inPlace = (Object.keys(ROLE_FIELDS[kind]) as ColumnRole[]).filter((role) => !structural(role));
+    const atLoad = LOAD_ROLES[table].takes.filter((role) => !inPlace.includes(role));
+    return Object.freeze({ inPlace: Object.freeze(inPlace), atLoad: Object.freeze(atLoad) });
+}
 
 /** The attribute type each value type reports. */
 const TYPE_OF: Readonly<Record<ValueType, AttributeType>> = {
@@ -3524,15 +3563,17 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * The weight the graph was loaded with, and the meaning chosen for it at load.
-     * @returns the weight, or null when the last load read none
+     * The weight runs read, and its meaning: the edge column given the weight role (in the load's
+     * mapping or later with {@link setRole}), else the one the last load read weights from.
+     * @returns the weight, or null when no column has the weight role
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     loadedWeight(): LoadedWeight | null {
-        const attribute = this.lastImport()?.weights.attribute ?? null;
-        return attribute === null
-            ? null
-            : Object.freeze({ attribute, meaning: this.readConfig().knownFields.edgeWeightMeaning });
+        const { edgeWeightPath, edgeWeightMeaning } = this.readConfig().knownFields;
+        const attribute = designatedWeight(edgeWeightPath, this.lastImport()?.weights.attribute ?? null, (name) =>
+            this.attributes().some((c) => c.kind === "edge" && c.name === name),
+        );
+        return attribute === null ? null : Object.freeze({ attribute, meaning: edgeWeightMeaning });
     }
 
     /**

@@ -38,6 +38,101 @@ export function openWork() {
         sources: s.data.sources().map((x) => short(x.name ?? (x.tables ?? []).join(" and "))),
     };
 }
+// The data a session ends with, for the graders and the end-state check (endstate.mjs): the node,
+// edge, visible and selected counts; each source with the element's counts, a recount of the nodes
+// and edges that name it (data.sourcesOf) and, when the Data place shows its row, the numbers its
+// chips read; each column's kind and role (the attribute's roles, each load's mapping and the
+// project's known fields); each filter card (Select or Hide, on or off) with the
+// element's count and, when the Data place shows the card, its chips; the time window. Read through
+// graphty-element's public API and the screen; null when no graph is open. Self-contained: it runs
+// in the page.
+export function dataState() {
+    const s = document.querySelector("graphty-element")?.session;
+    if (!s) return null;
+    const plain = (x) => JSON.parse(JSON.stringify(x ?? null));
+    const num = (t) => Number(String(t).replaceAll(",", ""));
+    const nodes = s.data.nodes();
+    const edges = s.data.edges();
+    const recount = {};
+    for (const [list, kind, key] of [
+        [nodes, "node", "nodes"],
+        [edges, "edge", "edges"],
+    ])
+        for (const x of list)
+            for (const k of s.data.sourcesOf(x.id, { kind })) (recount[k] ??= { nodes: 0, edges: 0 })[key]++;
+    // the chips (compact-mantine's EntityChip) inside an element, by kind: { nodes: "13", edges: "18" }
+    const chipsIn = (el) => {
+        const out = {};
+        for (const c of el.querySelectorAll(".cm-entity-chip[data-kind]"))
+            out[c.dataset.kind === "node" ? "nodes" : "edges"] = c.querySelector(".cm-entity-text")?.textContent.trim();
+        return out;
+    };
+    // a source row's chips as the Data place draws them; a count of 0 draws no chip
+    const rowChips = (key) => {
+        const row = [...document.querySelectorAll(".dp-source[data-source]")].find((r) => r.dataset.source === key);
+        if (!row || !row.checkVisibility()) return null;
+        const c = chipsIn(row.querySelector(".dp-source-chips") ?? document.createElement("i"));
+        return { nodes: c.nodes ? num(c.nodes.split(" of ")[0]) : 0, edges: c.edges ? num(c.edges) : 0 };
+    };
+    // each filter card's chips ("4 of 14" by kind), in the list's order, which is the conditions' order
+    const cards = [...document.querySelectorAll(".dp-filters > *")].filter((c) => c.checkVisibility());
+    const cardChips = (i) => (cards[i] ? chipsIn(cards[i]) : null);
+    const counts = s.visibility.conditionCounts();
+    return {
+        counts: {
+            ...plain(s.visibility.summary),
+            selectedNodes: s.selection.nodes.length,
+            selectedEdges: s.selection.edges.length,
+        },
+        sources: s.data.sources().map((x) => ({
+            key: x.key,
+            name: x.name ?? (x.tables ?? []).join(" and "),
+            kind: x.kind,
+            counts: plain(x.counts),
+            recount: recount[x.key] ?? { nodes: 0, edges: 0 },
+            chips: rowChips(x.key),
+            join: x.join ? { matched: x.join.matched, rows: x.join.rows, onto: x.join.onto } : null,
+            leftOut: plain(x.leftOut ?? null),
+            // the roles the load read each table with (the Fields rows: id, source, target, time, place)
+            mapping: plain(x.mapping ?? null),
+        })),
+        // the fields the project names (time, weight and its meaning, ...) and the weight in use
+        knownFields: plain(s.config?.data?.knownFields ?? null),
+        weight: plain(s.data.loadedWeight?.() ?? null),
+        columns: s.data
+            .attributes()
+            .filter((a) => a.origin !== "result")
+            .map((a) => ({
+                kind: a.kind,
+                path: a.path,
+                name: a.name,
+                type: a.type,
+                roles: plain(a.roles ?? []),
+                hidden: a.hidden === true,
+            })),
+        filters: s.visibility.conditions.map((c, i) => ({
+            id: c.id,
+            effect: c.effect,
+            on: c.on,
+            within: c.within ?? null,
+            rule: plain(c.rule),
+            count: plain(counts.find((x) => x.id === c.id) ?? null),
+            chips: cardChips(i),
+        })),
+        filter: plain(s.visibility.filter),
+        window: plain(s.visibility.window),
+    };
+}
+// The network as it is when a file is exported: totals, what is visible, and each source's counts,
+// for the end-state check's export rows (endstate.mjs). Self-contained: it runs in the page.
+export function networkCounts() {
+    const s = document.querySelector("graphty-element")?.session;
+    if (!s) return null;
+    return {
+        ...JSON.parse(JSON.stringify(s.visibility.summary)),
+        sources: s.data.sources().map((x) => ({ key: x.key, name: x.name ?? null, ...x.counts })),
+    };
+}
 // The style tree, for graders and the first-styled clock: every row of the tree (layers and folders,
 // in order) and every layer's whole spec, read through graphty-element's public API, with each layer's
 // counts when asked; null when no graph is open. Self-contained: it runs in the page.
@@ -532,16 +627,41 @@ export const BAR6 = {
 // only, while the screens were still recorded as walked at 900 x 700 (tool dry run 2, round 1)
 export const BAR6_PLANTS = ["axe", "shared names", "focus", "typing"];
 export function bar6Gaps(seen, sizes) {
+    return walkGaps(BAR6, BAR6_PLANTS, "bar 6", seen, sizes);
+}
+// Bar 5 of ../tier4/criteria.md, the tier 4 data screens bars.mjs --tier 4 must measure with axe at
+// every size (and real.mjs --gate checks a bars run against), and the checks each size must prove
+// on a planted failure first
+export const BAR5_TIER4 = {
+    screens: [
+        "the start screen",
+        "the web address box, from the start screen",
+        "Sources +",
+        "the web address box, from Sources +",
+        "the join screen",
+        "the issue list",
+        "Fields +",
+        "the Filters picker",
+        "Export on Data",
+    ],
+    focus: [],
+    typed: [],
+};
+export const BAR5_TIER4_PLANTS = ["axe", "shared names", "focus"];
+export function tier4Gaps(seen, sizes) {
+    return walkGaps(BAR5_TIER4, BAR5_TIER4_PLANTS, "bar 5", seen, sizes);
+}
+function walkGaps(list, plants, bar, seen, sizes) {
     const out = [];
     for (const size of sizes) {
         const has = (k, n) => Array.isArray(seen[k]?.[size]) && seen[k][size].includes(n);
-        for (const s of BAR6.screens)
-            if (!has("screens", s)) out.push(`MISS ${s} at ${size}: not walked (bar 6 lists it)`);
-        for (const f of BAR6.focus)
-            if (!has("focus", f)) out.push(`MISS focus after ${f} at ${size}: not checked (bar 6 lists it)`);
-        for (const t of BAR6.typed)
-            if (!has("typed", t)) out.push(`MISS typing into ${t} at ${size}: not checked (bar 6 lists it)`);
-        for (const c of BAR6_PLANTS)
+        for (const s of list.screens)
+            if (!has("screens", s)) out.push(`MISS ${s} at ${size}: not walked (${bar} lists it)`);
+        for (const f of list.focus)
+            if (!has("focus", f)) out.push(`MISS focus after ${f} at ${size}: not checked (${bar} lists it)`);
+        for (const t of list.typed)
+            if (!has("typed", t)) out.push(`MISS typing into ${t} at ${size}: not checked (${bar} lists it)`);
+        for (const c of plants)
             if (!has("planted", c)) out.push(`MISS the ${c} check at ${size}: its planted failure was not caught`);
     }
     return out;

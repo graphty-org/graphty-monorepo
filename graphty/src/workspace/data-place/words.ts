@@ -11,6 +11,7 @@ import type {
     ColumnRef,
     ColumnRole,
     Endpoint,
+    GraphSession,
     ImportReport,
     LeftOutEdge,
     LoadedSource,
@@ -326,12 +327,17 @@ export function typeOf(
     if (type === "boolean") {
         return { glyph: "yes-no", typeWord: YES_NO_WORD };
     }
-    // Free text is a text column whose values are groups only by inference; a column declared to
-    // measure something (a designated time field of text dates) reads as what it measures.
-    if (readable === "text" && measurement === "categorical") {
+    // The glyph follows the column's kind alone: the Time role on a text or number column (its
+    // measurement reads "time") leaves it drawn as text or a number; only a date column is a time.
+    let kind = measurement;
+    if (measurement === "time" && type !== undefined && type !== "time") {
+        kind = type === "number" || type === "integer" ? "quantitative" : "categorical";
+    }
+    // Free text is a text column whose values are groups only by inference.
+    if (readable === "text" && kind === "categorical") {
         return { glyph: "text", typeWord: TEXT_WORD };
     }
-    switch (measurement) {
+    switch (kind) {
         case "categorical":
             return { glyph: "category", typeWord: "Category" };
         case "quantitative":
@@ -456,12 +462,39 @@ export function serverCount(loaded: number, total: number | undefined): string {
 }
 
 /**
- * A joined table's match: "52/70", matched rows of all its rows.
+ * A joined table's match: "52/70", matched rows of all its rows, drawn only when some rows did not
+ * join.
  * @param source - the joined load.
- * @returns the words, or null when the load is not a join.
+ * @returns the words, or null when the load is not a join or every row joined.
  */
 export function joinMatch(source: LoadedSource): string | null {
-    return source.join === undefined ? null : `${formatNumber(source.join.matched)}/${formatNumber(source.join.rows)}`;
+    return source.join === undefined || source.join.matched >= source.join.rows
+        ? null
+        : `${formatNumber(source.join.matched)}/${formatNumber(source.join.rows)}`;
+}
+
+/**
+ * The join match's name and tooltip, with its unit.
+ * @param source - the joined load.
+ * @returns such as "17 of 19 rows joined", or null when {@link joinMatch} draws nothing.
+ */
+export function joinWords(source: LoadedSource): string | null {
+    return joinMatch(source) === null || source.join === undefined
+        ? null
+        : `${formatNumber(source.join.matched)} of ${formatNumber(source.join.rows)} rows joined`;
+}
+
+/**
+ * A Sources row's count chips in words, their name and tooltip; a count of 0 has no chip, so no words.
+ * @param source - the load.
+ * @returns such as "13 nodes, 18 edges", or "4 of 12 nodes" for a server load that says its total.
+ */
+export function countWords(source: LoadedSource): string {
+    const { nodes, edges } = source.counts;
+    const plural = source.total === 1 ? "" : "s";
+    const nodeWords =
+        source.total === undefined ? count(nodes, "node") : `${serverCount(nodes, source.total)} node${plural}`;
+    return [...(nodes > 0 ? [nodeWords] : []), ...(edges > 0 ? [count(edges, "edge")] : [])].join(", ");
 }
 
 /** Which table of a load a Fields row reads its column from. */
@@ -520,10 +553,10 @@ export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> =
         ...LOCATION_ENTRIES,
     ],
     edges: [
+        { id: "edgeId", name: "Id", load: "edgeId" },
+        { id: "kind", name: "Kind", load: "kind" },
         { id: "weight", name: "Weight", role: "weight" },
         { id: "time", name: "Time", role: "time" },
-        { id: "kind", name: "Kind", load: "kind" },
-        { id: "edgeId", name: "Id", load: "edgeId" },
         { id: "sourceKind", name: "Kind of source", load: "sourceKind" },
         { id: "targetKind", name: "Kind of target", load: "targetKind" },
     ],
@@ -684,4 +717,20 @@ export function remap(
     const tables = Object.entries(source.mapping?.tables ?? {});
     const id = tables.find(([, table]) => table.rowsAre === side)?.[0];
     return tables.length <= 1 || id === undefined ? roles : { tables: { [id]: roles } };
+}
+
+/**
+ * The glyph the Data place's row draws for a column: free text as text, not as groups.
+ * @param session - the session.
+ * @param column - the column.
+ * @returns the glyph.
+ */
+export function columnGlyph(session: GraphSession, column: AttributeDescriptor): TypeGlyph {
+    if (column.origin === "result") {
+        return "result";
+    }
+    const readable = session.data
+        .readableValues()
+        .find((value) => value.on === column.kind && value.path === column.path);
+    return typeOf(column.measurement, column.type, readable?.kind).glyph;
 }

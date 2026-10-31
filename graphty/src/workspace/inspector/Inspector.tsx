@@ -6,21 +6,22 @@ import React, { useEffect, useState } from "react";
 import { wordsFor } from "../analyze/words";
 import type { InspectedKind } from "../commands/registry";
 import { useAttributeActions } from "../data-place/attributeActions";
-import { SourceGlyph, TypeGlyphIcon } from "../data-place/DataPlace";
+import { SourceGlyph } from "../data-place/DataPlace";
 import { TIME_ROW } from "../data-place/filterCards";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { useSourceActions } from "../data-place/sourceActions";
 import { SourceValues } from "../data-place/SourceValues";
 import { TimeCard } from "../data-place/TimeCard";
+import { TypeGlyphIcon } from "../data-place/TypeGlyphIcon";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import {
+    columnGlyph,
     loadIndexOf,
     loadName,
     type SourceKind,
     sourceRowOf,
     sourcesWords,
     type TypeGlyph,
-    typeOf,
 } from "../data-place/words";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
@@ -722,22 +723,6 @@ function sourceHeader(session: GraphSession, row: string): Header {
         source: child?.kind ?? "file",
         ...(child?.kind === "left-out" ? { kind: leftOutOf(loadName(load)) } : {}),
     };
-}
-
-/**
- * The glyph the Data place's row draws for a column: free text as text, not as groups.
- * @param session - the session.
- * @param column - the column.
- * @returns the glyph.
- */
-function columnGlyph(session: GraphSession, column: ReturnType<GraphSession["data"]["attributes"]>[number]): TypeGlyph {
-    if (column.origin === "result") {
-        return "result";
-    }
-    const readable = session.data
-        .readableValues()
-        .find((value) => value.on === column.kind && value.path === column.path);
-    return typeOf(column.measurement, column.type, readable?.kind).glyph;
 }
 
 /**

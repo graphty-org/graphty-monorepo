@@ -61,7 +61,7 @@ const place = (): ReturnType<typeof within> => within(screen.getByRole("region",
  * The Data place's Fields section.
  * @returns the section.
  */
-const fieldsGroup = (): HTMLElement => place().getByRole("group", { name: "Fields" });
+const fieldsGroup = (): HTMLElement => place().getByRole("group", { name: "Attributes" });
 
 /**
  * Picks an option of a Fields dropdown by clicking it open and clicking the option.
@@ -89,7 +89,7 @@ const shown = (label: string): string =>
  * @param column - the column.
  */
 async function addField(side: "node" | "edge", kind: string, column: string): Promise<void> {
-    await userEvent.click(within(fieldsGroup()).getByRole("button", { name: `Add to ${side} fields` }));
+    await userEvent.click(within(fieldsGroup()).getByRole("button", { name: `Add to ${side} attributes` }));
     await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
     await userEvent.click(await screen.findByRole("option", { name: column }));
 }
@@ -137,8 +137,8 @@ describe("the Data place's sidebar on the real element", () => {
         assert.include(fields.textContent, "auth-log.csv");
         assert.isNotNull(fields.querySelector('[data-kind="edge"]'));
         assert.isNull(fields.querySelector('[data-kind="node"]'));
-        within(fields).getByRole("button", { name: "Add to edge fields" });
-        assert.isNull(within(fields).queryByRole("button", { name: "Add to node fields" }));
+        within(fields).getByRole("button", { name: "Add to edge attributes" });
+        assert.isNull(within(fields).queryByRole("button", { name: "Add to node attributes" }));
     });
 
     it("reads an event table as nodes until the reader says its rows are edges, one undo step", async () => {
@@ -152,7 +152,7 @@ describe("the Data place's sidebar on the real element", () => {
         await pick("Rows are", "nodes");
         await waitFor(() => {
             assert.equal(shown("Rows are"), "nodes");
-            within(fieldsGroup()).getByRole("button", { name: "Add to node fields" });
+            within(fieldsGroup()).getByRole("button", { name: "Add to node attributes" });
         });
         assert.isNull(within(fieldsGroup()).queryByRole("combobox", { name: "Source" }));
 
@@ -174,36 +174,37 @@ describe("the Data place's sidebar on the real element", () => {
         });
     });
 
-    it("reads an event table as edges from two node columns' Role menus", async () => {
-        const session = await openDataPlace();
+    it("draws a node column's Role menu as Fields' one list, the current role checked, with no ends", async () => {
+        await openDataPlace();
+        // The auth log's ends are not found from its values, so it opens in the table as nodes.
         drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
-        const header = async (name: string): Promise<HTMLElement> => {
-            const label = (await screen.findAllByTestId("data-table-header-label", {})).find(
-                (each) => each.textContent === name,
-            );
-            const cell = label?.closest<HTMLElement>('[data-testid="data-table-header"]');
-            if (cell === null || cell === undefined) {
-                throw new Error(`no header ${name}`);
-            }
-            return cell;
-        };
-        for (const [column, role] of [
-            ["user", "Source"],
-            ["host", "Target"],
-        ]) {
-            await userEvent.click(within(await header(column)).getByRole("button", { name: `Options for ${column}` }));
-            await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
-            await userEvent.click(await screen.findByRole("menuitemradio", { name: role }));
+        const label = (await screen.findAllByTestId("data-table-header-label", {})).find(
+            (each) => each.textContent === "user",
+        );
+        const cell = label?.closest<HTMLElement>('[data-testid="data-table-header"]');
+        if (cell === null || cell === undefined) {
+            throw new Error("no header user");
         }
-        await waitFor(() => {
-            assert.lengthOf(session.data.edges(), 4);
-        });
+        await userEvent.click(within(cell).getByRole("button", { name: "Options for user" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+        await screen.findByRole("menuitemradio", { name: "None" });
+        const radios = screen.getAllByRole("menuitemradio");
+        const roles = radios.map((each) => each.textContent);
+        assert.includeMembers(roles, ["None", "Id", "Label", "Kind", "Weight", "Time", "Latitude", "City"]);
+        assert.notInclude(roles, "Source");
+        assert.notInclude(roles, "Target");
+        // Exactly one role is checked: the column's own.
+        assert.lengthOf(
+            radios.filter((each) => each.getAttribute("aria-checked") === "true"),
+            1,
+        );
+        await userEvent.keyboard("{Escape}");
     });
 
     it("offers only number columns as the weight", async () => {
         const session = await openDataPlace();
         await loadLog(session);
-        await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge fields" }));
+        await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge attributes" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
         const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
         assert.includeMembers(options, ["time", "bytes"]);
@@ -240,7 +241,10 @@ describe("the Data place's sidebar on the real element", () => {
             assert.equal(shown("Edge weight"), "bytes");
         });
 
-        await pick("Higher weight means", "farther");
+        // The words on screen are the box's label: a click on them opens it, and its name holds them.
+        within(fieldsGroup()).getByRole("combobox", { name: "Higher means, edge weight" });
+        await userEvent.click(within(fieldsGroup()).getByText("Higher means"));
+        await userEvent.click(await screen.findByRole("option", { name: "farther" }));
         await waitFor(() => {
             assert.equal(steps(), before + 2);
             assert.equal(session.config.data.knownFields.edgeWeightMeaning, "distance");
@@ -285,14 +289,14 @@ describe("the Data place's sidebar on the real element", () => {
         await loadLog(session);
         // The Filters section's "+": the fields, and no Data source with one load.
         await userEvent.click(await place().findByRole("button", { name: "Add filter" }));
-        await screen.findAllByRole("menuitem");
-        assert.isNull(screen.queryByRole("menuitem", { name: "Data source" }));
+        await screen.findAllByRole("option");
+        assert.isNull(screen.queryByRole("option", { name: "Data source" }));
         await userEvent.keyboard("{Escape}");
 
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await place().findByRole("listitem", { name: "hosts.csv" });
         await userEvent.click(place().getByRole("button", { name: "Add filter" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Data source" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Data source" }));
         const card = await screen.findByRole("group", { name: "Data source values" });
         const [first] = session.data.sources();
         await userEvent.click(
@@ -301,7 +305,11 @@ describe("the Data place's sidebar on the real element", () => {
             }),
         );
         await waitFor(() => {
-            assert.deepEqual(session.visibility.conditions[0]?.rule, { kind: "source", sources: [first.key] });
+            assert.deepEqual(session.visibility.conditions[0]?.rule, {
+                kind: "source",
+                sources: [first.key],
+                side: "nodes",
+            });
         });
     });
 
@@ -333,8 +341,8 @@ describe("the Data place's sidebar on the real element", () => {
         });
     });
 
-    it("draws no chip for a count of 0, keeps the name readable, and swaps the chips for the actions on hover", async () => {
-        await openDataPlace();
+    it("draws no chip for a count of 0, keeps the name readable, and keeps the chips beside the actions on hover", async () => {
+        const session = await openDataPlace();
         const name = "a-node-table-with-a-rather-long-file-name-for-a-narrow-sidebar.csv";
         drop(new File([HOSTS_CSV], name));
         const row: HTMLElement = await place().findByRole("listitem", { name });
@@ -346,14 +354,55 @@ describe("the Data place's sidebar on the real element", () => {
         assert.isNull(row.querySelector('[data-kind="edge"]'), "no edge chip for 0 edges");
         const label = row.querySelector<HTMLElement>(".dp-source-name");
         assert.isAtLeast(label?.getBoundingClientRect().width ?? 0, 40);
+        // The chips are named with their units, once.
+        const { nodes } = session.data.sources()[0].counts;
+        const main = within(row).getByRole("button", { pressed: true });
+        assert.include(main.textContent, `${String(nodes)} nodes`);
+        // The chip says "Node 2" to no one: the row's name carries the counts once, with their unit.
+        assert.strictEqual(within(row).getByRole("button", { name: `${name} ${String(nodes)} nodes` }), main);
 
         await userEvent.hover(row);
         const chips = row.querySelector<HTMLElement>(".dp-source-chips");
         const menu = within(row).getByRole("button", { name: `${name} menu` });
         await waitFor(() => {
-            assert.equal(chips === null ? "" : getComputedStyle(chips).display, "none");
+            assert.notEqual(chips === null ? "none" : getComputedStyle(chips).display, "none");
             assert.isAbove(menu.getBoundingClientRect().width, 0);
+            assert.isAtLeast(menu.getBoundingClientRect().left, chips?.getBoundingClientRect().right ?? Infinity);
         });
+        // The cut name is one hover away in full.
+        await userEvent.hover(label ?? row);
+        await screen.findByRole("tooltip", { name });
+    });
+
+    it("draws a group in Fields for each source, the selected one open and first, kept across places", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
+        await place().findByRole("listitem", { name: "hosts.csv" });
+        const group = (name: string): HTMLElement => within(fieldsGroup()).getByRole("group", { name });
+        await waitFor(() => {
+            group("hosts.csv");
+            group("auth-log.csv");
+            assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("hosts.csv"));
+        });
+        assert.isNotNull(within(group("hosts.csv")).queryByRole("button", { name: "Add to node attributes" }));
+        assert.isNull(within(group("auth-log.csv")).queryByRole("combobox", { name: "Source" }), "closed");
+
+        const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });
+        await userEvent.click(within(log).getByRole("button", { pressed: false }));
+        await waitFor(() => {
+            assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("auth-log.csv"));
+            assert.equal(
+                within(group("auth-log.csv")).getByRole<HTMLInputElement>("combobox", { name: "Source" }).value,
+                "user",
+            );
+        });
+
+        await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
+        const again: HTMLElement = await place().findByRole("listitem", { name: "auth-log.csv" });
+        assert.strictEqual(within(again).getByRole("button", { pressed: true }).closest(".dp-source"), again);
+        assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("auth-log.csv"));
     });
 
     it("selects a source's nodes from its row menu, and only picks the row on a press", async () => {
@@ -377,6 +426,66 @@ describe("the Data place's sidebar on the real element", () => {
             assert.sameMembers([...session.selection.nodes], ["web1", "db1"]);
             assert.lengthOf(session.selection.nodes, hosts.counts.nodes);
         });
+    });
+
+    it("draws the Sources + items with a glyph and their keys, and says it opens a menu", async () => {
+        await openDataPlace();
+        const add = await place().findByRole("button", { name: "Add source" });
+        assert.equal(add.getAttribute("aria-haspopup"), "menu");
+        assert.equal(add.getAttribute("aria-expanded"), "false");
+        await userEvent.click(add);
+        await waitFor(() => {
+            assert.equal(add.getAttribute("aria-expanded"), "true");
+        });
+        const items = await screen.findAllByRole("menuitem");
+        assert.deepEqual(
+            items.map((item) => item.textContent),
+            ["File...Ctrl+O", "Samples...", "Server...", "Network data...", "PasteCtrl+V"],
+        );
+        for (const item of items) {
+            assert.isNotNull(item.querySelector("svg"), `${item.textContent ?? ""} has a glyph`);
+        }
+        assert.equal(items[0]?.getAttribute("aria-keyshortcuts"), "Control+O");
+        assert.equal(items[4]?.getAttribute("aria-keyshortcuts"), "Control+V");
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("renames a source on a double-click or F2, and its menu shows F2 by Rename", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        const row = await place().findByRole("listitem", { name: "auth-log.csv" });
+        const main = row.querySelector(".dp-source-main") as HTMLElement | null;
+        assert.isNotNull(main);
+        await userEvent.dblClick(main);
+        const input = await screen.findByRole("textbox", { name: "Source name" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, input);
+        });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("textbox", { name: "Source name" }));
+        });
+
+        (place().getByRole("listitem", { name: "auth-log.csv" }) as HTMLElement)
+            .querySelector<HTMLElement>(".dp-source-main")
+            ?.focus();
+        await userEvent.keyboard("{F2}");
+        const again = await screen.findByRole("textbox", { name: "Source name" });
+        await userEvent.clear(again);
+        // Tab commits the name and moves on: the field is no keyboard trap.
+        await userEvent.type(again, "logins{Tab}");
+        await waitFor(() => {
+            assert.equal(session.data.sources()[0]?.name, "logins");
+            assert.isNull(screen.queryByRole("textbox", { name: "Source name" }));
+        });
+
+        const renamed = place().getByRole("listitem", { name: "logins" });
+        await userEvent.hover(renamed);
+        await userEvent.click(within(renamed).getByRole("button", { name: "logins menu" }));
+        const rename = await screen.findByRole("menuitem", { name: "Rename" });
+        assert.equal(rename.getAttribute("aria-keyshortcuts"), "F2");
+        assert.isNotNull(rename.querySelector("svg"), "Rename has a glyph");
+        await userEvent.keyboard("{Escape}");
     });
 
     it("hands focus to the dialog a + menu item opens, by keyboard", async () => {

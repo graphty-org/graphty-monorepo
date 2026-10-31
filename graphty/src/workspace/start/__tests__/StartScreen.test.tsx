@@ -253,6 +253,16 @@ describe("the start screen", () => {
         assert.equal(store.get().opening?.name, "trade routes");
     });
 
+    it("opens a typed web address from the Open button beside the box", async () => {
+        const store = renderStart();
+        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
+        const field = within(dialog).getByRole("textbox", { name: "Web address of a graph file" });
+        await userEvent.type(field, "https://example.com/data/sites.csv");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Open" }));
+        assert.equal(store.get().opening?.name, "sites");
+    });
+
     it("leads a reader who came with a file on this computer to Open a file", async () => {
         const store = renderStart();
 
@@ -270,7 +280,10 @@ describe("the start screen", () => {
         await waitFor(() => {
             assert.equal(store.get().project?.name, "my network");
         });
-        assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }), "the chooser closed");
+        // The chooser lives in the workspace, so it stays mounted until its close transition ends.
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }), "the chooser closed");
+        });
     });
 
     it("opens the server form on the Data place for a network source", async () => {

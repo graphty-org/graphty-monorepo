@@ -69,12 +69,13 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
     const sameSize = useWorkspaceState((state) => state.sameSizeAtAnyDepth) ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
     const outlineWidth = useWorkspaceState((state) => state.outlineWidth);
-    const layoutBehavior = useMemo(
+    const layoutBehavior = useMemo<NonNullable<GraphtyElement["layoutBehavior"]>>(
         () => ({
             labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
             node: { depthIndependentSize: sameSize, ...(outlineWidth === null ? {} : { outlineWidth }) },
             rendering: { onDemand: true },
-            camera: { pivotOnSelection: true },
+            // A pick moves the camera; a filter card's Select or an undo does not.
+            camera: { pivotOnSelection: true, pivotOnSelectionCauses: ["user", "api"] },
         }),
         [allLabelsShown, labelsAvoid, sameSize, outlineWidth],
     );

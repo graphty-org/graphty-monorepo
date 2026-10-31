@@ -2376,7 +2376,28 @@ export interface JoinChoices {
      * keys and one holding the graph's, through which incoming keys are translated first.
      */
     readonly via?: SourceKey;
+    /**
+     * For `"edges"`: a row with an end the graph lacks either `"add"`s that end as a new node
+     * (the default) or is `"leave-out"`, left out of the join.
+     * @since 3.33.0
+     */
+    readonly unknownEnds?: "add" | "leave-out";
 }
+
+/**
+ * What a join does with one incoming row ({@link JoinReport.rowFates}):
+ *
+ * - `"joined"`: its values reach the elements it matches, or (for `"edges"`) it becomes an edge
+ *   between two nodes the graph holds.
+ * - `"new-end"`: (`"edges"`) it becomes an edge, and an end the graph lacks becomes a new node.
+ * - `"repeat"`: its key repeats another row's and `repeated` keeps the other one.
+ * - `"left-out"`: the join leaves it out: its key matches nothing, a key value is blank, or (for
+ *   `"edges"` with `unknownEnds: "leave-out"`) an end is not in the graph.
+ *
+ * OPEN UNION: fates may be added in a minor release.
+ * @since 3.33.0
+ */
+export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out";
 
 /**
  * A {@link JoinReport} count a reader can choose to ignore (`JoinChoices.ignore`).
@@ -2420,6 +2441,18 @@ export interface JoinReport {
     readonly rowMatches: readonly (readonly (NodeId | EdgeId)[])[];
     /** The nodes (or edges) {@link JoinReport.withoutValue} counts. @since 3.30.0 */
     readonly withoutValueIds: readonly (NodeId | EdgeId)[];
+    /**
+     * For `"edges"`: rows with an end the graph lacks, whether `unknownEnds` adds them or leaves
+     * them out. 0 for values.
+     * @since 3.33.0
+     */
+    readonly unknownEndRows: number;
+    /**
+     * For each incoming row, in table order, what the join does with it, so a preview can show
+     * exactly what Join will do. Empty for `"rows"` and `"replace"`.
+     * @since 3.33.0
+     */
+    readonly rowFates: readonly JoinRowFate[];
 }
 
 /**
@@ -3695,10 +3728,10 @@ export interface LocationColumns {
      * How the location is read: `coords` for coordinates (a pair or one column of them), or the
      * kind of place `location` names (`country`, `region`, `city`; `auto` until the gazetteer that
      * decides it is loaded); null when nothing is read.
-     * @since 3.31.0
+     * @since 3.33.0
      */
     readonly role: "coords" | "country" | "region" | "city" | "auto" | null;
-    /** The column that narrows each place name (a city's country), or null. @since 3.31.0 */
+    /** The column that narrows each place name (a city's country), or null. @since 3.33.0 */
     readonly within: string | null;
     /**
      * The column of each kind of location listed for the nodes: the kinds designated with

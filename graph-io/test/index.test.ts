@@ -166,6 +166,7 @@ const VALUE_EXPORTS = [
     "throwIfAborted",
     "DEFAULT_ERROR_LIMIT",
     "SINK_OPTION_CODE",
+    "SKIPPED_VALUE",
     "chooseGraph",
     "graphChosen",
     "reportSinkOptions",

@@ -436,6 +436,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     // Internationalization
     "defaultLabels",
     "LabelsProvider",
+    "ListboxCheck",
     "parseLocaleNumber",
     "useCollator",
     "useLabels",

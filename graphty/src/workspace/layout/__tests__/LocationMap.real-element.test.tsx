@@ -382,7 +382,7 @@ describe("the location map", () => {
         await waitFor(() => {
             assert.isNull(place.queryByRole("combobox", { name: "Node longitude column" }));
         });
-        await userEvent.click(place.getByRole("button", { name: "Add to node fields" }));
+        await userEvent.click(place.getByRole("button", { name: "Add to node attributes" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Coordinates" }));
         await userEvent.click(await screen.findByRole("option", { name: "home" }));
         await waitFor(() => {

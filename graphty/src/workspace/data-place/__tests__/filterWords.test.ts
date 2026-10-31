@@ -79,11 +79,11 @@ describe("the Filters words", () => {
     it("names the cards that are on in the chip's tooltip", () => {
         assert.equal(
             chipTip(["weight is at least 4"]),
-            'Showing only: "weight is at least 4". Click to open Filters, where you can turn it off.',
+            'Filtered by: "weight is at least 4". Click to open Filters, where you can turn it off.',
         );
         assert.equal(
             chipTip(["weight is at least 4", "in the largest component"]),
-            'Showing only: "weight is at least 4", "in the largest component". Click to open Filters, where you can turn them off.',
+            'Filtered by: "weight is at least 4", "in the largest component". Click to open Filters, where you can turn them off.',
         );
     });
 });

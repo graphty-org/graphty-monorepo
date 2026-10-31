@@ -71,13 +71,25 @@ describe("the Export dialog's choices", () => {
         assert.isFalse(writerOptions(row, { groupRanks: false }).groupRanks);
     });
 
-    it("asks every data export for the graph's styles, with ids the format cannot hold rewritten", () => {
-        const csv = formatDescriptor("csv");
-        assert.isDefined(csv);
-        const [row] = formatRows(csv === undefined ? [] : [csv]);
+    it("asks every data export that can hold styles for them, with ids the format cannot hold rewritten", () => {
+        const graphml = formatDescriptor("graphml");
+        assert.isDefined(graphml);
+        const [row] = formatRows(graphml === undefined ? [] : [graphml]);
         const options = writerOptions(row, {});
         assert.isTrue(options.styles);
         assert.strictEqual(options.sanitizeIds, "mangle");
+    });
+
+    it("offers no Include styles for CSV, which writes the same file with it on (R14)", () => {
+        const csv = formatDescriptor("csv");
+        assert.isDefined(csv);
+        for (const row of formatRows(csv === undefined ? [] : [csv])) {
+            assert.isFalse(
+                row.options.some((option) => option.name === "styles"),
+                row.id,
+            );
+            assert.notProperty(writerOptions(row, {}), "styles", row.id);
+        }
     });
 
     it("hands the element the scope and columns the reader chose", () => {
@@ -85,6 +97,7 @@ describe("the Export dialog's choices", () => {
         assert.equal(exportScope("shown"), "shown");
         assert.equal(exportScope("selection"), "selection");
         assert.deepEqual(exportScope("set:hubs"), { set: "hubs" });
+        assert.deepEqual(exportScope("source:s2"), { kind: "source", sources: ["s2"] });
         const csv = formatDescriptor("csv");
         assert.isDefined(csv);
         const [row] = formatRows(csv === undefined ? [] : [csv]);

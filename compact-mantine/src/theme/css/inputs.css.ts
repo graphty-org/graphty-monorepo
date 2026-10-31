@@ -712,6 +712,16 @@ const css = `
 .cm-file-drop-glyph {
     display: inline-flex;
 }
+.cm-file-url-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+.cm-file-url-row > .cm-file-url {
+    flex: 1;
+    min-width: 0;
+}
 `;
 
 export default css;

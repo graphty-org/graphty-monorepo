@@ -1,0 +1,13 @@
+# gauges-joined.txt, then Stone Weir's bad depth made blank and installed read as dates
+--click Open a file
+--upload gauges.csv
+--click Data
+--click Add source
+--click File...
+--upload flows.csv
+--click role=button:Join
+--click Issues in depth_cm
+--click Make blank
+--rclick installed
+--click Type
+--click date

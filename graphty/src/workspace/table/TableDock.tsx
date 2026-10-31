@@ -14,7 +14,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
-import { isPanelEscape } from "../keys/keys";
+import { isPanelEscape, isTypingTarget } from "../keys/keys";
 import { runName } from "../runWords";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -319,7 +319,11 @@ function TableOptions({ kind, store }: Readonly<{ kind: RecordKind; store: Works
                         // The file holds every column and every record of the table that is
                         // showing: the element's export cannot be limited to the visible
                         // columns (#875) or to a group's members (#820) yet.
-                        store.set({ dialog: "export", exportOn: kind === "edge" ? "edges" : "nodes" });
+                        store.set({
+                            dialog: "export",
+                            exportOn: kind === "edge" ? "edges" : "nodes",
+                            exportSource: null,
+                        });
                     }}
                 >
                     Export...
@@ -442,8 +446,10 @@ function issuesByColumn(
     for (const issue of session.data.issues()) {
         const place = issuePlace(issue, session);
         if (place.kind === kind) {
-            const column = keyColumnOf(place.column, choices);
-            byColumn.set(column, [...(byColumn.get(column) ?? []), issue]);
+            for (const id of place.columns) {
+                const column = keyColumnOf(id, choices);
+                byColumn.set(column, [...(byColumn.get(column) ?? []), issue]);
+            }
         }
     }
     return byColumn;
@@ -466,9 +472,9 @@ function MaximizeButton({
             return undefined;
         }
         // In the capture phase, so it runs before the workspace's key map (whose Esc clears the
-        // selection).
+        // selection). A field's Escape is the field's (a Sources row's name cancels its rename).
         const onKeyDown = (event: KeyboardEvent): void => {
-            if (event.key === "Escape" && !event.defaultPrevented && !overlayOpen()) {
+            if (event.key === "Escape" && !event.defaultPrevented && !overlayOpen() && !isTypingTarget(event.target)) {
                 event.preventDefault();
                 event.stopPropagation();
                 store.set({ dockMaximized: false });
@@ -509,6 +515,38 @@ function leaveGrid(event: React.KeyboardEvent): void {
         event.preventDefault();
         button.focus();
     }
+}
+
+/**
+ * The table's tab values, in order: Nodes, Edges when there are edges, then one per group run.
+ * @param hasEdges - whether the graph has edges
+ * @param groups - the group runs
+ * @returns the values
+ */
+function tabValuesOf(hasEdges: boolean, groups: readonly { readonly id: string }[]): string[] {
+    const edges = hasEdges ? ["edges"] : [];
+    return ["nodes", ...edges, ...groups.map((run) => `g:${run.id}`)];
+}
+
+/**
+ * Show rows from an issue list outside the table: narrows the asked-for tab to the issue's rows,
+ * then forgets the ask.
+ * @param store - the chrome store, which holds the ask
+ * @param setArrangement - sets the dock's arrangement
+ */
+function useAskedIssue(store: WorkspaceStore, setArrangement: React.Dispatch<React.SetStateAction<Arrangement>>): void {
+    const issueAsked = useWorkspaceState((state) => state.dockIssue);
+    useEffect(() => {
+        if (issueAsked === null) {
+            return;
+        }
+        const askedKind: RecordKind = store.get().dockTab === "edges" ? "edge" : "node";
+        setArrangement((now) => ({
+            ...now,
+            views: { ...now.views, [askedKind]: { ...now.views[askedKind], issue: issueAsked } },
+        }));
+        store.set({ dockIssue: null });
+    }, [issueAsked, store, setArrangement]);
 }
 
 /**
@@ -574,6 +612,7 @@ export function TableDock(): React.JSX.Element {
     const arrange = (change: Partial<Arrangement>): void => {
         setArrangement((now) => ({ ...now, ...change }));
     };
+    useAskedIssue(store, setArrangement);
 
     const close = (
         <ActionIcon
@@ -691,30 +730,30 @@ export function TableDock(): React.JSX.Element {
 
     const count = groupRun === undefined ? recordCount(session, kind, scope) : countOf(groupRun.groups.length, "group");
 
+    // Every tab names a rendered tab panel (aria-controls); the showing one holds the table.
+    const tabValues = tabValuesOf(hasEdges, groups);
     const table = (
-        <div className="ws-table-main">
+        <Tabs
+            className="ws-table-main"
+            value={active}
+            onChange={(value) => {
+                if (value !== null) {
+                    store.set({ dockTab: value });
+                }
+            }}
+        >
             <div className="ws-table-strip">
-                <Tabs
-                    className="ws-table-tabs"
-                    value={active}
-                    onChange={(value) => {
-                        if (value !== null) {
-                            store.set({ dockTab: value });
-                        }
-                    }}
-                >
-                    <Tabs.List>
-                        <Tabs.Tab ref={nodesTab} value="nodes">
-                            Nodes
+                <Tabs.List className="ws-table-tabs">
+                    <Tabs.Tab ref={nodesTab} value="nodes">
+                        Nodes
+                    </Tabs.Tab>
+                    {hasEdges ? <Tabs.Tab value="edges">Edges</Tabs.Tab> : null}
+                    {groups.map((run) => (
+                        <Tabs.Tab key={run.id} value={`g:${run.id}`}>
+                            {run.label}
                         </Tabs.Tab>
-                        {hasEdges ? <Tabs.Tab value="edges">Edges</Tabs.Tab> : null}
-                        {groups.map((run) => (
-                            <Tabs.Tab key={run.id} value={`g:${run.id}`}>
-                                {run.label}
-                            </Tabs.Tab>
-                        ))}
-                    </Tabs.List>
-                </Tabs>
+                    ))}
+                </Tabs.List>
                 <Text size="xs" c="dimmed" className="ws-table-count ws-table-ellipsis">
                     {count}
                 </Text>
@@ -770,7 +809,14 @@ export function TableDock(): React.JSX.Element {
             <Text size="xs" c="dimmed" className="ws-table-caption">
                 {groupRun === undefined ? sortCaption(sorted, view.sort?.desc ?? false) : "Largest group first"}
             </Text>
-            <div className="ws-table-body" ref={bodyRef}>
+            {tabValues
+                .filter((value) => value !== active)
+                .map((value) => (
+                    <Tabs.Panel key={value} value={value}>
+                        {null}
+                    </Tabs.Panel>
+                ))}
+            <Tabs.Panel value={active} className="ws-table-body" ref={bodyRef}>
                 {groupRun === undefined ? (
                     <RecordTable
                         key={tableKey(kind, shownMembers, scope === "visible" ? shownCount : null, view.issue)}
@@ -818,8 +864,8 @@ export function TableDock(): React.JSX.Element {
                         }}
                     />
                 )}
-            </div>
-        </div>
+            </Tabs.Panel>
+        </Tabs>
     );
 
     return (

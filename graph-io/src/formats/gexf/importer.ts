@@ -81,7 +81,7 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
-import { ImportReportBuilder, type IssueLocation } from "../../common/report.js";
+import { ImportReportBuilder, type IssueLocation, SKIPPED_VALUE } from "../../common/report.js";
 import { parseTimeText, type TemporalValue, type TimeFormat, timeTextCompanion } from "../../common/temporal.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
 import {
@@ -2273,7 +2273,8 @@ class GexfReader implements XmlHandler {
                 this.writeStaticValue(attribute, domain, value, index, valueWhere);
             }
         } catch (err) {
-            report.recordError(err, { ...valueWhere, element: `${element ?? "?"}[${forId}]` });
+            // only the value is dropped: its node or edge is kept
+            report.recordError(err, { ...valueWhere, element: `${element ?? "?"}[${forId}]` }, SKIPPED_VALUE);
         }
     }
 

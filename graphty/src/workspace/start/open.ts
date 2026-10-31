@@ -56,6 +56,8 @@ export function openProject(
             },
         }),
         ends: null,
+        pickedSource: null,
+        timeWindowCard: false,
     }));
 }
 
@@ -249,6 +251,16 @@ function urlSource(url: string): Incoming {
  */
 export function openUrl(workspace: WorkspaceStore, url: string): void {
     openSeparate(workspace, urlSource(url));
+}
+
+/**
+ * Takes in the graph file at a web address (see {@link addSource}): from the start screen as a new
+ * project, in a project as its next source.
+ * @param ctx - the command context.
+ * @param url - the address.
+ */
+export function addUrl(ctx: CommandContext, url: string): void {
+    addSource(ctx, urlSource(url));
 }
 
 /**

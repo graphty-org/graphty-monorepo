@@ -13,7 +13,7 @@ import { useAsyncValue, useSessionVersion } from "./hooks";
 import { nodeKey } from "./inspected";
 import { focusValuesNext, selectNode } from "./reads";
 import { PathValues } from "./RunValues";
-import { count, formatNumber } from "./words";
+import { count, formatNumber, nodeName } from "./words";
 
 /** How many members, groups or top entries show before "N more". */
 const FIRST = 8;
@@ -326,7 +326,7 @@ function TopValues({ session, layer }: Readonly<{ session: GraphSession; layer: 
             {top.entries.map((entry) => (
                 <DataRow
                     key={nodeKey(entry.id)}
-                    name={String(entry.id)}
+                    name={nodeName(session, entry.id)}
                     value={formatNumber(entry.value)}
                     onClick={() => {
                         // The row goes with the view it sat in; focus goes to the node's view.
@@ -388,7 +388,7 @@ function MemberValues({
                 rows={nodes.map((id) => (
                     <DataRow
                         key={nodeKey(id)}
-                        name={String(id)}
+                        name={nodeName(session, id)}
                         onClick={() => {
                             // The row goes with the view it sat in; focus goes to the node's view.
                             focusValuesNext();
@@ -448,7 +448,7 @@ function StateValues({
                         rows={nodes.map((id) => (
                             <DataRow
                                 key={nodeKey(id)}
-                                name={String(id)}
+                                name={nodeName(session, id)}
                                 onClick={() => {
                                     // The row goes with the view it sat in; focus goes to the node's view.
                                     focusValuesNext();

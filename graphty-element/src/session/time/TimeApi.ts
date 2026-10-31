@@ -44,6 +44,7 @@ import {
     niceNear,
     numericBound,
     readInstant,
+    readTimeValue,
     stepLength,
     TIME_UNITS,
     type TimeUnit,
@@ -1794,19 +1795,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 return null;
             }
 
-            const unit = indexNow()?.unit ?? "ms";
-            const reading = readInstant(trimmed, unit);
-            if (reading.how === "strict") {
-                return reading.at;
-            }
-
-            // Typed dates with no zone are read in UTC, as the field reads date-times.
-            const utc = Date.parse(`${trimmed} UTC`);
-            if (!Number.isNaN(utc)) {
-                return utc;
-            }
-
-            return reading.how === "loose" ? reading.at : null;
+            return readTimeValue(trimmed, indexNow()?.unit ?? "ms");
         },
 
         get ready() {

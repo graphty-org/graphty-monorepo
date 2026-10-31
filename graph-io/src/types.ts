@@ -553,7 +553,8 @@ export interface ImportIssue {
     readonly category: IssueCategory;
     /**
      * "error": the element was skipped and counts toward `errorLimit`. "warning": the element was
-     * kept, possibly changed.
+     * kept, possibly changed. An error whose `params.skipped` is "value" dropped one value only:
+     * its node or edge was kept.
      */
     readonly severity: "error" | "warning";
     /**

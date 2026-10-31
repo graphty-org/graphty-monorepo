@@ -1,0 +1,165 @@
+{
+ "counts": {
+  "totalEdges": 63,
+  "totalNodes": 24,
+  "visibleEdges": 22,
+  "visibleNodes": 14,
+  "selectedNodes": 4,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "volunteers.graphml",
+   "kind": "file",
+   "counts": {
+    "nodes": 24,
+    "edges": 63
+   },
+   "recount": {
+    "nodes": 24,
+    "edges": 63
+   },
+   "chips": {
+    "nodes": 24,
+    "edges": 63
+   },
+   "join": null,
+   "leftOut": null,
+   "mapping": null
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": null,
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "weight",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": null,
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.name",
+   "name": "name",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.role",
+   "name": "role",
+   "type": "category",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.hours",
+   "name": "hours",
+   "type": "integer",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.trained",
+   "name": "trained",
+   "type": "boolean",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.phone",
+   "name": "phone",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  }
+ ],
+ "filters": [
+  {
+   "id": "filter-1",
+   "effect": "keep",
+   "on": true,
+   "within": null,
+   "rule": {
+    "kind": "all",
+    "of": [
+     {
+      "kind": "text",
+      "reads": "data.trained",
+      "mode": "exact",
+      "text": "true",
+      "caseSensitive": true
+     },
+     {
+      "kind": "range",
+      "attribute": "data.hours",
+      "min": 10,
+      "max": 52
+     }
+    ]
+   },
+   "count": {
+    "id": "filter-1",
+    "nodes": {
+     "matched": 14,
+     "total": 24
+    },
+    "edges": null,
+    "unresolved": []
+   },
+   "chips": {
+    "nodes": "14 of 24"
+   }
+  },
+  {
+   "id": "filter-2",
+   "effect": "select",
+   "on": true,
+   "within": "picture",
+   "rule": {
+    "kind": "categories",
+    "attribute": "data.role",
+    "values": [
+     "staff"
+    ]
+   },
+   "count": {
+    "id": "filter-2",
+    "nodes": {
+     "matched": 4,
+     "total": 14
+    },
+    "edges": null,
+    "unresolved": []
+   },
+   "chips": {
+    "nodes": "4 of 14"
+   }
+  }
+ ],
+ "filter": null,
+ "window": null
+}

@@ -366,6 +366,8 @@ describe("graphmlImporter keys and data", () => {
         expect(snapshot.nodes.require("count").isSet(0)).toBe(false);
         expect(codes(report)).toEqual(["E_COLUMN_TYPE", "E_COLUMN_TYPE"]);
         expect(report.issues[0]).toMatchObject({ category: "validation-error", element: "k_int", line: 13 });
+        // only the value was dropped, and the issue says so
+        expect(report.issues.map((issue) => issue.params)).toEqual([{ skipped: "value" }, { skipped: "value" }]);
     });
 
     it("treats blank text as unset for non-string types and as an empty string for strings", async () => {

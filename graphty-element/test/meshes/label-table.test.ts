@@ -249,6 +249,27 @@ describe("layoutLabelTable: backgrounds and pictures", () => {
     });
 });
 
+describe("layoutLabelTable's pictures", () => {
+    it("sizes a cell that is not fixed by its picture once the picture's size is known", () => {
+        const image = { src: "img-wide.png", pixelSize: 1 } as const;
+        const t = table([[{ image }]], { imagePixel: 0.75 });
+        // Graphviz: a 32 x 16 pixel picture is 24 x 12 points, inside 1 border and 2 padding, one spacing and a border
+        const sized = layoutLabelTable(t, measure, (src) =>
+            src === "img-wide.png" ? { width: 32, height: 16 } : null,
+        );
+        assert.deepEqual([sized.width, sized.height], [36, 24]);
+        assert.deepEqual(
+            sized.images.map((i) => [i.x, i.y, i.width, i.height]),
+            [[6, 6, 24, 12]],
+        );
+        // not known yet: an empty cell
+        assert.deepEqual([layoutLabelTable(t, measure).width, layoutLabelTable(t, measure).height], [12, 12]);
+        // no imagePixel: each pixel as it is drawn
+        const drawn = layoutLabelTable(table([[{ image }]]), measure, () => ({ width: 32, height: 16 }));
+        assert.deepEqual([drawn.width, drawn.height], [44, 28]);
+    });
+});
+
 describe("readLabelTable", () => {
     it("reads a table and refuses what is not one", () => {
         assert.deepEqual(readLabelTable('{"rows":[{"cells":[{"lines":[{"text":"a"}]}]}]}')?.rows.length, 1);

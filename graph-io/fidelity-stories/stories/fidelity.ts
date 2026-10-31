@@ -246,6 +246,7 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
                     blobUrl,
                     oracleGraphName(meta),
                     oracleFormatOptions(meta, sample.format),
+                    new URL(fileUrl, document.baseURI).href,
                 );
                 const how = live ? "live canvas" : "its own screenshot";
                 middle.caption.textContent = `graphty-element, file styles (${how}); ${loaded.slice(loaded.indexOf("; ") + 2)}`;

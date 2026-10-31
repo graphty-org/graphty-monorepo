@@ -69,6 +69,11 @@ export interface LabelTable {
     /** Its background color. */
     readonly fill?: string;
     readonly lineHeight?: number;
+    /**
+     * How long each of a picture's own pixels is when a cell that is not fixed is sized by it; unset, as it is drawn
+     * (its `pixelSize`, else 1).
+     */
+    readonly imagePixel?: number;
     readonly rows: readonly LabelTableRow[];
 }
 
@@ -103,6 +108,17 @@ export interface TableDrawing {
 
 /** A text's width and height, measured: the height one line of the label's font size. */
 export type MeasureText = (text: string) => { width: number; height: number };
+
+/** A picture's own width and height in pixels, once known; null while it is read and when it cannot be. */
+export type MeasurePicture = (src: string) => { width: number; height: number } | null;
+
+/** What a table is sized by: its texts, how tall a line is as a multiple of a text's height, and its pictures. */
+interface Measures {
+    readonly text: MeasureText;
+    readonly lineHeight: number;
+    /** A cell's picture's size in the table's lengths, or null while it is not known. */
+    readonly picture: (image: LabelTableImage) => { width: number; height: number } | null;
+}
 
 /** A cell placed in its table's grid, with the size it asks for. */
 interface Placed {
@@ -152,6 +168,15 @@ function isFixed(t: Sizing): boolean {
 }
 
 /**
+ * Whether a cell holds a picture it names.
+ * @param cell - the cell
+ * @returns true when it does
+ */
+function hasPicture(cell: LabelTableCell): cell is LabelTableCell & { readonly image: LabelTableImage } {
+    return cell.image !== undefined && typeof cell.image.src === "string" && cell.image.src !== "";
+}
+
+/**
  * Grows the columns (or rows) a spanning cell covers until they hold it, its shortfall shared evenly.
  * @param sizes - the columns' widths or the rows' heights, grown in place
  * @param from - the first it covers
@@ -177,12 +202,11 @@ function growSpan(sizes: number[], from: number, span: number, need: number, spa
 /**
  * Sizes a table: each cell's size, its place in the grid, the grid's columns and rows, and the table's size.
  * @param table - the table
- * @param measure - measures a text
- * @param lineHeight - a text line's height as a multiple of its measured height
+ * @param measure - measures its texts and pictures
  * @param depth - how deep it is inside other tables
  * @returns the sized table
  */
-function sizeTable(table: LabelTable, measure: MeasureText, lineHeight: number, depth: number): Sized {
+function sizeTable(table: LabelTable, measure: Measures, depth: number): Sized {
     const spacing = len(table.cellSpacing);
     const taken = new Set<string>();
     const cells: Placed[] = [];
@@ -199,7 +223,7 @@ function sizeTable(table: LabelTable, measure: MeasureText, lineHeight: number, 
                     taken.add(`${i},${j}`);
                 }
             }
-            cells.push(sizeCell(table, cell, { row: r, col: c, rows, cols }, measure, lineHeight, depth));
+            cells.push(sizeCell(table, cell, { row: r, col: c, rows, cols }, measure, depth));
             c += cols;
         }
     });
@@ -236,8 +260,7 @@ function sizeTable(table: LabelTable, measure: MeasureText, lineHeight: number, 
  * @param at.col - its first column
  * @param at.rows - how many rows it spans
  * @param at.cols - how many columns it spans
- * @param measure - measures a text
- * @param lineHeight - a text line's height as a multiple of its measured height
+ * @param measure - measures its texts and pictures
  * @param depth - how deep its table is inside other tables
  * @returns the placed cell
  */
@@ -245,22 +268,23 @@ function sizeCell(
     table: LabelTable,
     cell: LabelTableCell,
     at: { row: number; col: number; rows: number; cols: number },
-    measure: MeasureText,
-    lineHeight: number,
+    measure: Measures,
     depth: number,
 ): Placed {
-    const inner =
-        cell.table !== undefined && depth < MAX_DEPTH ? sizeTable(cell.table, measure, lineHeight, depth + 1) : null;
+    const inner = cell.table !== undefined && depth < MAX_DEPTH ? sizeTable(cell.table, measure, depth + 1) : null;
     const lines = (inner === null ? (cell.lines ?? []) : []).map((line) => {
-        const m = measure(line.text);
-        return { text: line.text, align: line.align, width: m.width, height: m.height * lineHeight };
+        const m = measure.text(line.text);
+        return { text: line.text, align: line.align, width: m.width, height: m.height * measure.lineHeight };
     });
-    const content = inner ?? {
-        width: Math.max(0, ...lines.map((l) => l.width)),
-        height: lines.reduce((sum, l) => sum + l.height, 0),
-    };
-    const margin = 2 * (cellPadding(table, cell) + cellBorder(table, cell));
+    // a cell holding a picture holds the picture's own size, once it is known
     const fixed = isFixed(cell);
+    const picture = inner === null && !fixed && hasPicture(cell) ? measure.picture(cell.image) : null;
+    const content = inner ??
+        picture ?? {
+            width: Math.max(0, ...lines.map((l) => l.width)),
+            height: lines.reduce((sum, l) => sum + l.height, 0),
+        };
+    const margin = 2 * (cellPadding(table, cell) + cellBorder(table, cell));
     return {
         cell,
         ...at,
@@ -442,7 +466,7 @@ function placeCell(table: LabelTable, p: Placed, box: TableBox, out: Collected):
         placeTable(p.inner, inner, out, true);
         return;
     }
-    if (cell.image !== undefined && typeof cell.image.src === "string" && cell.image.src !== "") {
+    if (hasPicture(cell)) {
         out.images.push({ ...inner, image: cell.image, align: cell.align, valign: cell.valign });
         return;
     }
@@ -465,11 +489,25 @@ function placeCell(table: LabelTable, p: Placed, box: TableBox, out: Collected):
  * corner, y down.
  * @param table - the table
  * @param measure - measures a text: its width, and one line's height at the label's size
+ * @param picture - a picture's own size in pixels, once known; a cell holding a picture is sized by it
  * @returns what it draws
  */
-export function layoutLabelTable(table: LabelTable, measure: MeasureText): TableDrawing {
+export function layoutLabelTable(
+    table: LabelTable,
+    measure: MeasureText,
+    picture: MeasurePicture = () => null,
+): TableDrawing {
     const lineHeight = typeof table.lineHeight === "number" && table.lineHeight > 0 ? table.lineHeight : 1;
-    const sized = sizeTable(table, measure, lineHeight, 0);
+    const sizing: Measures = {
+        text: measure,
+        lineHeight,
+        picture: (image) => {
+            const own = picture(image.src);
+            const each = len(table.imagePixel) || len(image.pixelSize) || 1;
+            return own === null ? null : { width: own.width * each, height: own.height * each };
+        },
+    };
+    const sized = sizeTable(table, sizing, 0);
     const out: Collected = { frames: [], rules: [], texts: [], fills: [], images: [] };
     placeTable(sized, { x: 0, y: 0, width: sized.width, height: sized.height }, out, false);
     return { width: sized.width, height: sized.height, ...out };

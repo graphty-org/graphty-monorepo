@@ -704,6 +704,8 @@ export type Channel =
     | "node.labelPaddingY"
     | "node.labelFitSquare"
     | "node.labelFitQuantum"
+    | "node.labelFitImage"
+    | "node.labelFitImagePadding"
     | "node.gradientColor"
     | "node.gradientDirection"
     | "node.gradientColors"

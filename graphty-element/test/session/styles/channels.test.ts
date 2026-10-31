@@ -186,6 +186,8 @@ const DECLARED = [
     "node.labelPaddingY",
     "node.labelFitSquare",
     "node.labelFitQuantum",
+    "node.labelFitImage",
+    "node.labelFitImagePadding",
     "node.gradientColor",
     "node.gradientDirection",
     "node.gradientColors",
@@ -385,8 +387,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty node channels and one hundred and fifty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 180);
+    it("splits into one hundred and eighty-two node channels and one hundred and fifty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 182);
         assert.strictEqual(channelsFor("edge").length, 151);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

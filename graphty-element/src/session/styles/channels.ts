@@ -436,6 +436,8 @@ export interface ChannelValues {
     "node.labelPaddingY": number;
     "node.labelFitSquare": boolean;
     "node.labelFitQuantum": number;
+    "node.labelFitImage": number;
+    "node.labelFitImagePadding": number;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
     "node.gradientColors": string;
@@ -3618,6 +3620,39 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "A node that grows to hold its label (`node.labelFit`) rounds its padded label box up to a " +
             "multiple of this length each way before its outline is fitted round it, as Graphviz's " +
             "`quantum` does. 0 rounds nothing; without `node.labelFit` it changes nothing.",
+    },
+    "node.labelFitImage": {
+        channel: "node.labelFitImage",
+        target: "node",
+        plainName: "Node Label Fit Image",
+        shortName: "Fit image",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.labelFitImage",
+        renderable: true,
+        caveat:
+            "A node that grows to hold its label (`node.labelFit`) also holds its picture (`node.image`): the " +
+            "picture's own pixels, each this long, padded by `node.labelFitImagePadding`; the larger of the " +
+            "padded label and the padded picture decides each way, as Graphviz grows a node round its `image`. " +
+            "The node is fitted again once the picture is read. 0 lets the picture size nothing; without " +
+            "`node.labelFit` it changes nothing.",
+    },
+    "node.labelFitImagePadding": {
+        channel: "node.labelFitImagePadding",
+        target: "node",
+        plainName: "Node Label Fit Image Padding",
+        shortName: "Fit image padding",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.labelFitImagePadding",
+        renderable: true,
+        caveat:
+            "The room on each side of a picture a node holds (`node.labelFitImage`), in the units of its size. " +
+            "Without `node.labelFitImage` it changes nothing.",
     },
     "node.gradientColor": {
         channel: "node.gradientColor",

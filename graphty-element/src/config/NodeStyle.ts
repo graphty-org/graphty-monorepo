@@ -399,7 +399,7 @@ export const NodeStyle = z.strictObject({
     /**
      * A second ring drawn outside the border, `offset` beyond its outer edge (Cytoscape.js
      * `outline-*`): its color, its width and offset in the units of the border's width, its
-     * opacity and its line style. `count` (default 1) draws that many rings, each `offset` beyond
+     * opacity and its line style. `count` (default 1, a fraction rounded down) draws that many rings, each `offset` beyond
      * the one before (Graphviz's `peripheries`). No width, or an opacity of 0, draws none. Unlike
      * `effect.outline`, a highlight drawn over the node's rim, this is a ring of its own.
      */
@@ -410,7 +410,7 @@ export const NodeStyle = z.strictObject({
             opacity: z.number().min(0).max(1).optional(),
             style: NodeBorderStyles.optional(),
             offset: z.number().optional(),
-            count: z.number().int().positive().optional(),
+            count: z.number().min(1).optional(),
         })
         .optional(),
     /**

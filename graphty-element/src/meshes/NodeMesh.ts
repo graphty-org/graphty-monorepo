@@ -739,13 +739,13 @@ export class NodeMesh {
             const extents = this.fillExtents(sized, inset);
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
-            const base = gap > 0 ? offsetOutline(outline, gap) : outline;
-            const mesh = ringSlab(
-                "node-outer-border",
-                borderRing(base, width, outerBorder?.style ?? "solid"),
-                depth,
-                scene,
-            );
+            // each further ring (`count`, Graphviz's peripheries) starts the offset beyond the one before
+            const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
+            const pieces = Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
+                const at = gap + i * step;
+                return borderRing(at > 0 ? offsetOutline(outline, at) : outline, width, outerBorder?.style ?? "solid");
+            }).flat();
+            const mesh = ringSlab("node-outer-border", pieces, depth, scene);
             placeByZIndex(mesh, shape, options.is2D);
             mesh.material = this.createBorderMaterial(outerBorder?.color ?? "#000000", opacity, scene);
 

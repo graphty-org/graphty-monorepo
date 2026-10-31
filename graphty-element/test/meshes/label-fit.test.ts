@@ -46,6 +46,25 @@ describe("labelFitExtent", () => {
         assert.equal(fitted?.height, 4);
     });
 
+    it("rounds the padded box up to a multiple of the quantum before fitting the outline round it", () => {
+        const shape = { labelFit: "inside" as const, labelPaddingX: 1, labelPaddingY: 1, size: 0, labelFitQuantum: 5 };
+        // 12 by 4 rounds up to 15 by 5
+        assert.deepEqual(labelFitExtent({ ...shape, type: "rectangle" }, box), { width: 15, height: 5 });
+        const ellipse = labelFitExtent({ ...shape, type: "ellipse" }, box);
+        assert.closeTo(ellipse?.width ?? 0, 15 * Math.SQRT2, 1e-9);
+        assert.closeTo(ellipse?.height ?? 0, 5 * Math.SQRT2, 1e-9);
+    });
+
+    it("grows a star until the box fits inside its inner points, as Graphviz's star_size does", () => {
+        const fitted = labelFitExtent({ type: "star", labelFit: "inside", size: 0 }, { width: 40, height: 22.4 });
+        // the outer radius that holds the box between the star's arms, its bounding box drawn
+        const a = Math.PI / 10;
+        const r0 = Math.max(40 / (2 * Math.cos(a)), 22.4 / (Math.sin(a) + Math.sin(3 * a)));
+        const r = (r0 * Math.sin(4 * a) * Math.cos(2 * a)) / (Math.cos(a) * Math.cos(4 * a));
+        assert.closeTo(fitted?.width ?? 0, 2 * r * Math.cos(a), 1e-9);
+        assert.closeTo(fitted?.height ?? 0, r * (1 + Math.sin(3 * a)), 1e-9);
+    });
+
     it("reaches a polygon out by 1 / cos(pi / sides) past the ellipse", () => {
         const diamond = labelFitExtent({ type: "diamond", labelFit: "inside", size: 0 }, box);
         assert.closeTo(diamond?.width ?? 0, 10 * Math.SQRT2 * Math.SQRT2, 1e-9);

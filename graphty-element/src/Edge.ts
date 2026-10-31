@@ -1286,6 +1286,23 @@ export class Edge {
     }
 
     /**
+     * Build this edge's label and arrow captions again when a font they draw in has just loaded
+     * (issue #3531): one measured and drawn while its web font was loading shows the fallback face.
+     * @param families - The families that loaded, as `fontFamilies` gives them.
+     * @returns True when anything was rebuilt.
+     * @internal
+     */
+    refreshFonts(families: ReadonlySet<string>): boolean {
+        const texts = [this.label, this.arrowHeadText, this.arrowTailText];
+        if (this.disposed || this.drawnStyle === null || !texts.some((text) => text?.usesFont(families) === true)) {
+            return false;
+        }
+
+        this.syncContent(this.drawnStyle, true);
+        return true;
+    }
+
+    /**
      * What this edge looks like right now.
      *
      * See Node.currentPaint: the painter is asked rather than the field read, because a rebuild

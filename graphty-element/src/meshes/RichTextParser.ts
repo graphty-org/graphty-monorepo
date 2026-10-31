@@ -180,6 +180,11 @@ export interface LineOptions {
 const FONT_BOX_REFERENCE = 1000;
 const fontBoxes = new Map<string, readonly [number, number]>();
 
+/** Forget every font box read so far: a web font that has just loaded measured as its fallback until now. */
+export function forgetFontBoxes(): void {
+    fontBoxes.clear();
+}
+
 /**
  * A font's ascent and descent at a size, the same with hinted and unhinted glyphs. Chromium reports the font box in whole pixels, rounded
  * differently with hinted glyphs and with unhinted ones (`textRendering = "geometricPrecision"`), so a 10 px

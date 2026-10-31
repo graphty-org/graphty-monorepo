@@ -1206,6 +1206,34 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Build this node's texts again when a font they draw in has just loaded (issue #3531): a
+     * label measured and drawn while its web font was loading shows the fallback face, and a node
+     * sized to its label (`shape.labelFit`) has the fallback's size.
+     * @param families - The families that loaded, as `fontFamilies` gives them.
+     * @returns True when anything was rebuilt.
+     * @internal
+     */
+    refreshFonts(families: ReadonlySet<string>): boolean {
+        const texts = [this.label, this.tooltip, ...this.shapeTextLabels];
+        if (this.disposed || !texts.some((text) => text?.usesFont(families) === true)) {
+            return false;
+        }
+
+        // Forget what they were drawn from, so the repaint builds them again and fits the node anew.
+        this.drawnLabelStyle = undefined;
+        this.drawnShapeTexts = undefined;
+        this.fittedFor = null;
+        const tooltipShown = this.tooltip !== undefined;
+        this.updateStyle();
+        if (tooltipShown) {
+            this.hideTooltip();
+            this.showTooltip();
+        }
+
+        return true;
+    }
+
+    /**
      * What this node looks like right now.
      *
      * The painter is asked rather than only the field read, because the two do not become true

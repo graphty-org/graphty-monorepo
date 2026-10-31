@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { decide, packageOf, records, stampCommit, untrusted, withChangesSince } from "./promote.mjs";
+import { decide, packageOf, records, stampCommit, storeRecord, untrusted, withChangesSince } from "./promote.mjs";
 
 const C = "c".repeat(40);
 const P = "p".repeat(40);
@@ -248,5 +248,38 @@ describe("promote.mjs helpers", () => {
         assert.equal(site.site, "production");
         assert.equal(site.datasets, "https://graphty.app/data/graph-samples/v1/");
         assert.deepEqual(Object.keys(site).sort(), Object.keys(nightlySite).sort());
+    });
+});
+
+describe("storeRecord (GET /v1/site, #4495)", () => {
+    const env = {
+        RESULTS_URL: "https://store.test",
+        ACTIONS_ID_TOKEN_REQUEST_URL: "https://oidc.test/?x=1",
+        ACTIONS_ID_TOKEN_REQUEST_TOKEN: "t",
+    };
+    const store = (status, body) => {
+        const asked = [];
+        const fetch = async (url) => {
+            asked.push(url);
+            if (url.startsWith("https://oidc.test")) return Response.json({ value: "jwt" });
+            return Response.json(body, { status });
+        };
+        return { fetch, asked };
+    };
+    it("asks the store's /v1/site for the commit and returns its record", async () => {
+        const record = { sha: C, siteSha256: SITE, channelSha256: CHAN, verdict: "green-clean" };
+        const { fetch, asked } = store(200, record);
+        assert.deepEqual(await storeRecord(C, { env, fetch }), record);
+        assert.equal(asked[1], `https://store.test/v1/site?sha=${C}`);
+    });
+    it("a site the store never recorded is null, and the promotion refuses it", async () => {
+        const { fetch } = store(404, { error: `no nightly channel move of ${C}` });
+        const record = await storeRecord(C, { env, fetch });
+        assert.equal(record, null);
+        refusedFor(facts({ store: record }), /results store has no record/);
+    });
+    it("throws on any other failure of the store", async () => {
+        const { fetch } = store(500, { error: "internal error" });
+        await assert.rejects(storeRecord(C, { env, fetch }), /answered 500/);
     });
 });

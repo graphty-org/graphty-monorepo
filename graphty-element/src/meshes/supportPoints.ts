@@ -178,7 +178,7 @@ export function hypot(a: number, b: number): number {
     }
     const p = x / max;
     const q = y / max;
-    return Math.sqrt(p * p + q * q) * max; // NOSONAR(typescript:S7769): this is Math.hypot's own sum, inlined for speed
+    return Math.sqrt(p * p + q * q) * max; // NOSONAR(S7769): this is Math.hypot's own sum, inlined for speed
 }
 
 /** The cells {@link repulsionOn} has still to visit, kept from call to call. */

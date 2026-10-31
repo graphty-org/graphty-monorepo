@@ -14,7 +14,8 @@
 // Actions API; the store's query replaces fetchPaid.
 //
 //   GH_TOKEN=... GITHUB_REPOSITORY=o/r [GITHUB_RUN_ID=n] node tools/llm-spend.mjs
-//   node tools/llm-spend.mjs cost <log>   prints the run's cost in USD from its vitest log, or nothing
+//   node tools/llm-spend.mjs cost <usage> [<log>]   prints the run's cost in USD from its usage file
+//                                                   (LLM_REGRESSION_USAGE_FILE), else from its vitest log, or nothing
 //   node --test tools/llm-spend.test.mjs
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -46,6 +47,43 @@ export function logCost(log) {
         .map((line) => line.slice(line.lastIndexOf(", cost $") + ", cost $".length))
         .filter((usd) => /^\d+(\.\d+)?$/.test(usd.trim()));
     return costs.length ? costs.reduce((sum, usd) => sum + Number(usd), 0) : null;
+}
+
+/**
+ * A run's cost from its usage file: the sum of the `{"usd":n}` lines the Gemini transport appends as it spends
+ * (graphty-element/test/helpers/llm-regression-gemini.ts, LLM_REGRESSION_USAGE_FILE). Written as the money is spent,
+ * so it holds what a hung or cut-off run spent, which its log's per-file lines never print. A torn last line (the
+ * run killed mid-write) is skipped.
+ * @param text the file's text
+ * @returns USD, or null when no line has a cost (no file, or an older harness that writes none)
+ */
+export function usageCost(text) {
+    const costs = text.split("\n").flatMap((line) => {
+        try {
+            const usd = JSON.parse(line)?.usd;
+            return typeof usd === "number" && Number.isFinite(usd) ? [usd] : [];
+        } catch {
+            return [];
+        }
+    });
+    return costs.length ? costs.reduce((sum, usd) => sum + usd, 0) : null;
+}
+
+/**
+ * A run's cost from its files: the usage file's when it has one, else the log's.
+ * @param usagePath the usage file
+ * @param [logPath] the vitest log
+ * @returns USD, or null
+ */
+export function runCost(usagePath, logPath) {
+    const read = (f) => {
+        try {
+            return f ? readFileSync(f, "utf8") : "";
+        } catch {
+            return "";
+        }
+    };
+    return usageCost(read(usagePath)) ?? logCost(read(logPath));
 }
 
 /**
@@ -261,7 +299,7 @@ async function fetchPaid(repo, since, ownRun) {
 /** Prints the month's count and spend, as a warning at or over the ceiling. Never fails the job. */
 async function main() {
     if (process.argv[2] === "cost") {
-        const usd = logCost(readFileSync(process.argv[3], "utf8"));
+        const usd = runCost(process.argv[3], process.argv[4]);
         if (usd !== null) console.log(usd.toFixed(4));
         return;
     }

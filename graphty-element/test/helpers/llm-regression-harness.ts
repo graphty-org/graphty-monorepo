@@ -155,7 +155,11 @@ export function accountRefusalOf(error: unknown): string | null {
  */
 function geminiTransport(apiKey: string): GeminiTransport {
     const shared = globalThis as { __LLM_REGRESSION_GEMINI__?: GeminiTransport };
-    shared.__LLM_REGRESSION_GEMINI__ ??= new GeminiTransport({ apiKey, tier: getLlmRegressionGeminiTier() });
+    shared.__LLM_REGRESSION_GEMINI__ ??= new GeminiTransport({
+        apiKey,
+        tier: getLlmRegressionGeminiTier(),
+        usageFile: process.env.LLM_REGRESSION_USAGE_FILE || undefined,
+    });
     return shared.__LLM_REGRESSION_GEMINI__;
 }
 

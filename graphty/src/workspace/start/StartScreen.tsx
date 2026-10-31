@@ -509,7 +509,9 @@ function SampleLibrary(): React.JSX.Element {
     const generators = tiles.filter((tile) => tile.field === GENERATED);
     return (
         <section className="ws-land-band" id="ws-land-samples" aria-label="Sample library">
-            <h2 className="ws-land-h2">Sample library</h2>
+            <h2 className="ws-land-h2 cm-focus-inside" id="ws-land-samples-title" tabIndex={-1}>
+                Sample library
+            </h2>
             <p className="ws-land-intro">
                 {DATASET_COUNT} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
                 routes, and {GENERATOR_DESCRIPTORS.length} ways to generate one.
@@ -735,7 +737,10 @@ export function StartScreen(): React.JSX.Element {
 
     const returning = recent.length > 0;
     const [latest] = recent;
+    // Focus goes with the scroll, to the library's heading: not editable, so Home, End and the Page
+    // keys still scroll the page, and the next Tab reaches the search.
     const showSamples = (): void => {
+        document.getElementById("ws-land-samples-title")?.focus({ preventScroll: true });
         document.getElementById("ws-land-samples")?.scrollIntoView({ behavior: "smooth" });
     };
     const privacy = (

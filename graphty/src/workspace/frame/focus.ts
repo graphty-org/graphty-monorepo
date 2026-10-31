@@ -60,10 +60,14 @@ export const INSPECTOR_TITLE_ID = "ws-inspector-title";
  * how big; else, while the inspector shows something else, on the open place's list. A reader
  * who has already moved into the drawing, or into a dialog, while the graph was still being read
  * keeps their place.
+ * @param readerStayed - the reader pressed nothing while the graph was read, so focus on the
+ *   drawing was left there by something else (a closed dialog handing focus back to where it
+ *   opened) and the heading takes it all the same.
  */
-export function focusOpenedGraph(): void {
+export function focusOpenedGraph(readerStayed = false): void {
     const active = document.activeElement;
-    if (active?.tagName === "GRAPHTY-ELEMENT" || (active?.closest('[role="dialog"]') ?? null) !== null) {
+    const inDrawing = !readerStayed && active?.tagName === "GRAPHTY-ELEMENT";
+    if (inDrawing || (active?.closest('[role="dialog"]') ?? null) !== null) {
         return;
     }
     const title = document.querySelector<HTMLElement>(`[data-inspected="graph"] #${INSPECTOR_TITLE_ID}`);
@@ -92,7 +96,7 @@ export function focusOpenedGraphLater(): (focus?: boolean) => void {
         document.removeEventListener("keydown", onInput, true);
         document.removeEventListener("pointerdown", onInput, true);
         if (focus && (!acted || focusIsLost())) {
-            focusOpenedGraph();
+            focusOpenedGraph(!acted);
         }
     };
 }

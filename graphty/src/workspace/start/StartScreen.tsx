@@ -938,6 +938,11 @@ export function StartScreen(): React.JSX.Element {
                     setNetwork(false);
                     openServerForm(workspace.store);
                 }}
+                onOpenFile={() => {
+                    setNetwork(false);
+                    openDoor?.run();
+                }}
+                openFileKey={openDoor?.command.keys?.[0]}
             />
 
             {dragging ? (

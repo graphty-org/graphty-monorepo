@@ -59,7 +59,7 @@ export function sourceName(source: PageSource): string {
  * @param settings - the reader's file settings.
  * @returns what `prepare` takes.
  */
-function sourceInput(source: PageSource, settings: ReadSettings): DataSourceInput {
+export function sourceInput(source: PageSource, settings: ReadSettings): DataSourceInput {
     const extra = {
         ...(settings.delimiter === undefined ? {} : { delimiter: settings.delimiter }),
         ...(settings.errorLimit === undefined ? {} : { errorLimit: settings.errorLimit }),

@@ -49,6 +49,7 @@ import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
 import { openProjectFile } from "../project/actions";
+import { replaceWith } from "../replace/commands";
 import { writeFileStylesChoice } from "../settings/preferences";
 import { readPasted } from "../start/open";
 import { useAnnounceChange } from "../state/useAnnounceChange";
@@ -70,8 +71,15 @@ import {
     setWeightMeaning,
     weightHolder,
 } from "./choices";
-import { canReplace, rememberLoad, replaceSource, takeDataPageRequest, whileDataPageOpen } from "./request";
-import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
+import { canReplace, rememberLoad, takeDataPageRequest, whileDataPageOpen } from "./request";
+import {
+    type LoadDraftState,
+    type PageSource,
+    type RowFilter,
+    sourceInput,
+    sourceName,
+    useLoadDraft,
+} from "./useLoadDraft";
 import {
     addWords,
     baseName,
@@ -398,6 +406,9 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     // An addition whose edges repeat the graph's says so, and offers the source menu's Replace
     // with this file beside Load, when the graph's one source can be replaced. When every edge
     // in the file repeats, Load would only double the graph's edges, so Replace is the primary.
+    // Replace replaces at once, as opening a copy of the source does, with a receipt and Undo:
+    // the page already showed the file, and a load can be undone, so nothing asks again. The file
+    // is read as the page read it, with the reader's file settings and column roles.
     const repeats = request.intent === "add" ? (page.report?.repeated.seen ?? 0) : 0;
     const sources = repeats > 0 && session !== null ? session.data.sources() : [];
     const file = page.source?.kind === "files" && page.source.files.length === 1 ? page.source.files[0] : undefined;
@@ -407,7 +418,19 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
                   label: `Replace ${sources[0].name ?? "the data"}`,
                   primary: repeats >= (page.report?.counts.edgeRecords ?? Infinity),
                   run: () => {
-                      replaceSource(store, sources[0], file);
+                      const { draft, source, settings, choices } = page;
+                      if (session === null || draft === null || source === null) {
+                          return;
+                      }
+                      store.set({ page: "panels" });
+                      const incoming = { name: file.name, source: sourceInput(source, settings) };
+                      void replaceWith(store, session, sources[0].key, incoming, loadChoices(draft, choices, "merge"))
+                          .then(() => {
+                              rememberLoad(session, { files: [file], choices });
+                          })
+                          .catch(() => {
+                              store.set({ notice: { message: "Not replaced" } });
+                          });
                   },
               }
             : null;

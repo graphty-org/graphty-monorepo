@@ -60,7 +60,8 @@ function anchorBoxes(state: ListState): { anchor: DOMRect; reference: DOMRect } 
  * macOS does: its height is capped to the part that fits 8px inside the visual viewport and its
  * content scrolled, so the selected option still lands on the field. A list that fits whole is
  * pushed back inside instead (floating-ui's shift), moving the selected option off the field by
- * the overflow, so every option shows. The visual viewport, so an on-screen keyboard shrinks it.
+ * the overflow, so every option shows. The visual viewport, so an on-screen keyboard shrinks it,
+ * cut by any scrolling or clipping ancestor of a list that is not portalled.
  *
  * ponytail: a long list on a field near the edge is still cut to whatever fits beside the field,
  * which can be a few rows; open it toward the room when that shows.
@@ -93,8 +94,13 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     // tall, and shift pulls it in.
     const edge = VIEWPORT_CAP_MARGIN / 2;
     const view = visualBand();
-    const viewportTop = view.top + edge;
-    const viewportBottom = Math.min(floating.ownerDocument.documentElement.clientHeight, view.bottom) - edge;
+    const band = clippedBand(
+        floating,
+        view.top,
+        Math.min(floating.ownerDocument.documentElement.clientHeight, view.bottom),
+    );
+    const viewportTop = band.top + edge;
+    const viewportBottom = band.bottom - edge;
     const inside =
         anchor.top >= viewportTop &&
         anchor.bottom <= viewportBottom &&
@@ -104,6 +110,28 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     floating.style.maxHeight = inside ? capped(`${String(bottom - top)}px`) : "";
     floating.scrollTop = top - contentTop;
     return { mainAxis: top - reference.bottom, alignmentAxis: align(LISTBOX_EDGE) };
+}
+
+/**
+ * The part of a vertical band the list's clipping ancestors leave visible. A list that is not
+ * portalled (`withinPortal: false`) inside a scrolling panel is cut by the panel, not only by the
+ * viewport, so it fits inside the panel's visible part: otherwise it runs past it, and reaching its
+ * last options scrolls the panel, which moves the list under the pointer (#4484).
+ * @param floating - the list
+ * @param top - the band's top edge
+ * @param bottom - the band's bottom edge
+ * @returns the band, cut by every ancestor whose overflow clips
+ */
+function clippedBand(floating: HTMLElement, top: number, bottom: number): { top: number; bottom: number } {
+    const { body } = floating.ownerDocument;
+    for (let el = floating.parentElement; el && el !== body; el = el.parentElement) {
+        if (getComputedStyle(el).overflowY !== "visible") {
+            const clipTop = el.getBoundingClientRect().top + el.clientTop;
+            top = Math.max(top, clipTop);
+            bottom = Math.min(bottom, clipTop + el.clientHeight);
+        }
+    }
+    return { top, bottom };
 }
 
 /**

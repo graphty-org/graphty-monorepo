@@ -40,6 +40,12 @@ export interface RunnerSample {
     at: number;
     running: number;
     queued: number;
+    /**
+     * Jobs that waited over 2 minutes for a Linux or Windows runner (parse.ts `waitsForRunner`). `queued` also counts
+     * jobs seconds old and jobs held by a concurrency group or an approval, none of which means runners are short.
+     * Absent in samples stored before this field existed; those fall back to `queued`.
+     */
+    queuedOver2?: number;
     saturated: boolean;
     longestQueuedMs: number;
 }
@@ -109,7 +115,7 @@ export function spentMinutes(spent: SliceSpend[], now: number) {
 
 /**
  * Quiet: a sample in every cycle of the last `quietMinutes` (one per 5 minutes; a missed cycle is not quiet), none with
- * a queued job or saturation, and no job waited longer than `maxWaitMinutes` in any sample of the last hour.
+ * a job waiting over 2 minutes for a runner or saturation, and no job waited longer than `maxWaitMinutes` in any sample of the last hour.
  */
 export function isQuiet(samples: RunnerSample[], now: number, cfg: SliceConfig): boolean {
     const window = cfg.quietMinutes * MIN;
@@ -117,7 +123,7 @@ export function isQuiet(samples: RunnerSample[], now: number, cfg: SliceConfig):
     // The samples span the whole window with no missed cycle (a gap over 7.5 minutes) and none after the last.
     if (!recent.length || recent[0].at > now - window + 2 * MIN || recent.at(-1)!.at < now - 7.5 * MIN) return false;
     if (recent.some((s, k) => k > 0 && s.at - recent[k - 1].at > 7.5 * MIN)) return false;
-    if (recent.some((s) => s.queued > 0 || s.saturated)) return false;
+    if (recent.some((s) => (s.queuedOver2 ?? s.queued) > 0 || s.saturated)) return false;
     return samples.filter((s) => s.at > now - HOUR).every((s) => s.longestQueuedMs <= cfg.maxWaitMinutes * MIN);
 }
 

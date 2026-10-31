@@ -223,6 +223,32 @@ describe("layoutLabelTable", () => {
     });
 });
 
+describe("layoutLabelTable: backgrounds and pictures", () => {
+    it("fills the table's box and each cell inside its border, the table first (n_html1's BGCOLORs)", () => {
+        const t = table([[cell("a", { fill: "#4477aa" })], [cell("b")]], { fill: "#ffffe0", border: 0 });
+        const drawn = layoutLabelTable(t, measure);
+        assert.deepEqual(
+            drawn.fills.map((f) => [f.color, f.x, f.y, f.width, f.height]),
+            [
+                ["#ffffe0", 0, 0, drawn.width, drawn.height],
+                ["#4477aa", 3, 3, 10, 16.75],
+            ],
+        );
+    });
+
+    it("draws a cell's picture in the box inside its padding, lined up as the cell says (html-img-scale-*)", () => {
+        const image = { src: "img-wide.png", scale: "true" } as const;
+        const t = table([[{ width: 40, height: 30, fixedSize: true, image, align: "left" }]]);
+        const drawn = layoutLabelTable(t, measure);
+        // Graphviz: a 46 x 36 node, the cell 40 x 30 at 3, its picture's room inside 1 border and 2 padding
+        assert.deepEqual([drawn.width, drawn.height], [46, 36]);
+        assert.deepEqual(drawn.images, [
+            { x: 6, y: 6, width: 34, height: 24, image, align: "left", valign: undefined },
+        ]);
+        assert.deepEqual(drawn.texts, []);
+    });
+});
+
 describe("readLabelTable", () => {
     it("reads a table and refuses what is not one", () => {
         assert.deepEqual(readLabelTable('{"rows":[{"cells":[{"lines":[{"text":"a"}]}]}]}')?.rows.length, 1);

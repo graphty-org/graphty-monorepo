@@ -334,15 +334,18 @@ export interface NodeStyleValues {
     readonly labelRuns: string;
     /**
      * The label laid out as a table of cells (Graphviz's HTML-like `<TABLE>`), as JSON: `{ "border", "cellBorder",
-     * "cellSpacing", "cellPadding", "width"?, "height"?, "fixedSize"?, "align"?, "valign"?, "lineHeight"?, "rows" }`,
+     * "cellSpacing", "cellPadding", "width"?, "height"?, "fixedSize"?, "align"?, "valign"?, "fill"?, "lineHeight"?,
+     * "rows" }`,
      * lengths in the unit of `width`. `border` is the table's outline width, `cellBorder` and `cellPadding` every
      * cell's own unless the cell gives one, `cellSpacing` the room between cells and round them, `width` and
      * `height` a least size (exact with `fixedSize`), `align` (`left`, `right`) and `valign` (`top`, `bottom`) where
-     * the table sits in a cell larger than it, `lineHeight` how tall a text line is as a multiple of its font size.
+     * the table sits in a cell larger than it, `fill` its background color, `lineHeight` how tall a text line is as a multiple of its font size.
      * Each row is `{ "cells", "rule"? }` (`rule`: a line between it and the row above); each cell
-     * `{ "lines"?, "table"?, "colspan"?, "rowspan"?, "width"?, "height"?, "fixedSize"?, "align"?, "valign"?,
-     * "balign"?, "border"?, "padding"?, "rule"? }`: its text as lines `{ "runs", "align"? }` (runs as in
-     * `labelRuns`), or a table of its own; `align` is also `text` (the lines line up across the whole cell),
+     * `{ "lines"?, "table"?, "image"?, "colspan"?, "rowspan"?, "width"?, "height"?, "fixedSize"?, "align"?, "valign"?,
+     * "balign"?, "border"?, "padding"?, "fill"?, "rule"? }`: its text as lines `{ "runs", "align"? }` (runs as in
+     * `labelRuns`), a table of its own, or a picture `{ "src", "scale"? }` (its file as written; `scale` unset draws it
+     * at its own size, `true` keeps its proportions inside the cell's padding, `both` stretches it there, `width` or
+     * `height` stretches that side only); `fill` is its background color; `align` is also `text` (the lines line up across the whole cell),
      * `balign` lines up the lines that give no `align`, `rule` is a line between it and the cell on its left. The
      * table's size, with `labelPaddingX` and `labelPaddingY` round it, is the label's box when the node grows to
      * fit it. `label` holds its words.

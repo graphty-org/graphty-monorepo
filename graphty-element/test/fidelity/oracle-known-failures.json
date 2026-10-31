@@ -16252,7 +16252,7 @@
             "background": []
         },
         "dot-synth-nodes": {
-            "node.present": ["n_html1"],
+            "node.present": [],
             "node.extra": [],
             "node.position": ["s_proteinstab","s_threepoverhang"],
             "node.width": [],
@@ -16285,7 +16285,7 @@
             "label.backgroundBorder": [],
             "edge.present": ["n_lingrad2->n_invis#0"],
             "edge.extra": [],
-            "edge.route": ["n_html1->n_html2#0","n_tooltip->n_html1#0","s_Mrecord->n_dashed#0","s_assembly->s_signature#0","s_cds->s_terminator#0","s_component->s_promoter#0","s_doublecircle->s_doubleoctagon#0","s_doubleoctagon->s_tripleoctagon#0","s_fivepoverhang->s_threepoverhang#0","s_insulator->n_x11#0","s_insulator->s_ribosite#0","s_octagon->s_doublecircle#0","s_parallelogram->s_threepoverhang#0","s_primersite->s_restrictionsite#0","s_proteasesite->s_proteinstab#0","s_proteinstab->s_rpromoter#0","s_proteinstab->s_triangle#0","s_record->s_Mrecord#0","s_record->s_Mrecord#1","s_restrictionsite->s_fivepoverhang#0","s_ribosite->s_rnastab#0","s_rnastab->s_proteasesite#0","s_signature->s_insulator#0","s_terminator->s_doubleoctagon#0","s_terminator->s_utr#0","s_threepoverhang->s_noverhang#0","s_tripleoctagon->s_invtriangle#0","s_utr->s_primersite#0"],
+            "edge.route": ["n_html1->n_html2#0","s_Mrecord->n_dashed#0","s_assembly->s_signature#0","s_cds->s_terminator#0","s_component->s_promoter#0","s_doublecircle->s_doubleoctagon#0","s_doubleoctagon->s_tripleoctagon#0","s_fivepoverhang->s_threepoverhang#0","s_insulator->n_x11#0","s_insulator->s_ribosite#0","s_octagon->s_doublecircle#0","s_parallelogram->s_threepoverhang#0","s_primersite->s_restrictionsite#0","s_proteasesite->s_proteinstab#0","s_proteinstab->s_rpromoter#0","s_proteinstab->s_triangle#0","s_record->s_Mrecord#0","s_record->s_Mrecord#1","s_restrictionsite->s_fivepoverhang#0","s_ribosite->s_rnastab#0","s_rnastab->s_proteasesite#0","s_signature->s_insulator#0","s_terminator->s_doubleoctagon#0","s_terminator->s_utr#0","s_threepoverhang->s_noverhang#0","s_tripleoctagon->s_invtriangle#0","s_utr->s_primersite#0"],
             "edge.curve": [],
             "edge.color": [],
             "edge.width": [],
@@ -16309,7 +16309,7 @@
             "background": []
         },
         "dot-synth-nodes@matched": {
-            "node.present": ["n_html1"],
+            "node.present": [],
             "node.extra": [],
             "node.position": ["s_fivepoverhang","s_primersite","s_promoter","s_proteasesite","s_proteinstab","s_ribosite","s_rnastab","s_terminator","s_threepoverhang","s_utr"],
             "node.width": [],
@@ -16342,7 +16342,7 @@
             "label.backgroundBorder": [],
             "edge.present": ["n_lingrad2->n_invis#0"],
             "edge.extra": [],
-            "edge.route": ["n_html1->n_html2#0","n_tooltip->n_html1#0","s_Mrecord->n_dashed#0","s_assembly->s_signature#0","s_cds->s_terminator#0","s_component->s_promoter#0","s_doublecircle->s_doubleoctagon#0","s_doubleoctagon->s_tripleoctagon#0","s_fivepoverhang->s_threepoverhang#0","s_insulator->n_x11#0","s_insulator->s_ribosite#0","s_invtriangle->s_invtrapezium#0","s_octagon->s_doublecircle#0","s_parallelogram->s_threepoverhang#0","s_primersite->s_restrictionsite#0","s_proteasesite->s_proteinstab#0","s_proteinstab->s_rpromoter#0","s_proteinstab->s_triangle#0","s_record->s_Mrecord#0","s_record->s_Mrecord#1","s_restrictionsite->s_fivepoverhang#0","s_ribosite->s_rnastab#0","s_rnastab->s_proteasesite#0","s_signature->s_insulator#0","s_terminator->s_doubleoctagon#0","s_terminator->s_utr#0","s_threepoverhang->s_noverhang#0","s_tripleoctagon->s_invtriangle#0","s_utr->s_primersite#0"],
+            "edge.route": ["n_html1->n_html2#0","s_Mrecord->n_dashed#0","s_assembly->s_signature#0","s_cds->s_terminator#0","s_component->s_promoter#0","s_doublecircle->s_doubleoctagon#0","s_doubleoctagon->s_tripleoctagon#0","s_fivepoverhang->s_threepoverhang#0","s_insulator->n_x11#0","s_insulator->s_ribosite#0","s_invtriangle->s_invtrapezium#0","s_octagon->s_doublecircle#0","s_parallelogram->s_threepoverhang#0","s_primersite->s_restrictionsite#0","s_proteasesite->s_proteinstab#0","s_proteinstab->s_rpromoter#0","s_proteinstab->s_triangle#0","s_record->s_Mrecord#0","s_record->s_Mrecord#1","s_restrictionsite->s_fivepoverhang#0","s_ribosite->s_rnastab#0","s_rnastab->s_proteasesite#0","s_signature->s_insulator#0","s_terminator->s_doubleoctagon#0","s_terminator->s_utr#0","s_threepoverhang->s_noverhang#0","s_tripleoctagon->s_invtriangle#0","s_utr->s_primersite#0"],
             "edge.curve": [],
             "edge.color": [],
             "edge.width": [],

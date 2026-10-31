@@ -1,7 +1,7 @@
 /**
  * @file The structure of a DOT HTML-like table label (`<TABLE>`, `<TR>`, `<TD>`, `<HR/>`, `<VR/>`) as the neutral
- * `labelTable` value: rows of cells, each with its attributes and its text as lines of font runs, or a table of its
- * own. Graphviz's defaults are written out (lib/common/htmltable.c, htmllex.c), so a reader needs none of them. How
+ * `labelTable` value: rows of cells, each with its attributes and its text as lines of font runs, a table of its
+ * own, or a picture (`<IMG>`, its `SRC` as written). Graphviz's defaults are written out (lib/common/htmltable.c, htmllex.c), so a reader needs none of them. How
  * the cells are laid out is left to whoever draws the label, which measures the text.
  */
 
@@ -14,10 +14,19 @@ interface TableLine {
     align?: "left" | "right";
 }
 
-/** One cell (`<TD>`): its attributes, and its text or a table of its own. */
+/** A picture in a cell (`<IMG>`): its file as written, and how it is scaled in the cell (`SCALE`; unset, `false`). */
+interface TableImage {
+    src: string;
+    scale?: "true" | "width" | "height" | "both";
+}
+
+/** One cell (`<TD>`): its attributes, and its text, a table of its own or a picture. */
 interface TableCell {
     lines?: TableLine[];
     table?: LabelTable;
+    image?: TableImage;
+    /** Its background (`BGCOLOR`), a color; of a gradient, its first color. */
+    fill?: string;
     colspan?: number;
     rowspan?: number;
     width?: number;
@@ -50,11 +59,16 @@ export interface LabelTable {
     fixedSize?: true;
     align?: "left" | "right";
     valign?: "top" | "bottom";
+    /** Its background (`BGCOLOR`), a color; of a gradient, its first color. */
+    fill?: string;
     rows: TableRow[];
 }
 
 /** The font of a run inside font tags, as `labelRuns` fields (the DOT reader's `htmlRunFont`). */
 type RunFont = (tags: readonly string[]) => Record<string, StyleValue>;
+
+/** A Graphviz color as a CSS color, or null for none or a bad one (the DOT reader's color reading). */
+type ReadColor = (value: string) => string | null;
 
 /** A tag of the label: its name in lower case, whether it closes or closes itself, its attributes, where it ends. */
 interface Tag {
@@ -161,6 +175,7 @@ interface Reading {
     readonly body: string;
     readonly attributes: (tag: string) => Map<string, string>;
     readonly runFont: RunFont;
+    readonly color: ReadColor;
 }
 
 /**
@@ -188,6 +203,7 @@ function readTable(
         cellPadding: whole(attrs, "cellpadding", 0, 255) ?? 2,
         ...sizeFields(attrs),
         ...(alignFields(attrs, false) as Pick<LabelTable, "align" | "valign">),
+        ...fillField(r, attrs),
         rows: [],
     };
     const state: RowState = { row: null, rowRule: false, cellRule: false };
@@ -323,6 +339,7 @@ function readCell(
         ...(balign === "left" || balign === "right" ? { balign } : {}),
         ...(border === null ? {} : { border }),
         ...(padding === null ? {} : { padding }),
+        ...fillField(r, attrs),
     };
     // a table inside the cell, perhaps inside font tags
     const inner = openingTable(content);
@@ -334,11 +351,48 @@ function readCell(
         }
         return cell;
     }
+    const image = cellImage(r, content);
+    if (image !== null) {
+        cell.image = image;
+        return cell;
+    }
     const lines = cellLines(content, nest.fonts, r.runFont);
     if (lines.length > 0) {
         cell.lines = lines;
     }
     return cell;
+}
+
+/**
+ * A `BGCOLOR` as a fill: a gradient's first color (`"red:blue"`, `"red;0.3:blue"`).
+ * @param r - the label and the helpers
+ * @param attrs - the tag's attributes
+ * @returns the field, when it is a color
+ */
+function fillField(r: Reading, attrs: ReadonlyMap<string, string>): { fill?: string } {
+    const first = (attrs.get("bgcolor") ?? "").split(":")[0].split(";")[0].trim();
+    const fill = first === "" ? null : r.color(first);
+    return fill === null ? {} : { fill };
+}
+
+/**
+ * The picture a cell holds: its content is one `<IMG>` (Graphviz allows nothing beside it), with a `SRC`.
+ * @param r - the label and the helpers
+ * @param content - the cell's markup
+ * @returns the picture, or null
+ */
+function cellImage(r: Reading, content: string): TableImage | null {
+    const tag = nextTag(content, 0);
+    if (tag?.name !== "img" || tag.closing) {
+        return null;
+    }
+    const attrs = r.attributes(tag.text);
+    const src = (attrs.get("src") ?? "").trim();
+    if (src === "") {
+        return null;
+    }
+    const scale = (attrs.get("scale") ?? "").toLowerCase();
+    return scale === "true" || scale === "width" || scale === "height" || scale === "both" ? { src, scale } : { src };
 }
 
 /**
@@ -404,19 +458,21 @@ function trimLine(line: TableLine): void {
  * @param markup - the label without its outer `<` and `>`
  * @param attributes - a tag's attributes by lowercase name
  * @param runFont - a run's font from its tags
+ * @param color - a `BGCOLOR` color as a CSS color
  * @returns the table, or null
  */
 export function readLabelTable(
     markup: string,
     attributes: (tag: string) => Map<string, string>,
     runFont: RunFont,
+    color: ReadColor,
 ): LabelTable | null {
     const opened = openingTable(markup);
     if (opened === null) {
         return null;
     }
     return readTable(
-        { body: markup, attributes, runFont },
+        { body: markup, attributes, runFont, color },
         attributes(opened.tag.text),
         opened.tag.end,
         opened.fonts,

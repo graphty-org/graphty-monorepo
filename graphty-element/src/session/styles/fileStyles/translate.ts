@@ -1305,7 +1305,8 @@ const TABLE_LENGTHS = ["border", "cellBorder", "cellSpacing", "cellPadding", "wi
 
 /**
  * A table label (the neutral `labelTable`, JSON with lengths in the file's units and each line's text as runs) as
- * the element draws one (`node.labelTable`): its lengths scaled, each line's runs as label markup.
+ * the element draws one (`node.labelTable`): its lengths scaled, each line's runs as label markup, each picture's pixel
+ * one file length across.
  * ponytail: a run's own point size is not carried (its markup is a share of the label's size, which this value does
  * not know); carry the table's label size when a file sizes the text of its cells.
  * @param value - the table, as JSON
@@ -1349,6 +1350,14 @@ export function labelTableForElement(value: unknown, factor: number): string | n
         delete out.rows;
         if (out.table !== undefined) {
             out.table = table(out.table, depth + 1);
+        }
+        // a picture drawn at its own size draws each of its pixels one of the file's lengths across, as `image` does
+        const image = out.image as { src?: unknown } | undefined;
+        if (image !== undefined) {
+            out.image =
+                typeof image === "object" && image !== null && typeof image.src === "string"
+                    ? { ...image, pixelSize: round(factor) }
+                    : undefined;
         }
         if (Array.isArray(out.lines)) {
             out.lines = out.lines.map((line: unknown) => {

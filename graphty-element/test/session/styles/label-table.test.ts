@@ -61,6 +61,24 @@ describe("labelTableForElement", () => {
         ]);
     });
 
+    it("keeps a cell's picture and fills, each pixel of a picture one file length across", () => {
+        const file = {
+            fill: "#ffffe0",
+            rows: [
+                { cells: [{ image: { src: "a.png", scale: "width" }, fill: "#4477aa" }, { image: { scale: "true" } }] },
+            ],
+        };
+        const out = JSON.parse(labelTableForElement(JSON.stringify(file), 0.5) ?? "null") as {
+            fill: string;
+            rows: { cells: { image?: unknown; fill?: string }[] }[];
+        };
+        assert.strictEqual(out.fill, "#ffffe0");
+        assert.deepEqual(out.rows[0].cells, [
+            { image: { src: "a.png", scale: "width", pixelSize: 0.5 }, fill: "#4477aa" },
+            {},
+        ]);
+    });
+
     it("draws nothing for a value that is not a table", () => {
         assert.isNull(labelTableForElement("not json", 1));
         assert.isNull(labelTableForElement('{"rows":3}', 1));

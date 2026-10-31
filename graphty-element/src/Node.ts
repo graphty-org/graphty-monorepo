@@ -86,6 +86,20 @@ export const SELECTION_HALO_MESH = "graphty-selection-halo";
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
 
+/**
+ * The picture a node that grows round its picture holds (`shape.labelFitImage`), once its size is known.
+ * @param o - The resolved style.
+ * @param picture - A picture's own size, once read.
+ * @returns Its size in pixels, or null when the node holds none or it is not known yet.
+ */
+function heldPicture(
+    o: NodeStyleConfig,
+    picture: (src: string) => { width: number; height: number } | null,
+): { width: number; height: number } | null {
+    const src = o.image?.src ?? "";
+    return (o.shape?.labelFitImage ?? 0) > 0 && src !== "" ? picture(src) : null;
+}
+
 /** A resolved style as a node draws it: with what its table label draws over its face, once laid out. */
 type DecoratedStyle = NodeStyleConfig & { readonly table?: TableDecoration };
 
@@ -1697,9 +1711,7 @@ export class Node implements ModelUser {
         const picture = (src: string): { width: number; height: number } | null => pictureSize(scene, src, this);
         const drawn = table === null ? null : layoutLabelTable(table, measure, picture);
         const box = drawn ?? measure(text);
-        const src = o.image?.src ?? "";
-        const held = (shape?.labelFitImage ?? 0) > 0 && src !== "" ? picture(src) : null;
-        const extent = labelFitExtent(shape, box, held);
+        const extent = labelFitExtent(shape, box, heldPicture(o, picture));
         const own = shape?.size ?? 0;
         const width = Number((extent?.width ?? shape?.width ?? own).toPrecision(6));
         const height = Number((extent?.height ?? shape?.height ?? own).toPrecision(6));

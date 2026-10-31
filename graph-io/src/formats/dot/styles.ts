@@ -128,6 +128,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "label",
         "sourceLabel",
         "targetLabel",
+        "xlabel",
         "labelColor",
         "labelSize",
         "labelFont",
@@ -1863,8 +1864,10 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
             }
         }
     }
-    if (get(LABEL_ATTRIBUTE) !== null && nonEmpty(get("xlabel")) !== null) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
+    // beside a label, the xlabel is a second label of its own
+    const xlabel = nonEmpty(get("xlabel"));
+    if (get(LABEL_ATTRIBUTE) !== null && xlabel !== null) {
+        put("xlabel", labelText(xlabel, cx.names, cx.html, false, at("xlabel")));
     }
     readEndLabelFace(get, scheme, put, at);
 }
@@ -3064,6 +3067,7 @@ function edgeAttributes(get: Get, directed: boolean, approximate: Approximate): 
         ["label", LABEL_ATTRIBUTE],
         ["targetLabel", "headlabel"],
         ["sourceLabel", "taillabel"],
+        ["xlabel", "xlabel"],
     ] as const) {
         const v = get(property);
         if (typeof v === "string") {

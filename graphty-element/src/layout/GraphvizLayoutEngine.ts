@@ -314,8 +314,11 @@ async function computeWith(
     };
 }
 
-/** Where Graphviz put an edge's label (its `lp`, or its `xlp` when it has only an external label) and end labels. */
-type EdgeLabelsAt = Pick<EdgePosition, "labelAt" | "headLabelAt" | "tailLabelAt">;
+/**
+ * Where Graphviz put an edge's label (its `lp`, or its `xlp` when it has only an external label), its external label
+ * beside a label (`xlp`) and its end labels.
+ */
+type EdgeLabelsAt = Pick<EdgePosition, "labelAt" | "headLabelAt" | "tailLabelAt" | "xlabelAt">;
 
 /**
  * Where Graphviz put each edge's labels, by its place in the list handed over.
@@ -328,9 +331,11 @@ function edgeLabelsAt(
     edges: readonly { readonly src: number; readonly dst: number }[],
 ): Map<number, EdgeLabelsAt> {
     const out = new Map<number, EdgeLabelsAt>();
-    // an edge with a label and an external label draws only its label, at `lp`
+    // an edge with only an external label draws it as its label; beside a label it is drawn at `xlp` on its own
+    const external = edgeLabelPlaces(json, edges, "xlp");
     const places = [
-        ["labelAt", edgeLabelPlaces(json, edges, "xlp")],
+        ["labelAt", external],
+        ["xlabelAt", external],
         ["labelAt", edgeLabelPlaces(json, edges)],
         ["headLabelAt", edgeLabelPlaces(json, edges, "head_lp")],
         ["tailLabelAt", edgeLabelPlaces(json, edges, "tail_lp")],

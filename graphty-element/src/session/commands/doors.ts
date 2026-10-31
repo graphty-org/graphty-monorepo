@@ -1870,6 +1870,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             arrowTailMesh: RENDER,
             ray: RENDER,
             label: RENDER,
+            xlabelLabel: RENDER,
             arrowHeadText: RENDER,
             arrowTailText: RENDER,
             parallelRank: RENDER,

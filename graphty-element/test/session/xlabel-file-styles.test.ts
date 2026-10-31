@@ -57,3 +57,16 @@ describe("a DOT node's external label", () => {
         assert.closeTo(b["node.xlabelOffsetY"] as number, -ay, 1e-6);
     });
 });
+
+describe("a DOT edge's external label (issue #5288)", () => {
+    it("is drawn from its xlabel beside its label, and an xlabel alone stays the label", async () => {
+        const session = await loadedDot('digraph { a -> b [label="l", xlabel="x \\E"]; b -> c [xlabel="only"] }');
+        const [both, alone] = session.data.edges();
+        const first = session.styles.explain({ edge: both.id }).merged;
+        assert.strictEqual(first["edge.label"], "l");
+        assert.strictEqual(first["edge.xlabel"], "x a->b");
+        const second = session.styles.explain({ edge: alone.id }).merged;
+        assert.strictEqual(second["edge.label"], "only");
+        assert.isUndefined(second["edge.xlabel"]);
+    });
+});

@@ -86,6 +86,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "edge.label": ["label"],
     "edge.arrowHeadText": ["targetLabel"],
     "edge.arrowTailText": ["sourceLabel"],
+    "edge.xlabel": ["xlabel"],
 };
 const LABEL_PROPERTIES = [
     "labelColor",

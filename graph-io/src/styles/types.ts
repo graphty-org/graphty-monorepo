@@ -883,6 +883,12 @@ export interface EdgeStyleValues {
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
+    /**
+     * A second label drawn beside the line's middle, in the label's font, size and color (Graphviz's `xlabel` on an
+     * edge that also has a label). Unset a place of its own, up and left of the line's middle, its lower right corner
+     * on it.
+     */
+    readonly xlabel: string;
     /** The label text at the source end. */
     readonly sourceLabel: string;
     /** The label text at the target end. */

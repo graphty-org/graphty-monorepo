@@ -8,28 +8,12 @@
  */
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, describe, it, vi } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { render, waitFor } from "../../../test/test-utils";
 import { LAYOUT_SEED } from "../../layout/methods";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** The element's chunk, held until the test lets it load. */
-const held = vi.hoisted(() => {
-    let release: () => void = () => undefined;
-    const gate = new Promise<void>((resolve) => {
-        release = resolve;
-    });
-    return { gate, release: () => release() };
-});
-
-vi.mock("../../../elementLoader", () => ({
-    loadGraphtyElement: async (): Promise<void> => {
-        await held.gate;
-        await import("@graphty/graphty-element");
-    },
-}));
 
 describe("graphty-element loading after the frame", () => {
     it("gets every prop the frame writes on the tag as a value", async () => {
@@ -37,7 +21,9 @@ describe("graphty-element loading after the frame", () => {
         // The frame is up (setup.ts loads its code first) and the tag is not yet defined.
         assert.isUndefined(customElements.get("graphty-element"));
 
-        held.release();
+        // The element's chunk arrives now. The app's loader is the test stand-in, which never loads
+        // it (testStandIns() in vitest.config.ts), so the frame waits for the tag to be defined.
+        await import("@graphty/graphty-element");
         let session: GraphSession | undefined;
         await waitFor(() => {
             session = document.querySelector("graphty-element")?.session;

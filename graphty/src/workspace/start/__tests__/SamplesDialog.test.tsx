@@ -3,11 +3,8 @@
  * element: its groups, its tiles with the start page's pictures and their sizes as chips, its
  * search and its group filter. `open-doors.real-element.test.tsx` loads the fixtures from it.
  */
-import { assert, describe, it, vi } from "vitest";
+import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
-
-const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
-vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
 
 import { render, screen, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";

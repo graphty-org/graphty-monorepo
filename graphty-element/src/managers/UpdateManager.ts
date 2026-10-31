@@ -2535,9 +2535,28 @@ export class UpdateManager implements Manager {
             return;
         }
 
+        const resized = new Set<Node>();
         for (const node of this.dataManager.nodes.values()) {
-            node.refreshScreenBorder();
+            if (node.refreshScreenBorder()) {
+                resized.add(node);
+            }
         }
+
+        if (resized.size === 0) {
+            return;
+        }
+
+        // An edge ends at its node's border, so a ring rebuilt wider or narrower moves the edge's
+        // ends (#3532). Only the edges of the nodes whose ring changed, and only on a zoom that
+        // crossed one of the ring's 1/16-doubling steps.
+        for (const edge of this.dataManager.edges.values()) {
+            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
+                edge.invalidatePositionCache();
+            }
+        }
+
+        this.forceEdgeWalk();
+        this.updateEdges();
     }
 
     /**

@@ -3226,6 +3226,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             runPlacement: READ,
             layoutBehavior: READ,
             layoutTransition: READ,
+            viewRotation: READ,
             author: READ,
             name: READ,
             acceleration: READ,

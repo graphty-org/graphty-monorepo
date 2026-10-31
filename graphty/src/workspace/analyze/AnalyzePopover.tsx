@@ -4,6 +4,7 @@ import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { tabStops } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
@@ -510,9 +511,25 @@ function Essentials({
     if (estimate.available && plan.current) {
         footnote = `${words.name} is up to date with these settings.`;
     }
+    // Focus lands on the button when it can run; when it cannot (the layer is up to date, or the
+    // run is refused), on the form's first live control instead, never on a dead stop.
+    const formRef = useRef<HTMLFormElement>(null);
+    const landed = useRef(false);
+    useEffect(() => {
+        if (landed.current || formRef.current === null) {
+            return;
+        }
+        landed.current = true;
+        if (!ready) {
+            // An option first, else Back: the button that cannot run is never where focus lands.
+            const live = tabStops(formRef.current).filter((stop) => stop.getAttribute("aria-disabled") !== "true");
+            (live.find((stop) => !stop.classList.contains("ws-analyze-back")) ?? live[0])?.focus();
+        }
+    }, [ready]);
 
     return (
         <form // NOSONAR(S6847): catches Esc bubbling from the form's own controls to step back
+            ref={formRef}
             className="ws-analyze"
             onKeyDown={onKeyDown}
             aria-label={words.name}
@@ -557,8 +574,8 @@ function Essentials({
                         {footnote}
                     </Text>
                     {/* Focus lands on Run, so Enter runs and Esc steps back (tier1-design.md 5.T7). A
-                        current layer's button stays focusable for that, marked disabled; submit is
-                        refused while it is. */}
+                        current layer's button stays reachable by Tab, marked disabled so its state is
+                        read; submit is refused while it is. */}
                     <Button
                         size="xs"
                         type="submit"
@@ -568,7 +585,7 @@ function Essentials({
                         // A bare "Run" names no analysis to a reader who reached it by Tab; the
                         // other labels already name it ("Update Degree layer").
                         aria-label={plan.label === "Run" ? `Run ${words.name}` : undefined}
-                        autoFocus
+                        autoFocus={ready}
                     >
                         {plan.label}
                     </Button>

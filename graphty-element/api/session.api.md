@@ -3714,6 +3714,7 @@ export interface ProjectConfig {
     readonly runPlacement: RunPlacement;
     readonly selectionStyle: GraphSelectionStyleConfig;
     readonly startingRows: boolean;
+    readonly viewRotation?: number;
 }
 
 // @public
@@ -3739,6 +3740,7 @@ export interface ProjectConfigPatch {
     // (undocumented)
     readonly selectionStyle?: GraphSelectionStyleInput;
     readonly startingRows?: boolean;
+    readonly viewRotation?: number;
 }
 
 // @public

@@ -1,4 +1,4 @@
-import { Camera, Engine, FreeCamera, Scene, TransformNode, Vector3, WebGPUEngine } from "@babylonjs/core";
+import { Camera, Engine, FreeCamera, Scene, Vector3, WebGPUEngine } from "@babylonjs/core";
 
 import { freeArea } from "../camera/insets";
 import type { ViewInsets } from "../camera/types";
@@ -35,7 +35,6 @@ export interface TwoDCameraControlsConfigType {
  */
 export class TwoDCameraController {
     public camera: FreeCamera;
-    public parent: TransformNode;
     public velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
     /** Margins of the canvas something else covers, in CSS pixels; every fit keeps the graph out of them. */
     public viewInsets: ViewInsets = {};
@@ -62,7 +61,6 @@ export class TwoDCameraController {
         this.camera.inertia = 0;
         this.camera.inputs.clear();
 
-        this.parent = new TransformNode("parent", scene);
         this.updateOrtho(config.initialOrthoSize);
         this.camera.setTarget(Vector3.Zero());
     }
@@ -104,14 +102,69 @@ export class TwoDCameraController {
     }
 
     /**
-     * Pans the camera by a delta amount.
+     * How far the view is turned: the angle the drawing is turned counterclockwise on screen, in
+     * radians. The camera rolls the other way about the view's center, so the center stays put.
+     * @returns The angle.
+     */
+    public get rotation(): number {
+        return -this.camera.rotation.z;
+    }
+
+    /**
+     * Turn the view so the drawing stands at this angle, counterclockwise, in radians.
+     * @param angle - The angle.
+     */
+    public set rotation(angle: number) {
+        this.camera.rotation.z = -angle;
+    }
+
+    /**
+     * A move along the screen's axes as a move in the world, which the turned view shows turned.
+     * @param dx - Rightward on screen, in world units.
+     * @param dy - Upward on screen, in world units.
+     * @returns The move in world x and y.
+     */
+    private toWorld(dx: number, dy: number): [number, number] {
+        const roll = this.camera.rotation.z;
+        const cos = Math.cos(roll);
+        const sin = Math.sin(roll);
+        return [dx * cos - dy * sin, dx * sin + dy * cos];
+    }
+
+    /**
+     * Pans the camera by a delta amount, along the screen's axes.
      * @param dx - Horizontal pan delta
      * @param dy - Vertical pan delta
      */
     public pan(dx: number, dy: number): void {
-        this.camera.position.x += dx;
-        this.camera.position.y += dy;
+        const [x, y] = this.toWorld(dx, dy);
+        this.camera.position.x += x;
+        this.camera.position.y += y;
         this.onReaderMove?.();
+    }
+
+    /**
+     * Put the view's center on a point of the world.
+     * @param x - The point's world x.
+     * @param y - The point's world y.
+     */
+    public panTo(x: number, y: number): void {
+        this.camera.position.x = x;
+        this.camera.position.y = y;
+        this.onReaderMove?.();
+    }
+
+    /**
+     * Move the view's center from where a gesture started, along the screen's axes.
+     * @param startX - The center's world x when the gesture started.
+     * @param startY - The center's world y when the gesture started.
+     * @param dx - Rightward on screen since then, in world units.
+     * @param dy - Upward on screen since then, in world units.
+     */
+    public panFrom(startX: number, startY: number, dx: number, dy: number): void {
+        const [x, y] = this.toWorld(dx, dy);
+        this.camera.position.x = startX + x;
+        this.camera.position.y = startY + y;
     }
 
     /**
@@ -147,20 +200,21 @@ export class TwoDCameraController {
         const right = this.camera.orthoRight ?? 1;
         const top = this.camera.orthoTop ?? 1;
         const bottom = this.camera.orthoBottom ?? -1;
-        // The spot's offset from the camera in the camera's own axes, which are its parent's.
+        // The spot's offset from the camera in the camera's own axes: the screen's.
         const offsetX = left + x * (right - left);
         const offsetY = top - y * (top - bottom);
         this.zoom(factor);
-        this.camera.position.x += (1 - factor) * offsetX;
-        this.camera.position.y += (1 - factor) * offsetY;
+        const [moveX, moveY] = this.toWorld((1 - factor) * offsetX, (1 - factor) * offsetY);
+        this.camera.position.x += moveX;
+        this.camera.position.y += moveY;
     }
 
     /**
-     * Rotates the camera around the Z-axis.
+     * Rolls the camera about its line of sight, which turns the drawing the other way.
      * @param delta - Rotation delta in radians
      */
     public rotate(delta: number): void {
-        this.parent.rotation.z += delta;
+        this.camera.rotation.z += delta;
         this.onReaderMove?.();
     }
 
@@ -172,8 +226,9 @@ export class TwoDCameraController {
         const v = this.velocity;
         const c = this.config;
 
-        this.camera.position.x += v.x;
-        this.camera.position.y += v.y;
+        const [x, y] = this.toWorld(v.x, v.y);
+        this.camera.position.x += x;
+        this.camera.position.y += y;
 
         const zoomScale = Math.exp(v.zoom);
         this.camera.orthoLeft = zoomScale * (this.camera.orthoLeft ?? 1);
@@ -181,7 +236,7 @@ export class TwoDCameraController {
         this.camera.orthoTop = zoomScale * (this.camera.orthoTop ?? 1);
         this.camera.orthoBottom = zoomScale * (this.camera.orthoBottom ?? 1);
 
-        this.parent.rotation.z += v.rotate;
+        this.camera.rotation.z += v.rotate;
 
         v.x *= c.panDamping;
         v.y *= c.panDamping;
@@ -190,7 +245,7 @@ export class TwoDCameraController {
     }
 
     /**
-     * Zooms the camera to fit a bounding box in view.
+     * Zooms the camera to fit a bounding box in view, turned as the view is turned.
      * @param min - The minimum corner of the bounding box
      * @param max - The maximum corner of the bounding box
      */
@@ -198,8 +253,12 @@ export class TwoDCameraController {
         const centerX = (min.x + max.x) / 2;
         const centerY = (min.y + max.y) / 2;
 
-        const sizeX = max.x - min.x;
-        const sizeY = max.y - min.y;
+        // The box's extent along the screen's axes, which the view's turn turns against the world's.
+        const roll = this.camera.rotation.z;
+        const cos = Math.abs(Math.cos(roll));
+        const sin = Math.abs(Math.sin(roll));
+        const sizeX = cos * (max.x - min.x) + sin * (max.y - min.y);
+        const sizeY = sin * (max.x - min.x) + cos * (max.y - min.y);
 
         // The half-width that fits the box into the part of the canvas the view and fit insets
         // leave free (`free.width` and `free.height` are its shares of the canvas), whichever side binds.
@@ -212,8 +271,9 @@ export class TwoDCameraController {
         const orthoSize = Math.max(sizeX / (2 * free.width), sizeY / (2 * viewportAspect * free.height)) * 1.1; // Small padding for visual comfort
 
         // Center the box on the free area rather than on the canvas.
-        this.camera.position.x = centerX - free.x * orthoSize;
-        this.camera.position.y = centerY - free.y * orthoSize * viewportAspect;
+        const [offsetX, offsetY] = this.toWorld(free.x * orthoSize, free.y * orthoSize * viewportAspect);
+        this.camera.position.x = centerX - offsetX;
+        this.camera.position.y = centerY - offsetY;
 
         // Put the camera behind the box and let the far plane reach past it. Babylon's
         // default 10000 clips a layout that settles tens of thousands of units deep. The box holds

@@ -244,7 +244,7 @@ function agentProblems(cwd, pr) {
 
 /**
  * Every problem PR Integrity finds.
- * @param cwd the repository, checked out at the head
+ * @param cwd the repository holding the head's commits (read through git only; nothing from the head runs)
  * @param pr `{ base, head, title, body, author, reviews, owners, baselineProblems }`;
  *     baselineProblems(mergeBase) runs master's gate on the baselines
  * @returns `{ kind, problems }`

@@ -39,7 +39,7 @@
 <!-- cap&#45;default -->
 <g id="node6" class="node">
 <title>cap&#45;default</title>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">default</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">default</text>
 </g>
 <!-- graph&#45;label&#45;default -->
 <g id="node7" class="node">
@@ -49,7 +49,7 @@
 <!-- cap&#45;graph&#45;label&#45;default -->
 <g id="node8" class="node">
 <title>cap&#45;graph&#45;label&#45;default</title>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">label=graph&#45;label</text>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">label=graph&#45;label</text>
 </g>
 </g>
 </svg>

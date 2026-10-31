@@ -38,7 +38,7 @@
 <!-- cap&#45;default -->
 <g id="node6" class="node">
 <title>cap&#45;default</title>
-<text xml:space="preserve" text-anchor="middle" x="116.33" y="-755.5" font-family="DejaVu Sans" font-size="9.00" fill="#000000">default</text>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-755.5" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">default</text>
 </g>
 <!-- image -->
 <g id="node7" class="node">
@@ -49,7 +49,7 @@
 <!-- cap&#45;image -->
 <g id="node8" class="node">
 <title>cap&#45;image</title>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-755.5" font-family="DejaVu Sans" font-size="9.00" fill="#000000">image=png</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-755.5" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">image=png</text>
 </g>
 <!-- image&#45;svg -->
 <g id="node9" class="node">
@@ -60,7 +60,7 @@
 <!-- cap&#45;image&#45;svg -->
 <g id="node10" class="node">
 <title>cap&#45;image&#45;svg</title>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-755.5" font-family="DejaVu Sans" font-size="9.00" fill="#000000">image=svg</text>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-755.5" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">image=svg</text>
 </g>
 <!-- image&#45;shape&#45;none -->
 <g id="node11" class="node">
@@ -71,7 +71,7 @@
 <!-- cap&#45;image&#45;shape&#45;none -->
 <g id="node12" class="node">
 <title>cap&#45;image&#45;shape&#45;none</title>
-<text xml:space="preserve" text-anchor="middle" x="676.33" y="-755.5" font-family="DejaVu Sans" font-size="9.00" fill="#000000">image shape=none</text>
+<text xml:space="preserve" text-anchor="middle" x="676.33" y="-755.5" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">image shape=none</text>
 </g>
 <!-- image&#45;ellipse -->
 <g id="node13" class="node">
@@ -82,7 +82,7 @@
 <!-- cap&#45;image&#45;ellipse -->
 <g id="node14" class="node">
 <title>cap&#45;image&#45;ellipse</title>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-755.5" font-family="DejaVu Sans" font-size="9.00" fill="#000000">image on ellipse</text>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-755.5" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">image on ellipse</text>
 </g>
 <!-- image&#45;wide -->
 <g id="node15" class="node">
@@ -93,7 +93,7 @@
 <!-- cap&#45;image&#45;wide -->
 <g id="node16" class="node">
 <title>cap&#45;image&#45;wide</title>
-<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-755.5" font-family="DejaVu Sans" font-size="9.00" fill="#000000">image wide png</text>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-755.5" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">image wide png</text>
 </g>
 <!-- imagescale&#45;false -->
 <g id="node17" class="node">
@@ -104,7 +104,7 @@
 <!-- cap&#45;imagescale&#45;false -->
 <g id="node18" class="node">
 <title>cap&#45;imagescale&#45;false</title>
-<text xml:space="preserve" text-anchor="middle" x="116.33" y="-638.36" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagescale=false</text>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-638.36" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagescale=false</text>
 </g>
 <!-- imagescale&#45;true -->
 <g id="node19" class="node">
@@ -115,7 +115,7 @@
 <!-- cap&#45;imagescale&#45;true -->
 <g id="node20" class="node">
 <title>cap&#45;imagescale&#45;true</title>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-638.36" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagescale=true</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-638.36" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagescale=true</text>
 </g>
 <!-- imagescale&#45;width -->
 <g id="node21" class="node">
@@ -126,7 +126,7 @@
 <!-- cap&#45;imagescale&#45;width -->
 <g id="node22" class="node">
 <title>cap&#45;imagescale&#45;width</title>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-638.36" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagescale=width</text>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-638.36" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagescale=width</text>
 </g>
 <!-- imagescale&#45;height -->
 <g id="node23" class="node">
@@ -137,7 +137,7 @@
 <!-- cap&#45;imagescale&#45;height -->
 <g id="node24" class="node">
 <title>cap&#45;imagescale&#45;height</title>
-<text xml:space="preserve" text-anchor="middle" x="676.33" y="-638.36" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagescale=height</text>
+<text xml:space="preserve" text-anchor="middle" x="676.33" y="-638.36" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagescale=height</text>
 </g>
 <!-- imagescale&#45;both -->
 <g id="node25" class="node">
@@ -148,7 +148,7 @@
 <!-- cap&#45;imagescale&#45;both -->
 <g id="node26" class="node">
 <title>cap&#45;imagescale&#45;both</title>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-638.36" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagescale=both</text>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-638.36" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagescale=both</text>
 </g>
 <!-- imagepos&#45;tl -->
 <g id="node27" class="node">
@@ -159,7 +159,7 @@
 <!-- cap&#45;imagepos&#45;tl -->
 <g id="node28" class="node">
 <title>cap&#45;imagepos&#45;tl</title>
-<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-638.36" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagepos=tl</text>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-638.36" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagepos=tl</text>
 </g>
 <!-- imagepos&#45;tc -->
 <g id="node29" class="node">
@@ -170,7 +170,7 @@
 <!-- cap&#45;imagepos&#45;tc -->
 <g id="node30" class="node">
 <title>cap&#45;imagepos&#45;tc</title>
-<text xml:space="preserve" text-anchor="middle" x="116.33" y="-521.22" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagepos=tc</text>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-521.22" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagepos=tc</text>
 </g>
 <!-- imagepos&#45;tr -->
 <g id="node31" class="node">
@@ -181,7 +181,7 @@
 <!-- cap&#45;imagepos&#45;tr -->
 <g id="node32" class="node">
 <title>cap&#45;imagepos&#45;tr</title>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-521.22" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagepos=tr</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-521.22" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagepos=tr</text>
 </g>
 <!-- imagepos&#45;ml -->
 <g id="node33" class="node">
@@ -192,7 +192,7 @@
 <!-- cap&#45;imagepos&#45;ml -->
 <g id="node34" class="node">
 <title>cap&#45;imagepos&#45;ml</title>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-521.22" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagepos=ml</text>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-521.22" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagepos=ml</text>
 </g>
 <!-- imagepos&#45;mc -->
 <g id="node35" class="node">
@@ -203,7 +203,7 @@
 <!-- cap&#45;imagepos&#45;mc -->
 <g id="node36" class="node">
 <title>cap&#45;imagepos&#45;mc</title>
-<text xml:space="preserve" text-anchor="middle" x="676.33" y="-521.22" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagepos=mc</text>
+<text xml:space="preserve" text-anchor="middle" x="676.33" y="-521.22" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagepos=mc</text>
 </g>
 <!-- imagepos&#45;mr -->
 <g id="node37" class="node">
@@ -214,7 +214,7 @@
 <!-- cap&#45;imagepos&#45;mr -->
 <g id="node38" class="node">
 <title>cap&#45;imagepos&#45;mr</title>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-521.22" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagepos=mr</text>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-521.22" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagepos=mr</text>
 </g>
 <!-- imagepos&#45;bl -->
 <g id="node39" class="node">
@@ -225,7 +225,7 @@
 <!-- cap&#45;imagepos&#45;bl -->
 <g id="node40" class="node">
 <title>cap&#45;imagepos&#45;bl</title>
-<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-521.22" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagepos=bl</text>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-521.22" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagepos=bl</text>
 </g>
 <!-- imagepos&#45;bc -->
 <g id="node41" class="node">
@@ -236,7 +236,7 @@
 <!-- cap&#45;imagepos&#45;bc -->
 <g id="node42" class="node">
 <title>cap&#45;imagepos&#45;bc</title>
-<text xml:space="preserve" text-anchor="middle" x="116.33" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagepos=bc</text>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagepos=bc</text>
 </g>
 <!-- imagepos&#45;br -->
 <g id="node43" class="node">
@@ -247,19 +247,19 @@
 <!-- cap&#45;imagepos&#45;br -->
 <g id="node44" class="node">
 <title>cap&#45;imagepos&#45;br</title>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">imagepos=br</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">imagepos=br</text>
 </g>
 <!-- image&#45;label -->
 <g id="node45" class="node">
 <title>image&#45;label</title>
 <polygon fill="#c8c8c8" stroke="#505050" points="513.67,-471 465.66,-471 465.66,-423 513.67,-423 513.67,-471"/>
 <image xlink:href="img-quadrants.png" width="24px" height="24px" preserveAspectRatio="xMinYMin meet" x="477.666" y="-458.999"/>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-426.25" font-family="DejaVu Sans" font-size="10.00" fill="#000000">lbl</text>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-426.25" font-family="DejaVu Sans,sans-serif" font-size="10.00" fill="#000000">lbl</text>
 </g>
 <!-- cap&#45;image&#45;label -->
 <g id="node46" class="node">
 <title>cap&#45;image&#45;label</title>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">image + label</text>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">image + label</text>
 </g>
 <!-- image&#45;fixedsize&#45;false -->
 <g id="node47" class="node">
@@ -270,7 +270,7 @@
 <!-- cap&#45;image&#45;fixedsize&#45;false -->
 <g id="node48" class="node">
 <title>cap&#45;image&#45;fixedsize&#45;false</title>
-<text xml:space="preserve" text-anchor="middle" x="676.33" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">image fixedsize=false</text>
+<text xml:space="preserve" text-anchor="middle" x="676.33" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">image fixedsize=false</text>
 </g>
 <!-- html&#45;img&#45;scale&#45;false -->
 <g id="node49" class="node">
@@ -283,7 +283,7 @@
 <!-- cap&#45;html&#45;img&#45;scale&#45;false -->
 <g id="node50" class="node">
 <title>cap&#45;html&#45;img&#45;scale&#45;false</title>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">&lt;IMG SCALE=FALSE&gt;</text>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">&lt;IMG SCALE=FALSE&gt;</text>
 </g>
 <!-- html&#45;img&#45;scale&#45;true -->
 <g id="node51" class="node">
@@ -296,7 +296,7 @@
 <!-- cap&#45;html&#45;img&#45;scale&#45;true -->
 <g id="node52" class="node">
 <title>cap&#45;html&#45;img&#45;scale&#45;true</title>
-<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">&lt;IMG SCALE=TRUE&gt;</text>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">&lt;IMG SCALE=TRUE&gt;</text>
 </g>
 <!-- html&#45;img&#45;scale&#45;width -->
 <g id="node53" class="node">
@@ -309,7 +309,7 @@
 <!-- cap&#45;html&#45;img&#45;scale&#45;width -->
 <g id="node54" class="node">
 <title>cap&#45;html&#45;img&#45;scale&#45;width</title>
-<text xml:space="preserve" text-anchor="middle" x="116.33" y="-286.93" font-family="DejaVu Sans" font-size="9.00" fill="#000000">&lt;IMG SCALE=WIDTH&gt;</text>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-286.93" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">&lt;IMG SCALE=WIDTH&gt;</text>
 </g>
 <!-- html&#45;img&#45;scale&#45;height -->
 <g id="node55" class="node">
@@ -322,7 +322,7 @@
 <!-- cap&#45;html&#45;img&#45;scale&#45;height -->
 <g id="node56" class="node">
 <title>cap&#45;html&#45;img&#45;scale&#45;height</title>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-286.93" font-family="DejaVu Sans" font-size="9.00" fill="#000000">&lt;IMG SCALE=HEIGHT&gt;</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-286.93" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">&lt;IMG SCALE=HEIGHT&gt;</text>
 </g>
 <!-- html&#45;img&#45;scale&#45;both -->
 <g id="node57" class="node">
@@ -335,7 +335,7 @@
 <!-- cap&#45;html&#45;img&#45;scale&#45;both -->
 <g id="node58" class="node">
 <title>cap&#45;html&#45;img&#45;scale&#45;both</title>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-286.93" font-family="DejaVu Sans" font-size="9.00" fill="#000000">&lt;IMG SCALE=BOTH&gt;</text>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-286.93" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">&lt;IMG SCALE=BOTH&gt;</text>
 </g>
 <!-- striped -->
 <g id="node59" class="node">
@@ -348,7 +348,7 @@
 <!-- cap&#45;striped -->
 <g id="node60" class="node">
 <title>cap&#45;striped</title>
-<text xml:space="preserve" text-anchor="middle" x="676.33" y="-286.93" font-family="DejaVu Sans" font-size="9.00" fill="#000000">striped red:green:blue</text>
+<text xml:space="preserve" text-anchor="middle" x="676.33" y="-286.93" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">striped red:green:blue</text>
 </g>
 <!-- striped&#45;weighted -->
 <g id="node61" class="node">
@@ -361,7 +361,7 @@
 <!-- cap&#45;striped&#45;weighted -->
 <g id="node62" class="node">
 <title>cap&#45;striped&#45;weighted</title>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-286.93" font-family="DejaVu Sans" font-size="9.00" fill="#000000">striped red;0.6:green:blue</text>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-286.93" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">striped red;0.6:green:blue</text>
 </g>
 <!-- striped&#45;two -->
 <g id="node63" class="node">
@@ -373,7 +373,7 @@
 <!-- cap&#45;striped&#45;two -->
 <g id="node64" class="node">
 <title>cap&#45;striped&#45;two</title>
-<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-286.93" font-family="DejaVu Sans" font-size="9.00" fill="#000000">striped two colors</text>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-286.93" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">striped two colors</text>
 </g>
 <!-- striped&#45;five -->
 <g id="node65" class="node">
@@ -388,7 +388,7 @@
 <!-- cap&#45;striped&#45;five -->
 <g id="node66" class="node">
 <title>cap&#45;striped&#45;five</title>
-<text xml:space="preserve" text-anchor="middle" x="116.33" y="-169.79" font-family="DejaVu Sans" font-size="9.00" fill="#000000">striped five colors</text>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-169.79" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">striped five colors</text>
 </g>
 <!-- striped&#45;rounded -->
 <g id="node67" class="node">
@@ -401,7 +401,7 @@
 <!-- cap&#45;striped&#45;rounded -->
 <g id="node68" class="node">
 <title>cap&#45;striped&#45;rounded</title>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-169.79" font-family="DejaVu Sans" font-size="9.00" fill="#000000">style=striped,rounded</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-169.79" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">style=striped,rounded</text>
 </g>
 <!-- striped&#45;penwidth -->
 <g id="node69" class="node">
@@ -414,7 +414,7 @@
 <!-- cap&#45;striped&#45;penwidth -->
 <g id="node70" class="node">
 <title>cap&#45;striped&#45;penwidth</title>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-169.79" font-family="DejaVu Sans" font-size="9.00" fill="#000000">striped penwidth=3</text>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-169.79" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">striped penwidth=3</text>
 </g>
 <!-- wedged -->
 <g id="node71" class="node">
@@ -427,7 +427,7 @@
 <!-- cap&#45;wedged -->
 <g id="node72" class="node">
 <title>cap&#45;wedged</title>
-<text xml:space="preserve" text-anchor="middle" x="676.33" y="-169.79" font-family="DejaVu Sans" font-size="9.00" fill="#000000">wedged red:green:blue</text>
+<text xml:space="preserve" text-anchor="middle" x="676.33" y="-169.79" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">wedged red:green:blue</text>
 </g>
 <!-- wedged&#45;weighted -->
 <g id="node73" class="node">
@@ -440,7 +440,7 @@
 <!-- cap&#45;wedged&#45;weighted -->
 <g id="node74" class="node">
 <title>cap&#45;wedged&#45;weighted</title>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-169.79" font-family="DejaVu Sans" font-size="9.00" fill="#000000">wedged red;0.5:green;0.25:blue</text>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-169.79" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">wedged red;0.5:green;0.25:blue</text>
 </g>
 <!-- wedged&#45;two -->
 <g id="node75" class="node">
@@ -452,7 +452,7 @@
 <!-- cap&#45;wedged&#45;two -->
 <g id="node76" class="node">
 <title>cap&#45;wedged&#45;two</title>
-<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-169.79" font-family="DejaVu Sans" font-size="9.00" fill="#000000">wedged two colors</text>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-169.79" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">wedged two colors</text>
 </g>
 <!-- wedged&#45;five -->
 <g id="node77" class="node">
@@ -467,7 +467,7 @@
 <!-- cap&#45;wedged&#45;five -->
 <g id="node78" class="node">
 <title>cap&#45;wedged&#45;five</title>
-<text xml:space="preserve" text-anchor="middle" x="116.33" y="-52.65" font-family="DejaVu Sans" font-size="9.00" fill="#000000">wedged five colors</text>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-52.65" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">wedged five colors</text>
 </g>
 <!-- wedged&#45;partial -->
 <g id="node79" class="node">
@@ -479,7 +479,7 @@
 <!-- cap&#45;wedged&#45;partial -->
 <g id="node80" class="node">
 <title>cap&#45;wedged&#45;partial</title>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-52.65" font-family="DejaVu Sans" font-size="9.00" fill="#000000">wedged red;0.3 (rest empty)</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-52.65" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">wedged red;0.3 (rest empty)</text>
 </g>
 <!-- wedged&#45;ellipse -->
 <g id="node81" class="node">
@@ -492,7 +492,7 @@
 <!-- cap&#45;wedged&#45;ellipse -->
 <g id="node82" class="node">
 <title>cap&#45;wedged&#45;ellipse</title>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-52.65" font-family="DejaVu Sans" font-size="9.00" fill="#000000">wedged ellipse 72x40</text>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-52.65" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">wedged ellipse 72x40</text>
 </g>
 </g>
 </svg>

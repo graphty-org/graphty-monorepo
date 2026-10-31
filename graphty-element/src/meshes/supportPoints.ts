@@ -163,6 +163,28 @@ function child(c: Cell, k: number): Cell {
 }
 
 /**
+ * `Math.hypot(a, b)`, bit for bit as V8 computes it (its builtin scales by the larger term and sums the squares), at
+ * half the cost of the call: {@link repulsionOn} takes one for every cell it visits.
+ * @param a - One term.
+ * @param b - The other.
+ * @returns The length.
+ */
+export function hypot(a: number, b: number): number {
+    const x = Math.abs(a);
+    const y = Math.abs(b);
+    const max = Math.max(x, y);
+    if (!(max > 0 && max < Infinity)) {
+        return Math.hypot(a, b);
+    }
+    const p = x / max;
+    const q = y / max;
+    return Math.sqrt(p * p + q * q) * max; // NOSONAR(S7769): this is Math.hypot's own sum, inlined for speed
+}
+
+/** The cells {@link repulsionOn} has still to visit, kept from call to call. */
+const STACK: Cell[] = [];
+
+/**
  * The push every body but `self` gives the body at (x, y): the Barnes-Hut sum, a far cell taken as its center of
  * mass.
  * @param root - The tree.
@@ -173,40 +195,60 @@ function child(c: Cell, k: number): Cell {
  * @returns The push, x and y.
  */
 function repulsionOn(root: Cell, self: number, x: number, y: number, forces: SupportForces): [number, number] {
+    // the sum in the same order as before, with no array made per cell: this runs for every support point on every
+    // step (json-vis-siblings: 284 points, up to 1,500 steps each time its nodes move)
     let fx = 0;
     let fy = 0;
-    const stack: Cell[] = [root];
-    while (stack.length > 0) {
-        const c = stack.pop() as Cell;
+    const stack = STACK;
+    let top = 0;
+    stack[top++] = root;
+    while (top > 0) {
+        const c = stack[--top];
         if (c.mass === 0 || c.body === self) {
             continue;
         }
-        const d = Math.hypot(c.mx - x, c.my - y);
+        const dx = c.mx - x;
+        const dy = c.my - y;
+        const d = hypot(dx, dy);
         if (c.kids !== null && c.size / Math.max(d, 1e-12) >= THETA) {
-            stack.push(...c.kids.filter((kid): kid is Cell => kid !== null));
+            top = pushKids(c.kids, stack, top);
             continue;
         }
-        const [px, py] = pushFrom(c, x, y, d, forces);
-        fx += px;
-        fy += py;
+        // vis-network: two bodies at one place are taken as 0.1 apart along x
+        const g = pushPerUnit(c.mass, d, forces);
+        fx += -(d === 0 ? 0.1 : dx) * g;
+        fy += -(d === 0 ? 0 : dy) * g;
     }
     return [fx, fy];
 }
 
 /**
- * The push one cell, taken as its center of mass, gives the body at (x, y).
- * @param c - The cell.
- * @param x - The body's x.
- * @param y - Its y.
- * @param distance - How far the cell's center of mass is.
- * @param forces - The body's force law.
- * @returns The push, x and y.
+ * Put a cell's quarters on the stack, in order.
+ * @param kids - The quarters.
+ * @param stack - The stack.
+ * @param top - Its height.
+ * @returns Its new height.
  */
-function pushFrom(c: Cell, x: number, y: number, distance: number, forces: SupportForces): [number, number] {
-    // vis-network: two bodies at one place are taken as 0.1 apart along x
-    const [d, dx, dy] = distance === 0 ? [0.1, 0.1, 0] : [distance, c.mx - x, c.my - y];
-    const g = (forces.repulsion * c.mass) / (forces.model === "barnesHut" ? d * d * d : d * d);
-    return [-dx * g, -dy * g];
+function pushKids(kids: readonly (Cell | null)[], stack: Cell[], top: number): number {
+    let t = top;
+    for (const kid of kids) {
+        if (kid !== null) {
+            stack[t++] = kid;
+        }
+    }
+    return t;
+}
+
+/**
+ * How hard a cell, taken as its center of mass, pushes per unit of the offset to it.
+ * @param mass - The cell's mass.
+ * @param distance - How far its center of mass is; 0 is taken as 0.1.
+ * @param forces - The pushed body's force law.
+ * @returns The factor.
+ */
+function pushPerUnit(mass: number, distance: number, forces: SupportForces): number {
+    const d = distance === 0 ? 0.1 : distance;
+    return (forces.repulsion * mass) / (forces.model === "barnesHut" ? d * d * d : d * d);
 }
 
 /**

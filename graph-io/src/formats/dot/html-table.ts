@@ -54,7 +54,7 @@ export interface LabelTable {
 }
 
 /** The font of a run inside font tags, as `labelRuns` fields (the DOT reader's `htmlRunFont`). */
-export type RunFont = (tags: readonly string[]) => Record<string, StyleValue>;
+type RunFont = (tags: readonly string[]) => Record<string, StyleValue>;
 
 /** A tag of the label: its name in lower case, whether it closes or closes itself, its attributes, where it ends. */
 interface Tag {

@@ -487,6 +487,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shapeParts": "Shape parts",
     "node.shapeLines": "Shape lines",
     "node.shapeTexts": "Shape texts",
+    "node.labelTable": "Label table",
     "node.shapeLineWidth": "Shape line width",
     "node.gradientColors": "Gradient colors",
     "node.gradientStops": "Gradient stops",

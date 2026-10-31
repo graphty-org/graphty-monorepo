@@ -186,7 +186,7 @@
         "@graphty/remote-logger": "workspace:^",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": "1.29.2",
-        "@jsonhero/schema-infer": "^0.1.5",
+        "@jsonhero/json-infer-types": "^1.2.11",
         "@playwright/test": "^1.54.1",
         "@storybook/addon-console": "^3.0.0",
         "@storybook/addon-docs": "^9.0.11",

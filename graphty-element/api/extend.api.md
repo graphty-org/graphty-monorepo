@@ -2136,6 +2136,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     size: number;
     // @internal
+    get surfaceIsBox(): boolean;
+    // @internal
     syncXlabelPlace(): void;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;

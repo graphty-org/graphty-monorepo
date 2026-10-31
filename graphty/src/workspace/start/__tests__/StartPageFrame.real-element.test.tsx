@@ -183,6 +183,12 @@ describe("the start page in the app's frame", () => {
         try {
             await showSamples();
             note("at the samples");
+            // In a text box Home and End move the caret and never scroll, so the waits below would never come
+            // true and this test would fail only at the 900 s hang guard (#5255: Samples once focused the search).
+            assert.isFalse(
+                document.activeElement?.matches("input, textarea, [contenteditable]") ?? false,
+                "Samples left focus out of a text box",
+            );
             let before = ends;
             await userEvent.keyboard("{Home}");
             note("Home pressed");

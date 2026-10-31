@@ -887,17 +887,6 @@ function subpathsOf(el: SVGGraphicsElement, m: DOMMatrix): Pt[][] | null {
     }
 }
 
-/**
- * How many movetos an element's path has, as {@link subpathsOf} splits it into subpaths: none for a shape that is not a
- * path.
- * @param el - the element
- * @returns the count
- */
-function moveCount(el: Element): number {
-    const d = el.localName === "path" ? (el.getAttribute("d") ?? "") : "";
-    return d.split("M").length - 1;
-}
-
 /** The SVG primitives of a document, in document order. */
 export interface SvgPrimitives {
     width: number;
@@ -1072,12 +1061,7 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             // words drawn as glyph outlines, filled or stroked as a halo, are no line drawn in pieces
             const pieces = closed && (el.getAttribute("d")?.split("M").length ?? 0) > 3 ? subpathsOf(el, m) : null;
             const lettering = pieces !== null && isLettering(pieces);
-            // a pattern painted as a fill takes two subpaths or more: a path of one moveto is not read through again
-            // (json-vis-siblings: 200 filled circles and 284 arrowheads, each one subpath)
-            const subpaths =
-                fill !== null && stroke === null && !lettering && (pieces !== null || moveCount(el) >= 2)
-                    ? (pieces ?? subpathsOf(el, m))
-                    : null;
+            const subpaths = fill !== null && stroke === null && !lettering ? (pieces ?? subpathsOf(el, m)) : null;
             const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths) : null;
             if (fill !== null && painted !== null) {
                 stroke = {

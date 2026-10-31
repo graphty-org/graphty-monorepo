@@ -3373,13 +3373,15 @@ describe("actions/cache in the workflows", () => {
         assert.ok(restore, "the Lint job restores the ESLint caches");
         assert.equal(restore[1], "needs.packages.outputs.full == 'false'");
         assert.match(lint, /- name: Save the ESLint caches.*\n\s+if: needs\.packages\.outputs\.full == 'true' &&/);
+        assert.match(
+            lint,
+            /\n {8}env:\n(?: +#.*\n)* +ESLINT_CACHE: --cache --cache-strategy content --cache-location node_modules\/\.cache\/eslint\/\n/,
+        );
         for (const project of ["graphty-element", "graphty"]) {
             const target = JSON.parse(readFileSync(new URL(`../${project}/project.json`, import.meta.url), "utf8"))
                 .targets.lint;
-            assert.match(
-                target.options.command,
-                /--cache --cache-strategy content --cache-location node_modules\/\.cache\/eslint\//,
-            );
+            // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file
+            assert.match(target.options.command, /^eslint [^&]*\$ESLINT_CACHE &&/);
             assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
         }
     });

@@ -38,7 +38,7 @@
         "lint": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "eslint --concurrency auto --cache --cache-strategy content --cache-location node_modules/.cache/eslint/ && tsc --noEmit",
+                "command": "eslint --concurrency auto $ESLINT_CACHE && tsc --noEmit",
                 "cwd": "graphty-element"
             },
             "outputs": ["{projectRoot}/node_modules/.cache/eslint"],

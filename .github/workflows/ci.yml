@@ -977,6 +977,9 @@ jobs:
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 15
+        env:
+            # graphty-element's and graphty's lint targets pass this to ESLint; see "Key the ESLint caches"
+            ESLINT_CACHE: --cache --cache-strategy content --cache-location node_modules/.cache/eslint/
         # lint is an nx-cached target (nx.json), so a project whose lint inputs equal master's (a pull request
         # that touches nx.json or a project.json marks every project affected) replays master's result from
         # the remote cache instead of linting again (graphty-element alone takes about 3.5 minutes). Only
@@ -1049,8 +1052,8 @@ jobs:
               continue-on-error: true
               run: echo "LINT_START=$(date +%s)" >> "$GITHUB_ENV"
 
-            # graphty-element and graphty lint with an ESLint content cache (--cache in their project.json lint
-            # targets). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
+            # graphty-element and graphty lint with an ESLint content cache in CI ($ESLINT_CACHE in their project.json
+            # lint targets; a local lint never caches). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
             # re-lints only the files whose content differs from master's (graphty-element took about 300 s here,
             # beside two other packages on the runner's 4 cores). The key holds what changes a rule's verdict on an
             # unchanged file -- the lockfile, the ESLint configs and rules, the tsconfigs -- so a change to any of

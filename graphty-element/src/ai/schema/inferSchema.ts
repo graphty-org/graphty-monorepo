@@ -40,10 +40,9 @@ function put(target: Properties, key: string, schema: InferredSchema): void {
     Object.defineProperty(target, key, { value: schema, enumerable: true, writable: true, configurable: true });
 }
 
-function inferRange(
-    value: number,
-    range = { min: Number.MAX_SAFE_INTEGER, max: Number.MIN_SAFE_INTEGER },
-): { min: number; max: number } {
+const EMPTY_RANGE = { min: Number.MAX_SAFE_INTEGER, max: Number.MIN_SAFE_INTEGER };
+
+function inferRange(value: number, range = EMPTY_RANGE): { min: number; max: number } {
     return { min: Math.min(range.min, value), max: Math.max(range.max, value) };
 }
 
@@ -78,6 +77,30 @@ function fromValue(t: Exclude<JSONValueType, { name: "null" }>): InferredSchema 
         default:
             return UNKNOWN;
     }
+}
+
+function mergeNumber(
+    schema: { type: "int" | "float"; range: { min: number; max: number } },
+    t: JSONValueType,
+): InferredSchema {
+    if (t.name !== "int" && t.name !== "float") {
+        return toAny(schema, t.value);
+    }
+
+    const type = schema.type === "int" && t.name === "int" ? "int" : "float";
+
+    return { type, range: inferRange(t.value, schema.range) };
+}
+
+function mergeString(schema: { type: "string"; format?: { name: string } }, t: JSONValueType): InferredSchema {
+    if (t.name !== "string") {
+        return toAny(schema, t.value);
+    }
+
+    // A format survives only while every value has had that same format.
+    return schema.format && t.format?.name === schema.format.name
+        ? { type: "string", format: t.format }
+        : { type: "string" };
 }
 
 function mergeObject(properties: { required: Properties; optional: Properties }, value: object): InferredSchema {
@@ -129,22 +152,9 @@ export function inferSchema(schema: InferredSchema, value: unknown): InferredSch
             return t.name === "bool" ? schema : toAny(schema, value);
         case "int":
         case "float":
-            if (t.name === "int" || t.name === "float") {
-                const type = schema.type === "int" && t.name === "int" ? "int" : "float";
-
-                return { type, range: inferRange(t.value, schema.range) };
-            }
-
-            return toAny(schema, value);
+            return mergeNumber(schema, t);
         case "string":
-            if (t.name !== "string") {
-                return toAny(schema, value);
-            }
-
-            // A format survives only while every value has had that same format.
-            return schema.format && t.format?.name === schema.format.name
-                ? { type: "string", format: t.format }
-                : { type: "string" };
+            return mergeString(schema, t);
         default:
             return toAny(schema, value);
     }

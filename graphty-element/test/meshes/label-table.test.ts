@@ -270,6 +270,87 @@ describe("layoutLabelTable's pictures", () => {
     });
 });
 
+describe("layoutLabelTable: lines set from the font's ascent and descent", () => {
+    /**
+     * DejaVu Sans's font box as a browser measures it (hhea ascender 1901 and descender 483 of 2048 units), Graphviz
+     * 14's pixel (0.75 points) and its baseline (0.95 font sizes below a line's top), as graph-io writes them.
+     */
+    const FONT = { lineHeight: "font", textPixel: 0.75, baseline: 0.95 } as const;
+
+    /**
+     * Measures a text in DejaVu Sans at a size.
+     * @param size - the font size, in points
+     * @returns the measure
+     */
+    const dejaVu =
+        (size: number) =>
+        (text: string): { width: number; height: number; ascent: number; descent: number } => ({
+            width: WIDTHS[text] ?? 0,
+            height: size,
+            ascent: (1901 / 2048) * size,
+            descent: (483 / 2048) * size,
+        });
+
+    /**
+     * Where a text line's baseline is: its words are drawn centered on their point, half their ascent less their
+     * descent above it.
+     * @param y - the point's y
+     * @param size - the font size
+     * @returns the baseline's y
+     */
+    const baselineOf = (y: number, size: number): number => y + ((1901 - 483) / 2048) * (size / 2);
+
+    it("makes a 10 point line 12.75 points tall, its baseline 9.5 under its top (html-td-valign-bottom)", () => {
+        const out = layoutLabelTable(
+            table([[cell("a", { valign: "bottom" }), cell("b", { width: 30, height: 30 })]], FONT),
+            dejaVu(10),
+        );
+        assert.deepEqual([out.width, out.height], [50, 36]);
+        // Graphviz 14 draws a's baseline 26.75 and b's 21.13 under the table's top
+        assert.closeTo(baselineOf(out.texts[0].y, 10), 26.75, 1e-9);
+        assert.closeTo(baselineOf(out.texts[1].y, 10), 21.125, 1e-9);
+    });
+
+    it("stacks 10 point lines 12.75 points apart (html-td-balign-left)", () => {
+        const out = layoutLabelTable(
+            {
+                ...FRAME,
+                ...FONT,
+                rows: [
+                    {
+                        cells: [
+                            { lines: [{ text: "a" }, { text: "wide" }], balign: "left" },
+                            { lines: [{ text: "b" }], width: 30, height: 30 },
+                        ],
+                    },
+                ],
+            },
+            dejaVu(10),
+        );
+        assert.closeTo(out.height, 37.5, 1e-9);
+        assert.closeTo(baselineOf(out.texts[0].y, 10), 15.5, 1e-9);
+        assert.closeTo(baselineOf(out.texts[1].y, 10), 28.25, 1e-9);
+    });
+
+    it("makes a 16 point line 19.5 points tall, its baseline 5.45 under its middle (html-font-point-size)", () => {
+        const out = layoutLabelTable(
+            table([[cell("a")]], { border: 0, cellBorder: 0, cellSpacing: 0, cellPadding: 0, ...FONT }),
+            dejaVu(16),
+        );
+        assert.closeTo(out.height, 19.5, 1e-9);
+        assert.closeTo(baselineOf(out.texts[0].y, 16) - out.height / 2, 5.45, 1e-9);
+    });
+
+    it("centers the words in their line when the table gives no baseline, and the line its font's when no pixel", () => {
+        const out = layoutLabelTable(
+            table([[cell("a")]], { border: 0, cellBorder: 0, cellSpacing: 0, cellPadding: 0, lineHeight: "font" }),
+            dejaVu(10),
+        );
+        assert.closeTo(out.height, (2384 / 2048) * 10, 1e-9);
+        assert.closeTo(out.texts[0].y, out.height / 2, 1e-9);
+    });
+});
+
 describe("readLabelTable", () => {
     it("reads a table and refuses what is not one", () => {
         assert.deepEqual(readLabelTable('{"rows":[{"cells":[{"lines":[{"text":"a"}]}]}]}')?.rows.length, 1);

@@ -477,26 +477,41 @@ export class RichTextLabel {
     /**
      * How big a label's words would be drawn, without drawing them: as wide as its widest line and
      * as tall as its lines at one font size each, in world units, by the same measurement a drawn
-     * label makes. No texture, material or mesh is made.
+     * label makes, with its first line's ascent and descent (its ink above and below its baseline; the label's
+     * words are drawn centered on their line, so their baseline sits half their difference below that middle). No
+     * texture, material or mesh is made.
      * @param scene - Babylon.js scene
      * @param userOptions - Label configuration options
-     * @returns The width and height in world units
+     * @returns The width, height, ascent and descent in world units
      */
-    static measureWords(scene: Scene, userOptions: RichTextLabelOptions): { width: number; height: number } {
+    static measureWords(
+        scene: Scene,
+        userOptions: RichTextLabelOptions,
+    ): { width: number; height: number; ascent: number; descent: number } {
         RichTextLabel.measuring = true;
         try {
             const label = new RichTextLabel(scene, { ...userOptions, attachTo: undefined, animation: "none" });
             const { width, height } = label.actualDimensions;
             if (width <= 0 || height <= 0) {
-                return { width: 0, height: 0 };
+                return { width: 0, height: 0, ascent: 0, descent: 0 };
             }
 
             // One canvas pixel in the world, as `_createMesh` sizes the plane.
             const perPixel = (label.lineHeightInWorld() * label.heightInLines) / height;
             const lines = Math.max(1, label.parsedContent.length);
+            const ctx = document.createElement("canvas").getContext("2d");
+            const first = label.parsedContent.find((line) => line.length > 0);
+            let ink = { ascent: 0, descent: 0 };
+            if (ctx !== null && first !== undefined) {
+                // measured with the glyphs it is drawn with, as `_calculateDimensions` measures
+                ctx.textRendering = "geometricPrecision";
+                ink = measureLine(ctx, first, label.options);
+            }
             return {
                 width: label.textSize.width * perPixel,
                 height: lines * label.options.fontSize * perPixel,
+                ascent: ink.ascent * perPixel,
+                descent: ink.descent * perPixel,
             };
         } finally {
             RichTextLabel.measuring = false;

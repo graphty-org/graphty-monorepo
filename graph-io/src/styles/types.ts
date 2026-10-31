@@ -343,11 +343,13 @@ export interface NodeStyleValues {
     /**
      * The label laid out as a table of cells (Graphviz's HTML-like `<TABLE>`), as JSON: `{ "border", "cellBorder",
      * "cellSpacing", "cellPadding", "width"?, "height"?, "fixedSize"?, "align"?, "valign"?, "fill"?, "lineHeight"?,
-     * "imagePixel"?, "rows" }`,
+     * "textPixel"?, "baseline"?, "imagePixel"?, "rows" }`,
      * lengths in the unit of `width`. `border` is the table's outline width, `cellBorder` and `cellPadding` every
      * cell's own unless the cell gives one, `cellSpacing` the room between cells and round them, `width` and
      * `height` a least size (exact with `fixedSize`), `align` (`left`, `right`) and `valign` (`top`, `bottom`) where
-     * the table sits in a cell larger than it, `fill` its background color, `lineHeight` how tall a text line is as a multiple of its font size,
+     * the table sits in a cell larger than it, `fill` its background color, `lineHeight` how tall a text line is (a multiple of its font size, or
+     * `"font"`: its font's ascent plus descent, each rounded up to whole `textPixel`s when that is given), `baseline`
+     * how far a line's baseline sits below its top as a multiple of its font size (unset, its words centered in it),
      * `imagePixel` how long each of a picture's own pixels is when its cell is sized by it (unset, as it is drawn).
      * Each row is `{ "cells", "rule"? }` (`rule`: a line between it and the row above); each cell
      * `{ "lines"?, "table"?, "image"?, "colspan"?, "rowspan"?, "width"?, "height"?, "fixedSize"?, "align"?, "valign"?,

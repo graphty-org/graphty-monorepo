@@ -318,14 +318,15 @@ window.fixture = {
 };
 report("loaded");
 // Self-driving, for a browser no test can script (the iOS Simulator): auto=<n> makes n edits, waits
-// until they are saved and reports "auto-saved"; tail=1 then makes one more edit and leaves it to the
+// until they are saved and reports "auto-saved" with the entry it wrote (in that one report: separate
+// reports are separate requests and may reach the server in any order); tail=1 then makes one more edit and leaves it to the
 // write schedule or to the page being hidden.
 if (params.has("auto")) {
     (async () => {
         let revision = 0;
         for (let i = 0; i < Number(params.get("auto")); i++) revision = await window.fixture.next();
         await el.autosaver.flush();
-        report("auto-saved", { revision, state: el.autosaver.status.state });
+        report("auto-saved", { revision, state: el.autosaver.status.state, entry: el.autosaver.status.entry });
         if (params.get("tail") === "1") report("auto-tail", { revision: await window.fixture.next() });
     })();
 }

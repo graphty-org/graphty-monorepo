@@ -10,6 +10,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { plan as matrixPlan, SHARDS } from "./ci-test-matrix.mjs";
+import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
     advisoryMisses,
     buildInput,
@@ -622,10 +623,10 @@ describe("building a package's import graph from an earlier commit's graph", () 
             mkdirSync(dirname(join(fixture, path)), { recursive: true });
             writeFileSync(join(fixture, path), text);
         };
-        const git = (...a) => execFileSync("git", a, { cwd: fixture, encoding: "utf8" }).trim();
+        const git = (...a) => execFileSync("git", a, { cwd: fixture, encoding: "utf8", env: isolatedGitEnv() }).trim();
         const commit = () => {
             git("add", "-A");
-            git("-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-qm", "c");
+            git("commit", "-qm", "c");
         };
         const walk = (...extra) =>
             JSON.parse(

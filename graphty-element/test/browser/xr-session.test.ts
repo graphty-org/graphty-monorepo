@@ -362,6 +362,8 @@ describe("session.capabilities.xr", () => {
         assert.isNotEmpty(listening, "the element never listened for WebXR device changes");
 
         element.remove();
+        // The shutdown waits for the microtask after the removal, in case the element is moved back.
+        await Promise.resolve();
 
         // A listener left on navigator.xr keeps the removed element's whole graph alive.
         assert.sameMembers(deviceChange(removed.mock.calls), listening, "a devicechange listener outlived the element");

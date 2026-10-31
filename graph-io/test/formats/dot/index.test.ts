@@ -13,6 +13,7 @@ describe("the dot subpath entry", () => {
             "RANK_SET_COLUMN",
             "dotExporter",
             "dotImporter",
+            "graphvizFont",
             "graphvizPosBends",
         ]);
         expect(dot.dotImporter.format).toBe("dot");

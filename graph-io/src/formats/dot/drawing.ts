@@ -55,7 +55,7 @@ const POSTSCRIPT_STYLES: ReadonlyMap<string, readonly [bold: boolean, italic: bo
 ]);
 
 /** A font as graphty draws it: a CSS family list, and whether it is bold and italic. */
-interface GraphvizFont {
+export interface GraphvizFont {
     /** The families, the last a generic one. */
     readonly family: string;
     readonly bold: boolean;

@@ -15,6 +15,7 @@ import {
     type GraphvizEngine,
     graphvizLayoutId,
 } from "./graphviz/engines";
+import { canvasMeasure, withDrawnFonts } from "./graphviz/fonts";
 import { clusterMargins, edgeBends, edgeLabelPlaces, fromJson } from "./graphviz/fromJson";
 import type { GraphvizFailureCode, GraphvizReply } from "./graphviz/protocol";
 import { graphvizStructure } from "./graphviz/structure";
@@ -262,7 +263,12 @@ async function computeWith(
         attributes.ranksep = String(TWOPI_RANKSEP_PER_INCH * widest(sizes));
     }
 
-    const dot = toDot(input.stored, attributes, sizes, extents, groups, structure, engine === "patchwork");
+    // graph-io reads a spline into bends as it does for a file that stores its routes, and says which font the element
+    // draws a `fontname` in, which is the font Graphviz must size the label in
+    const { graphvizFont, graphvizPosBends } = await import("@graphty/graph-io/dot");
+    const measure = canvasMeasure();
+    const handed = measure === null ? structure : withDrawnFonts(structure, graphvizFont, measure);
+    const dot = toDot(input.stored, attributes, sizes, extents, groups, handed, engine === "patchwork");
     const { probeGraphviz, runGraphviz } = await import("./graphviz/host");
     if (!(await probeGraphviz())) {
         throw graphvizError("graphviz.unavailable", { engine });
@@ -277,8 +283,6 @@ async function computeWith(
         throw graphvizError(reply.code, reply.params);
     }
 
-    // graph-io reads a spline into bends as it does for a file that stores its routes
-    const { graphvizPosBends } = await import("@graphty/graph-io/dot");
     return {
         positions: fromJson(reply.json, n).map((value) => value * scale),
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),

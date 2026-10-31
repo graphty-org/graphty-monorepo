@@ -927,6 +927,11 @@ export interface EdgeStyleValues {
 export interface GraphStyleValues {
     /** The background color. */
     readonly background: StyleColor;
+    /**
+     * How far the whole drawing (nodes, edges and labels) is turned counterclockwise on screen, in degrees, about its
+     * middle: Graphviz's `rotate=90` and `landscape` turn it 90. Absent, it is upright.
+     */
+    readonly rotation: number;
 }
 
 /**

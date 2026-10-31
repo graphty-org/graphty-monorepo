@@ -135,7 +135,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "tooltip",
         "visible",
     ] as const),
-    graph: Object.freeze(["background"] as const),
+    graph: Object.freeze(["background", "rotation"] as const),
     block: "native",
 });
 
@@ -2407,6 +2407,48 @@ function graphBackground(snapshot: GraphSnapshot, notes: StyleNotes): Record<str
 }
 
 /**
+ * The quarter turn Graphviz gives the whole drawing, counterclockwise, as the graph's `rotation`: `rotate` when the
+ * graph sets it (only 90 turns), else `orientation` (a value starting with L), else `landscape` (true). The first of
+ * them the graph sets decides, even set empty (lib/common/input.c, graph_init).
+ * @param snapshot - the graph
+ * @param graph - the graph's values, which take the turn
+ */
+function readGraphRotation(snapshot: GraphSnapshot, graph: Record<string, StyleValue>): void {
+    const text = (name: string): string => (cellText(snapshot.graph, name, 0) ?? "").trim();
+    let turned = false;
+    if (snapshot.graph.has("rotate")) {
+        turned = Number.parseInt(text("rotate"), 10) === 90;
+    } else if (snapshot.graph.has("orientation")) {
+        turned = /^l/i.test(text("orientation"));
+    } else if (snapshot.graph.has("landscape")) {
+        turned = isTrue(text("landscape"));
+    }
+    if (turned) {
+        graph.rotation = 90;
+    }
+}
+
+/**
+ * Writes the drawing's turn as Graphviz's `rotate=90`, in place of whichever of `rotate`, `landscape` and a landscape
+ * `orientation` the graph had: Graphviz turns a drawing only by a quarter turn, so any other turn is written as none.
+ * @param graph - the graph table written
+ * @param rotation - the graph's `rotation`, in degrees counterclockwise
+ */
+function writeGraphRotation(graph: GraphSnapshot["graph"], rotation: StyleValue | undefined): void {
+    for (const name of ["rotate", "landscape"]) {
+        if (graph.has(name)) {
+            graph.remove(name);
+        }
+    }
+    if (graph.has("orientation") && /^l/i.test((cellText(graph, "orientation", 0) ?? "").trim())) {
+        graph.remove("orientation");
+    }
+    if (typeof rotation === "number" && ((rotation % 360) + 360) % 360 === 90) {
+        graph.set("rotate", ["90"], { dtype: "string" });
+    }
+}
+
+/**
  * The styles of a DOT file, read the way Graphviz draws it, with Graphviz's defaults beneath: an unfilled black
  * ellipse 54 x 36 labeled with its name, black edges with a target arrow in a directed graph. A file graphty wrote
  * gives back its `graphty.styles` block.
@@ -2475,6 +2517,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         });
     }
     const graph = graphBackground(snapshot, notes);
+    readGraphRotation(snapshot, graph);
     const blockText = cellText(snapshot.graph, STYLE_BLOCK_NAME, 0);
     if (blockText !== null) {
         exactFromBlock(snapshot, blockText, { node: node.values, edge: edge.values }, cx);
@@ -3240,6 +3283,7 @@ function styledExport(snapshot: GraphSnapshot, input: ExporterStyleInput, onMixe
     if (typeof background === "string" && background !== toolDefaults("graphviz")?.graph.background?.value) {
         out.graph.set("bgcolor", [background], { dtype: "string" });
     }
+    writeGraphRotation(out.graph, input.rules.styles.graph.rotation);
     const inline = [...input.tags.node.values(), ...input.tags.edge.values()].some((col) => !readsBack(col));
     if (!inline) {
         setTagColumns(out, input);

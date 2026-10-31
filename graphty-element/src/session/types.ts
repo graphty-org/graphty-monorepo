@@ -2658,6 +2658,18 @@ export interface ProjectConfig {
      * @since 3.36.0
      */
     readonly layoutTransition?: LayoutTransitionConfig;
+    /**
+     * How far the 2D view is turned: the angle the whole drawing (nodes, edges and labels alike) is
+     * turned counterclockwise on screen, in degrees, about the view's center. Absent (the default),
+     * the drawing is upright. Every fit frames the turned drawing, and the 3D view ignores it. A
+     * file's own turn sets it on import, as Graphviz's `rotate=90` and `landscape` do (90).
+     *
+     * ```ts
+     * await session.config.set({ viewRotation: 90 }); // a quarter turn, as Graphviz draws landscape
+     * ```
+     * @since 3.38.0
+     */
+    readonly viewRotation?: number;
 }
 
 /** Where a finished run's layer lands: see {@link ProjectConfig.runPlacement}. */
@@ -2688,6 +2700,8 @@ export interface ProjectConfigPatch {
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     /** See {@link ProjectConfig.layoutTransition}; `undefined` turns transitions off. */
     readonly layoutTransition?: LayoutTransitionConfig;
+    /** See {@link ProjectConfig.viewRotation}; `undefined` turns the view upright. */
+    readonly viewRotation?: number;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */

@@ -1088,6 +1088,19 @@ function isDoneKey(event: React.KeyboardEvent): boolean {
     );
 }
 
+/**
+ * Enter on an unticked value ticks it, as a pick does, and keeps the cards open; Enter on a ticked
+ * value is Done (`isDoneKey`). A check box takes no Enter of its own, so without this the first
+ * Enter closed the cards with nothing ticked.
+ * @param event - the key, on the value's check box.
+ */
+function tickOnEnter(event: React.KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === "Enter" && !event.nativeEvent.isComposing && !event.currentTarget.checked) {
+        event.preventDefault();
+        event.currentTarget.click();
+    }
+}
+
 /** The notice a layer's refused rule leaves. */
 const RULE_REFUSED = "That rule could not be used for this layer";
 
@@ -2178,6 +2191,7 @@ function CategoryCard({
                                 size="xs"
                                 label={`${each.label}, ${many(each.count, side)}`}
                                 data-enter-done
+                                onKeyDown={tickOnEnter}
                                 checked={card.values.includes(each.value)}
                                 onChange={(event) => {
                                     toggle(each.value, event.currentTarget.checked);
@@ -2189,6 +2203,7 @@ function CategoryCard({
                                 size="xs"
                                 label={`(no value), ${many(counts.missing, side)}`}
                                 data-enter-done
+                                onKeyDown={tickOnEnter}
                                 checked={card.gaps}
                                 onChange={(event) => {
                                     onChange({ ...card, gaps: event.currentTarget.checked });
@@ -2244,6 +2259,7 @@ function SourceCard({
                     size="xs"
                     label={`${sourceName(load)}, ${many(side === "node" ? load.counts.nodes : load.counts.edges, side)}`}
                     data-enter-done
+                    onKeyDown={tickOnEnter}
                     checked={card.sources.includes(load.key)}
                     onChange={(event) => {
                         const on = event.currentTarget.checked;

@@ -47,7 +47,10 @@ const SIDES: ReadonlyMap<string, number> = new Map([
  * reach that far past the box they are fractions of when they are drawn, so that box is not grown
  * by their reach again (corners that fall short of it still draw it in).
  *
- * `labelFitSquare` then makes both sides the larger one.
+ * A star grows until the box fits between its arms (Graphviz's `star_size`).
+ *
+ * `labelFitQuantum` first rounds the padded box up to a multiple of it each way. `labelFitSquare` then makes both
+ * sides the larger one.
  * @param shape - The node's shape block.
  * @param box - Its label's box, in the units of its size.
  * @returns The width and height, or null when the node does not grow to hold its label.
@@ -62,11 +65,16 @@ export function labelFitExtent(
 
     const size = shape.size ?? 0;
     const least = { width: shape.width ?? size, height: shape.height ?? size };
-    let width = box.width + 2 * (shape.labelPaddingX ?? 0);
-    let height = box.height + 2 * (shape.labelPaddingY ?? 0);
+    // the padded box, rounded up to a multiple of the quantum each way (Graphviz's `quant`)
+    const q = shape.labelFitQuantum ?? 0;
+    const quantize = (v: number): number => (q > 0 ? Math.ceil(v / q) * q : v);
+    let width = quantize(box.width + 2 * (shape.labelPaddingX ?? 0));
+    let height = quantize(box.height + 2 * (shape.labelPaddingY ?? 0));
     const type = shape.type ?? "";
     const polygon = type === "polygon" ? polygonPoints(shape.points) : null;
-    if (shape.labelFit === "inside" && !BOXES.has(type)) {
+    if (shape.labelFit === "inside" && type === "star") {
+        ({ width, height } = starAround(width, height));
+    } else if (shape.labelFit === "inside" && !BOXES.has(type)) {
         if (height > 0 && least.height > Math.SQRT2 * height) {
             width /= Math.sqrt(1 - (height / least.height) ** 2);
         } else {
@@ -96,4 +104,18 @@ export function labelFitExtent(
     }
 
     return { width, height };
+}
+
+/**
+ * The bounding box of the five-pointed star that holds a box between its arms (Graphviz's `star_size`,
+ * lib/common/shapes.c): the outer radius that holds the box's half width and height, its points' box.
+ * @param width - The box's width.
+ * @param height - The box's height.
+ * @returns The star's width and height.
+ */
+function starAround(width: number, height: number): { width: number; height: number } {
+    const a = Math.PI / 10;
+    const r0 = Math.max(width / (2 * Math.cos(a)), height / (Math.sin(a) + Math.sin(3 * a)));
+    const r = (r0 * Math.sin(4 * a) * Math.cos(2 * a)) / (Math.cos(a) * Math.cos(4 * a));
+    return { width: 2 * r * Math.cos(a), height: r * (1 + Math.sin(3 * a)) };
 }

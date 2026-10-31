@@ -289,11 +289,13 @@ export const NodeStyle = z.strictObject({
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and
             // `labelPaddingY` above and below, in the units of `size`, decides the rest. With
-            // `labelFitSquare` it stays as wide as it is tall. Unset, the node is the size it states.
+            // `labelFitSquare` it stays as wide as it is tall. `labelFitQuantum` rounds the padded box up to a
+            // multiple of it each way before the outline is fitted. Unset, the node is the size it states.
             labelFit: NodeLabelFits.optional(),
             labelPaddingX: z.number().nonnegative().optional(),
             labelPaddingY: z.number().nonnegative().optional(),
             labelFitSquare: z.boolean().optional(),
+            labelFitQuantum: z.number().nonnegative().optional(),
             // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
             // URL. `type` stays the placeholder while it loads and the fallback when it fails
             // (design/rendering/node-models.md).
@@ -394,7 +396,8 @@ export const NodeStyle = z.strictObject({
     /**
      * A second ring drawn outside the border, `offset` beyond its outer edge (Cytoscape.js
      * `outline-*`): its color, its width and offset in the units of the border's width, its
-     * opacity and its line style. No width, or an opacity of 0, draws none. Unlike
+     * opacity and its line style. `count` (default 1) draws that many rings, each `offset` beyond
+     * the one before (Graphviz's `peripheries`). No width, or an opacity of 0, draws none. Unlike
      * `effect.outline`, a highlight drawn over the node's rim, this is a ring of its own.
      */
     outerBorder: z
@@ -404,6 +407,7 @@ export const NodeStyle = z.strictObject({
             opacity: z.number().min(0).max(1).optional(),
             style: NodeBorderStyles.optional(),
             offset: z.number().optional(),
+            count: z.number().int().positive().optional(),
         })
         .optional(),
     /**

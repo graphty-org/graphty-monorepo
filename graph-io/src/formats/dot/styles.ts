@@ -1358,9 +1358,8 @@ export const SHAPE_PERIPHERIES: ReadonlyMap<string, number> = new Map([
 export const PERIPHERY_GAP = 4;
 
 /**
- * Reads a node's second outline (`peripheries=2`, `doublecircle`): Graphviz draws it `PERIPHERY_GAP` points outside
- * the first, in the same color, width and dashes. graphty draws one outer ring, so a third and later outline is
- * noted as not carried.
+ * Reads a node's further outlines (`peripheries=2` and up, `doublecircle`, `tripleoctagon`): Graphviz draws each
+ * `PERIPHERY_GAP` points outside the one before, in the same color, width and dashes.
  * @param n - the node
  */
 function readNodeRings(n: NodeRead): void {
@@ -1392,7 +1391,7 @@ function readNodeRings(n: NodeRead): void {
         n.put("outerBorderStyle", n.tokens.includes("dashed") ? "dashed" : "dotted");
     }
     if (count > 2) {
-        noteAt(n.at("outerBorderWidth"), STYLE_ISSUE.NOT_CARRIED, `peripheries=${String(count)}`);
+        n.put("outerBorderCount", count - 1);
     }
 }
 
@@ -1727,27 +1726,15 @@ function readSize(get: Attr, shape: string, point: boolean, put: Put, at: At): v
 
 /**
  * Reads the graph's `quantum` for a node that grows to hold its label: Graphviz rounds the padded label box up to a
- * multiple of it before fitting the outline round it (`poly_init`), so the node is at least one quantum across, an
- * ellipse's box times the square root of 2.
+ * multiple of it each way before fitting the outline round it (`poly_init`).
  * @param n - the node
  * @param label - its `label` attribute, or null
  */
 function readQuantum(n: NodeRead, label: string | null): void {
-    const { get, put, shape } = n;
-    let scale: number | null = BOX_LIKE.has(shape) ? 1 : null;
-    if (ELLIPSE_LIKE.has(shape)) {
-        scale = Math.SQRT2;
-    }
-    const w = Number(get("width") ?? Number.NaN);
-    const h = Number(get("height") ?? Number.NaN);
-    // ponytail: one quantum is the least size; a label box over one quantum is not rounded up to the next, and only
-    // boxes and ellipses with their size given are read (other polygons fit their box by factors of their own)
-    if (n.cx.quantum === 0 || scale === null || label === "" || isTrue(get("fixedsize")) || !(w >= 0 && h >= 0)) {
+    if (n.cx.quantum === 0 || label === "" || isTrue(n.get("fixedsize"))) {
         return;
     }
-    const least = n.cx.quantum * scale;
-    put("width", num6(Math.max(w * DOT_POINTS_PER_INCH, least)));
-    put("height", num6(Math.max(h * DOT_POINTS_PER_INCH, least)));
+    n.put("labelFitQuantum", num6(n.cx.quantum));
 }
 
 /** Graphviz's padding around a node's label when it has no `margin`: 8 points left and right, 4 above and below. */
@@ -1803,8 +1790,10 @@ function readLabelFit(
     if (typeof table?.height === "number") {
         put("height", num6(Math.max(table.height + 2 * marginY, least.h)));
     }
-    // a decorated box holds its label as a box does, exactly
-    put("labelFit", GRAPHVIZ_DECORATED_BOXES.has(shape) ? "bounds" : "inside");
+    // a decorated box holds its label as a box does, exactly; so does a cylinder, its width (`cylinder_size`).
+    // ponytail: Graphviz grows a cylinder's padded height 1.375 times too, which only a label over about 26 points
+    // tall reaches past the default height; carry it when a sample needs it
+    put("labelFit", GRAPHVIZ_DECORATED_BOXES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
     put("labelPaddingX", num6(padX));
     put("labelPaddingY", num6(padY + ((LINE_SPACING - 1) * fontSize * lines) / 2));
     if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {

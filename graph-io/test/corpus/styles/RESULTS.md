@@ -154,9 +154,9 @@ Tool values are elements drawn with the writing program's default.
 | dot/graphviz-gallery-neato-traffic_lights.gv | ok | 14 | 16 | 6 | 3 | 6 | 33% | 33% | 0 | 252 | 0 |  |
 | dot/graphviz-gallery-neato-transparency.gv | ok | 6 | 6 | 5 | 1 | 10 | 100% | 0% | 0 | 90 | 0 | W_STYLE_ALPHA_DROPPED |
 | dot/graphviz-gallery-twopi-networkmap_twopi.gv.gz | ok | 426 | 425 | 8 | 2 | 7 | 86% | 86% | 0 | 5530 | 0 | W_STYLE_HTML_LABEL |
-| dot/graphviz-gallery-twopi-twopi2.gv | ok | 1090 | 1118 | 5 | 7 | 1691 | 23% | 23% | 0 | 15574 | 0 | W_STYLE_NOT_CARRIED |
+| dot/graphviz-gallery-twopi-twopi2.gv | ok | 1090 | 1118 | 5 | 7 | 1691 | 23% | 23% | 0 | 15574 | 0 |  |
 | dot/graphviz-gallery-undirected-gd_1994_2007.gv | ok | 506 | 1380 | 6 | 2 | 667 | 100% | 0% | 0 | 16468 | 0 |  |
-| dot/graphviz-gallery-undirected-root.gv | ok | 1054 | 1083 | 6 | 7 | 1637 | 23% | 23% | 0 | 13043 | 0 | W_STYLE_NOT_CARRIED |
+| dot/graphviz-gallery-undirected-root.gv | ok | 1054 | 1083 | 6 | 7 | 1637 | 23% | 23% | 0 | 13043 | 0 |  |
 | dot/raphael-group_machina__T_seed9_mut1.dot | ok | 79 | 78 | 6 | 5 | 134 | 5% | 0% | 0 | 1257 | 0 | W_STYLE_COLOR_LIST |
 | dot/vivek3141_super-mario-neat__Digraph.gv | ok | 281 | 878 | 5 | 8 | 1837 | 48% | 0% | 0 | 7235 | 0 |  |
 | dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | 6 | 5 | 867 | 54% | 0% | 0 | 3639 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_HTML_LABEL |

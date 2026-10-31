@@ -411,6 +411,7 @@ export interface ChannelValues {
     "node.outerBorderOpacity": number;
     "node.outerBorderStyle": NodeBorderStyleValue;
     "node.outerBorderOffset": number;
+    "node.outerBorderCount": number;
     "node.cornerRadius": number;
     "node.exactCornerRadius": boolean;
     "node.underlayColor": ColorValue;
@@ -433,6 +434,7 @@ export interface ChannelValues {
     "node.labelPaddingX": number;
     "node.labelPaddingY": number;
     "node.labelFitSquare": boolean;
+    "node.labelFitQuantum": number;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
     "node.gradientColors": string;
@@ -1061,7 +1063,8 @@ const NODE_STRIPES_CAVEAT =
 const NODE_OUTER_BORDER_CAVEAT =
     "A second ring outside the node's border, `node.outerBorderOffset` beyond the border's outer edge " +
     "(Cytoscape.js's outline): drawn only with a width above 0. Widths and the offset are in the units " +
-    "of `node.borderWidth`. It is not `node.outline`, which is a highlight drawn over the node's rim.";
+    "of `node.borderWidth`; `node.outerBorderCount` draws that many rings, each the offset beyond the one before. " +
+    "It is not `node.outline`, which is a highlight drawn over the node's rim.";
 
 const ARROW_CAPTION_CAVEAT =
     "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
@@ -2669,6 +2672,19 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: NODE_OUTER_BORDER_CAVEAT,
     },
+    "node.outerBorderCount": {
+        channel: "node.outerBorderCount",
+        target: "node",
+        plainName: "Node Outer Border Count",
+        shortName: "Outer border count",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 1,
+        stylePath: "outerBorder.count",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
     ...haloRows("node", "underlay"),
     ...haloRows("node", "overlay"),
     "node.image": {
@@ -3541,6 +3557,22 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "A node that grows to hold its label (`node.labelFit`) stays as wide as it is tall, as a " +
             "circle or a square does. Without `node.labelFit` it changes nothing.",
+    },
+    "node.labelFitQuantum": {
+        channel: "node.labelFitQuantum",
+        target: "node",
+        plainName: "Node Label Fit Quantum",
+        shortName: "Fit quantum",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.labelFitQuantum",
+        renderable: true,
+        caveat:
+            "A node that grows to hold its label (`node.labelFit`) rounds its padded label box up to a " +
+            "multiple of this length each way before its outline is fitted round it, as Graphviz's " +
+            "`quantum` does. 0 rounds nothing; without `node.labelFit` it changes nothing.",
     },
     "node.gradientColor": {
         channel: "node.gradientColor",

@@ -228,6 +228,11 @@ export interface NodeStyleValues {
     readonly labelPaddingY: number;
     /** Whether a node that grows to fit its label stays as wide as it is tall (a circle, a square). */
     readonly labelFitSquare: boolean;
+    /**
+     * A length a node that grows to fit its label rounds its padded label box up to a multiple of, each way, before its
+     * outline is fitted round it (Graphviz's `quantum`).
+     */
+    readonly labelFitQuantum: number;
     /** The shape. */
     readonly shape: StyleNodeShape;
     /**
@@ -285,6 +290,11 @@ export interface NodeStyleValues {
      * `outline-offset` out, so that is what is read.
      */
     readonly outerBorderOffset: number;
+    /**
+     * How many such rings are drawn, each `outerBorderOffset` beyond the one before (Graphviz's `peripheries` less the
+     * node's own outline); absent, one.
+     */
+    readonly outerBorderCount: number;
     /**
      * The color of a filled shape drawn beneath the node, `underlayPadding` beyond its box on every side (Cytoscape.js
      * `underlay-*`); drawn only with an `underlayOpacity` above 0.

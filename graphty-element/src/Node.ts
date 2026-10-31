@@ -34,10 +34,12 @@ import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { labelFitExtent } from "./meshes/labelFit";
 import { layoutLabelTable, readLabelTable } from "./meshes/labelTable";
+import type { PieceBox } from "./meshes/nodeDecoration";
 import {
     createNodeDecorations,
     type NodeDecorationMetadata,
     type NodeDecorationPiece,
+    type TableDecoration,
 } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
@@ -82,6 +84,9 @@ export const SELECTION_HALO_MESH = "graphty-selection-halo";
 
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
+
+/** A resolved style as a node draws it: with what its table label draws over its face, once laid out. */
+type DecoratedStyle = NodeStyleConfig & { readonly table?: TableDecoration };
 
 /** The label fields an external label does not take from the label: what it says, where it sits, its switch. */
 export const XLABEL_UNSHARED = [
@@ -894,7 +899,7 @@ export class Node implements ModelUser {
      * @param meshKey - The source mesh key the node is drawn under.
      * @param style - The resolved style.
      */
-    private syncDecorations(meshKey: string, style: NodeStyleConfig): void {
+    private syncDecorations(meshKey: string, style: DecoratedStyle): void {
         for (const old of this.decorations) {
             if (!old.isDisposed()) {
                 old.dispose();
@@ -1657,7 +1662,7 @@ export class Node implements ModelUser {
      * @param o - The resolved style.
      * @returns The key and style to build the mesh and its border from.
      */
-    private fitToLabel(meshKey: string, o: NodeStyleConfig): { meshKey: string; style: NodeStyleConfig } {
+    private fitToLabel(meshKey: string, o: NodeStyleConfig): { meshKey: string; style: DecoratedStyle } {
         const { shape } = o;
         const table = this.drawnAsGroup ? null : readLabelTable(shape?.labelTable);
         this.tableTexts = null;
@@ -1684,13 +1689,32 @@ export class Node implements ModelUser {
         const height = Number((extent?.height ?? shape?.height ?? own).toPrecision(6));
         this.fittedFor = { text, label: cloneDeep(label) };
         this.fittedExtent = extent === null ? null : { width, height };
-        let style: NodeStyleConfig = extent === null ? o : { ...o, shape: { ...shape, width, height } };
+        let style: DecoratedStyle = extent === null ? o : { ...o, shape: { ...shape, width, height } };
         let key = extent === null ? meshKey : `${meshKey}|fit:${width}x${height}`;
         if (drawn !== null) {
             // the table centered on the node: its points as fractions of the node's half width and height, y up
             const fx = (x: number): number => Number((width > 0 ? (2 * x - drawn.width) / width : 0).toFixed(6));
             const fy = (y: number): number => Number((height > 0 ? (drawn.height - 2 * y) / height : 0).toFixed(6));
             this.tableTexts = drawn.texts.map((t): [number, number, string] => [fx(t.x), fy(t.y), t.text]);
+            const box = (b: { x: number; y: number; width: number; height: number }): PieceBox => ({
+                x0: fx(b.x),
+                y0: fy(b.y + b.height),
+                x1: fx(b.x + b.width),
+                y1: fy(b.y),
+            });
+            // ponytail: one picture per node, the first cell's; a mesh per picture when a file has several
+            const [picture] = drawn.images;
+            const table: TableDecoration = {
+                fills: drawn.fills.map((f) => ({ box: box(f), color: f.color })),
+                image:
+                    picture === undefined
+                        ? null
+                        : { image: picture.image, align: picture.align, valign: picture.valign, box: box(picture) },
+            };
+            if (table.fills.length > 0 || table.image !== null) {
+                style = { ...style, table };
+                key = `${key}|cells:${hashText(JSON.stringify(table))}`;
+            }
             // each cell's outline drawn inside its box, as Graphviz strokes it
             const lines = [
                 ...drawn.frames.map((f) => {

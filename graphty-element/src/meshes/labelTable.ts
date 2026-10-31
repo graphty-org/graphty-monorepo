@@ -19,10 +19,23 @@ export interface LabelTableLine {
     readonly align?: TableAlign;
 }
 
+/**
+ * A picture in a cell: its URL, and how it is scaled inside the cell's padding (unset: at its own size, each pixel
+ * `pixelSize` long; `true` keeps its proportions, `both` stretches it, `width` or `height` stretches that side only).
+ */
+export interface LabelTableImage {
+    readonly src: string;
+    readonly scale?: "true" | "width" | "height" | "both";
+    readonly pixelSize?: number;
+}
+
 /** One cell of a table. Lengths are in the units of the node's size. */
 export interface LabelTableCell {
     readonly lines?: readonly LabelTableLine[];
     readonly table?: LabelTable;
+    readonly image?: LabelTableImage;
+    /** Its background color. */
+    readonly fill?: string;
     readonly colspan?: number;
     readonly rowspan?: number;
     readonly width?: number;
@@ -53,6 +66,8 @@ export interface LabelTable {
     readonly fixedSize?: boolean;
     readonly align?: TableAlign;
     readonly valign?: TableVAlign;
+    /** Its background color. */
+    readonly fill?: string;
     readonly lineHeight?: number;
     readonly rows: readonly LabelTableRow[];
 }
@@ -76,6 +91,14 @@ export interface TableDrawing {
     readonly rules: readonly (readonly [number, number, number, number])[];
     /** Every line of text, centered on its point. */
     readonly texts: readonly { readonly x: number; readonly y: number; readonly text: string }[];
+    /** Every background, the table's own first, each table's before its cells': the box it fills and its color. */
+    readonly fills: readonly (TableBox & { readonly color: string })[];
+    /** Every picture: the box inside its cell's padding it is drawn in, lined up by the cell's `align` and `valign`. */
+    readonly images: readonly (TableBox & {
+        readonly image: LabelTableImage;
+        readonly align?: string;
+        readonly valign?: string;
+    })[];
 }
 
 /** A text's width and height, measured: the height one line of the label's font size. */
@@ -312,6 +335,8 @@ interface Collected {
     frames: (TableBox & { border: number })[];
     rules: [number, number, number, number][];
     texts: { x: number; y: number; text: string }[];
+    fills: (TableBox & { color: string })[];
+    images: TableDrawing["images"][number][];
 }
 
 /**
@@ -337,6 +362,9 @@ function placeTable(s: Sized, box: TableBox, out: Collected, outline: boolean): 
     const spacing = len(table.cellSpacing);
     if (outline && border > 0) {
         out.frames.push({ ...b, border });
+    }
+    if (typeof table.fill === "string" && table.fill !== "") {
+        out.fills.push({ ...b, color: table.fill });
     }
     const extraX = s.widths.length > 0 ? Math.max(0, b.width - s.width) / s.widths.length : 0;
     const extraY = s.heights.length > 0 ? Math.max(0, b.height - s.height) / s.heights.length : 0;
@@ -398,10 +426,24 @@ function placeCell(table: LabelTable, p: Placed, box: TableBox, out: Collected):
     if (border > 0) {
         out.frames.push({ ...b, border });
     }
+    if (typeof cell.fill === "string" && cell.fill !== "") {
+        // Graphviz fills the cell inside its border
+        out.fills.push({
+            x: b.x + border,
+            y: b.y + border,
+            width: b.width - 2 * border,
+            height: b.height - 2 * border,
+            color: cell.fill,
+        });
+    }
     const inset = border + cellPadding(table, cell);
     const inner = { x: b.x + inset, y: b.y + inset, width: b.width - 2 * inset, height: b.height - 2 * inset };
     if (p.inner !== null) {
         placeTable(p.inner, inner, out, true);
+        return;
+    }
+    if (cell.image !== undefined && typeof cell.image.src === "string" && cell.image.src !== "") {
+        out.images.push({ ...inner, image: cell.image, align: cell.align, valign: cell.valign });
         return;
     }
     const textWidth = Math.max(0, ...p.lines.map((l) => l.width));
@@ -428,7 +470,7 @@ function placeCell(table: LabelTable, p: Placed, box: TableBox, out: Collected):
 export function layoutLabelTable(table: LabelTable, measure: MeasureText): TableDrawing {
     const lineHeight = typeof table.lineHeight === "number" && table.lineHeight > 0 ? table.lineHeight : 1;
     const sized = sizeTable(table, measure, lineHeight, 0);
-    const out: Collected = { frames: [], rules: [], texts: [] };
+    const out: Collected = { frames: [], rules: [], texts: [], fills: [], images: [] };
     placeTable(sized, { x: 0, y: 0, width: sized.width, height: sized.height }, out, false);
     return { width: sized.width, height: sized.height, ...out };
 }

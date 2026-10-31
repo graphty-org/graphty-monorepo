@@ -240,3 +240,48 @@ describe("DOT styles: an HTML-like table's cells (labelTable)", () => {
         expect((await tables()).get("text")).toBeNull();
     });
 });
+
+describe("DOT styles: pictures and backgrounds in a table, and a node's own picture", () => {
+    const pictures = `digraph {
+        node [shape=plain];
+        img [label=<<TABLE><TR><TD WIDTH="40" HEIGHT="30" FIXEDSIZE="TRUE"><IMG SRC="img-wide.png" SCALE="TRUE"/></TD><TD><IMG SRC="a.png"/></TD><TD><IMG SCALE="BOTH"/></TD></TR></TABLE>>];
+        bg [label=<<TABLE BGCOLOR="lightyellow"><TR><TD BGCOLOR="#4477aa">a</TD><TD BGCOLOR="#e41a1c:#377eb8">b</TD><TD BGCOLOR="nonsense-color">c</TD></TR></TABLE>>];
+        n [shape=box, width=0.6667, height=0.5, fixedsize=true, image="img-quadrants.png"];
+        t [shape=box, image="i.png", imagescale=true, imagepos=tl];
+        both [shape=box, image="i.png", imagescale=both];
+        w [shape=box, width=0.6667, image="i.png", imagescale=width, imagepos=br];
+        none [shape=box];
+    }`;
+
+    it("carries a cell's <IMG> as its src as written and its SCALE; an IMG without SRC is an empty cell", async () => {
+        const t = JSON.parse((await byId(pictures, "labelTable")).get("img") as string) as {
+            rows: { cells: unknown[] }[];
+        };
+        expect(t.rows[0].cells).toEqual([
+            { width: 40, height: 30, fixedSize: true, image: { src: "img-wide.png", scale: "true" } },
+            { image: { src: "a.png" } },
+            {},
+        ]);
+    });
+
+    it("carries the table's and each cell's BGCOLOR as a fill color, a gradient's first color, an unknown one black as Graphviz draws it", async () => {
+        const t = JSON.parse((await byId(pictures, "labelTable")).get("bg") as string) as {
+            fill: string;
+            rows: { cells: { fill?: string }[] }[];
+        };
+        expect(t.fill).toBe("#ffffe0");
+        expect(t.rows[0].cells.map((c) => c.fill)).toEqual(["#4477aa", "#e41a1c", "#000000"]);
+    });
+
+    it("carries a node's image, imagescale and imagepos", async () => {
+        const props = ["image", "imageFit", "imageWidth", "imageHeight", "imageAutoSize"];
+        const pos = ["imagePositionX", "imagePositionY"];
+        const values = await Promise.all([...props, ...pos].map((p) => byId(pictures, p)));
+        const row = (id: string): unknown[] => values.map((v) => v.get(id) ?? null);
+        expect(row("n")).toEqual(["img-quadrants.png", "none", null, null, null, null, null]);
+        expect(row("t")).toEqual(["i.png", "contain", null, null, null, 0, 0]);
+        expect(row("both")).toEqual(["i.png", "fill", null, null, null, null, null]);
+        expect(row("w")).toEqual(["i.png", "none", 48.0024, null, "natural", 1, 1]);
+        expect(row("none")).toEqual([null, null, null, null, null, null, null]);
+    });
+});

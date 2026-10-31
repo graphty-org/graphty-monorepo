@@ -808,7 +808,15 @@ function htmlTableFrame(
     const tagAttrs = (tag: string): Map<string, string> =>
         new Map(tagAttributes(tag).map(([k, v]) => [k.toLowerCase(), v]));
     const markup = isHtmlString(label) ? label.slice(1, -1) : label;
-    const cells = readLabelTable(markup, tagAttrs, (tags) => htmlRunFont(tags, scheme, site));
+    const cells = readLabelTable(
+        markup,
+        tagAttrs,
+        (tags) => htmlRunFont(tags, scheme, site),
+        (value) => {
+            const c = canonColor(value, "graphviz", site, { scheme, use: "fill" });
+            return c === null || c.alpha <= 0 ? null : c.color;
+        },
+    );
     if (cells === null) {
         return null;
     }
@@ -1079,6 +1087,45 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     readNodeOutline(n);
     readNodeShape(n);
     readNodeLabelAndSize(n, names);
+    readNodeImage(n);
+}
+
+/** Where `imagepos` puts a node's image, 0 to 1 across and down, by its first and second letter. */
+const IMAGE_POS: Readonly<Record<string, number>> = { t: 0, m: 0.5, b: 1, l: 0, c: 0.5, r: 1 };
+
+/**
+ * Reads a node's picture (`image`, its file as written): how it is scaled (`imagescale`: false draws it at its own
+ * size, true keeps its proportions inside the node, both stretches it, width or height stretches that side only) and
+ * where it sits (`imagepos`, `tl` to `br`; unset, the middle). https://graphviz.org/docs/attrs/image/
+ * @param n - the node
+ */
+function readNodeImage(n: NodeRead): void {
+    const { get, put } = n;
+    const src = nonEmpty(get("image"));
+    if (src === null || n.point || n.cx.cluster) {
+        return;
+    }
+    put("image", src);
+    const scale = (get("imagescale") ?? "").trim().toLowerCase();
+    const least = nodeLeastSize(get, n.shape);
+    if (scale === "true" || scale === "yes") {
+        put("imageFit", "contain");
+    } else if (scale === "both") {
+        put("imageFit", "fill");
+    } else {
+        put("imageFit", "none");
+        // the stretched side reaches across the node; the other keeps the picture's own size
+        if (scale === "width" || scale === "height") {
+            put(scale === "width" ? "imageWidth" : "imageHeight", num6(scale === "width" ? least.w : least.h));
+            put("imageAutoSize", "natural");
+        }
+    }
+    const pos = (get("imagepos") ?? "").trim().toLowerCase();
+    const [y, x] = [IMAGE_POS[pos[0]], IMAGE_POS[pos[1]]];
+    if (pos.length === 2 && "tmb".includes(pos[0]) && "lcr".includes(pos[1])) {
+        put("imagePositionX", x);
+        put("imagePositionY", y);
+    }
 }
 
 /**

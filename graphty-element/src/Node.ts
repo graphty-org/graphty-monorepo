@@ -924,7 +924,7 @@ export class Node implements ModelUser {
      * whose border is in scene units.
      *
      * The ring's reach is where this node's edges end, so the caller re-trims them when this
-     * answers true (#3532). A layout is not woken: it spaces nodes by {@link Node.layoutRadius},
+     * answers true (#3532). A layout is not woken: it spaces nodes by `layoutRadius`,
      * which leaves this border out.
      * @returns Whether the border's reach changed.
      * @internal
@@ -1203,6 +1203,34 @@ export class Node implements ModelUser {
 
         this.sessionPaint = paint;
         this.paintFrom(paint.meshKey, paint.style, paint.color);
+    }
+
+    /**
+     * Build this node's texts again when a font they draw in has just loaded (issue #3531): a
+     * label measured and drawn while its web font was loading shows the fallback face, and a node
+     * sized to its label (`shape.labelFit`) has the fallback's size.
+     * @param families - The families that loaded, as `fontFamilies` gives them.
+     * @returns True when anything was rebuilt.
+     * @internal
+     */
+    refreshFonts(families: ReadonlySet<string>): boolean {
+        const texts = [this.label, this.tooltip, ...this.shapeTextLabels];
+        if (this.disposed || !texts.some((text) => text?.usesFont(families) === true)) {
+            return false;
+        }
+
+        // Forget what they were drawn from, so the repaint builds them again and fits the node anew.
+        this.drawnLabelStyle = undefined;
+        this.drawnShapeTexts = undefined;
+        this.fittedFor = null;
+        const tooltipShown = this.tooltip !== undefined;
+        this.updateStyle();
+        if (tooltipShown) {
+            this.hideTooltip();
+            this.showTooltip();
+        }
+
+        return true;
     }
 
     /**
@@ -2301,7 +2329,7 @@ export class Node implements ModelUser {
      * count the gesture in a value that is compared with layout coordinates and local scalings.
      *
      * Counts the border as drawn now, so a border in screen pixels makes it change with the zoom;
-     * a layout reads {@link Node.layoutRadius} instead.
+     * a layout reads `layoutRadius` instead.
      * @returns The radius; the style's own size when the mesh has no bounds yet.
      */
     get drawnRadius(): number {

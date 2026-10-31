@@ -26,6 +26,7 @@ import {
     uploadPremultiplied,
 } from "./LabelBatch";
 import { closeGlyphRect, closeHitFractions, closeReserve, drawCloseGlyph, markCloseLabel } from "./labelClose";
+import { fontFamilies, noteLabelFont } from "./labelFonts";
 import { fitToScreen, type LabelPlacement, type PlacementBounds } from "./labelScreenFit";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
@@ -503,6 +504,24 @@ export class RichTextLabel {
     }
 
     /**
+     * Whether this label draws any of its words in one of some font families: its own font, or one
+     * a `<font>` tag in its words names.
+     * @param families - Family names, as {@link fontFamilies} gives them.
+     * @returns True when it does.
+     * @internal
+     */
+    public usesFont(families: ReadonlySet<string>): boolean {
+        const fonts = new Set([this.options.font]);
+        for (const line of this.parsedContent) {
+            for (const segment of line) {
+                fonts.add(segment.style.font);
+            }
+        }
+
+        return [...fonts].some((font) => fontFamilies(font).some((family) => families.has(family)));
+    }
+
+    /**
      * Factory method to create a rich text label
      * @param scene - Babylon.js scene
      * @param userOptions - Label configuration options
@@ -701,6 +720,11 @@ export class RichTextLabel {
 
     private _create(): void {
         this._parseRichText();
+        // A web font still loading draws in its fallback: load it, and the label is rebuilt when it lands.
+        for (const { style } of this.parsedContent.flat()) {
+            noteLabelFont(this.scene, `${style.style} ${style.weight}`, style.font);
+        }
+
         this._calculateDimensions();
         this._createTexture();
         this._createMaterial();

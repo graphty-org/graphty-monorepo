@@ -557,7 +557,7 @@ describe("renderOnDemand", () => {
         assert.strictEqual(loopTicks(element).drawn - before, 0, "no frame for the issue state");
         assert.isEmpty(element.session.data.issues(), "the issue is ignored");
 
-        const drawn = loopTicks(element).drawn;
+        const { drawn } = loopTicks(element);
         await element.session.styles.add({
             name: "Red",
             target: "node",

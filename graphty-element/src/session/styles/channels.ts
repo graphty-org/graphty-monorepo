@@ -3548,13 +3548,15 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The label laid out as a table of cells, as an HTML-like table is: JSON " +
             '`{ "rows": [{ "cells": [{ "lines": [{ "text": "a" }] }, { "lines": [{ "text": "b" }] }] }] }` is two ' +
             "cells side by side. The table may give `border`, `cellBorder`, `cellSpacing`, `cellPadding`, " +
-            "`width`, `height`, `fixedSize`, `align`, `valign` and `lineHeight` (a text line's height as a multiple " +
-            "of the label's size); a row `rule` (a line above it); a cell `colspan`, `rowspan`, `width`, " +
+            "`width`, `height`, `fixedSize`, `align`, `valign`, `lineHeight` (a text line's height as a multiple " +
+            "of the label's size, or `\"font\"`: its font's ascent plus descent, each rounded up to whole " +
+            "`textPixel`s when that is given) and `baseline` (how far a line's baseline sits below its top, as a " +
+            "multiple of the label's size; unset, its words are centered in it); a row `rule` (a line above it); a cell `colspan`, `rowspan`, `width`, " +
             "`height`, `fixedSize`, `align` (`left`, `right`, `center`, `text`), `valign`, `balign`, `border`, " +
             "`padding`, `rule` (a line on its left) and a `table` of its own in place of `lines`; a line `align`. " +
             "Lengths are in the units of `node.size`, a line's `text` in label markup. Drawn in place of the " +
             "label's words, in the label's font: each cell's outline a line in the border's color " +
-            "(`node.shapeLineWidth` wide, else the cell's border), each text line centered in its place. With " +
+            "(`node.shapeLineWidth` wide, else the cell's border), each text line in its place. With " +
             "`node.labelFit` the table is the label's box the node grows round.",
     },
     "node.shapeLineWidth": {

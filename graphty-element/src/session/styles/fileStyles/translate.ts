@@ -1343,6 +1343,7 @@ const TABLE_LENGTHS = [
     "height",
     "padding",
     "imagePixel",
+    "textPixel",
 ] as const;
 
 /**

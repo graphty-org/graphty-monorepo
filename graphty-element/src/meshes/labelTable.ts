@@ -68,7 +68,18 @@ export interface LabelTable {
     readonly valign?: TableVAlign;
     /** Its background color. */
     readonly fill?: string;
-    readonly lineHeight?: number;
+    /**
+     * How tall a text line is: a multiple of its font size (unset, 1), or `"font"`, its font's ascent plus its
+     * descent, each rounded up to whole `textPixel`s when that is given.
+     */
+    readonly lineHeight?: number | "font";
+    /** The length a line's ascent and descent are each rounded up to whole ones of (`lineHeight: "font"`). */
+    readonly textPixel?: number;
+    /**
+     * How far a line's baseline sits below the line's top, as a multiple of its font size; unset, the line's words
+     * are centered in it.
+     */
+    readonly baseline?: number;
     /**
      * How long each of a picture's own pixels is when a cell that is not fixed is sized by it; unset, as it is drawn
      * (its `pixelSize`, else 1).
@@ -94,7 +105,7 @@ export interface TableDrawing {
     readonly frames: readonly (TableBox & { readonly border: number })[];
     /** The rules between rows and cells (`<HR/>`, `<VR/>`), each from one point to the other. */
     readonly rules: readonly (readonly [number, number, number, number])[];
-    /** Every line of text, centered on its point. */
+    /** Every line of text, its words centered on their point. */
     readonly texts: readonly { readonly x: number; readonly y: number; readonly text: string }[];
     /** Every background, the table's own first, each table's before its cells': the box it fills and its color. */
     readonly fills: readonly (TableBox & { readonly color: string })[];
@@ -106,16 +117,22 @@ export interface TableDrawing {
     })[];
 }
 
-/** A text's width and height, measured: the height one line of the label's font size. */
-export type MeasureText = (text: string) => { width: number; height: number };
+/**
+ * A text's width and height, measured: the height one line of the label's font size; and, where the measure knows
+ * them, its ascent and descent, how far its ink reaches above and below its baseline. Its words are drawn centered
+ * on their point, so their baseline sits half the ascent less the descent below it.
+ */
+export type MeasureText = (text: string) => { width: number; height: number; ascent?: number; descent?: number };
 
 /** A picture's own width and height in pixels, once known; null while it is read and when it cannot be. */
 export type MeasurePicture = (src: string) => { width: number; height: number } | null;
 
-/** What a table is sized by: its texts, how tall a line is as a multiple of a text's height, and its pictures. */
+/** What a table is sized by: its texts, how its lines are set, and its pictures. */
 interface Measures {
     readonly text: MeasureText;
-    readonly lineHeight: number;
+    readonly lineHeight: number | "font";
+    readonly textPixel: number;
+    readonly baseline: number | undefined;
     /** A cell's picture's size in the table's lengths, or null while it is not known. */
     readonly picture: (image: LabelTableImage) => { width: number; height: number } | null;
 }
@@ -130,7 +147,16 @@ interface Placed {
     readonly width: number;
     readonly height: number;
     readonly inner: Sized | null;
-    readonly lines: readonly { text: string; align?: string; width: number; height: number }[];
+    readonly lines: readonly Line[];
+}
+
+/** A line of a cell's text, measured: its height, and how far below its top its words' middle sits. */
+interface Line {
+    readonly text: string;
+    readonly align?: string;
+    readonly width: number;
+    readonly height: number;
+    readonly middle: number;
 }
 
 /** A table sized: its grid's columns and rows, its cells, its own size. */
@@ -272,10 +298,7 @@ function sizeCell(
     depth: number,
 ): Placed {
     const inner = cell.table !== undefined && depth < MAX_DEPTH ? sizeTable(cell.table, measure, depth + 1) : null;
-    const lines = (inner === null ? (cell.lines ?? []) : []).map((line) => {
-        const m = measure.text(line.text);
-        return { text: line.text, align: line.align, width: m.width, height: m.height * measure.lineHeight };
-    });
+    const lines = (inner === null ? (cell.lines ?? []) : []).map((line) => setLine(line, measure));
     // a cell holding a picture holds the picture's own size, once it is known
     const fixed = isFixed(cell);
     const picture = inner === null && !fixed && hasPicture(cell) ? measure.picture(cell.image) : null;
@@ -293,6 +316,31 @@ function sizeCell(
         width: fixed ? len(cell.width) : Math.max(content.width + margin, len(cell.width)),
         height: fixed ? len(cell.height) : Math.max(content.height + margin, len(cell.height)),
     };
+}
+
+/**
+ * Measures a line and sets it as Graphviz sets an HTML-like label's line (lib/common/htmltable.c `size_html_txt`,
+ * `emit_htextspans`): as tall as its font's ascent and descent, each rounded up to whole pixels by its text layout
+ * (`lineHeight: "font"`, `textPixel`), its baseline a set share of its font size below its top (`baseline`); the
+ * words, drawn centered on their point, go half their ascent less their descent above that baseline.
+ * @param line - the line
+ * @param measure - measures its text and says how lines are set
+ * @returns the line, measured
+ */
+function setLine(line: LabelTableLine, measure: Measures): Line {
+    const m = measure.text(line.text);
+    const { ascent, descent } = m;
+    const font = typeof ascent === "number" && typeof descent === "number" && ascent + descent > 0;
+    const px = measure.textPixel;
+    // the epsilon keeps a length already on the grid from rounding up a whole pixel more
+    const up = (v: number): number => (px > 0 ? Math.ceil(v / px - 1e-6) * px : v);
+    let height = m.height * (typeof measure.lineHeight === "number" ? measure.lineHeight : 1);
+    if (measure.lineHeight === "font" && font) {
+        height = up(ascent) + up(descent);
+    }
+    const middle =
+        measure.baseline !== undefined && font ? measure.baseline * m.height - (ascent - descent) / 2 : height / 2;
+    return { text: line.text, align: line.align, width: m.width, height, middle };
 }
 
 /**
@@ -479,7 +527,7 @@ function placeCell(table: LabelTable, p: Placed, box: TableBox, out: Collected):
     let ty = lineUp(inner.y, inner.height, textHeight, down(cell.valign));
     for (const line of p.lines) {
         const lx = lineUp(tx, tw, line.width, across(line.align ?? cell.balign));
-        out.texts.push({ x: lx + line.width / 2, y: ty + line.height / 2, text: line.text });
+        out.texts.push({ x: lx + line.width / 2, y: ty + line.middle, text: line.text });
         ty += line.height;
     }
 }
@@ -488,7 +536,7 @@ function placeCell(table: LabelTable, p: Placed, box: TableBox, out: Collected):
  * Lays a table out: its size, and where its cells' outlines, its rules and its text lines go, from its top left
  * corner, y down.
  * @param table - the table
- * @param measure - measures a text: its width, and one line's height at the label's size
+ * @param measure - measures a text: its width, one line's height at the label's size, its ascent and descent
  * @param picture - a picture's own size in pixels, once known; a cell holding a picture is sized by it
  * @returns what it draws
  */
@@ -497,10 +545,12 @@ export function layoutLabelTable(
     measure: MeasureText,
     picture: MeasurePicture = () => null,
 ): TableDrawing {
-    const lineHeight = typeof table.lineHeight === "number" && table.lineHeight > 0 ? table.lineHeight : 1;
+    const { lineHeight, baseline } = table;
     const sizing: Measures = {
         text: measure,
-        lineHeight,
+        lineHeight: lineHeight === "font" || (typeof lineHeight === "number" && lineHeight > 0) ? lineHeight : 1,
+        textPixel: len(table.textPixel),
+        baseline: typeof baseline === "number" && Number.isFinite(baseline) ? baseline : undefined,
         picture: (image) => {
             const own = picture(image.src);
             const each = len(table.imagePixel) || len(image.pixelSize) || 1;

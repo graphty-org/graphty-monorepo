@@ -949,12 +949,8 @@ function readNodeLabel(n: NodeRead, label: string | null, shown: string, names: 
         readLabelAlign(label, names, cx.html, RECORD.has(shape), put);
         readHtmlRuns(label, cx.html, n.scheme, put, at);
         if (n.table !== null) {
-            // Graphviz's text line is its line height (LINESPACING) of font sizes tall
-            // a cell sized by its picture counts each of its pixels as Graphviz does
-            put(
-                "labelTable",
-                JSON.stringify({ ...n.table.cells, lineHeight: HTML_LINE_SPACING, imagePixel: IMAGE_POINTS_PER_PIXEL }),
-            );
+            // a text line set as Graphviz sets it; a cell sized by its picture counts each of its pixels as Graphviz does
+            put("labelTable", JSON.stringify({ ...n.table.cells, ...HTML_LINE, imagePixel: IMAGE_POINTS_PER_PIXEL }));
         }
         if (cx.cluster) {
             put("labelPosition", clusterLabelPosition(get));
@@ -1880,14 +1876,14 @@ const LABEL_PAD = { x: 8, y: 4 } as const;
 const LINE_SPACING = 1.2;
 
 /**
- * How tall Graphviz makes a line of an HTML-like table's text, as a multiple of its font size: not `LINESPACING`, but
- * the line box its text layout gives the font, each of its ascent and descent rounded up to whole pixels at 96 dpi
- * (DejaVu Sans at 10 points: 13 and 4 pixels, 12.75 points; dot-specimen-labels-p2 html-td-balign-left draws its two
- * lines 12.75 points apart).
- * ponytail: one ratio, DejaVu Sans's at 10 points, for every font and size; the element measuring the font's own
- * ascent and descent would carry it to others
+ * How Graphviz 14 sets a line of an HTML-like label's text (lib/common/htmltable.c `size_html_txt`, `emit_htextspans`;
+ * plugin/pango/gvtextlayout_pango.c): the line is as tall as its pango layout, the font's ascent and descent each
+ * rounded up to whole pixels at 96 dpi (0.75 points; DejaVu Sans at 10 points: 13 and 4 pixels, 12.75 points), and its
+ * baseline one font size below the line's top, drawn 0.05 font sizes higher (`yoffset_centerline`): 9.5 points at 10.
+ * ponytail: a line of several runs or fonts (Graphviz's not `simple` text) is set 1 point higher still; carry it per
+ * cell when a file mixes runs in a table's cell
  */
-const HTML_LINE_SPACING = 1.275;
+const HTML_LINE = { lineHeight: "font", textPixel: IMAGE_POINTS_PER_PIXEL, baseline: 0.95 } as const;
 
 /**
  * Reads how a node that is not drawn at a fixed size grows to hold its label (`poly_init`, lib/common/shapes.c):

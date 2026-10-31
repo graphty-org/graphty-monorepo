@@ -31,9 +31,9 @@ import {
     serverKinds,
     serverRequest,
     START_WORDS,
-    STARTER_QUERY,
     withExample,
     withoutExample,
+    withStart,
 } from "./commands";
 import { CodeChip, PreviewRows } from "./PreviewRows";
 import { failureOf } from "./words";
@@ -430,7 +430,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                         data={samples.map((each) => ({ value: each.id, label: each.plainName }))}
                         value={samples.find((each) => each.plainName === form.example)?.id ?? null}
                         onChange={(id) => {
-                            refill(id === null ? withoutExample(entry, form) : withExample(entry, form, id));
+                            refill(withExample(entry, form, id));
                         }}
                     />
                 </Row>
@@ -494,16 +494,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                         }))}
                         value={typeof form.params.mode === "string" ? form.params.mode : (modes[0]?.value ?? "")}
                         onChange={(mode) => {
-                            const query = descriptor.params.find((p) => p.type === "query");
-                            const starter = query?.language === undefined ? undefined : STARTER_QUERY[query.language];
-                            const fill =
-                                mode === "query" &&
-                                query !== undefined &&
-                                starter !== undefined &&
-                                !form.params[query.name]
-                                    ? { [query.name]: starter }
-                                    : {};
-                            change({ params: { ...form.params, ...fill, mode } });
+                            change({ params: withStart(entry, form, mode).params });
                         }}
                     />
                 </Row>

@@ -151,10 +151,13 @@ export function formReady(entry: SourceCatalogEntry, form: ServerFormState): boo
  * picks it from the endpoint when the example names none). The reader's Start is kept.
  * @param entry - the source.
  * @param form - the form now.
- * @param id - the example's id.
- * @returns the filled form, or the form unchanged for an unknown id.
+ * @param id - the example's id; null clears the example.
+ * @returns the filled form, the form with no example for null, or the form unchanged for an unknown id.
  */
 export function withExample(entry: SourceCatalogEntry, form: ServerFormState, id: string | null): ServerFormState {
+    if (id === null) {
+        return withoutExample(entry, form);
+    }
     const samples = entry.descriptor.samples ?? [];
     const sample = samples.find((each) => each.id === id);
     if (sample === undefined) {
@@ -222,6 +225,23 @@ export function withoutExample(entry: SourceCatalogEntry, form: ServerFormState)
         user: untouched(form.user, login?.username ?? "") ? "" : form.user,
         secret: untouched(form.secret, login?.password ?? "") ? "" : form.secret,
     };
+}
+
+/**
+ * The form with a new Start: a Query start gets the starter query when its box is empty.
+ * @param entry - the source.
+ * @param form - the form now.
+ * @param mode - the Start picked.
+ * @returns the form.
+ */
+export function withStart(entry: SourceCatalogEntry, form: ServerFormState, mode: string): ServerFormState {
+    const query = entry.descriptor.params.find((p) => p.type === "query");
+    const starter = query?.language === undefined ? undefined : STARTER_QUERY[query.language];
+    const fill =
+        mode === "query" && query !== undefined && starter !== undefined && !form.params[query.name]
+            ? { [query.name]: starter }
+            : {};
+    return { ...form, params: { ...form.params, ...fill, mode } };
 }
 
 /**

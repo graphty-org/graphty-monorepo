@@ -1802,8 +1802,10 @@ function readLabelFit(
     if (typeof table?.height === "number") {
         put("height", num6(Math.max(table.height + 2 * marginY, least.h)));
     }
-    // a decorated box holds its label as a box does, exactly
-    put("labelFit", GRAPHVIZ_DECORATED_BOXES.has(shape) ? "bounds" : "inside");
+    // a decorated box holds its label as a box does, exactly; so does a cylinder, its width (`cylinder_size`).
+    // ponytail: Graphviz grows a cylinder's padded height 1.375 times too, which only a label over about 26 points
+    // tall reaches past the default height; carry it when a sample needs it
+    put("labelFit", GRAPHVIZ_DECORATED_BOXES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
     put("labelPaddingX", num6(padX));
     put("labelPaddingY", num6(padY + ((LINE_SPACING - 1) * fontSize * lines) / 2));
     if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {

@@ -130,6 +130,14 @@ describe("DOT styles: outlines and shapes", () => {
         expect((await nodes(doc, "stripeDirection")).cluster_s).toBe("right");
     });
 
+    it("holds a cylinder's label as a box does, its width exactly the padded label", async () => {
+        const fit = await nodes(
+            `digraph { c [shape=cylinder, label="cylinder"]; h [shape=house, label="house"] }`,
+            "labelFit",
+        );
+        expect([fit.c, fit.h]).toEqual(["bounds", "inside"]);
+    });
+
     it("turns a box by its orientation into the polygon Graphviz draws", async () => {
         const doc = `digraph { a [shape=box, orientation=30]; b [shape=box, orientation=90]; c [shape=box] }`;
         const shape = await nodes(doc, "shape");

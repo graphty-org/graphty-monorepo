@@ -111,6 +111,22 @@ describe("labelFitExtent", () => {
         assert.deepEqual(short, { width: 50, height: 20 });
     });
 
+    it("fits the box of a polygon whose corners carry lengths, which do not grow or draw it in", () => {
+        // a terminator: a glyph a fixed size in the middle, its baseline across the node
+        const fitted = labelFitExtent(
+            {
+                type: "polygon",
+                points: "0+3,0 0+3,0+6 0+9,0+6 0+9,0+12 0-9,0+12 0-9,0+6 0-3,0+6 0-3,0",
+                stretchPoints: false,
+                labelFit: "bounds",
+                width: 54,
+                height: 36,
+            },
+            { width: 100, height: 40 },
+        );
+        assert.deepEqual(fitted, { width: 100, height: 40 });
+    });
+
     it("never shrinks a node below its own size for a short label", () => {
         assert.deepEqual(labelFitExtent({ type: "ellipse", labelFit: "inside", width: 54, height: 36 }, box), {
             width: 54,

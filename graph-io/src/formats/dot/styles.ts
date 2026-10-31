@@ -64,11 +64,12 @@ import type {
 import type { LossNote } from "../../types.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
 import {
-    GRAPHVIZ_DECORATED_BOXES,
+    type GlyphPoint,
     GRAPHVIZ_GLYPH_SHAPES,
     GRAPHVIZ_POLYGON_SHAPES,
     graphvizFont,
     graphvizFontName,
+    type GraphvizGlyph,
     graphvizGlyph,
     graphvizPolygonCorners,
     isGraphvizBox,
@@ -1540,8 +1541,9 @@ const NAMED_OUTLINES: ReadonlyMap<string, string> = new Map(
 
 /**
  * A Graphviz shape drawn as pieces of its own (`graphvizGlyph`) at a node's size, as the neutral values that draw it:
- * a polygon of its outline drawn where it says, its further pieces (`shapeParts`) and lines (`shapeLines`), each as
- * fractions of the node's half width and half height. An `underline` is filled with no line round it, its line alone
+ * a polygon of its outline drawn where it says, its further pieces (`shapeParts`) and lines (`shapeLines`), each
+ * coordinate a fraction of the node's half width or half height plus a length in points (`-1+24`), so the pieces keep
+ * their sizes when the node grows to hold its label. An `underline` is filled with no line round it, its line alone
  * drawn in the pen's width.
  * @param shape - the shape name, lowercase
  * @param width - the node's width in points, or null for Graphviz's default
@@ -1596,17 +1598,34 @@ function glyphTexts(
     if (glyph === null) {
         return null;
     }
-    // fractions of the half width and half height the glyph was laid out at
+    // each coordinate is a * W + b: a fraction of the half width (or height) plus a length in points, read off the
+    // glyph laid out again at twice the width and at twice the height
     const half = (v: number | null, fallback: number): number => (v !== null && v > 0 ? v : fallback) / 2;
     const [W, H] = [half(width, 54), half(height, 36)];
-    const list = (points: readonly (readonly [number, number])[]): string =>
-        cornersText(points.map(([x, y]) => [x / W, y / H] as const));
-    const lists = (all: readonly (readonly (readonly [number, number])[])[]): string | null =>
-        all.length === 0 ? null : all.map(list).join("; ");
+    const wide = graphvizGlyph(shape, 4 * W, 2 * H);
+    const tall = graphvizGlyph(shape, 2 * W, 4 * H);
+    if (wide === null || tall === null) {
+        return null;
+    }
+    const term = (v: number, grown: number, by: number): string => {
+        const a = num6((grown - v) / by);
+        const b = num6(v - a * by);
+        if (b === 0) {
+            return String(a);
+        }
+        return `${String(a)}${b > 0 ? "+" : ""}${String(b)}`;
+    };
+    const pieces = (pick: (g: GraphvizGlyph) => readonly (readonly GlyphPoint[])[]): string | null => {
+        const [at, x2, y2] = [pick(glyph), pick(wide), pick(tall)];
+        const text = at.map((points, i) =>
+            points.map(([x, y], j) => `${term(x, x2[i][j][0], W)},${term(y, y2[i][j][1], H)}`).join(" "),
+        );
+        return text.length === 0 ? null : text.join("; ");
+    };
     return {
-        outline: list(glyph.outline),
-        parts: lists(glyph.parts),
-        lines: lists(glyph.lines),
+        outline: pieces((g) => [g.outline]) ?? "",
+        parts: pieces((g) => g.parts),
+        lines: pieces((g) => g.lines),
         unstroked: glyph.unstroked === true,
         ring: glyph.ring ?? null,
     };
@@ -1790,10 +1809,11 @@ function readLabelFit(
     if (typeof table?.height === "number") {
         put("height", num6(Math.max(table.height + 2 * marginY, least.h)));
     }
-    // a decorated box holds its label as a box does, exactly; so does a cylinder, its width (`cylinder_size`).
+    // a decorated box and a synthetic-biology glyph (four-sided, Graphviz's `isBox`) hold their label as a box does,
+    // exactly; so does a cylinder, its width (`cylinder_size`).
     // ponytail: Graphviz grows a cylinder's padded height 1.375 times too, which only a label over about 26 points
     // tall reaches past the default height; carry it when a sample needs it
-    put("labelFit", GRAPHVIZ_DECORATED_BOXES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
+    put("labelFit", GRAPHVIZ_GLYPH_SHAPES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
     put("labelPaddingX", num6(padX));
     put("labelPaddingY", num6(padY + ((LINE_SPACING - 1) * fontSize * lines) / 2));
     if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {

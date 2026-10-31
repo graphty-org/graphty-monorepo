@@ -238,7 +238,9 @@ export interface NodeStyleValues {
     /**
      * A `polygon` node's corners, each as `x,y` relative to the node's center as fractions of its half width and half
      * height, y up, separated by spaces: `"0,1 1,-1 -1,-1"` is a triangle filling the box. A corner past 1 reaches
-     * outside the box; a node that grows to hold its label (`labelFit`) then grows as far as its corners reach.
+     * outside the box; a node that grows to hold its label (`labelFit`) then grows as far as its corners reach. A
+     * coordinate may add a length in the units of `width` after its fraction, kept whatever the node's size: `"-1+24"`
+     * is 24 in from the left side (Graphviz's synthetic-biology glyphs).
      */
     readonly shapePoints: string;
     /**

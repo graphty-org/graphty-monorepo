@@ -66,6 +66,9 @@ const MAX_TERMS = 8;
 
 /** The key of the copy graph-io writes of a data column a format cannot keep, and the column it copies. */
 const CARRIED_INPUT = /^input\.(?:[^.]+\.)?data\.(.+)$/;
+
+/** A length added to a shape point's fraction (`-1+24`): the digit before it, and the signed length. */
+const SHAPE_POINT_LENGTH = /([\d.])([+-](?:\d+\.?\d*|\.\d+))/g;
 /** A mapping table with more keys present than this is kept as values per element. */
 const MAX_TABLE_KEYS = 256;
 /** The key `ext` carries graphty-element's own layer under, in a file graphty wrote. */
@@ -514,6 +517,19 @@ function channelPlans(
             ? {}
             : { nearest: (value: StyleValue) => typeof value === "string" && nearest.has(value) }),
     });
+    // a shape's points in fractions, their lengths (`-1+24`) in the file's lengths, converted as every length is
+    const points = (channel: Channel, factor = factors[kind]): ChannelPlan => ({
+        channel,
+        convert: (value) =>
+            typeof value === "string"
+                ? value.replace(
+                      SHAPE_POINT_LENGTH,
+                      (_all, before: string, length: string) =>
+                          `${before}${length.startsWith("-") ? "" : "+"}${String(round(Number(length) * factor))}`,
+                  )
+                : null,
+        identity: factor === 1,
+    });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
     const stack = (channel: Channel): ChannelPlan => ({
         channel,
@@ -605,10 +621,10 @@ function channelPlans(
                 ],
             ],
             [CORNER_CAP, [length("node.cornerRadius")]],
-            ["shapePoints", [id("node.shapePoints")]],
+            ["shapePoints", [points("node.shapePoints")]],
             ["shapePointsStretch", [id("node.shapeStretchPoints")]],
-            ["shapeParts", [id("node.shapeParts")]],
-            ["shapeLines", [id("node.shapeLines")]],
+            ["shapeParts", [points("node.shapeParts")]],
+            ["shapeLines", [points("node.shapeLines")]],
             ["shapeTexts", [id("node.shapeTexts")]],
             ["shapeLineWidth", [length("node.shapeLineWidth")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.

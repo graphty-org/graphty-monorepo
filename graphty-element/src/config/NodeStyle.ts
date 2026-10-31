@@ -259,7 +259,10 @@ export const NodeStyle = z.strictObject({
             // node's center as fractions of its half width and half height, y up ("0,1 1,-1 -1,-1"
             // is a triangle). The outline is stretched so its farthest corners reach the node's
             // sides. A node that grows to hold its label (`labelFit`) grows by as far as its corners
-            // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it.
+            // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it. A coordinate may
+            // add a length in the units of `size` after its fraction, so a piece keeps its size whatever the
+            // node's: "-1+24" is 24 in from the left side, "0+6" 6 above the middle (here, in `parts` and in
+            // `lines`).
             points: z.string().optional(),
             // Whether a "polygon" node's corners are stretched about its center until the farthest
             // on each axis reach its sides (unset or true), or drawn exactly where they say, as

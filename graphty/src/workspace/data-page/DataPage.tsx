@@ -49,8 +49,9 @@ import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
 import { openProjectFile } from "../project/actions";
+import { replaceWith } from "../replace/commands";
 import { writeFileStylesChoice } from "../settings/preferences";
-import { readPasted } from "../start/open";
+import { incomingFiles, readPasted } from "../start/open";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
@@ -70,7 +71,7 @@ import {
     setWeightMeaning,
     weightHolder,
 } from "./choices";
-import { canReplace, rememberLoad, replaceSource, takeDataPageRequest, whileDataPageOpen } from "./request";
+import { canReplace, rememberLoad, takeDataPageRequest, whileDataPageOpen } from "./request";
 import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
 import {
     addWords,
@@ -398,6 +399,8 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     // An addition whose edges repeat the graph's says so, and offers the source menu's Replace
     // with this file beside Load, when the graph's one source can be replaced. When every edge
     // in the file repeats, Load would only double the graph's edges, so Replace is the primary.
+    // Replace replaces at once, as opening a copy of the source does, with a receipt and Undo:
+    // the page already showed the file, and a load can be undone, so nothing asks again.
     const repeats = request.intent === "add" ? (page.report?.repeated.seen ?? 0) : 0;
     const sources = repeats > 0 && session !== null ? session.data.sources() : [];
     const file = page.source?.kind === "files" && page.source.files.length === 1 ? page.source.files[0] : undefined;
@@ -407,7 +410,10 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
                   label: `Replace ${sources[0].name ?? "the data"}`,
                   primary: repeats >= (page.report?.counts.edgeRecords ?? Infinity),
                   run: () => {
-                      replaceSource(store, sources[0], file);
+                      if (session !== null) {
+                          store.set({ page: "panels" });
+                          void replaceWith(store, session, sources[0].key, incomingFiles([file]));
+                      }
                   },
               }
             : null;

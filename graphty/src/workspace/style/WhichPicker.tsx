@@ -903,11 +903,16 @@ function Cards({
     }, [fields, initial, base]);
 
     // A card with no value yet is not written: closing the cards (Done, Enter, Escape, a click
-    // elsewhere) drops it, and says so. Held cards stay as the caller holds them.
+    // elsewhere) drops it, and says so. Held cards stay as the caller holds them. Conditions that
+    // together leave nothing are kept, as the reader wrote them, but said: closed, the layer would
+    // otherwise style nothing with no word of why.
     const holding = holder !== undefined;
     useEffect(
         () => () => {
-            const dropped = holding ? [] : latest.current.filter((each) => !isFinished(each.card));
+            if (holding) {
+                return;
+            }
+            const dropped = latest.current.filter((each) => !isFinished(each.card));
             if (dropped.length > 0) {
                 store.set({
                     notice: {
@@ -917,9 +922,14 @@ function Cards({
                                 : `Dropped ${String(dropped.length)} conditions that were not finished`,
                     },
                 });
+                return;
+            }
+            const message = leavesNoneWords(session, drawn.current, latest.current, side);
+            if (message !== undefined) {
+                store.set({ notice: { message } });
             }
         },
-        [store, holding],
+        [store, holding, session, side],
     );
     const head = useHead(session, rows, side, holder === undefined ? undefined : list.map((each) => each.card));
     const matched = rows.length === 1 ? session.styles.counts(rows[0].layer.id).matched : undefined;
@@ -1129,6 +1139,33 @@ function useStepWriter(
                 });
         },
     };
+}
+
+/**
+ * When one layer's cards close: what to say when its conditions leave it nothing to style.
+ * @param session - the element's session.
+ * @param rows - the rows the cards wrote.
+ * @param shown - the cards as last edited.
+ * @param side - nodes or edges.
+ * @returns "No node passes the phone condition, so phone contains missing styles nothing", or undefined.
+ */
+function leavesNoneWords(
+    session: GraphSession,
+    rows: readonly PickRow[],
+    shown: readonly Shown[],
+    side: Side,
+): string | undefined {
+    const [row] = rows;
+    const conditions = shown.filter((each) => each.card.type !== "ends");
+    if (rows.length !== 1 || conditions.length === 0 || session.styles.get(row.layer.id) === undefined) {
+        return undefined;
+    }
+    if (session.styles.counts(row.layer.id).matched !== 0) {
+        return undefined;
+    }
+    const what = conditions.length === 1 ? `the ${cardName(conditions[0].card)} condition` : "every condition together";
+    const name = session.styles.get(row.layer.id)?.name ?? row.name;
+    return `No ${NOUN[side].one} passes ${what}, so ${name} styles nothing`;
 }
 
 /**

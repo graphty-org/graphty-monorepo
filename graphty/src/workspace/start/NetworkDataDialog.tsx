@@ -1,5 +1,5 @@
 import { FileSource } from "@graphty/compact-mantine";
-import { Modal, UnstyledButton } from "@mantine/core";
+import { Anchor, Modal, Text, UnstyledButton } from "@mantine/core";
 import type React from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -12,8 +12,9 @@ const SOURCES = [
 ] as const;
 
 /**
- * Open network data: the network sources, each of which opens the server form, and a web address
- * (or a file from this computer) to open.
+ * Open network data: the network sources, each of which opens the server form, a web address
+ * (or a file from this computer) to open, and a plain way to Open a file for a reader who came
+ * here with a file on this computer.
  * @param props - Component props
  * @param props.opened - Whether the chooser is open
  * @param props.scheme - The page's color scheme
@@ -21,6 +22,7 @@ const SOURCES = [
  * @param props.onOpenLink - Opens the graph file at an address
  * @param props.onOpenFiles - Opens files chosen or dropped on the address row
  * @param props.onOpenServer - Opens the server form
+ * @param props.onOpenFile - Opens the browser's file picker, as Open a file does
  * @returns The chooser
  */
 export function NetworkDataDialog({
@@ -30,6 +32,7 @@ export function NetworkDataDialog({
     onOpenLink,
     onOpenFiles,
     onOpenServer,
+    onOpenFile,
 }: Readonly<{
     opened: boolean;
     scheme: "light" | "dark";
@@ -37,6 +40,7 @@ export function NetworkDataDialog({
     onOpenLink: (url: string) => void;
     onOpenFiles: (files: File[]) => void;
     onOpenServer: () => void;
+    onOpenFile: () => void;
 }>): React.JSX.Element {
     return (
         <Modal.Root opened={opened} onClose={onClose} centered size={520} radius={16} padding={0}>
@@ -69,6 +73,12 @@ export function NetworkDataDialog({
                             onUrl={onOpenLink}
                             onFiles={onOpenFiles}
                         />
+                        <Text size="sm" c="dimmed">
+                            A file on this computer?{" "}
+                            <Anchor component="button" size="sm" onClick={onOpenFile}>
+                                Open a file...
+                            </Anchor>
+                        </Text>
                     </div>
                 </div>
             </Modal.Content>

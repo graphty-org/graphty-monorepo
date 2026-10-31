@@ -3,7 +3,8 @@
  * the file's edges the graph already holds (the element's `repeated.seen`) and offers to replace
  * the graph's source with the file, beside Load, and Load's description carries that warning. A file with no repeated edge shows neither.
  * When every edge in the file repeats, Load would only double them, so Replace is the primary
- * button and takes the focus; when some edges are new, Load stays the primary.
+ * button and takes the focus, and replaces at once with no second page; when some edges are new,
+ * Load stays the primary.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -104,13 +105,19 @@ describe("Add a file whose edges the graph already holds", () => {
         });
         await userEvent.click(screen.getByRole("button", { name: "Replace friends.csv" }));
 
-        await screen.findByRole("heading", { name: "Replace: friends-v2.csv" });
-        await screen.findByTestId("replace-report", {});
-        assert.isNull(screen.queryByTestId("repeats"), "a replace repeats nothing");
-        await userEvent.click(screen.getByRole("button", { name: "Replace" }));
+        // Replace replaces at once, with no second page asking again (a load can be undone).
         await waitFor(() => {
             assert.strictEqual(store.get().page, "panels");
             assert.strictEqual(live.data.statistics().edgeCount, 41);
+        });
+        assert.isNull(screen.queryByRole("heading", { name: "Replace: friends-v2.csv" }), "no second page");
+        assert.match(store.get().notice?.message ?? "", /^Replaced friends\.csv with friends-v2\.csv/);
+        // One Undo takes the replace back.
+        await act(async () => {
+            await live.undo();
+        });
+        await waitFor(() => {
+            assert.strictEqual(live.data.sources()[0]?.name, "friends.csv");
         });
     });
 });

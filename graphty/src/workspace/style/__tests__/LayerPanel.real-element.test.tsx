@@ -137,6 +137,21 @@ describe("the layer panel", () => {
         });
     });
 
+    it("keeps a text condition that matches no node on Enter, and says the layer styles nothing", async () => {
+        const { session } = await openScene();
+        const where = { kind: "text" as const, reads: "data.name", mode: "substring" as const, text: "Co" };
+        const layer = await openLayer(session, { name: "Group one", selector: { match: "rule", where } });
+        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+        const region = await screen.findByRole("group", { name: "Which nodes" });
+        const box = await within(region).findByRole("combobox", { name: "name: text to match" });
+        await userEvent.clear(box);
+        await userEvent.type(box, "missing{Enter}");
+        await noticeSays(/^No node passes the name condition, so .+ styles nothing/);
+        // Kept as the reader wrote it: the warning does not take the condition back.
+        assert.equal(session.styles.counts(layer.id).matched, 0);
+        assert.isNull(screen.queryByRole("group", { name: "Which nodes" }), "the cards closed");
+    });
+
     it("an unfinished card shows no count and, dropped by Done, is said", async () => {
         const { session } = await openScene();
         await openLayer(session, { name: "Plain", selector: { match: "everything" } });

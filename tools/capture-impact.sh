@@ -86,10 +86,12 @@ while read -r project storybook; do
             { echo "::error::$side capture of $project failed: see $out/$side/$project.log" >&2; tail -20 "$out/$side/$project.log" >&2; exit 1; }
     done
     # parity exits 1 when the captures differ; that is the finding, not a failure
-    lines=$(cd "$out/base/repo" && node visual-review/trusted/cli.mjs parity --project "$project" \
+    parity=$(cd "$out/base/repo" && node visual-review/trusted/cli.mjs parity --project "$project" \
         "$out/base/$project" "$out/head/$project" || true)
-    n=$(jq -s '[.[] | select(.summary) | .summary.different] | add // 0' <<<"$lines")
-    of=$(jq -s '[.[] | select(.summary) | .summary.compared] | add // 0' <<<"$lines")
+    # a story that failed alike on both sides (no picture either way) is not a changed picture
+    lines=$(jq -c 'select(.summary or (.first.capture == null and .second.capture == null and .first.status == .second.status) | not)' <<<"$parity")
+    n=$(jq -s 'length' <<<"$lines")
+    of=$(jq -s '[.[] | select(.summary) | .summary.compared] | add // 0' <<<"$parity")
     changed=$((changed + n))
     pictures=$((pictures + of))
     rows+=("| $project | $of | $n | $(tr ',' ' ' <<<"$ids" | wc -w) |")

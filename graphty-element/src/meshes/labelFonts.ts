@@ -54,7 +54,7 @@ export function fontFamilies(list: string): string[] {
         .map((family) =>
             family
                 .trim()
-                .replace(/^["']|["']$/g, "")
+                .replaceAll(/(^["'])|(["']$)/g, "")
                 .toLowerCase(),
         )
         .filter((family) => family !== "");

@@ -907,8 +907,13 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
         // size against the spaces Graphviz leaves between them (with `lengths: "file"`, one point is
         // one scene unit, so an inch is 72).
         const unit = graphviz && scale !== null ? POINTS_PER_UNIT * scale : scale;
-        const options =
-            (advice.id === "fixed" || graphviz) && unit !== null ? { ...advice.options, scale: unit } : advice.options;
+        // With no unit (the file's styles are not drawn, or size nothing) the element draws its own node size, not the
+        // size Graphviz gives the file's nodes, so Graphviz lays the nodes out at their drawn size (issue #5293).
+        const sized =
+            graphviz && unit === null && advice.options?.nodeSize === "label"
+                ? { ...advice.options, nodeSize: "drawn" }
+                : advice.options;
+        const options = (advice.id === "fixed" || graphviz) && unit !== null ? { ...sized, scale: unit } : sized;
         const layout = dispatch({
             op: "layout.set",
             id: advice.id,

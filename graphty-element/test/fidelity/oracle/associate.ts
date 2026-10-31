@@ -1093,6 +1093,29 @@ const lengths = new WeakMap<readonly Pt[], number>();
 const middles = new WeakMap<readonly Pt[], Pt[]>();
 const reversals = new WeakMap<readonly Pt[], Pt[]>();
 const drawnEnds = new WeakMap<PNode, WeakMap<readonly Pt[], Pt>>();
+const nodesById = new WeakMap<readonly PNode[], Map<string, PNode>>();
+
+/**
+ * The first node of a list with an id, as `nodes.find` gives it, from a map kept per list: an arrowhead's ends are
+ * looked up for every line it might cap, which searched the whole list each time (json-vis-siblings: 284 heads, 284
+ * lines, 200 nodes).
+ * @param nodes - the nodes
+ * @param id - the id
+ * @returns the node, or undefined
+ */
+function nodeById(nodes: readonly PNode[], id: string): PNode | undefined {
+    let byId = nodesById.get(nodes);
+    if (byId === undefined) {
+        byId = new Map();
+        for (const n of nodes) {
+            if (!byId.has(n.id)) {
+                byId.set(n.id, n);
+            }
+        }
+        nodesById.set(nodes, byId);
+    }
+    return byId.get(id);
+}
 
 function pathLength(pts: readonly Pt[]): number {
     let s = lengths.get(pts);
@@ -1238,11 +1261,7 @@ const endOf = (e: PEdge, end: "source" | "target"): Pt =>
  */
 function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[]): number {
     const id = end === "source" ? e.source : e.target;
-    const q = drawnEnd(
-        e.points,
-        end,
-        nodes.find((n) => n.id === id),
-    );
+    const q = drawnEnd(e.points, end, nodeById(nodes, id));
     return Math.min(...p.points.map((v) => Math.hypot(v[0] - q[0], v[1] - q[1])));
 }
 
@@ -1257,11 +1276,7 @@ function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNo
  */
 function alongGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[]): number {
     const id = end === "source" ? e.source : e.target;
-    const q = drawnEnd(
-        e.points,
-        end,
-        nodes.find((n) => n.id === id),
-    );
+    const q = drawnEnd(e.points, end, nodeById(nodes, id));
     const run = end === "source" ? e.points : reversedOf(e.points);
     const far = run.at(-1) ?? q;
     const len = Math.hypot(far[0] - q[0], far[1] - q[1]);
@@ -1513,11 +1528,18 @@ export function arrowheadEdge(
         const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
         const across =
             len > 0 ? Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / len : Infinity;
+        // the cheap tests first: this runs for every line
+        if (!(
+            across <= Math.max(1, 0.2 * size) &&
+            from(endOf(e, "source")) > size &&
+            from(endOf(e, "target")) > size
+        )) {
+            return Number.POSITIVE_INFINITY;
+        }
         // an end's arrowhead reaches its line's end, or, where the line runs on to the node's center, its outline:
         // measured along the line, as a crow's foot's tines reach the outline beside the line rather than on it
         const touches = alongGap(p, e, "source", nodes) <= 3 || alongGap(p, e, "target", nodes) <= 3;
-        const clear = !touches && from(endOf(e, "source")) > size && from(endOf(e, "target")) > size;
-        return clear && across <= Math.max(1, 0.2 * size) ? from(pointAlong(e.points, 0.5)) : Number.POSITIVE_INFINITY;
+        return touches ? Number.POSITIVE_INFINITY : from(pointAlong(e.points, 0.5));
     };
     const middle = nearestEnd(edges, (e) => middleGap(e), reach, ["middle"]);
     const held = ends !== null && ends.d <= 0.75 * size + 2;
@@ -1529,13 +1551,30 @@ export function arrowheadEdge(
     // the nearest tip gave 23 heads to a neighbor's line, leaving 20 lines headless); lines it lies on alike (two
     // edges drawn over one another, a line's two ends) go by the nearest tip
     const mid = (p.closed ? areaCentroid(p.points) : null) ?? c;
+    // both searches below measure the same tips and the same distances off each line: each is measured once
+    const tips = new Map<PEdge, { source?: number; target?: number }>();
+    const tipOf = (e: PEdge, end: "source" | "target"): number => {
+        let byEnd = tips.get(e);
+        if (byEnd === undefined) {
+            byEnd = {};
+            tips.set(e, byEnd);
+        }
+        return (byEnd[end] ??= tipGap(p, e, end, nodes));
+    };
+    const offs = new Map<PEdge, number>();
+    const offOf = (e: PEdge): number => {
+        let d = offs.get(e);
+        if (d === undefined) {
+            d = offPath(mid, e.points);
+            offs.set(e, d);
+        }
+        return d;
+    };
     const onLine = centerLines
-        ? nearestEnd(
-              edges,
-              (e, end) => (tipGap(p, e, end, nodes) <= 3 ? offPath(mid, e.points) : Number.POSITIVE_INFINITY),
-              Number.MAX_VALUE,
-              ["source", "target"],
-          )
+        ? nearestEnd(edges, (e, end) => (tipOf(e, end) <= 3 ? offOf(e) : Number.POSITIVE_INFINITY), Number.MAX_VALUE, [
+              "source",
+              "target",
+          ])
         : null;
     const best =
         (onLine === null
@@ -1543,8 +1582,8 @@ export function arrowheadEdge(
             : nearestEnd(
                   edges,
                   (e, end) => {
-                      const tip = tipGap(p, e, end, nodes);
-                      return tip <= 3 && offPath(mid, e.points) <= onLine.d + 0.5 ? tip : Number.POSITIVE_INFINITY;
+                      const tip = tipOf(e, end);
+                      return tip <= 3 && offOf(e) <= onLine.d + 0.5 ? tip : Number.POSITIVE_INFINITY;
                   },
                   3,
                   ["source", "target"],

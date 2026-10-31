@@ -26355,7 +26355,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 0.7,
             "label.present": 1,
-            "label.text": 0.875,
+            "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
@@ -26396,7 +26396,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.19,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -26407,7 +26407,8 @@
             "raster.edge": 0.99,
             "raster.label": 0.96,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.96,
+            "edge.wiggle": 1
         },
         "json-cyjs-sbgn-sciluna@matched": {
             "node.present": 1,
@@ -26425,7 +26426,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 0.7,
             "label.present": 1,
-            "label.text": 0.875,
+            "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
@@ -26466,12 +26467,13 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.19,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "json-cyjs-synth-edges": {
             "node.present": 1,

@@ -425,7 +425,13 @@ function rounded<T>(v: T): T {
 }
 
 const cmp = compareIds;
-const norm = (s: string): string => s.replace(/\s+/g, " ").trim();
+// a zero-width space or joiner draws nothing: Cytoscape.js's SVG folds them out of "HSPA8:\u200bSubstrate" and graphty
+// draws the label as the file spells it (json-cyjs-sbgn-sciluna's complex captions, #5118), so both sides drop them
+const norm = (s: string): string =>
+    s
+        .replace(/[\u200b-\u200d\u2060\ufeff]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
 
 /** A font's class, as a reader tells faces apart at a glance. */
 export type FontClass = "sans-serif" | "serif" | "monospace" | "cursive" | "fantasy" | "system-ui";
@@ -798,10 +804,8 @@ function wordsDrawnNear(words: string, box: PBox | null, texts: readonly { words
         const [x, y] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
         return x >= box.x0 - slack && x <= box.x1 + slack && y >= box.y0 - slack && y <= box.y1 + slack;
     };
-    // a zero-width space or joiner draws nothing (json-cyjs-sbgn-sciluna's "EEF1A1:\u200bGTP")
-    const bare = (w: string): string => w.replace(/[\u200b-\u200d\ufeff]/g, "");
-    const theirs = new Set(texts.filter((t) => near(t.box)).flatMap((t) => bare(t.words).split(" ")));
-    const mine = bare(words)
+    const theirs = new Set(texts.filter((t) => near(t.box)).flatMap((t) => norm(t.words).split(" ")));
+    const mine = norm(words)
         .split(" ")
         .filter((w) => w !== "");
     return mine.length > 0 && mine.filter((w) => theirs.has(w)).length >= mine.length / 2;

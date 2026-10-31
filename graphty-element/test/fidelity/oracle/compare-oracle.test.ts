@@ -1744,6 +1744,19 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.include(compareOracle("t", o, g).failures["stray.extra"] ?? [], "graphty:text#0");
     });
 
+    it("finds the program's words in a text graphty draws with zero-width spaces between them", () => {
+        // json-cyjs-sbgn-sciluna: Cytoscape.js's SVG reads "HSPA8:Substrate:LAMP2a" (its zero-width spaces folded),
+        // graphty draws the label as the file spells it, "HSPA8:\u200bSubstrate:\u200bLAMP2a" (#5118)
+        const o = sceneOf("oracle", 600, 400, grid());
+        o.texts = [text("HSPA8:Substrate:LAMP2a", 300, 201)];
+        const g = sceneOf("graphty", 600, 400, grid());
+        g.texts = [text("HSPA8:\u200bSubstrate:\u200bLAMP2a", 300, 201)];
+        assert.notInclude(failing(compareOracle("t", o, g)), "stray.present");
+        // planted: words graphty does not draw there still fail
+        g.texts = [text("HSPA8:\u200bSubstrate", 300, 201)];
+        assert.deepEqual(compareOracle("t", o, g).failures["stray.present"], ["text#0"]);
+    });
+
     it("matches a stray only to an annotation drawn over most of it", () => {
         const o = sceneOf("oracle", 600, 400, grid());
         o.strays = [

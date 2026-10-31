@@ -1733,6 +1733,33 @@ function bandsAlongLines(edges: readonly PEdge[], drawnAt: ReadonlyMap<PEdge, nu
     return taken;
 }
 
+/** How close the line ends at a node drawn as nothing must lie to be one point, in oracle pixels. */
+const ONE_POINT = 1;
+
+/**
+ * Places a node the markup names but draws no body for where its lines meet, not at its label: Pajek draws an `empty`
+ * vertex as its label alone, set off from the vertex, and runs every line to the vertex's center (pajek-lin-rel4 v228,
+ * whose label sits 16 px from where its lines end; pajek-synth-vertices `empty 6`). Only where two or more line ends
+ * meet at one point: a Graphviz plaintext node's lines end round its label's box, each at another point.
+ * @param nodes - the nodes the markup named, changed in place
+ * @param edges - the edges the markup named
+ */
+function placeUndrawnBodies(nodes: Map<string, PNode>, edges: readonly PEdge[]): void {
+    for (const [id, n] of nodes) {
+        if (n.shape !== null || n.fill !== null || n.stroke !== null || n.pictures !== undefined) {
+            continue;
+        }
+        const ends = edges.flatMap((e) => [
+            ...(e.source === id ? [e.points[0]] : []),
+            ...(e.target === id ? [e.points.at(-1) ?? e.points[0]] : []),
+        ]);
+        const box = boxOfPoints(ends);
+        if (ends.length >= 2 && Math.max(bw(box), bh(box)) <= ONE_POINT) {
+            nodes.set(id, { ...n, cx: cx(box), cy: cy(box), w: 0, h: 0 });
+        }
+    }
+}
+
 /**
  * Associates an oracle's primitives with graph elements.
  * @param prims - the oracle's primitives (`readSvgPrimitives`)
@@ -1941,6 +1968,7 @@ export function associate(
             });
         }
     }
+    placeUndrawnBodies(nodes, edges);
     const fromMarkup = nodes.size;
 
     // ---- geometry, guided by graphty's drawing, for what the markup did not name

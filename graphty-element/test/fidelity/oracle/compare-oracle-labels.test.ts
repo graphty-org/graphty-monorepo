@@ -206,6 +206,40 @@ describe("label checks", () => {
         assert.deepEqual(labelPair({ content: "A\nB", lines: two }, { content: "A B" }), { "label.lines": ["a"] });
     });
 
+    it("reads words drawn side by side on one row as one line, however far apart", () => {
+        // dot-specimen-labels-p2 html-table: Graphviz draws the cells a and b as two texts 8 px apart on one
+        // baseline, html-sub its <SUB> run lower than the rest; each is one line, as graphty draws it
+        const cells = [
+            { x0: 85, y0: 95, x1: 91, y1: 105 },
+            { x0: 99, y0: 95, x1: 105, y1: 105 },
+        ];
+        assert.deepEqual(labelPair({ content: "a\nb", lines: cells }, { content: "a b" }), {});
+        const sub = [
+            { x0: 85, y0: 94, x1: 100, y1: 104 },
+            { x0: 101, y0: 96, x1: 107, y1: 106 },
+        ];
+        assert.deepEqual(labelPair({ content: "abc\nd", lines: sub }, { content: "abc d" }), {});
+        // a field set half a line down between another field's two lines is a line of its own on both sides
+        // (dot-specimen-node-shapes-p2 record-escapes: graphty's taller line boxes overlap more, still under SAME_ROW)
+        const record = (h: number): PBox[] => [
+            { x0: 85, y0: 90, x1: 100, y1: 90 + h },
+            { x0: 110, y0: 96, x1: 115, y1: 96 + h },
+            { x0: 85, y0: 102, x1: 100, y1: 102 + h },
+        ];
+        assert.deepEqual(
+            labelPair(
+                { content: "left\nc\nright", lines: record(14) },
+                { content: "left\nc\nright", lines: record(11) },
+            ),
+            {},
+        );
+        // a row of two cells over a row of one is two lines (dot-synth-nodes n_html3)
+        const rows = [...cells, { x0: 85, y0: 110, x1: 105, y1: 120 }];
+        assert.deepEqual(labelPair({ content: "a\nb\nwide", lines: rows }, { content: "a b wide" }), {
+            "label.lines": ["a"],
+        });
+    });
+
     it("fails lines centered where the program aligned them left", () => {
         // two lines of different widths sharing their left edge
         const lines: PBox[] = [

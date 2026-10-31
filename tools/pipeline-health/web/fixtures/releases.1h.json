@@ -92,6 +92,23 @@
             }
         },
         {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 6,
+                    "unit": "h"
+                }
+            },
+            "link": "/releases/lanes",
+            "id": "releases.review_wait",
+            "value": {
+                "n": 0,
+                "unit": "h"
+            }
+        },
+        {
             "state": "bad",
             "window": "now",
             "sla": {

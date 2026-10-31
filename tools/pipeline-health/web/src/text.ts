@@ -434,6 +434,11 @@ export const MEMBER: Record<MemberId, MemberText> = {
         def: "newest candidate a full train tested",
         headline: "Release lanes red",
     },
+    "releases.review_wait": {
+        name: "Nightly waiting on screenshot review",
+        short: "screenshot review wait",
+        def: "held nightly candidate with changed screenshots, all tests passed",
+    },
     "releases.workflows_failing": {
         name: "Release workflows failing",
         short: "release workflows failing",

@@ -141,7 +141,7 @@ describe("sendAlerts", () => {
                 "data.sources_age",
                 "master.red_now",
                 "master.untested_age",
-                "release.lanes_red",
+                "release.review_wait",
             ].sort(),
         );
     });
@@ -531,8 +531,8 @@ describe("the policy's conditions", () => {
 
     it("the screenshot reminder pages for a green-images nightly hold a day old, with its issue", async () => {
         const held = (waitMs: number, holdOpenMs = 0): MemberStatus => ({
-            ...member("release.lanes_red", "releases"),
-            value: 0,
+            ...member("release.review_wait", "releases"),
+            value: waitMs,
             facts: {
                 "release.review_wait_ms": waitMs,
                 "release.review_issue": 4700,
@@ -894,7 +894,10 @@ describe("messages", () => {
         "master.red_now": { value: 3 * HOUR + 20 * MIN },
         "master.untested_age": { value: 25 * HOUR, facts: { "release.since_slot_ms": 14 * HOUR } },
         "ci.runners_not_assigned": { value: 75 * MIN, facts: { "ci.jobs_running": 0, "ci.jobs_waiting_runner": 40 } },
-        "release.lanes_red": { value: 0, facts: { "release.review_wait_ms": 26 * HOUR, "release.review_issue": 4700 } },
+        "release.review_wait": {
+            value: 26 * HOUR,
+            facts: { "release.review_wait_ms": 26 * HOUR, "release.review_issue": 4700 },
+        },
         "cost.spend": { value: 412.3, facts: { month_to_date: 280 } },
         "cost.t4": { value: 232.1, facts: { month_to_date: 150 } },
         "cost.llm": { value: 87.55, facts: { month_to_date: 70 } },

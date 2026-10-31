@@ -752,7 +752,22 @@
                 {
                     "metric": "release.hold_open_ms",
                     "fail": [">=", 21600000]
-                },
+                }
+            ],
+            "sources": ["release"],
+            "headline": true
+        },
+        {
+            "id": "release.review_wait",
+            "category": "releases",
+            "label": "Nightly waiting on screenshot review",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "release.review_wait_ms"
+            },
+            "ok": ["<", 21600000],
+            "also": [
                 {
                     "metric": "release.review_wait_ms",
                     "fail": [">=", 21600000]
@@ -762,7 +777,6 @@
                 }
             ],
             "sources": ["release"],
-            "headline": true,
             "alert": {
                 "afterMs": 0,
                 "priority": 0,

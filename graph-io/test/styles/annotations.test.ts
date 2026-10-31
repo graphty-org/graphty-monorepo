@@ -49,6 +49,10 @@ describe("readAnnotations", () => {
         // the second arrow ends on a node's center at save time
         const toNode = annotations.find((a) => a.kind === "arrow" && a.id.startsWith("3a4e"));
         expect(toNode?.kind === "arrow" && toNode.to).toEqual({ x: 1102.2164306640625, y: -548.4974975585938 });
+        // both leave a text, which the drawing measures; only the second ends at a node, whose size the drawing knows
+        expect(toNode).toMatchObject({ sourceText: "4d88715d-7b0b-4594-a7e3-3577d45ce1a9", toNode: true });
+        expect(arrow).toMatchObject({ sourceText: "f4ab55db-6d36-4286-8bcc-d101dccef1b6" });
+        expect(arrow).not.toHaveProperty("toNode");
     });
 
     it("reads nothing from a graph without the column, and names the kinds it does not read", () => {

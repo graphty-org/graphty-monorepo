@@ -594,8 +594,8 @@ export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; r
         reason: "A palette, a ramp's colors, 'Use the values as colors', 'One color per value' on a number and 'More values (or layers) than colors' are color by nature: a number ramps through Range, a shape or pattern steps through the channel's own list (graphty-element's binding choices), and every per-group, per-layer and No value field is a ValueField for every kind",
     },
     "workspace/style/PropertyRow.tsx": {
-        count: 14,
-        reason: "The color field beside the number, choice and words fields; the document's colors offered as the color picker's swatches on every color field of the row, set or not; 'one color' against 'one value' in Stop varying's words; a bound color's swatch strip, where other kinds show their source and range, and a pill without a swatch shows its source rather than the property's name; the Layer source's pill counts 'colors' where other kinds count 'values', compares colors by hex, and puts its tooltip line on the color pill only (a pill without a swatch shows its detail in place of the token); a layer's line entry carries a color only for a color, every kind its words",
+        count: 13,
+        reason: "The color field beside the number, choice and words fields; the document's colors offered as the color picker's swatches on every color field of the row, set or not; a bound color's swatch strip, where other kinds show their source and range, and a pill without a swatch shows its source rather than the property's name; the Layer source's pill counts 'colors' where other kinds count 'values', compares colors by hex, and puts its tooltip line on the color pill only (a pill without a swatch shows its detail in place of the token); a layer's line entry carries a color only for a color, every kind its words",
     },
     "workspace/style/words.ts": {
         count: 2,

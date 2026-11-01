@@ -18,6 +18,14 @@
     --band: #d9d8d2;
     --nh: #efeeea;
     --nhs: #dcdbd5;
+    /* Issues series (Okabe-Ito, checked with the dataviz palette validator): priorities and type groups. */
+    --s-critical: #d55e00;
+    --s-high: #e69f00;
+    --s-medium: #56b4e9;
+    --s-enhancement: #0072b2;
+    --s-documentation: #009e73;
+    --s-infrastructure: #56b4e9;
+    --s-research: #cc79a7;
 }
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -35,6 +43,9 @@
         --warnedge: #f0e442;
         --nh: #1d1d1c;
         --nhs: #2c2c2a;
+        --s-medium: #3c9ad0;
+        --s-infrastructure: #3c9ad0;
+        --s-research: #b8669a;
     }
 }
 :root[data-theme="dark"] {
@@ -52,6 +63,9 @@
     --warnedge: #f0e442;
     --nh: #1d1d1c;
     --nhs: #2c2c2a;
+    --s-medium: #3c9ad0;
+    --s-infrastructure: #3c9ad0;
+    --s-research: #b8669a;
 }
 * {
     box-sizing: border-box;
@@ -1540,5 +1554,159 @@ h2.hit {
     }
     .diag dd {
         margin-bottom: 8px;
+    }
+}
+
+/* ---- Issues: the type x priority table, the oldest bugs, and the series charts ---- */
+.t-issues .thead,
+.t-issues .tr {
+    grid-template-columns: minmax(130px, 1.6fr) repeat(6, minmax(0, 1fr));
+}
+.t-issues .tr > span:not(:first-child),
+.t-issues .thead > span:not(:first-child) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.t-oldest .thead,
+.t-oldest .tr {
+    grid-template-columns: 70px 80px minmax(0, 3fr) 90px minmax(0, 1fr);
+}
+/* One color per series, by the last part of its key (charts.ts seriesClass). */
+.k-open,
+.k-net {
+    --k: var(--ink);
+}
+.k-critical,
+.k-bug {
+    --k: var(--s-critical);
+}
+.k-high {
+    --k: var(--s-high);
+}
+.k-medium {
+    --k: var(--s-medium);
+}
+.k-low,
+.k-other {
+    --k: var(--data);
+}
+.k-enhancement {
+    --k: var(--s-enhancement);
+}
+.k-documentation {
+    --k: var(--s-documentation);
+}
+.k-infrastructure {
+    --k: var(--s-infrastructure);
+}
+.k-research {
+    --k: var(--s-research);
+}
+.k-opened {
+    --k: var(--ink2);
+}
+.k-closed-completed {
+    --k: var(--ok);
+}
+.k-closed-not-planned {
+    --k: var(--line);
+}
+.k-none {
+    --k: var(--hatch);
+}
+.chart polyline[class^="k-"] {
+    stroke: var(--k);
+}
+.chart polyline.k-open {
+    stroke-width: 2.5;
+}
+.chart polyline.k-none {
+    stroke-dasharray: 4 3;
+}
+.chart rect[class^="k-"] {
+    fill: var(--k);
+}
+.chart rect.k-none {
+    fill: url(#nh);
+}
+.chart .zero {
+    stroke: var(--ink2);
+    vector-effect: non-scaling-stroke;
+}
+.chart .hit {
+    fill: transparent;
+}
+.chart .hit:hover {
+    fill: var(--hover);
+    fill-opacity: 0.5;
+}
+.chart .netdots {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 120px;
+    pointer-events: none;
+}
+.chart .ndot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    margin: -4px 0 0 -4px;
+    border-radius: 50%;
+    background: var(--k);
+    box-shadow: 0 0 0 2px var(--page);
+}
+.legend .lk[class*="k-"] {
+    background: var(--k);
+}
+.legend .lk.k-none {
+    background: repeating-linear-gradient(45deg, var(--none) 0 3px, var(--hatch) 3px 5px);
+    height: 8px;
+}
+.legend {
+    flex-wrap: wrap;
+}
+/* A series' key and its name wrap together, never apart. */
+.legend .li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+.legend .li + .li {
+    margin-left: 8px;
+}
+/* Columns have no end labels: the plot takes the whole width. */
+.chart.cols,
+.chart.cols + .ticks {
+    margin-right: 0;
+}
+/* The lines' end labels name their series ("262 enhancements"): room for them right of the plot. */
+.chart.lines,
+.chart.lines + .ticks {
+    margin-right: 124px;
+}
+@media (max-width: 700px) {
+    /* Seven short columns fit a phone: the type table stays a grid rather than a card per type. */
+    .tbl.t-issues .thead,
+    .tbl.t-issues .tr {
+        display: grid;
+        grid-template-columns: minmax(96px, 2fr) repeat(6, minmax(0, 1fr));
+        column-gap: 4px;
+        padding: 4px 0;
+    }
+    .tbl.t-issues .thead {
+        font-size: 11px;
+    }
+    .tbl.t-issues .thead > span,
+    .tbl.t-issues .tr > span {
+        overflow-wrap: normal;
+        word-break: normal;
+    }
+    .tbl.t-issues .tr > span {
+        display: block;
+        font-weight: 400;
+    }
+    .tbl.t-issues .tr > span::before {
+        content: none;
     }
 }

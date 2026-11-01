@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { refText, sentence, stateChip } from "../../web/src/text.js";
@@ -613,5 +615,75 @@ describe("a test's history", () => {
         expect(html).not.toContain("No open issue tracks this test");
         expect(html).toContain("issues?q=is%3Aissue+%22Fields.real-element.test.tsx%22");
         expect(html).toContain("draft the issue");
+    });
+});
+
+describe("the Issues page", () => {
+    const fixture = (range: string) =>
+        JSON.parse(
+            readFileSync(new URL(`../../web/fixtures/issues.${range}.json`, import.meta.url), "utf8"),
+        ) as import("../../web/src/contract.js").PageResponse;
+
+    it("draws its notes, its history picker, every chart with its values in a hidden table, and both tables", async () => {
+        const { nav, pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "issues", range: "28d", q: new URLSearchParams() });
+        const p = fixture("28d");
+        const html = pageView(p);
+        expect(html).toContain("Production issues are open bugs labeled priority:critical");
+        expect(html).toContain('<span class="rlab">history</span>');
+        expect(html).toMatch(/href="#\/issues\?range=all"/);
+        for (const id of ["open", "bugs", "bug-flow", "flow", "backlog", "types", "oldest"]) {
+            expect(html, id).toContain(`id="s-${id}"`);
+        }
+        const bugs = p.sections.find((s) => s.id === "bugs");
+        const last = bugs?.kind === "series" ? bugs.series[0].values.at(-1) : undefined;
+        expect(html).toContain(`<td>${last}</td>`);
+        expect(html).toContain('class="tbl t-issues');
+        expect(html).toContain('class="tbl t-oldest');
+        const side = nav(null, true);
+        expect(side).toContain('href="#/issues"');
+        expect(side).toContain('aria-current="page"><span class="bar"></span>Issues</a>');
+        setHere({ page: "issues", range: "all", q: new URLSearchParams("range=all") });
+        expect(pageView(fixture("all"))).toContain("since the first issue");
+    });
+
+    it("draws every chart inside its plot when every value is zero", async () => {
+        const { barChart, lineChart } = await import("../../web/src/charts.js");
+        const zeros = (keys: string[], chart: "lines" | "stacked" | "flow") => ({
+            kind: "series" as const,
+            id: "x",
+            chart,
+            step: "1d" as const,
+            start: "2026-10-01T00:00:00Z",
+            series: keys.map((key) => ({ key, values: [0, 0, 0] })),
+        });
+        const html = [
+            lineChart(zeros(["issues.series.open", "issues.prio.critical"], "lines"), (k) => k),
+            barChart(zeros(["issues.type.bug"], "stacked"), (k) => k),
+            barChart(
+                zeros(["issues.series.opened", "issues.series.closed_completed", "issues.series.net"], "flow"),
+                (k) => k,
+            ),
+        ].join("");
+        expect(html).not.toMatch(/NaN|Infinity/);
+        const ys = [...html.matchAll(/ y="(-?[\d.]+)"| y[12]="(-?[\d.]+)"|,(-?[\d.]+)[ "]/g)].map((m) =>
+            Number(m[1] ?? m[2] ?? m[3]),
+        );
+        expect(ys.length).toBeGreaterThan(0);
+        expect(ys.every((y) => y >= 0 && y <= 120)).toBe(true);
+    });
+
+    it('names its range "all" in words', async () => {
+        const { rangeLabel } = await import("../../web/src/text.js");
+        expect(rangeLabel("all")).toBe("all");
+        expect(sentence({ code: "issues.sub.flow", params: { opened: 5, closed: 7, net: -2, range: "28d" } })).toBe(
+            "5 opened and 7 closed over the last 28 days: 2 more closed than opened",
+        );
+        expect(
+            sentence({
+                code: "issues.sub.bugs",
+                params: { open: 130, change: -12, critical: 16, criticalChange: 0, range: "28d" },
+            }),
+        ).toBe("130 open bugs, down 12 over the last 28 days; 16 critical, unchanged");
     });
 });

@@ -419,6 +419,8 @@ describe("pull requests and issues", () => {
         const closed = nodes.find((n) => n.closedAt);
         const item = toIssueItem(closed ?? nodes[0], REPO);
         expect(item.kind).toBe("issue");
+        // The Issues page lists the oldest urgent bugs by title.
+        expect(item.title).toBe((closed ?? nodes[0]).title);
         if (closed) {
             expect(item.closedAt).toBe(Date.parse(closed.closedAt!));
         }

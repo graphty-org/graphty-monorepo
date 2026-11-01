@@ -13,6 +13,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { IssueItem } from "../../src/model/items.js";
+import { issuesPage } from "../../src/views/issue-sections.js";
 import type {
     CategoryStatus,
     ChannelOutcome,
@@ -20,6 +22,7 @@ import type {
     Cmp,
     Episode,
     Fact,
+    IssueRange,
     Member,
     MemberRef,
     OverviewResponse,
@@ -2296,6 +2299,122 @@ const history: TestHistoryResponse = {
     ],
 };
 write("test-history", history);
+
+// ---------------------------------------------------------------- Issues
+
+/**
+ * The repository's issues as they stood on 2026-11-01 (tmp/health-issues/plan.md), scaled to this fixture's day:
+ * 2,903 issues since 2026-03-05, 2,343 of them opened in the last 28 days, and 510 open, of which 130 bugs (16
+ * critical, 33 high, 42 medium, 41 low) and 262 enhancements. Times and closes are drawn from a seeded generator, so
+ * the file is the same on every build, and the page is built by the backend's own issuesPage().
+ * @returns every issue
+ */
+function fixtureIssues(): IssueItem[] {
+    let seed = 20261101;
+    const rnd = (): number => {
+        seed = (seed + 0x6d2b79f5) | 0;
+        let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+        return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+    const now = Date.parse(GEN);
+    const recent = now - 28 * 86_400_000;
+    const first = Date.parse("2026-03-05T09:00:00Z");
+    // [type, how many, priority weights critical/high/medium/low/none, open: by priority or in all]
+    const kinds: [string, number, number[], number[] | number][] = [
+        ["bug", 1300, [30, 25, 25, 20, 0], [16, 33, 42, 41, 0]],
+        ["enhancement", 1100, [2, 20, 40, 37, 1], [2, 40, 120, 99, 1]],
+        ["documentation", 120, [0, 20, 40, 40, 0], 25],
+        ["research", 90, [0, 20, 40, 40, 0], 30],
+        ["infrastructure", 150, [5, 30, 40, 25, 0], 40],
+        ["tracking", 60, [0, 30, 40, 30, 0], 12],
+        ["sonarqube", 40, [0, 0, 50, 50, 0], 6],
+        ["dead-links", 10, [0, 0, 50, 50, 0], 1],
+        ["ci-budget", 8, [0, 50, 50, 0, 0], 0],
+        ["intermittent", 20, [50, 50, 0, 0, 0], 2],
+        ["", 5, [0, 0, 50, 50, 0], 2],
+    ];
+    const prios = ["critical", "high", "medium", "low", ""];
+    const pick = (w: number[]): number => {
+        let u = rnd() * w.reduce((a, x) => a + x, 0);
+        return Math.max(
+            0,
+            w.findIndex((x) => (u -= x) < 0),
+        );
+    };
+    const specs = kinds.flatMap(([type, n, w]) => Array.from({ length: n }, () => ({ type, prio: pick(w) })));
+    // Shuffle, then the first 560 are the old ones, rising toward the 28 days; the rest fill the 28 days.
+    for (let i = specs.length - 1; i > 0; i--) {
+        const j = Math.floor(rnd() * (i + 1));
+        [specs[i], specs[j]] = [specs[j], specs[i]];
+    }
+    const issues = specs.map((sp, i): IssueItem & { prio: number; type: string } => {
+        const at = i < 560 ? first + (recent - first) * Math.sqrt(rnd()) : recent + (now - recent) * rnd();
+        const labels = [sp.type, sp.prio < 4 ? `priority:${prios[sp.prio]}` : "", "effort:medium"].filter(Boolean);
+        return {
+            kind: "issue",
+            id: "",
+            attempt: 1,
+            repo: "graphty-org/graphty-monorepo",
+            number: 0,
+            labels,
+            createdAt: Math.round(at),
+            ...sp,
+        };
+    });
+    issues.sort((a, b) => a.createdAt - b.createdAt);
+    const open = new Set<IssueItem>();
+    for (const [type, , , want] of kinds) {
+        const mine = issues.filter((i) => i.type === type);
+        const groups =
+            typeof want === "number"
+                ? [[mine, want] as const]
+                : want.map((n, p) => [mine.filter((i) => i.prio === p), n] as const);
+        for (const [pool, n] of groups) {
+            // Open issues lean recent: drawn from the newest half of their pool when it is large enough.
+            const from = pool.slice(pool.length > 4 * n ? Math.floor(pool.length / 2) : 0);
+            while ([...from].filter((i) => open.has(i)).length < n) {
+                open.add(from[Math.floor(rnd() * from.length)]);
+            }
+        }
+    }
+    const statuses = ["in-progress", "blocked", "needs-decision", "needs-info"];
+    const titles = [
+        "Flaky: graphty-element-browser layout story",
+        "Full run red: ci on",
+        "Load-sensitive test in",
+        "Style panel loses",
+        "Release held: publish failed on",
+        "Airline sample renders",
+        "Shard over budget:",
+        "Dataset download fails in",
+    ];
+    return issues.map(({ prio: _p, type: _t, ...i }, k) => {
+        const number = 1 + k * 2;
+        const base = {
+            ...i,
+            id: `graphty-org/graphty-monorepo#${number}`,
+            number,
+            title: `${titles[k % titles.length]} #${number}`,
+        };
+        if (open.has(issues[k])) {
+            const status = rnd() < 0.3 ? [statuses[Math.floor(rnd() * statuses.length)]] : [];
+            return { ...base, labels: [...i.labels, ...status] };
+        }
+        // Closed after an exponential wait (bugs sooner), or, when that would be after now, at a uniform time before it.
+        const wait = -Math.log(1 - rnd()) * (i.labels.includes("bug") ? 2 : 6) * 86_400_000;
+        const closedAt = i.createdAt + wait < now ? i.createdAt + wait : i.createdAt + (now - i.createdAt) * rnd();
+        const reason = ["completed", "not_planned", "duplicate"][pick([84, 14, 2])];
+        return { ...base, closedAt: Math.round(closedAt), stateReason: reason };
+    });
+}
+{
+    const issues = fixtureIssues();
+    const open = issues.filter((i) => i.closedAt === undefined).length;
+    for (const range of ["28d", "all"] as IssueRange[]) {
+        write(`issues.${range}`, issuesPage(issues, range, Date.parse(GEN), open) satisfies PageResponse);
+    }
+}
 
 // ---------------------------------------------------------------- the gray scenario
 

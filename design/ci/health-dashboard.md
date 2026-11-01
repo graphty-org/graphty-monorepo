@@ -178,7 +178,7 @@ there, so a stale incident does not stay ongoing.
 
 ### 2.6 Views
 
-Ten views: the overview, the seven category pages, and **Runners** and **Local runs** under CI.
+Eleven views: the overview, the seven category pages, **Runners** and **Local runs** under CI, and **Issues**.
 Shard times and Hotspots are sections of their category pages, so the member that judges them sits
 right above its evidence.
 
@@ -223,6 +223,21 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
   The page state follows the local writer: OK while it reports, a gray IDLE when no local runs
   happen (members idle with hatched "no history" sparklines, 3.1), NO DATA when the writer is stale
   or failing. Values are shown only while the writer reports.
+- **Issues**: facts, never judged: no member, no state, no SLA, no place on the status line, because open
+  critical bugs never reach zero by design (most are pipeline work: flaky tests, red full runs) and a judged
+  member would sit yellow for good. It is built each cycle from every stored issue (the `ISSUES` partition,
+  10.3), never from rollups, at 28 d (UTC days) and all (weeks from Monday, from the first issue's week). Its
+  rules: an issue's type is its first label of bug, enhancement, documentation, research, infrastructure,
+  tracking, sonarqube, dead-links, ci-budget, intermittent, flaky, else none; its priority its first
+  `priority:critical|high|medium|low`, else none; types and priorities are the labels now, applied to the whole
+  history. An issue is open at t when created before t and not closed before t; a bucket's stock is taken at
+  its end (the last bucket ends now), so a bucket's open count less the one before it is exactly its opened
+  less closed. A reopened issue has no `closedAt` and counts as open its whole life. A close is "completed"
+  when GitHub says so and "not planned" otherwise (not planned, duplicate). Production issues are open bugs
+  labeled `priority:critical`. Sections: open now by type and priority (each row links GitHub's search); open
+  bugs by priority (the burn-down); bugs, then all issues, opened vs closed with opened less closed; open issues
+  by type; issues opened by type group; the oldest open critical and high bugs with their status labels. A note
+  appears when GitHub's open count (`issues.open_github`, recorded each cycle) differs from the page's.
 - **Flaky tests**: Hotspots (section 5, a slow measure with its own 7 d / 28 d choice); Quarantine,
   which states that no entries exist; the weekly stress run's history. A test's history page names its
   test group, says where each result ran (a pull request, a full run, locally), and links the issue
@@ -729,6 +744,7 @@ A problem must show within hours, not days, so the windows are measured in hours
 | 24 h   | 1 hour       | backdrop only: the faint part of the sparkline and the "Last 24 hours" list; never a color     |
 | 7 d    | 1 day or raw | slow measures, on their detail sections only, labeled "7- or 28-day measure"                   |
 | 28 d   | 1 day        | slow measures, likewise: costs, full-run shard medians, flake hotspots over weeks              |
+| all    | 1 week       | Issues only (its other choice is 28 d by day): every issue's history, weeks from Monday UTC    |
 
 The picker on the overview and on every category page except Costs (section 7) is **1 h, 6 h and 24
 h, 1 h by default**. It sets the window of every value, table and count on the page; charts cover 6
@@ -824,8 +840,9 @@ writes 20 to 50 times); pull requests, issues, npm versions and cost lines (kept
 `ROLL#<metric>#<step>`, one item per metric and bucket holding every dimension of that metric
 (5 min kept 2 days, 15 min 8 days, 1 h 14 days, 1 d 400 days; the 6 h step of the first version is
 gone, because no view is 7 d in 6 h steps any more); one precomputed item per page and range (the
-ten views at 1 h, 6 h and 24 h, plus the slow sections at 7 d and 28 d, about 40 items), stored
-gzipped.
+ten views at 1 h, 6 h and 24 h, plus the slow sections at 7 d and 28 d, plus Issues at 28 d and all, about
+40 items), stored gzipped. Every issue also has a copy in one partition, `ISSUES` / `<repo>#<number, 7
+digits>` (about 3,000 items, under 1 MB, about 220 read units a cycle), so the Issues page reads them all at once.
 
 **Rollups are recomputed, never incremented**, so a retried post cannot double-count. Ingest writes
 raw items idempotently and marks each 5-minute bucket it touches dirty; every 5 minutes the collector
@@ -861,7 +878,9 @@ twenty-four hourly ones (24 h). A slow section reads its own item, built from da
   such a day lost its oldest runs and their T4 jobs (about 50 USD of early October). A job behind `needs:` gets
   its `created_at` when it becomes ready (its last dependency's `completed_at`, to the second,
   checked on runs 40239928447 and 40238975833), not at run creation, so a job's queue wait is
-  `started_at - created_at` for every job, skipped jobs left out.
+  `started_at - created_at` for every job, skipped jobs left out. With `"issues": "all"` it loads
+  every issue instead, whatever its update time, for the Issues page's history; it marks no bucket
+  older than 28 days dirty, so no old day is recomputed from raw items.
 
 ### 10.5 Spend protection
 
@@ -933,7 +952,7 @@ and age, or, with none, "Pipeline status: UNKNOWN" and the facts to debug it: th
 API base, the failed request, the error, whether `/v1/status` answered on its own, and the last good
 load.
 
-**Technology: Vite and TypeScript, no UI framework**: ten views, hash routing, `fetch`, and five
+**Technology: Vite and TypeScript, no UI framework**: eleven views, hash routing, `fetch`, and five
 small SVG drawing functions (sparkline, budget bar, sorted bars, minute strip, tree rows). A chart
 library would bring back what 3.3 removes. Light and dark follow the system; every chart has its
 values as a visually hidden table, and every row is a keyboard-reachable link.

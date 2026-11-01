@@ -3,7 +3,17 @@
  * minute strip, tree rows, and the jobs chart. Each chart carries its values as a visually hidden
  * table, so a screen reader gets the numbers the picture shows.
  */
-import type { BarsSection, Cell, Iso, JobsSection, ShardRow, Spark, StripSection, TreeNode } from "./contract";
+import type {
+    BarsSection,
+    Cell,
+    Iso,
+    JobsSection,
+    SeriesSection,
+    ShardRow,
+    Spark,
+    StripSection,
+    TreeNode,
+} from "./contract";
 import { esc, fmtN, fmtTime, fmtUnit, sentence, stripTags } from "./text";
 
 const CHEV = `<svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><path d="M2 2l6 6-6 6" /></svg>`;
@@ -224,9 +234,26 @@ export function sortedBars(
 }
 
 const HOUR = 3600_000;
+const DAY = 24 * HOUR;
 
 /**
- * Hour ticks under a time chart, and "now" at the end when the chart ends at the data's time.
+ * The step between ticks and how a tick reads: hours ("14:00") on a chart of a day or less, days ("10-25") on a
+ * longer one, every 7 days up to two months and every 28 days past that.
+ * @param span - The chart's span, in milliseconds.
+ * @returns The step in milliseconds and the label of a tick.
+ */
+function tickStep(span: number): { every: number; label: (t: number) => string } {
+    if (span > 3 * DAY) {
+        return { every: span > 60 * DAY ? 28 * DAY : 7 * DAY, label: (t) => new Date(t).toISOString().slice(5, 10) };
+    }
+    return {
+        every: span > 12 * HOUR ? 3 * HOUR : HOUR,
+        label: (t) => fmtTime(new Date(t).toISOString()).slice(-5),
+    };
+}
+
+/**
+ * Ticks under a time chart, and "now" at the end when the chart ends at the data's time.
  * @param from - The chart's start, in epoch milliseconds.
  * @param to - The chart's end, in epoch milliseconds.
  * @param nowLabel - Whether to label the right end "now".
@@ -234,16 +261,14 @@ const HOUR = 3600_000;
  */
 function ticks(from: number, to: number, nowLabel: boolean): string {
     const span = to - from;
-    const out = [`<span style="left: 0%">${fmtTime(new Date(from).toISOString()).slice(-5)}</span>`];
-    const every = span > 12 * HOUR ? 3 * HOUR : HOUR;
+    const { every, label } = tickStep(span);
+    const out = [`<span style="left: 0%">${label(from)}</span>`];
     // A tick closer than 0.6 of a step to either end label would touch it.
     for (let t = Math.ceil(from / every) * every; t < to - every * 0.6; t += every) {
         if (t - from < every * 0.6) {
             continue;
         }
-        out.push(
-            `<span style="left: ${r1(((t - from) / span) * 100)}%">${fmtTime(new Date(t).toISOString()).slice(-5)}</span>`,
-        );
+        out.push(`<span style="left: ${r1(((t - from) / span) * 100)}%">${label(t)}</span>`);
     }
     if (nowLabel) {
         out.push(`<span style="left: 100%; transform: translateX(-100%)">now</span>`);
@@ -371,4 +396,192 @@ export function treeRows(nodes: TreeNode[], href: (route: string) => string, dep
             return `<div class="hrow">${cols.replace(CHEV, "<span></span>")}</div>`;
         })
         .join("");
+}
+
+/**
+ * A series' color class: the last part of its key ("issues.prio.critical" draws as `k-critical`).
+ * @param key - The series' label code.
+ * @returns The class name.
+ */
+const seriesClass = (key: string): string => `k-${key.slice(key.lastIndexOf(".") + 1).replaceAll("_", "-")}`;
+
+/**
+ * A nice axis top for counts: the largest value plus a tenth, rounded up to a step of 1, 2 or 5 times a power of 10
+ * that cuts the axis into about five.
+ * @param max - The largest value drawn.
+ * @returns The axis top, at least 1.
+ */
+function niceTop(max: number): number {
+    const top = Math.max(1, max * 1.1);
+    const pow = 10 ** Math.floor(Math.log10(top / 5));
+    const step = [1, 2, 5, 10].map((m) => m * pow).find((x) => x >= top / 5) ?? 10 * pow;
+    return Math.ceil(top / step) * step;
+}
+
+/**
+ * A series chart's legend: a key per series, named by the page.
+ * @param s - The series section.
+ * @param name - Names a series by its key.
+ * @returns The legend's HTML.
+ */
+function seriesLegend(s: SeriesSection, name: (key: string) => string): string {
+    return `<p class="legend">${s.series.map((x) => `<span class="li"><span class="lk ${seriesClass(x.key)}"></span>${esc(name(x.key))}</span>`).join("")}</p>`;
+}
+
+/**
+ * A series chart's buckets: where each starts, its width on the chart, and the chart's span.
+ * @param s - The series section.
+ * @returns The first start, the bucket size and count, all in epoch milliseconds.
+ */
+function bucketsOf(s: SeriesSection): { from: number; size: number; n: number } {
+    return { from: Date.parse(s.start), size: s.step === "1w" ? 7 * DAY : DAY, n: s.series[0]?.values.length ?? 0 };
+}
+
+/**
+ * Each bucket's values as a visually hidden table, one column per series.
+ * @param s - The series section.
+ * @param name - Names a series by its key.
+ * @param caption - The table's caption.
+ * @returns The hidden table.
+ */
+function seriesTable(s: SeriesSection, name: (key: string) => string, caption: string): string {
+    const { from, size, n } = bucketsOf(s);
+    return hiddenTable(
+        caption,
+        [s.step === "1w" ? "week starting" : "day", ...s.series.map((x) => name(x.key))],
+        Array.from({ length: n }, (_, i) => [
+            new Date(from + i * size).toISOString().slice(0, 10),
+            ...s.series.map((x) => x.values[i] ?? 0),
+        ]),
+    );
+}
+
+/**
+ * A tooltip strip: one invisible column per bucket whose title lists the bucket's values, for a pointer.
+ * @param s - The series section.
+ * @param name - Names a series by its key.
+ * @returns The columns' SVG.
+ */
+function hoverColumns(s: SeriesSection, name: (key: string) => string): string {
+    const { from, size, n } = bucketsOf(s);
+    const w = 960 / Math.max(1, n);
+    return Array.from({ length: n }, (_, i) => {
+        const day = new Date(from + i * size).toISOString().slice(0, 10);
+        const title = [
+            `${s.step === "1w" ? "week of " : ""}${day}`,
+            ...s.series.map((x) => `${name(x.key)}: ${fmtN(x.values[i] ?? 0)}`),
+        ];
+        return `<rect class="hit" x="${r1(i * w)}" y="0" width="${r1(w)}" height="120"><title>${esc(title.join("\n"))}</title></rect>`;
+    }).join("");
+}
+
+/**
+ * End labels right of a plot, each at its value's height and at least 14 px from the next (the chart is 120 px tall).
+ * @param items - Each label's height on the 120 px plot and its HTML.
+ * @returns The labels' HTML.
+ */
+function endLabels(items: { y: number; html: string }[]): string {
+    const placed = items.map((x) => ({ ...x, top: x.y - 8 }));
+    placed.sort((a, b) => a.top - b.top);
+    for (let i = 1; i < placed.length; i++) {
+        placed[i].top = Math.max(placed[i].top, placed[i - 1].top + 14);
+    }
+    // Pushed below the plot: move the lowest back up to its bottom and the rest up with it, 14 px apart.
+    for (let i = placed.length - 1; i >= 0; i--) {
+        placed[i].top = Math.min(placed[i].top, i === placed.length - 1 ? 106 : placed[i + 1].top - 14);
+    }
+    return placed.map((p) => `<span class="cl ink end" style="top: ${r1(p.top)}px">${p.html}</span>`).join("");
+}
+
+/**
+ * Counts at each bucket's end as lines on one fitted axis (Issues: open bugs by priority, open issues by type). The
+ * first series is the total, drawn darkest; each line ends in its value and name, right of the plot.
+ * @param s - The series section, chart `lines`.
+ * @param name - Names a series by its key.
+ * @returns The legend, chart, ticks and hidden table.
+ */
+export function lineChart(s: SeriesSection, name: (key: string) => string): string {
+    const { from, size, n } = bucketsOf(s);
+    const max = niceTop(Math.max(0, ...s.series.flatMap((x) => x.values)));
+    const y = (v: number): number => r1(118 - (Math.min(v, max) / max) * 116);
+    const x = (i: number): number => r1(n > 1 ? (i * 960) / (n - 1) : 960);
+    const lines = s.series
+        .map(
+            (sr) =>
+                `<polyline class="${seriesClass(sr.key)}" points="${sr.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")}" />`,
+        )
+        .join("");
+    const ends = endLabels(
+        s.series.map((sr) => {
+            const v = sr.values.at(-1) ?? 0;
+            return { y: y(v), html: `${fmtN(v)} ${esc(name(sr.key))}` };
+        }),
+    );
+    return [
+        seriesLegend(s, name),
+        `<div class="chart lines"><svg viewBox="0 0 960 120" preserveAspectRatio="none" aria-hidden="true">${lines}${hoverColumns(s, name)}</svg>`,
+        `<span class="cl" style="top: -4px; left: 4px">${fmtN(max)}</span>${ends}</div>`,
+        ticks(from + size, from + n * size, true),
+        seriesTable(s, name, "open at the end of each bucket"),
+    ].join("");
+}
+
+/**
+ * Counts per bucket as columns (Issues). `stacked`: every series stacked up from the base. `flow`: opened above a
+ * zero line, the closed series stacked below it, and the last series (opened less closed) as a line of dots.
+ * @param s - The series section, chart `stacked` or `flow`.
+ * @param name - Names a series by its key.
+ * @returns The legend, chart, ticks and hidden table.
+ */
+export function barChart(s: SeriesSection, name: (key: string) => string): string {
+    const { from, size, n } = bucketsOf(s);
+    const flow = s.chart === "flow";
+    const up = flow ? s.series.slice(0, 1) : s.series;
+    const down = flow ? s.series.slice(1, -1) : [];
+    const total = (list: SeriesSection["series"], i: number): number =>
+        list.reduce((a, x) => a + (x.values[i] ?? 0), 0);
+    const idx = Array.from({ length: n }, (_, i) => i);
+    const topUp = niceTop(Math.max(0, ...idx.map((i) => total(up, i))));
+    const topDown = down.length ? niceTop(Math.max(0, ...idx.map((i) => total(down, i)))) : 0;
+    // The zero line sits where the two halves meet, each half fitted to its own largest column.
+    const scale = 116 / (topUp + topDown);
+    const zero = r1(2 + topUp * scale);
+    const w = 960 / Math.max(1, n);
+    const rects: string[] = [];
+    const stack = (list: SeriesSection["series"], dir: 1 | -1): void => {
+        for (const i of idx) {
+            let at = 0;
+            for (const sr of list) {
+                const h = (sr.values[i] ?? 0) * scale;
+                if (h > 0) {
+                    const yTop = dir === 1 ? zero - at - h : zero + at;
+                    rects.push(
+                        `<rect class="${seriesClass(sr.key)}" x="${r1(i * w + 1)}" y="${r1(yTop)}" width="${r1(Math.max(1, w - 2))}" height="${r1(h)}" />`,
+                    );
+                }
+                at += h;
+            }
+        }
+    };
+    stack(up, 1);
+    stack(down, -1);
+    const net = flow ? s.series.at(-1) : undefined;
+    const netY = (v: number): number => r1(zero - v * scale);
+    const netLine = net
+        ? `<polyline class="${seriesClass(net.key)}" points="${net.values.map((v, i) => `${r1((i + 0.5) * w)},${netY(v)}`).join(" ")}" />`
+        : "";
+    const dots = net
+        ? `<div class="netdots">${net.values.map((v, i) => `<span class="ndot ${seriesClass(net.key)}" style="left: ${r1(((i + 0.5) / Math.max(1, n)) * 100)}%; top: ${netY(v)}px"></span>`).join("")}</div>`
+        : "";
+    const axis = flow
+        ? `<span class="cl" style="top: -4px; left: 4px">${fmtN(topUp)} ${esc(name(up[0]?.key ?? ""))}</span><span class="cl" style="bottom: -4px; left: 4px">${fmtN(topDown)} closed</span>`
+        : `<span class="cl" style="top: -4px; left: 4px">${fmtN(topUp)}</span>`;
+    const zeroLine = flow ? `<line class="zero" x1="0" y1="${zero}" x2="960" y2="${zero}" />` : "";
+    return [
+        seriesLegend(s, name),
+        `<div class="chart cols"><svg viewBox="0 0 960 120" preserveAspectRatio="none" aria-hidden="true">`,
+        `${rects.join("")}${zeroLine}${netLine}${hoverColumns(s, name)}</svg>${dots}${axis}</div>`,
+        ticks(from, from + n * size, true),
+        seriesTable(s, name, flow ? "opened and closed per bucket" : "opened per bucket"),
+    ].join("");
 }

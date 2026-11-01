@@ -2,7 +2,18 @@
  * The views: the overview, the category pages, Runners, Local runs and a test's history. Each
  * function returns HTML for `main`; every API value is escaped by the text helpers.
  */
-import { budgetBar, chev, hiddenTable, jobsChart, minuteStrip, sortedBars, sparkline, treeRows } from "./charts";
+import {
+    barChart,
+    budgetBar,
+    chev,
+    hiddenTable,
+    jobsChart,
+    lineChart,
+    minuteStrip,
+    sortedBars,
+    sparkline,
+    treeRows,
+} from "./charts";
 import type {
     BarsSection,
     CategoryState,
@@ -10,6 +21,7 @@ import type {
     Cell,
     ChannelTile,
     Episode,
+    IssueRange,
     JobsSection,
     Member,
     MemberRef,
@@ -75,7 +87,7 @@ import {
 export interface Here {
     page: PageId | "test";
     section?: string;
-    range: Range | SlowRange;
+    range: Range | SlowRange | IssueRange;
     q: URLSearchParams;
 }
 
@@ -90,12 +102,14 @@ export const PAGE_PATH: Record<PageId, string> = {
     releases: "/releases",
     costs: "/costs",
     "data-sources": "/data-sources",
+    issues: "/issues",
 };
 
 export const PAGE_TITLE: Record<Exclude<PageId, "overview">, string> = {
     ...CATEGORY_NAME,
     runners: "Runners",
     "local-runs": "Local runs",
+    issues: "Issues",
 };
 
 /**
@@ -199,6 +213,14 @@ export function nav(status: StatusResponse | null, fixture: boolean): string {
     };
     const sub = (links: [string, string][]): string =>
         `<ul class="sub open">${links.map(([r, n]) => `<li><a href="${href(r)}">${esc(n)}</a></li>`).join("")}</ul>`;
+    // Issues shows facts, no state: a plain item with no state bar.
+    const onIssues = cur === "issues";
+    const issuesSub = sub([
+        ["/issues/open", "Open now"],
+        ["/issues/bugs", "Bugs"],
+        ["/issues/oldest", "Oldest"],
+    ]);
+    const issuesItem = `<li><a class="ni${onIssues ? " cur" : ""}" href="${href(PAGE_PATH.issues)}"${onIssues ? ' aria-current="page"' : ""}><span class="bar"></span>Issues</a>${onIssues ? issuesSub : ""}</li>`;
     const sample = fixture ? '<p class="sample">Fixture data: the incidents of 2026-10-25, as of 23:30 UTC</p>' : "";
     return `<nav class="side" aria-label="Pages"><div class="brand">Pipeline health</div><ul>${item("overview")}${item(
         "master",
@@ -215,11 +237,14 @@ export function nav(status: StatusResponse | null, fixture: boolean): string {
             ["/flaky/hotspots", "Hotspots"],
             ["/flaky/quarantine", "Quarantine"],
         ]),
-    )}${item("releases")}${item("costs")}${item("data-sources")}</ul>${sample}</nav>`;
+    )}${item("releases")}${item("costs")}${item("data-sources")}${issuesItem}</ul>${sample}</nav>`;
 }
 
 function rangePicker(slow: boolean): string {
-    const opts: (Range | SlowRange)[] = slow ? ["7d", "28d"] : ["1h", "6h", "24h"];
+    let opts: (Range | SlowRange | IssueRange)[] = slow ? ["7d", "28d"] : ["1h", "6h", "24h"];
+    if (here.page === "issues") {
+        opts = ["28d", "all"];
+    }
     // Costs charts days while its money is always this month; a test's history only lists days.
     const label = here.page === "costs" ? "days in the charts (the money is always this month)" : "history";
     const links = opts
@@ -730,6 +755,29 @@ export const TABLES: Record<string, TableDef> = {
             ["unblock", "unblocked by"],
         ],
     },
+    open: {
+        cls: "t-issues",
+        cap: 20,
+        cols: [
+            ["type", "type"],
+            ["critical", "critical"],
+            ["high", "high"],
+            ["medium", "medium"],
+            ["low", "low"],
+            ["none", "no priority"],
+            ["total", "total"],
+        ],
+    },
+    oldest: {
+        cls: "t-oldest",
+        cols: [
+            ["issue", "issue"],
+            ["priority", "priority"],
+            ["title", "title"],
+            ["opened", "opened"],
+            ["status", "status"],
+        ],
+    },
 };
 
 /**
@@ -1090,13 +1138,39 @@ function sectionHead(s: Section): string {
             return h("Sources");
         case "not-set-up":
             return h("Not set up", "no writer or token yet; out of the status until it exists");
+        case "open":
+            return h("Open now, by type and priority", "a row opens GitHub's search for it");
+        case "bugs":
+            return h("Open bugs by priority", `${subText}; open at the end of each ${bucketWord()}`);
+        case "bug-flow":
+            return h("Bugs opened vs closed", `${subText}; per ${bucketWord()}`);
+        case "flow":
+            return h("All issues opened vs closed", `${subText}; per ${bucketWord()}`);
+        case "backlog":
+            return h("Open issues by type", `${subText}; open at the end of each ${bucketWord()}`);
+        case "types":
+            return h("Issues opened, by type", `${subText}; per ${bucketWord()}`);
+        case "oldest":
+            return h("Oldest open critical and high bugs", "critical first, then the oldest first");
+        case "none":
+            return "";
         default:
             return h(s.id, subText);
     }
 }
 
+/**
+ * The Issues charts' bucket: a day at 28 d, a week (from Monday, UTC) over all of history.
+ * @returns The bucket's word.
+ */
+const bucketWord = (): string => (here.range === "all" ? "week" : "day");
+
 function sectionBody(s: Section): string {
     switch (s.kind) {
+        case "series":
+            return s.chart === "lines"
+                ? lineChart(s, (k) => stripTags(labelText(k)))
+                : barChart(s, (k) => stripTags(labelText(k)));
         case "strip":
             return minuteStrip(s);
         case "table":
@@ -1145,6 +1219,11 @@ export function pageView(p: PageResponse): string {
     }
     const at = here.section ? p.sections.find((x) => x.id === here.section) : undefined;
     const atTitle = at ? sectionTitle(at) : "";
+    // Issues shows facts, never a state: its notes say how to read the numbers.
+    if (p.page === "issues") {
+        const notes = p.notes.map((n) => `<p class="note">${sentence(n)}</p>`).join("");
+        return header(title, crumbs, p.generated, true, true, atTitle) + notes + p.sections.map(section).join("");
+    }
     // Local runs with nothing recorded: one line says why, not a page of empty rows.
     const idle = p.page === "local-runs" && p.state === "idle" && p.members.every((m) => m.value === null);
     if (idle) {

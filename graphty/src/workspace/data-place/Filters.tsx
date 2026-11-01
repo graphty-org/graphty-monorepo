@@ -6,7 +6,7 @@
  * picker's card for its field. Order never matters. The app holds only a card not yet written.
  */
 
-import { ControlSection, EntityChip, SegmentedControl } from "@graphty/compact-mantine";
+import { ControlSection, EntityChip, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
 import type { FilterCondition, FilterConditionCount, GraphSession } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -245,11 +245,11 @@ function AddMenu({
         // Focus goes to the card an item adds, not back to "+".
         <Menu opened={opened} onChange={onOpened} position="bottom-end" withinPortal returnFocus={false}>
             <Menu.Target>
-                <Tooltip label="Add filter">
+                <TargetTooltip label="Add filter">
                     <ActionIcon data-filters-plus="" variant="subtle" aria-label="Add filter">
                         <GLYPHS.add size={14} aria-hidden />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown mah={360} style={{ overflowY: "auto" }}>
                 {nodes.length > 0 && <Menu.Label>Nodes</Menu.Label>}

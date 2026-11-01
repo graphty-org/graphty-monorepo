@@ -10,6 +10,7 @@ import {
     PopoutManager,
     ResetButton,
     SegmentedControl,
+    TargetTooltip,
     useFileDrop,
 } from "@graphty/compact-mantine";
 import {
@@ -550,11 +551,11 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                 <Menu position="bottom-start">
                     <Menu.Target>
                         {/* To the left, over empty space: below, it covers the table's "Each row is" label. */}
-                        <Tooltip label="Add a table" position="left">
+                        <TargetTooltip label="Add a table" position="left">
                             <ActionIcon ref={addButton} variant="subtle" size="sm" aria-label="Add a table">
                                 <GLYPHS.add size={14} aria-hidden />
                             </ActionIcon>
-                        </Tooltip>
+                        </TargetTooltip>
                     </Menu.Target>
                     <Menu.Dropdown>
                         <Menu.Item onClick={onChooseFiles}>File...</Menu.Item>

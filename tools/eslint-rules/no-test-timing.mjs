@@ -44,6 +44,10 @@
  *   a synchronous child process (`spawnSync`) blocks the event loop, so no test timeout can end it.
  *   A timeout option of the code under test (a notifier's `timeoutMs`, graphviz's) is what the test
  *   checks, not a deadline on the test, and is not reported.
+ * - a comment that switches this rule off: `eslint-disable`, `-line` or `-next-line` naming it, or
+ *   naming no rule at all. An exception to the rule is an entry in eslint.config.js, where it is
+ *   reviewed, never a comment beside the code. The report is placed where the comment itself
+ *   cannot suppress it.
  *
  * Zero-delay timers (`setTimeout(r, 0)`) yield to the event loop and are not reported, and neither
  * is a sleep inside a callback handed to the code under test, which simulates slow work.
@@ -60,6 +64,8 @@ const WAIT_HINT =
     "Remove it: every wait shares the project's one hang guard (tools/test-wait-guard.mjs). If the wait runs out under load, wait on the event or state that settles it.";
 const DEADLINE_HINT =
     "Remove it: the one global hang guard (tools/test-wait-guard.mjs) ends a real hang. Wait on the condition with no deadline of its own, or assert the state directly.";
+const DISABLE_HINT =
+    "Fix the test instead. A timing exception that must stay is an entry in eslint.config.js, where it is reviewed.";
 const PAGE_TIMER_HINT =
     "Drive each step in the page from the event it waits on (an awaited waitForFunction, a promise the test resolves) instead of a timer.";
 
@@ -179,6 +185,7 @@ const rule = {
             pageTimer: `Timer in code handed to the page. ${PAGE_TIMER_HINT}`,
             waitBudget: `Time budget on a wait. ${WAIT_HINT}`,
             deadline: `Local deadline. ${DEADLINE_HINT}`,
+            disabled: `This rule cannot be switched off by a comment. ${DISABLE_HINT}`,
         },
     },
     create(context) {
@@ -187,6 +194,35 @@ const rule = {
         const { sourceCode } = context;
         // Variables holding a wall-clock value, and whether it is a reading or an elapsed time.
         const clockVars = new Map();
+
+        // A directive that names this rule (under any plugin prefix) or no rule switches it off. The
+        // report goes where that directive does not reach, or the directive would hide it: on the
+        // comment for -next-line, on a neighbouring line for -line, just before the comment for a
+        // block disable.
+        // ponytail: a -line directive in a one-line file, or a block disable that is the file's
+        // first character, still hides its report; no test file is either.
+        const checkDisables = () => {
+            for (const comment of sourceCode.getAllComments()) {
+                const m = /^\s*eslint-disable(-next-line|-line)?(?:\s+(.*))?$/s.exec(comment.value.split(/\s--\s/)[0]);
+                const names = (m?.[2] ?? "")
+                    .split(",")
+                    .map((n) => n.trim())
+                    .filter(Boolean);
+                if (!m || (names.length > 0 && !names.some((n) => /(^|\/)no-test-timing$/.test(n)))) {
+                    continue;
+                }
+                const { start } = comment.loc;
+                const lines = sourceCode.lines.length;
+                let loc = comment.loc;
+                if (m[1] === "-line" && lines > 1) {
+                    const line = start.line < lines ? start.line + 1 : start.line - 1;
+                    loc = { line, column: 0 };
+                } else if (m[1] === undefined && comment.range[0] > 0) {
+                    loc = sourceCode.getLocFromIndex(comment.range[0] - 1);
+                }
+                context.report({ loc, messageId: "disabled" });
+            }
+        };
 
         const isFunction = (n) => Boolean(n) && FUNCTION_TYPES.has(n.type);
         const propName = (m) => {
@@ -847,6 +883,7 @@ const rule = {
                     checkFrames();
                 }
                 checkTimers();
+                checkDisables();
             },
             VariableDeclarator(node) {
                 markClock(node.id, node.init);

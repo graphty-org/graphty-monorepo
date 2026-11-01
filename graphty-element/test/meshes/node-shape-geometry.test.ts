@@ -365,6 +365,32 @@ describe("border rings", () => {
         assert.deepEqual(boxOf(ring.outer), { width: 3, height: 3 });
     });
 
+    test("a solid ring round sharp corners is its full width along every side (issue #5570)", () => {
+        // a stretched diamond, Pajek's bow tie (q 2) and a vee: corners too sharp to mitre in full
+        const outlines = [
+            flatShapeOutline("diamond", 5.4, 1),
+            flatShapeOutline("polygon", 50, 30, undefined, "-1,0 -2,1 2,1 1,0 2,-1 -2,-1", false),
+            flatShapeOutline("vee", 0.66, 0.95),
+        ];
+        for (const outline of outlines) {
+            const width = 0.3;
+            const [{ inner, outer }] = borderRing(outline, width, "solid");
+            assert.strictEqual(inner.length, outer.length);
+            // every outer point is the width out from the side of the outline it lies against, never nearer
+            for (let i = 0; i < inner.length; i++) {
+                const j = (i + 1) % inner.length;
+                const [a, b] = [inner[i], inner[j]];
+                const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+                if (length > 0) {
+                    for (const q of [outer[i], outer[j]]) {
+                        const out = ((q[0] - a[0]) * (b[1] - a[1]) - (q[1] - a[1]) * (b[0] - a[0])) / length;
+                        assert.approximately(out, width, 1e-9);
+                    }
+                }
+            }
+        }
+    });
+
     test("a double border is two thin rings with a gap between", () => {
         const rings = borderRing(square, 0.3, "double");
 

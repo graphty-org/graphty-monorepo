@@ -178,9 +178,12 @@ function addRingPiece(slab: SlabBuilder, piece: RingPiece): void {
     for (let i = 0; i < steps; i++) {
         const j = (i + 1) % inner.length;
         slab.face(inner[i], outer[i], outer[j]);
-        slab.face(inner[i], outer[j], inner[j]);
         slab.wall(outer[i], outer[j]);
-        slab.wall(inner[j], inner[i]);
+        // a corner cut square (`mitredEdges`) is the outline's one point twice: no second triangle, no inner wall
+        if (inner[i][0] !== inner[j][0] || inner[i][1] !== inner[j][1]) {
+            slab.face(inner[i], outer[j], inner[j]);
+            slab.wall(inner[j], inner[i]);
+        }
     }
 
     if (!closed) {

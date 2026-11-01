@@ -617,18 +617,20 @@ describe("a screenshot run's own plan and inputs (#3648)", () => {
 
     it("fails open to no plan when the store is not configured or does not answer", async () => {
         const facts = { sha: "a", base: null, family: "f-shots", variant: "f-shots|flags=off|shots" };
-        assert.equal(await shotsPlan(null, { ...facts, cfg: null }), null);
+        assert.equal(await shotsPlan({ ...facts, cfg: null }), null);
         const s = await serve(() => ({ unavailable: "down" }));
-        assert.equal(await shotsPlan(null, { ...facts, cfg: { url: s.url, token: "t" } }), null);
+        assert.equal(await shotsPlan({ ...facts, cfg: { url: s.url, token: "t" } }), null);
         const t = await serve(() => ({ quarantine: [] }));
-        const touched = { base: "b", affected: ["x.ts"], unknownFamilies: [] };
-        assert.deepEqual(await shotsPlan(touched, { ...facts, base: "b", cfg: { url: t.url, token: "t" } }), {
+        // no `affected`: the selector never looked at this family, so every test counts as touched
+        assert.deepEqual(await shotsPlan({ ...facts, base: "b", cfg: { url: t.url, token: "t" } }), {
             quarantine: [],
-            affected: ["x.ts"],
-            unknownFamilies: [],
             base: "b",
             families: ["f-shots"],
         });
+        const judge = prJudge({ base: "b", quarantine: [] }, { shard: "f-1", ...facts, base: "b" });
+        const failed = { file: "g/A.stories.tsx", name: "A", text: "boom" };
+        const d = { pass: false, flaky: [], excused: [], failing: [failed] };
+        assert.equal(judge(d, { firstOutcome: "failed" }).pass, false);
     });
 
     it("keys a screenshot run by the Chromium revision and its project's baseline tree", () => {

@@ -222,9 +222,10 @@ export async function refreshPlan(plan, { cfg, sha, family, variant }) {
 }
 
 /**
- * A screenshot run's own plan, read from the store: its quarantine and master evidence, with what the pull request
- * touched from the plan file when there is one. Fails open to null (the committed list stands).
- * @param touchedPlan the plan file with what the pull request touched, or null
+ * A screenshot run's own plan, read from the store: its quarantine and master evidence. It carries no `affected`, so
+ * prJudge() counts every test as touched: the light check's selector never looked at this family (graph-io's
+ * fidelity stories on a graphty-element change), and an untouched verdict would excuse a failure the pull request
+ * caused. Fails open to null (the committed list stands).
  * @param o the run's facts
  * @param o.cfg config()
  * @param o.sha the commit tested
@@ -233,7 +234,7 @@ export async function refreshPlan(plan, { cfg, sha, family, variant }) {
  * @param o.variant the variant
  * @returns the plan, or null
  */
-export async function shotsPlan(touchedPlan, { cfg, sha, base, family, variant }) {
+export async function shotsPlan({ cfg, sha, base, family, variant }) {
     if (!cfg) return null;
     try {
         // the shard's own family too, as plan-read.mjs asks: judgeRules() carries its quarantine over to `-shots`
@@ -241,8 +242,7 @@ export async function shotsPlan(touchedPlan, { cfg, sha, base, family, variant }
         const variants = [`${own}|flags=off|whole`, `${own}|flags=off|selected`, variant];
         const fresh = await readPlan(cfg, { sha, base: base ?? undefined, variants, inputs: variants.map(() => "-") });
         if (!fresh || fresh.unavailable) return null;
-        const touched = { affected: touchedPlan?.affected, unknownFamilies: touchedPlan?.unknownFamilies };
-        return { ...fresh, ...touched, ...(base ? { base } : {}), families: [family] };
+        return { ...fresh, ...(base ? { base } : {}), families: [family] };
     } catch {
         return null;
     }
@@ -640,7 +640,7 @@ export async function runGroup(
     // a store outage then, or a family the light check did not ask about, such as graph-io's fidelity stories on a
     // graphty-element change) ask the store for it here (#3648)
     if (!plan && family !== familyOf(shardName))
-        plan = await shotsPlan(touchedPlan, {
+        plan = await shotsPlan({
             cfg: config(env, root),
             sha: head.commit,
             base: touchedPlan?.base ?? head.base,

@@ -1074,7 +1074,7 @@ export const SCALE_WORDS: Readonly<Record<string, string>> = {
 };
 
 /** The element's reasons for refusing a style edit, in the app's words, by error code. */
-const REFUSAL_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
+export const REFUSAL_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
     E_LOCKED: "its layer is locked",
     E_PROTECTED: "that layer is drawn by graphty itself; add a layer above it instead",
     E_OPTION_RANGE: "that value is outside what the property accepts",

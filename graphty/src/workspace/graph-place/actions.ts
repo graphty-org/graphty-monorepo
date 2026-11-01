@@ -1,5 +1,6 @@
 import type { GraphSession, LayerId, RowSpec, StyleRow, StyleRowPlace } from "@graphty/graphty-element/session";
 
+import { errorWords } from "../project/words";
 import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
 import { findTreeRow, paintingParts } from "./rows";
 
@@ -14,8 +15,7 @@ export async function orNotice(store: WorkspaceStore, what: string, work: Promis
     try {
         await work;
     } catch (error) {
-        const why = error instanceof Error ? ` ${error.message}` : "";
-        store.set({ notice: { message: `Could not ${what}.${why}`, error: true } });
+        store.set({ notice: { message: errorWords(`Could not ${what}`, error), error: true } });
     }
 }
 

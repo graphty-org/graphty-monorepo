@@ -3704,8 +3704,29 @@ existing API returns, so they wait for you (each is a breaking change under the 
   turned off, when it reads the project. `effect: "select"` is a public condition; rewriting it on
   load changes what third parties' saved projects do. The app now draws a Select card's box as the
   element holds it (on, while it still selects) and writes it as keep, off, on its first edit.
-  Choices: (a) rewrite on load; (b) keep the app's truthful box.
+  Choices: (a) rewrite on load; (b) keep the app's truthful box. (Repolish 2: until you choose, the
+  app shows a saved Select card read-only, "Select <condition>", counting what stays, all of it.)
 
-The number test's 10 px slider thumbs (the 2026-11-01 entry above) no longer appear in a step's
-pane: a step's number test is now compact-mantine's HistogramRow brush. The filter card and the
-style layer cards keep the RangeSlider.
+The step pane's number test is now compact-mantine's HistogramRow brush, and its thumbs are still
+below the 24 px target: the brush's start and end thumbs are 12 x 12 px (axe reports target-size in
+both themes). So the open question in the 2026-11-01 entry above (a 24 px hit area for slider
+thumbs) covers the step pane too, as well as the filter and style layer cards' RangeSlider. The app
+does not change the thumbs.
+
+## 2026-11-01 -- For the owner: a histogram of whole numbers draws hairlines in a step's pane
+
+**What.** Not done; a question. A step's number test draws its values' bars with compact-mantine's
+HistogramRow, each bar placed on the brush's scale from its bin's `from` to its `to`. For a column
+of whole numbers with few distinct values (a degree), graphty-element's histogram gives one bin per
+value with `from` equal to `to` (its documented per-value form), so every bar is placed with no
+width and HistogramRow draws its 1 px floor: a row of hairlines where the Values tab draws solid
+bars. The app must not widen the element's bins itself.
+
+**Choices.** (a) compact-mantine's HistogramRow gives a placed bin at least the brush's `step` of
+width (a Figma-locked component's behavior, so it needs your approval); (b) graphty-element adds an
+optional upper edge to a per-value bin (additive), which the app passes as `to`; this moves the
+last bar past the brush's maximum, so the brush's scale would also have to change; (c) keep the
+hairlines.
+
+**Why.** A bar the reader cannot see says nothing about how the values are spread, which is the
+reason the histogram is in the pane.

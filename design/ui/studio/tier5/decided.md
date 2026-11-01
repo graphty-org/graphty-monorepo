@@ -491,6 +491,74 @@ stand. Each entry reverses or narrows an entry above; those stay as the record.
   8-row checklist height, log bar heights on a skewed histogram. Three element changes that alter
   existing results wait for the owner (`../owner-decisions.md`, 2026-11-01).
 
+### Repolish 2 fixes (2026-11-01, studio engineer)
+
+- **Selecting never moves a row.** "Condition..." (was "Step...") and "Or..." left the outline:
+  they are words at the left of every pane's first row, acting on the selected row's group. The
+  outline holds only recipe rows; an empty selection keeps its one "Condition..." row. One header
+  order in every pane: add actions at the left, icon buttons, "..." and Done at the right; the
+  pane's main control (verb segment, group name, Nodes | Edges) is its second row. Why: selecting
+  group A pushed group B down 32 px under the pointer. The Figma review's "main control at the
+  left" is changed to "add actions at the left" so the owner's "first row beside '...' and Done"
+  holds in every pane.
+- **Fewer words on screen.** Select N, Table and Group colors moved into the title pane's "..." (no
+  bare "Select", no unlabeled palette icon; a 200 px filter card has no room for a third icon
+  beside Condition..., Or..., "..." and Done). Start with left the title pane and is collapsed under a
+  group pane's Advanced; a group that Start with empties says "Passes none" on its row. The
+  "Add a step (Union)" tooltip is gone. A pending row says "Run"; the estimate is in its tooltip
+  and on the Run button.
+- **A condition is said once.** "All nodes" is drawn only for an All group with no step or a first
+  Except; a group's first step at its default verb leaves the verb column empty ("Degree max 3").
+  A filter card named after its only step draws no outline: its title row is the recipe and its
+  title pane holds the step's controls (headless step pane) under the card's own.
+- **Groups read "or"**: every group row after the first writes "or" in its verb column.
+- **Rows:** the test gives way long before the value (flex-shrink 1000 against 1), so a value keeps
+  its first word; a relative condition is never cut, its reference and state word give way with an
+  ellipsis; While with no reference reads "While ... has nodes" with no test column; values keep
+  normal ink in every state; a selected row drops its state word.
+- **Pane controls** are the default size (24 px, 11/16): every SegmentedControl, the text box, the
+  Hops box (now with a "hops" suffix); the value and reference fields are the compact Select's
+  trigger (InputBase as a button with Combobox.Chevron, aria-hidden), text cut with an ellipsis. A
+  lone verb is written as a word, not a segment of one; each verb radio's name carries Figma's word
+  (", Intersect") so keyboard focus hears it. The step pane draws "N so far" beside the verb.
+- **Keys and boxes:** F2 on any outline row but a group's is the outline's (never the project
+  rename); leaving the text box by Tab commits its text.
+- **A click outside ends picking on the click, not the press:** closing the pane on the press moved
+  the next filter card's row out from under the pointer, so the click never opened it.
+- **Filter cards:** a collapsed card is 11/16 like the open one, the whole row (but the on box)
+  opens it, and focus lands on its title row, so the next Space switches its on box instead of
+  adding a card. A card whose first step removes, or a removing card no editor reads, is named with
+  "Except". A saved Select card is read-only, "Select <condition>", counting all of it ("77 of 77"),
+  until the owner decides on the element rewriting it.
+- **Checklist:** a step's checklist rows are 11/16 and its list holds the height of 8 rows while
+  searched; a Keep or Except step's checklist counts each value over the step's input (an Add
+  step's over the base, where what it adds comes from).
+- **Large graphs, graphty-element:** `data.nodePage({ matching: { names: true } })` on a graph with
+  no label column reads every value (a "name" column is found; `data.name` is unchanged); the
+  reference search lists an exact id or name match first (`mode: "exact"`, which the element
+  already had) and says "Nodes 0" when nothing matches. A hops, touching or same-value step on
+  Hovered or selected waits (`run-paused`) over `liveMs` while the pointer is on a node, estimated
+  from its base size and hop limit. Girvan-Newman's estimate charges a betweenness pass per round
+  up to `maxIterations` (4,000 nodes and 8,000 edges: minutes, not 6 seconds), and it computes in
+  the element's Worker so the page and Cancel stay live (a cancelled run is abandoned there).
+- **Not fixed this round, with the reason:**
+    - The preview's and the filter's paint on 50,000 nodes (blockers): each node is still repainted
+      through the layer pipeline in 128-node slices. Drawing the preview and filter visibility as a
+      per-instance color and alpha write on the instance buffers is renderer work in UpdateManager
+      and the mesh cache, and skipping a repaint whose member set is unchanged needs the per-layer
+      member sets the paint does not keep. Both stay open for the next engineering pass.
+    - A step's own automatic rerun writes an undo entry, and reruns on a changed scope pile up as
+      separate runs: both need a run the element starts for a step to be its own exempt command (or
+      to replace the stale run under its id), a change to the run dispatcher.
+    - A checked community saved as a raw id drifts when Louvain reruns, and a filter re-computes a
+      community step's partition: saving "the community of <member>" needs the checklist to write a
+      same-value step and the element to keep a step's partition fixed until Run.
+    - The step-local run's estimate calibration ("about 8 seconds" that took 60 to 86 s).
+    - The histogram's hairlines on whole-number columns (waits for the owner:
+      `../owner-decisions.md`, 2026-11-01), the "Full graph" caption on the step histogram, log bar
+      heights, the tie chip, and naming community values
+      "Community N" (the name is shared by the key, table and legend).
+
 ## Waiting for the owner
 
 - Retagging bfs `level`, k-core `value` and dfs `value` as ordinal changes what `fieldMeasurement`

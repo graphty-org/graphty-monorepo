@@ -16,7 +16,8 @@ interface Source {
 }
 interface HostedSources {
     SOURCES: Record<string, Source>;
-    SOURCES_RELEASE_URL: string;
+    sourceRelease: (source: Source) => string;
+    sourceReleaseUrl: (source: Source) => string;
     publishedCopy: (url: string, sha256: string | undefined, fetchImpl: typeof fetch) => Promise<Buffer | null>;
     sourceUrls: (source: Source, options?: { fromOriginalHost?: boolean }) => string[];
     fetchSource: (
@@ -96,21 +97,25 @@ describe("sources", () => {
     });
 
     it("come from the release first, then the original host", async () => {
-        const { sourceUrls, SOURCES_RELEASE_URL } = await hostedSources();
-        expect(SOURCES_RELEASE_URL).toBe(
-            "https://github.com/graphty-org/graphty-monorepo/releases/download/graph-samples-sources-v1/",
+        const { sourceUrls, sourceRelease, sourceReleaseUrl } = await hostedSources();
+        // one immutable release per source copy, named by its checksum
+        expect(sourceRelease(source)).toBe(`graph-samples-source-${sha256.slice(0, 16)}`);
+        expect(sourceReleaseUrl(source)).toBe(
+            `https://github.com/graphty-org/graphty-monorepo/releases/download/graph-samples-source-${sha256.slice(0, 16)}/a.gz`,
         );
-        expect(sourceUrls(source)).toEqual([`${SOURCES_RELEASE_URL}a.gz`, source.url]);
+        expect(sourceUrls(source)).toEqual([sourceReleaseUrl(source), source.url]);
         expect(sourceUrls(source, { fromOriginalHost: true })).toEqual([source.url]);
         expect(sourceUrls({ ...source, redistribute: false })).toEqual([source.url]);
     });
 
     it("fall through to the original host when the release has no good copy", async () => {
-        const { fetchSource, SOURCES_RELEASE_URL } = await hostedSources();
+        const { fetchSource, sourceReleaseUrl } = await hostedSources();
+        const releaseA = sourceReleaseUrl(source);
+        const releaseC = sourceReleaseUrl({ ...source, file: "c.gz" });
         cache = mkdtempSync(path.join(tmpdir(), "hosted-sources-"));
         const answers: Record<string, () => Promise<Response>> = {
-            [`${SOURCES_RELEASE_URL}a.gz`]: () => Promise.resolve(new Response("Not Found", { status: 404 })),
-            [`${SOURCES_RELEASE_URL}c.gz`]: () => Promise.resolve(new Response("an older copy")),
+            [releaseA]: () => Promise.resolve(new Response("Not Found", { status: 404 })),
+            [releaseC]: () => Promise.resolve(new Response("an older copy")),
             [source.url]: () => Promise.resolve(new Response(bytes)),
         };
         const asked: string[] = [];
@@ -122,7 +127,7 @@ describe("sources", () => {
         expect(
             readFileSync(await fetchSource({ ...source, file: "c.gz" }, cache, { fetchImpl: host })).equals(bytes),
         ).toBe(true);
-        expect(asked).toEqual([`${SOURCES_RELEASE_URL}a.gz`, source.url, `${SOURCES_RELEASE_URL}c.gz`, source.url]);
+        expect(asked).toEqual([releaseA, source.url, releaseC, source.url]);
     });
 
     it("fail naming what to do when no copy can be fetched", async () => {
@@ -147,7 +152,7 @@ describe("sources", () => {
     });
 
     it("are verified against their recorded sha256", async () => {
-        const { fetchSource } = await hostedSources();
+        const { fetchSource, sourceReleaseUrl } = await hostedSources();
         cache = mkdtempSync(path.join(tmpdir(), "hosted-sources-"));
         const asked: string[] = [];
         const good: typeof fetch = (input) => {
@@ -156,9 +161,7 @@ describe("sources", () => {
         };
         const file = await fetchSource(source, cache, { fetchImpl: good });
         expect(readFileSync(file).equals(bytes)).toBe(true);
-        expect(asked).toEqual([
-            "https://github.com/graphty-org/graphty-monorepo/releases/download/graph-samples-sources-v1/a.gz",
-        ]);
+        expect(asked).toEqual([sourceReleaseUrl(source)]);
         // a cached file with the recorded sha256 is not fetched again
         await fetchSource(source, cache, { fetchImpl: good });
         expect(asked).toHaveLength(1);

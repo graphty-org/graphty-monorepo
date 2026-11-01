@@ -2,11 +2,13 @@ name: graph-samples sources (refresh)
 
 # The only job that contacts the original hosts of graph-samples' hosted datasets. It fetches every
 # source whose terms allow redistribution (graph-samples/scripts/hosted-sources.mjs, `redistribute`),
-# verifies each against the SHA-256 recorded there, and uploads it to the release
-# graph-samples-sources-v1, which a rebuild of a hosted dataset reads instead of the original
-# hosts. A deploy reads neither: it reuses the files graphty.app already publishes (#3302).
-# Dispatched by hand, after a source's recorded URL or checksum changes. A source that cannot be
-# fetched (its host is down) is skipped and fails the run; the others are still uploaded.
+# verifies each against the SHA-256 recorded there, and publishes it as a release of its own,
+# graph-samples-source-<sha256>, which a rebuild of a hosted dataset reads instead of the original
+# host. A deploy reads neither for a dataset graphty.app already publishes (#3302); for a changed one
+# it reads the release, and the original host only when there is no good copy there (#3362).
+# Dispatched by hand, after a source's recorded URL or checksum changes; a source whose release
+# exists is left alone. A source that cannot be fetched (its host is down) is skipped and fails the
+# run; the others are still published.
 
 on:
     workflow_dispatch:
@@ -36,22 +38,24 @@ jobs:
               continue-on-error: true
               run: node graph-samples/scripts/refresh-sources.mjs "$RUNNER_TEMP/sources"
 
-            - name: Upload them to the release
+            # One release per source, named by its checksum (graph-samples/scripts/hosted-sources.mjs,
+            # sourceRelease): the repository's releases are immutable, so a file can never be added to a
+            # published release, and `gh release create` with the file publishes it with its asset (#3362).
+            - name: Create a release for each source that has none
               env:
                   GH_TOKEN: ${{ github.token }}
-                  # the upload runs in DIR, which is not a git checkout, so gh needs the repository named (#3362)
+                  # the step runs in the sources directory, not a git checkout, so gh needs the repository named
                   GH_REPO: ${{ github.repository }}
-                  DIR: ${{ runner.temp }}/sources
+              working-directory: ${{ runner.temp }}/sources
               run: |
-                  release=graph-samples-sources-v1
-                  if ! gh release view "$release" > /dev/null 2>&1; then
-                      gh release create "$release" --latest=false --target "$GITHUB_SHA" --title "$release" \
-                          --notes "Copies of graph-samples' dataset sources, for rebuilding the hosted datasets without their original hosts. Each file's SHA-256 is recorded in graph-samples/scripts/hosted-sources.mjs; see graph-samples/NOTICE for their terms."
-                  fi
-                  files=$(cut -d' ' -f3 "$DIR/SHA256SUMS")
-                  if [ -n "$files" ]; then
-                      (cd "$DIR" && gh release upload "$release" --clobber $files)
-                  fi
+                  while read -r tag file; do
+                      if gh release view "$tag" > /dev/null 2>&1; then
+                          echo "$tag already holds $file"
+                          continue
+                      fi
+                      gh release create "$tag" "$file" --latest=false --target "$GITHUB_SHA" --title "$tag" \
+                          --notes "A copy of graph-samples' dataset source $file, for rebuilding a hosted dataset without its original host. Its SHA-256 is recorded in graph-samples/scripts/hosted-sources.mjs; see graph-samples/NOTICE for its terms."
+                  done < RELEASES
 
             - name: Fail when a source could not be fetched
               if: steps.fetch.outcome == 'failure'

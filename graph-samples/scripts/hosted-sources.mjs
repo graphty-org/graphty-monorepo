@@ -1,6 +1,6 @@
 /**
  * Where graph-samples' hosted datasets come from (scripts/build-hosted.mjs): their sources, the
- * GitHub release that keeps a copy of every redistributable one, and the files graphty.app already
+ * GitHub releases that keep a copy of every redistributable one, and the files graphty.app already
  * publishes. A rebuild contacts a source's original host only when the release has no good copy of it
  * (or, with build-hosted.mjs --from-original-hosts and scripts/refresh-sources.mjs, always).
  */
@@ -11,9 +11,21 @@ import path from "node:path";
 
 const USER_AGENT = "graphty-graph-samples-build-hosted";
 
-/** The GitHub release holding a copy of every redistributable source, each named by its `file`. */
-export const SOURCES_RELEASE = "graph-samples-sources-v1";
-export const SOURCES_RELEASE_URL = `https://github.com/graphty-org/graphty-monorepo/releases/download/${SOURCES_RELEASE}/`;
+/**
+ * The GitHub release holding the copy of one redistributable source: one release per source, named by its
+ * checksum, because the repository's releases are immutable (no file can be added to a published one), so
+ * a new or changed source gets a release of its own. The graph-samples-sources.yml workflow creates them.
+ * @param {{ sha256: string }} source - an entry of SOURCES
+ * @returns {string} the release's tag
+ */
+export function sourceRelease(source) {
+    return `graph-samples-source-${source.sha256.slice(0, 16)}`;
+}
+
+/** The download URL of a source's copy in its release (sourceRelease). */
+export function sourceReleaseUrl(source) {
+    return `https://github.com/graphty-org/graphty-monorepo/releases/download/${sourceRelease(source)}/${source.file}`;
+}
 
 /**
  * The bytes of a file graphty.app already publishes, when they are exactly the ones recorded in the
@@ -41,7 +53,7 @@ export async function publishedCopy(url, sha256, fetchImpl = fetch) {
 
 /**
  * Every source file, its original URL and its checksum. `redistribute` says whether its terms
- * (graph-samples/NOTICE) allow a copy in this repository's release graph-samples-sources-v1.
+ * (graph-samples/NOTICE) allow a copy in a release of this repository (sourceRelease).
  */
 export const SOURCES = {
     roadNyArcs: {
@@ -98,7 +110,7 @@ export const SOURCES = {
  * @returns {string[]} the URLs to try
  */
 export function sourceUrls(source, { fromOriginalHost = false } = {}) {
-    return fromOriginalHost || !source.redistribute ? [source.url] : [SOURCES_RELEASE_URL + source.file, source.url];
+    return fromOriginalHost || !source.redistribute ? [source.url] : [sourceReleaseUrl(source), source.url];
 }
 
 /** The hex SHA-256 of some bytes. */
@@ -154,8 +166,8 @@ export async function fetchSource(source, cacheDir, { fromOriginalHost = false, 
         reasons.push(result.reason);
     }
     const advice = source.redistribute
-        ? `when its original host answers again, dispatch graph-samples-sources.yml (gh workflow run graph-samples-sources.yml --ref master) to copy it into ${SOURCES_RELEASE}, then re-run this build`
-        : `it is not redistributable, so ${SOURCES_RELEASE} has no copy: re-run this build when its original host answers again`;
+        ? `when its original host answers again, dispatch graph-samples-sources.yml (gh workflow run graph-samples-sources.yml --ref master) to copy it into the release ${sourceRelease(source)}, then re-run this build`
+        : `it is not redistributable, so no release has a copy: re-run this build when its original host answers again`;
     throw new Error(
         `${source.file}: no copy with sha256 ${source.sha256} could be fetched; ${advice}\n  ${reasons.join("\n  ")}`,
     );

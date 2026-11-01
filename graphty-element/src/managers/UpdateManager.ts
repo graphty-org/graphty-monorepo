@@ -74,6 +74,7 @@ interface FramingBox {
  * most of the picture: one world unit on each side moved a two-node graph's camera from 6.0 to 8.6
  * units out. The cameras pad the fit themselves.
  * @param nodes - The nodes to frame; hidden ones are skipped.
+ * @param extent - What each node counts as: the box it is drawn in, or its center alone.
  * @returns The corners, or undefined when no node is visible.
  */
 export function nodeFramingBox(
@@ -187,6 +188,7 @@ function sameBox(a: FramingBox, b: FramingBox): boolean {
  * those.
  * @param nodes - The nodes to frame; hidden ones and their labels are skipped.
  * @param edges - The edges whose labels to frame; hidden ones are skipped.
+ * @param extent - What each node counts as; with its center alone no label is framed.
  * @returns The corners, or undefined when no node is visible.
  */
 export function framingBox(
@@ -2172,7 +2174,10 @@ export class UpdateManager implements Manager {
         return framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent);
     }
 
-    /** How the graph is framed: the project setting `framing`, which the element hands over when it changes. */
+    /**
+     * How the graph is framed: the project setting `framing`, which the element hands over when it changes.
+     * @internal
+     */
     framing: GraphFraming | undefined = undefined;
 
     /**

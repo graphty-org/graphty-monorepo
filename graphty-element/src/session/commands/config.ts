@@ -118,7 +118,7 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
         {
             group: "framing",
             schema: z
-                .strictObject({ extent: z.enum(["drawn", "centers"]), padding: z.number().min(0).finite().optional() })
+                .strictObject({ extent: z.enum(["drawn", "centers"]), padding: z.number().min(0).optional() })
                 .optional(),
         },
     ],

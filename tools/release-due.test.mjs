@@ -12,6 +12,7 @@ import { parse as parseYaml } from "yaml";
 import {
     approvalsIn,
     attemptOf,
+    cancelWithNote,
     due,
     fixForwardMerges,
     PAID_RETEST_MAX_MS,
@@ -232,5 +233,40 @@ describe("release-due approvals since the last green build", () => {
         const due = resumesDue([unrelated, approvalMerge], { ...store, hold: { head: "other", issue: 4104 } });
         assert.equal(due[0].run, false);
         assert.equal(due[0].comment, 4104);
+    });
+});
+
+describe("release-due cancel note", () => {
+    const note = "https://github.com/o/r/issues/12#issuecomment-345";
+    const gh = (cancelFails) => {
+        const calls = [];
+        const fn = (args) => {
+            calls.push(args.join(" "));
+            if (cancelFails && args[0] === "run") throw new Error("run 9 has already completed");
+            return "";
+        };
+        return { calls, fn };
+    };
+
+    it("keeps the note when the cancel goes through", () => {
+        const { calls, fn } = gh(false);
+        cancelWithNote(9, () => note, fn);
+        assert.deepEqual(calls, ["run cancel 9"]);
+    });
+
+    // #3644: a note left on a run that was not cancelled hides that run's real failure from release-watch
+    it("deletes the note when the cancel fails, and cancels even when the note fails", () => {
+        const failed = gh(true);
+        cancelWithNote(9, () => note, failed.fn);
+        assert.deepEqual(failed.calls, ["run cancel 9", "api -X DELETE repos/{owner}/{repo}/issues/comments/345"]);
+        const noNote = gh(false);
+        cancelWithNote(
+            9,
+            () => {
+                throw new Error("HTTP 502");
+            },
+            noNote.fn,
+        );
+        assert.deepEqual(noNote.calls, ["run cancel 9"]);
     });
 });

@@ -1507,11 +1507,17 @@ describe("ci.yml", () => {
             { databaseId: 3, displayTitle: "Release (shadow)" },
             { databaseId: 4, displayTitle: "Release (legacy)" },
         ];
-        const named = "https://github.com/o/r/actions/runs/1 https://github.com/o/r/actions/runs/3";
-        assert.deepEqual(releaseToCancel(runs, named), [1], "never a shadow or a legacy release");
+        // each filing pairs the run with the commit it tested, as redIssue writes it
+        const filed = (sha, id) => `The full run failed on ${sha} (CI): https://github.com/o/r/actions/runs/${id}`;
+        const title = "Full run red: CI on abcdef1";
+        const named = `${filed("abcdef1234", 1)}\n${filed("abcdef1234", 3)}`;
+        assert.deepEqual(releaseToCancel(runs, title, named), [1], "never a shadow or a legacy release");
         // only the runs the red issue names: a restart testing the fix, or an unrelated full run, keeps running
-        assert.deepEqual(releaseToCancel(runs, "https://github.com/o/r/actions/runs/1"), [1]);
-        assert.deepEqual(releaseToCancel(runs, "no run linked"), []);
+        assert.deepEqual(releaseToCancel(runs, title, filed("abcdef1234", 1)), [1]);
+        assert.deepEqual(releaseToCancel(runs, title, "no run linked"), []);
+        // a run the issue names on another commit (an earlier filing, before a retitle) tests something else (#3644)
+        assert.deepEqual(releaseToCancel(runs, title, `${filed("1234567890", 2)}\n${filed("abcdef1234", 1)}`), [1]);
+        assert.deepEqual(releaseToCancel(runs, "Full run red: CI on 1234567", named), []);
         // the note on the Release status issue reads as that attempt's failure report, so release-watch is quiet
         const url = "https://github.com/o/r/actions/runs/1";
         assert.ok(releaseReportsFailure(releaseCancelNote(9001, url, 1), url, 1));

@@ -1070,8 +1070,11 @@ function labelOf(snapshot: GraphSnapshot, writer: GmlWriter, target: StyleTarget
     if (writer.vocabulary === "cytoscape" && target === "node" && (label === undefined || label === "")) {
         return String(snapshot.ids.idOf(i));
     }
-    // gv2gml writes `label` only once a layout has set it; Graphviz draws `\N`, the `name` gv2gml always writes
-    if (writer.vocabulary === "graphviz" && target === "node" && label === undefined) {
+    // gv2gml writes `label` only once a layout has set it; Graphviz draws `\N`, the `name` gv2gml always writes. A
+    // layout writes every node's label (its `\N` default too) and its graphics, so a laid-out node gv2gml wrote with
+    // no `label` has an empty one and Graphviz draws none
+    const laidOut = isRec(cellOf(table, "graphics", i));
+    if (writer.vocabulary === "graphviz" && target === "node" && label === undefined && !laidOut) {
         return cellOf(table, "name", i);
     }
     return label;

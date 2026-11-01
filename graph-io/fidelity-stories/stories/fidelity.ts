@@ -13,9 +13,9 @@
  * shows the interactive canvas instead.
  *
  * The story root has `whenDone()`, which settles once the table is drawn and, unless `live`, the element is gone (only
- * its screenshot stays); visual-review waits on it before the capture, and the story's play function waits on it, so
- * its test ends only once the story has. A failure is printed as "fidelity story failed: <reason>", which the capture
- * treats as a failed story and the play function throws.
+ * its screenshot stays); visual-review waits on it before the capture, and the story's afterEach waits on it, so its
+ * test ends only once the story has. A failure is printed as "fidelity story failed: <reason>", which the capture
+ * treats as a failed story and the afterEach throws.
  */
 import "../../../graphty-element/index.ts";
 
@@ -332,20 +332,24 @@ export function fidelityStory(id: string, fileUrl: string, imageBase?: string): 
             },
         },
         render: (args) => render(sample, fileUrl, args.live === true, imageBase),
-        play: playUntilDone,
+        afterEach: untilDone,
     };
 }
 
 type Root = HTMLElement & { whenDone: () => Promise<void> };
 
 /**
- * The play function of every fidelity story: it waits for the story to finish and throws its failure, so a story
- * test ends only once the story has (not while the story is still importing, when the next story would unmount it
- * mid-import) and a story that fails fails its test (#4997).
+ * The afterEach of every fidelity story: it waits for the story to finish and throws its failure, so a story test
+ * ends only once the story has (not while the story is still importing, when the next story would unmount it
+ * mid-import) and a story that fails fails its test (#4997). An afterEach rather than a play function: Storybook runs
+ * it after the render is "completed", which is all the screenshot capture waits for within its render timeout before
+ * it waits on `whenDone()` itself with none, so a large sample may take as long as it needs, as before. As a play
+ * function the whole import counted against the render timeout, and the largest samples (cyjs-perf,
+ * gephi-worldcup) exceeded it.
  * @param context - the story's context
  * @param context.canvasElement - what the story is drawn in
  */
-export async function playUntilDone({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> {
+export async function untilDone({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> {
     const root = canvasElement.querySelector<Root>("[data-fidelity]");
     if (root === null) {
         throw new Error("the story drew no root");

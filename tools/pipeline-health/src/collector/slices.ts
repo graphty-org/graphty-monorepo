@@ -133,7 +133,7 @@ export function isQuiet(samples: RunnerSample[], now: number, cfg: SliceConfig):
     const window = cfg.quietMinutes * MIN;
     const recent = samples.filter((s) => s.at >= now - window - 4 * MIN);
     // The samples span the whole window with no missed cycle (a gap over 7.5 minutes) and none after the last.
-    if (!recent.length || recent[0].at > now - window + 2 * MIN || recent[recent.length - 1].at < now - 7.5 * MIN) {
+    if (!recent.length || recent[0].at > now - window + 2 * MIN || (recent.at(-1)?.at ?? 0) < now - 7.5 * MIN) {
         return false;
     }
     if (recent.some((s, k) => k > 0 && s.at - recent[k - 1].at > 7.5 * MIN)) {

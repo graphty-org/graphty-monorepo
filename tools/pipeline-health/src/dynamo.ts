@@ -131,10 +131,12 @@ export function dynamoStore(
                 values[`:s${i}`] = v;
             });
             if (set.length) {
-                parts.push(`SET ${set.map((_, i) => `#s${i} = :s${i}`).join(", ")}`);
+                const sets = set.map((_, i) => `#s${i} = :s${i}`).join(", ");
+                parts.push(`SET ${sets}`);
             }
             if (add.length) {
-                parts.push(`ADD ${add.map((_, i) => `#a${i} :a${i}`).join(", ")}`);
+                const adds = add.map((_, i) => `#a${i} :a${i}`).join(", ");
+                parts.push(`ADD ${adds}`);
             }
             const expr = conditionOf(condition, names, values);
             try {

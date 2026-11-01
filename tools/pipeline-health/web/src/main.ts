@@ -326,11 +326,9 @@ function draw(failure: Failure | null, fresh: boolean): void {
     const body = last?.html ?? (failure ? unknownPanel(failure) : "");
     app.innerHTML = `<div class="app">${nav(last?.status ?? null, FIXTURE)}<main>${banners(failure)}${body}</main></div>`;
     for (const d of app.querySelectorAll<HTMLDetailsElement>("details[data-key]")) {
-        if (open.has(d.dataset.key)) {
-            d.open = true;
-        } else if (fresh && d.dataset.key && /^tree\/0(\/0)?$/.test(d.dataset.key)) {
-            d.open = true;
-        } else if (fresh && d.dataset.key?.startsWith("shard-") && d === app.querySelector("details.sd")) {
+        const firstTree = !!d.dataset.key && /^tree\/0(\/0)?$/.test(d.dataset.key);
+        const firstShard = !!d.dataset.key?.startsWith("shard-") && d === app.querySelector("details.sd");
+        if (open.has(d.dataset.key) || (fresh && (firstTree || firstShard))) {
             d.open = true;
         }
     }

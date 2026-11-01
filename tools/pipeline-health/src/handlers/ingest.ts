@@ -261,7 +261,7 @@ const list = (v: unknown, field: string): Record<string, unknown>[] => {
  * @param variant - the shard variant
  * @returns the family name
  */
-export const familyOf = (variant: string): string => variant.replace(/\+.*$/, "").replace(/-\d+$/, "");
+export const familyOf = (variant: string): string => variant.split("+")[0].replace(/-\d+$/, "");
 
 type Extra = { pk: string; sk: string; [k: string]: unknown };
 interface Built {

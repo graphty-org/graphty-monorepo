@@ -199,6 +199,7 @@ export function nav(status: StatusResponse | null, fixture: boolean): string {
     };
     const sub = (links: [string, string][]): string =>
         `<ul class="sub open">${links.map(([r, n]) => `<li><a href="${href(r)}">${esc(n)}</a></li>`).join("")}</ul>`;
+    const sample = fixture ? '<p class="sample">Fixture data: the incidents of 2026-10-25, as of 23:30 UTC</p>' : "";
     return `<nav class="side" aria-label="Pages"><div class="brand">Pipeline health</div><ul>${item("overview")}${item(
         "master",
     )}${item("pull-requests")}${item(
@@ -214,9 +215,7 @@ export function nav(status: StatusResponse | null, fixture: boolean): string {
             ["/flaky/hotspots", "Hotspots"],
             ["/flaky/quarantine", "Quarantine"],
         ]),
-    )}${item("releases")}${item("costs")}${item(
-        "data-sources",
-    )}</ul>${fixture ? `<p class="sample">Fixture data: the incidents of 2026-10-25, as of 23:30 UTC</p>` : ""}</nav>`;
+    )}${item("releases")}${item("costs")}${item("data-sources")}</ul>${sample}</nav>`;
 }
 
 function rangePicker(slow: boolean): string {
@@ -386,7 +385,8 @@ function memberRow(m: Member): string {
     // What red means is on every row ("If red:"), and reads "Red:" in ink when the row is past its red line; a
     // yellow row says what yellow means when that differs, then what red would mean.
     const red = redNote(m);
-    const title = t.red ? ` title="${esc(`Red: ${t.red}`)}"` : "";
+    const redTitle = `Red: ${t.red ?? ""}`;
+    const title = t.red ? ` title="${esc(redTitle)}"` : "";
     // A row whose link is the page it is on goes nowhere, so it is no link and has no chevron; its own links work.
     const still = linksHere(m.link);
     const text = (html: string): string => (still ? html : unlinked(html));
@@ -816,7 +816,8 @@ function table(s: TableSection): string {
     const weight = (k: string, i: number): number => def.weights?.[k] ?? (i === 0 ? 1.6 : 1);
     const tracks = cols.map(([k], i) => `minmax(0, ${weight(k, i)}fr)`).join(" ");
     const style = dropped ? ` style="--cols: ${tracks}"` : "";
-    const head = `<div class="thead">${cols.map(([, h]) => `<span>${esc(h)}</span>`).join("")}</div>`;
+    const headCells = cols.map(([, h]) => `<span>${esc(h)}</span>`).join("");
+    const head = `<div class="thead">${headCells}</div>`;
     const row = (r: TableRow): string => tableRow(cols, r);
     const cap = def.cap ?? TABLE_CAP;
     const live = s.rows.filter((r) => !r.past && !r.total);
@@ -1174,9 +1175,9 @@ function block(c: CategoryStatus): string {
     }
     const aria = [`${name}: ${word}`, ...[by, more].filter(Boolean).map(stripTags)].join(", ");
     const cls = c.state === "idle" ? "idle" : stateClass(c.state);
-    return `<a class="blk ${cls}" href="${href(PAGE_PATH[c.id])}" aria-label="${esc(aria)}" title="${esc(aria)}"><span class="bn">${lab(esc(name))}</span><span class="bw">${lab(word)}</span>${
-        by ? `<span class="by">${lab(by)}</span>` : ""
-    }${more ? `<span class="by bym">${lab(more)}</span>` : ""}${chev()}</a>`;
+    const byHtml = by ? `<span class="by">${lab(by)}</span>` : "";
+    const moreHtml = more ? `<span class="by bym">${lab(more)}</span>` : "";
+    return `<a class="blk ${cls}" href="${href(PAGE_PATH[c.id])}" aria-label="${esc(aria)}" title="${esc(aria)}"><span class="bn">${lab(esc(name))}</span><span class="bw">${lab(word)}</span>${byHtml}${moreHtml}${chev()}</a>`;
 }
 
 /**
@@ -1497,11 +1498,13 @@ export function testView(h: TestHistoryResponse): string {
     const where = (e: TestHistoryResponse["events"][number]): string =>
         e.pr ? prLink(e.pr) : (WHERE_WORD[e.kind] ?? "local");
     const rows = h.events
-        .map(
-            (e) =>
+        .map((e) => {
+            const commit = `${shaLink(e.sha)}<small>attempt ${fmtN(e.attempt)}</small>`;
+            return (
                 `<div class="tr${e.outcome === "passed" ? " past" : ""}">${cellSpan("when", fmtTime(e.at))}${cellSpan("where", where(e))}` +
-                `${cellSpan("commit", `${shaLink(e.sha)}<small>attempt ${fmtN(e.attempt)}</small>`)}${cellSpan("result", outcome(e.outcome))}${cellSpan("message", esc(e.signature ?? ""))}${cellSpan("run", runLink(e.run))}</div>`,
-        )
+                `${cellSpan("commit", commit)}${cellSpan("result", outcome(e.outcome))}${cellSpan("message", esc(e.signature ?? ""))}${cellSpan("run", runLink(e.run))}</div>`
+            );
+        })
         .join("");
     return (
         `${header(

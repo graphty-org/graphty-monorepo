@@ -166,7 +166,8 @@ export function bigValue(v: Value): string {
     const n = v.unit === "x" ? v.n.toFixed(1) : fmtN(v.n);
     const of = v.of === undefined ? "" : ` of ${fmtN(v.of)}`;
     const rest = bigUnit(v.unit) + of + (v.ago ? " ago" : "");
-    return `${sign}${n}${rest ? `<small>${esc(rest)}</small>` : ""}`;
+    const small = rest ? `<small>${esc(rest)}</small>` : "";
+    return `${sign}${n}${small}`;
 }
 
 function wordValue(v: Extract<Value, { word: unknown }>): string {
@@ -1085,24 +1086,23 @@ const S: Record<string, (p: P) => string> = {
     "sla.canary_age": (p) => `canary age &lt; ${fmtN(num(p, "h"))} h`,
 
     // episodes
-    "ep.shared_check": (p) =>
-        `${str(p, "check")}${p.step ? ` (${str(p, "step")})` : ""} is red in ${plural(num(p, "prs"), "open pull request")}${
-            arr(p, "suspects").length
-                ? `; suspects ${arr(p, "suspects")
-                      .map((n) => `#${n}`)
-                      .join(", ")}`
-                : ""
-        }`,
+    "ep.shared_check": (p) => {
+        const step = p.step ? ` (${str(p, "step")})` : "";
+        const suspects = arr(p, "suspects").map((n) => `#${n}`);
+        const suspected = suspects.length ? `; suspects ${suspects.join(", ")}` : "";
+        return `${str(p, "check")}${step} is red in ${plural(num(p, "prs"), "open pull request")}${suspected}`;
+    },
     "ep.saturated": (p) =>
         `Runners saturated: ${fmtN(num(p, "running"))} of ${fmtN(num(p, "limit"))} jobs running, ${fmtN(num(p, "queued"))} queued, master builds queued ${fmtN(num(p, "master_queued_min"))} min`,
     "ep.flaky_held": (p) =>
         `${arr(p, "tests").length} flaky stories hold ${plural(num(p, "prs"), "pull request")}: ${and(arr(p, "tests").map(esc))}`,
     "ep.lanes_red": (p) =>
         `${and(arr(p, "lanes").map((l) => lane(String(l), true)))} red on candidate ${str(p, "sha")}${p.shadow ? "; shadow mode opened no hold" : ""}`,
-    "ep.workflow_failing": (p) =>
-        `${str(p, "workflow")} fails on every push to master, ${fmtN(num(p, "runs"))} runs${
-            p.fix ? `; fix #${num(p, "fix")}${p.fix_waits_owner ? " waits on the owner" : ""}` : ""
-        }`,
+    "ep.workflow_failing": (p) => {
+        const waits = p.fix_waits_owner ? " waits on the owner" : "";
+        const fix = p.fix ? `; fix #${num(p, "fix")}${waits}` : "";
+        return `${str(p, "workflow")} fails on every push to master, ${fmtN(num(p, "runs"))} runs${fix}`;
+    },
     "ep.train_skipped": (p) => `The ${at(p, "attempt")} train skipped every lane on new master commit ${str(p, "sha")}`,
     "ep.stress_filing": (p) =>
         `The weekly stress run filed ${fmtN(num(p, "filed"))} issues: ${fmtN(num(p, "failures"))} failures, over its cap of ${fmtN(num(p, "cap"))}`,

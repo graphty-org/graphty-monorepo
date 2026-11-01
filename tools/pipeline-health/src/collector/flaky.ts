@@ -162,7 +162,7 @@ export function netChange(history: Map<string, FlakySeen>, fixedAt: Map<string, 
     const windowStart = today - 6 * DAY;
     let net = 0;
     for (const [k, s] of history) {
-        const last = s.days[s.days.length - 1];
+        const last = s.days.at(-1) ?? s.days[0];
         if (s.days[0] >= windowStart) {
             net++;
         }
@@ -303,7 +303,7 @@ export async function flakyMembers(
 ): Promise<Record<string, number>> {
     const history = await flakyHistory(store, now);
     const weekStart = floorTo(now, "1d") - 6 * DAY;
-    const week = [...history.values()].filter((s) => s.days[s.days.length - 1] >= weekStart);
+    const week = [...history.values()].filter((s) => (s.days.at(-1) ?? 0) >= weekStart);
     const issues = await issuesNaming(gh, repo, week, weekStart);
     const fixedAt = new Map<string, number>();
     for (const [k, v] of issues) {
@@ -317,7 +317,7 @@ export async function flakyMembers(
         // detection's day (the same rule as netChange).
         "flaky.no_issue": week.filter((s) => {
             const i = issues.get(testKey(s.file, s.name));
-            return !i?.open && !(i?.closedAt !== undefined && i.closedAt >= s.days[s.days.length - 1]);
+            return !i?.open && !(i?.closedAt !== undefined && i.closedAt >= (s.days.at(-1) ?? 0));
         }).length,
         "flaky.blocked_prs": blocked.prs.length,
         "flaky.blocked_oldest_ms": blocked.oldestMs,

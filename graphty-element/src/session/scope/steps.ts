@@ -21,6 +21,7 @@ import type {
     UnionStep,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import type { NumericColumnSource } from "../results/statistics";
 import type { Histogram, HistogramOptions } from "../results/types";
 import type { CodedFact } from "../shared";
 import type { Bytes, UnionRead } from "../visibility/union";
@@ -923,7 +924,7 @@ export interface HistogramInput {
      * @param options - The bin count and scale.
      * @returns The histogram.
      */
-    bin(column: { readonly length: number; get(index: number): number }, options: HistogramOptions): Histogram;
+    bin(column: NumericColumnSource, options: HistogramOptions): Histogram;
 }
 
 /**

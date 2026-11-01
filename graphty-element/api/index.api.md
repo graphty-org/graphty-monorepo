@@ -4307,6 +4307,19 @@ export type GraphtyWarningCode =
 */
 | "W_ROUTES_NOT_LAID"
 /**
+* A layout that reads edge weights (`forceatlas2`, `kamada-kawai`) read a weight whose meaning
+* nobody stated as a strength: a larger weight drawn closer. Set `data.knownFields.edgeWeightMeaning`
+* to say what it means. Emitted as a `layout-warning` event. `params.attribute` is the weight's
+* column and `params.meaning` the meaning assumed, `"strength"`.
+*/
+| "W_WEIGHT_MEANING_ASSUMED"
+/**
+* A layout that reads edge weights left the weight unread, because its meaning is neither a
+* strength nor a distance (a capacity): every edge counts the same. Emitted as a `layout-warning`
+* event. `params.attribute` is the weight's column and `params.meaning` its meaning.
+*/
+| "W_WEIGHT_MEANING_MISMATCH"
+/**
 * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
 * the `graphty-sources` member: query parameters of a URL load's address, or of a network
 * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
@@ -7145,6 +7158,7 @@ export interface SnapshotLayoutInput {
     readonly signal: AbortSignal;
     readonly stored: GraphSnapshot;
     warn(warning: SnapshotLayoutWarning): void;
+    weightMeaning?(): "strength" | "distance" | null;
 }
 
 // @public

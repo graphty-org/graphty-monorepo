@@ -101,6 +101,33 @@ describe("session.time: the designated field", () => {
         harness.session.dispose();
     });
 
+    it("never runs a time:ready listener inside a read, and still tells it once the index is built", async () => {
+        const harness = emails();
+        const { session } = harness;
+        await session.time.setField({ edges: { start: "sent" } });
+        // New data makes the next read rebuild the index.
+        harness.add([{ id: "g" }], [{ src: "f", dst: "g", sent: "2026-01-05T00:00:00Z" }]);
+
+        let reading = false;
+        const heard: { duringRead: boolean; extent: unknown }[] = [];
+        const ready = new Promise<void>((resolve) => {
+            session.on("time:ready", () => {
+                heard.push({ duringRead: reading, extent: session.time.extent() });
+                resolve();
+            });
+        });
+
+        reading = true;
+        assert.deepStrictEqual(session.time.field, { edges: { start: "sent" } });
+        reading = false;
+        await ready;
+
+        assert.lengthOf(heard, 1);
+        assert.isFalse(heard[0].duringRead);
+        assert.isNotNull(heard[0].extent);
+        session.dispose();
+    });
+
     it("is one undoable step", async () => {
         const harness = emails();
         await harness.session.time.setField({ edges: { start: "sent" } });

@@ -27,9 +27,9 @@
 #     <branch>  an existing local or origin branch is checked out; a new name is created from base
 #     [base]    the start point of a new branch (default origin/master; fetched first)
 #     [name]    the worktree's directory name (default: the branch, with / replaced by -)
-#     the issue, one of: a number of three or more digits in <branch> (fix/1234-scroll), --issue N, or
-#               --new-issue "<title>", which opens one labelled with a type (from the branch's prefix:
-#               fix/ bug, feat/ enhancement, docs/ documentation, else infrastructure, or --type),
+#     the issue, one of: --issue N, or --new-issue "<title>", or else a number of three or more digits
+#               in <branch> (fix/1234-scroll), which must be an open issue; --new-issue opens one
+#               labelled with a type (from the branch's prefix: fix/ bug, feat/ enhancement, docs/ documentation, else infrastructure, or --type),
 #               --priority (default medium) and --effort (default medium)
 #     --owner   who owns the work, for the note (default: this Claude Code session)
 #     --full-images  check out the design/** images in full too (the design studio's worktree needs them)
@@ -61,7 +61,7 @@ if [ -z "${WORKTREE_NEW_LIVE_COPY:-}" ]; then
 fi
 unset WORKTREE_NEW_LIVE_COPY
 POS=()
-ISSUE="" NEW_ISSUE="" OWNER="" TYPE="" PRIORITY="" EFFORT="" FULL_IMAGES=""
+ISSUE="" NEW_ISSUE="" NAMED_ISSUE="" OWNER="" TYPE="" PRIORITY="" EFFORT="" FULL_IMAGES=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --issue) ISSUE="${2:-}"; shift 2 ;;
@@ -82,15 +82,41 @@ NAME="${POS[2]:-${BRANCH//\//-}}"
 
 case "$BRANCH" in golden | golden-cut) TRACKED="" ;; *) TRACKED=1 ;; esac
 if [ -n "$TRACKED" ]; then
-    [ -n "$ISSUE" ] || ISSUE=$(printf '%s\n' "$BRANCH" | grep -oE '(^|[^0-9])[0-9]{3,}' | head -1 | grep -oE '[0-9]+' || true)
-    [ -n "$ISSUE" ] || [ -n "$NEW_ISSUE" ] || die "every branch belongs to an issue: name it in the branch (fix/1234-topic), or give --issue N, or --new-issue \"<title>\""
+    [ -n "$ISSUE" ] && [ -n "$NEW_ISSUE" ] && die "give --issue N or --new-issue \"<title>\", not both"
     [[ -z "$ISSUE" || "$ISSUE" =~ ^[0-9]+$ ]] || die "--issue takes a number, not $ISSUE"
+    # An explicit --issue or --new-issue wins over a number in the branch's name, which may be a year or
+    # a pull request (integrate/pipeline-2026-10-24 once labelled pull request #2026 in-progress).
+    NAMED_ISSUE=""
+    if [ -z "$ISSUE" ] && [ -z "$NEW_ISSUE" ]; then
+        NAMED_ISSUE=$(printf '%s\n' "$BRANCH" | grep -oE '(^|[^0-9])[0-9]{3,}' | head -1 | grep -oE '[0-9]+' || true)
+        ISSUE="$NAMED_ISSUE"
+    fi
+    [ -n "$ISSUE" ] || [ -n "$NEW_ISSUE" ] || die "every branch belongs to an issue: name it in the branch (fix/1234-topic), or give --issue N, or --new-issue \"<title>\""
 fi
 
 # The main checkout, even when this runs from inside another worktree.
 MAIN="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 DIR="$MAIN/.worktrees/$NAME"
 [ -e "$DIR" ] && die "$DIR already exists"
+
+# git keeps refs as files: a branch docs/x cannot exist beside a branch docs (nor docs beside docs/x).
+# Refuse it here, before an issue is opened for a branch that could never be made.
+prefix=""
+IFS=/ read -ra PARTS <<<"$BRANCH"
+for part in "${PARTS[@]:0:${#PARTS[@]}-1}"; do
+    prefix="${prefix:+$prefix/}$part"
+    for ref in "refs/heads/$prefix" "refs/remotes/origin/$prefix"; do
+        git -C "$MAIN" show-ref --verify --quiet "$ref" &&
+            die "a branch named $prefix exists ($ref), so git cannot make $BRANCH; pick a name that does not start with $prefix/"
+    done
+done
+[ -z "$(git -C "$MAIN" for-each-ref --count=1 "refs/heads/$BRANCH/" "refs/remotes/origin/$BRANCH/")" ] ||
+    die "branches named $BRANCH/... exist, so git cannot make $BRANCH; pick another name"
+
+if [ -n "$NAMED_ISSUE" ]; then
+    (cd "$MAIN" && node "$HERE/branch-note.mjs" check-issue --issue "$NAMED_ISSUE") ||
+        die "#$NAMED_ISSUE, the number in $BRANCH, is not an open issue; name the issue with --issue N or --new-issue \"<title>\""
+fi
 
 if [ -n "$TRACKED" ] && [ -z "$ISSUE" ]; then
     ISSUE=$(cd "$MAIN" && node "$HERE/branch-note.mjs" new-issue --title "$NEW_ISSUE" --branch "$BRANCH" \

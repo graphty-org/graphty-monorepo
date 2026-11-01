@@ -10,6 +10,8 @@
 //       the post-commit hook's call: refreshes the latest commit, at most once per 10 minutes per branch
 //   node tools/branch-note.mjs new-issue --title T --branch B [--type T] [--priority P] [--effort E]
 //       opens an issue with a type, a priority and an effort label, and prints its number
+//   node tools/branch-note.mjs check-issue --issue N
+//       exits 0 when N is an open issue, 1 when it is closed, a pull request or missing
 //
 // A branch's issue: --issue, else `git config branch.<branch>.issue` (tools/worktree-new.sh writes it), else
 // the first number of three or more digits in the branch's name. The owner: --owner, else the Claude Code
@@ -123,6 +125,20 @@ export function readIssues(run, numbers) {
  */
 export const findNote = (issue, branch) =>
     issue?.comments.findLast((c) => c.body.startsWith(noteMarker(branch))) ?? null;
+
+/**
+ * Whether a number is an open issue; says why not on stderr.
+ * @param run runs gh
+ * @param n the number
+ * @returns 0 for an open issue, else 1
+ */
+function checkIssue(run, n) {
+    // GraphQL's issue() answers null for a pull request's number, so only an open issue passes.
+    const found = readIssues(run, [n]).get(n);
+    if (found?.state === "OPEN") return 0;
+    console.error(`branch-note: #${n} is ${found ? "closed" : "a pull request or no issue at all"}`);
+    return 1;
+}
 
 /**
  * Writes or rewrites a branch's note: the fields given replace the note's, the rest are kept.
@@ -264,6 +280,7 @@ export function main(argv, run = gh, cwd = process.cwd()) {
         console.log(newIssue(run, o));
         return 0;
     }
+    if (command === "check-issue") return checkIssue(run, Number(o.issue));
     const branch = o.branch ?? git(cwd, ["symbolic-ref", "-q", "--short", "HEAD"]);
     if (!["start", "update", "commit"].includes(command) || !branch) return usage();
     const n = branchIssue(cwd, branch, o.issue);
@@ -298,6 +315,7 @@ function usage() {
         "usage: node tools/branch-note.mjs start --issue N --branch B --worktree P [--owner O]\n" +
             "     | update [--branch B] [--done T] [--left T] [--next T] [--owner O] [--worktree P]\n" +
             "     | commit [--branch B]\n" +
+            "     | check-issue --issue N\n" +
             "     | new-issue --title T --branch B [--type T] [--priority P] [--effort E]",
     );
     return 1;

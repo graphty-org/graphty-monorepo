@@ -637,6 +637,19 @@ describe("npm", () => {
         expect(missing).toContain("layout@2.5.10");
         expect(missing.some((m) => m.startsWith("graphty@") || m.startsWith("githerd@"))).toBe(false);
     });
+
+    it("leaves out a tag a later publish of the same package superseded", () => {
+        const at = Date.parse("2026-10-31T23:43:31Z");
+        const skipped = [{ project: "graph-format", version: "1.4.10", taggedAt: at }];
+        const before = new Map([
+            ["@graphty/graph-format", { "1.4.9": "2026-10-29T15:34:17Z", modified: "2026-11-01T00:00:00Z" }],
+        ]);
+        expect(taggedNotOnNpm(skipped, before)).toHaveLength(1);
+        const after = new Map([
+            ["@graphty/graph-format", { "1.4.9": "2026-10-29T15:34:17Z", "1.4.11": "2026-11-01T07:00:00Z" }],
+        ]);
+        expect(taggedNotOnNpm(skipped, after)).toHaveLength(0);
+    });
 });
 
 describe("npm names", () => {

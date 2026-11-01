@@ -1094,9 +1094,23 @@ export const UNSCOPED_ON_NPM = new Set(["babylonjs-map"]);
 export const npmName = (project: string): string =>
     project.startsWith("@") || UNSCOPED_ON_NPM.has(project) ? project : `@graphty/${project}`;
 
-/** Tags whose version npm does not list; `times` maps npm name to its packument `time` (undefined: 404). */
+/**
+ * Tags whose version npm does not list and no later publish of the package has superseded (a release that was
+ * tagged and deliberately never published, #5397).
+ * @param tags the release tags
+ * @param times npm name to its packument `time` (undefined: 404)
+ * @returns the tags still due on npm
+ */
 export function taggedNotOnNpm(tags: Tag[], times: Map<string, Record<string, string> | undefined>): Tag[] {
-    return tags.filter((t) => !NOT_ON_NPM.has(t.project) && !times.get(npmName(t.project))?.[t.version]);
+    return tags.filter((t) => {
+        const time = times.get(npmName(t.project)) ?? {};
+        if (NOT_ON_NPM.has(t.project) || time[t.version]) {
+            return false;
+        }
+        return !Object.entries(time).some(
+            ([v, at]) => v !== "created" && v !== "modified" && Date.parse(at) > t.taggedAt,
+        );
+    });
 }
 
 /** A compare (base...master) commit: its sha, parents and committer date. */

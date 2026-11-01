@@ -15,7 +15,7 @@
  * reorganisation. That banner was false and was removed, because it would have stopped the
  * next reader from making exactly the mesh-count repair this file now carries.
  * - Phase 1: Basic infrastructure with discrete patterns
- * - Phase 2: Adaptive mesh density with hysteresis
+ * - Phase 2: Adaptive mesh density (the count is always the one the current length takes)
  * - Phase 3: Alternating patterns (dash-dot) support
  * - Phase 4: Connected patterns (sinewave, zigzag) positioning
  */
@@ -469,10 +469,14 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Check if mesh count needs adjustment based on line length change
-     * Uses hysteresis (one mesh too few) to prevent thrashing; never one too many, which the
-     * line has no room for: its elements overlap and draw it solid (`pajek-synth-lines` arc 2 -> 3,
-     * laid out longer and then shortened, kept three dashes on a line with room for two)
+     * Check if mesh count needs adjustment based on line length change.
+     *
+     * The count is always the one the current length takes. It used to change only when it was
+     * off by more than one (hysteresis), so the same line drawn at the same length came out with
+     * one dash more or less depending on the lengths it passed through on the way -- a dashed
+     * edge whose ends settled in a different order drew a different picture. One too many also has
+     * no room on the line: its elements overlap and draw it solid (`pajek-synth-lines` arc 2 -> 3,
+     * laid out longer and then shortened).
      * @param newLength - New length of the line
      * @returns True if mesh count needs adjustment
      */
@@ -481,7 +485,7 @@ export class PatternedLineMesh {
         const currentCount = this.elements.length;
         const optimalCount = this.calculateOptimalMeshCount(newLength, patternDef);
 
-        return currentCount > optimalCount || optimalCount - currentCount > 1;
+        return currentCount !== optimalCount;
     }
 
     /**

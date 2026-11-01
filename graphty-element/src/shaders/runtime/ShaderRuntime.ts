@@ -24,6 +24,12 @@
  * grows faster than the pixel count. A shader whose cost per pixel, over the largest area its kind
  * can cover here, would take longer than {@link FRAME_LIMIT_MS} is refused with
  * `shader.over-budget`.
+ *
+ * **A pause is not a cost.** A size's time is wall-clock time, and a pause of the whole process --
+ * a CPU quota running out, a busy GPU process -- lands in it as tens of milliseconds the shader
+ * never spent. A pause only ever adds time, so a size that would refuse the shader is drawn again,
+ * up to {@link TEST_REPEATS} times, and judged on its fastest drawing: a runaway is slow every time,
+ * a pause is not.
  */
 
 import {
@@ -46,6 +52,9 @@ import { compileProblem, sampleProgram, uniformValueOf } from "./wrap";
 
 /** The longest one frame of a shader may be estimated at before the test frame refuses it. */
 export const FRAME_LIMIT_MS = 250;
+
+/** The most times the test frame draws a size that would refuse the shader, keeping the fastest. */
+const TEST_REPEATS = 3;
 
 /** The test frame's square sizes, in pixels. */
 const TEST_SIZES = [4, 64, 256] as const;
@@ -388,6 +397,35 @@ export class ShaderRuntime {
     }
 
     /**
+     * Draw every variant at every time on one square size and wait for the GPU to finish.
+     * @param effect - The compiled program.
+     * @param shader - The shader.
+     * @param size - The square's side, in pixels.
+     * @param variants - The parameter values to draw at.
+     * @returns How long it took, in milliseconds.
+     */
+    private async timeSize(
+        effect: Effect,
+        shader: HostShader,
+        size: number,
+        variants: readonly ShaderParams[],
+    ): Promise<number> {
+        const { target } = this.surface();
+        const started = performance.now();
+        this.engine.bindFramebuffer(target, undefined, undefined, undefined, true);
+        for (const values of variants) {
+            for (const time of TEST_TIMES) {
+                this.draw(effect, shader, size, values, time);
+            }
+        }
+
+        // Reading a pixel waits for the GPU to finish what it was given.
+        await this.engine.readPixels(0, 0, 1, 1, true, false);
+        this.engine.unBindFramebuffer(target);
+        return performance.now() - started;
+    }
+
+    /**
      * Run the test frame.
      * @param effect - The compiled program.
      * @param shader - The shader.
@@ -396,28 +434,26 @@ export class ShaderRuntime {
     private async testFrame(effect: Effect, shader: HostShader): Promise<ShaderProblem | null> {
         const { params } = shader.registration.descriptor;
         const variants = (["default", "min", "max"] as const).map((end) => variantOf(params, end));
-        const { target } = this.surface();
+        const draws = variants.length * TEST_TIMES.length;
+        const area = this.areaOf(shader);
+        const largest = TEST_SIZES.at(-1);
         const resting = this.uniforms.currentTime;
         let previous: { size: number; ms: number } | null = null;
         let perPixel = 0;
         try {
             for (const size of TEST_SIZES) {
-                const started = performance.now();
-                this.engine.bindFramebuffer(target, undefined, undefined, undefined, true);
-                for (const values of variants) {
-                    for (const time of TEST_TIMES) {
-                        this.draw(effect, shader, size, values, time);
-                    }
+                const last = previous;
+                const refuses = (ms: number): boolean =>
+                    // Growth faster than the pixel count (with room for fixed costs) is a runaway.
+                    (last !== null && ms > 4 && ms / last.ms > ((size * size) / last.size ** 2) * 2) ||
+                    (size === largest && (ms / (draws * size * size)) * area > FRAME_LIMIT_MS);
+                let ms = await this.timeSize(effect, shader, size, variants);
+                for (let repeat = 1; repeat < TEST_REPEATS && refuses(ms); repeat++) {
+                    ms = Math.min(ms, await this.timeSize(effect, shader, size, variants));
                 }
 
-                // Reading a pixel waits for the GPU to finish what it was given.
-                await this.engine.readPixels(0, 0, 1, 1, true, false);
-                this.engine.unBindFramebuffer(target);
-                const ms = performance.now() - started;
-                const draws = variants.length * TEST_TIMES.length;
                 perPixel = ms / (draws * size * size);
-                // Growth faster than the pixel count (with room for fixed costs) is a runaway.
-                if (previous !== null && ms > 4 && ms / previous.ms > ((size * size) / previous.size ** 2) * 2) {
+                if (refuses(ms)) {
                     return this.overBudget(perPixel, shader);
                 }
 
@@ -429,8 +465,7 @@ export class ShaderRuntime {
             this.engine.wipeCaches(true);
         }
 
-        const area = this.areaOf(shader);
-        return perPixel * area > FRAME_LIMIT_MS ? this.overBudget(perPixel, shader) : null;
+        return null;
     }
 
     /**

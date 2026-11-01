@@ -171,6 +171,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.overlayShape": NOT_PLACED,
     "node.overlayCornerRadius": NOT_PLACED,
     "node.exactCornerRadius": NOT_PLACED,
+    "node.cornerFraction": NOT_PLACED,
     "node.shapePoints": NOT_PLACED,
     "node.shapeStretchPoints": NOT_PLACED,
     "node.shapeParts": NOT_PLACED,

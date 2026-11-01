@@ -600,7 +600,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.923,
-            "edge.route": 0.911,
+            "edge.route": 0.921,
             "edge.curve": 0.995,
             "edge.color": 0.995,
             "edge.width": 1,
@@ -3737,7 +3737,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.99,
             "edge.arrowShape": 0.981,
@@ -3803,7 +3803,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.99,
             "edge.arrowShape": 0.981,
@@ -11198,7 +11198,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.993,
             "edge.arrowShape": 0.981,
@@ -11264,7 +11264,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.993,
             "edge.arrowShape": 0.981,
@@ -35670,7 +35670,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.993,
             "edge.arrowShape": 0.981,
@@ -35736,7 +35736,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.993,
             "edge.arrowShape": 0.981,
@@ -39254,7 +39254,7 @@
             "node.extra": 0.972,
             "node.position": 0.986,
             "node.width": 1,
-            "node.height": 0.957,
+            "node.height": 0.971,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 0.838,
@@ -39317,7 +39317,7 @@
             "node.extra": 0.972,
             "node.position": 1,
             "node.width": 1,
-            "node.height": 0.957,
+            "node.height": 0.971,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 0.838,
@@ -41143,7 +41143,7 @@
             "node.extra": 1,
             "node.position": 0.97,
             "node.width": 1,
-            "node.height": 0.848,
+            "node.height": 0.97,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
@@ -41160,11 +41160,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0,
+            "label.offset": 0.5,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.375,
+            "label.anchor": 0.875,
             "label.outline": 1,
             "label.background": 0.5,
             "label.backgroundBorder": 1,
@@ -41190,17 +41190,17 @@
         },
         "yed-graphml-specimen-groups-p2": {
             "node.present": 1,
-            "node.extra": 0.895,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
-            "node.height": 0.529,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.353,
-            "node.stroke": 0.412,
+            "node.gradient": 0.421,
+            "node.stroke": 0.421,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
@@ -41210,11 +41210,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.308,
+            "label.offset": 0.846,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.385,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 0.846,
             "label.backgroundBorder": 1,
@@ -41243,7 +41243,7 @@
             "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
-            "node.height": 0.579,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
@@ -41260,11 +41260,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.308,
+            "label.offset": 0.846,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.385,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 0.846,
             "label.backgroundBorder": 1,
@@ -41289,7 +41289,7 @@
             "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
-            "node.height": 0.848,
+            "node.height": 0.97,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
@@ -41306,11 +41306,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0,
+            "label.offset": 0.5,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.375,
+            "label.anchor": 0.875,
             "label.outline": 1,
             "label.background": 0.5,
             "label.backgroundBorder": 1,
@@ -52719,6 +52719,12 @@
                 "to": 0.985,
                 "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
                 "date": "2026-11-01"
+            },
+            "node.strokeWidth": {
+                "floor": 1,
+                "to": 0.92,
+                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
+                "date": "2026-11-01"
             }
         },
         "cx-radiation-bibliography@matched": {
@@ -52861,6 +52867,12 @@
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
+            },
+            "node.strokeWidth": {
+                "floor": 1,
+                "to": 0.99,
+                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
+                "date": "2026-11-01"
             }
         },
         "cx-syn-mappings@matched": {
@@ -52886,6 +52898,12 @@
                 "floor": 1,
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
+                "date": "2026-11-01"
+            },
+            "node.strokeWidth": {
+                "floor": 1,
+                "to": 0.99,
+                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
                 "date": "2026-11-01"
             }
         },
@@ -53157,6 +53175,12 @@
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
+            },
+            "node.strokeWidth": {
+                "floor": 1,
+                "to": 0.99,
+                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
+                "date": "2026-11-01"
             }
         },
         "cys-syn-mappings@matched": {
@@ -53182,6 +53206,12 @@
                 "floor": 1,
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
+                "date": "2026-11-01"
+            },
+            "node.strokeWidth": {
+                "floor": 1,
+                "to": 0.99,
+                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
                 "date": "2026-11-01"
             }
         },
@@ -53491,6 +53521,20 @@
                 "date": "2026-11-01"
             }
         },
+        "graphml-synthetic-nodes": {
+            "stray.present": {
+                "floor": 0.545,
+                "to": 0.5,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
+                "date": "2026-11-01"
+            },
+            "stray.extra": {
+                "floor": 0.6,
+                "to": 0.4,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
+                "date": "2026-11-01"
+            }
+        },
         "json-cyjs-perf": {
             "edge.width": {
                 "floor": 0.996,
@@ -53629,6 +53673,12 @@
                 "to": 0.875,
                 "reason": "#5229 (d0ec0581c7) placed Pajek's empty vertices and their labels as Pajek does and changed how the comparator places a node drawn as nothing; its own known failures name what is left: vertex 39 and 63's labels turned by la 60 (drawn centered where Pajek starts them) and empty vertex 22's 1 px label alone (bisected in #5332)",
                 "date": "2026-11-01"
+            },
+            "node.strokeWidth": {
+                "floor": 1,
+                "to": 0.971,
+                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
+                "date": "2026-11-01"
             }
         },
         "pajek-synth-vertices@matched": {
@@ -53642,6 +53692,12 @@
                 "floor": 0.889,
                 "to": 0.873,
                 "reason": "#5229 (d0ec0581c7) placed Pajek's empty vertices and their labels as Pajek does and changed how the comparator places a node drawn as nothing; its own known failures name what is left: vertex 39 and 63's labels turned by la 60 (drawn centered where Pajek starts them) and empty vertex 22's 1 px label alone (bisected in #5332)",
+                "date": "2026-11-01"
+            },
+            "node.strokeWidth": {
+                "floor": 1,
+                "to": 0.971,
+                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
                 "date": "2026-11-01"
             }
         },
@@ -53781,6 +53837,12 @@
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
+            },
+            "node.strokeWidth": {
+                "floor": 1,
+                "to": 0.99,
+                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
+                "date": "2026-11-01"
             }
         },
         "xgmml-syn-mappings@matched": {
@@ -53807,33 +53869,59 @@
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
+            },
+            "node.strokeWidth": {
+                "floor": 1,
+                "to": 0.99,
+                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
+                "date": "2026-11-01"
+            }
+        },
+        "yed-graphml-specimen-groups": {
+            "stray.present": {
+                "floor": 0.857,
+                "to": 0.8,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
+                "date": "2026-11-01"
+            },
+            "stray.extra": {
+                "floor": 0.333,
+                "to": 0,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
+                "date": "2026-11-01"
             }
         },
         "yed-graphml-specimen-groups-p2": {
-            "node.fill": {
-                "floor": 1,
-                "to": 0.941,
-                "reason": "comparator: yEd draws table node table-lane-style-rows as three stacked 30.85 px rows. The twin rule used to take a row drawn one row lower as the outline of the row above, so the node read as two rows merged (61.7 of 92.6 px, light fill). Since #5332, stacked boxes are no twins (the cx2-wp1449-tlr fix), so it reads the gray header row alone. Neither reading is the whole table; reading a table drawn as rows as one body is #5347",
+            "stray.present": {
+                "floor": 0.6,
+                "to": 0,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
                 "date": "2026-11-01"
             },
-            "node.stroke": {
-                "floor": 0.412,
-                "to": 0.353,
-                "reason": "comparator: yEd draws table node table-lane-style-rows as three stacked 30.85 px rows. The twin rule used to take a row drawn one row lower as the outline of the row above, so the node read as two rows merged (61.7 of 92.6 px, light fill). Since #5332, stacked boxes are no twins (the cx2-wp1449-tlr fix), so it reads the gray header row alone. Neither reading is the whole table; reading a table drawn as rows as one body is #5347",
+            "stray.extra": {
+                "floor": 0.273,
+                "to": 0,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
                 "date": "2026-11-01"
             }
         },
         "yed-graphml-specimen-groups-p2@matched": {
-            "node.fill": {
-                "floor": 1,
-                "to": 0.947,
-                "reason": "comparator: yEd draws table node table-lane-style-rows as three stacked 30.85 px rows. The twin rule used to take a row drawn one row lower as the outline of the row above, so the node read as two rows merged (61.7 of 92.6 px, light fill). Since #5332, stacked boxes are no twins (the cx2-wp1449-tlr fix), so it reads the gray header row alone. Neither reading is the whole table; reading a table drawn as rows as one body is #5347",
-                "date": "2026-11-01"
-            },
             "node.stroke": {
                 "floor": 0.474,
                 "to": 0.421,
                 "reason": "comparator: yEd draws table node table-lane-style-rows as three stacked 30.85 px rows. The twin rule used to take a row drawn one row lower as the outline of the row above, so the node read as two rows merged (61.7 of 92.6 px, light fill). Since #5332, stacked boxes are no twins (the cx2-wp1449-tlr fix), so it reads the gray header row alone. Neither reading is the whole table; reading a table drawn as rows as one body is #5347",
+                "date": "2026-11-01"
+            },
+            "stray.present": {
+                "floor": 0.333,
+                "to": 0,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
+                "date": "2026-11-01"
+            },
+            "stray.extra": {
+                "floor": 0.061,
+                "to": 0,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
                 "date": "2026-11-01"
             }
         }

@@ -180,6 +180,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.borderWavePeriod": "mesh",
     "node.cornerRadius": "mesh",
     "node.exactCornerRadius": "mesh",
+    "node.cornerFraction": "mesh",
     "node.shapePoints": "mesh",
     "node.shapeStretchPoints": "mesh",
     "node.shapeParts": "mesh",

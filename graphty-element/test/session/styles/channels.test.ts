@@ -174,6 +174,7 @@ const DECLARED = [
     "node.groupIncludeLabels",
     "node.cornerRadius",
     "node.exactCornerRadius",
+    "node.cornerFraction",
     "node.shapePoints",
     "node.shapeStretchPoints",
     "node.shapeParts",
@@ -387,8 +388,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty-two node channels and one hundred and fifty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 182);
+    it("splits into one hundred and eighty-three node channels and one hundred and fifty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 183);
         assert.strictEqual(channelsFor("edge").length, 151);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

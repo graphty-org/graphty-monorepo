@@ -235,6 +235,12 @@ const GLYPH_WEIGHTS: ReadonlyMap<string, number> = new Map([
  */
 const CORNER_CAP = "graphty-internal:cornerRadiusCap";
 
+/**
+ * The rule property `withCornerCap` writes the program's share of the shorter side under (graph-io's
+ * `roundedCornerFraction`), drawn on `node.cornerFraction`: Cytoscape desktop's eighth, Graphviz's third.
+ */
+const CORNER_FRACTION = "graphty-internal:cornerFraction";
+
 interface ChannelPlan {
     readonly channel: Channel;
     readonly convert: Convert;
@@ -684,6 +690,7 @@ function channelPlans(
                 ],
             ],
             [CORNER_CAP, [length("node.cornerRadius")]],
+            [CORNER_FRACTION, [id("node.cornerFraction")]],
             ["shapePoints", [points("node.shapePoints")]],
             ["shapePointsStretch", [id("node.shapeStretchPoints")]],
             ["shapeParts", [points("node.shapeParts")]],
@@ -1039,21 +1046,36 @@ function channelPlans(
 }
 
 /**
- * A node rule of the writing program's defaults with the corner radius it draws on a rounded
- * rectangle when the file gives none (graph-io's `roundedCornerRadius`, in the file's units), so a
- * 513 x 453 group keeps small corners instead of a quarter of its side. Every other rule, and a
- * file whose program has no such default, is unchanged.
+ * A node rule of the writing program's defaults with how it rounds a rounded rectangle when the
+ * file gives no radius: the share of the shorter side (graph-io's `roundedCornerFraction`) and the
+ * largest radius (`roundedCornerRadius`, in the file's units), so a 513 x 453 Graphviz cluster
+ * keeps small corners and a Cytoscape desktop group an eighth of its side. Every other rule, and a
+ * file whose program states neither, is unchanged.
  * @param rule - The rule.
  * @param tool - The program that wrote the file.
  * @returns The rule.
  */
 function withCornerCap(rule: StyleRule, tool: StyleTool | null): StyleRule {
-    const cap = tool === null ? undefined : toolDefaults(tool)?.roundedCornerRadius?.value;
-    if (rule.origin !== "tool" || rule.target !== "node" || cap === undefined || rule.set?.cornerRadius !== undefined) {
+    const defaults = tool === null ? undefined : toolDefaults(tool);
+    const cap = defaults?.roundedCornerRadius?.value;
+    const fraction = defaults?.roundedCornerFraction?.value;
+    if (
+        rule.origin !== "tool" ||
+        rule.target !== "node" ||
+        (cap === undefined && fraction === undefined) ||
+        rule.set?.cornerRadius !== undefined
+    ) {
         return rule;
     }
-    // the key is the translation's own, not a neutral property: no other reader of the rule sees it
-    return { ...rule, set: { ...rule.set, [CORNER_CAP]: cap } as StyleRule["set"] };
+    // the keys are the translation's own, not neutral properties: no other reader of the rule sees them
+    const set: Record<string, unknown> = { ...rule.set };
+    if (cap !== undefined) {
+        set[CORNER_CAP] = cap;
+    }
+    if (fraction !== undefined) {
+        set[CORNER_FRACTION] = fraction;
+    }
+    return { ...rule, set: set as StyleRule["set"] };
 }
 
 /** The element's curve through bends for each neutral one. */

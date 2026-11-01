@@ -108,8 +108,19 @@ describe("TOOL_DEFAULTS roundedCornerRadius", () => {
             expect(d.roundedCornerRadius.source, tool).toMatch(/^cytoscape\.js 3\.34\.3 .* line 4386/);
             expect(d.roundedCornerRadius.source, tool).toContain(`unverified for ${tool}`);
         }
-        // Cytoscape desktop rounds by an eighth of the shorter side, which no cap states
-        expect(TOOL_DEFAULTS.get("cytoscape")?.roundedCornerRadius?.source).toContain("an eighth of the shorter side");
+    });
+});
+
+describe("TOOL_DEFAULTS roundedCornerFraction", () => {
+    it("is each program's own share of the shorter side: Cytoscape desktop an eighth with no cap", () => {
+        for (const tool of ["cytoscape", "cytoscape-fallbacks"]) {
+            expect(TOOL_DEFAULTS.get(tool)?.roundedCornerFraction?.value, tool).toBe(1 / 8);
+            expect(TOOL_DEFAULTS.get(tool)?.roundedCornerRadius, tool).toBeUndefined();
+        }
+        expect(TOOL_DEFAULTS.get("cytoscape-js")?.roundedCornerFraction?.value).toBe(1 / 4);
+        expect(TOOL_DEFAULTS.get("graphviz")?.roundedCornerFraction?.value).toBe(1 / 3);
+        expect(TOOL_DEFAULTS.get("graphviz")?.roundedCornerFraction?.source).toContain("7.33 on 36 x 22");
+        expect(TOOL_DEFAULTS.get("vis-network")?.roundedCornerFraction?.value).toBe(1 / 2);
     });
 });
 

@@ -692,6 +692,7 @@ export type Channel =
     | "node.overlayCornerRadius"
     | "node.cornerRadius"
     | "node.exactCornerRadius"
+    | "node.cornerFraction"
     | "node.shapePoints"
     | "node.shapeStretchPoints"
     | "node.shapeParts"

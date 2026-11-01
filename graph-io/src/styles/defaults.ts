@@ -91,9 +91,15 @@ export interface ToolDefaults {
     /**
      * The largest corner radius, in `units`, the program draws on a rounded rectangle whose file gives none. Not a
      * node default: it only bounds the rounding of the shape the file names, so no rule carries it and no writer has
-     * to hold it.
+     * to hold it. Absent, the corners have no cap and are `roundedCornerFraction` of the shorter side at any size.
      */
     readonly roundedCornerRadius?: ToolDefaultValue<number>;
+    /**
+     * The fraction of a rounded rectangle's shorter side the program rounds its corners by when the file gives no
+     * radius, before `roundedCornerRadius` caps it: Cytoscape.js a quarter, Graphviz a third, Cytoscape desktop an
+     * eighth. Absent, a quarter. Not a node default, for the same reason as the cap.
+     */
+    readonly roundedCornerFraction?: ToolDefaultValue<number>;
     /**
      * How big the program draws its filled triangle arrowhead, which it sizes from the line width and its own size
      * setting rather than from the neutral `arrowSize` alone. Not an edge default: the size follows from two
@@ -259,7 +265,8 @@ const DRAWIO_ARROWHEAD: ToolArrowhead = {
 
 /**
  * The largest corner radius of a rounded rectangle whose file gives none, in the program's units. Cytoscape.js
- * publishes its rule (`getRoundRectangleRadius`); Graphviz and vis-network were measured or read below. A program
+ * publishes its rule (`getRoundRectangleRadius`); Graphviz and vis-network were measured or read below, and Cytoscape
+ * desktop has none (`roundedCornerFraction` alone states its corners). A program
  * whose own radius is not known gets Cytoscape.js's 8, and the source says so, so a 513 x 453 group keeps small
  * corners instead of a quarter of its side.
  * @param tool - the program, when its own radius is not known
@@ -272,11 +279,15 @@ function cornerCap(tool?: string, why = "states none"): ToolDefaultValue<number>
 }
 
 /**
- * Cytoscape desktop's corners, which no cap states: Cytoscape 3.10.5 draws a round rectangle's corners an eighth of its
- * shorter side whatever its size (its SVG export of a CX2 file: 7.5 on a 120 x 60 node, 2.5 on 40 x 20, 56.6 on
- * 513 x 453), so Cytoscape.js's 8 stands in.
+ * Cytoscape desktop's corners: Cytoscape 3.10.5 draws a round rectangle's corners an eighth of its shorter side
+ * whatever its size, with no cap (its SVG export of a CX2 file: 7.5 on a 120 x 60 node, 2.5 on 40 x 20, 56.6 on
+ * 513 x 453).
  */
-const CYTOSCAPE_DESKTOP_CORNERS = "draws an eighth of the shorter side with no cap (3.10.5, measured)";
+const CYTOSCAPE_DESKTOP_CORNERS: ToolDefaultValue<number> = v(
+    1 / 8,
+    "Cytoscape 3.10.5's SVG export of a CX2 file: round rectangle corners 7.5 on a 120 x 60 node, 2.5 on 40 x 20, " +
+        "56.6 on 513 x 453, an eighth of the shorter side with no cap (measured)",
+);
 
 /**
  * The defaults of every program graph-io recognizes as a file's writer, by tool id.
@@ -289,7 +300,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape",
                 version: "cytoscape-impl develop 6c63e97c5152 (3.11)",
                 units: "px",
-                roundedCornerRadius: cornerCap("cytoscape", CYTOSCAPE_DESKTOP_CORNERS),
+                roundedCornerFraction: CYTOSCAPE_DESKTOP_CORNERS,
                 arrowhead: CYTOSCAPE_ARROWHEAD,
                 layoutSpacing: v(
                     102,
@@ -357,7 +368,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape-fallbacks",
                 version: "cytoscape-api develop (3.11)",
                 units: "px",
-                roundedCornerRadius: cornerCap("cytoscape-fallbacks", CYTOSCAPE_DESKTOP_CORNERS),
+                roundedCornerFraction: CYTOSCAPE_DESKTOP_CORNERS,
                 arrowhead: CYTOSCAPE_ARROWHEAD,
                 node: {
                     fill: v("#c80000", `${CYL} 83`),
@@ -409,6 +420,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "cytoscape.js 3.34.3",
                 units: "px",
                 roundedCornerRadius: cornerCap(),
+                roundedCornerFraction: v(
+                    1 / 4,
+                    `${CYJS} 4386 (getRoundRectangleRadius: a quarter of the shorter side)`,
+                ),
                 arrowhead: {
                     // getArrowWidth, and the triangle's points at +-0.15, -0.3 of it
                     length: (size, width) => 0.3 * Math.max((width * 13.37) ** 0.9, 29) * size,
@@ -501,6 +516,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     12,
                     "Graphviz 2.43.0 dot -Tsvg of style=rounded boxes: 12 points on a 504 x 432 box, a third of the " +
                         "shorter side (7.33) on a 36 x 22 one (lib/common/shapes.c round_corners, RBCONST 12)",
+                ),
+                roundedCornerFraction: v(
+                    1 / 3,
+                    "Graphviz 2.43.0 dot -Tsvg of fixedsize style=rounded boxes: each side's straight run starts " +
+                        "4.67 in on a 22 x 14 box, 7.33 on 36 x 22 and 12 on 72 x 36 (a third of the shorter side), " +
+                        "and 12 on 72 x 72, 144 x 43, 216 x 144 and 504 x 432 (the cap)",
                 ),
                 // the median of the nearest-node spacings dot, neato and twopi leave in the nine fidelity oracles of DOT
                 // files with no positions (28 to 102 points)
@@ -719,6 +740,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     6,
                     "vis-network 9.1.9 peer/esm/vis-network.js line 19152 (shapeProperties.borderRadius 6, a box's " +
                         "corners) and drawRoundRect (the radius as given, at most half a side)",
+                ),
+                roundedCornerFraction: v(
+                    1 / 2,
+                    "vis-network 9.1.9 peer/esm/vis-network.js drawRoundRect (the radius as given, at most half a side)",
                 ),
                 arrowhead: {
                     // EdgeBase.getArrowData: 15 * scaleFactor + 3 * width; ArrowHead's points at -1, +-0.3

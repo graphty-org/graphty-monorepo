@@ -255,6 +255,10 @@ export const NodeStyle = z.strictObject({
             // than capped at a quarter of it (round-rectangle) or a tenth (the round-* polygons),
             // as Cytoscape.js and vis-network draw a radius a file sets. Unset or false keeps the caps.
             exactCornerRadius: z.boolean().optional(),
+            // The share of the shorter side a round-rectangle's corners are rounded by when
+            // `exactCornerRadius` is not set, never more than `cornerRadius`: unset, a quarter, as
+            // Cytoscape.js rounds; Cytoscape desktop rounds an eighth, Graphviz a third. At most a half.
+            cornerFraction: z.number().min(0).max(0.5).optional(),
             // A "polygon" node's corners, as `x,y` pairs separated by spaces: each relative to the
             // node's center as fractions of its half width and half height, y up ("0,1 1,-1 -1,-1"
             // is a triangle). The outline is stretched so its farthest corners reach the node's

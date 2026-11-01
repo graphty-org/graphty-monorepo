@@ -126,6 +126,10 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
             channels: [
                 "node.shape",
                 "node.size",
+                "node.width",
+                "node.height",
+                "node.depth",
+                "node.relativeExtents",
                 "node.wireframe",
                 "node.outline",
                 "node.glow",
@@ -195,6 +199,10 @@ export const OPACITY_OF: Partial<Readonly<Record<Channel, Channel>>> = {
  */
 export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boolean, string])[]>>> = {
     "node.wireframe": [
+        [true, "On"],
+        [false, "Off"],
+    ],
+    "node.relativeExtents": [
         [true, "On"],
         [false, "Off"],
     ],
@@ -319,6 +327,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.width": "Width",
     "node.height": "Height",
     "node.depth": "Depth",
+    "node.relativeExtents": "Scale with size",
     "node.planar": "Planar",
     "node.zIndex": "Z-index",
     "node.drawOrder": "Draw order",

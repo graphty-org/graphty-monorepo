@@ -2700,6 +2700,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return lastPainted.get(versionsOf(entry)) ?? prepared;
     };
 
+    /** What a layer's counts are read from: the stack's own layers, never a branches view's. */
+    const countSources = (): ExplainSources => ({ ...explainSources, stack: () => basePainting(current()) });
+
     /** What an explanation, an unbound report and a resolved rule are read from. */
     const explainSources: ExplainSources = {
         stack: () => painting(current()),
@@ -5339,7 +5342,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         counts(id: LayerId): StyleCounts {
             const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
 
-            const counts = styleCounts(id, elementsOf(WHOLE_GRAPH), explainSources, revision);
+            // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
+            const counts = styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision);
             // Groups past the outline cap draw nothing; said here, never dropped silently.
             const left = groupOutlinesOf(api)
                 .filter((each) => each.layer === id)

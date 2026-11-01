@@ -100,13 +100,16 @@ describe("styles.showBranches", () => {
 });
 
 describe("a branches view and the key", () => {
-    it("the legend keeps describing the stack's layers while a view is drawn", async () => {
+    it("the legend and a layer's counts keep describing the stack while a view is drawn", async () => {
         const { session, red } = await painted();
         const before = session.styles.legend();
+        const counted = session.styles.counts(red);
         const view = session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint" });
         await session.styles.settled();
         const during = session.styles.legend();
+        const countedDuring = session.styles.counts(red);
         view.end();
+        assert.deepEqual({ ...countedDuring, revision: "" }, { ...counted, revision: "" });
         assert.deepEqual(
             during.map((block) => block.layerId),
             before.map((block) => block.layerId),

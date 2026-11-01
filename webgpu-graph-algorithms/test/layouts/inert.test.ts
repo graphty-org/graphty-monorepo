@@ -3,7 +3,8 @@
  * its members -- never moves and leaves every other row where a run without it puts them. Each model runs the same
  * members twice on the exact tier, once alone and once with one more row (no edges, at the members' centroid)
  * marked inert, and the members must match bit for bit. The control run only pins that row, which is what
- * graphty-element did before, and the members must differ: a pinned row still repels.
+ * graphty-element did before, and the members must differ: a pinned row still repels. Each inert run is made twice
+ * and the two outputs must be bitwise equal (the package's run-twice rule).
  */
 
 import { type F32, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
@@ -15,6 +16,7 @@ import { createFruchtermanReingold } from "../../src/layouts/fruchterman-reingol
 import { createSpringElectrical } from "../../src/layouts/spring-electrical.js";
 import { type GpuLayoutSimulation, type LayoutStatsBase } from "../../src/types/layout.js";
 import { snapshotOf } from "../helpers/graphs.js";
+import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { seededScenePositions } from "../oracle/forceatlas2.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
@@ -120,6 +122,7 @@ describe("setInert (issue #3075)", () => {
             const groupStart = start(alone, true).slice(36, 39);
             const without = await run(make, "none");
             const inert = await run(make, "inert");
+            expectBitwiseEqual(inert, await run(make, "inert"), `${name} inert, run twice`);
             const pinnedOnly = await run(make, "fixed");
             expect([...inert.subarray(36, 39)]).toEqual([...groupStart]);
             expect(memberDrift(without, inert)).toBe(0);
@@ -145,6 +148,7 @@ describe("setInert (issue #3075)", () => {
             (c: GpuContext): Sim => createForceAtlas2(c, { ...COMMON, repulsion: "grid", maxIter: 1000 }),
         ]) {
             const inert = await run(make, "inert");
+            expectBitwiseEqual(inert, await run(make, "inert"), "grid tier inert, run twice");
             expect([...inert.subarray(36, 39)]).toEqual([...start(alone, true).subarray(36, 39)]);
             expect(inert.every((v) => Number.isFinite(v))).toBe(true);
         }

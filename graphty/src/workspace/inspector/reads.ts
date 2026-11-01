@@ -42,7 +42,7 @@ export function finishedRuns(session: GraphSession): FinishedRun[] {
  * @param id - the node.
  */
 export function selectNode(session: GraphSession, id: NodeId): void {
-    void session.selection.apply({ nodes: [id] });
+    void session.selection.apply({ nodes: [id] }, "replace", { cause: "user" });
 }
 
 /** Set by a find pick, so the next node or edge view puts keyboard focus on the inspector's title. */

@@ -118,7 +118,7 @@ export const registration = defineRegistration({
             keys: ["Mod+A"],
             disabled: ({ session }) => nothingDrawn(session),
             run: async ({ session }) => {
-                await session?.selection.apply({ scope: "visible" });
+                await session?.selection.apply({ scope: "visible" }, "replace", { cause: "user" });
             },
         },
         {

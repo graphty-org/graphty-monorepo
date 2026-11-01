@@ -4846,7 +4846,7 @@ export type ScreenshotPresetId = "print" | "web-share" | "thumbnail" | "document
 
 // @public
 export interface SelectionApi {
-    apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
+    apply(target: SelectionTarget, op?: SelectionOp, options?: SelectionApplyOptions): Promise<SelectionDelta>;
     readonly cap: number;
     checkRule(where: Query): RuleCheck;
     clear(): SelectionDelta;
@@ -4871,6 +4871,11 @@ export interface SelectionApi {
     readonly size: number;
     statistics(): Promise<SelectionStatistics>;
     readonly truncated: boolean;
+}
+
+// @public
+export interface SelectionApplyOptions {
+    readonly cause?: "user" | "api";
 }
 
 // @public

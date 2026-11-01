@@ -48,7 +48,7 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
 
     const select = (node: NodeId): void => {
         if (session !== null && !session.selection.nodes.includes(node)) {
-            void session.selection.apply({ nodes: [node] });
+            void session.selection.apply({ nodes: [node] }, "replace", { cause: "user" });
         }
     };
 
@@ -92,7 +92,7 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
                             select(node);
                         }
                         if (edge !== null && session !== null && !session.selection.edges.includes(edge)) {
-                            void session.selection.apply({ edges: [edge] });
+                            void session.selection.apply({ edges: [edge] }, "replace", { cause: "user" });
                         }
                     }}
                 >

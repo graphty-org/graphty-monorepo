@@ -440,18 +440,17 @@ void main(void) {
 
         // The pixels the viewport being drawn holds, read as each draw binds -- the canvas, a
         // capture's larger target or one eye's half -- so the fragment shader can snap to the
-        // pixel it draws (edgeJoinShader). Set on the bound effect, not the material, which would
-        // reach the shader one draw late.
-        material.onBindObservable.add(() => {
+        // pixel it draws (edgeJoinShader). Set on the effect just bound, which a ShaderMaterial
+        // keeps on the submesh, not on the material, where a value would reach the shader one
+        // draw late.
+        material.onBindObservable.add((drawn) => {
             const engine = scene.getEngine();
             const viewport = scene.activeCamera?.viewport;
-            material
-                .getEffect()
-                ?.setFloat2(
-                    "fragmentSize",
-                    engine.getRenderWidth() * (viewport?.width ?? 1),
-                    engine.getRenderHeight() * (viewport?.height ?? 1),
-                );
+            drawn.subMeshes[0]?.effect?.setFloat2(
+                "fragmentSize",
+                engine.getRenderWidth() * (viewport?.width ?? 1),
+                engine.getRenderHeight() * (viewport?.height ?? 1),
+            );
         });
 
         const opacity = options.opacity ?? 1;

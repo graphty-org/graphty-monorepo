@@ -10,8 +10,8 @@
  * `design/edges/sharp-corners.md`.
  */
 
-import { Color4, Engine, FreeCamera, Scene, Vector3 } from "@babylonjs/core";
-import { afterEach, assert, describe, test } from "vitest";
+import { Color4, Effect, Engine, FreeCamera, Scene, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, describe, test, vi } from "vitest";
 
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
 import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
@@ -27,6 +27,7 @@ const HALF_WIDTH = 12;
 let engine: Engine | undefined;
 
 afterEach(() => {
+    vi.restoreAllMocks();
     engine?.dispose();
     engine = undefined;
     document.querySelectorAll("canvas[data-corner-joins-3d]").forEach((c) => c.remove());
@@ -80,6 +81,16 @@ describe("a bent edge's pieces under the 3D camera", () => {
             }
             return out;
         };
+
+        // The shader snaps to the pixel it draws only when it is told the viewport's size.
+        const sizes: number[][] = [];
+        const { setFloat2 } = Effect.prototype;
+        vi.spyOn(Effect.prototype, "setFloat2").mockImplementation(function (this: Effect, name, x, y) {
+            if (name === "fragmentSize") {
+                sizes.push([x, y]);
+            }
+            return setFloat2.call(this, name, x, y);
+        });
 
         const wrong: string[] = [];
         for (const shape of SHAPES) {
@@ -139,5 +150,10 @@ describe("a bent edge's pieces under the 3D camera", () => {
             plain.dispose();
         }
         assert.deepEqual(wrong, [], "pixels no piece draws or two pieces draw, per shape and tilt");
+        assert.isNotEmpty(sizes, "every draw tells the shader the viewport's size");
+        assert.isTrue(
+            sizes.every(([x, y]) => x === SIZE && y === SIZE),
+            "as the canvas's size in pixels",
+        );
     });
 });

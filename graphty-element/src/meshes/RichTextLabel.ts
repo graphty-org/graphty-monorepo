@@ -62,12 +62,11 @@ const DEFAULT_LINE_HEIGHT = 1.2;
 const LABEL_MAX_FONT_PX = 64;
 
 /**
- * How far a label's uploaded texture pixels per em may drift from the pixels it covers on screen before it is
- * uploaded again: a little magnified, or a little shrunk. Close to 1, so the letters are drawn one to one; a zoom
- * uploads a label again after about a quarter more or a tenth less.
+ * The steps a label's uploaded texels per em are rounded up to, per doubling: four, so a label is uploaded at
+ * one to 1.19 texels per pixel it covers. A step is a function of the size on screen alone, never of the size
+ * it had before, so the same view always draws the same texture: a zoom in and back draws what it drew.
  */
-const TEXELS_MATCH_LOW = 0.9;
-const TEXELS_MATCH_HIGH = 1.25;
+const TEXEL_STEPS_PER_DOUBLING = 4;
 
 /** The fewest texture pixels per em a label is uploaded with, however small it is on screen. */
 const MIN_TEXELS_PER_EM = 4;
@@ -1026,9 +1025,9 @@ export class RichTextLabel {
     }
 
     /**
-     * Upload the texture at about one texture pixel per pixel the label's letters cover in the drawn frame, when
-     * it has drifted from that: fewer than {@link TEXELS_MATCH_LOW} as many (magnified) or more than
-     * {@link TEXELS_MATCH_HIGH} (shrunk on the GPU, blurred). Never more than the label's own canvas has: a label
+     * Upload the texture at about one texture pixel per pixel the label's letters cover in the drawn frame,
+     * rounded up to a step of {@link TEXEL_STEPS_PER_DOUBLING}, when its step has changed. Never more than the
+     * label's own canvas has: a label
      * drawn larger than that is uploaded whole, as before. Only a label that sizes its texture to its words
      * (`autoSize`), is shown, and is not drawn for a capture (see {@link setCaptureScale}) is fitted. See
      * labelTextureFit and LabelTexture.
@@ -1050,16 +1049,14 @@ export class RichTextLabel {
         }
 
         const own = this.canvasTexelsPerEm(texture);
-        const wanted = Math.max(onScreen, MIN_TEXELS_PER_EM);
-        const now = this.screenTexelsPerEm ?? own;
-        const close = now >= wanted * TEXELS_MATCH_LOW && now <= wanted * TEXELS_MATCH_HIGH;
-        // Magnified with the whole canvas already uploaded: there is nothing more to give it.
-        const whole = this.screenTexelsPerEm === null && now < wanted;
-        if (close || whole) {
+        const step = Math.ceil(Math.log2(Math.max(onScreen, MIN_TEXELS_PER_EM)) * TEXEL_STEPS_PER_DOUBLING);
+        const wanted = 2 ** (step / TEXEL_STEPS_PER_DOUBLING);
+        const target = wanted >= own ? null : wanted;
+        if (target === this.screenTexelsPerEm) {
             return false;
         }
 
-        this.screenTexelsPerEm = wanted >= own ? null : wanted;
+        this.screenTexelsPerEm = target;
         this.uploadAt(texture, this.screenTexelsPerEm);
         uploadPremultiplied(texture);
         return true;

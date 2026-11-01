@@ -248,7 +248,7 @@ describe("paging", () => {
         expect(nextPosition(link, null, page({}), endpoint, report())).toBeNull();
         expect(thrown(() => nextPosition(link, null, page({ runtime: "browser" }), endpoint, report()))).toEqual({
             code: "E_SOURCE_RESPONSE",
-            params: { expected: "link-header", contentType: null },
+            params: { origin: "https://api.example.com", expected: "link-header", contentType: null },
         });
         const evil = new Headers({ link: '<https://evil.example.com/items?page=2>; rel="next"' });
         expect(thrown(() => nextPosition(link, null, page({ headers: evil }), endpoint, report())).params).toEqual({

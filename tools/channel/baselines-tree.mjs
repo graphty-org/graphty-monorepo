@@ -3,7 +3,9 @@
 // tree it carries (design/visual-testing/early-capture.md, 4d rule 4). The owner signs the baselines tree of an
 // approval pull request's head; when master's baselines moved since (another approval merged), the merge would put
 // a tree nobody signed on master, which the screenshot gate then refuses for every later candidate. Such a pull
-// request fails here; `node visual-review/trusted/cli.mjs update <pr>` merges master, and the owner signs again.
+// request fails here; `node visual-review/trusted/cli.mjs update <pr>` merges master, and the owner signs again. When
+// master's baselines moved only by the approval of an earlier head of the same held candidate (a fixed-forward hold
+// approved twice), `node tools/channel/approval-update.mjs <branch>` merges master and keeps the signed tree (#5410).
 //
 //   node tools/channel/baselines-tree.mjs [dir]
 // Run in ci.yml's Build job on a pull request's merge checkout (HEAD^1 the base, HEAD^2 the head). Exit 0 when HEAD
@@ -39,7 +41,9 @@ export function baselinesTreeCheck(git) {
         why:
             `merging this pull request would leave ${BASELINES}/ as tree ${merged}, not the head's ${head}: ` +
             `master's baselines changed since it was made, so the owner's signature would not cover master. ` +
-            `Run node visual-review/trusted/cli.mjs update <pr>, and the owner reviews and signs again.`,
+            `Run node visual-review/trusted/cli.mjs update <pr>, and the owner reviews and signs again; or, for an ` +
+            `approval of a held candidate whose earlier head's approval master holds, ` +
+            `node tools/channel/approval-update.mjs <branch>, which keeps the signed tree with no new review.`,
     };
 }
 

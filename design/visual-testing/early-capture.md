@@ -409,7 +409,11 @@ later green-clean candidate, and `pick()` would mark each "a newer commit promot
    which fails a pull request that changes `visual-baselines/` unless the merge result's baselines tree
    equals its head's tree. A stale approval pull request therefore fails its own CI and never reaches
    master. Recovery: `node visual-review/trusted/cli.mjs update <pr>` merges master, and the owner reviews
-   and signs again.
+   and signs again. One case needs no new review: a held candidate approved, fixed forward and approved again,
+   whose first approval master already holds. The second review compared every story of the new head with its
+   own baselines, so it supersedes the first; `node tools/channel/approval-update.mjs <branch>` merges master
+   into the approval and keeps exactly the signed tree under `visual-baselines/` (#5410). It refuses when
+   master's baselines moved for any other reason.
 5. **An alarm.** `tools/full-run.mjs pick` checks the picked commit's baselines tree: if it is neither
    nightly's nor signed, it files one "Master baselines tree unsigned" issue (`bug`, `priority:critical`)
    instead of silently marking the commit. Never expected with rules 1 to 4; it makes a gap visible.

@@ -183,8 +183,11 @@ own (`hold.mjs replace`); a held green-images head awaiting review is never repl
   URL: the server's tokenized URL from its log line `proofroom: open https://...#token=...` plus `&change=master`.
   Never link the old page (servherd `visual-review-v3`).
 - **After the owner's Finish** (a pull request from `visual/approve-<sha>`): arm its auto-merge
-  (`gh pr merge <n> --auto --merge`). Never merge master into it or update its branch: the promotion refuses an
-  approval that is not H plus accept-only commits (`tools/channel/resume.mjs`). Red on a cause master already fixed:
+  (`gh pr merge <n> --auto --merge`). Never merge master into it or update its branch by hand: the promotion refuses an
+  approval that is not H plus accept-only commits (`tools/channel/resume.mjs`). The one exception is a Build failing
+  "Check that merging keeps the signed baselines tree" because master holds the approval of an earlier head of the
+  same hold (it was approved, fixed forward, approved again): run `node tools/channel/approval-update.mjs <branch>`,
+  which merges master and keeps the signed tree, so no new review is needed (#5410); it refuses any other case. Red on a cause master already fixed:
   re-run the failed jobs (`gh run rerun <id> --failed`); to re-trigger PR Integrity, edit the description (fetch the
   body, append a line, write it back; never overwrite it).
 - **The promotion:** its merge's master build runs `release-due`, which dispatches `release.yml` in mode

@@ -729,6 +729,33 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         expect(drawn(styles, snapshot, "node", "xlabelOffsetY")).toEqual([null, -26, null]);
         expect(codes(styles)).not.toContain("W_STYLE_NOT_CARRIED");
     });
+
+    it("leaves out an xlabel Graphviz left out under forcelabels=false: no xlp where Graphviz placed the others", async () => {
+        const file = (force: string): string =>
+            `graph { graph [forcelabels=${force}]; a [xlabel="kept", pos="0,0!", xlp="-40,30"]; b [xlabel="dropped", pos="100,0!"] }`;
+        const crowded = await load(file("false"));
+        expect(drawn(crowded.styles, crowded.snapshot, "node", "xlabel")).toEqual(["kept", null]);
+        // forcelabels=true (the default) always places it, so a missing xlp says nothing
+        const forced = await load(file("true"));
+        expect(drawn(forced.styles, forced.snapshot, "node", "xlabel")).toEqual(["kept", "dropped"]);
+    });
+
+    it("leaves out, under forcelabels=false, an xlabel against its node's corner that would cover another placed node", async () => {
+        // c's 0.5 inch box puts its corner at (-18, 18); its label runs left and up from there, over d but not e
+        const { snapshot, styles } = await load(
+            "graph { graph [forcelabels=false]; node [width=0.5, height=0.5, fixedsize=true]; " +
+                'c [xlabel="a long external label", pos="0,0!"]; d [width=0.1, height=0.1, pos="-30,25!"]; ' +
+                'e [xlabel="ext", pos="300,0!"]; f [pos="300,-60!"] }',
+        );
+        expect(drawn(styles, snapshot, "node", "xlabel")).toEqual([null, null, "ext", null]);
+    });
+
+    it("keeps every xlabel under forcelabels=false when some node has no stored position (the layout decides)", async () => {
+        const { snapshot, styles } = await load(
+            'graph { graph [forcelabels=false]; c [xlabel="a long external label", pos="0,0!"]; d [pos="-30,25!"]; g }',
+        );
+        expect(drawn(styles, snapshot, "node", "xlabel")).toEqual(["a long external label", null, null]);
+    });
 });
 
 describe("DOT design rule 5: none and invis are transparent, a list is never its first color where Graphviz draws black", () => {

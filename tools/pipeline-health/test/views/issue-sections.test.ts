@@ -82,14 +82,16 @@ describe("issue classification", () => {
 });
 
 describe("the Issues page", () => {
-    it("burns down open bugs by priority at each bucket's end, and counts the change over the range", () => {
+    it("burns down open bugs by priority from the range's start, and counts the change from the first value drawn", () => {
         const s = seriesOf(page(), "bugs");
-        expect(s).toMatchObject({ kind: "series", chart: "lines", step: "1d", start: new Date(D(0)).toISOString() });
-        const open = values(s, "issues.series.open");
-        expect(open.slice(0, 4)).toEqual([4, 5, 5, 4]);
+        expect(s).toMatchObject({ kind: "series", chart: "area", step: "1d", start: new Date(D(0)).toISOString() });
+        // A stock has the count at the range's start, then one per bucket's end.
+        expect(values(s, "issues.prio.critical")).toHaveLength(29);
+        const open = s.series[0].values.map((_, k) => s.series.reduce((a, x) => a + x.values[k], 0));
+        expect(open.slice(0, 5)).toEqual([3, 4, 5, 5, 4]);
         expect(open.at(-1)).toBe(5);
-        expect(values(s, "issues.prio.critical").slice(0, 3)).toEqual([1, 1, 2]);
-        // f has no priority label: counted on its own line, never dropped.
+        expect(values(s, "issues.prio.critical").slice(0, 4)).toEqual([0, 1, 1, 2]);
+        // f has no priority label: counted on its own band, never dropped.
         expect(values(s, "issues.prio.none").at(-1)).toBe(1);
         expect(values(s, "issues.prio.none").at(-2)).toBe(0);
         expect(s.sub).toEqual({
@@ -101,7 +103,6 @@ describe("the Issues page", () => {
     it("leaves out the no-priority line when every bug always had a priority", () => {
         const s = issuesPage([a, b, g], "28d", NOW, undefined).sections.find((x) => x.id === "bugs") as SeriesSection;
         expect(s.series.map((x) => x.key)).toEqual([
-            "issues.series.open",
             "issues.prio.critical",
             "issues.prio.high",
             "issues.prio.medium",
@@ -132,10 +133,14 @@ describe("the Issues page", () => {
             ]) {
                 const net = values(seriesOf(p, flowId), "issues.series.net");
                 const stock = seriesOf(p, stockId);
-                const open = values(stock, "issues.series.open");
-                const before = open[0] - net[0];
-                open.forEach((v, k) => expect(v - (k ? open[k - 1] : before), `${range} ${stockId} ${k}`).toBe(net[k]));
-                expect(stock.sub?.params?.change).toBe(open.at(-1)! - before);
+                // bugs stacks its priorities, so its total is their sum; backlog draws the total first
+                const open =
+                    stockId === "bugs"
+                        ? stock.series[0].values.map((_, k) => stock.series.reduce((a, x) => a + x.values[k], 0))
+                        : values(stock, "issues.series.open");
+                expect(open).toHaveLength(net.length + 1);
+                net.forEach((v, k) => expect(open[k + 1] - open[k], `${range} ${stockId} ${k}`).toBe(v));
+                expect(stock.sub?.params?.change).toBe(open.at(-1)! - open[0]);
             }
         }
     });
@@ -148,7 +153,13 @@ describe("the Issues page", () => {
             ...values(flow, "issues.series.closed_not_planned"),
         ];
         expect(closed.reduce((x, y) => x + y, 0)).toBe(3);
-        expect(values(seriesOf(s, "backlog"), "issues.series.open").every((v) => v >= 1)).toBe(true);
+        // the first value is the count at the range's start, before the first issue was opened
+        expect(values(seriesOf(s, "backlog"), "issues.series.open")[0]).toBe(0);
+        expect(
+            values(seriesOf(s, "backlog"), "issues.series.open")
+                .slice(1)
+                .every((v) => v >= 1),
+        ).toBe(true);
     });
 
     it("tables the open issues by type and priority, unlabeled ones included, rows summing to the total", () => {
@@ -178,6 +189,11 @@ describe("the Issues page", () => {
         ).toBe(total);
         expect(row("issues.total")?.total).toBe(true);
         expect(row("issues.type.none")?.link).toContain(encodeURIComponent(" -label:bug"));
+        // a row's search finds what it counts: an issue labeled bug and enhancement is in the bug row only
+        expect(decodeURIComponent(row("issues.type.enhancement")?.link ?? "")).toMatch(
+            /is:issue is:open label:enhancement -label:bug$/,
+        );
+        expect(decodeURIComponent(row("issues.type.bug")?.link ?? "")).toMatch(/is:issue is:open label:bug$/);
     });
 
     it("lists the open critical bugs first, then the high ones, each oldest first, with their status labels", () => {

@@ -405,6 +405,9 @@ export function treeRows(nodes: TreeNode[], href: (route: string) => string, dep
  */
 const seriesClass = (key: string): string => `k-${key.slice(key.lastIndexOf(".") + 1).replaceAll("_", "-")}`;
 
+/** The Issues charts' plot width in viewBox units; every one of them shares it, so a date sits at one x in all. */
+const PLOT = 960;
+
 /**
  * A nice axis top for counts: the largest value plus a tenth, rounded up to a step of 1, 2 or 5 times a power of 10
  * that cuts the axis into about five.
@@ -429,50 +432,110 @@ function seriesLegend(s: SeriesSection, name: (key: string) => string): string {
 }
 
 /**
- * A series chart's buckets: where each starts, its width on the chart, and the chart's span.
+ * Whether a series chart draws a stock (a count at moments: its start and each bucket's end) rather than a count per
+ * bucket.
+ * @param s - The series section.
+ * @returns True for `lines` and `area`.
+ */
+const isStock = (s: SeriesSection): boolean => s.chart === "lines" || s.chart === "area";
+
+/**
+ * A series chart's buckets: where the first starts, their size and how many there are (a stock has one value more).
  * @param s - The series section.
  * @returns The first start, the bucket size and count, all in epoch milliseconds.
  */
 function bucketsOf(s: SeriesSection): { from: number; size: number; n: number } {
-    return { from: Date.parse(s.start), size: s.step === "1w" ? 7 * DAY : DAY, n: s.series[0]?.values.length ?? 0 };
+    const len = s.series[0]?.values.length ?? 0;
+    return {
+        from: Date.parse(s.start),
+        size: s.step === "1w" ? 7 * DAY : DAY,
+        n: isStock(s) ? Math.max(0, len - 1) : len,
+    };
 }
 
 /**
- * Each bucket's values as a visually hidden table, one column per series.
+ * The moment of a stock's value, or the bucket of a count, as a row or a tooltip reads it.
+ * @param s - The series section.
+ * @param i - The value's index.
+ * @returns "2026-10-05", "week of 2026-10-05" or "now".
+ */
+function whenOf(s: SeriesSection, i: number): string {
+    const { from, size, n } = bucketsOf(s);
+    if (isStock(s)) {
+        return i === n ? "now" : new Date(from + i * size).toISOString().slice(0, 10);
+    }
+    return `${s.step === "1w" ? "week of " : ""}${new Date(from + i * size).toISOString().slice(0, 10)}`;
+}
+
+/**
+ * The sum of the series at one index.
+ * @param list - The series.
+ * @param i - The index.
+ * @returns The sum.
+ */
+const total = (list: SeriesSection["series"], i: number): number => list.reduce((a, x) => a + (x.values[i] ?? 0), 0);
+
+/**
+ * Each value as a visually hidden table, one column per series.
  * @param s - The series section.
  * @param name - Names a series by its key.
  * @param caption - The table's caption.
  * @returns The hidden table.
  */
 function seriesTable(s: SeriesSection, name: (key: string) => string, caption: string): string {
-    const { from, size, n } = bucketsOf(s);
+    const len = s.series[0]?.values.length ?? 0;
+    let first = s.step === "1w" ? "week starting" : "day";
+    if (isStock(s)) {
+        first = "at the start of";
+    }
     return hiddenTable(
         caption,
-        [s.step === "1w" ? "week starting" : "day", ...s.series.map((x) => name(x.key))],
-        Array.from({ length: n }, (_, i) => [
-            new Date(from + i * size).toISOString().slice(0, 10),
+        [first, ...s.series.map((x) => name(x.key))],
+        Array.from({ length: len }, (_, i) => [
+            whenOf(s, i).replace("week of ", ""),
             ...s.series.map((x) => x.values[i] ?? 0),
         ]),
     );
 }
 
 /**
- * A tooltip strip: one invisible column per bucket whose title lists the bucket's values, for a pointer.
+ * A tooltip strip: one invisible column per value whose title lists the values there (and their total where the
+ * series stack), for a pointer. A stock's column is centered on its moment, a count's covers its bucket.
  * @param s - The series section.
  * @param name - Names a series by its key.
  * @returns The columns' SVG.
  */
 function hoverColumns(s: SeriesSection, name: (key: string) => string): string {
-    const { from, size, n } = bucketsOf(s);
-    const w = 960 / Math.max(1, n);
-    return Array.from({ length: n }, (_, i) => {
-        const day = new Date(from + i * size).toISOString().slice(0, 10);
-        const title = [
-            `${s.step === "1w" ? "week of " : ""}${day}`,
-            ...s.series.map((x) => `${name(x.key)}: ${fmtN(x.values[i] ?? 0)}`),
-        ];
-        return `<rect class="hit" x="${r1(i * w)}" y="0" width="${r1(w)}" height="120"><title>${esc(title.join("\n"))}</title></rect>`;
+    const { n } = bucketsOf(s);
+    const stock = isStock(s);
+    const w = PLOT / Math.max(1, n);
+    const stacked = s.chart === "stacked" || s.chart === "area";
+    return Array.from({ length: stock ? n + 1 : n }, (_, i) => {
+        const title = [whenOf(s, i), ...s.series.map((x) => `${name(x.key)}: ${fmtN(x.values[i] ?? 0)}`)];
+        if (stacked) {
+            title.push(`total: ${fmtN(total(s.series, i))}`);
+        }
+        const x0 = Math.max(0, stock ? (i - 0.5) * w : i * w);
+        const x1 = Math.min(PLOT, stock ? (i + 0.5) * w : (i + 1) * w);
+        return `<rect class="hit" x="${r1(x0)}" y="0" width="${r1(x1 - x0)}" height="120"><title>${esc(title.join("\n"))}</title></rect>`;
     }).join("");
+}
+
+/**
+ * A count axis left on a plot: its top, its middle (when a whole number) and 0, with faint lines at the middle and 0.
+ * @param top - The axis top.
+ * @param y - A count's height on the 120 px plot.
+ * @returns The gridlines' SVG and the labels' HTML.
+ */
+function countAxis(top: number, y: (v: number) => number): { svg: string; html: string } {
+    const marks = Number.isInteger(top / 2) && top >= 2 ? [top, top / 2, 0] : [top, 0];
+    return {
+        svg: marks
+            .slice(1)
+            .map((v) => `<line class="grid" x1="0" y1="${y(v)}" x2="${PLOT}" y2="${y(v)}" />`)
+            .join(""),
+        html: marks.map((v) => `<span class="cl" style="top: ${r1(y(v) - 6)}px; left: 4px">${fmtN(v)}</span>`).join(""),
+    };
 }
 
 /**
@@ -494,36 +557,150 @@ function endLabels(items: { y: number; html: string }[]): string {
 }
 
 /**
- * Counts at each bucket's end as lines on one fitted axis (Issues: open bugs by priority, open issues by type). The
- * first series is the total, drawn darkest; each line ends in its value and name, right of the plot.
- * @param s - The series section, chart `lines`.
+ * Stacked bands of a stock, the first series at the bottom: each band's polygon, and its end label at the middle of
+ * its last height with the total above them all.
+ * @param s - The series section, chart `area`.
+ * @param name - Names a series by its key.
+ * @param x - A value's x.
+ * @param y - A count's height on the plot.
+ * @returns The bands' SVG and the end labels' items.
+ */
+function bands(
+    s: SeriesSection,
+    name: (key: string) => string,
+    x: (i: number) => number,
+    y: (v: number) => number,
+): { svg: string; ends: { y: number; html: string }[] } {
+    const len = s.series[0]?.values.length ?? 0;
+    let below = Array.from({ length: len }, () => 0);
+    const svg: string[] = [];
+    const ends: { y: number; html: string }[] = [];
+    for (const sr of s.series) {
+        const above = below.map((v, i) => v + (sr.values[i] ?? 0));
+        const top = above.map((v, i) => `${x(i)},${y(v)}`);
+        const bottom = below.map((v, i) => `${x(i)},${y(v)}`).reverse();
+        svg.push(`<polygon class="${seriesClass(sr.key)}" points="${[...top, ...bottom].join(" ")}" />`);
+        ends.push({
+            y: y(((below.at(-1) ?? 0) + (above.at(-1) ?? 0)) / 2),
+            html: `${fmtN(sr.values.at(-1) ?? 0)} ${esc(name(sr.key))}`,
+        });
+        below = above;
+    }
+    ends.push({ y: y(below.at(-1) ?? 0), html: `<b>${fmtN(below.at(-1) ?? 0)} in all</b>` });
+    return { svg: svg.join(""), ends };
+}
+
+/**
+ * A stock as lines on one fitted axis (Issues: open issues by type), the first series the total, drawn darkest; or
+ * as bands stacked up from zero (`area`: open bugs by priority), whose top edge is the total. A value sits at its
+ * moment: the range's start, then each bucket's end; each line or band ends in its value and name, right of the plot.
+ * @param s - The series section, chart `lines` or `area`.
  * @param name - Names a series by its key.
  * @returns The legend, chart, ticks and hidden table.
  */
 export function lineChart(s: SeriesSection, name: (key: string) => string): string {
     const { from, size, n } = bucketsOf(s);
-    const max = niceTop(Math.max(0, ...s.series.flatMap((x) => x.values)));
+    const area = s.chart === "area";
+    const len = s.series[0]?.values.length ?? 0;
+    const peak = area
+        ? Math.max(0, ...Array.from({ length: len }, (_, i) => total(s.series, i)))
+        : Math.max(0, ...s.series.flatMap((x) => x.values));
+    const max = niceTop(peak);
     const y = (v: number): number => r1(118 - (Math.min(v, max) / max) * 116);
-    const x = (i: number): number => r1(n > 1 ? (i * 960) / (n - 1) : 960);
-    const lines = s.series
-        .map(
-            (sr) =>
-                `<polyline class="${seriesClass(sr.key)}" points="${sr.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")}" />`,
-        )
-        .join("");
-    const ends = endLabels(
-        s.series.map((sr) => {
-            const v = sr.values.at(-1) ?? 0;
-            return { y: y(v), html: `${fmtN(v)} ${esc(name(sr.key))}` };
-        }),
-    );
+    const x = (i: number): number => r1(n > 0 ? (i * PLOT) / n : PLOT);
+    const drawn = area
+        ? bands(s, name, x, y)
+        : {
+              svg: s.series
+                  .map(
+                      (sr) =>
+                          `<polyline class="${seriesClass(sr.key)}" points="${sr.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")}" />`,
+                  )
+                  .join(""),
+              ends: s.series.map((sr) => ({
+                  y: y(sr.values.at(-1) ?? 0),
+                  html: `${fmtN(sr.values.at(-1) ?? 0)} ${esc(name(sr.key))}`,
+              })),
+          };
+    const axis = countAxis(max, y);
     return [
         seriesLegend(s, name),
-        `<div class="chart lines"><svg viewBox="0 0 960 120" preserveAspectRatio="none" aria-hidden="true">${lines}${hoverColumns(s, name)}</svg>`,
-        `<span class="cl" style="top: -4px; left: 4px">${fmtN(max)}</span>${ends}</div>`,
-        ticks(from + size, from + n * size, true),
-        seriesTable(s, name, "open at the end of each bucket"),
+        `<div class="chart lines"><svg viewBox="0 0 ${PLOT} 120" preserveAspectRatio="none" aria-hidden="true">${axis.svg}${drawn.svg}${hoverColumns(s, name)}</svg>`,
+        `${axis.html}${endLabels(drawn.ends)}</div>`,
+        ticks(from, from + n * size, false),
+        seriesTable(s, name, "open at the start of each bucket, and now"),
     ].join("");
+}
+
+/**
+ * Columns of stacked series from a zero line, up (`dir` 1) or down (-1).
+ * @param list - The series, the first next to the zero line.
+ * @param dir - 1 up, -1 down.
+ * @param g - The zero line's height, the px per count and each column's width.
+ * @param g.zero - The zero line's height.
+ * @param g.scale - Px per count.
+ * @param g.w - Each column's width.
+ * @returns The columns' SVG.
+ */
+function columns(list: SeriesSection["series"], dir: 1 | -1, g: { zero: number; scale: number; w: number }): string {
+    const out: string[] = [];
+    const n = list[0]?.values.length ?? 0;
+    for (let i = 0; i < n; i++) {
+        let at = 0;
+        for (const sr of list) {
+            const h = (sr.values[i] ?? 0) * g.scale;
+            const yTop = dir === 1 ? g.zero - at - h : g.zero + at;
+            if (h > 0) {
+                out.push(
+                    `<rect class="${seriesClass(sr.key)}" x="${r1(i * g.w + 1)}" y="${r1(yTop)}" width="${r1(Math.max(1, g.w - 2))}" height="${r1(h)}" />`,
+                );
+            }
+            at += h;
+        }
+    }
+    return out.join("");
+}
+
+/**
+ * A flow chart's marks over its columns: the zero line, the last series (opened less closed) as a line with dots on
+ * a halo that keeps it clear of the columns, and the axis: opened at the top, 0 at the zero line, closed at the
+ * bottom (one scale both ways).
+ * @param s - The series section, chart `flow`.
+ * @param name - Names a series by its key.
+ * @param g - The zero line's height, the px per count, each column's width and the two halves' extents.
+ * @param g.zero - The zero line's height.
+ * @param g.scale - Px per count.
+ * @param g.w - Each column's width.
+ * @param g.topUp - The upper half's extent.
+ * @param g.topDown - The lower half's extent.
+ * @returns The marks' SVG and the dots' and labels' HTML.
+ */
+function flowMarks(
+    s: SeriesSection,
+    name: (key: string) => string,
+    g: { zero: number; scale: number; w: number; topUp: number; topDown: number },
+): { svg: string; html: string } {
+    const net = s.series.at(-1);
+    const values = net?.values ?? [];
+    const cls = seriesClass(net?.key ?? "");
+    const y = (v: number): number => r1(g.zero - v * g.scale);
+    const points = values.map((v, i) => `${r1((i + 0.5) * g.w)},${y(v)}`).join(" ");
+    const dots = values
+        .map(
+            (v, i) =>
+                `<span class="ndot ${cls}" style="left: ${r1(((i + 0.5) / Math.max(1, values.length)) * 100)}%; top: ${y(v)}px"></span>`,
+        )
+        .join("");
+    const label = (top: string, text: string): string => `<span class="cl" style="${top}; left: 4px">${text}</span>`;
+    return {
+        svg: `<line class="zero" x1="0" y1="${g.zero}" x2="${PLOT}" y2="${g.zero}" /><polyline class="halo" points="${points}" /><polyline class="${cls}" points="${points}" />`,
+        html: [
+            `<div class="netdots">${dots}</div>`,
+            label("top: -4px", `${fmtN(g.topUp)} ${esc(name(s.series[0]?.key ?? ""))}`),
+            label(`top: ${r1(g.zero - 6)}px`, "0"),
+            label("bottom: -4px", `${fmtN(g.topDown)} closed`),
+        ].join(""),
+    };
 }
 
 /**
@@ -538,50 +715,18 @@ export function barChart(s: SeriesSection, name: (key: string) => string): strin
     const flow = s.chart === "flow";
     const up = flow ? s.series.slice(0, 1) : s.series;
     const down = flow ? s.series.slice(1, -1) : [];
-    const total = (list: SeriesSection["series"], i: number): number =>
-        list.reduce((a, x) => a + (x.values[i] ?? 0), 0);
     const idx = Array.from({ length: n }, (_, i) => i);
     const topUp = niceTop(Math.max(0, ...idx.map((i) => total(up, i))));
     const topDown = down.length ? niceTop(Math.max(0, ...idx.map((i) => total(down, i)))) : 0;
     // The zero line sits where the two halves meet, each half fitted to its own largest column.
     const scale = 116 / (topUp + topDown);
-    const zero = r1(2 + topUp * scale);
-    const w = 960 / Math.max(1, n);
-    const rects: string[] = [];
-    const stack = (list: SeriesSection["series"], dir: 1 | -1): void => {
-        for (const i of idx) {
-            let at = 0;
-            for (const sr of list) {
-                const h = (sr.values[i] ?? 0) * scale;
-                if (h > 0) {
-                    const yTop = dir === 1 ? zero - at - h : zero + at;
-                    rects.push(
-                        `<rect class="${seriesClass(sr.key)}" x="${r1(i * w + 1)}" y="${r1(yTop)}" width="${r1(Math.max(1, w - 2))}" height="${r1(h)}" />`,
-                    );
-                }
-                at += h;
-            }
-        }
-    };
-    stack(up, 1);
-    stack(down, -1);
-    const net = flow ? s.series.at(-1) : undefined;
-    const netY = (v: number): number => r1(zero - v * scale);
-    const netLine = net
-        ? `<polyline class="${seriesClass(net.key)}" points="${net.values.map((v, i) => `${r1((i + 0.5) * w)},${netY(v)}`).join(" ")}" />`
-        : "";
-    const dots = net
-        ? `<div class="netdots">${net.values.map((v, i) => `<span class="ndot ${seriesClass(net.key)}" style="left: ${r1(((i + 0.5) / Math.max(1, n)) * 100)}%; top: ${netY(v)}px"></span>`).join("")}</div>`
-        : "";
-    const axis = flow
-        ? `<span class="cl" style="top: -4px; left: 4px">${fmtN(topUp)} ${esc(name(up[0]?.key ?? ""))}</span><span class="cl" style="bottom: -4px; left: 4px">${fmtN(topDown)} closed</span>`
-        : `<span class="cl" style="top: -4px; left: 4px">${fmtN(topUp)}</span>`;
-    const zeroLine = flow ? `<line class="zero" x1="0" y1="${zero}" x2="960" y2="${zero}" />` : "";
+    const g = { zero: r1(2 + topUp * scale), scale, w: PLOT / Math.max(1, n), topUp, topDown };
+    const marks = flow ? flowMarks(s, name, g) : countAxis(topUp, (v) => r1(g.zero - v * scale));
     return [
         seriesLegend(s, name),
-        `<div class="chart cols"><svg viewBox="0 0 960 120" preserveAspectRatio="none" aria-hidden="true">`,
-        `${rects.join("")}${zeroLine}${netLine}${hoverColumns(s, name)}</svg>${dots}${axis}</div>`,
-        ticks(from, from + n * size, true),
+        `<div class="chart cols"><svg viewBox="0 0 ${PLOT} 120" preserveAspectRatio="none" aria-hidden="true">`,
+        `${columns(up, 1, g)}${columns(down, -1, g)}${marks.svg}${hoverColumns(s, name)}</svg>${marks.html}</div>`,
+        ticks(from, from + n * size, false),
         seriesTable(s, name, flow ? "opened and closed per bucket" : "opened per bucket"),
     ].join("");
 }

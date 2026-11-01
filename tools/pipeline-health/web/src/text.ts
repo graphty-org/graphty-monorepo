@@ -985,6 +985,7 @@ export const LABEL: Record<string, string> = {
     "issues.type.flaky": "flaky",
     "issues.type.none": "no type label",
     "issues.group.other": "other types",
+    "issues.group.rest": "all others",
     "issues.total": "<b>Total</b>",
     "issues.prio.critical": "critical",
     "issues.prio.high": "high",
@@ -1366,9 +1367,13 @@ const S: Record<string, (p: P) => string> = {
     "issues.labels_now": () =>
         "Types and priorities are each issue's labels now, applied to its whole history; an issue without a type or priority label is counted under no type or no priority.",
     "issues.production": () =>
-        "Production issues are open bugs labeled priority:critical; the label also marks red full runs and load-sensitive tests.",
+        "No label marks production issues: the nearest is priority:critical (visibly broken to a user), and on a bug it also marks red full runs, flaky and load-sensitive tests and held releases, so critical bugs are not all user-facing.",
     "issues.github_open": (p) =>
-        `GitHub counts ${plural(num(p, "github"), "open issue")}, this page ${fmtN(num(p, "stored"))}: the stored history is missing issues until the all-issues backfill has run.`,
+        `GitHub counts ${plural(num(p, "github"), "open issue")}, this page ${fmtN(num(p, "stored"))}: ${
+            num(p, "stored") < num(p, "github")
+                ? "the stored history is missing issues until the all-issues backfill has run."
+                : "some stored issues are no longer in the repository (deleted or transferred)."
+        }`,
     "issues.none_collected": () =>
         "No issues are stored yet. The collector stores each issue when it changes; the all-issues backfill loads the rest.",
     "issues.no_urgent": () => "No open critical or high bug.",

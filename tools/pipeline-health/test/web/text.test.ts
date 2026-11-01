@@ -629,7 +629,7 @@ describe("the Issues page", () => {
         setHere({ page: "issues", range: "28d", q: new URLSearchParams() });
         const p = fixture("28d");
         const html = pageView(p);
-        expect(html).toContain("Production issues are open bugs labeled priority:critical");
+        expect(html).toContain("No label marks production issues");
         expect(html).toContain('<span class="rlab">history</span>');
         expect(html).toMatch(/href="#\/issues\?range=all"/);
         for (const id of ["open", "bugs", "bug-flow", "flow", "backlog", "types", "oldest"]) {
@@ -649,7 +649,7 @@ describe("the Issues page", () => {
 
     it("draws every chart inside its plot when every value is zero", async () => {
         const { barChart, lineChart } = await import("../../web/src/charts.js");
-        const zeros = (keys: string[], chart: "lines" | "stacked" | "flow") => ({
+        const zeros = (keys: string[], chart: "lines" | "area" | "stacked" | "flow") => ({
             kind: "series" as const,
             id: "x",
             chart,
@@ -659,6 +659,7 @@ describe("the Issues page", () => {
         });
         const html = [
             lineChart(zeros(["issues.series.open", "issues.prio.critical"], "lines"), (k) => k),
+            lineChart(zeros(["issues.prio.critical", "issues.prio.high"], "area"), (k) => k),
             barChart(zeros(["issues.type.bug"], "stacked"), (k) => k),
             barChart(
                 zeros(["issues.series.opened", "issues.series.closed_completed", "issues.series.net"], "flow"),
@@ -685,5 +686,10 @@ describe("the Issues page", () => {
                 params: { open: 130, change: -12, critical: 16, criticalChange: 0, range: "28d" },
             }),
         ).toBe("130 open bugs, down 12 over the last 28 days; 16 critical, unchanged");
+        // GitHub's count against the page's: fewer stored is a missing backfill, more is an issue gone from GitHub
+        expect(sentence({ code: "issues.github_open", params: { stored: 500, github: 510 } })).toContain("backfill");
+        expect(sentence({ code: "issues.github_open", params: { stored: 512, github: 510 } })).toContain(
+            "no longer in the repository",
+        );
     });
 });

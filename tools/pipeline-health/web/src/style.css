@@ -1587,7 +1587,8 @@ h2.hit {
     --k: var(--s-medium);
 }
 .k-low,
-.k-other {
+.k-other,
+.k-rest {
     --k: var(--data);
 }
 .k-enhancement {
@@ -1602,14 +1603,15 @@ h2.hit {
 .k-research {
     --k: var(--s-research);
 }
+/* Opened columns lighter than the opened-less-closed line drawn over them. */
 .k-opened {
-    --k: var(--ink2);
+    --k: var(--line);
 }
 .k-closed-completed {
     --k: var(--ok);
 }
 .k-closed-not-planned {
-    --k: var(--line);
+    --k: var(--band);
 }
 .k-none {
     --k: var(--hatch);
@@ -1623,11 +1625,33 @@ h2.hit {
 .chart polyline.k-none {
     stroke-dasharray: 4 3;
 }
-.chart rect[class^="k-"] {
+.chart rect[class^="k-"],
+.chart polygon[class^="k-"] {
     fill: var(--k);
 }
-.chart rect.k-none {
+.chart rect.k-none,
+.chart polygon.k-none {
     fill: url(#nh);
+}
+.chart polygon[class^="k-"] {
+    stroke: var(--page);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+/* The count axis's labels sit over the plot's left edge: a backdrop keeps them readable over a column or a band. */
+.chart.cols .cl,
+.chart.lines .cl:not(.end) {
+    padding: 0 3px;
+    background: var(--page);
+    line-height: 14px;
+}
+.chart .grid {
+    stroke: var(--faint);
+    vector-effect: non-scaling-stroke;
+}
+.chart polyline.halo {
+    stroke: var(--page);
+    stroke-width: 5;
 }
 .chart .zero {
     stroke: var(--ink2);
@@ -1675,14 +1699,12 @@ h2.hit {
 .legend .li + .li {
     margin-left: 8px;
 }
-/* Columns have no end labels: the plot takes the whole width. */
+/* The lines' end labels name their series ("262 enhancements"): room for them right of the plot. Columns keep the
+   same margin, so every Issues chart has one plot width and a date sits at the same x in each. */
+.chart.lines,
+.chart.lines + .ticks,
 .chart.cols,
 .chart.cols + .ticks {
-    margin-right: 0;
-}
-/* The lines' end labels name their series ("262 enhancements"): room for them right of the plot. */
-.chart.lines,
-.chart.lines + .ticks {
     margin-right: 124px;
 }
 @media (max-width: 700px) {
@@ -1691,7 +1713,7 @@ h2.hit {
     .tbl.t-issues .tr {
         display: grid;
         grid-template-columns: minmax(96px, 2fr) repeat(6, minmax(0, 1fr));
-        column-gap: 4px;
+        column-gap: 8px;
         padding: 4px 0;
     }
     .tbl.t-issues .thead {

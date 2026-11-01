@@ -565,17 +565,21 @@ export interface TreeNode {
 }
 
 /**
- * Counts per time bucket (Issues): a stock at each bucket's end (`lines`), counts per bucket stacked by kind
- * (`stacked`), or a flow (`flow`): opened above a zero line, closed below it, and their difference as a line. Buckets
- * are UTC days (`1d`) or weeks from Monday (`1w`) from `start`; the last one is partial and ends at `generated`.
+ * Counts per time bucket (Issues): a stock as lines (`lines`) or as bands stacked up from zero (`area`), counts per
+ * bucket stacked by kind (`stacked`), or a flow (`flow`): opened above a zero line, closed below it, and their
+ * difference as a line. Buckets are UTC days (`1d`) or weeks from Monday (`1w`) from `start`; the last one is partial
+ * and ends at `generated`.
  */
 export interface SeriesSection extends SectionBase {
     kind: "series";
-    chart: "lines" | "stacked" | "flow";
+    chart: "lines" | "area" | "stacked" | "flow";
     step: "1d" | "1w";
     /** The first bucket's start. */
     start: Iso;
-    /** One value per bucket each, oldest first; `key` is a label code the page names ("issues.prio.critical"). */
+    /**
+     * Oldest first; `key` is a label code the page names ("issues.prio.critical"). A count per bucket has one value
+     * per bucket; a stock (`lines`, `area`) has one more, its count at `start` and then at each bucket's end.
+     */
     series: { key: string; values: number[] }[];
 }
 

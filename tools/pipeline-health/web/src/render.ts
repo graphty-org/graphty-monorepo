@@ -764,7 +764,7 @@ export const TABLES: Record<string, TableDef> = {
             ["high", "high"],
             ["medium", "medium"],
             ["low", "low"],
-            ["none", "no priority"],
+            ["none", "none"],
             ["total", "total"],
         ],
     },
@@ -1141,13 +1141,16 @@ function sectionHead(s: Section): string {
         case "open":
             return h("Open now, by type and priority", "a row opens GitHub's search for it");
         case "bugs":
-            return h("Open bugs by priority", `${subText}; open at the end of each ${bucketWord()}`);
+            return h(
+                "Open bugs by priority",
+                `${subText}; stacked, critical at the bottom; open at the start of each ${bucketWord()} and now`,
+            );
         case "bug-flow":
             return h("Bugs opened vs closed", `${subText}; per ${bucketWord()}`);
         case "flow":
             return h("All issues opened vs closed", `${subText}; per ${bucketWord()}`);
         case "backlog":
-            return h("Open issues by type", `${subText}; open at the end of each ${bucketWord()}`);
+            return h("Open issues by type", `${subText}; open at the start of each ${bucketWord()} and now`);
         case "types":
             return h("Issues opened, by type", `${subText}; per ${bucketWord()}`);
         case "oldest":
@@ -1168,7 +1171,7 @@ const bucketWord = (): string => (here.range === "all" ? "week" : "day");
 function sectionBody(s: Section): string {
     switch (s.kind) {
         case "series":
-            return s.chart === "lines"
+            return s.chart === "lines" || s.chart === "area"
                 ? lineChart(s, (k) => stripTags(labelText(k)))
                 : barChart(s, (k) => stripTags(labelText(k)));
         case "strip":

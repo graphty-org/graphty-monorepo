@@ -230,14 +230,16 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
   rules: an issue's type is its first label of bug, enhancement, documentation, research, infrastructure,
   tracking, sonarqube, dead-links, ci-budget, intermittent, flaky, else none; its priority its first
   `priority:critical|high|medium|low`, else none; types and priorities are the labels now, applied to the whole
-  history. An issue is open at t when created before t and not closed before t; a bucket's stock is taken at
-  its end (the last bucket ends now), so a bucket's open count less the one before it is exactly its opened
-  less closed. A reopened issue has no `closedAt` and counts as open its whole life. A close is "completed"
-  when GitHub says so and "not planned" otherwise (not planned, duplicate). Production issues are open bugs
-  labeled `priority:critical`. Sections: open now by type and priority (each row links GitHub's search); open
-  bugs by priority (the burn-down); bugs, then all issues, opened vs closed with opened less closed; open issues
+  history. An issue is open at t when created before t and not closed before t; a stock is taken at the range's
+  start and at each bucket's end (the last bucket ends now), so a bucket's open count less the one before it is
+  exactly its opened less closed, and a change over the range is the last value less the first one drawn. A reopened issue has no `closedAt` and counts as open its whole life. A close is "completed"
+  when GitHub says so and "not planned" otherwise (not planned, duplicate). No label marks production issues;
+  the page says the nearest is `priority:critical`, which also marks pipeline bugs. A row's search excludes the
+  types ranked before its own, so it finds what it counts. Sections: open now by type and priority (each row links GitHub's search); open
+  bugs by priority stacked, critical at the bottom (the burn-down); bugs, then all issues, opened vs closed with opened less closed; open issues
   by type; issues opened by type group; the oldest open critical and high bugs with their status labels. A note
-  appears when GitHub's open count (`issues.open_github`, recorded each cycle) differs from the page's.
+  appears when GitHub's open count (`issues.open_github`, recorded each cycle) differs from the page's, naming
+  the likely cause by direction: fewer stored is a backfill not yet run, more is an issue deleted or transferred.
 - **Flaky tests**: Hotspots (section 5, a slow measure with its own 7 d / 28 d choice); Quarantine,
   which states that no entries exist; the weekly stress run's history. A test's history page names its
   test group, says where each result ran (a pull request, a full run, locally), and links the issue

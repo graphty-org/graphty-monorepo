@@ -135,15 +135,16 @@ function flowOf(issues: IssueItem[], b: Buckets, keep: (i: IssueItem) => boolean
 }
 
 /**
- * The open count at each bucket's end among the issues `keep` accepts.
+ * The open count at the range's start and then at each bucket's end among the issues `keep` accepts, so a line starts
+ * at the count the range's change is measured from.
  * @param issues - every stored issue
  * @param b - the buckets
  * @param keep - which issues to count
- * @returns one count per bucket
+ * @returns one count more than there are buckets
  */
 const stock = (issues: IssueItem[], b: Buckets, keep: (i: IssueItem) => boolean): number[] => {
     const kept = issues.filter(keep);
-    return b.ends.map((t) => kept.filter((i) => openAt(i, t)).length);
+    return [b.starts[0], ...b.ends].map((t) => kept.filter((i) => openAt(i, t)).length);
 };
 
 const sum = (xs: number[]): number => xs.reduce((a, x) => a + x, 0);
@@ -160,21 +161,27 @@ interface Ctx {
 }
 
 /**
- * Stock lines, and how much the first changed over the range (its last value less the count at the range's start).
+ * Stock lines: each one's open count at the range's start and at every bucket's end.
  * @param c - the build's context
  * @param lines - each line's label code and which issues it counts
- * @returns the series, and the start count of each
+ * @returns the series
  */
-function lines(
-    c: Ctx,
-    lines: [string, (i: IssueItem) => boolean][],
-): { key: string; values: number[]; from: number }[] {
-    return lines.map(([key, keep]) => ({
-        key,
-        values: stock(c.issues, c.b, keep),
-        from: c.issues.filter((i) => keep(i) && openAt(i, c.b.starts[0])).length,
-    }));
-}
+const lines = (c: Ctx, lines: [string, (i: IssueItem) => boolean][]): { key: string; values: number[] }[] =>
+    lines.map(([key, keep]) => ({ key, values: stock(c.issues, c.b, keep) }));
+/**
+ * A stock line's last value, now.
+ * @param l - the line
+ * @param l.values - its values
+ * @returns the value
+ */
+const last = (l: { values: number[] }): number => l.values.at(-1) ?? 0;
+/**
+ * How much a stock line changed over the range: its last value less its first, the count at the range's start.
+ * @param l - the line
+ * @param l.values - its values
+ * @returns the change
+ */
+const change = (l: { values: number[] }): number => last(l) - (l.values[0] ?? 0);
 
 const series = (
     c: Ctx,
@@ -193,30 +200,31 @@ const series = (
 });
 
 /**
- * Open bugs by priority at each bucket's end: the burn-down. A "none" line only when some bug ever lacked one.
+ * Open bugs by priority at each bucket's end, stacked critical first so the top edge is every open bug: the
+ * burn-down. A "none" band only when some bug ever lacked a priority.
  * @param c - the build's context
  * @returns the section
  */
 function bugsSection(c: Ctx): SeriesSection {
-    const ls = lines(c, [
-        ["issues.series.open", isBug],
-        ...[...PRIOS, "none" as const].map((p): [string, (i: IssueItem) => boolean] => [
+    const ls = lines(
+        c,
+        [...PRIOS, "none" as const].map((p): [string, (i: IssueItem) => boolean] => [
             `issues.prio.${p}`,
             (i) => isBug(i) && prioOf(i) === p,
         ]),
-    ]).filter((l) => l.key !== "issues.prio.none" || l.values.some((v) => v > 0));
-    const [total, critical] = ls;
-    const last = (l: { values: number[] }): number => l.values.at(-1) ?? 0;
+    ).filter((l) => l.key !== "issues.prio.none" || l.values.some((v) => v > 0));
+    const total = { values: ls[0].values.map((_, k) => sum(ls.map((l) => l.values[k]))) };
+    const critical = ls[0];
     return series(
         c,
         "bugs",
-        "lines",
+        "area",
         ls,
         f("issues.sub.bugs", {
             open: last(total),
-            change: last(total) - total.from,
+            change: change(total),
             critical: last(critical),
-            criticalChange: last(critical) - critical.from,
+            criticalChange: change(critical),
             range: c.range,
         }),
     );
@@ -249,7 +257,8 @@ function flowSection(c: Ctx, id: string, keep: (i: IssueItem) => boolean): Serie
 }
 
 /**
- * Open issues by type at each bucket's end: all, bugs, enhancements, and every other type (no type included).
+ * Open issues by type at each bucket's end: all, bugs, enhancements, and the rest (every other type and no type,
+ * named apart from the opened chart's "other types", which leaves out the types it draws on their own).
  * @param c - the build's context
  * @returns the section
  */
@@ -258,9 +267,8 @@ function backlogSection(c: Ctx): SeriesSection {
         ["issues.series.open", all],
         ["issues.type.bug", isBug],
         ["issues.type.enhancement", (i) => typeOf(i) === "enhancement"],
-        ["issues.group.other", (i) => typeOf(i) !== "bug" && typeOf(i) !== "enhancement"],
+        ["issues.group.rest", (i) => typeOf(i) !== "bug" && typeOf(i) !== "enhancement"],
     ]);
-    const last = (l: { values: number[] }): number => l.values.at(-1) ?? 0;
     const [total, , enh] = ls;
     return series(
         c,
@@ -269,9 +277,9 @@ function backlogSection(c: Ctx): SeriesSection {
         ls,
         f("issues.sub.open", {
             open: last(total),
-            change: last(total) - total.from,
+            change: change(total),
             enhancements: last(enh),
-            enhancementsChange: last(enh) - enh.from,
+            enhancementsChange: change(enh),
             range: c.range,
         }),
     );
@@ -292,17 +300,22 @@ function typesSection(c: Ctx): SeriesSection {
 }
 
 /**
- * GitHub's issue search for open issues of one type; "none" excludes every type label.
+ * GitHub's issue search for the open issues counted as one type: its label without any type that comes before it in
+ * TYPES (an issue labeled bug and enhancement is a bug, so the enhancement search leaves it out); "none" excludes
+ * every type label.
  * @param repo - owner/name
  * @param t - the type, or undefined for every open issue
  * @returns the search URL
  */
 function searchLink(repo: string, t?: IssueType): string {
     let labels = "";
-    if (t === "none") {
-        labels = TYPES.map((x) => ` -label:${x}`).join("");
-    } else if (t) {
-        labels = ` label:${t}`;
+    if (t) {
+        const at = t === "none" ? TYPES.length : TYPES.indexOf(t);
+        labels =
+            (t === "none" ? "" : ` label:${t}`) +
+            TYPES.slice(0, at)
+                .map((x) => ` -label:${x}`)
+                .join("");
     }
     return `https://github.com/${repo}/issues?q=${encodeURIComponent(`is:issue is:open${labels}`)}`;
 }

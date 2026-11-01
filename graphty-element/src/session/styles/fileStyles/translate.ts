@@ -89,6 +89,12 @@ export interface FileStyleOptions {
      */
     readonly lengths?: "median" | "file" | "spacing";
     /**
+     * How a load that replaces the graph frames it: `"element"` (the default) leaves the project setting `framing`
+     * as it is; `"file"` sets it to how the program that draws the file frames it, when graph-io states that (sigma.js
+     * fits node centers 30 px in from the canvas's shorter side), and back to the element's own framing when not.
+     */
+    readonly framing?: "element" | "file";
+    /**
      * The element shape each 2D node shape of the file is drawn as; `FILE_STYLE_SHAPES` by default.
      * A shape the table leaves out is not drawn from the file, and the load notes it.
      */

@@ -31,6 +31,7 @@ import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
+import type { GraphFraming } from "../session/types";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { mapCorners } from "./BasemapManager";
 import { type DataManager, disposeReleased } from "./DataManager";
@@ -75,7 +76,10 @@ interface FramingBox {
  * @param nodes - The nodes to frame; hidden ones are skipped.
  * @returns The corners, or undefined when no node is visible.
  */
-export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
+export function nodeFramingBox(
+    nodes: Iterable<Node>,
+    extent: GraphFraming["extent"] = "drawn",
+): FramingBox | undefined {
     let min: Vector3 | undefined;
     let max: Vector3 | undefined;
     const spots: FramingSpot[] = [];
@@ -91,7 +95,7 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
         // world matrix first, because Babylon only refreshes world bounds while it renders and this
         // runs BEFORE that render. In world space, because a node mesh is parented to the
         // "graph-root" transform an XR gesture moves, rotates and scales.
-        const box = node.framingBounds();
+        const box = extent === "centers" ? centerOf(node) : node.framingBounds();
         // A spot is as wide as the node's widest half, so the turning fit keeps all of it in view.
         const half = box.max.subtract(box.min).scaleInPlace(0.5);
         spots.push({ pos: box.min.add(half), half: Math.max(half.x, half.y, half.z) });
@@ -102,7 +106,27 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
         max.maximizeInPlace(box.max);
     }
 
-    return min && max ? { min, max, spots } : undefined;
+    if (!min || !max) {
+        return undefined;
+    }
+
+    // The centers of one node, or of nodes all in one place, enclose nothing to fit: their drawn box is framed instead.
+    if (extent === "centers" && min.x === max.x && min.y === max.y) {
+        return nodeFramingBox(nodes);
+    }
+
+    return { min, max, spots };
+}
+
+/**
+ * A node's center in the world, as a box with no size: what `extent: "centers"` frames.
+ * @param node - The node.
+ * @returns The center as both corners.
+ */
+function centerOf(node: Node): { min: Vector3; max: Vector3 } {
+    node.mesh.computeWorldMatrix(true);
+    const center = node.mesh.getAbsolutePosition();
+    return { min: center.clone(), max: center.clone() };
 }
 
 /**
@@ -165,11 +189,16 @@ function sameBox(a: FramingBox, b: FramingBox): boolean {
  * @param edges - The edges whose labels to frame; hidden ones are skipped.
  * @returns The corners, or undefined when no node is visible.
  */
-export function framingBox(nodes: Iterable<Node>, edges: Iterable<Edge>): FramingBox | undefined {
-    const box = nodeFramingBox(nodes);
+export function framingBox(
+    nodes: Iterable<Node>,
+    edges: Iterable<Edge>,
+    extent: GraphFraming["extent"] = "drawn",
+): FramingBox | undefined {
+    const box = nodeFramingBox(nodes, extent);
 
-    if (!box) {
-        return undefined;
+    // Centers frame no label, as a program that fits node centers lets labels run off the canvas.
+    if (!box || extent === "centers") {
+        return box;
     }
 
     for (const node of nodes) {
@@ -1808,6 +1837,7 @@ export class UpdateManager implements Manager {
         const { camera } = this.graphContext.getStyles().config.behavior;
         this.camera.setFitInsets(camera.fitInsets);
         this.camera.setFitBounds(camera.fitBounds);
+        this.camera.setFitPadding(this.framing?.padding);
         if (this.fitIsStale()) {
             // An input the last fit read changed before its picture was final: owe it again.
             this.fitRead = null;
@@ -2139,8 +2169,11 @@ export class UpdateManager implements Manager {
      * @returns The box, or undefined when nothing is visible.
      */
     private measure(): FramingBox | undefined {
-        return framingBox(this.layoutManager.nodes, this.layoutManager.edges);
+        return framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent);
     }
+
+    /** How the graph is framed: the project setting `framing`, which the element hands over when it changes. */
+    framing: GraphFraming | undefined = undefined;
 
     /**
      * Update all edges.
@@ -2938,6 +2971,7 @@ export class UpdateManager implements Manager {
             this.camera.getActiveController()?.viewInsets ?? null,
             fitInsets,
             fitBounds,
+            this.framing ?? null,
             canvas?.clientWidth,
             canvas?.clientHeight,
             engine.getRenderWidth(),

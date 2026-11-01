@@ -82,7 +82,10 @@ note="$(cd "$(dirname "$0")" && pwd -P)/branch-note.mjs"
     echo "$(date -Iseconds) $branch $(git rev-parse --short HEAD)"
     if [ "$push" = 0 ]; then
         echo "not pushed $branch (open pull request)"
-    elif git push --no-verify -q -u origin "$branch"; then echo "pushed $branch"; else echo "push of $branch failed"; fi
+    # Setting the upstream writes .git/config: under tools/worktree-new.sh's lock (issue #5213).
+    elif git push --no-verify -q origin "$branch" &&
+        flock "$(git rev-parse --path-format=absolute --git-common-dir)/config.flock" \
+            git branch -q --set-upstream-to="origin/$branch" "$branch"; then echo "pushed $branch"; else echo "push of $branch failed"; fi
     node "$note" commit --branch "$branch" || echo "the progress note of $branch was not updated"
     echo "finished $branch"
 ) </dev/null >>"$log" 2>&1 &

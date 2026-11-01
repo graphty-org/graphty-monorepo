@@ -1633,6 +1633,7 @@ jobs:
               env:
                   STATE: ${{ steps.verdict.outputs.state }}
                   GATE: ${{ steps.gate.outputs.outcome }}
+                  GATE_REASON: ${{ steps.gate.outputs.reason }}
                   FIRST: ${{ steps.gate.outputs.first }}
                   # the hold as the store had it at the verdict, not the pick's (a re-run keeps attempt 1's pick);
                   # nothing once this run replaced it
@@ -1788,6 +1789,7 @@ jobs:
               env:
                   STATE: approved
                   GATE: ${{ steps.gate.outputs.outcome }}
+                  GATE_REASON: ${{ steps.gate.outputs.reason }}
                   HELD: ${{ needs.pick.outputs.held }}
               run: node tools/channel/nightly.mjs decide
 

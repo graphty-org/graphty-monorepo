@@ -19,7 +19,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
-import { delimiter, dirname, join } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -74,6 +74,8 @@ function fencedEnv(dir, base = process.env) {
     env.TOOL_TEST_GUARD_LOG = log;
     env.TOOL_TEST_GUARD_PROTECT = join(main, "tmp");
     env.TOOL_TEST_GUARD_SHARED = shared;
+    // a checkout other than the main one (a live.sh copy under tmp/live/) owns its own tree, wherever it sits (#5432)
+    if (resolve(root) !== resolve(main)) env.TOOL_TEST_GUARD_OWN = resolve(root);
     env.GRAPHTY_TEST_SLOTS = "0"; // the machine's slots live in the main checkout's tmp/
     return { env, log };
 }

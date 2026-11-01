@@ -97,6 +97,11 @@ fi
 # The main checkout, even when this runs from inside another worktree.
 MAIN="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 DIR="$MAIN/.worktrees/$NAME"
+# git takes .git/config's lock without waiting and fails when it is held, so runs started at once broke
+# partway with "could not lock config file" (issue #5213). Every step here that writes .git/config holds
+# this lock; tools/branch-push.sh and tools/pr-open.sh take it too.
+CONFIG_LOCK="$(git -C "$MAIN" rev-parse --path-format=absolute --git-common-dir)/config.flock"
+locked() { flock "$CONFIG_LOCK" "$@"; }
 [ -e "$DIR" ] && die "$DIR already exists"
 
 # git keeps refs as files: a branch docs/x cannot exist beside a branch docs (nor docs beside docs/x).
@@ -134,8 +139,8 @@ LFS_SLIM=(-c "lfs.fetchexclude=design/**")
 [ -n "$FULL_IMAGES" ] && LFS_SLIM=()
 if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH" \
     || git -C "$MAIN" show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
-    # an origin-only branch gets a local tracking branch of the same name
-    git -C "$MAIN" "${LFS_SLIM[@]}" worktree add "$DIR" "$BRANCH"
+    # an origin-only branch gets a local tracking branch of the same name, written to .git/config
+    locked git -C "$MAIN" "${LFS_SLIM[@]}" worktree add "$DIR" "$BRANCH"
 else
     # --no-track: the new branch's upstream is set by its first `git push -u` below, not to the base
     git -C "$MAIN" "${LFS_SLIM[@]}" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
@@ -144,8 +149,8 @@ else
     # golden-verified is a point on golden: such a branch lands in golden like one started from golden.
     case "$BASE" in
         origin/master) ;;
-        origin/golden-verified) git -C "$MAIN" config "branch.$BRANCH.prBase" golden ;;
-        origin/*) git -C "$MAIN" config "branch.$BRANCH.prBase" "${BASE#origin/}" ;;
+        origin/golden-verified) locked git -C "$MAIN" config "branch.$BRANCH.prBase" golden ;;
+        origin/*) locked git -C "$MAIN" config "branch.$BRANCH.prBase" "${BASE#origin/}" ;;
     esac
 fi
 
@@ -156,9 +161,11 @@ else
 fi
 
 if [ -n "$TRACKED" ]; then
-    git -C "$MAIN" config "branch.$BRANCH.issue" "$ISSUE"
+    locked git -C "$MAIN" config "branch.$BRANCH.issue" "$ISSUE"
     if ! git -C "$DIR" rev-parse -q --verify '@{upstream}' >/dev/null 2>&1; then
-        retry git -C "$DIR" push --no-verify -q -u origin "$BRANCH" ||
+        # The push stays outside the lock; only setting the upstream writes .git/config.
+        { retry git -C "$DIR" push --no-verify -q origin "$BRANCH" &&
+            locked git -C "$DIR" branch -q --set-upstream-to="origin/$BRANCH"; } ||
             echo "warning: could not push $BRANCH to origin; its first commit pushes it (.husky/post-commit)" >&2
     fi
     (cd "$DIR" && node "$HERE/branch-note.mjs" start --issue "$ISSUE" --branch "$BRANCH" --worktree "$DIR" \
@@ -166,7 +173,8 @@ if [ -n "$TRACKED" ]; then
         echo "warning: issue #$ISSUE is not labelled or noted yet; run: node tools/branch-note.mjs start --issue $ISSUE --branch $BRANCH --worktree $DIR" >&2
 fi
 
-(cd "$DIR" && pnpm install --frozen-lockfile)
+# husky (the prepare script) writes core.hooksPath to .git/config: run it under the lock, not inside the install.
+(cd "$DIR" && HUSKY=0 pnpm install --frozen-lockfile && locked pnpm exec husky)
 
 echo "ready: $DIR${ISSUE:+ (issue #$ISSUE)}"
 [ -n "$FULL_IMAGES" ] || echo "the design/** images are LFS pointers here; to get them: git -C $DIR lfs pull --include \"design/**\""

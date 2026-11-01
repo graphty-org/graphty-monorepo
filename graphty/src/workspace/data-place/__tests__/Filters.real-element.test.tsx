@@ -277,7 +277,7 @@ describe("Filter cards on the real element", () => {
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 2);
         });
-        await userEvent.click((await card("in the largest component")).getByRole("radio", { name: /^Filter to:/ }));
+        await userEvent.click((await card("Largest component")).getByRole("radio", { name: /^Filter to:/ }));
         await waitFor(() => {
             assert.equal(session.visibility.conditions[1]?.effect, "keep");
         });
@@ -330,19 +330,19 @@ describe("Filter cards on the real element", () => {
         const { session } = await openWithGraph();
         await addValueCard(session);
         await addFromPlus("Largest component");
-        await within(filters()).findByRole("group", { name: "in the largest component, Select" });
-        await userEvent.click((await card("in the largest component")).getByRole("radio", { name: /^Filter to:/ }));
-        await within(filters()).findByRole("group", { name: "in the largest component, Filter to" });
+        await within(filters()).findByRole("group", { name: "Largest component, Select" });
+        await userEvent.click((await card("Largest component")).getByRole("radio", { name: /^Filter to:/ }));
+        await within(filters()).findByRole("group", { name: "Largest component, Filter to" });
         // The largest-component card counts every node of the one component.
-        await (await card("in the largest component")).findByText("8 of 8");
+        await (await card("Largest component")).findByText("8 of 8");
 
         await userEvent.click((await card(VALUE)).getByRole("button", { name: `Remove ${VALUE}` }));
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
-            assert.equal(document.activeElement?.getAttribute("aria-label"), "in the largest component, Filter to");
+            assert.equal(document.activeElement?.getAttribute("aria-label"), "Largest component, Filter to");
         });
         await userEvent.click(
-            (await card("in the largest component")).getByRole("button", { name: "Remove in the largest component" }),
+            (await card("Largest component")).getByRole("button", { name: "Remove Largest component" }),
         );
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 0);
@@ -350,7 +350,7 @@ describe("Filter cards on the real element", () => {
         });
         // Undo puts it back.
         await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
-        await within(filters()).findByRole("group", { name: "in the largest component, Filter to" });
+        await within(filters()).findByRole("group", { name: "Largest component, Filter to" });
     });
 
     it("Neighbors of selection writes a card whose depth and seeds are edited in place", async () => {

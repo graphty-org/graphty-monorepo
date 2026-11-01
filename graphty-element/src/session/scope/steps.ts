@@ -596,8 +596,10 @@ export function stepsReadingOf(
             const input = lazy(() => sources.scopeOf(side, step.input));
             const after = lazy(() => sources.scopeOf(side, step.members));
             let held: { value: ValueHistogram | null } | undefined;
-            const values = (): ValueHistogram | null =>
-                (held ??= { value: sources.valuesOf?.(given, step.input) ?? null }).value;
+            const values = (): ValueHistogram | null => {
+                held ??= { value: sources.valuesOf?.(given, step.input) ?? null };
+                return held.value;
+            };
             return {
                 id: given.id ?? "",
                 state: step.state,

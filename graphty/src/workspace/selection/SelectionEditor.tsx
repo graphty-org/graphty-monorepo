@@ -219,12 +219,14 @@ export function SelectionEditor({
         [store, owner],
     );
     // Another editor began picking: this one stops, so the canvas, the key and the table describe one.
+    // Read from the store, not the render: this editor's own claim above may have just landed.
     useEffect(() => {
-        if (picking && holder !== null && holder !== owner) {
+        const now = store.get().editingSelection?.owner ?? null;
+        if (picking && now !== null && now !== owner) {
             setOpenStep(null);
             setAdding(null);
         }
-    }, [holder, owner, picking]);
+    }, [holder, owner, picking, store]);
 
     // A row asked for focus (after a move, an add, a remove) gets it once it is drawn.
     useEffect(() => {

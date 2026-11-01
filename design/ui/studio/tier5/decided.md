@@ -287,8 +287,11 @@ Carried, each with its reason:
   `aria-activedescendant`; the fix is to build it from the value picker's searchable listbox.
 - Rows are still role group (not treeitem with level and expanded); rows now carry
   `aria-keyshortcuts`, and the menus' items say their keys.
-- The range slider's spoken value, the "With issues" chip's contrast and a compact-mantine Chip theme
-  are compact-mantine changes (see `../owner-decisions.md`).
+- The range slider's raw-number reading was not reproduced: compact-mantine's new accessibility-tree
+  test reads the caller's words on both thumbs after mount and after the value changes. The next
+  a11y walk re-checks it on the card's own path (keys on a thumb).
+- The "With issues" chip's contrast and a compact-mantine Chip theme are compact-mantine changes (see
+  `../owner-decisions.md`).
 - Minors not taken: the filter host header's two icons, duplicate control names across groups, a
   match count while typing, Degree's summary in the picker, the text card's operators (Matches, Not
   measured chip), the While and Within words in the card head, the legend's and a new layer's row

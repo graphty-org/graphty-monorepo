@@ -440,6 +440,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "defaultLabels",
     "LabelsProvider",
     "ListboxCheck",
+    "LISTBOX_CLASS_NAMES",
     "parseLocaleNumber",
     "useCollator",
     "useLabels",

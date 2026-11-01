@@ -195,24 +195,7 @@ export class LifecycleManager implements Manager {
         for (const managerName of reverseOrder) {
             const manager = this.managers.get(managerName);
             if (manager && manager !== this.eventManager) {
-                try {
-                    this.logger.debug(`Disposing manager: ${managerName}`);
-                    manager.dispose();
-                } catch (error) {
-                    // Log error but continue disposing other managers
-                    this.logger.error(
-                        `Error disposing manager: ${managerName}`,
-                        error instanceof Error ? error : new Error(String(error)),
-                        { managerName },
-                    );
-
-                    this.eventManager.emitGraphError(
-                        null,
-                        error instanceof Error ? error : new Error(String(error)),
-                        "other",
-                        { component: "LifecycleManager", operation: "dispose", managerName },
-                    );
-                }
+                this.disposeManager(managerName, manager);
             }
         }
 
@@ -229,6 +212,27 @@ export class LifecycleManager implements Manager {
         // Only when it was registered as one of the managers: one handed in alone is not ours.
         if ([...this.managers.values()].includes(this.eventManager)) {
             this.eventManager.dispose();
+        }
+    }
+
+    /**
+     * Dispose one manager for `dispose`, reporting a failure and carrying on with the rest.
+     * @param managerName - The manager's name.
+     * @param manager - The manager.
+     */
+    private disposeManager(managerName: string, manager: Manager): void {
+        try {
+            this.logger.debug(`Disposing manager: ${managerName}`);
+            manager.dispose();
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            // Log error but continue disposing other managers
+            this.logger.error(`Error disposing manager: ${managerName}`, err, { managerName });
+            this.eventManager.emitGraphError(null, err, "other", {
+                component: "LifecycleManager",
+                operation: "dispose",
+                managerName,
+            });
         }
     }
 

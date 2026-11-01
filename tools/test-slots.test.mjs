@@ -52,12 +52,46 @@ after(() => children.forEach((c) => c.kill("SIGKILL")));
 
 const fresh = () => mkdtempSync(join(TMP, "test-slots-"));
 const quiet = { env: {}, poll: 10, log: () => {}, waitLog: () => {} };
-const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
-// Whether a promise has settled within a few polls.
+// Ticket names carry the millisecond they were written in, so a run asked for after this gets a later place in line.
+async function nextMillisecond() {
+    const now = Date.now();
+    while (Date.now() === now) {
+        await new Promise((r) => setImmediate(r));
+    }
+}
+// Resolves once a spawned command wrapper has written the line that says it is waiting for a slot.
+function queuedLine(child) {
+    return new Promise((resolve, reject) => {
+        let text = "";
+        child.stderr.on("data", (d) => {
+            text += d;
+            if (/waiting for one of/.test(text)) resolve();
+        });
+        child.once("exit", (code) => reject(new Error(`exited (${code}) before it waited for a slot: ${text}`)));
+    });
+}
+// acquire(), counting its reads of the tickets, so a test waits on the polls it needs and not on the clock.
+function queue(options) {
+    const read = options.list ?? liveTickets;
+    let polls = 0;
+    const waiting = [];
+    const promise = acquire({
+        ...options,
+        list: (d) => {
+            polls++;
+            waiting.filter((w) => polls >= w.at).forEach((w) => w.wake());
+            return read(d);
+        },
+    });
+    promise.polls = (n) => new Promise((wake) => waiting.push({ at: polls + n, wake }));
+    return promise;
+}
+// Whether a queue() promise has settled by its second read of the tickets from now: the first may be under
+// way already, so the second is the first to see everything the test did before asking.
 async function settled(promise) {
     let done = false;
-    promise.then(() => (done = true));
-    await tick(100);
+    const mark = () => (done = true);
+    await Promise.race([promise.then(mark, mark), promise.polls(2)]);
     return done;
 }
 
@@ -66,10 +100,10 @@ describe("test-slots", () => {
         const dir = fresh();
         const [a, b, c] = [sleeper(), sleeper(), sleeper()];
         const releaseA = await acquire({ ...quiet, dir, slots: 2, pid: a.pid, label: "run a" });
-        await tick();
+        await nextMillisecond();
         await acquire({ ...quiet, dir, slots: 2, pid: b.pid, label: "run b" });
         const lines = [];
-        const third = acquire({ ...quiet, dir, slots: 2, pid: c.pid, label: "run c", log: (l) => lines.push(l) });
+        const third = queue({ ...quiet, dir, slots: 2, pid: c.pid, label: "run c", log: (l) => lines.push(l) });
         assert.equal(await settled(third), false, "a third run waits while two slots are held");
         assert.equal(lines.length, 1, "one waiting line, not one per poll");
         assert.match(lines[0], new RegExp(`waiting for one of 2 .*pid ${a.pid} run a .*pid ${b.pid} run b`));
@@ -85,10 +119,10 @@ describe("test-slots", () => {
         const dir = fresh();
         const [h, w1, w2] = [sleeper(), sleeper(), sleeper()];
         const releaseH = await acquire({ ...quiet, dir, slots: 1, pid: h.pid, label: "holder" });
-        await tick();
-        const first = acquire({ ...quiet, dir, slots: 1, pid: w1.pid, label: "first" });
-        await tick();
-        const second = acquire({ ...quiet, dir, slots: 1, pid: w2.pid, label: "second" });
+        await nextMillisecond();
+        const first = queue({ ...quiet, dir, slots: 1, pid: w1.pid, label: "first" });
+        await nextMillisecond();
+        const second = queue({ ...quiet, dir, slots: 1, pid: w2.pid, label: "second" });
         releaseH();
         assert.equal(await settled(first), true);
         assert.equal(await settled(second), false, "the later run still waits");
@@ -101,19 +135,19 @@ describe("test-slots", () => {
         const [h, l1, w, l2, w2] = [sleeper(), sleeper(), sleeper(), sleeper(), sleeper()];
         const low = { ...quiet, env: { GRAPHTY_SLOT_PRIORITY: "low" } };
         const releaseH = await acquire({ ...quiet, dir, slots: 1, pid: h.pid, label: "holder" });
-        await tick();
-        const sync = acquire({ ...low, dir, slots: 1, pid: l1.pid, label: "sync" });
-        await tick();
-        const later = acquire({ ...quiet, dir, slots: 1, pid: w.pid, label: "later" });
+        await nextMillisecond();
+        const sync = queue({ ...low, dir, slots: 1, pid: l1.pid, label: "sync" });
+        await nextMillisecond();
+        const later = queue({ ...quiet, dir, slots: 1, pid: w.pid, label: "later" });
         releaseH();
         assert.equal(await settled(later), true, "the later ordinary run goes first");
         assert.equal(await settled(sync), false, "the low run still waits");
         (await later)();
         assert.equal(await settled(sync), true);
         // Holding a slot, the low run counts against the limit: an ordinary run now waits for it.
-        const next = acquire({ ...quiet, dir, slots: 1, pid: w2.pid, label: "next" });
+        const next = queue({ ...quiet, dir, slots: 1, pid: w2.pid, label: "next" });
         assert.equal(await settled(next), false, "a granted low run is not overtaken");
-        const lowAgain = acquire({ ...low, dir, slots: 1, pid: l2.pid, label: "sync 2" });
+        const lowAgain = queue({ ...low, dir, slots: 1, pid: l2.pid, label: "sync 2" });
         (await sync)();
         assert.equal(await settled(next), true);
         assert.equal(await settled(lowAgain), false);
@@ -172,7 +206,7 @@ describe("test-slots", () => {
         const dir = fresh();
         const [doomed, waiter] = [sleeper(), sleeper()];
         await acquire({ ...quiet, dir, slots: 1, pid: doomed.pid, label: "killed" });
-        const next = acquire({ ...quiet, dir, slots: 1, pid: waiter.pid, label: "next" });
+        const next = queue({ ...quiet, dir, slots: 1, pid: waiter.pid, label: "next" });
         assert.equal(await settled(next), false);
         doomed.kill("SIGKILL");
         await new Promise((r) => doomed.once("exit", r));
@@ -188,9 +222,9 @@ describe("test-slots", () => {
         // This test process holds the only slot; a child of it asks for one.
         const release = await acquire({ ...quiet, dir, slots: 1, pid: process.pid, label: "parent" });
         const child = sleeper();
-        const nested = acquire({ ...quiet, dir, slots: 1, pid: child.pid, label: "nested" });
+        const nested = queue({ ...quiet, dir, slots: 1, pid: child.pid, label: "nested" });
         assert.equal(await settled(nested), true, "a process under a holder does not wait");
-        const flagged = acquire({ ...quiet, dir, slots: 1, pid: sleeper().pid, env: { [HELD]: "1" }, label: "x" });
+        const flagged = queue({ ...quiet, dir, slots: 1, pid: sleeper().pid, env: { [HELD]: "1" }, label: "x" });
         assert.equal(await settled(flagged), true, `${HELD} in the environment skips the queue`);
         assert.equal(readdirSync(dir).length, 1, "neither wrote a ticket");
         release();
@@ -302,7 +336,7 @@ describe("test-slots", () => {
         const report = (cmd) =>
             spawn(process.execPath, [SCRIPT, "--gpu", process.execPath, "-e", cmd], {
                 env,
-                stdio: ["ignore", "pipe", "ignore"],
+                stdio: ["ignore", "pipe", "pipe"],
             });
         // The first GPU run reports its ticket, its environment and the test tickets, then runs until it is ended.
         const first = report(
@@ -324,8 +358,9 @@ describe("test-slots", () => {
         let out = "";
         second.stdout.on("data", (d) => (out += d));
         const exited = new Promise((r) => second.once("exit", r));
-        await tick(500);
+        await queuedLine(second);
         assert.equal(out, "", "one GPU run at a time");
+        assert.equal(readdirSync(dirs.GRAPHTY_GPU_SLOTS_DIR).length, 2, "the second run has its ticket in line");
         process.kill(line.pid); // its command ends, so the wrapper gives the slot back
         assert.equal(await exited, 0);
         assert.match(out, /second ran/);
@@ -371,12 +406,12 @@ describe("test-slots", () => {
         runner.stdout.on("data", (d) => (output += d));
         runner.stderr.on("data", (d) => (output += d));
         const exited = new Promise((r) => runner.once("exit", r));
-        // Someone has queued behind the holder: the runner itself, or (were it not holding the slot) its command.
-        while (liveTickets(dir).length < 2) {
-            await tick(20);
-        }
-        // Queued for longer than the limit.
-        await tick(1500);
+        // Someone has queued behind the holder. It must be the runner itself: its limit starts only once it holds
+        // the slot. Were it the command, it would be waiting inside the limit.
+        await queuedLine(runner);
+        const queued = liveTickets(dir);
+        assert.equal(queued.length, 2, "the holder and one run in line");
+        assert.equal(queued[1].pid, runner.pid, "the runner, not its timed command, waits for the slot");
         assert.doesNotMatch(output, /timed command ran|limit hit/, "nothing started while the slot was held");
         releaseHolder();
         assert.equal(await exited, 0, output);

@@ -400,7 +400,8 @@ export default tseslint.config(
         rules: { "local/no-test-timing": "error" },
     },
     // Tests that still wait a counted number of animation frames, exempt from that one check until
-    // each is rewritten to wait on what it needs (#2535). graphty-element's are in its own config.
+    // each is rewritten to wait on what it needs (#2535): compact-mantine's Figma tests, which need the owner's
+    // Figma-Approved trailer to change (#2616).
     // Remove a file once it is fixed; never add one.
     {
         files: [
@@ -408,6 +409,12 @@ export default tseslint.config(
             "compact-mantine/tests/figma/overlays.browser.test.tsx",
         ],
         rules: { "local/no-test-timing": ["error", { frameWaits: false }] },
+    },
+    // The global hang guard's own test hands withTestGuards configs that set local timeouts, to check it
+    // overrides them: they are the data under test, not waits.
+    {
+        files: ["tools/test-wait-guard.test.mjs"],
+        rules: { "local/no-test-timing": "off" },
     },
 
     // ============================================

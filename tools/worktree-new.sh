@@ -98,8 +98,10 @@ fi
 MAIN="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 DIR="$MAIN/.worktrees/$NAME"
 # git takes .git/config's lock without waiting and fails when it is held, so runs started at once broke
-# partway with "could not lock config file" (issue #5213). Every step here that writes .git/config holds
-# this lock; tools/branch-push.sh and tools/pr-open.sh take it too.
+# partway with "could not lock config file" (issue #5213). `git worktree add` reads every other
+# worktree's folder under .git/worktrees, and failed on one a concurrent add had made but not yet written
+# ("failed to read .git/worktrees/<name>/commondir", issue #5466). Every step here that writes .git/config,
+# .git/worktrees or a shared ref holds this lock; tools/branch-push.sh and tools/pr-open.sh take it too.
 CONFIG_LOCK="$(git -C "$MAIN" rev-parse --path-format=absolute --git-common-dir)/config.flock"
 locked() { flock "$CONFIG_LOCK" "$@"; }
 [ -e "$DIR" ] && die "$DIR already exists"
@@ -129,7 +131,7 @@ if [ -n "$TRACKED" ] && [ -z "$ISSUE" ]; then
         die "could not open the issue"
 fi
 
-retry git -C "$MAIN" fetch --quiet origin
+retry locked git -C "$MAIN" fetch --quiet origin
 if [ -z "$BASE" ]; then
     BASE=origin/master
 fi
@@ -143,7 +145,7 @@ if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH" \
     locked git -C "$MAIN" "${LFS_SLIM[@]}" worktree add "$DIR" "$BRANCH"
 else
     # --no-track: the new branch's upstream is set by its first `git push -u` below, not to the base
-    git -C "$MAIN" "${LFS_SLIM[@]}" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
+    locked git -C "$MAIN" "${LFS_SLIM[@]}" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
     # A branch started from another branch is stacked on it: record that, so the pre-push gate
     # measures this branch's changes from that branch, not origin/master (tools/push-base.mjs).
     # golden-verified is a point on golden: such a branch lands in golden like one started from golden.

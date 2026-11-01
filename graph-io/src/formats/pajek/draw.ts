@@ -45,7 +45,8 @@ export interface PajekDrawOptions {
      * Options of Pajek's ini file by the names its SAVEINI writes; a flag is on when given as "", true, or a value
      * other than "0" or false. Read: `Form8.MarkVerticesUsing` (1 labels, 2 vertex numbers, 3 no labels, 4 no labels
      * and no arrows), `Form8.SizeofVertices` (8), `TransparencyofVertices` and `TransparencyofLines` (the SVG
-     * export's opacities, 0 to 1), `Form10.StraightLinesOnly1` (every line straight) and `Form10.ColorGradientLines`
+     * export's opacities, 0 to 1), `Form10.StraightLinesOnly1` (every line straight), `Form10.LinesFinishedatBorder` (a Bezier arc
+     * starts at its source's outline) and `Form10.ColorGradientLines`
      * (each line a gradient of its end vertices' colors), `Form8.withLabels1` (the lines' labels drawn; without it
      * none is) and `Form10.effect3d` (each vertex filled with a gradient down to half its color). Any other option is
      * ignored.
@@ -136,6 +137,16 @@ function flag(draw: PajekDraw, name: string): boolean {
  */
 export function drawsLineLabels(draw: PajekDraw | null): boolean {
     return draw !== null && flag(draw, "Form8.withLabels1");
+}
+
+/**
+ * Whether Pajek starts a line where it leaves its source's outline: under Lines finished at Vertex Border
+ * (`Form10.LinesFinishedatBorder`, `pajek-specimen-arrows-p3` against `pajek-specimen-arrows`).
+ * @param draw - the settings, or null when the import names none (Pajek's defaults)
+ * @returns true when its lines start at the border
+ */
+export function finishesLinesAtBorder(draw: PajekDraw | null): boolean {
+    return draw !== null && flag(draw, "Form10.LinesFinishedatBorder");
 }
 
 /**

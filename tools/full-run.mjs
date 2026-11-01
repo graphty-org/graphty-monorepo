@@ -875,7 +875,15 @@ export function runsOnTitleCommit(title, text) {
 
 // a red issue's body and comments, joined
 const issueText = (n) =>
-    sh("gh", ["issue", "view", String(n), "--json", "body,comments", "-q", '[.body, .comments[].body] | join("\\n")']);
+    sh("gh", [
+        "issue",
+        "view",
+        String(n),
+        "--json",
+        "body,comments",
+        "-q",
+        String.raw`[.body, .comments[].body] | join("\n")`,
+    ]);
 
 /**
  * Files or updates the red issue.

@@ -1,5 +1,6 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import { createGraphSession } from "../../session";
 import type { AdHocData } from "../../src/config";
 import { Graph } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
@@ -333,6 +334,40 @@ describe("SelectionManager", () => {
                 },
                 { sizes: [250, 1000], counter: "elements visited by one toggle" },
             );
+        });
+    });
+
+    // A Shift-click on a node: it joins the session's selection, whatever else is selected.
+    describe("add", () => {
+        it("costs about the same work however large the graph and the selection", async () => {
+            const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
+            const strict = scope.__GRAPHTY_STRICT_STATE__;
+            scope.__GRAPHTY_STRICT_STATE__ = false;
+            try {
+                await assertScalesLinearly(
+                    async (size) => {
+                        const session = createGraphSession();
+                        const ids = Array.from({ length: size }, (_, i) => `n${String(i)}`);
+                        await session.data.addNodes(ids.map((id) => ({ id })));
+                        // Every node but the last is selected already.
+                        await session.selection.apply({ nodes: ids.slice(0, -1) }, "replace");
+                        const manager = new SelectionManager(eventManager);
+                        manager.bindSelection(session.selection as SelectionOwner);
+                        const last = createMockNode(ids[size - 1]);
+
+                        const visits = await visitsDuring(() => {
+                            manager.add(last);
+                        });
+                        assert.strictEqual(session.selection.size, size, "the node joined the selection");
+                        manager.dispose();
+                        session.dispose();
+                        return visits;
+                    },
+                    { sizes: [250, 1000], growth: "constant", counter: "elements visited by one add" },
+                );
+            } finally {
+                scope.__GRAPHTY_STRICT_STATE__ = strict;
+            }
         });
     });
 

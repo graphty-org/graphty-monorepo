@@ -1,7 +1,7 @@
 # Style fidelity reference tools
 
-The reference scenes come from these programs. They are invoked by `regenerate.sh` from a local tools
-directory and never vendored into a package; only `references/dvipsnam.def` is a copied file. No
+The reference scenes come from these programs. They are invoked by `regenerate.sh` and
+`references/regenerate-corpus.mjs` (`references/README.md`) from a local tools directory and never vendored into a package; only `references/dvipsnam.def` is a copied file. No
 yFiles code is used anywhere: yEd files are read from their own stored geometry.
 
 | Tool                                                                        | Version                                 | License                             | Used for                                                                                                                                                                                                                   |
@@ -62,12 +62,12 @@ cd graphty-element && npx vitest run --project=fidelity test/fidelity/oracle-rep
 ```
 
 Cytoscape desktop runs under servherd on a headless display, and only one script may drive it at a time. Start it
-from the main checkout's `tmp/file-styles-corpus/scripts`, which holds `run-cytoscape.sh` (Cytoscape 3.10.5 and a
-JDK unpacked under `tmp/`):
+with `references/run-cytoscape.sh`, which runs Cytoscape 3.10.5 and a JDK from the tools directory
+(`$STYLE_FIDELITY_TOOLS`, default `<main checkout>/tmp/style-fidelity/tools`) on its own Xvfb display:
 
 ```jsonc
-servherd_start({ name: "cytoscape-desktop", cwd: "<main checkout>/tmp/file-styles-corpus/scripts",
-  command: "bash run-cytoscape.sh {{port}} 96" })
+servherd_start({ name: "cytoscape-desktop", cwd: "<repository root>",
+  command: "bash graph-io/test/fidelity/references/run-cytoscape.sh {{port}} 96" })
 ```
 
 then run `CYREST_PORT=<its port> CYTOSCAPE_DISPLAY=:96 node cytoscape-desktop.mjs [sample ids]`.

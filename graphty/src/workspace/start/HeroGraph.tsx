@@ -533,7 +533,7 @@ export function HeroGraph({
         }
         const close = (event: KeyboardEvent): void => {
             if (event.key === "Escape") {
-                session.selection.clear();
+                session.selection.clear({ cause: "user" });
             }
         };
         globalThis.addEventListener("keydown", close);
@@ -701,7 +701,7 @@ export function HeroGraph({
                     card={card}
                     boxRef={cardRef}
                     onClose={() => {
-                        session.selection.clear();
+                        session.selection.clear({ cause: "user" });
                     }}
                 />
             )}

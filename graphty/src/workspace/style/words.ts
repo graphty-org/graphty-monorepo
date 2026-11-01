@@ -496,6 +496,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.chartBorderColor": "Chart border color",
     "node.chartBorderWidth": "Chart border width",
     "node.exactCornerRadius": "Exact corner radius",
+    "node.cornerFraction": "Corner fraction",
     "node.shapeStretchPoints": "Polygon stretch",
     "node.shapeParts": "Shape parts",
     "node.shapeLines": "Shape lines",

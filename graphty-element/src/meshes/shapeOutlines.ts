@@ -245,21 +245,30 @@ function ellipse(halfWidth: number, halfHeight: number): Point2[] {
 }
 
 /**
- * A rectangle with rounded corners filling a box. The corner radius is a quarter of the shorter
- * side, or `maxRadius` when that is smaller -- Cytoscape.js's rule, which caps it at 8 px, so a
- * large box keeps small corners -- and it is the same in both directions however long and thin
- * the box is.
+ * A rectangle with rounded corners filling a box. The corner radius is `fraction` of the shorter
+ * side (a quarter by default), or `maxRadius` when that is smaller -- Cytoscape.js's rule, which
+ * caps a quarter at 8 px, so a large box keeps small corners -- and it is the same in both
+ * directions however long and thin the box is.
  * @param halfWidth - Half the box's width.
  * @param halfHeight - Half its height.
- * @param maxRadius - The largest corner radius; unset, a quarter of the shorter side.
- * @param exact - Whether `maxRadius` is drawn as given, up to half the shorter side, rather than capped at a quarter.
+ * @param maxRadius - The largest corner radius; unset, `fraction` of the shorter side.
+ * @param exact - Whether `maxRadius` is drawn as given, up to half the shorter side, rather than capped at `fraction`.
+ * @param fraction - The share of the shorter side the corners are rounded by, up to a half.
  * @returns The outline, counter-clockwise.
  */
-function roundRectangle(halfWidth: number, halfHeight: number, maxRadius = Infinity, exact = false): Point2[] {
+function roundRectangle(
+    halfWidth: number,
+    halfHeight: number,
+    maxRadius = Infinity,
+    exact = false,
+    fraction = 1 / 4,
+): Point2[] {
     const half = Math.min(halfWidth, halfHeight);
     const radius = Math.max(
         0,
-        exact && Number.isFinite(maxRadius) ? Math.min(half, maxRadius) : Math.min(half / 2, maxRadius),
+        exact && Number.isFinite(maxRadius)
+            ? Math.min(half, maxRadius)
+            : Math.min(half, 2 * half * fraction, maxRadius),
     );
     const corners: Point2[] = [
         [halfWidth - radius, -halfHeight + radius],
@@ -628,8 +637,11 @@ function polygonOutline(points: string | undefined, halfWidth: number, halfHeigh
  *   usable ones is drawn as a rectangle.
  * @param stretch - Whether a polygon's corners are stretched to reach the box's sides (`shape.stretchPoints`), or
  *   drawn where they say.
- * @param exact - Whether `cornerRadius` is drawn as given (`shape.exactCornerRadius`), up to half the shorter side,
- *   rather than capped at a quarter of it (round-rectangle) or a tenth (round-* polygons).
+ * @param corners - How the corners are rounded.
+ * @param corners.exact - Whether `cornerRadius` is drawn as given (`shape.exactCornerRadius`), up to half the
+ *   shorter side, rather than capped at a quarter of it (round-rectangle) or a tenth (round-* polygons).
+ * @param corners.fraction - The share of the shorter side a round-rectangle's corners are rounded by when not
+ *   `exact` (`shape.cornerFraction`), a quarter by default.
  * @returns The outline, counter-clockwise, or an empty list for a shape that is not flat.
  */
 export function flatShapeOutline(
@@ -639,7 +651,7 @@ export function flatShapeOutline(
     cornerRadius?: number,
     points?: string,
     stretch = true,
-    exact = false,
+    { exact = false, fraction }: { readonly exact?: boolean; readonly fraction?: number } = {},
 ): Point2[] {
     const halfWidth = width / 2;
     const halfHeight = height / 2;
@@ -653,7 +665,7 @@ export function flatShapeOutline(
     }
 
     if (shape === "round-rectangle") {
-        return roundRectangle(halfWidth, halfHeight, cornerRadius, exact);
+        return roundRectangle(halfWidth, halfHeight, cornerRadius, exact, fraction);
     }
 
     const sharp = ROUNDED[shape] as string | undefined;

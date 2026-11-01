@@ -9,12 +9,13 @@
 // false, maintainEdgeParent false): otherwise draw.io moves group boxes and the geometry is not the file's.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { gunzipSync } from "node:zlib";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 import console from "node:console";
 
-import { bends, clipPath, finishScene, labelPosition, parseColor, sha256File } from "./common.mjs";
+import { bends, clipPath, dropGroupEdges, finishScene, labelPosition, parseColor, sha256File } from "./common.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -241,7 +242,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
                         reject(String(e));
                     }
                 }),
-            readFileSync(sample, "utf8"),
+            (sample.endsWith(".gz") ? gunzipSync(readFileSync(sample)) : readFileSync(sample)).toString("utf8"),
         );
         if (cells.length === 0) {
             throw new Error("draw.io decoded no cells");
@@ -258,7 +259,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
                     generatedAt: new Date().toISOString(),
                 },
                 canCarry: {},
-                ...sceneFromDrawioCells(cells),
+                ...dropGroupEdges(sceneFromDrawioCells(cells)),
             },
             out,
         );

@@ -312,6 +312,40 @@ describe("a half arrow's line and barb (#5490)", () => {
     });
 });
 
+describe("an open cap's outline (#4253)", () => {
+    /**
+     * How thick the drawn frame of an open box is across its line, in pixels: its outer side less its inner side.
+     * @returns the frame's thickness
+     */
+    function boxFrame(): number {
+        const head = drawnHead();
+        const sides = [...new Set(head.across.map((a) => Math.round(Math.abs(a) * 100) / 100))].sort((a, b) => b - a);
+        assert.isAtLeast(sides.length, 2, "an outer side and an inner side");
+        return sides[0] - sides[1];
+    }
+
+    test.each([1, 2])(
+        "open-box is outlined as thick as its line (width %s) and in its color, whatever its size",
+        async (width) => {
+            for (const size of [2, 4]) {
+                await oneEdge({
+                    "edge.arrowHead": "open-box",
+                    "edge.arrowHeadSize": size,
+                    "edge.width": width,
+                    "edge.color": "#123456",
+                });
+                assert(graph);
+                const drawn = [...readDrawn(graph).edges.values()][0];
+                const cap = drawn?.caps.find((c) => c.end === "arrowHead");
+                assert.closeTo(boxFrame(), drawn?.thicknessPx ?? 0, 0.5, `size ${String(size)}`);
+                assert.strictEqual(cap?.color, "#123456");
+                graph.dispose();
+                container?.remove();
+            }
+        },
+    );
+});
+
 describe("a vee turned round, vis-network's crow (#5491)", () => {
     test("inverted-vee has its point back on the line and no tine reaching toward the node, where crow has one", async () => {
         await oneEdge({ "edge.arrowHead": "inverted-vee", "edge.arrowHeadSize": 3 });

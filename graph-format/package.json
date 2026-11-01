@@ -37,7 +37,7 @@
         "lint": "eslint && tsc --noEmit -p tsconfig.json",
         "lint:fix": "eslint --fix",
         "typecheck": "tsc --noEmit -p tsconfig.json",
-        "typecheck:strict-consumer": "tsc -p tsconfig.strict-consumer.json",
+        "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json && tsc -p tsconfig.strict-consumer.json",
         "test": "vitest",
         "test:ui": "vitest --ui",
         "test:run": "vitest run",

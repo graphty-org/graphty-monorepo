@@ -17,7 +17,7 @@ import { PerSceneMaterials } from "./PerSceneMaterials";
 
 /** Segments a whole circle is drawn with; an arc gets its share of them. */
 const ARC_SEGMENTS = 32;
-/** How thick the open box's frame is: the open dot's ring (its radius 0.5 inset 22.5%). */
+/** How thick an open cap's frame is when no line width is given: the open dot's old ring (its radius 0.5 inset 22.5%). */
 const OPEN_FRAME = 0.5 * 0.225;
 /**
  * How long along its line the half barb's stroke is, as a share of the cap: Cytoscape 3.10.5's HALF_TOP glyph is a strip
@@ -119,6 +119,35 @@ function frame(outline: readonly (readonly [number, number])[], t: number): [num
         inner[(i + 1) % n],
         inner[i],
     ]);
+}
+
+/**
+ * A mesh of convex pieces in the XZ plane, each fanned from its first corner.
+ * @param name - The mesh's name.
+ * @param pieces - The pieces' corners, in order.
+ * @param scene - Babylon.js scene
+ * @returns The mesh.
+ */
+function piecesMesh(name: string, pieces: readonly (readonly (readonly [number, number])[])[], scene: Scene): Mesh {
+    const mesh = new Mesh(name, scene);
+    const positions: number[] = [];
+    const indices: number[] = [];
+    for (const piece of pieces) {
+        const first = positions.length / 3;
+        for (const [x, z] of piece) {
+            positions.push(x, 0, z);
+        }
+        for (let i = 1; i + 1 < piece.length; i++) {
+            indices.push(first, first + i, first + i + 1);
+        }
+    }
+
+    const vertexData = new VertexData();
+    vertexData.positions = positions;
+    vertexData.indices = indices;
+    vertexData.applyToMesh(mesh);
+
+    return mesh;
 }
 
 /** Cytoscape's CROSS_DELTA, 3 long: a delta 2 long and 1 wide at the tip, and a bar 0.25 deep and 1.5 wide at the back. */
@@ -795,224 +824,6 @@ void main() {
     }
 
     /**
-     * Create an open normal arrow mesh (hollow triangle outline)
-     *
-     * Geometry is in XZ plane pointing towards +X axis
-     * Uses normalized dimensions - actual sizing handled by shader
-     * Creates a single hollow shape with clean corners using inner/outer vertices
-     * @param scene - Babylon.js scene
-     * @returns Created open normal arrow mesh
-     */
-    static createOpenNormal(scene: Scene): Mesh {
-        const mesh = new Mesh("filled-open-normal-arrow", scene);
-
-        // Normalized dimensions
-        const length = 1;
-        const width = 0.8;
-        const insetFactor = 0.225; // How much to inset inner triangle (22.5% toward center) - matches open-diamond thickness
-
-        // Outer triangle vertices
-        const v0 = { x: 0, z: 0 }; // Tip
-        const v1 = { x: -length, z: -width / 2 }; // Bottom-left
-        const v2 = { x: -length, z: width / 2 }; // Top-right
-
-        // Calculate centroid
-        const centerX = (v0.x + v1.x + v2.x) / 3;
-        const centerZ = (v0.z + v1.z + v2.z) / 3;
-
-        // Inner triangle vertices (moved toward center by insetFactor)
-        const v3 = { x: v0.x + (centerX - v0.x) * insetFactor, z: v0.z + (centerZ - v0.z) * insetFactor };
-        const v4 = { x: v1.x + (centerX - v1.x) * insetFactor, z: v1.z + (centerZ - v1.z) * insetFactor };
-        const v5 = { x: v2.x + (centerX - v2.x) * insetFactor, z: v2.z + (centerZ - v2.z) * insetFactor };
-
-        // Build positions array (outer vertices, then inner vertices)
-        const positions = [
-            v0.x,
-            0,
-            v0.z, // 0: Tip (outer)
-            v1.x,
-            0,
-            v1.z, // 1: Bottom-left (outer)
-            v2.x,
-            0,
-            v2.z, // 2: Top-right (outer)
-            v3.x,
-            0,
-            v3.z, // 3: Tip (inner)
-            v4.x,
-            0,
-            v4.z, // 4: Bottom-left (inner)
-            v5.x,
-            0,
-            v5.z, // 5: Top-right (inner)
-        ];
-
-        // Create triangle strips connecting outer and inner vertices
-        // Each edge forms 2 triangles (a quad strip)
-        const indices = [
-            // Edge 0->1 (tip to bottom-left)
-            0, 3, 4, 0, 4, 1,
-            // Edge 1->2 (bottom-left to top-right)
-            1, 4, 5, 1, 5, 2,
-            // Edge 2->0 (top-right to tip)
-            2, 5, 3, 2, 3, 0,
-        ];
-
-        const vertexData = new VertexData();
-        vertexData.positions = positions;
-        vertexData.indices = indices;
-        vertexData.applyToMesh(mesh);
-
-        return mesh;
-    }
-
-    /**
-     * Create an open circle arrow mesh (hollow circle outline)
-     *
-     * Geometry is in XZ plane as a circle (Y=0)
-     * Uses normalized dimensions - actual sizing handled by shader
-     * Creates a hollow circle with clean edges using inner/outer vertices (same pattern as open-normal and open-diamond)
-     * @param scene - Babylon.js scene
-     * @param segments - Number of segments for circle smoothness (default: 32)
-     * @returns Created open circle arrow mesh
-     */
-    static createOpenCircle(scene: Scene, segments = 32): Mesh {
-        const mesh = new Mesh("filled-open-circle-arrow", scene);
-
-        // Normalized radius (diameter = 1.0 to match other arrows)
-        const outerRadius = 0.5;
-        const insetFactor = 0.225; // How much to inset inner circle (22.5% toward center) - matches open-diamond and open-normal thickness
-
-        // Calculate inner radius
-        const innerRadius = outerRadius * (1 - insetFactor);
-
-        const positions: number[] = [];
-        const indices: number[] = [];
-
-        // Generate outer circle vertices in XZ plane (Y=0)
-        for (let i = 0; i <= segments; i++) {
-            const angle = (i / segments) * Math.PI * 2;
-            positions.push(
-                Math.cos(angle) * outerRadius, // X → forward (along line direction)
-                0, // Y = 0 (face normal in ±Y, toward camera)
-                Math.sin(angle) * outerRadius, // Z → right (perpendicular to line)
-            );
-        }
-
-        // Generate inner circle vertices
-        for (let i = 0; i <= segments; i++) {
-            const angle = (i / segments) * Math.PI * 2;
-            positions.push(
-                Math.cos(angle) * innerRadius, // X → forward (along line direction)
-                0, // Y = 0 (face normal in ±Y, toward camera)
-                Math.sin(angle) * innerRadius, // Z → right (perpendicular to line)
-            );
-        }
-
-        // Create triangle strip connecting outer and inner circles
-        // Each segment forms 2 triangles (a quad strip)
-        for (let i = 0; i < segments; i++) {
-            const outerCurrent = i;
-            const outerNext = i + 1;
-            const innerCurrent = i + segments + 1;
-            const innerNext = i + segments + 2;
-
-            // First triangle: outer-current → inner-current → inner-next
-            // Second triangle: outer-current → inner-next → outer-next
-            indices.push(outerCurrent, innerCurrent, innerNext, outerCurrent, innerNext, outerNext);
-        }
-
-        const vertexData = new VertexData();
-        vertexData.positions = positions;
-        vertexData.indices = indices;
-        vertexData.applyToMesh(mesh);
-
-        return mesh;
-    }
-
-    /**
-     * Create an open-diamond arrow mesh (hollow diamond outline)
-     *
-     * Geometry is in XZ plane
-     * Uses normalized dimensions - actual sizing handled by shader
-     * Creates a single hollow shape with clean corners using inner/outer vertices
-     * @param scene - Babylon.js scene
-     * @returns Created open diamond arrow mesh
-     */
-    static createOpenDiamond(scene: Scene): Mesh {
-        const mesh = new Mesh("filled-open-diamond-arrow", scene);
-
-        // Normalized dimensions (same as filled diamond)
-        const length = 1;
-        const width = 0.8;
-        const insetFactor = 0.225; // How much to inset inner diamond (22.5% toward center) - 50% thicker than original 0.15
-
-        // Outer diamond vertices
-        const v0 = { x: 0, z: 0 }; // Front tip
-        const v1 = { x: -length / 2, z: width / 2 }; // Top
-        const v2 = { x: -length, z: 0 }; // Back tip
-        const v3 = { x: -length / 2, z: -width / 2 }; // Bottom
-
-        // Calculate centroid
-        const centerX = (v0.x + v1.x + v2.x + v3.x) / 4;
-        const centerZ = (v0.z + v1.z + v2.z + v3.z) / 4;
-
-        // Inner diamond vertices (moved toward center by insetFactor)
-        const v4 = { x: v0.x + (centerX - v0.x) * insetFactor, z: v0.z + (centerZ - v0.z) * insetFactor };
-        const v5 = { x: v1.x + (centerX - v1.x) * insetFactor, z: v1.z + (centerZ - v1.z) * insetFactor };
-        const v6 = { x: v2.x + (centerX - v2.x) * insetFactor, z: v2.z + (centerZ - v2.z) * insetFactor };
-        const v7 = { x: v3.x + (centerX - v3.x) * insetFactor, z: v3.z + (centerZ - v3.z) * insetFactor };
-
-        // Build positions array (outer vertices, then inner vertices)
-        const positions = [
-            v0.x,
-            0,
-            v0.z, // 0: Front tip (outer)
-            v1.x,
-            0,
-            v1.z, // 1: Top (outer)
-            v2.x,
-            0,
-            v2.z, // 2: Back tip (outer)
-            v3.x,
-            0,
-            v3.z, // 3: Bottom (outer)
-            v4.x,
-            0,
-            v4.z, // 4: Front tip (inner)
-            v5.x,
-            0,
-            v5.z, // 5: Top (inner)
-            v6.x,
-            0,
-            v6.z, // 6: Back tip (inner)
-            v7.x,
-            0,
-            v7.z, // 7: Bottom (inner)
-        ];
-
-        // Create triangle strips connecting outer and inner vertices
-        // Each edge forms 2 triangles (a quad strip)
-        const indices = [
-            // Edge 0->1 (front tip to top)
-            0, 4, 5, 0, 5, 1,
-            // Edge 1->2 (top to back tip)
-            1, 5, 6, 1, 6, 2,
-            // Edge 2->3 (back tip to bottom)
-            2, 6, 7, 2, 7, 3,
-            // Edge 3->0 (bottom to front tip)
-            3, 7, 4, 3, 4, 0,
-        ];
-
-        const vertexData = new VertexData();
-        vertexData.positions = positions;
-        vertexData.indices = indices;
-        vertexData.applyToMesh(mesh);
-
-        return mesh;
-    }
-
-    /**
      * The arrow types drawn from a list of convex pieces (`polygonArrow`), each piece in the XZ
      * plane with the tip at the origin and the arrow reaching back to x = -1:
      *
@@ -1025,10 +836,8 @@ void main() {
      * - "triangle-cross": a triangle with a thin bar across the line behind it (triangle-cross).
      * - "circle-triangle": a dot at the tip with a triangle behind it pointing at it (circle-triangle).
      * - "half-open-flipped": half-open's one arm on the line's other side (Cytoscape's HALF_BOTTOM).
-     * - "open-box": the box's outline (Cytoscape's OPEN_SQUARE, Cytoscape.js's hollow square).
      * - "cross-delta": a delta with a bar across the line a little behind it (Cytoscape's CROSS_DELTA).
      * - "open-cross-delta": the delta outlined, with the bar (Cytoscape's CROSS_OPEN_DELTA).
-     * - "open-inverted": the inverted triangle's outline, its base across the tip (Graphviz's oinv).
      * - "half-barb": half-open's arm as one thin stroke, a strip a tenth of its length thick from the tip back to
      *   its corner (Cytoscape's HALF_TOP, which Cytoscape strokes where Graphviz's halfopen is a filled wedge).
      * - "half-barb-flipped": that barb on the line's other side (Cytoscape's HALF_BOTTOM).
@@ -1107,23 +916,6 @@ void main() {
         "cross-delta": () => [CROSS_DELTA.delta, CROSS_DELTA.bar],
         // CROSS_OPEN_DELTA: the same outlined, its 0.25 stroke a twelfth of its length; the bar it strokes is solid
         "open-cross-delta": () => [...frame(CROSS_DELTA.delta, 1 / 12), rect(-1, -5 / 6, 0.25)],
-        // the inverted triangle (base across the tip, point back along the line) as a frame as thick as open-box's
-        "open-inverted": () =>
-            frame(
-                [
-                    [0, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
-                    [0, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
-                    [-1, 0],
-                ],
-                OPEN_FRAME,
-            ),
-        // the box's square (x -1..0, z -0.5..0.5) as a frame as thick as the open dot's ring
-        "open-box": () => [
-            rect(-1, 0, 0.5).map(([x, z]) => [x, z < 0 ? z : -0.5 + OPEN_FRAME] as [number, number]),
-            rect(-1, 0, 0.5).map(([x, z]) => [x, z > 0 ? z : 0.5 - OPEN_FRAME] as [number, number]),
-            rect(-1, -1 + OPEN_FRAME, 0.5 - OPEN_FRAME),
-            rect(-OPEN_FRAME, 0, 0.5 - OPEN_FRAME),
-        ],
     };
 
     /**
@@ -1133,26 +925,66 @@ void main() {
      * @returns The mesh, in the XZ plane like every other arrow.
      */
     static createPolygonArrow(type: string, scene: Scene): Mesh {
-        const pieces = this.POLYGON_ARROWS[type]();
-        const mesh = new Mesh(`filled-${type}-arrow`, scene);
-        const positions: number[] = [];
-        const indices: number[] = [];
-        for (const piece of pieces) {
-            const first = positions.length / 3;
-            for (const [x, z] of piece) {
-                positions.push(x, 0, z);
-            }
-            for (let i = 1; i + 1 < piece.length; i++) {
-                indices.push(first, first + i, first + i + 1);
-            }
-        }
+        return piecesMesh(`filled-${type}-arrow`, this.POLYGON_ARROWS[type](), scene);
+    }
 
-        const vertexData = new VertexData();
-        vertexData.positions = positions;
-        vertexData.indices = indices;
-        vertexData.applyToMesh(mesh);
+    /**
+     * The open caps, each a shape's outline drawn as a frame inside it, in the cap's frame (tip at the origin, back
+     * along -x) before its width (`ArrowStyle.width`) is applied:
+     *
+     * - "open-normal": the triangle's outline (Graphviz's onormal, Cytoscape.js's hollow triangle).
+     * - "open-diamond": the diamond's outline (odiamond).
+     * - "open-dot": the dot's ring, centred on the origin (odot).
+     * - "open-inverted": the inverted triangle's outline, its base across the tip (oinv).
+     * - "open-box": the box's outline (obox, Cytoscape's OPEN_SQUARE).
+     *
+     * Graphviz and Cytoscape.js stroke an open arrow with its edge's own pen, so the frame is as thick as the line
+     * (issue #4253); {@link createOpenOutline} takes that thickness.
+     */
+    static readonly OPEN_OUTLINES: Readonly<Record<string, readonly (readonly [number, number])[]>> = {
+        "open-normal": [
+            [0, 0],
+            [-1, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [-1, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+        ],
+        "open-diamond": [
+            [0, 0],
+            [-0.5, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [-1, 0],
+            [-0.5, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+        ],
+        "open-dot": arc(0, 0.5, 0, 0, 2 * Math.PI).slice(1, -1),
+        "open-inverted": [
+            [0, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [0, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [-1, 0],
+        ],
+        "open-box": rect(-1, 0, 0.5),
+    };
 
-        return mesh;
+    /**
+     * Build one of {@link OPEN_OUTLINES}: its outline widened, then drawn as a frame `stroke` thick inside it. The frame
+     * is never more than half the way to the shape's middle, so the shape always reads as open.
+     * @param type - The arrow type.
+     * @param scene - Babylon.js scene
+     * @param stroke - How thick the frame is, in the cap's own lengths (its line's width over the cap's length).
+     * @param breadth - How wide the cap is across its line, as a multiple of its own (`ArrowStyle.width`).
+     * @returns The mesh, in the XZ plane like every other arrow.
+     */
+    static createOpenOutline(type: string, scene: Scene, stroke = OPEN_FRAME, breadth = 1): Mesh {
+        const outline = this.OPEN_OUTLINES[type].map(([x, z]) => [x, z * breadth] as [number, number]);
+        // how far the middle (the corners' mean) is from the nearest side
+        const [cx, cz] = outline.reduce(
+            ([x, z], [px, pz]) => [x + px / outline.length, z + pz / outline.length],
+            [0, 0],
+        );
+        const inner = Math.min(
+            ...outline.map(([x, z], i) => {
+                const [x1, z1] = outline[(i + 1) % outline.length];
+                return Math.abs((x1 - x) * (cz - z) - (z1 - z) * (cx - x)) / Math.hypot(x1 - x, z1 - z);
+            }),
+        );
+        return piecesMesh(`filled-${type}-arrow`, frame(outline, Math.min(stroke, inner / 2)), scene);
     }
 
     /**
@@ -1458,22 +1290,15 @@ void main() {
             case "half-open":
                 mesh = this.createHalfOpen(scene);
                 break;
-            case "open-normal":
-                mesh = this.createOpenNormal(scene);
-                break;
-            case "open-circle":
-            case "open-dot": // Alias for open-circle (used in 2D mode for consistency)
-                mesh = this.createOpenCircle(scene);
-                break;
-            case "open-diamond":
-                mesh = this.createOpenDiamond(scene);
-                break;
             default:
-                // a polygon arrow by its table, and any other as the normal triangle
-                mesh =
-                    type in this.POLYGON_ARROWS
-                        ? this.createPolygonArrow(type, scene)
-                        : this.createTriangle(false, scene);
+                // a polygon arrow or an open one by its table, and any other as the normal triangle
+                if (type in this.POLYGON_ARROWS) {
+                    mesh = this.createPolygonArrow(type, scene);
+                } else if (type in this.OPEN_OUTLINES) {
+                    mesh = this.createOpenOutline(type, scene);
+                } else {
+                    mesh = this.createTriangle(false, scene);
+                }
         }
 
         // Extract vertex data from the temporary mesh

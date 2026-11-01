@@ -2800,7 +2800,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /** What a legend is read from. */
     const legendSources: LegendSources = {
-        layers: () => painting(current()).map((entry) => entry.layer),
+        // The stack's own layers: a branches view's stand-ins are not layers and never reach a key.
+        layers: () => basePainting(current()).map((entry) => entry.layer),
         holdsBase: (layer) =>
             editableBase() &&
             layer.source.by === "template" &&

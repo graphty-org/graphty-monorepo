@@ -99,6 +99,25 @@ describe("styles.showBranches", () => {
     });
 });
 
+describe("a branches view and the key", () => {
+    it("the legend keeps describing the stack's layers while a view is drawn", async () => {
+        const { session, red } = await painted();
+        const before = session.styles.legend();
+        const view = session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint" });
+        await session.styles.settled();
+        const during = session.styles.legend();
+        view.end();
+        assert.deepEqual(
+            during.map((block) => block.layerId),
+            before.map((block) => block.layerId),
+        );
+        assert.include(
+            during.map((block) => block.layerId),
+            red,
+        );
+    });
+});
+
 describe("the cost of a branches view", () => {
     it("grows with the graph, not faster", async () => {
         const { assertScalesLinearly, visitsDuring } = await import("../../helpers/cost");

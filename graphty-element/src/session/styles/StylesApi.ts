@@ -812,9 +812,8 @@ export interface StylesApi {
      * far, and the repaint passes asked for by the time those are done, such as the one a
      * selection or pointer change asks for (`selection.apply`, `hover`, `previewHover`). Passes
      * asked for later are not waited for, so steady pointer input cannot keep it from resolving.
-     * A layer that selects the members of a live set may still be repainting when it resolves:
-     * after the graph changes its new membership arrives on a later rendered frame, and its
-     * whole-graph passes are merged and started one after another.
+     * A layer that selects the members of a live set is waited for too: after the graph changes,
+     * the set's new membership is resolved and painted before it resolves.
      * @returns A promise that resolves when the work listed above has finished.
      */
     settled(): Promise<void>;
@@ -1486,6 +1485,12 @@ export interface StylesSources {
      * selection or pointer change starts a pass without awaiting it. Absent, nothing is waited.
      */
     readonly idle?: () => Promise<void>;
+    /**
+     * Resolves now every live set queued for re-resolution after a graph change, which `settled()`
+     * calls so the repaint each one asks for is among the passes it waits for. Absent, nothing is
+     * queued.
+     */
+    readonly resolveQueuedSets?: () => void;
     /**
      * The queue the session's runs take their turn in, which `settled()` waits on because a run
      * paints its suggested layers when it finishes. An edit does not take a turn in it: it is
@@ -4982,9 +4987,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // The passes nobody awaits (a selection or pointer change asks for one), read before and
             // again after the queue and lane: a finishing run may ask for one. Each read is bounded
             // by the passes asked for by then, so steady pointer input cannot extend the wait.
+            // A live set a graph change queued for a later frame is resolved now, and the repaint
+            // its new membership asks for is one of the passes read next.
             const passes = sources.idle?.();
             await sources.queue?.settled();
             await dispatcher.lane.settled();
+            sources.resolveQueuedSets?.();
             await passes;
             await sources.idle?.();
         },

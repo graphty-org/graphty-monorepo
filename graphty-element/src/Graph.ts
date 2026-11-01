@@ -1442,7 +1442,11 @@ export class Graph implements GraphContext {
         this.updateManager.pending.watch(
             "style",
             "a style edit has not been repainted yet",
-            () => dispatcherOf(this.session).lane.deriving || this.getStylePainter().isPainting,
+            // A live set a graph change queued for a later frame is a repaint still to come (#3667).
+            () =>
+                dispatcherOf(this.session).lane.deriving ||
+                this.getStylePainter().isPainting ||
+                setsNotifierOfSession(this.session).pending > 0,
             "wait",
             () => this.session.styles.settled(),
         );

@@ -4849,7 +4849,7 @@ export interface SelectionApi {
     apply(target: SelectionTarget, op?: SelectionOp, options?: SelectionApplyOptions): Promise<SelectionDelta>;
     readonly cap: number;
     checkRule(where: Query): RuleCheck;
-    clear(): SelectionDelta;
+    clear(options?: SelectionApplyOptions): SelectionDelta;
     count(target: SelectionTarget): Promise<{
         readonly nodes: number;
         readonly edges: number;

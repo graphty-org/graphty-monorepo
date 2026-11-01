@@ -2928,11 +2928,18 @@ export function associate(
         // points, the middle one of which is its target end (cytoscapejs-specimen-edge-labels: each source label went
         // to the edge whose target end it sat next to)
         const mid = pointAlong(e.points, 0.5);
+        // graphty's words for this very edge go before others within a pixel of as near: two lines drawn one over
+        // the other between the same nodes, each label on the same spot, were told apart by sub-pixel noise
+        // (json-cyjs-tokyo's 7634 -> 7635 and 7635 -> 7634, #5506)
+        const own = norm(wantOf(e) ?? "");
         return freeTexts
             .filter((p) => wants.has(norm(p.text?.content ?? "")))
-            .map((p) => ({ ei, p, d: Math.hypot(cx(p.box) - mid[0], cy(p.box) - mid[1]) }));
+            .map((p) => {
+                const d = Math.hypot(cx(p.box) - mid[0], cy(p.box) - mid[1]);
+                return { ei, p, d, rank: d + (norm(p.text?.content ?? "") === own ? 0 : 1) };
+            });
     });
-    edgeCandidates.sort((a, b) => a.d - b.d || a.p.index - b.p.index || a.ei - b.ei);
+    edgeCandidates.sort((a, b) => a.rank - b.rank || a.p.index - b.p.index || a.ei - b.ei);
     for (const c of edgeCandidates) {
         const e = edges[c.ei];
         const parts = runParts.get(c.p) ?? [c.p];
@@ -3597,6 +3604,81 @@ const TWIN_OVERLAP = 0.25;
 /** What a box drawn tight round a label adds to its cost as a node's body (`matchBodies`). */
 const LABEL_BACKGROUND_COST = 0.5;
 
+/**
+ * Nodes graphty places this close in the oracle's frame, in oracle pixels, are on one spot (`matchBodies`): a quarter
+ * pixel moves no pixel's center, so which of them is nearer a shape drawn there is noise of the fit, not the drawing.
+ */
+const COINCIDENT_PX = 0.25;
+
+/**
+ * Two shapes drawn alike: of one kind and size, and painted alike. Two such shapes on one spot are two nodes
+ * (json-cyjs-tokyo's same-name stations, two 2.8 px discs on one spot), never a node's body and its outline or an
+ * overlay over it (Cytoscape.js's background-blacken), which are painted differently.
+ */
+const drawnAlike = (a: Prim, b: Prim): boolean =>
+    a.kind === b.kind &&
+    Math.abs(bw(a.box) - bw(b.box)) <= 0.05 * Math.max(bw(a.box), bw(b.box)) &&
+    Math.abs(bh(a.box) - bh(b.box)) <= 0.05 * Math.max(bh(a.box), bh(b.box)) &&
+    a.fill?.color === b.fill?.color &&
+    a.fill?.opacity === b.fill?.opacity &&
+    a.stroke?.color === b.stroke?.color &&
+    a.stroke?.opacity === b.stroke?.opacity &&
+    a.stroke?.width === b.stroke?.width;
+
+/**
+ * Of the shapes drawn alike on one spot as a node's body (each within the other's box but for half a pixel), the one
+ * drawn last: the one a reader sees, the others under it all but hidden (cx2-wp1449-tlr's IFNA2, drawn twice 0.22 px
+ * apart, the top one with its label). The ones under it are left for a node that lands on them only, not for a node
+ * beside them (json-cyjs-tokyo: four stations' discs on one spot drew Shibuya's other stations off their own).
+ * @param body - the shape the node matched best
+ * @param free - the shapes still free for the node
+ * @returns the body
+ */
+function topAlike(body: Prim, free: readonly Prim[]): Prim {
+    return free.reduce((top, q) => (q.index > top.index && onOneSpot(q, body) ? q : top), body);
+}
+
+/** Two shapes drawn alike, each within the other's box but for half a pixel: one hides the other. */
+const onOneSpot = (a: Prim, b: Prim): boolean =>
+    drawnAlike(a, b) && boxWithin(a.box, b.box, INSIDE_SLACK) && boxWithin(b.box, a.box, INSIDE_SLACK);
+
+/**
+ * Where each node is matched from: graphty's prediction, except that nodes predicted on one spot (`COINCIDENT_PX`)
+ * all take the spot of the first of them by id, so their costs to each shape there tie exactly and their ids decide
+ * which takes which shape (json-cyjs-tokyo: same-name stations 0.004 px apart were paired by noise, #5506).
+ * @param guideNodes - graphty's nodes
+ * @param predict - where each lands in the oracle's frame
+ * @returns each node's prediction, by node
+ */
+function spotsOf(guideNodes: readonly PNode[], predict: Predict): Map<PNode, NonNullable<ReturnType<Predict>>> {
+    const out = new Map<PNode, NonNullable<ReturnType<Predict>>>();
+    const byId = guideNodes.flatMap((n) => {
+        const at = predict(n);
+        return at === null ? [] : [{ n, at }];
+    });
+    byId.sort((a, b) => compareIds(a.n.id, b.n.id));
+    // in buckets of a pixel, so each node is compared with its neighbours only
+    const bucket = new Map<string, { x: number; y: number }[]>();
+    const key = (x: number, y: number): string => `${String(Math.floor(x))},${String(Math.floor(y))}`;
+    for (const { n, at } of byId) {
+        let lead: { x: number; y: number } | undefined;
+        for (let dx = -1; dx <= 1 && lead === undefined; dx++) {
+            for (let dy = -1; dy <= 1 && lead === undefined; dy++) {
+                lead = bucket
+                    .get(key(at.x + dx, at.y + dy))
+                    ?.find((q) => Math.hypot(q.x - at.x, q.y - at.y) <= COINCIDENT_PX);
+            }
+        }
+        if (lead === undefined) {
+            lead = { x: at.x, y: at.y };
+            const k = key(at.x, at.y);
+            bucket.set(k, [...(bucket.get(k) ?? []), lead]);
+        }
+        out.set(n, { ...at, x: lead.x, y: lead.y });
+    }
+    return out;
+}
+
 function matchBodies(
     guideNodes: readonly PNode[],
     free: readonly Prim[],
@@ -3657,11 +3739,9 @@ function matchBodies(
             }
         }
     }
-    for (const n of guideNodes) {
-        const at = predict(n);
-        if (at === null) {
-            continue;
-        }
+    const spots = spotsOf(guideNodes, predict);
+    const spotOf = new Map([...spots].map(([n, at]): [string, Pt] => [n.id, [at.x, at.y]]));
+    for (const [n, at] of spots) {
         const { x: px, y: py, s, reach } = at;
         for (const p of shapes) {
             const d = Math.hypot(cx(p.box) - px, cy(p.box) - py);
@@ -3691,12 +3771,29 @@ function matchBodies(
     const bodyOf = new Map([...bestOf].map(([id, index]) => [index, id]));
     const out = new Map<string, Prim[]>();
     const taken = new Set<number>();
+    // the shapes a body hides on its spot: only a node that lands on one takes it, not one beside it
+    const hidden = new Set<number>();
+    const landsOn = (id: string, p: Prim): boolean => {
+        const at = spotOf.get(id);
+        return at !== undefined && inside(at, p.box);
+    };
     for (const c of cand) {
-        if (out.has(c.id) || taken.has(c.p.index)) {
+        if (out.has(c.id) || taken.has(c.p.index) || (hidden.has(c.p.index) && !landsOn(c.id, c.p))) {
             continue;
         }
-        taken.add(c.p.index);
-        const body = c.p;
+        // of shapes drawn alike on one spot, the one drawn last is the one a reader sees, and the node's
+        const body = c.id.startsWith(GROUP_CLAIM)
+            ? c.p
+            : topAlike(
+                  c.p,
+                  shapes.filter((q) => !taken.has(q.index) && (bodyOf.get(q.index) ?? c.id) === c.id),
+              );
+        taken.add(body.index);
+        for (const q of shapes) {
+            if (!c.id.startsWith(GROUP_CLAIM) && q !== body && !taken.has(q.index) && onOneSpot(q, body)) {
+                hidden.add(q.index);
+            }
+        }
         const size = extent(body);
         // of the body's width AND its height: a node drawn on the middle of a group box as wide as
         // it but three times as tall is another element, not the body's own outline
@@ -3707,18 +3804,25 @@ function matchBodies(
             bw(q.box) >= 0.8 * bw(body.box) &&
             bh(q.box) >= 0.8 * bh(body.box) &&
             Math.max(bw(q.box), bh(q.box)) <= 3 * size;
-        const twins = shapes.filter(
-            (q) =>
-                !taken.has(q.index) &&
-                (c.id.startsWith(GROUP_CLAIM) || (bodyOf.get(q.index) ?? c.id) === c.id) &&
-                Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
-                // and over it, not beside it: two flat boxes stacked a little under their height apart are two nodes,
-                // however short that is of their width (cx2-wp1449-tlr: two 45.7 x 10.5 labels 9.6 px apart)
-                (dot(body) || around(q) || boxIoU(q.box, body.box) >= TWIN_OVERLAP) &&
-                ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)) &&
-                // a group's twin is drawn over its box, not a flat node inside it of about its width
-                (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6),
-        );
+        const twins = shapes
+            .filter(
+                (q) =>
+                    !taken.has(q.index) &&
+                    (c.id.startsWith(GROUP_CLAIM) || (bodyOf.get(q.index) ?? c.id) === c.id) &&
+                    // a second shape drawn like the body is another node's, a missing one's too (#4264)
+                    !drawnAlike(q, body) &&
+                    Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
+                    // and over it, not beside it: two flat boxes stacked a little under their height apart are two nodes,
+                    // however short that is of their width (cx2-wp1449-tlr: two 45.7 x 10.5 labels 9.6 px apart)
+                    (dot(body) || around(q) || boxIoU(q.box, body.box) >= TWIN_OVERLAP) &&
+                    ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)) &&
+                    // a group's twin is drawn over its box, not a flat node inside it of about its width
+                    (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6),
+            )
+            // of outlines drawn alike, the one drawn next to the body: another is a twin node's on the same spot
+            // (#4264); outlines painted differently (a double border's two lines) are all the body's
+            .sort((a, b) => Math.abs(a.index - body.index) - Math.abs(b.index - body.index) || b.index - a.index)
+            .filter((q, i, all) => !all.slice(0, i).some((t) => drawnAlike(t, q)));
         // a dot's fill, drawn as its own outline of no size under the stroke, is the same dot
         const fills = dot(body)
             ? free.filter(
@@ -4045,9 +4149,18 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
         .map((n) => ({ n, box: boxOf(n), order: n.order ?? -1 }));
     // each covered node's topmost cover: the node a reader sees over it
     const coverOf = new Map<PNode, PNode>();
+    // Two nodes of one size on one spot that graphty shows both of are both drawn: graphty hides neither (neither is
+    // nearer the camera), and which one a reader sees on top is only the order each program draws them in
+    // (json-cyjs-tokyo's same-name stations, #5506).
+    const shown = new Set((guide?.nodes ?? []).map((n) => n.id));
+    const twins = (a: PNode, b: PNode): boolean =>
+        shown.has(a.id) &&
+        shown.has(b.id) &&
+        boxWithin(boxOf(a), boxOf(b), slack) &&
+        boxWithin(boxOf(b), boxOf(a), slack);
     for (const n of scene.nodes) {
         const over = covers.filter(
-            (c) => c.n !== n && c.order > (n.order ?? Infinity) && boxWithin(boxOf(n), c.box, slack),
+            (c) => c.n !== n && c.order > (n.order ?? Infinity) && boxWithin(boxOf(n), c.box, slack) && !twins(n, c.n),
         );
         if (over.length > 0) {
             coverOf.set(n, over.reduce((a, b) => (b.order > a.order ? b : a)).n);

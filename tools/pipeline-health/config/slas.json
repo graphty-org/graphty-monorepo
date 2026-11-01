@@ -1052,8 +1052,8 @@
                 "projected": true,
                 "redOnSpent": true
             },
-            "ok": ["<=", 90],
-            "fail": [">", 90],
+            "ok": ["<=", 150],
+            "fail": [">", 150],
             "sources": ["collector"],
             "alert": {
                 "afterMs": 21600000,

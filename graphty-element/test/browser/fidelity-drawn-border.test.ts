@@ -83,6 +83,28 @@ describe("the fidelity reader's border width is the ring as drawn", () => {
         });
     }
 
+    // corners too sharp to mitre in full, whose ring was drawn thinner along whole sides (issue #5570): Pajek's bow tie
+    // (a diamond at q 2, pajek-synth-vertices node 44) and a vee (the syn-mappings node). A stretched diamond's ring
+    // thinned only along one end of each side, which a ring this wide on screen reads past; the unit test in
+    // test/meshes/node-shape-geometry.test.ts holds it
+    const sharp: [string, string, Record<string, unknown>][] = [
+        [
+            "bow tie",
+            "polygon",
+            { "node.shapePoints": "-0.5,0 -1,1 1,1 0.5,0 1,-1 -1,-1", "node.width": 20, "node.height": 6 },
+        ],
+        ["vee", "vee", { "node.width": 4, "node.height": 6 }],
+    ];
+    for (const [name, shape, set] of sharp) {
+        it(`draws a ${name}'s ring its asked width along its sides`, async () => {
+            const node = await bordered(shape, set);
+            const p = new Projector(node.mesh.getScene());
+            const asked = askedPx(node, p);
+            assert.isAbove(asked, 1, "the ring is wide enough to measure");
+            assert.approximately(readNode(node, p, []).border?.widthPx ?? 0, asked, asked * 0.05);
+        });
+    }
+
     it("reads a ring centered on a fill inset by another width as its whole band", async () => {
         // a border in screen pixels, centered on the node's size (vis-network's): the fill is inset by half the style's
         // width, the ring drawn over it at its screen width

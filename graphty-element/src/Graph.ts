@@ -224,6 +224,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
+import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
@@ -4696,13 +4697,15 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Rebuild the labels drawn in font families that have just loaded, so they show and measure the
-     * loaded face rather than its fallback, and frame the graph again for their new size unless the
+     * Rebuild the labels, node glyphs and text annotations drawn in font families that have just
+     * loaded, so they show and measure the loaded face rather than its fallback, and frame the graph again for their new size unless the
      * camera was placed since the element last framed it. Nothing is rebuilt when no label uses them.
      * @param families - The families that loaded, as `fontFamilies` gives them.
      */
     private refreshFonts(families: ReadonlySet<string>): void {
-        let rebuilt = false;
+        // Glyphs are shared by style through the mesh cache: forget them once, and each node builds its own again.
+        forgetGlyphs(this.dataManager.meshCache, families);
+        let rebuilt = this.#annotations?.refreshFonts(families) === true;
         for (const node of this.dataManager.nodes.values()) {
             rebuilt = node.refreshFonts(families) || rebuilt;
         }

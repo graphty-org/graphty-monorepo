@@ -17,6 +17,7 @@ import type {
 
 import { type DrawnAnnotation, drawnAnnotationsOf } from "../session/styles/fileStyles/annotations";
 import { PREMULTIPLIED_ALPHA_MODE, uploadPremultiplied } from "./LabelBatch";
+import { fontFamilies, noteLabelFont } from "./labelFonts";
 
 /** What a drawn annotation mesh carries in its `metadata`. */
 export interface AnnotationMeshMetadata {
@@ -184,6 +185,15 @@ export class AnnotationMeshes {
 
         this.scale = read.scale;
         for (const a of read.annotations) {
+            if (a.kind === "text") {
+                // A web font still loading draws in its fallback: load it, and the text is drawn again when it lands.
+                noteLabelFont(
+                    this.scene,
+                    `${a.italic ? "italic" : "normal"} ${a.bold ? "bold" : "normal"}`,
+                    a.fontFamily,
+                );
+            }
+
             if (a.kind === "arrow" && a.toNode === true) {
                 this.nodeArrows.push({ arrow: leaveText(a, read.annotations), mesh: null, reach: null });
                 continue;
@@ -203,6 +213,26 @@ export class AnnotationMeshes {
                 this.meshes.push(entry.mesh);
             }
         }
+    }
+
+    /**
+     * Draw the annotations again when a font a text annotation is drawn in has just loaded (issue
+     * #5140): drawn while it loaded, its width and texture are the fallback face's.
+     * @param families - The families that loaded, as `fontFamilies` gives them.
+     * @returns True when anything was drawn again.
+     */
+    refreshFonts(families: ReadonlySet<string>): boolean {
+        const value = this.drawn;
+        const uses = drawnAnnotationsOf(value)?.annotations.some(
+            (a) => a.kind === "text" && fontFamilies(a.fontFamily).some((family) => families.has(family)),
+        );
+        if (uses !== true) {
+            return false;
+        }
+
+        this.drawn = undefined;
+        this.update(value);
+        return true;
     }
 
     /** Remove every drawn annotation. */

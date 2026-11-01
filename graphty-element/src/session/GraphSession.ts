@@ -3478,6 +3478,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
             return painter
                 .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
+                .then(() => {
+                    // The members moved without a command: a key and a count read again on this.
+                    dispatcher.repaintedOutsidePass(["styles"]);
+                })
                 .catch((error: unknown) => {
                     if (!teardown.signal.aborted) {
                         console.error("[graphty] Could not repaint the layers naming a set that changed.", error);

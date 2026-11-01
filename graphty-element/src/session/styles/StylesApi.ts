@@ -2571,7 +2571,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /**
      * The layers a branches view draws, bottom first: the rest faint, then each branch from the
-     * last to the first, so the first branch wins.
+     * last to the first, so the first branch wins, except that a marked branch is drawn on top.
      * @param view - The view.
      * @returns The layers.
      */
@@ -2590,13 +2590,19 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         }
 
-        for (const branch of [...rule.branches].reverse()) {
+        // A marked view draws every branch but the marked one faint, and the marked one last, so
+        // a member it shares with an earlier branch shows in its color at full strength.
+        const marked = view.mark !== undefined && rule.branches.some((each) => each.id === view.mark);
+        const order = [...rule.branches].reverse();
+        if (marked) {
+            order.sort((a, b) => Number(a.id === view.mark) - Number(b.id === view.mark));
+        }
+
+        for (const branch of order) {
             if (branch.on === false || branch.color === undefined) {
                 continue;
             }
 
-            // A marked view draws every branch but the marked one faint.
-            const marked = view.mark !== undefined && rule.branches.some((each) => each.id === view.mark);
             const faint = marked && branch.id !== view.mark;
             const faintOpacity = target === "node" ? 0.2 : 0.15;
             specs.push({

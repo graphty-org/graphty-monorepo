@@ -1595,6 +1595,19 @@ export class Dispatcher {
     }
 
     /**
+     * A repaint the element made on its own, outside any pass: a live layer's members moved when
+     * a run, a filter's base or a step's own computation landed. It is owed a `caughtUp` like a
+     * pass, so a reader of the legend and the counts hears that the picture moved.
+     * @param slices - The slices it repainted.
+     */
+    repaintedOutsidePass(slices: Iterable<string>): void {
+        this.owe(slices, this.lane.passCause);
+        void Promise.resolve().then(() => {
+            this.catchUp();
+        });
+    }
+
+    /**
      * Add slices to what `caughtUp` owes.
      * @param slices - The slices.
      * @param cause - What moved them; a commit's cause wins over a pass's.

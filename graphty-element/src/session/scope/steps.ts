@@ -724,7 +724,7 @@ export interface StepRunsLike {
     allow(step: UnionStep, within: UnionLeaf["within"]): void;
     cancel(step: UnionStep, within: UnionLeaf["within"]): void;
     runOf(step: UnionStep, within: UnionLeaf["within"]): RunId | null;
-    ownResult?(step: UnionStep, within: UnionLeaf["within"]): FilterRunResult | undefined;
+    ownResult?(step: UnionStep, within: UnionLeaf["within"], input?: Bytes): FilterRunResult | undefined;
 }
 
 /**
@@ -848,7 +848,7 @@ export function createScopeSteps(sources: ScopeStepsSources): ScopeStepsApi {
                         return null;
                     }
 
-                    const result = sources.stepRuns?.()?.ownResult?.(step, leaf.within);
+                    const result = sources.stepRuns?.()?.ownResult?.(step, leaf.within, input);
                     if (result === undefined) {
                         return null;
                     }
@@ -986,7 +986,8 @@ function digestOf(reading: StepsReading, raw: UnionRead): string {
             branch.state,
             branch.reason,
             branch.count,
-            branch.steps.map((step) => [step.state, step.reason, step.count, step.orderMatters, step.run]),
+            // A So far step's own values arrive while its state stays inert (no test yet).
+            branch.steps.map((step) => [step.state, step.reason, step.count, step.orderMatters, step.run, step.values]),
         ]),
     ]);
 }

@@ -105,9 +105,10 @@ export interface StepRuns extends UnionStepSource {
      * reference), or undefined while it has none.
      * @param step - The step.
      * @param within - Its base.
+     * @param input - What a So far step computes over, so two groups with the same step each read their own.
      * @returns The result.
      */
-    ownResult(step: UnionStep, within: "graph" | "visible"): FilterRunResult | undefined;
+    ownResult(step: UnionStep, within: "graph" | "visible", input?: Bytes): FilterRunResult | undefined;
 }
 
 /** A step's own computation. */
@@ -116,6 +117,24 @@ interface LocalEntry {
     result?: FilterRunResult;
     error?: string;
     readonly abort: AbortController;
+}
+
+/**
+ * A key for the elements some bytes hold: their count and a hash of their indices.
+ * @param bytes - The bytes.
+ * @returns The key.
+ */
+function inputKey(bytes: Bytes): string {
+    let hash = 0x811c9dc5;
+    let count = 0;
+    for (let index = 0; index < bytes.length; index++) {
+        if (bytes[index] === 1) {
+            hash = Math.imul(hash ^ index, 0x01000193) >>> 0;
+            count++;
+        }
+    }
+
+    return `${count}:${hash}`;
 }
 
 /** How many step-local computations are kept. */
@@ -132,6 +151,8 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
     const local = new Map<string, LocalEntry>();
     /** The cache key of each step definition's own computation, so Cancel finds it. */
     const localKeys = new Map<string, string>();
+    /** The cache key of each So far step's own computation by definition and input. */
+    const inputKeys = new Map<string, string>();
     /** Step definitions whose own computation the reader cancelled: they wait for consent. */
     const cancelled = new Set<string>();
 
@@ -291,6 +312,10 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         const key = JSON.stringify([leaf.algorithm, params, scope]);
         const definition = definitionKey(step, frame.within);
         localKeys.set(definition, key);
+        const input = frame.population.node ?? frame.population.edge;
+        if (step.computedOn === "so-far" && input !== null) {
+            inputKeys.set(`${definition}#${inputKey(input)}`, key);
+        }
         if (cancelled.has(definition) && !consent.has(definition)) {
             return { gate: { state: "pending", reason: { code: "run-needed", params: {} } } };
         }
@@ -435,8 +460,12 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
             const known = started.get(definitionKey(step, within));
             return known === undefined || known === "" ? null : known;
         },
-        ownResult(step, within) {
-            const key = localKeys.get(definitionKey(step, within));
+        ownResult(step, within, input) {
+            const definition = definitionKey(step, within);
+            const key =
+                step.computedOn === "so-far" && input !== undefined
+                    ? inputKeys.get(`${definition}#${inputKey(input)}`)
+                    : localKeys.get(definition);
             const entry = key === undefined ? undefined : local.get(key);
             return entry?.state === "ready" ? entry.result : undefined;
         },

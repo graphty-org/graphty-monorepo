@@ -135,6 +135,30 @@ describe("styles.showBranches", () => {
         view.end();
     });
 
+    it("a marked branch draws a member it shares with an earlier branch in its own color", async () => {
+        const { session } = await painted();
+        // A: Valjean and his neighbors; B: Valjean alone, so every member of B is also in A.
+        const rule: UnionLeaf = {
+            ...NEAR_VALJEAN,
+            branches: [
+                { ...NEAR_VALJEAN.branches[0], id: "a" },
+                {
+                    id: "b",
+                    start: "none",
+                    color: "#D55E00",
+                    steps: [{ op: "add", rule: { kind: "hops", of: { nodes: ["Valjean"] }, max: 0 } }],
+                },
+            ],
+        };
+        const opacity = (node: string): unknown =>
+            (session.styles.explain({ node }).merged as Record<string, unknown>)["node.opacity"];
+        const view = session.styles.showBranches({ rule, rest: "faint", mark: "b" });
+        await session.styles.settled();
+        assert.strictEqual(colorOf(session, "Valjean").value, "#D55E00", "the marked branch's color");
+        assert.strictEqual(opacity("Valjean"), 1, "at full strength");
+        view.end();
+    });
+
     it("one view at a time: a second view replaces the first, whose end does nothing", async () => {
         const { session, red } = await painted();
         const first = session.styles.showBranches({ rule: NEAR_VALJEAN });

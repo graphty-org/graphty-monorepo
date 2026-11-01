@@ -480,6 +480,137 @@ describe("measure steps and runs", () => {
         assert.isNull(ready.branches[0].steps[0].values, "a step reading no own computation has none");
     });
 
+    it("an untested So far measure tells its watcher when its own values arrive", async () => {
+        const session = await lesMis();
+        const staff = IDS.filter((_id, at) => ROLE(at) === "staff").length;
+        const untested: RuleTree = { kind: "measure", algorithm: "degree", field: "value" };
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                {
+                    start: "all",
+                    steps: [
+                        { op: "keep", rule: STAFF },
+                        { op: "keep", rule: untested, computedOn: "so-far" },
+                    ],
+                },
+            ],
+        };
+        // The step stays inert (no test) the whole time: only its values change, and that is news.
+        const heard = await new Promise<StepsReading>((resolve) => {
+            const each = session.scope.watchSteps(rule, (reading) => {
+                if (reading.branches[0].steps[1].values !== null) {
+                    each.end();
+                    resolve(reading);
+                }
+            });
+        });
+        const step = heard.branches[0].steps[1];
+        assert.strictEqual(step.state, "inert");
+        assert.strictEqual(step.values?.kind, "numeric");
+        assert.strictEqual(step.values?.of, staff);
+        assert.strictEqual(step.values?.missing, 0);
+    });
+
+    it("the same So far step in two groups reads each group's own values", async () => {
+        const session = await lesMis();
+        const staff = IDS.filter((_id, at) => ROLE(at) === "staff").length;
+        const guests = IDS.length - staff;
+        const GUEST: RuleTree = { kind: "categories", attribute: "data.role", values: ["guest"] };
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [STAFF, GUEST].map((first) => ({
+                start: "all" as const,
+                steps: [
+                    { op: "keep" as const, rule: first },
+                    { op: "keep" as const, rule: TOP_BY_MEASURE, computedOn: "so-far" as const },
+                ],
+            })),
+        };
+        const ready = await new Promise<StepsReading>((resolve) => {
+            const each = session.scope.watchSteps(rule, (reading) => {
+                if (reading.branches.every((branch) => branch.steps[1].values !== null)) {
+                    each.end();
+                    resolve(reading);
+                }
+            });
+        });
+        const [mine, theirs] = ready.branches.map((branch) => branch.steps[1].values);
+        assert.strictEqual(mine?.of, staff);
+        assert.strictEqual(mine?.missing, 0, "the staff group reads the staff computation, not the guests'");
+        assert.strictEqual(theirs?.of, guests);
+        assert.strictEqual(theirs?.missing, 0);
+    });
+
+    it("a layer with a So far step tells the key again once its computation lands after a filter change", async () => {
+        const session = await lesMis();
+        const where: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "visible",
+            branches: [
+                {
+                    start: "all",
+                    steps: [
+                        { op: "keep", rule: STAFF },
+                        {
+                            op: "keep",
+                            rule: {
+                                kind: "measure",
+                                algorithm: "degree",
+                                field: "value",
+                                test: { kind: "range", min: 3 },
+                            },
+                            computedOn: "so-far",
+                        },
+                    ],
+                },
+            ],
+        };
+        const { id } = await session.styles.add({
+            name: "Top staff",
+            target: "node",
+            selector: { match: "rule", where },
+            set: { "node.color": "#D55E00" },
+        });
+        await session.styles.settled();
+        // The key is read as the app reads it: again on every event that says the picture moved.
+        const keyCount = (): number | undefined =>
+            session.styles.legend().find((block) => block.layerId === id)?.scope?.count;
+        let heard = keyCount();
+        for (const event of ["style:batch-changed", "project:derived", "visibility:changed"] as const) {
+            session.on(event, () => {
+                heard = keyCount();
+            });
+        }
+        const painted = (): number => session.styles.counts(id).painted["node.color"] ?? 0;
+
+        await vi.waitFor(() => {
+            assert.isAbove(painted(), 0);
+        });
+        const seen = [painted()];
+        for (const step of ["add", "remove"] as const) {
+            if (step === "add") {
+                await session.visibility.addCondition({
+                    effect: "keep",
+                    rule: { kind: "range", attribute: "graphty.degree", min: 5 },
+                });
+            } else {
+                await session.visibility.setConditions([]);
+            }
+
+            await vi.waitFor(() => {
+                assert.notStrictEqual(painted(), seen.at(-1), "the step's own computation has landed");
+                assert.strictEqual(heard, painted(), `after the filter ${step === "add" ? "is added" : "goes"}`);
+            });
+            seen.push(painted());
+        }
+    });
+
     it("above the ask limit a step waits for allowRun; Cancel leaves it waiting", async () => {
         const executions: Executions = { sizes: [], hold: true };
         const session = await lesMis(executions);

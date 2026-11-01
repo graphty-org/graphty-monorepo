@@ -14,6 +14,9 @@ import { evaluate } from "../../src/sla/engine.js";
 import { benchmarksTable, chronicTable, nonGatingTable } from "../../src/views/job-sections.js";
 import { Reads } from "../../src/views/members.js";
 
+/** A GitHub Actions expression, `${{ body }}`, as a workflow file spells it. */
+const ghExpr = (body: string): string => ["$", "{{ ", body, " }}"].join("");
+
 const NOW = Date.parse("2026-10-27T03:00:00Z");
 const REPO = "graphty-org/graphty-monorepo";
 const CI_YML = readFileSync(new URL("../../../../.github/workflows/ci.yml", import.meta.url), "utf8");
@@ -128,7 +131,7 @@ describe("allowed to fail, and failing", () => {
             cell: { t: "num", n: 67, unit: "pct" },
         });
         // a gating job (Story tests is, since #4613) gets no row, however often it failed
-        expect(row(`Story tests (\${{ matrix.name || matrix.project }})`)).toBeUndefined();
+        expect(row(`Story tests (${ghExpr("matrix.name || matrix.project")})`)).toBeUndefined();
         expect(row("Build")).toBeUndefined();
         expect(s.rows[0].cells.job).toEqual({ t: "name", v: "Performance Benchmarks" });
     });
@@ -138,7 +141,7 @@ describe("allowed to fail, and failing", () => {
         const yaml = [
             "jobs:",
             "    story-tests:",
-            `        name: Story tests (\${{ matrix.project }})`,
+            `        name: Story tests (${ghExpr("matrix.project")})`,
             "        continue-on-error: true",
             "",
         ].join("\n");
@@ -158,7 +161,7 @@ describe("allowed to fail, and failing", () => {
         }
         expect(s.rows.map((r) => [r.cells.job, r.cells.failed])).toEqual([
             [
-                { t: "name", v: `Story tests (\${{ matrix.project }})` },
+                { t: "name", v: `Story tests (${ghExpr("matrix.project")})` },
                 { t: "num", n: 1 },
             ],
         ]);

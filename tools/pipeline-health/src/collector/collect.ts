@@ -93,6 +93,7 @@ import {
     ownerFilesQuery,
     PR_QUERY,
     REPO_FILES_QUERY,
+    STEPS_QUERY,
     SUITE_QUERY,
     TAG_QUERY,
 } from "./queries.js";
@@ -784,6 +785,29 @@ async function master(
 }
 
 /**
+ * Names the failed step of each failing check run on the open pull requests' heads, from one query per 50 runs, so
+ * the shared failures group by step (an unreturned run keeps no step and groups by its check alone).
+ * @param gh - the GitHub client
+ * @param open - the open pull requests with their checks
+ */
+async function failedSteps(gh: GitHub, open: GqlPr[]): Promise<void> {
+    const runs = open
+        .flatMap((p) => p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? [])
+        .filter((ch) => ch.id && ["FAILURE", "TIMED_OUT"].includes(ch.conclusion ?? ""));
+    for (let i = 0; i < runs.length; i += 50) {
+        const chunk = runs.slice(i, i + 50);
+        type Node = { id: string; steps?: { nodes: { name: string; conclusion: string | null }[] } } | null;
+        const data = await gh.graphql<{ nodes: Node[] }>(STEPS_QUERY, { ids: chunk.map((ch) => ch.id) });
+        chunk.forEach((ch, k) => {
+            const step = data.nodes[k]?.steps?.nodes.find((st) => st.conclusion === "FAILURE")?.name;
+            if (step) {
+                ch.failedStep = step;
+            }
+        });
+    }
+}
+
+/**
  * Pull requests (4.2): the open ones and those updated since the cursor, their items, stocks and owner waits, the
  * shared failing checks and the superseded runs.
  * @param c - the cycle
@@ -814,6 +838,7 @@ async function pullRequests(c: Cycle, gh: GitHub): Promise<void> {
         }
         cursor = recent.pageInfo.endCursor;
     }
+    await failedSteps(gh, open);
     await pendingPrRuns(c, gh, [...open, ...recentSeen]);
     for (const p of recentSeen) {
         c.items.push(await withStages(c, toPrItem(p, c.d.repo)));

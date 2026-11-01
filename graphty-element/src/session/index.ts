@@ -108,6 +108,7 @@ export type {
     FindOptions,
     FindResult,
     FindValueRow,
+    GraphFraming,
     GraphSession,
     GraphSettingKey,
     GraphStatistics,

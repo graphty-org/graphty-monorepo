@@ -1232,6 +1232,10 @@ export class Graph implements GraphContext {
                 this.applyViewRotation(true);
             }
 
+            if (changed("framing")) {
+                this.applyFraming();
+            }
+
             if (changed("selectionStyle") || changed("startingRows")) {
                 for (const node of this.dataManager.nodes.values()) {
                     node.refreshSelectionOverlay();
@@ -4677,6 +4681,14 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Frame the graph as the project setting `framing` says, and frame it again if the element frames on its own.
+     */
+    private applyFraming(): void {
+        this.updateManager.framing = this.session.config.framing;
+        this.autoFrame();
+    }
+
+    /**
      * Turn the 2D view as the project setting `viewRotation` says.
      * @param reframe - Whether to frame the turned drawing again, when the view is 2D and the
      *     element frames on its own initiative.
@@ -5317,7 +5329,7 @@ export class Graph implements GraphContext {
         if (frame) {
             // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
             // labels are framed by zoom-to-fit, on a data load or a layout change.
-            const box = nodeFramingBox(this.getNodes());
+            const box = nodeFramingBox(this.getNodes(), this.session.config.framing?.extent);
             if (box) {
                 this.camera.zoomToBoundingBox(box.min, box.max, box.spots);
             }

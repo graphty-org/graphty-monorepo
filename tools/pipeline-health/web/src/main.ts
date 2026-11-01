@@ -101,32 +101,37 @@ function stamp(generated: string): void {
 
 // ---------------------------------------------------------------- routing
 
+function pageOf(segs: string[]): Omit<Here, "range" | "q"> {
+    if (segs[0] === "ci" && segs[1] === "runners") {
+        return { page: "runners", section: segs[2] };
+    }
+    if (segs[0] === "ci" && segs[1] === "local-runs") {
+        return { page: "local-runs" };
+    }
+    if (segs[0] === "flaky" && segs[1] === "test") {
+        return { page: "test" };
+    }
+    if ((CATEGORY_IDS as readonly string[]).includes(segs[0] ?? "")) {
+        return { page: segs[0] as CategoryId, section: segs[1] };
+    }
+    return { page: "overview" };
+}
+
+function rangeOf(page: Here["page"], r: string): Here["range"] {
+    if (page === "costs") {
+        return r === "7d" ? "7d" : "28d";
+    }
+    if (page === "test") {
+        return r === "28d" ? "28d" : "7d";
+    }
+    return r === "6h" || r === "24h" ? r : "1h";
+}
+
 function parse(hash: string): Here {
     const [rawPath, qs] = hash.replace(/^#/, "").split("?");
     const q = new URLSearchParams(qs ?? "");
-    const segs = (rawPath || "/").split("/").filter(Boolean);
-    let here: Omit<Here, "range" | "q">;
-    if (segs[0] === "ci" && segs[1] === "runners") {
-        here = { page: "runners", section: segs[2] };
-    } else if (segs[0] === "ci" && segs[1] === "local-runs") {
-        here = { page: "local-runs" };
-    } else if (segs[0] === "flaky" && segs[1] === "test") {
-        here = { page: "test" };
-    } else if ((CATEGORY_IDS as readonly string[]).includes(segs[0] ?? "")) {
-        here = { page: segs[0] as CategoryId, section: segs[1] };
-    } else {
-        here = { page: "overview" };
-    }
-    const r = q.get("range") ?? "";
-    let range: Here["range"];
-    if (here.page === "costs") {
-        range = r === "7d" ? "7d" : "28d";
-    } else if (here.page === "test") {
-        range = r === "28d" ? "28d" : "7d";
-    } else {
-        range = r === "6h" || r === "24h" ? r : "1h";
-    }
-    return { ...here, range, q };
+    const here = pageOf((rawPath || "/").split("/").filter(Boolean));
+    return { ...here, range: rangeOf(here.page, q.get("range") ?? ""), q };
 }
 
 // ---------------------------------------------------------------- loading
@@ -351,6 +356,33 @@ let current: Here = parse(location.hash);
 let seq = 0;
 let drawn = false;
 
+/** After a navigation: scroll to and focus the section the route names, else the top and the page heading. */
+function focusRoute(): void {
+    const target = current.section ? document.getElementById(`s-${current.section}`) : null;
+    if (target) {
+        mark(target);
+    } else {
+        window.scrollTo(0, 0);
+    }
+    (target ?? app.querySelector<HTMLElement>("h1"))?.focus({ preventScroll: true });
+}
+
+/**
+ * Whether the status route answers, asked on its own, so the reader can tell "nothing answers" from "this view
+ * fails".
+ * @param error - the error the view's load failed with
+ * @returns "answered", or "failed: " and why
+ */
+async function statusAnswer(error: Error): Promise<string> {
+    if (error instanceof ApiError && error.path === apiPath({ kind: "status" })) {
+        return `failed: ${error.why}`;
+    }
+    return get<StatusResponse>(apiPath({ kind: "status" }), "status").then(
+        () => "answered",
+        (s: unknown) => `failed: ${s instanceof ApiError ? s.why : String(s)}`,
+    );
+}
+
 async function show(navigated: boolean): Promise<void> {
     const mine = ++seq;
     setHere(current);
@@ -366,13 +398,7 @@ async function show(navigated: boolean): Promise<void> {
         draw(null, navigated || !drawn);
         drawn = true;
         if (navigated) {
-            const target = current.section ? document.getElementById(`s-${current.section}`) : null;
-            if (target) {
-                mark(target);
-            } else {
-                window.scrollTo(0, 0);
-            }
-            (target ?? app.querySelector<HTMLElement>("h1"))?.focus({ preventScroll: true });
+            focusRoute();
         } else {
             window.scrollTo(0, y);
         }
@@ -381,14 +407,7 @@ async function show(navigated: boolean): Promise<void> {
             return;
         }
         const error = e instanceof Error ? e : new Error(String(e));
-        // Ask the status route on its own, so the reader can tell "nothing answers" from "this view fails".
-        const status =
-            error instanceof ApiError && error.path === apiPath({ kind: "status" })
-                ? `failed: ${error.why}`
-                : await get<StatusResponse>(apiPath({ kind: "status" }), "status").then(
-                      () => "answered",
-                      (s: unknown) => `failed: ${s instanceof ApiError ? s.why : String(s)}`,
-                  );
+        const status = await statusAnswer(error);
         if (mine !== seq) {
             return;
         }

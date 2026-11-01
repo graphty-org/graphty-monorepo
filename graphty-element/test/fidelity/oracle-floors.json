@@ -18181,10 +18181,10 @@
             "background": 1,
             "raster.arrowhead": 0.91,
             "raster.canvas": 0.97,
-            "raster.edge": 0.91,
+            "raster.edge": 0.92,
             "raster.label": 0.89,
             "raster.nodeBody": 0.95,
-            "raster.nodeOutline": 0.92,
+            "raster.nodeOutline": 0.93,
             "edge.wiggle": 1
         },
         "gexf-sigma-ediaspora@matched": {
@@ -39716,7 +39716,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.96,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
@@ -39750,7 +39750,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.96,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
@@ -39845,10 +39845,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
-            "raster.label": 0.88,
+            "raster.edge": 0.96,
+            "raster.label": 0.91,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96,
+            "raster.nodeOutline": 0.99,
             "edge.wiggle": 1
         },
         "graphology-specimen-edge-labels-p2": {
@@ -39882,10 +39882,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.92,
             "raster.label": 0.92,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96,
+            "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
         "graphology-specimen-edge-labels-p2@matched": {
@@ -39951,10 +39951,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.91,
             "raster.label": 0.92,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96,
+            "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
         "graphology-specimen-edge-labels-p3@matched": {
@@ -40049,7 +40049,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.93,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
@@ -40083,7 +40083,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
@@ -40168,7 +40168,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.98
+            "raster.nodeOutline": 0.99
         },
         "graphology-specimen-images-charts@matched": {
             "node.present": 1,
@@ -40209,9 +40209,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.85,
+            "raster.label": 0.89,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.97
+            "raster.nodeOutline": 0.98
         },
         "graphology-specimen-labels@matched": {
             "node.present": 1,
@@ -40562,7 +40562,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.98
+            "raster.nodeOutline": 0.99
         },
         "graphology-specimen-node-sizes-opacity-p2@matched": {
             "node.present": 1,
@@ -40738,13 +40738,13 @@
             "stray.extra": 0.667,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.96,
+            "raster.canvas": 0.99,
             "raster.edge": 0.98,
-            "raster.label": 0.94,
-            "raster.nodeBody": 0.96,
-            "raster.nodeOutline": 0.97,
+            "raster.label": 0.95,
+            "raster.nodeBody": 0.99,
+            "raster.nodeOutline": 0.99,
             "edge.wiggle": 1
         },
         "json-graphology-synth@matched": {
@@ -40775,7 +40775,7 @@
             "stray.extra": 0.667,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
             "edge.wiggle": 1
         },
@@ -40810,7 +40810,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.edge": 0.98,
-            "raster.label": 0.88,
+            "raster.label": 0.91,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
@@ -53494,6 +53494,22 @@
                 "floor": 1,
                 "to": 0.998,
                 "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
+                "date": "2026-11-01"
+            }
+        },
+        "json-graphology-synth": {
+            "stray.extra": {
+                "floor": 0.667,
+                "to": 0.286,
+                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
+                "date": "2026-11-01"
+            }
+        },
+        "json-graphology-synth@matched": {
+            "stray.extra": {
+                "floor": 0.667,
+                "to": 0.286,
+                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
                 "date": "2026-11-01"
             }
         },

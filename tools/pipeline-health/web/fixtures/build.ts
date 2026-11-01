@@ -38,6 +38,13 @@ import type {
     Value,
 } from "../src/contract";
 
+/**
+ * A GitHub Actions expression, `${{ body }}`, as a workflow file spells it.
+ * @param body - the expression inside the braces
+ * @returns the expression with its braces
+ */
+const ghExpr = (body: string): string => ["$", "{{ ", body, " }}"].join("");
+
 // HEALTH_FIXTURES_OUT writes elsewhere; test/web/fixtures.test.ts uses it to compare with the committed files.
 const OUT = process.env.HEALTH_FIXTURES_OUT ?? dirname(fileURLToPath(import.meta.url));
 const GEN = "2026-10-25T23:30:00Z";
@@ -1349,7 +1356,7 @@ const ciSections: Section[] = [
         rows: (
             [
                 ["Performance Benchmarks", 14, 10],
-                [`Story tests (\${{ matrix.name || matrix.project }})`, 212, 9],
+                [`Story tests (${ghExpr("matrix.name || matrix.project")})`, 212, 9],
                 ["Visual report", 160, 0],
                 ["Flaky screenshots", 0, 0],
             ] as const

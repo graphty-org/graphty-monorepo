@@ -1147,6 +1147,7 @@ export function fileStyleOf(layer: {
 
 // @public
 export interface FileStyleOptions {
+    readonly framing?: "element" | "file";
     readonly imageBaseUrl?: string;
     // @deprecated
     readonly labelLayers?: number;
@@ -1397,6 +1398,12 @@ export interface GraphAccelerator {
     readonly name: string;
     readonly precision?: AccelerationPrecision;
     verify?(): Promise<void>;
+}
+
+// @public
+export interface GraphFraming {
+    readonly extent: "drawn" | "centers";
+    readonly padding?: number;
 }
 
 // @public
@@ -3717,6 +3724,7 @@ export interface ProjectConfig {
     // (undocumented)
     readonly data: SessionDataConfig;
     readonly editableBase: boolean;
+    readonly framing?: GraphFraming;
     readonly layoutBehavior: {
         readonly preSteps: number;
         readonly stepMultiplier: number;
@@ -3744,6 +3752,7 @@ export interface ProjectConfigPatch {
         readonly knownFields?: Partial<SessionDataConfig["knownFields"]>;
     };
     readonly editableBase?: boolean;
+    readonly framing?: GraphFraming;
     // (undocumented)
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     readonly layoutTransition?: LayoutTransitionConfig;

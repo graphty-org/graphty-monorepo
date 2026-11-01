@@ -387,21 +387,7 @@ async function networks3(
             });
         }
     }
-    const known = new Set(choices.map((c) => c.graphId));
-    const strayViews = layout.views.filter((v) => !known.has(v.network)).map((v) => v.name);
-    const strayTables = layout.tables.filter(
-        (t) =>
-            !known.has(t.network) &&
-            !layout.networks.some((n) => n.suid === t.network) &&
-            !isGroupTable(t, session, docs),
-    );
-    if (strayViews.length > 0 || strayTables.length > 0) {
-        report.warning(
-            "validation-error",
-            CYS_ISSUE.DANGLING_REFERENCE,
-            `${strayViews.length + strayTables.length} view${plural(strayViews.length + strayTables.length)} or table${plural(strayViews.length + strayTables.length)} ${agree(strayViews.length + strayTables.length, "belongs", "belong")} to a network the session does not hold and were not read: ${listed([...strayViews, ...strayTables.map((t) => t.name)])}`,
-        );
-    }
+    warnStray(session, docs, choices, report);
     if (layout.networkList === null) {
         return choices;
     }
@@ -420,14 +406,7 @@ async function networks3(
         );
         return choices;
     }
-    const order = new Map<string, number>();
-    for (const node of elementsNamed(tree, "network")) {
-        const id = node.attrs.get("id");
-        const position = Number(node.attrs.get("order"));
-        if (id !== undefined && Number.isFinite(position)) {
-            order.set(id, position);
-        }
-    }
+    const order = networkOrder(tree);
     return choices
         .map((choice, index) => ({ choice, index }))
         .sort(
@@ -436,6 +415,54 @@ async function networks3(
                 a.index - b.index,
         )
         .map((c) => c.choice);
+}
+
+/**
+ * Warn about the views and tables of a 3.x session that belong to no network it holds.
+ * @param session - the session
+ * @param docs - the parsed network files
+ * @param choices - the registered subnetworks
+ * @param report - the report
+ */
+function warnStray(
+    session: Session,
+    docs: ReadonlyMap<string, Parsed>,
+    choices: readonly Choice3[],
+    report: ImportReportBuilder,
+): void {
+    const { layout } = session;
+    const known = new Set(choices.map((c) => c.graphId));
+    const strayViews = layout.views.filter((v) => !known.has(v.network)).map((v) => v.name);
+    const strayTables = layout.tables.filter(
+        (t) =>
+            !known.has(t.network) &&
+            !layout.networks.some((n) => n.suid === t.network) &&
+            !isGroupTable(t, session, docs),
+    );
+    if (strayViews.length > 0 || strayTables.length > 0) {
+        report.warning(
+            "validation-error",
+            CYS_ISSUE.DANGLING_REFERENCE,
+            `${strayViews.length + strayTables.length} view${plural(strayViews.length + strayTables.length)} or table${plural(strayViews.length + strayTables.length)} ${agree(strayViews.length + strayTables.length, "belongs", "belong")} to a network the session does not hold and were not read: ${listed([...strayViews, ...strayTables.map((t) => t.name)])}`,
+        );
+    }
+}
+
+/**
+ * The positions `network_list.xml` gives the networks.
+ * @param tree - the parsed list
+ * @returns network id -> its order
+ */
+function networkOrder(tree: XmlNode): Map<string, number> {
+    const order = new Map<string, number>();
+    for (const node of elementsNamed(tree, "network")) {
+        const id = node.attrs.get("id");
+        const position = Number(node.attrs.get("order"));
+        if (id !== undefined && Number.isFinite(position)) {
+            order.set(id, position);
+        }
+    }
+    return order;
 }
 
 /**
@@ -965,16 +992,7 @@ function applyView(
             target.graphics = { ...target.graphics, ...node.graphics };
         }
     }
-    for (const edge of view.edges) {
-        const target = edge.viewId === null ? undefined : edges.get(edge.viewId);
-        if (target === undefined) {
-            dangling++;
-            continue;
-        }
-        if (edge.graphics !== null) {
-            target.graphics = { ...target.graphics, ...edge.graphics };
-        }
-    }
+    dangling += applyEdgeGraphics(view.edges, edges);
     if (view.root.graphics !== null) {
         graph.graphics = { ...graph.graphics, ...view.root.graphics };
     }
@@ -985,6 +1003,27 @@ function applyView(
             `${entryLabel(entry)}: ${dangling} view element${plural(dangling)} ${agree(dangling, "names", "name")} no node or edge of the network; they are not read`,
         );
     }
+}
+
+/**
+ * Copy the graphics of a view's edge elements onto the network's edge records (by `cy:edgeId`).
+ * @param viewEdges - the view's edge elements
+ * @param edges - the network's edge records by id
+ * @returns how many view edges name no edge of the network
+ */
+function applyEdgeGraphics(viewEdges: readonly EdgeRec[], edges: ReadonlyMap<string, EdgeRec>): number {
+    let dangling = 0;
+    for (const edge of viewEdges) {
+        const target = edge.viewId === null ? undefined : edges.get(edge.viewId);
+        if (target === undefined) {
+            dangling++;
+            continue;
+        }
+        if (edge.graphics !== null) {
+            target.graphics = { ...target.graphics, ...edge.graphics };
+        }
+    }
+    return dangling;
 }
 
 /**

@@ -4,7 +4,8 @@
  * - takes off the known failures every element that passes now (one that is not measurable any more stays listed);
  * - raises every recorded pass rate (the informational floors) to what the run measured, never lowering one;
  * - with `--add "<reason>"`, adds every element failing that the known failures do not list, and records the reason,
- *   the date and how many came from the drawing or from the comparator. Nothing is added without a reason;
+ *   the date and how many came from the drawing or from the comparator (`--keys` and `--properties` limit what is
+ *   added to those keys and properties). Nothing is added without a reason;
  * - for the oracle scorecard, takes off an accepted drop (`drops` in the floors file) whose rate is back at its floor,
  *   and with `--add "<reason>"` accepts every rate below its floor at the rate measured, with the reason. The floor
  *   itself stays: it is the best the property has measured.
@@ -15,7 +16,8 @@
  * `test/fidelity/fidelity.test.ts`) into `test/fidelity/baseline-scores.json`.
  *
  *     npm run fidelity:ratchet
- *     npm run fidelity:ratchet -- --add "why these elements fail now" [--keys <key>,<key>] [--suite oracle|drawn]
+ *     npm run fidelity:ratchet -- --add "why these elements fail now" [--keys <key>,<key>] [--properties <p>,<p>]
+ *         [--suite oracle|drawn]
  */
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -37,12 +39,16 @@ const { values } = parseArgs({
     options: {
         add: { type: "string" },
         keys: { type: "string" },
+        properties: { type: "string" },
         suite: { type: "string" },
     },
 });
 
 const today = new Date().toISOString().slice(0, 10);
-const add = values.add === undefined ? undefined : { reason: values.add, date: today, keys: values.keys?.split(",") };
+const add =
+    values.add === undefined
+        ? undefined
+        : { reason: values.add, date: today, keys: values.keys?.split(","), properties: values.properties?.split(",") };
 
 /** A run's verdicts, as the tests write them. */
 interface GateFile {

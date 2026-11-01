@@ -7,7 +7,10 @@ name: Restricted CPU stress (weekly)
 #
 # Each test that fails or times out gets one issue in the flaky-test tracker's format (title, labels,
 # marker line `githerd-flaky-test: <package>/<file> > <test>`), marked "load-sensitive under restricted
-# CPU", not "proven flaky"; a later failure comments on the same issue. tools/restricted-cpu-stress.mjs
+# CPU", not "proven flaky"; a later failure comments on the same issue. Every browser and story shard runs
+# REPEATS times on the same commit, each repeat its own job under the same quota (issue #3390), so a race shows
+# as a test that failed in one repeat and passed in another; its issue says so ("Outcomes differed on the same
+# commit"). The screenshot capture is not repeated here. tools/restricted-cpu-stress.mjs
 # reads vitest's junit reports (vitest.ci-junit.mjs) and does the filing. A dispatch on any branch but
 # master, or with dry-run set, prints what it would file and writes nothing.
 
@@ -47,6 +50,8 @@ env:
     # MAX_FILED failing tests is reported as suite broken and none of its tests is filed; many such
     # files mean the quota is too tight, loosen it here.
     CPU_MAX: "200000 100000"
+    # How often every browser and story shard (needs-browser in tools/ci-test-matrix.mjs) runs; other shards run once.
+    REPEATS: "3"
     RESTRICTION: "cgroup v2 cpu.max 200000 100000 (two CPUs of time for every process of the shard) on a four-vCPU ubuntu-24.04 GitHub-hosted runner"
 
 jobs:
@@ -78,8 +83,9 @@ jobs:
               run: |
                   all=$(pnpm exec nx show projects --json)
                   out=$(node tools/ci-test-matrix.mjs "$all" "$all")
-                  # the Off configuration only: an On twin (flags "on") would stress and file the same tests again
-                  matrix=$(sed -n 's/^test-matrix=//p' <<<"$out" | jq -c '.include |= map(select(.flags != "on"))')
+                  # the Off configuration only: an On twin (flags "on") would stress and file the same tests again;
+                  # each browser and story shard REPEATS times (repeat 1..REPEATS), every other shard once
+                  matrix=$(sed -n 's/^test-matrix=//p' <<<"$out" | jq -c --argjson n "$REPEATS" '.include |= [.[] | select(.flags != "on") | . as $s | range(1; (if $s["needs-browser"] then $n else 1 end) + 1) | $s + {repeat: .}]')
                   {
                       grep -v -e '^test-matrix=' -e '^test-count=' <<<"$out"
                       echo "test-matrix=$matrix"
@@ -113,7 +119,7 @@ jobs:
 
     # The steps of ci.yml's test job, with the shard's command run inside the CPU quota.
     stress:
-        name: Restricted CPU (${{ matrix.shard }})
+        name: Restricted CPU (${{ matrix.shard }}, repeat ${{ matrix.repeat }})
         needs: build
         runs-on: ubuntu-24.04
         timeout-minutes: 240
@@ -216,6 +222,8 @@ jobs:
                   exit "$status"
               env:
                   TEST_COMMAND: ${{ matrix.test-command }}
+                  # keeps each repeat's results-store record apart (tools/results/run-group.mjs baseId)
+                  RESULTS_REPEAT: ${{ matrix.repeat }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
 
@@ -224,13 +232,13 @@ jobs:
             # tools/pipeline-health/src/collector/parse.ts) reads it by name. Keep the name in step with STRESS_FOUND there.
             - name: Tests failed under the CPU quota
               if: steps.tests.outcome == 'failure'
-              run: echo "::warning::tests failed in shard ${{ matrix.shard }} under the CPU quota"
+              run: echo "::warning::tests failed in shard ${{ matrix.shard }} (repeat ${{ matrix.repeat }}) under the CPU quota"
 
             - name: Upload the junit reports
               if: always()
               uses: actions/upload-artifact@v7
               with:
-                  name: junit-${{ matrix.shard }}
+                  name: junit-${{ matrix.shard }}-r${{ matrix.repeat }}
                   path: test-results/junit-*.xml
                   if-no-files-found: warn
                   retention-days: 14

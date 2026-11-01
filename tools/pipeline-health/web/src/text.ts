@@ -266,7 +266,10 @@ export function fmtAgo(at: Iso): string {
     return `${fmtDur(Math.max(0, (clock.now() - Date.parse(at)) / 1000))} ago`;
 }
 
-export const rangeLabel = (r: Range | SlowRange | IssueRange): string => r.replace(/(\d+)/, "$1 ");
+/** Any range a page or a slow measure can show. */
+type AnyRange = Range | SlowRange | IssueRange;
+
+export const rangeLabel = (r: AnyRange): string => r.replace(/(\d+)/, "$1 ");
 
 // ---------------------------------------------------------------- links
 
@@ -334,7 +337,7 @@ export const isMuted = (s: MemberState): boolean =>
  */
 export function showsRangeValue(
     m: Pick<Member, "n" | "minN"> & Partial<Pick<Member, "window" | "value">>,
-    range: Range | SlowRange | IssueRange | undefined,
+    range: AnyRange | undefined,
 ): boolean {
     return (
         range !== undefined &&
@@ -354,7 +357,7 @@ export function showsRangeValue(
  */
 export function fewText(
     m: Pick<Member, "n" | "minN"> & Partial<Pick<Member, "id" | "window">>,
-    range?: Range | SlowRange | IssueRange,
+    range?: AnyRange,
 ): string {
     const nOf = m.id ? MEMBER[m.id].nOf : undefined;
     // A 7- or 28-day measure counts its own days, whatever the picker shows.
@@ -389,7 +392,7 @@ export const OK_CHIP = `<span class="sw okl">OK</span>`;
  */
 export function stateChip(
     m: Pick<Member, "state" | "n" | "minN" | "covered"> & Partial<Pick<Member, "id" | "window" | "value">>,
-    range?: Range | SlowRange | IssueRange,
+    range?: AnyRange,
 ): string {
     switch (m.state) {
         case "ok":
@@ -1428,7 +1431,7 @@ export const capital = (s: string): string => s.charAt(0).toUpperCase() + s.slic
  * @param range The range the reader picked.
  * @returns The label as HTML.
  */
-export function windowLabel(m: Member, range: Range | SlowRange | IssueRange): string {
+export function windowLabel(m: Member, range: AnyRange): string {
     if (m.window === "now") {
         return "now";
     }

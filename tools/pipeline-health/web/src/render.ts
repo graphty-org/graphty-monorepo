@@ -1138,27 +1138,12 @@ function sectionHead(s: Section): string {
             return h("Sources");
         case "not-set-up":
             return h("Not set up", "no writer or token yet; out of the status until it exists");
-        case "open":
-            return h("Open now, by type and priority", "a row opens GitHub's search for it");
-        case "bugs":
-            return h(
-                "Open bugs by priority",
-                `${subText}; stacked, critical at the bottom; open at the start of each ${bucketWord()} and now`,
-            );
-        case "bug-flow":
-            return h("Bugs opened vs closed", `${subText}; per ${bucketWord()}`);
-        case "flow":
-            return h("All issues opened vs closed", `${subText}; per ${bucketWord()}`);
-        case "backlog":
-            return h("Open issues by type", `${subText}; open at the start of each ${bucketWord()} and now`);
-        case "types":
-            return h("Issues opened, by type", `${subText}; per ${bucketWord()}`);
-        case "oldest":
-            return h("Oldest open critical and high bugs", "critical first, then the oldest first");
         case "none":
             return "";
-        default:
-            return h(s.id, subText);
+        default: {
+            const issues = issuesHead(s.id, subText);
+            return issues ? h(...issues) : h(s.id, subText);
+        }
     }
 }
 
@@ -1167,6 +1152,27 @@ function sectionHead(s: Section): string {
  * @returns The bucket's word.
  */
 const bucketWord = (): string => (here.range === "all" ? "week" : "day");
+
+/**
+ * An Issues section's title and subtitle.
+ * @param id The section's id.
+ * @param subText The section's own sentence.
+ * @returns The title and subtitle, or undefined for a section of another page.
+ */
+function issuesHead(id: string, subText: string): [string, string] | undefined {
+    const per = `${subText}; per ${bucketWord()}`;
+    const stock = `${subText}; open at the start of each ${bucketWord()} and now`;
+    const heads: Record<string, [string, string]> = {
+        open: ["Open now, by type and priority", "a row opens GitHub's search for it"],
+        bugs: ["Open bugs by priority", stock.replace("; open", "; stacked, critical at the bottom; open")],
+        "bug-flow": ["Bugs opened vs closed", per],
+        flow: ["All issues opened vs closed", per],
+        backlog: ["Open issues by type", stock],
+        types: ["Issues opened, by type", per],
+        oldest: ["Oldest open critical and high bugs", "critical first, then the oldest first"],
+    };
+    return heads[id];
+}
 
 function sectionBody(s: Section): string {
     switch (s.kind) {

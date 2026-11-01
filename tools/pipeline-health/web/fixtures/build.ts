@@ -2312,7 +2312,7 @@ write("test-history", history);
 function fixtureIssues(): IssueItem[] {
     let seed = 20261101;
     const rnd = (): number => {
-        seed = (seed + 0x6d2b79f5) | 0; // NOSONAR(typescript:S7767): wraps to int32 (mulberry32), which Math.trunc does not
+        seed = (seed + 0x6d2b79f5) | 0; // NOSONAR(S7767): wraps to int32 (mulberry32), which Math.trunc does not
         let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
         x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
         return ((x ^ (x >>> 14)) >>> 0) / 4294967296;

@@ -317,7 +317,8 @@ function searchLink(repo: string, t?: IssueType): string {
                 .map((x) => ` -label:${x}`)
                 .join("");
     }
-    return `https://github.com/${repo}/issues?q=${encodeURIComponent(`is:issue is:open${labels}`)}`;
+    const q = encodeURIComponent(`is:issue is:open${labels}`);
+    return `https://github.com/${repo}/issues?q=${q}`;
 }
 
 /**

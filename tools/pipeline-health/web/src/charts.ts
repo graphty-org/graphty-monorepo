@@ -428,7 +428,9 @@ function niceTop(max: number): number {
  * @returns The legend's HTML.
  */
 function seriesLegend(s: SeriesSection, name: (key: string) => string): string {
-    return `<p class="legend">${s.series.map((x) => `<span class="li"><span class="lk ${seriesClass(x.key)}"></span>${esc(name(x.key))}</span>`).join("")}</p>`;
+    const key = (k: string): string =>
+        `<span class="li"><span class="lk ${seriesClass(k)}"></span>${esc(name(k))}</span>`;
+    return `<p class="legend">${s.series.map((x) => key(x.key)).join("")}</p>`;
 }
 
 /**
@@ -614,7 +616,7 @@ export function lineChart(s: SeriesSection, name: (key: string) => string): stri
               svg: s.series
                   .map(
                       (sr) =>
-                          `<polyline class="${seriesClass(sr.key)}" points="${sr.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")}" />`,
+                          `<polyline class="${seriesClass(sr.key)}" points="${sr.values.map((v, i) => [x(i), y(v)].join(",")).join(" ")}" />`,
                   )
                   .join(""),
               ends: s.series.map((sr) => ({

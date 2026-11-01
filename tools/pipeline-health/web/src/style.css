@@ -97,6 +97,8 @@ a {
     position: sticky;
     top: 0;
     height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 .brand {
     font-weight: 650;
@@ -153,10 +155,6 @@ main {
     padding: 28px 40px 48px;
     max-width: 1400px;
     min-width: 0;
-}
-.side {
-    display: flex;
-    flex-direction: column;
 }
 .sample {
     margin: auto 0 0;
@@ -1487,6 +1485,7 @@ h2.hit {
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-wrap: wrap;
     margin: 0 0 6px;
     color: var(--muted);
     font-size: 12px;
@@ -1685,9 +1684,6 @@ h2.hit {
 .legend .lk.k-none {
     background: repeating-linear-gradient(45deg, var(--none) 0 3px, var(--hatch) 3px 5px);
     height: 8px;
-}
-.legend {
-    flex-wrap: wrap;
 }
 /* A series' key and its name wrap together, never apart. */
 .legend .li {

@@ -551,6 +551,26 @@ describe("Popout controlled mode", () => {
         });
     });
 
+    it("names its close button by the panel it closes when the caller says so", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout defaultOpened>
+                <Popout.Trigger>
+                    <button>Open</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Test" }} closeLabel="Close Test">
+                    <Popout.Content>Content</Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        await user.click(await screen.findByRole("button", { name: "Close Test" }));
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+    });
+
     it("stays open when a controlled consumer ignores the close", async () => {
         const user = userEvent.setup();
 

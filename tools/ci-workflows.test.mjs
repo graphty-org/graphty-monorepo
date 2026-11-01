@@ -8817,6 +8817,52 @@ describe("the CI workflow tests never reach the real world (#3392)", () => {
             rmSync(dir, { recursive: true, force: true });
         }
     });
+
+    it("lets a checkout inside the main checkout's tmp/ (a live.sh copy) write its own tree, and still refuses the rest of tmp/ (#5432)", () => {
+        const dir = mkdtempSync(join(tmpdir(), "ci-workflow-tests-"));
+        const git = (...a) => execFileSync("git", a, { cwd: dir, encoding: "utf8", stdio: "pipe" });
+        try {
+            git("init", "-q", "-b", "master");
+            git("config", "user.email", "t@t");
+            git("config", "user.name", "t");
+            git("config", "commit.gpgsign", "false");
+            mkdirSync(join(dir, "tools"));
+            for (const f of ["run-ci-workflow-tests.mjs", "tool-test-guard.mjs"]) {
+                copyFileSync(new URL(f, import.meta.url), join(dir, "tools", f));
+            }
+            const files = {
+                // the copy's own results file, at a path under the main checkout's tmp/live/
+                "own.mjs": `(await import("node:fs")).writeFileSync("tools/results.json", "{}");`,
+                "write.mjs": `try { (await import("node:fs")).writeFileSync("../../quarantine/state.json", "{}"); } catch {}`,
+                "sibling.mjs": `try { (await import("node:fs")).writeFileSync("../other-1/x", "x"); } catch {}`,
+            };
+            for (const [f, body] of Object.entries(files)) writeFileSync(join(dir, "tools", f), body);
+            writeFileSync(
+                join(dir, "tools/tool-tests.txt"),
+                Object.keys(files)
+                    .map((f) => `tools/${f}`)
+                    .join("\n"),
+            );
+            git("add", ".");
+            git("commit", "-qm", "tools");
+            // the shared state, there before the run: tmp/live/ holds the copy and another tool's copy
+            mkdirSync(join(dir, "tmp/quarantine"), { recursive: true });
+            mkdirSync(join(dir, "tmp/live/other-1"), { recursive: true });
+            const copy = join(dir, "tmp/live/gate-1");
+            git("worktree", "add", "-q", "--detach", copy);
+            const r = spawnSync(process.execPath, [join(copy, "tools/run-ci-workflow-tests.mjs")], {
+                cwd: copy,
+                encoding: "utf8",
+            });
+            assert.match(r.stdout, /1 of 3 test files passed/, r.stdout);
+            assert.match(r.stdout, /refused a write to \.\.\/\.\.\/quarantine\/state\.json/);
+            assert.match(r.stdout, /refused a write to \.\.\/other-1\/x/);
+            assert.equal(readFileSync(join(copy, "tools/results.json"), "utf8"), "{}");
+            assert.deepEqual(readdirSync(join(dir, "tmp/quarantine")), [], "nothing written to the shared state");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
 });
 
 describe("release.yml's job conditions under a skipped ancestor", () => {

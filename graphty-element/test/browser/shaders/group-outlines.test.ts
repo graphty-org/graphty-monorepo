@@ -167,7 +167,9 @@ async function hullPerCommunity(element: Graphty, format: string, data: string):
         layers.push(layer.id);
     }
 
-    await element.graph.waitForSettled();
+    // The camera must have finished framing: measured while it still moves, an edge member's
+    // center lies off the canvas and so outside the field (issue #5402).
+    await element.graph.waitForStableFrame();
     await until(element, "every community's outline draws", () => passOf(element)?.drawn().length === layers.length);
     return layers;
 }
@@ -209,7 +211,7 @@ describe("group outlines enclose the whole group", () => {
             target: "node",
             selector: { match: "everything" },
         });
-        await element.graph.waitForSettled();
+        await element.graph.waitForStableFrame();
         await until(element, "the outline draws", () => passOf(element)?.drawn().length === 1);
         const measured = await enclosure(passOf(element) as GroupOutlinePass, layer.id, defaultThreshold());
         assert.deepEqual(measured, { outside: 0, regions: 1, apart: 0 });
@@ -229,7 +231,7 @@ describe("group outlines enclose the whole group", () => {
             target: "node",
             selector: { match: "everything" },
         });
-        await element.graph.waitForSettled();
+        await element.graph.waitForStableFrame();
         await until(element, "the outline draws", () => passOf(element)?.drawn().length === 1);
         const pass = passOf(element) as GroupOutlinePass;
         const built = pass.treesBuilt;
@@ -271,7 +273,7 @@ describe("group outlines enclose the whole group", () => {
             );
         }
 
-        await element.graph.waitForSettled();
+        await element.graph.waitForStableFrame();
         await until(element, "every outline draws", () => passOf(element)?.drawn().length === 12);
         const drawn = passOf(element)?.drawn() ?? [];
         assert.deepEqual(

@@ -142,6 +142,9 @@ interface PendingPositions {
 /** Every registered builder column's value in one row, by column name; unset cells are absent. */
 type RowValues = ReadonlyMap<string, unknown>;
 
+/** The renumbering a rebuild carries into the next freeze (see `GraphStore.materialize`), or null. */
+type Carried = { readonly node: U32; readonly edge: U32; readonly hashed?: number } | null;
+
 /**
  * An edge's stable-identity cells in a snapshot.
  * @param snapshot - The snapshot.
@@ -952,36 +955,7 @@ export class GraphStore {
         this.applyPositions();
         this.publish();
         this.audit();
-        let carried = this.materialize();
-        const unlatch = this.pairsOrdered !== null && this.current.edgeCount === 0;
-        // The direction setting changed since the builder was made (`config.set`, or its undo). A
-        // locked builder takes a new direction only by a rebuild, which keeps every row, every
-        // edge in its declared orientation and every parallel edge, so going back is lossless.
-        const following = this.directionOutOfStep() ? this.followSetting() : null;
-        if (unlatch || following !== null) {
-            // A graph holding no edges has not latched: the latch describes how its edges were
-            // hashed. So removing the last edge, forward or by undo, takes it off again, and the
-            // next edge completed latches afresh. graph-format has no removal of a graph value,
-            // so the builder is rebuilt without it. A graph that keeps its edges keeps its latch,
-            // whatever its direction becomes, so their hashes still say how they were made.
-            if (unlatch) {
-                this.pairsOrdered = null;
-            }
-
-            this.revision++;
-            // A builder rebuilt to another direction or latch is no longer the kept graph as kept.
-            this.restoring = null;
-            const again = this.rebuild(null, [], following ?? undefined);
-            carried =
-                carried === null
-                    ? again
-                    : { node: compose(carried.node, again.node), edge: compose(carried.edge, again.edge) };
-        } else if (this.pairsOrdered === null && this.current.edgeCount > 0 && this.loadDepth === 0) {
-            // Edges put back by an undo carry the hashes they were made with, and no pass latches
-            // for them: latch now, from the direction the undo put back with them.
-            this.latchPairsOrdered();
-        }
-
+        const carried = this.followDirectionAndLatch(this.materialize());
         this.account();
         if (carried === null && this.cache !== null && this.cachedRevision === this.revision) {
             return this.cache;
@@ -1048,6 +1022,46 @@ export class GraphStore {
         this.applyPositions();
         this.publish();
         return snapshot;
+    }
+
+    /**
+     * The rebuild {@link GraphStore.getSnapshot} owes before a freeze when the direction setting
+     * moved or the last edge went (so the latch comes off), or the latch an undo's edges owe.
+     * @param carried - The renumbering {@link GraphStore.materialize} carried, or null
+     * @returns The renumbering to carry into the freeze, composed with any rebuild's
+     */
+    private followDirectionAndLatch(carried: Carried): Carried {
+        const unlatch = this.pairsOrdered !== null && this.current.edgeCount === 0;
+        // The direction setting changed since the builder was made (`config.set`, or its undo). A
+        // locked builder takes a new direction only by a rebuild, which keeps every row, every
+        // edge in its declared orientation and every parallel edge, so going back is lossless.
+        const following = this.directionOutOfStep() ? this.followSetting() : null;
+        if (unlatch || following !== null) {
+            // A graph holding no edges has not latched: the latch describes how its edges were
+            // hashed. So removing the last edge, forward or by undo, takes it off again, and the
+            // next edge completed latches afresh. graph-format has no removal of a graph value,
+            // so the builder is rebuilt without it. A graph that keeps its edges keeps its latch,
+            // whatever its direction becomes, so their hashes still say how they were made.
+            if (unlatch) {
+                this.pairsOrdered = null;
+            }
+
+            this.revision++;
+            // A builder rebuilt to another direction or latch is no longer the kept graph as kept.
+            this.restoring = null;
+            const again = this.rebuild(null, [], following ?? undefined);
+            return carried === null
+                ? again
+                : { node: compose(carried.node, again.node), edge: compose(carried.edge, again.edge) };
+        }
+
+        if (this.pairsOrdered === null && this.current.edgeCount > 0 && this.loadDepth === 0) {
+            // Edges put back by an undo carry the hashes they were made with, and no pass latches
+            // for them: latch now, from the direction the undo put back with them.
+            this.latchPairsOrdered();
+        }
+
+        return carried;
     }
 
     /**
@@ -1476,19 +1490,7 @@ export class GraphStore {
 
         const { nodes, edges } = change.rows;
         if (change.kind === "drop") {
-            for (const edge of edges) {
-                const row = this.edgeIndexOf(edge.edgeId);
-                if (row !== INVALID_INDEX) {
-                    builder.removeEdge(row);
-                }
-            }
-
-            for (const node of nodes) {
-                if (builder.hasNode(node.id)) {
-                    builder.removeNode(node.id);
-                }
-            }
-
+            this.dropDirect(builder, nodes, edges);
             return true;
         }
 
@@ -1510,6 +1512,28 @@ export class GraphStore {
         }
 
         return true;
+    }
+
+    /**
+     * Remove a drop's rows straight from the builder: its edges first, then its nodes, each only
+     * while it is still there.
+     * @param builder - The current builder.
+     * @param nodes - The node rows the drop takes out.
+     * @param edges - The edge rows the drop takes out.
+     */
+    private dropDirect(builder: GraphBuilder, nodes: readonly RemovedNode[], edges: readonly RemovedEdge[]): void {
+        for (const edge of edges) {
+            const row = this.edgeIndexOf(edge.edgeId);
+            if (row !== INVALID_INDEX) {
+                builder.removeEdge(row);
+            }
+        }
+
+        for (const node of nodes) {
+            if (builder.hasNode(node.id)) {
+                builder.removeNode(node.id);
+            }
+        }
     }
 
     /**

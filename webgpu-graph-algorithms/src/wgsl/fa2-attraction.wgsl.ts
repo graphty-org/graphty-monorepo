@@ -24,6 +24,11 @@
  *
  * The dense loop counts DOWN (`left` from the row's arc count to 1, `arc = hi - left`) so that Dawn 0.6.x does not
  * add its infinite-loop guard to it; the reason and the measurement are in `spmv-pull.wgsl.ts`.
+ *
+ * An inert neighbour (mass 0 in `pos.w`, `setInert`, issue #3075) pulls nothing: its term is masked to 0 by a
+ * `select` on the neighbour's mass, never skipped by a `continue`. A `continue` that waits on the `pos[j]` load sits in
+ * the loop's control flow and cost 1.55x the whole pass at 1M-4M nodes on the T4 (issue #5539); the select keeps the
+ * loop's only branch on `colIdx`, so the next arcs' loads stay in flight.
  */
 
 /** The K2 body: entry point `attraction`; the tier bodies are functions called under the uniform `TIER` override, so the barriers of `tiered` are reached in uniform control flow and `tier0`'s early return is legal (spec 3.5 rule 1). */
@@ -41,15 +46,16 @@ fn row_force(i: u32, lane: u32, step: u32) -> vec3f {           // the arcs of r
     var f = vec3f(0.0);
     for (var a = a0 + lane; a < a1; a = a + step) {
         let j = colIdx[a - P.arcBase];
-        if (j == i || pos[j].w <= 0.0) { continue; }           // a self-loop exerts no force, nor an inert neighbour (mass 0)
+        if (j == i) { continue; }                              // a self-loop exerts no force
+        let pj = pos[j];
         var w = 1.0;
         if (HAS_WEIGHTS) { w = weights[a - P.arcBase]; }
-        let d = pos[j].xyz - pi.xyz;                           // toward j
+        let d = pj.xyz - pi.xyz;                               // toward j
         let len = max(length(d), FA2_DIST_FLOOR);
         if (LAW == 1u) { w = length(d) / P.frK; }              // LAW 1 (FR, 7.20): |F| = d^2 / k along d / d, unfloored; the linear select below applies w as is
         if (LAW == 2u) { w = P.springCoefficient * (len - P.springLength) / len; }   // LAW 2 (spring, ngraph generateCreateSpringForce.js:33-36): Hooke k_s (d - L) toward j
         let mag = select(w, w * log(1.0 + len) / len, LINLOG); // linear: |F| = w len; linlog: |F| = w log(1 + len)
-        f = f + d * mag;
+        f = f + d * select(0.0, mag, pj.w > 0.0);              // an inert neighbour (mass 0) pulls nothing: masked, not branched (see the header)
     }
     return f;
 }
@@ -62,15 +68,16 @@ fn row_force_dense(i: u32) -> vec3f {                          // TIER 0's strid
         let arc = hi - left;                                   // lo, lo + 1, ..., hi - 1
         let k = arc - P.arcBase;                               // the window-local index; this walk is contiguous
         let nbr = colIdx[k];
-        if (nbr == i || pos[nbr].w <= 0.0) { continue; }       // a self-loop exerts no force, nor an inert neighbour (mass 0)
+        if (nbr == i) { continue; }                            // a self-loop exerts no force
+        let pn = pos[nbr];
         var weight = 1.0;
         if (HAS_WEIGHTS) { weight = weights[k]; }
-        let d = pos[nbr].xyz - pi.xyz;                         // toward the neighbour
+        let d = pn.xyz - pi.xyz;                               // toward the neighbour
         let len = max(length(d), FA2_DIST_FLOOR);
         if (LAW == 1u) { weight = length(d) / P.frK; }         // LAW 1 (FR, 7.20), as in row_force
         if (LAW == 2u) { weight = P.springCoefficient * (len - P.springLength) / len; }   // LAW 2 (spring), as in row_force
         let mag = select(weight, weight * log(1.0 + len) / len, LINLOG);
-        total = total + d * mag;
+        total = total + d * select(0.0, mag, pn.w > 0.0);      // an inert neighbour (mass 0) pulls nothing, as in row_force
     }
     return total;
 }

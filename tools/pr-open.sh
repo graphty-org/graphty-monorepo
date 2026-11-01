@@ -82,14 +82,17 @@ case "$branch" in master | golden | golden-cut | golden-verified) die "refusing 
 
 # GitHub's copy of the branch first: the owner's Finish commits screenshot approvals to it, and a push that
 # lacks them is rejected. Merged without hooks, like origin/master below.
-if git fetch -q origin "+refs/heads/$branch:refs/remotes/origin/$branch" 2>/dev/null &&
+# Fetches update refs/remotes/origin/*, which a concurrent tools/worktree-new.sh fetch also writes: under
+# its lock (issues #5213, #5466).
+lock="$(git rev-parse --path-format=absolute --git-common-dir)/config.flock"
+if flock "$lock" git fetch -q origin "+refs/heads/$branch:refs/remotes/origin/$branch" 2>/dev/null &&
     ! git merge-base --is-ancestor "origin/$branch" HEAD; then
     if ! git -c core.hooksPath=/dev/null merge -q --no-edit "origin/$branch"; then
         git merge --abort >/dev/null 2>&1 || true
         code=2 die "origin/$branch (commits pushed to GitHub's copy) does not merge cleanly; merge it by hand, resolve, commit, run again"
     fi
 fi
-git fetch -q origin master
+flock "$lock" git fetch -q origin master
 clash="origin/master does not merge cleanly into $branch; merge it by hand (git merge origin/master), resolve, commit, run again"
 if [ "$merge_master" = 0 ]; then
     # Exit 1 is a conflict; anything else (an old git) is not ours to judge, and CI will say.
@@ -126,8 +129,7 @@ printf 'refs/heads/%s %s refs/heads/%s %s\n' "$branch" "$(git rev-parse HEAD)" "
     "$here/lfs-pre-push.sh" origin "$(git remote get-url origin)" || die "the Git LFS upload failed"
 git -c core.hooksPath=/dev/null push -q origin "HEAD:refs/heads/$branch" || die "the push of $branch failed"
 # Setting the upstream writes .git/config: under tools/worktree-new.sh's lock (issue #5213).
-flock "$(git rev-parse --path-format=absolute --git-common-dir)/config.flock" \
-    git branch -q --set-upstream-to="origin/$branch" || die "could not set $branch's upstream"
+flock "$lock" git branch -q --set-upstream-to="origin/$branch" || die "could not set $branch's upstream"
 
 [ -n "$title" ] || title=$(git log --reverse --no-merges --format=%s "$base..HEAD" | sed -n 1p)
 lint="${PR_OPEN_TITLE_LINT:-$here/../node_modules/.bin/commitlint --cwd $here/..}"

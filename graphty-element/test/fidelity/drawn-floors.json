@@ -133,7 +133,6 @@
             "lineStyle": 0.9302325581395349,
             "arrows": 0.9069767441860465,
             "edgeLabel": 0.9767441860465116,
-            "groups": 0,
             "annotations": 0.2727272727272727,
             "background": 1
         },
@@ -267,7 +266,7 @@
             "arrows": 1,
             "edgePath": 0.8387096774193549,
             "edgeLabel": 1,
-            "groups": 0.42857142857142855
+            "groups": 0.6
         },
         "gml-dunnart-planar-orthogonal": {
             "position": 1,
@@ -356,8 +355,7 @@
             "lineStyle": 1,
             "arrows": 1,
             "edgePath": 1,
-            "edgeLabel": 1,
-            "groups": 0
+            "edgeLabel": 1
         },
         "pajek-football": {
             "position": 1,
@@ -427,8 +425,8 @@
             "borderColor": 1,
             "borderWidth": 1,
             "borderStyle": 1,
-            "labelText": 0.8518518518518519,
-            "labelColor": 0.8873239436619719,
+            "labelText": 0.9753086419753086,
+            "labelColor": 0.9178082191780822,
             "fontSize": 0.8873239436619719,
             "visible": 0.9382716049382716,
             "edgeColor": 1,
@@ -439,8 +437,7 @@
             "edgePath": 1,
             "edgeLabel": 1,
             "fill": 0.9382716049382716,
-            "zOrder": 1,
-            "groups": 0
+            "zOrder": 1
         },
         "pajek-synth-lines": {
             "position": 1,
@@ -495,10 +492,10 @@
             "borderColor": 1,
             "borderWidth": 1,
             "borderStyle": 1,
-            "labelText": 0.41509433962264153,
-            "labelColor": 0,
+            "labelText": 1,
+            "labelColor": 1,
             "fontSize": 1,
-            "labelPosition": 0,
+            "labelPosition": 1,
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,
@@ -604,10 +601,10 @@
             "borderColor": 1,
             "borderWidth": 1,
             "borderStyle": 1,
-            "labelText": 0.3944954128440367,
-            "labelColor": 0.3944954128440367,
+            "labelText": 1,
+            "labelColor": 1,
             "fontSize": 1,
-            "labelPosition": 0.3394495412844037,
+            "labelPosition": 0.944954128440367,
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,
@@ -661,8 +658,7 @@
             "background": 1,
             "labelColor": 1,
             "fontSize": 1,
-            "labelPosition": 1,
-            "groups": 0
+            "labelPosition": 1
         },
         "dot-profile": {
             "position": 0,
@@ -696,9 +692,9 @@
             "borderWidth": 0.9905660377358491,
             "borderStyle": 1,
             "labelText": 0.9245283018867925,
-            "labelColor": 0.9607843137254902,
+            "labelColor": 1,
             "fontSize": 0.9705882352941176,
-            "labelPosition": 0.8823529411764706,
+            "labelPosition": 0.9223300970873787,
             "visible": 0.9905660377358491,
             "edgeColor": 1,
             "edgeOpacity": 1,
@@ -741,10 +737,10 @@
             "borderColor": 1,
             "borderWidth": 1,
             "borderStyle": 1,
-            "labelText": 0,
-            "labelColor": 0,
+            "labelText": 1,
+            "labelColor": 1,
             "fontSize": 1,
-            "labelPosition": 0,
+            "labelPosition": 1,
             "visible": 1,
             "edgeColor": 1,
             "edgeOpacity": 1,
@@ -889,8 +885,7 @@
             "lineStyle": 1,
             "arrows": 0.95,
             "edgePath": 1,
-            "edgeLabel": 0.9722222222222222,
-            "groups": 0
+            "edgeLabel": 0.9722222222222222
         }
     },
     "allowedDrops": {
@@ -1149,16 +1144,16 @@
             "date": "2026-10-20"
         },
         "dot-real-softmaint/groups": {
-            "from": null,
-            "to": 0,
-            "reason": "newly judged: with the Graphviz layout the node positions match the reference, so the reader compares group boxes, and node 375499's ellipse wholly covers a point node beside it (neato lets nodes overlap by default), which the reader counts as a group box the reference does not have",
-            "date": "2026-10-20"
+            "from": 0,
+            "to": null,
+            "reason": "no longer judged: the scorer reads a group only off a drawn node the file nests others in (#3108), as the reference does; neither the reference nor the drawing has a group box; first judged 2026-10-20 as newly judged: with the Graphviz layout the node positions match the reference, so the reader compares group boxes, and node 375499's ellipse wholly covers a point node beside it (neato lets nodes overlap by default), which the reader counts as a group box the reference does not have",
+            "date": "2026-11-01"
         },
         "pajek-synth-vertices/groups": {
-            "from": null,
-            "to": 0,
-            "reason": "newly judged: the woman figures, drawn at the size Pajek 6.02 draws them (40f98dac7), wholly cover other vertices, and the reader counts each as a group box the reference does not have",
-            "date": "2026-10-20"
+            "from": 0,
+            "to": null,
+            "reason": "no longer judged: the scorer reads a group only off a drawn node the file nests others in (#3108), as the reference does; neither the reference nor the drawing has a group box; first judged 2026-10-20 as newly judged: the woman figures, drawn at the size Pajek 6.02 draws them (40f98dac7), wholly cover other vertices, and the reader counts each as a group box the reference does not have",
+            "date": "2026-11-01"
         },
         "dot-synth-nodes/annotations": {
             "from": null,
@@ -1171,6 +1166,24 @@
             "to": 0,
             "reason": "newly judged: the image node's picture (12) is read as an extra image the reference does not list",
             "date": "2026-10-20"
+        },
+        "xgmml-syn-bypass/groups": {
+            "from": 0,
+            "to": null,
+            "reason": "no longer judged: the scorer reads a group only off a drawn node the file nests others in (#3108), as the reference does; neither the reference nor the drawing has a group box",
+            "date": "2026-11-01"
+        },
+        "json-cyjs-sbgn-sciluna/groups": {
+            "from": 0,
+            "to": null,
+            "reason": "no longer judged: the scorer reads a group only off a drawn node the file nests others in (#3108), as the reference does; neither the reference nor the drawing has a group box",
+            "date": "2026-11-01"
+        },
+        "json-graphology-synth/groups": {
+            "from": 0,
+            "to": null,
+            "reason": "no longer judged: the scorer reads a group only off a drawn node the file nests others in (#3108), as the reference does; neither the reference nor the drawing has a group box",
+            "date": "2026-11-01"
         }
     }
 }

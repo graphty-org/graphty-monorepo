@@ -199,25 +199,28 @@ const rule = {
         // report goes where that directive does not reach, or the directive would hide it: on the
         // comment for -next-line, on a neighbouring line for -line, just before the comment for a
         // block disable.
-        // ponytail: a -line directive in a one-line file, or a block disable that is the file's
+        // Known gap: a -line directive in a one-line file, or a block disable that is the file's
         // first character, still hides its report; no test file is either.
+        const DISABLES = new Set(["eslint-disable", "eslint-disable-line", "eslint-disable-next-line"]);
         const checkDisables = () => {
             for (const comment of sourceCode.getAllComments()) {
-                const m = /^\s*eslint-disable(-next-line|-line)?(?:\s+(.*))?$/s.exec(comment.value.split(/\s--\s/)[0]);
-                const names = (m?.[2] ?? "")
+                const [kind, ...rest] = comment.value.split(" -- ")[0].trim().split(/\s+/);
+                const names = rest
+                    .join(" ")
                     .split(",")
                     .map((n) => n.trim())
                     .filter(Boolean);
-                if (!m || (names.length > 0 && !names.some((n) => /(^|\/)no-test-timing$/.test(n)))) {
+                const namesThis = names.some((n) => n === "no-test-timing" || n.endsWith("/no-test-timing"));
+                if (!DISABLES.has(kind) || (names.length > 0 && !namesThis)) {
                     continue;
                 }
                 const { start } = comment.loc;
                 const lines = sourceCode.lines.length;
                 let loc = comment.loc;
-                if (m[1] === "-line" && lines > 1) {
+                if (kind === "eslint-disable-line" && lines > 1) {
                     const line = start.line < lines ? start.line + 1 : start.line - 1;
                     loc = { line, column: 0 };
-                } else if (m[1] === undefined && comment.range[0] > 0) {
+                } else if (kind === "eslint-disable" && comment.range[0] > 0) {
                     loc = sourceCode.getLocFromIndex(comment.range[0] - 1);
                 }
                 context.report({ loc, messageId: "disabled" });

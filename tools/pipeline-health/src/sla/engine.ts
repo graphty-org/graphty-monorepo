@@ -372,8 +372,8 @@ function engineValue(ctx: Ctx, name: Extract<Measure, { type: "engine" }>["name"
         case "sources_thin":
             return sourcesThin(ctx);
         case "collector_age": {
-            // A cycle counts once its pages are written too: one that reads GitHub and then fails froze the dashboard
-            // (2026-11-01, 00:03 to 02:48 UTC) while this age stayed fresh.
+            // A cycle counts once its pages are written too: one that reads GitHub and then fails to write them
+            // leaves the dashboard frozen while this age stays fresh.
             const meta = ctx.metas.get("collector");
             const views = ctx.metas.get("views");
             const ok =

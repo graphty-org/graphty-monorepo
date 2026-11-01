@@ -206,9 +206,9 @@ async function holds(element: GraphtyElement, n: number): Promise<void> {
 }
 
 /**
- * Filter cards, each added by clicks: a Filter to card on group, a Select card on the largest
- * component, a Neighbors card on the selected node, and a card a rule no card edits holds (an
- * old filter step), read-only (design/data/filter-cards.md section 5).
+ * Filter cards, each added by clicks: a card on group, a card on the largest component, a
+ * Neighbors card on the selected node, and an old filter step, each read as what stays (All, then
+ * Keep or Except; design/ui/selection-groups/spec.md section 3.3).
  */
 export const FilterCards: Story = {
     args: { initialState: OPEN },
@@ -217,20 +217,16 @@ export const FilterCards: Story = {
         const { session } = element;
         const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
 
-        // Filter to: group 2 or more, typed in its From box and committed; a new card starts on
-        // Select, so its toggle is switched to Filter to.
+        // Group 2 or more, typed in its From box and committed.
         await addFilter(canvasElement, "group");
         const from = await place.findByRole("textbox", { name: "group from, number" });
         await userEvent.clear(from);
         await userEvent.type(from, "2{Enter}");
         await holds(element, 1);
-        const group = await place.findByRole("group", { name: /^group is/ });
-        await userEvent.click(within(group).getByRole("radio", { name: /^Filter to:/ }));
 
-        // Select: the largest component, as a new card starts.
+        // The largest component.
         await addFilter(canvasElement, "Largest component");
         await holds(element, 2);
-        await place.findByRole("group", { name: /^in the largest component, Select/ });
 
         // Neighbors of the selected node.
         const marius = session.data.nodes().find((node) => String(node.id) === "4")?.id;
@@ -240,12 +236,12 @@ export const FilterCards: Story = {
         await addFilter(canvasElement, "Neighbors of selection");
         await holds(element, 3);
 
-        // An old filter step, as a saved project opens it: kept, read-only.
+        // An old filter step, as a saved project opens it: All, then Except.
         await session.visibility.addCondition({
             effect: "keep",
             rule: { kind: "not", of: { kind: "text", reads: "data.label", mode: "substring", text: "Cos" } },
         });
-        await place.findByRole("group", { name: /^not: label contains Cos/ });
+        await place.findByRole("group", { name: /label contains Cos/ });
         await element.waitForStableFrame();
     },
 };

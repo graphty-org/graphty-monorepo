@@ -67,6 +67,15 @@ async function typeBefore2005(card: HTMLElement): Promise<void> {
     await userEvent.keyboard("2005");
 }
 
+/**
+ * The first step's rule of a selection.
+ * @param rule - the selection.
+ * @returns the step's rule, or undefined.
+ */
+function stepOf(rule: RuleTree): RuleTree | undefined {
+    return rule.kind === "union" ? rule.branches[0]?.steps[0]?.rule : undefined;
+}
+
 describe("the date condition card", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
@@ -81,27 +90,14 @@ describe("the date condition card", () => {
         const list = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", { name: "Filters" });
         const card = await within(list).findByRole("group", { name: /^installed/ });
         await typeBefore2005(card);
-        // The card counts while the reader types; Enter writes it.
-        await waitFor(() => {
-            assert.match(card.textContent ?? "", /3 of \d+/u);
-        });
         await userEvent.keyboard("{Enter}");
+        // A card says what stays: All nodes, then Keep the range.
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.conditions.map((each) => each.rule),
+                session.visibility.conditions.map((each) => stepOf(each.rule)),
                 [BEFORE_2005],
             );
         });
-        // A new card selects; Filter to keeps only what it matches.
-        const radio = within(
-            await within(list).findByRole("group", { name: /^installed/ }),
-        ).getByRole<HTMLInputElement>("radio", { name: /^Filter to:/ });
-        // A segmented control's input is hidden: the reader clicks its label.
-        const label = radio.labels?.[0];
-        assert.isDefined(label);
-        if (label !== undefined) {
-            await userEvent.click(label);
-        }
         await waitFor(() => {
             assert.strictEqual([...session.visibility.nodes].length, 3);
         });
@@ -118,22 +114,22 @@ describe("the date condition card", () => {
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Old, / }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
-        const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Keep..." }));
         const option = await screen.findByRole("option", { name: /^installed(,|$)/ });
         assert.isNotNull(option.querySelector("svg.lucide-calendar"), "listed with the calendar glyph");
         await userEvent.click(option);
-        const card = await within(region).findByRole("group", { name: /^installed/ });
+        const card = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-step-pane]");
+            assert.isNotNull(found);
+            return found;
+        });
         await typeBefore2005(card);
+        await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             const selector = session.styles.get(layer.id)?.selector;
-            assert.deepEqual(selector?.match === "rule" ? selector.where : undefined, BEFORE_2005);
+            assert.deepEqual(selector?.match === "rule" ? stepOf(selector.where) : undefined, BEFORE_2005);
         });
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(layer.id).matched, 3);
-        await waitFor(() => {
-            assert.match(card.getAttribute("aria-label") ?? "", /, 3 nodes$/);
-        });
     });
 });

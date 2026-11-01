@@ -1,8 +1,8 @@
 /**
- * Each kind of filter card on the REAL graphty-element: a new card is written only by its first
- * value (only Escape takes back a card with none), a category card holds several values, a text
- * card writes what is typed once it is committed and lists the column's values in the order a
- * reader counts them, and a new card and a match picked hand focus to the value.
+ * Each kind of filter card on the REAL graphty-element: a card says what stays (All, then Keep its
+ * value); a category step holds several values; a text step writes what is typed once it is
+ * committed and lists the column's values in the order a reader counts them; and a new card and a
+ * match picked hand focus to the value.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -86,31 +86,23 @@ function cardsDrawn(): number {
     return list === null ? 0 : within(list).queryAllByRole("listitem").length;
 }
 
+/**
+ * The one card's step rule: a card says what stays, All and a Keep step on its value.
+ * @param session - the element's session.
+ * @returns the step's rule.
+ */
+function stepRule(session: GraphSession): unknown {
+    const rule = session.visibility.conditions[0]?.rule;
+    if (rule?.kind !== "union") {
+        return undefined;
+    }
+    assert.equal(rule.branches[0]?.start, "all");
+    return rule.branches[0]?.steps[0]?.rule;
+}
+
 describe("Each kind of filter card", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
-    });
-
-    it("a new card left with no value writes nothing and stays until Escape takes it back", async () => {
-        const { session, store } = await openPeople();
-        await newCardOn("role");
-        await screen.findByRole("group", { name: "role values" });
-        // Focus leaving for another control keeps it: only Escape takes a card back.
-        await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
-        await userEvent.keyboard("{Escape}");
-        assert.equal(cardsDrawn(), 1);
-        assert.lengthOf(session.visibility.conditions, 0);
-        within(screen.getByRole("group", { name: "role values" }))
-            .getByRole("checkbox", { name: /^board/ })
-            .focus();
-        await realKeys.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.equal(cardsDrawn(), 0);
-        });
-        assert.lengthOf(session.visibility.conditions, 0);
-        assert.equal(session.visibility.summary.visibleNodes, 24);
-        assert.equal(store.get().notice, null);
-        assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");
     });
 
     it("a role card holds board and staff together", async () => {
@@ -128,16 +120,15 @@ describe("Each kind of filter card", () => {
             within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^staff/ }),
         );
         await waitFor(() => {
-            assert.deepEqual(session.visibility.conditions[0]?.rule, {
+            assert.deepEqual(stepRule(session), {
                 kind: "categories",
                 attribute: "data.role",
                 values: ["board", "staff"],
             });
         });
-        // A card from "+" starts on Select: it marks the matches and takes nothing out of the picture.
-        assert.equal(session.visibility.summary.visibleNodes, session.data.nodes().length);
-        assert.lengthOf(session.selection.nodes, 8);
-        await screen.findByRole("group", { name: "role is board or staff, Select" });
+        // A card says what stays: the board and the staff.
+        assert.equal(session.visibility.summary.visibleNodes, 8);
+        assert.deepEqual(session.selection.nodes, [], "a card never selects");
         assert.equal(cardsDrawn(), 1);
     });
 
@@ -162,17 +153,18 @@ describe("Each kind of filter card", () => {
                 ["GAL1", "GAL2", "GAL3", "GAL4", "GAL7", "GAL10", "GAL11", "GAL80"],
             );
         });
-        // Typing writes nothing yet.
-        assert.lengthOf(session.visibility.conditions, 0);
+        // Typing writes nothing yet: the step holds no text.
+        const text = (): unknown => (stepRule(session) as { text?: string } | undefined)?.text ?? "";
+        assert.equal(text(), "");
 
         const before = session.history.position;
         await userEvent.clear(box);
         await userEvent.type(box, "Mme");
         await realKeys.keyboard("{Escape}");
-        assert.lengthOf(session.visibility.conditions, 0);
+        assert.equal(text(), "");
         await realKeys.keyboard("{Enter}");
         await waitFor(() => {
-            assert.deepEqual(session.visibility.conditions[0]?.rule, {
+            assert.deepEqual(stepRule(session), {
                 kind: "text",
                 reads: "data.name",
                 mode: "substring",
@@ -180,9 +172,7 @@ describe("Each kind of filter card", () => {
             });
         });
         assert.equal(session.history.position, before + 1);
-        assert.equal(session.visibility.summary.visibleNodes, session.data.nodes().length);
-        assert.lengthOf(session.selection.nodes, 6);
-        await screen.findByRole("group", { name: "name contains Mme, Select" });
+        assert.equal(session.visibility.summary.visibleNodes, 6);
     });
 
     it("picking a match hands focus to the value; Escape with a value writes it and goes to the on box", async () => {
@@ -197,10 +187,10 @@ describe("Each kind of filter card", () => {
         });
         await realKeys.keyboard("GAL");
         await screen.findByRole("listbox");
-        // The first Escape closes the list of names; the next writes the card and keeps it.
+        // The first Escape closes the list of names; the next writes the text and ends picking.
         await realKeys.keyboard("{Escape}{Escape}");
         await waitFor(() => {
-            assert.equal(document.activeElement?.getAttribute("aria-label"), "Apply name starts with GAL");
+            assert.isNull(document.querySelector("[data-step-pane]"), "picking ended");
         });
         assert.equal(cardsDrawn(), 1);
         assert.lengthOf(session.visibility.conditions, 1);

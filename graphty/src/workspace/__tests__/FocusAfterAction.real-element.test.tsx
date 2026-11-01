@@ -203,7 +203,7 @@ describe("focus after a command that moves the reader", () => {
         await onInspectorTitle();
     });
 
-    it("Enter on an unticked condition value ticks it and keeps the cards open; the next Enter is Done", async () => {
+    it("Enter on an unticked condition value ticks it and keeps focus on it", async () => {
         const session = await openScene(createWorkspaceStore({ project: { name: "Untitled", id: 1 } }));
         await session.runs.start("louvain", undefined, { style: false, seed: 1 });
         await session.styles.add({
@@ -216,24 +216,18 @@ describe("focus after a command that moves the reader", () => {
         await openRow("Groups");
         const group = cardFields(session, "node").find((field) => field.path.endsWith(".group"));
         const name = group?.name ?? "";
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
-        const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Keep..." }));
         await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
-        const card = await waitFor(() => within(region).getByRole("group", { name: new RegExp(`^${name}(,|$)`) }));
-        const [first] = within(card).getAllByRole<HTMLInputElement>("checkbox");
+        const values = await screen.findByRole("group", { name: new RegExp(`values$`) });
+        const [first] = within(values).getAllByRole<HTMLInputElement>("checkbox");
         assert.isFalse(first.checked);
         first.focus();
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.isTrue(first.checked, "Enter did not tick the value");
         });
-        assert.isNotNull(screen.queryByRole("group", { name: "Which nodes" }), "Enter closed the cards");
+        assert.isNotNull(document.querySelector("[data-step-pane]"), "the step's pane stays");
         assert.strictEqual(document.activeElement, first, focused());
-        await userEvent.keyboard("{Enter}");
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("group", { name: "Which nodes" }), "Enter on a ticked value is Done");
-        });
     });
 
     it("Escape on Back to analyses steps back to the list", async () => {

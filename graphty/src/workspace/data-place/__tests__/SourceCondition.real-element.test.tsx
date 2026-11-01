@@ -64,12 +64,18 @@ async function newCardOn(name: string): Promise<void> {
 }
 
 /**
- * Sets the one card's effect to Filter to by its toggle, as a reader does: a new card starts on
- * Select, which takes nothing out of the picture.
+ * The one card's step rule: a card says what stays, All and a Keep step on its value.
+ * @param session - the element's session.
+ * @returns the step's rule.
  */
-async function filterTo(): Promise<void> {
-    const place = within(screen.getByRole("region", { name: "Data place" }));
-    await userEvent.click(await place.findByRole("radio", { name: /^Filter to:/ }));
+function stepRule(session: GraphSession): unknown {
+    const rule = session.visibility.conditions[0]?.rule;
+    if (rule?.kind !== "union") {
+        return undefined;
+    }
+    assert.equal(rule.branches[0]?.start, "all");
+    assert.equal(rule.branches[0]?.steps[0]?.op, "keep");
+    return rule.branches[0]?.steps[0]?.rule;
 }
 
 /**
@@ -100,11 +106,10 @@ describe("picking nodes by a condition card from the Data place", () => {
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
         });
-        await filterTo();
         await waitFor(() => {
             assert.equal(session.visibility.conditions[0].effect, "keep");
         });
-        assert.deepEqual(session.visibility.conditions[0].rule, {
+        assert.deepEqual(stepRule(session), {
             kind: "range",
             attribute: "data.group",
             min: 3,
@@ -138,11 +143,10 @@ describe("picking nodes by a condition card from the Data place", () => {
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
         });
-        await filterTo();
         await waitFor(() => {
             assert.equal(session.visibility.conditions[0].effect, "keep");
         });
-        assert.deepEqual(session.visibility.conditions[0].rule, {
+        assert.deepEqual(stepRule(session), {
             kind: "source",
             sources: [people.key],
             side: "nodes",
@@ -150,7 +154,7 @@ describe("picking nodes by a condition card from the Data place", () => {
         assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
         // The card is named for the load, not its key, and counts the nodes it keeps.
         const card = await within(screen.getByRole("region", { name: "Data place" })).findByRole("group", {
-            name: /^from people\.json/,
+            name: /people\.json/,
         });
         assert.lengthOf(within(card).getAllByText(/ of /), 1);
         // Its chip shows its whole "X of Y" at the panel's width: not cut to an ellipsis, and not
@@ -168,7 +172,7 @@ describe("picking nodes by a condition card from the Data place", () => {
             assert.lengthOf(session.data.sources(), 1);
         });
         await within(screen.getByRole("region", { name: "Data place" })).findByRole("group", {
-            name: /^from a removed source/,
+            name: /a removed source/,
         });
     });
 
@@ -193,7 +197,6 @@ describe("picking nodes by a condition card from the Data place", () => {
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
         });
-        await filterTo();
         await waitFor(() => {
             assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
         });

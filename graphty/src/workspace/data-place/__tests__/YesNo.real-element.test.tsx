@@ -79,14 +79,14 @@ describe("A yes-or-no column", () => {
             within(listbox)
                 .getAllByRole("option")
                 .map((option) => option.textContent),
-            ["Yes", "No", "Has a value", "Has no value"],
+            ["Yes", "No"],
         );
         await userEvent.click(within(listbox).getByRole("option", { name: "Yes" }));
 
         await waitFor(() => {
             assert.equal(session.visibility.conditions.length, 1);
         });
-        // A new card is a selection (design/ui/selection-groups/spec.md): one step, "is Yes".
+        // A new card is a selection (design/ui/selection-groups/spec.md): All, then Keep "is Yes".
         const { rule } = session.visibility.conditions[0];
         assert.equal(rule.kind, "union");
         assert.deepEqual(rule.kind === "union" ? rule.branches[0]?.steps[0]?.rule : undefined, {
@@ -98,7 +98,7 @@ describe("A yes-or-no column", () => {
         });
         assert.equal(session.visibility.summary.visibleNodes, 3);
         // Named as its row says it.
-        await screen.findByRole("group", { name: /^trained yes, Filter to/ });
+        await screen.findByRole("group", { name: /trained yes/ });
     });
 
     it("reads Yes and No in a node's values, the selection's summary and Find's value rows", async () => {

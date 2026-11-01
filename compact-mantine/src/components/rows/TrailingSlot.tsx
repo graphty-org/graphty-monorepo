@@ -279,7 +279,7 @@ export interface ResetButtonProps extends Omit<
      * control's name: what the reset acts on ("Reset the node color palette to default").
      * @default the `resetToDefault` label of `label` ("Reset Size to default")
      */
-    name?: string;
+    fullLabel?: string;
     /** Called when the button is activated, by a click or from the keyboard, with that event. */
     onClick?: ActivationHandler;
     /**
@@ -302,7 +302,7 @@ export interface ResetButtonProps extends Omit<
  * trailing slot, never inside the field).
  * @param props - Component props
  * @param props.label - The name of the control the button resets
- * @param props.name - The whole accessible name and tooltip, when the caller can say more
+ * @param props.fullLabel - The whole accessible name and tooltip, when the caller can say more
  * @param props.onClick - Called when the button is activated
  * @param props.disabled - Whether the button cannot be used
  * @returns The reset button
@@ -317,9 +317,9 @@ export interface ResetButtonProps extends Omit<
  */
 export const ResetButton = forwardRef<HTMLButtonElement, ResetButtonProps>(
     function ResetButton(props, ref): React.JSX.Element {
-        const { label, name: given, onClick, disabled = false, style, ...rest } = props;
+        const { label, fullLabel, onClick, disabled = false, style, ...rest } = props;
         const labels = useLabels();
-        const name = given ?? labels.resetToDefault(label);
+        const name = fullLabel ?? labels.resetToDefault(label);
 
         // An icon-only button says what it does on hover, not only to a screen reader, with the
         // same tooltip as the color field's reset (a native title is no tooltip a reader can rely on).

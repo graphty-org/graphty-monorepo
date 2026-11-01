@@ -50,7 +50,7 @@ describe("an icon-only reset button", () => {
 
     it("says the caller's whole name, in its tooltip too, when one is given", async () => {
         await renderThemed(
-            <FieldRow trailing={<ResetButton label="Palette" name="Reset the node color palette to default" />}>
+            <FieldRow trailing={<ResetButton label="Palette" fullLabel="Reset the node color palette to default" />}>
                 <PanelField label="Palette" kind="number" value={3} />
             </FieldRow>,
         );

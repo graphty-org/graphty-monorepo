@@ -623,7 +623,7 @@ function PaletteSelect({
                     value !== undefined && (
                         <ResetButton
                             label="Palette"
-                            name={`Reset the ${channelPhrase(channel)} palette to default`}
+                            fullLabel={`Reset the ${channelPhrase(channel)} palette to default`}
                             onClick={() => {
                                 patch({ palette: undefined });
                             }}

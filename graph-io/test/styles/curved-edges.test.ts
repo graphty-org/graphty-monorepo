@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../src/registry.js";
+import { toolDefaults } from "../../src/styles/defaults.js";
 import { resolveStyles, type StyleProperty } from "../../src/styles/internal.js";
 
 const registry = createRegistry();
@@ -72,6 +73,22 @@ describe("curved edges: yEd GraphML", () => {
             ${yedEdge("ArcEdge", `<y:Arc height="20" ratio="1" type="fixedRatio"/>`)}
             </graph></graphml>`;
         expect(await curved(doc, "graphml")).toEqual([false, true, false, true, true]);
+    });
+
+    it("never fans parallel edges: two arc edges between the same nodes each keep their own arc", async () => {
+        const arc = yedEdge("ArcEdge", `<y:Arc height="20" ratio="1" type="fixedRatio"/>`);
+        const doc = `${YED_HEAD}${arc}${arc}</graph></graphml>`;
+        expect(await edgeValues(doc, "graphml", "fanned")).toEqual([false, false]);
+    });
+});
+
+describe("fanned edges: each tool's own drawing", () => {
+    it("fans Cytoscape desktop's and Cytoscape.js's parallel edges, and neither yEd's nor Gephi's", () => {
+        expect(toolDefaults("cytoscape")?.edge.fanned?.value).toBe(true);
+        expect(toolDefaults("cytoscape-js")?.edge.fanned?.value).toBe(true);
+        expect(toolDefaults("yed")?.edge.fanned?.value).toBe(false);
+        expect(toolDefaults("yfiles3")?.edge.fanned?.value).toBe(false);
+        expect(toolDefaults("gephi")?.edge.fanned?.value).toBe(false);
     });
 });
 

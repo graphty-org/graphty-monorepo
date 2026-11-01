@@ -166,7 +166,7 @@ describe("the selection editor on 50,000 nodes", () => {
         const layer = await openLayer(
             session,
             "Communities",
-            oneStep("com", { kind: "categories", attribute: "community", values: [] }),
+            oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
         );
         await selectStep("com");
         const values = await screen.findByRole("group", { name: "community values" });

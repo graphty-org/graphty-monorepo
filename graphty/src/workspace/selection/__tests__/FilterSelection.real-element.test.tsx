@@ -115,7 +115,7 @@ describe("the import filter's cards as selections", () => {
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("group", { name: "New filter" }));
+            assert.lengthOf(screen.queryAllByRole("group", { name: /^New filter/ }), 0);
         });
         assert.lengthOf(session.visibility.conditions, 0);
     });
@@ -147,7 +147,7 @@ describe("the import filter's cards as selections", () => {
     it("a new card's Edges switch starts it again on edges", async () => {
         const session = await openData();
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-        const card = await screen.findByRole("group", { name: "New filter" });
+        const card = await screen.findByRole("group", { name: /^New filter, / });
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         // A click on the card's title closes the value picker and keeps the card, its title pane open.
         await userEvent.click(within(card).getByRole("treeitem", { name: /^New filter, / }));

@@ -72,6 +72,13 @@ export interface EdgePosition {
      * up and left of the line's middle.
      */
     xlabelAt?: readonly [along: number, across: number];
+    /**
+     * The edge's labels the layout left out, which are not drawn: a Graphviz layout of a graph with
+     * `forcelabels=false` leaves out an external label, an end label or (in every engine but dot) a label that would
+     * cover a node or another label. Absent when none is left out.
+     * @since 3.35.0
+     */
+    leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
 }
 
 /**

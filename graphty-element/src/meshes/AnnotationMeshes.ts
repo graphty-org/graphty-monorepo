@@ -17,6 +17,7 @@ import type {
 
 import { type DrawnAnnotation, drawnAnnotationsOf } from "../session/styles/fileStyles/annotations";
 import { PREMULTIPLIED_ALPHA_MODE, uploadPremultiplied } from "./LabelBatch";
+import { fontFamilies, noteLabelFont } from "./labelFonts";
 
 /** What a drawn annotation mesh carries in its `metadata`. */
 export interface AnnotationMeshMetadata {
@@ -184,6 +185,7 @@ export class AnnotationMeshes {
 
         this.scale = read.scale;
         for (const a of read.annotations) {
+            noteTextFont(this.scene, a);
             if (a.kind === "arrow" && a.toNode === true) {
                 this.nodeArrows.push({ arrow: leaveText(a, read.annotations), mesh: null, reach: null });
                 continue;
@@ -203,6 +205,26 @@ export class AnnotationMeshes {
                 this.meshes.push(entry.mesh);
             }
         }
+    }
+
+    /**
+     * Draw the annotations again when a font a text annotation is drawn in has just loaded (issue
+     * #5140): drawn while it loaded, its width and texture are the fallback face's.
+     * @param families - The families that loaded, as `fontFamilies` gives them.
+     * @returns True when anything was drawn again.
+     */
+    refreshFonts(families: ReadonlySet<string>): boolean {
+        const value = this.drawn;
+        const uses = drawnAnnotationsOf(value)?.annotations.some(
+            (a) => a.kind === "text" && fontFamilies(a.fontFamily).some((family) => families.has(family)),
+        );
+        if (uses !== true) {
+            return false;
+        }
+
+        this.drawn = undefined;
+        this.update(value);
+        return true;
     }
 
     /** Remove every drawn annotation. */
@@ -437,6 +459,18 @@ function padOf(a: DrawnAnnotation): number {
             );
         default:
             return 1;
+    }
+}
+
+/**
+ * Note the font a text annotation is drawn in: a web font still loading draws in its fallback, so
+ * it is loaded and the annotations are drawn again when it lands (`AnnotationMeshes.refreshFonts`).
+ * @param scene - The scene it is drawn in.
+ * @param a - The annotation; anything but a text has no font.
+ */
+function noteTextFont(scene: Scene, a: DrawnAnnotation): void {
+    if (a.kind === "text") {
+        noteLabelFont(scene, `${a.italic ? "italic" : "normal"} ${a.bold ? "bold" : "normal"}`, a.fontFamily);
     }
 }
 

@@ -152,7 +152,9 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL. A change to the graphty app's
 > UI follows the owner's UI rules: no sentences as UI in the data screens (use Figma patterns: property rows, chips,
 > dropdowns, + sections, pop-overs, context menus); every hotkey has a visible button showing its key; never remove
-> or restyle owner-approved UI; compact-mantine's look stays locked to Figma.
+> or restyle owner-approved UI; compact-mantine's look stays locked to Figma. A guard or hook that refuses a command
+> is never worked around (no script, no other tool doing the same thing): stop and report it; a false positive is
+> fixed in the guard (2026-11-01, #5518).
 
 ## Escalation
 

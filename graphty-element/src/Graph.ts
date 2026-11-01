@@ -84,22 +84,9 @@ const EDGE_PICK_TOLERANCE_PX = 6;
  * @returns The points, in order along the line.
  */
 function edgeWorldPoints(edge: Edge): Vector3[] {
-    const curve = edge.drawnCurve;
-    if (curve !== null) {
-        // A curve's points are in graph-root's space, which an XR gesture moves. A patterned
-        // line's pieces are slots in batches parented to graph-root, and it has no mesh of its own.
-        const root =
-            edge.mesh instanceof PatternedLineMesh
-                ? edge.srcNode.mesh.getScene().getTransformNodeByName("graph-root")
-                : edge.mesh;
-        if (root === null) {
-            return curve;
-        }
-        const world = root.getWorldMatrix();
-        return curve.map((point) => Vector3.TransformCoordinates(point, world));
-    }
-
-    return [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()];
+    return (
+        drawnCurveInWorld(edge) ?? [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()]
+    );
 }
 
 /**
@@ -166,6 +153,7 @@ import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema"
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
+import { drawnCurveInWorld } from "./edgeWorldCurve";
 import { GraphtyError } from "./errors";
 import {
     EventCallbackType,
@@ -224,6 +212,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
+import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
@@ -1229,6 +1218,10 @@ export class Graph implements GraphContext {
 
             if (changed("viewRotation")) {
                 this.applyViewRotation(true);
+            }
+
+            if (changed("framing")) {
+                this.applyFraming();
             }
 
             if (changed("selectionStyle") || changed("startingRows")) {
@@ -4676,6 +4669,14 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Frame the graph as the project setting `framing` says, and frame it again if the element frames on its own.
+     */
+    private applyFraming(): void {
+        this.updateManager.framing = this.session.config.framing;
+        this.autoFrame();
+    }
+
+    /**
      * Turn the 2D view as the project setting `viewRotation` says.
      * @param reframe - Whether to frame the turned drawing again, when the view is 2D and the
      *     element frames on its own initiative.
@@ -4711,13 +4712,15 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Rebuild the labels drawn in font families that have just loaded, so they show and measure the
-     * loaded face rather than its fallback, and frame the graph again for their new size unless the
+     * Rebuild the labels, node glyphs and text annotations drawn in font families that have just
+     * loaded, so they show and measure the loaded face rather than its fallback, and frame the graph again for their new size unless the
      * camera was placed since the element last framed it. Nothing is rebuilt when no label uses them.
      * @param families - The families that loaded, as `fontFamilies` gives them.
      */
     private refreshFonts(families: ReadonlySet<string>): void {
-        let rebuilt = false;
+        // Glyphs are shared by style through the mesh cache: forget them once, and each node builds its own again.
+        forgetGlyphs(this.dataManager.meshCache, families);
+        let rebuilt = this.#annotations?.refreshFonts(families) === true;
         for (const node of this.dataManager.nodes.values()) {
             rebuilt = node.refreshFonts(families) || rebuilt;
         }
@@ -5314,7 +5317,7 @@ export class Graph implements GraphContext {
         if (frame) {
             // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
             // labels are framed by zoom-to-fit, on a data load or a layout change.
-            const box = nodeFramingBox(this.getNodes());
+            const box = nodeFramingBox(this.getNodes(), this.session.config.framing?.extent);
             if (box) {
                 this.camera.zoomToBoundingBox(box.min, box.max, box.spots);
             }

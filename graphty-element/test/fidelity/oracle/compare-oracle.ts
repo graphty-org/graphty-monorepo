@@ -1204,15 +1204,47 @@ export function rampColor(g: PGradient, t: number): string {
         return last.color;
     }
     const [a, b] = [stops[k - 1], stops[k]];
-    const f = b.offset > a.offset ? (t - a.offset) / (b.offset - a.offset) : 0;
+    return mixColor(a.color, b.color, b.offset > a.offset ? (t - a.offset) / (b.offset - a.offset) : 0);
+}
+
+/**
+ * A color a share of the way from one `#rrggbb` color to another.
+ * @param a - the color at 0
+ * @param b - the color at 1
+ * @param f - the share, 0 to 1
+ * @returns `#rrggbb`
+ */
+function mixColor(a: string, b: string, f: number): string {
     const rgb = (h: string, i: number): number => Number.parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
     return `#${[0, 1, 2]
         .map((i) =>
-            Math.round(rgb(a.color, i) + f * (rgb(b.color, i) - rgb(a.color, i)))
+            Math.round(rgb(a, i) + f * (rgb(b, i) - rgb(a, i)))
                 .toString(16)
                 .padStart(2, "0"),
         )
         .join("")}`;
+}
+
+/**
+ * How far two widths of one line are from alike. A line under a pixel wide shows its width only as how dark the pixels
+ * it crosses are: its color over the background by the share of a pixel it covers. Two such widths are alike when the
+ * pixels they paint are within the color tolerance, however far apart their ratio (dot-real-siblings: 284 lines 0.22
+ * px wide drawn 1.101 times as wide, the pixels they cross 2 deltaE apart, flipped on a 3 percent change of spacing,
+ * #4451). Wider lines go by the ratio.
+ * @param o - the oracle's width, in oracle pixels
+ * @param g - graphty's, in oracle pixels
+ * @param color - the line's color, `#rrggbb`
+ * @param opacity - the line's opacity
+ * @param background - the background's color, `#rrggbb`
+ * @returns the miss, 0 when alike
+ */
+export function lineWidthMiss(o: number, g: number, color: string, opacity: number, background: string): number {
+    const miss = ratioMiss(g / Math.max(o, 1e-9), ORACLE_TOLERANCES.edgeWidthRatio);
+    if (miss === 0 || Math.max(o, g) >= 1) {
+        return miss;
+    }
+    const pixel = (w: number): string => mixColor(background, color, Math.min(1, w) * opacity);
+    return deltaE(pixel(o), pixel(g)) <= ORACLE_TOLERANCES.colorDeltaE ? 0 : miss;
 }
 
 /** The difference between two directions, in degrees, -180 to 180. */
@@ -1342,7 +1374,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.curve": `farthest point from the chord over the chord, within ${String(ORACLE_TOLERANCES.curvature)} or ${String(ORACLE_TOLERANCES.curveShare)} of the oracle's, or a pixel deep over the shorter chord; where each program lays the file out itself, the share of edges bent over ${String(ORACLE_TOLERANCES.curvature)}, within ${String(ORACLE_TOLERANCES.curvedShare)} of the oracle's`,
     "edge.wiggle": `how often the route turns back the other way (turns over ${String(ORACLE_TOLERANCES.wiggleTurnDeg)} degrees that do not run back over the line, every two render pixels along it), within ${String(ORACLE_TOLERANCES.wiggleReversals)} or ${String(ORACLE_TOLERANCES.wiggleShare)} of the oracle's`,
     "edge.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
-    "edge.width": `ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}]`,
+    "edge.width": `ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}], or under a pixel wide the pixels it crosses within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "edge.opacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
     "edge.dash":
         "same line class (solid, dashed, dotted, dash-dot from the dashes and gaps against the width; double, zigzag, sine wave, slashes, arrows, a taper to a point from a pattern's geometry); a pattern no class names matches nothing",
@@ -2097,7 +2129,8 @@ export function compareOracle(
     const routeGap = (o: PEdge, g: PEdge): { gap: number; near: number } => {
         // none, or under a pixel, left between the outlines on both sides is no route a reader sees on either, only two
         // roundings of nodes that nearly touch: alike (json-graphology-synth n0 -> n1, n1's center on n0's outline)
-        if (shownParts(o, g).every((pts) => pts === null || pathLength(pts) < pixel)) {
+        const shown = shownParts(o, g);
+        if (shown.every((pts) => pts === null || pathLength(pts) < pixel)) {
             return { gap: 0, near: T.edgePathOfLength };
         }
         const [gs, gt] = flips(o, g) ? [g.target, g.source] : [g.source, g.target];
@@ -2105,14 +2138,33 @@ export function compareOracle(
             const [at, on] = [gOuter(gId), oById.get(oId)];
             return at === undefined || on === undefined ? [0, 0] : [at.cx - on.cx, at.cy - on.cy];
         };
-        const [vo, vg] = visible(o, g);
-        const { gap, unit } = routeShape(vo, vg, [shiftOf(gs, o.source), shiftOf(gt, o.target)]);
-        // a share of a long chord is more than a node: a line sent through another node on the way passed
-        // (dot-synth-nodes n_html3 -> n_unfilled, 1044 px long, through the middle of a 33 x 22 node). The allowance
-        // is no more than the smaller side of the smaller of its two end nodes
         const ends = [oById.get(o.source), oById.get(o.target)].flatMap((n) =>
             n === undefined ? [] : [Math.min(n.w, n.h)],
         );
+        // a line between nodes wider than the room between them shows a sliver between their outlines, whose own
+        // chord's frame reads where two programs' outlines differ by a pixel or two as half its length: shorter on both
+        // sides than its end nodes' smaller side, a line whose two drawings start and end at the same places (each end
+        // where it sits on its node) is judged by its whole route (pajek-synth-vertices 41 -> 42: both lines run
+        // center to center within 0.3 px between figures 55 px apart, and the sliver read 9.65 of its chord). A route
+        // one side ends elsewhere (an arc to its arrowhead's back, pajek-synth-lines) keeps its sliver.
+        const shifts = [shiftOf(gs, o.source), shiftOf(gt, o.target)];
+        const whole = routeOf(o, g);
+        // as drawn, or where each sits on its node: a figure's box is not centered where its lines meet (pajek-synth-
+        // vertices 17, 1.6 px above them)
+        const meet = (p: Pt | undefined, q: Pt | undefined, [sx, sy]: Pt): boolean =>
+            p !== undefined &&
+            q !== undefined &&
+            Math.min(Math.hypot(q[0] - p[0], q[1] - p[1]), Math.hypot(q[0] - sx - p[0], q[1] - sy - p[1])) <= pixel;
+        const sliver =
+            ends.length === 2 &&
+            shown.every((pts) => pts === null || pathLength(pts) < Math.min(...ends)) &&
+            meet(o.points[0], whole[0], shifts[0]) &&
+            meet(o.points.at(-1), whole.at(-1), shifts[1]);
+        const [vo, vg] = sliver ? [[...o.points], whole] : visible(o, g);
+        const { gap, unit } = routeShape(vo, vg, [shifts[0], shifts[1]]);
+        // a share of a long chord is more than a node: a line sent through another node on the way passed
+        // (dot-synth-nodes n_html3 -> n_unfilled, 1044 px long, through the middle of a 33 x 22 node). The allowance
+        // is no more than the smaller side of the smaller of its two end nodes
         // and no less than ten render pixels: an anchor drawn as a point (xgmml-wp4271-cy3-export) or a node a few
         // pixels across in a large drawing leaves no allowance a reader would grant
         const cap = ends.length === 2 ? Math.max(Math.min(...ends), ROUTE_CAP_PIXELS * pixel) / unit : Infinity;
@@ -2418,7 +2470,13 @@ export function compareOracle(
                     "edge.width",
                     "edge",
                     id,
-                    ratioMiss(gWidth / Math.max(o.stroke.width, 1e-9), T.edgeWidthRatio),
+                    lineWidthMiss(
+                        o.stroke.width,
+                        gWidth,
+                        o.stroke.color,
+                        o.stroke.opacity,
+                        oracle.background ?? "#ffffff",
+                    ),
                     o.stroke.width,
                     gWidth,
                 );

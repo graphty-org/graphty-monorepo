@@ -13,11 +13,11 @@
 import "./style.css";
 
 import {
+    apiPath,
     CATEGORY_IDS,
+    type CategoryId,
     DEV_API_PATH,
     LIVE_API,
-    apiPath,
-    type CategoryId,
     type OverviewResponse,
     type PageResponse,
     type SectionResponse,
@@ -60,7 +60,9 @@ async function get<T>(path: string, fixture: string): Promise<T> {
         const key = [SCENARIO && `../fixtures/${SCENARIO}/${fixture}.json`, `../fixtures/${fixture}.json`].find(
             (k) => k && FIXTURES[k],
         );
-        if (!key) throw new Error(`no fixture for ${fixture}`);
+        if (!key) {
+            throw new Error(`no fixture for ${fixture}`);
+        }
         return (await FIXTURES[key]()) as T;
     }
     let res: Response;
@@ -69,7 +71,9 @@ async function get<T>(path: string, fixture: string): Promise<T> {
     } catch (e) {
         throw new ApiError(path, e instanceof Error ? e.message : String(e), true);
     }
-    if (!res.ok) throw new ApiError(path, `answered HTTP ${res.status}`, false);
+    if (!res.ok) {
+        throw new ApiError(path, `answered HTTP ${res.status}`, false);
+    }
     return (await res.json()) as T;
 }
 
@@ -84,31 +88,50 @@ class ApiError extends Error {
     }
 }
 
-/** Records the data's time; in fixture mode the clock follows it, so ages read as the mockup's. */
+/**
+ * Records the data's time; in fixture mode the clock follows it, so ages read as the mockup's.
+ * @param generated - The data's generated time, an ISO string.
+ */
 function stamp(generated: string): void {
     clock.generated = generated;
-    if (FIXTURE) clock.now = () => Date.parse(generated) + FIXTURE_OFFSET_MS;
+    if (FIXTURE) {
+        clock.now = () => Date.parse(generated) + FIXTURE_OFFSET_MS;
+    }
 }
 
 // ---------------------------------------------------------------- routing
 
+function pageOf(segs: string[]): Omit<Here, "range" | "q"> {
+    if (segs[0] === "ci" && segs[1] === "runners") {
+        return { page: "runners", section: segs[2] };
+    }
+    if (segs[0] === "ci" && segs[1] === "local-runs") {
+        return { page: "local-runs" };
+    }
+    if (segs[0] === "flaky" && segs[1] === "test") {
+        return { page: "test" };
+    }
+    if ((CATEGORY_IDS as readonly string[]).includes(segs[0] ?? "")) {
+        return { page: segs[0] as CategoryId, section: segs[1] };
+    }
+    return { page: "overview" };
+}
+
+function rangeOf(page: Here["page"], r: string): Here["range"] {
+    if (page === "costs") {
+        return r === "7d" ? "7d" : "28d";
+    }
+    if (page === "test") {
+        return r === "28d" ? "28d" : "7d";
+    }
+    return r === "6h" || r === "24h" ? r : "1h";
+}
+
 function parse(hash: string): Here {
     const [rawPath, qs] = hash.replace(/^#/, "").split("?");
     const q = new URLSearchParams(qs ?? "");
-    const segs = (rawPath || "/").split("/").filter(Boolean);
-    let here: Omit<Here, "range" | "q">;
-    if (segs[0] === "ci" && segs[1] === "runners") here = { page: "runners", section: segs[2] };
-    else if (segs[0] === "ci" && segs[1] === "local-runs") here = { page: "local-runs" };
-    else if (segs[0] === "flaky" && segs[1] === "test") here = { page: "test" };
-    else if ((CATEGORY_IDS as readonly string[]).includes(segs[0] ?? ""))
-        here = { page: segs[0] as CategoryId, section: segs[1] };
-    else here = { page: "overview" };
-    const r = q.get("range") ?? "";
-    let range: Here["range"];
-    if (here.page === "costs") range = r === "7d" ? "7d" : "28d";
-    else if (here.page === "test") range = r === "28d" ? "28d" : "7d";
-    else range = r === "6h" || r === "24h" ? r : "1h";
-    return { ...here, range, q };
+    const here = pageOf((rawPath || "/").split("/").filter(Boolean));
+    return { ...here, range: rangeOf(here.page, q.get("range") ?? ""), q };
 }
 
 // ---------------------------------------------------------------- loading
@@ -148,7 +171,7 @@ async function load(h: Here): Promise<Loaded> {
         stamp(hist.generated);
         return { key: "", status, html: testView(hist), generated: hist.generated, title: hist.test ?? hist.file };
     }
-    const page = h.page;
+    const { page } = h;
     const [status, p] = await Promise.all([
         statusP,
         get<PageResponse>(apiPath({ kind: "page", page, range: h.range }), `${page}.${h.range}`),
@@ -156,13 +179,10 @@ async function load(h: Here): Promise<Loaded> {
     stamp(p.generated);
     // The slow sections' own choices fetch their section at that window.
     const swaps: Promise<void>[] = [];
-    const swap = (id: string, section: string, range: SlowRange, runKind?: string) => {
+    const swap = (id: string, section: string, range: SlowRange, runKind?: string): void => {
         const name = runKind ? `${page}.${section}.${runKind}.${range}` : `${page}.${section}.${range}`;
         swaps.push(
-            get<SectionResponse>(
-                apiPath({ kind: "section", page: page as PageResponse["page"], section, range, runKind }),
-                name,
-            ).then((r) => {
+            get<SectionResponse>(apiPath({ kind: "section", page: page, section, range, runKind }), name).then((r) => {
                 p.sections = p.sections.map((s) => (s.id === id ? r.section : s));
             }),
         );
@@ -170,11 +190,15 @@ async function load(h: Here): Promise<Loaded> {
     if (page === "ci") {
         const range = slowParam(h.q, "shards");
         const kind = h.q.get("kind") === "pr-bins" ? "pr-bins" : null;
-        if (range || kind) swap("shards", "shards", range ?? "7d", kind ?? "full");
+        if (range || kind) {
+            swap("shards", "shards", range ?? "7d", kind ?? "full");
+        }
     }
     if (page === "flaky") {
         const range = slowParam(h.q, "hot");
-        if (range) swap("hotspots", "hotspots", range);
+        if (range) {
+            swap("hotspots", "hotspots", range);
+        }
     }
     await Promise.all(swaps);
     // The status and the page are two cached responses that can be a cycle apart: the current page's nav bar
@@ -198,9 +222,14 @@ let last: Loaded | null = null;
 let lastOk: number | null = null;
 
 const CACHE_PREFIX = "health:last:";
-/** Storage can be missing or refuse (private windows, full quota): the page works without it. */
+/**
+ * Storage can be missing or refuse (private windows, full quota): the page works without it.
+ * @param l - The loaded view to remember under its key.
+ */
 function cacheWrite(l: Loaded): void {
-    if (FIXTURE) return;
+    if (FIXTURE) {
+        return;
+    }
     try {
         localStorage.setItem(CACHE_PREFIX + l.key, JSON.stringify(l));
     } catch {
@@ -208,7 +237,9 @@ function cacheWrite(l: Loaded): void {
     }
 }
 function cacheRead(key: string): Loaded | null {
-    if (FIXTURE) return null;
+    if (FIXTURE) {
+        return null;
+    }
     try {
         const raw = localStorage.getItem(CACHE_PREFIX + key);
         return raw ? (JSON.parse(raw) as Loaded) : null;
@@ -243,44 +274,50 @@ function failureBanner(f: Failure): string {
     );
 }
 
-/** With no data at all: the pipeline's state is unknown, and the facts to find out why. */
+/**
+ * With no data at all: the pipeline's state is unknown, and the facts to find out why.
+ * @param f - The failure that left the page with no data.
+ * @returns The panel's HTML.
+ */
 function unknownPanel(f: Failure): string {
     const e = f.error;
-    const row = (k: string, v: string) => `<dt>${k}</dt><dd>${v}</dd>`;
+    const row = (k: string, v: string): string => `<dt>${k}</dt><dd>${v}</dd>`;
     return (
         `<header class="ph"><div class="phrow"><h1 tabindex="-1">Pipeline status: UNKNOWN</h1></div></header>` +
         `<p class="pstate"><span class="sw none">UNKNOWN</span><span>This page cannot reach its data, so it says nothing about the pipeline: the pipeline may be healthy or not. The facts below say where the request failed.</span></p>` +
-        `<dl class="diag">` +
-        row("page origin", esc(location.origin)) +
-        row("health API", esc(API_SHOWN)) +
-        row("failed request", e instanceof ApiError ? esc(e.path) : "--") +
-        row("error", esc(e instanceof ApiError ? e.why : e.message)) +
-        row("/v1/status on its own", esc(f.status)) +
-        row(
+        `<dl class="diag">${row("page origin", esc(location.origin))}${row("health API", esc(API_SHOWN))}${row(
+            "failed request",
+            e instanceof ApiError ? esc(e.path) : "--",
+        )}${row("error", esc(e instanceof ApiError ? e.why : e.message))}${row(
+            "/v1/status on its own",
+            esc(f.status),
+        )}${row(
             "last good load in this browser",
             lastOk
                 ? `${fmtTime(new Date(lastOk).toISOString())} UTC`
                 : "none this session, and none stored for this view",
-        ) +
-        `</dl>`
+        )}</dl>`
     );
 }
 
 function banners(failure: Failure | null): string {
     const out: string[] = [];
     if (FIXTURE) {
-        const scenario = SCENARIO ? " (scenario " + esc(SCENARIO) + ")" : "";
+        const scenario = SCENARIO ? ` (scenario ${esc(SCENARIO)})` : "";
         out.push(
             `<div class="banner fixture" role="note"><b>FIXTURE DATA</b> Sample numbers from web/fixtures${scenario}, not the live pipeline. Remove ?fixtures from the URL for live data.</div>`,
         );
     }
-    if (failure) out.push(failureBanner(failure));
+    if (failure) {
+        out.push(failureBanner(failure));
+    }
     if (last && !failure) {
         const age = clock.now() - Date.parse(last.generated);
-        if (age > STALE_MS)
+        if (age > STALE_MS) {
             out.push(
                 `<div class="banner stale" role="alert"><b>The data is ${fmtDur(age / 1000)} old.</b> The collector has not updated it since ${fmtTime(last.generated)} UTC, so every state below may be out of date.</div>`,
             );
+        }
     }
     return out.join("");
 }
@@ -294,16 +331,21 @@ function draw(failure: Failure | null, fresh: boolean): void {
     const body = last?.html ?? (failure ? unknownPanel(failure) : "");
     app.innerHTML = `<div class="app">${nav(last?.status ?? null, FIXTURE)}<main>${banners(failure)}${body}</main></div>`;
     for (const d of app.querySelectorAll<HTMLDetailsElement>("details[data-key]")) {
-        if (open.has(d.dataset.key)) d.open = true;
-        else if (fresh && d.dataset.key && /^tree\/0(\/0)?$/.test(d.dataset.key)) d.open = true;
-        else if (fresh && d.dataset.key?.startsWith("shard-") && d === app.querySelector("details.sd")) d.open = true;
+        const firstTree = !!d.dataset.key && /^tree\/0(\/0)?$/.test(d.dataset.key);
+        const firstShard = !!d.dataset.key?.startsWith("shard-") && d === app.querySelector("details.sd");
+        if (open.has(d.dataset.key) || (fresh && (firstTree || firstShard))) {
+            d.open = true;
+        }
     }
-    if (last) document.title = `${last.title} - Pipeline health`;
+    if (last) {
+        document.title = `${last.title} - Pipeline health`;
+    }
 }
 
 /**
  * Scrolls to the section a link named and marks its heading, so a section near the bottom of a short page, which
  * cannot scroll to the top, is still found.
+ * @param target - The section heading to scroll to and mark.
  */
 function mark(target: HTMLElement): void {
     target.scrollIntoView();
@@ -314,12 +356,41 @@ let current: Here = parse(location.hash);
 let seq = 0;
 let drawn = false;
 
+/** After a navigation: scroll to and focus the section the route names, else the top and the page heading. */
+function focusRoute(): void {
+    const target = current.section ? document.getElementById(`s-${current.section}`) : null;
+    if (target) {
+        mark(target);
+    } else {
+        window.scrollTo(0, 0);
+    }
+    (target ?? app.querySelector<HTMLElement>("h1"))?.focus({ preventScroll: true });
+}
+
+/**
+ * Whether the status route answers, asked on its own, so the reader can tell "nothing answers" from "this view
+ * fails".
+ * @param error - the error the view's load failed with
+ * @returns "answered", or "failed: " and why
+ */
+async function statusAnswer(error: Error): Promise<string> {
+    if (error instanceof ApiError && error.path === apiPath({ kind: "status" })) {
+        return `failed: ${error.why}`;
+    }
+    return get<StatusResponse>(apiPath({ kind: "status" }), "status").then(
+        () => "answered",
+        (s: unknown) => `failed: ${s instanceof ApiError ? s.why : String(s)}`,
+    );
+}
+
 async function show(navigated: boolean): Promise<void> {
     const mine = ++seq;
     setHere(current);
     try {
         const loaded = { ...(await load(current)), key: location.hash };
-        if (mine !== seq) return;
+        if (mine !== seq) {
+            return;
+        }
         last = loaded;
         lastOk = Date.now();
         cacheWrite(loaded);
@@ -327,31 +398,31 @@ async function show(navigated: boolean): Promise<void> {
         draw(null, navigated || !drawn);
         drawn = true;
         if (navigated) {
-            const target = current.section ? document.getElementById(`s-${current.section}`) : null;
-            if (target) mark(target);
-            else window.scrollTo(0, 0);
-            (target ?? app.querySelector<HTMLElement>("h1"))?.focus({ preventScroll: true });
-        } else window.scrollTo(0, y);
+            focusRoute();
+        } else {
+            window.scrollTo(0, y);
+        }
     } catch (e) {
-        if (mine !== seq) return;
+        if (mine !== seq) {
+            return;
+        }
         const error = e instanceof Error ? e : new Error(String(e));
-        // Ask the status route on its own, so the reader can tell "nothing answers" from "this view fails".
-        const status =
-            error instanceof ApiError && error.path === apiPath({ kind: "status" })
-                ? `failed: ${error.why}`
-                : await get<StatusResponse>(apiPath({ kind: "status" }), "status").then(
-                      () => "answered",
-                      (s: unknown) => `failed: ${s instanceof ApiError ? s.why : String(s)}`,
-                  );
-        if (mine !== seq) return;
+        const status = await statusAnswer(error);
+        if (mine !== seq) {
+            return;
+        }
         // Data from another view is never drawn under this one; this view's stored copy is, with its age.
-        if (last?.key !== location.hash) last = cacheRead(location.hash);
+        if (last?.key !== location.hash) {
+            last = cacheRead(location.hash);
+        }
         draw({ error, status }, false);
     }
 }
 
 app.addEventListener("click", (ev) => {
-    if ((ev.target as HTMLElement).closest("[data-retry]")) void show(false);
+    if ((ev.target as HTMLElement).closest("[data-retry]")) {
+        void show(false);
+    }
 });
 
 window.addEventListener("hashchange", () => {
@@ -361,5 +432,7 @@ window.addEventListener("hashchange", () => {
 setInterval(() => void show(false), REFRESH_MS);
 void show(false).then(() => {
     const target = current.section ? document.getElementById(`s-${current.section}`) : null;
-    if (target) mark(target);
+    if (target) {
+        mark(target);
+    }
 });

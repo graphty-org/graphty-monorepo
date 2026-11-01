@@ -14,7 +14,7 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession, type NodeId } from "../../session";
-import { NGRAPH_SPRING_LENGTH } from "../../src/constants/layoutConstants";
+import { NGRAPH_SETTLED_SPACING } from "../../src/constants/layoutConstants";
 import { dispatcherOf } from "../../src/session/GraphSession";
 
 /** A Cytoscape.js document: nodes 40 across with a border 2 wide and labels 20 high, edges 2 wide, nodes 400 apart. */
@@ -545,7 +545,7 @@ describe("a file whose nodes are sized by their labels alone", () => {
 });
 
 describe('lengths: "spacing" (issues #3168, #3103)', () => {
-    // vis-network, no positions: 40 px dots, which vis-network lays out with springs 95 px long
+    // vis-network, no positions: 40 px dots, which vis-network's layout leaves 87 px apart once it settles
     const doc = JSON.stringify({
         nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
         edges: [
@@ -559,35 +559,60 @@ describe('lengths: "spacing" (issues #3168, #3103)', () => {
      * The drawn extent of node a, loaded with these style options.
      * @param data - The document.
      * @param styleOptions - The style options of the load.
+     * @param type - The format of the document.
+     * @param id - The node measured.
      * @returns Scene units.
      */
     async function extent(
         data: string,
         styleOptions?: { readonly lengths: "median" | "file" | "spacing" },
+        type = "json",
+        id: NodeId = "a",
     ): Promise<number> {
         const session = createGraphSession();
         await session.data.import(
-            { type: "json", config: { data } },
+            { type, config: { data } },
             { styles: "file", layout: "recommended", ...(styleOptions === undefined ? {} : { styleOptions }) },
         );
         await vi.waitFor(() => {
             assert.lengthOf(session.history.pending, 0);
         });
         assert.strictEqual(session.layout.id, "force");
-        const size = number(session, { node: "a" }, "node.size") * 1.5;
+        const size = number(session, { node: id }, "node.size") * 1.5;
         session.dispose();
         return size;
     }
 
-    it("draws a node as large beside the force layout's spring as the program draws it beside its own", async () => {
+    it("draws a node as large beside the force layout's settled spacing as the program draws it beside its own", async () => {
         const inFile = await extent(doc, { lengths: "file" });
         const spaced = await extent(doc, { lengths: "spacing" });
-        // one file unit is one scene unit with lengths: "file", so the file's node over vis-network's spring length
-        assert.approximately(spaced / NGRAPH_SPRING_LENGTH, inFile / 1.5 / 95, 1e-6);
+        // one file unit is one scene unit with lengths: "file", so the file's node over vis-network's settled spacing
+        assert.approximately(spaced / NGRAPH_SETTLED_SPACING, inFile / 1.5 / 87, 1e-6);
     });
 
     it("leaves the default unchanged: the median node is the element's node size", async () => {
         assert.approximately(await extent(doc), 1.5, 1e-6);
+    });
+
+    it("leaves the default unchanged for a Cytoscape desktop file with no positions (#5508)", async () => {
+        // Cytoscape desktop states a 102 px spacing; only lengths: "spacing" reads it, so the default load of a file
+        // such as cx-radiation-bibliography still draws its median node at the element's node size
+        const cx2 = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { nodes: [{ id: 0 }, { id: 1 }, { id: 2 }] },
+            {
+                edges: [
+                    { id: 3, s: 0, t: 1 },
+                    { id: 4, s: 1, t: 2 },
+                ],
+            },
+            { visualProperties: [{ default: { node: { NODE_WIDTH: 60, NODE_HEIGHT: 60 } } }] },
+            { status: [{ success: true }] },
+        ]);
+        assert.approximately(await extent(cx2, undefined, "cx2", "0"), 1.5, 1e-6);
+        const inFile = await extent(cx2, { lengths: "file" }, "cx2", "0");
+        const spaced = await extent(cx2, { lengths: "spacing" }, "cx2", "0");
+        assert.approximately(spaced / NGRAPH_SETTLED_SPACING, inFile / 1.5 / 102, 1e-6);
     });
 
     it("scales as the median does for a program that states no spacing", async () => {

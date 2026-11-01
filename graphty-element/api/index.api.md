@@ -1185,6 +1185,7 @@ export interface EdgePosition {
     dst: Position;
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
+    leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
     // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];
@@ -1221,6 +1222,9 @@ export const EdgeStyle: z.ZodObject<{
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
             "open-inverted": "open-inverted";
+            "half-barb": "half-barb";
+            "half-barb-flipped": "half-barb-flipped";
+            "inverted-vee": "inverted-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1469,6 +1473,9 @@ export const EdgeStyle: z.ZodObject<{
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
             "open-inverted": "open-inverted";
+            "half-barb": "half-barb";
+            "half-barb-flipped": "half-barb-flipped";
+            "inverted-vee": "inverted-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1717,6 +1724,9 @@ export const EdgeStyle: z.ZodObject<{
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
             "open-inverted": "open-inverted";
+            "half-barb": "half-barb";
+            "half-barb-flipped": "half-barb-flipped";
+            "inverted-vee": "inverted-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -1757,6 +1767,9 @@ export const EdgeStyle: z.ZodObject<{
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
             "open-inverted": "open-inverted";
+            "half-barb": "half-barb";
+            "half-barb-flipped": "half-barb-flipped";
+            "inverted-vee": "inverted-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -7558,6 +7571,8 @@ export class UpdateManager implements Manager {
     fitAnnotations: (() => void) | null;
     forceEdgeWalk(): void;
     get frameIsStable(): boolean;
+    // @internal
+    framing: GraphFraming | undefined;
     getRenderFrameCount(): number;
     holdSelectionFollow(): void;
     init(): Promise<void>;

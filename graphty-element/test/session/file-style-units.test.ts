@@ -595,7 +595,7 @@ describe('lengths: "spacing" (issues #3168, #3103)', () => {
     });
 
     it("leaves the default unchanged for a Cytoscape desktop file with no positions (#5508)", async () => {
-        // Cytoscape desktop states a 50 px spacing; only lengths: "spacing" reads it, so the default load of a file
+        // Cytoscape desktop states a 102 px spacing; only lengths: "spacing" reads it, so the default load of a file
         // such as cx-radiation-bibliography still draws its median node at the element's node size
         const cx2 = JSON.stringify([
             { CXVersion: "2.0", hasFragments: false },
@@ -612,7 +612,7 @@ describe('lengths: "spacing" (issues #3168, #3103)', () => {
         assert.approximately(await extent(cx2, undefined, "cx2", "0"), 1.5, 1e-6);
         const inFile = await extent(cx2, { lengths: "file" }, "cx2", "0");
         const spaced = await extent(cx2, { lengths: "spacing" }, "cx2", "0");
-        assert.approximately(spaced / NGRAPH_SPRING_LENGTH, inFile / 1.5 / 50, 1e-6);
+        assert.approximately(spaced / NGRAPH_SETTLED_SPACING, inFile / 1.5 / 102, 1e-6);
     });
 
     it("scales as the median does for a program that states no spacing", async () => {

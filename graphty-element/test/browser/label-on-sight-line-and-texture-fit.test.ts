@@ -13,6 +13,7 @@ import { Matrix, type Mesh, type StandardMaterial, Vector3 } from "@babylonjs/co
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 import type { Node } from "../../src/Node";
 
 /** Four nodes far from the middle of the view, one near each corner, and one in the middle. */
@@ -103,6 +104,18 @@ describe("a center label on its node's line of sight, from a texture matched to 
     }
 
     /**
+     * How many pixels of the drawn frame a node's label plane covers, top to bottom.
+     * @param node - The node.
+     * @returns The height in pixels.
+     */
+    function drawnHeightOf(node: Node): number {
+        const corners = planeOf(node)
+            .getBoundingInfo()
+            .boundingBox.vectorsWorld.map((corner) => drawnAt(corner).y);
+        return Math.max(...corners) - Math.min(...corners);
+    }
+
+    /**
      * Uploaded texture pixels per drawn pixel down each label's plane.
      * @returns One ratio per node.
      */
@@ -111,8 +124,7 @@ describe("a center label on its node's line of sight, from a texture matched to 
             const node = graph.getNode(id);
             assert.isDefined(node);
             const plane = planeOf(node);
-            const corners = plane.getBoundingInfo().boundingBox.vectorsWorld.map((corner) => drawnAt(corner).y);
-            const drawnHeight = Math.max(...corners) - Math.min(...corners);
+            const drawnHeight = drawnHeightOf(node);
             // What the GPU samples: the texture as uploaded, not the canvas it was drawn on.
             const uploaded = (plane.material as StandardMaterial).diffuseTexture?.getInternalTexture();
             assert.exists(uploaded, `node ${id}'s label has a texture`);
@@ -153,6 +165,32 @@ describe("a center label on its node's line of sight, from a texture matched to 
             assert.isAtMost(ratio, 1.35, "the texture is not shrunk");
         }
         assert.notDeepEqual(after, before, "the move changed what the labels cover");
+    });
+
+    it("uploads as many texels as a capture larger than the canvas shows, and goes back after it", () => {
+        // A 4x screenshot draws each label four times as large: its texture, fitted to the screen, would be
+        // magnified four times. While the capture runs, each is uploaded at the capture's size (up to its
+        // whole canvas, which is all there is).
+        RichTextLabel.setCaptureScale(graph.scene, 4);
+        try {
+            for (const [at, ratio] of texelsPerPixel().entries()) {
+                const node = graph.getNode(NODES[at].id);
+                assert.isDefined(node);
+                const canvas = (planeOf(node).material as StandardMaterial).diffuseTexture?.getSize().height ?? 0;
+                const uploaded = ratio * drawnHeightOf(node);
+                assert.isAtLeast(
+                    uploaded,
+                    Math.min(canvas, 4 * drawnHeightOf(node) * 0.85),
+                    `node ${node.id}'s label is uploaded at the capture's size`,
+                );
+            }
+        } finally {
+            RichTextLabel.setCaptureScale(graph.scene, 1);
+        }
+
+        for (const ratio of texelsPerPixel()) {
+            assert.isAtMost(ratio, 1.35, "back at its size on screen");
+        }
     });
 
     it("draws a center label over its node's center in the 2D view", async () => {

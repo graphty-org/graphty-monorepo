@@ -80,6 +80,9 @@ function deviceScale(): number {
     return Math.max(1, globalThis.devicePixelRatio || 1);
 }
 
+/** The scenes being captured larger than their canvas; see {@link RichTextLabel.setCaptureScale}. */
+const capturing = new WeakSet<Scene>();
+
 /** The labels drawn in each scene, for {@link RichTextLabel.setCaptureScale} and the texture sweep. */
 const sceneLabels = new WeakMap<Scene, Set<RichTextLabel>>();
 
@@ -498,8 +501,38 @@ export class RichTextLabel {
      */
     static setCaptureScale(scene: Scene, scale: number): void {
         const camera = scene.activeCamera;
+        if (scale === 1) {
+            capturing.delete(scene);
+        } else {
+            capturing.add(scene);
+        }
+
         for (const label of sceneLabels.get(scene) ?? []) {
             label.useCaptureScale(scale === 1 || camera === null ? 1 : label.captureScaleFor(camera, scale));
+            label.uploadForCapture(camera, scale);
+        }
+    }
+
+    /**
+     * Upload a label fitted to the screen at as many texels as a capture of `scale` shows it at, up to its whole
+     * canvas, or back at its size on screen when `scale` is 1. A label redrawn for the capture
+     * ({@link useCaptureScale}) is already uploaded whole.
+     * @param camera - The camera the capture is drawn from.
+     * @param scale - Output pixels per canvas pixel.
+     */
+    private uploadForCapture(camera: Camera | null, scale: number): void {
+        const { texture } = this;
+        if (!(texture instanceof LabelTexture)) {
+            return;
+        }
+
+        let perEm = this.captureScale === 1 ? this.screenTexelsPerEm : null;
+        if (perEm !== null && scale !== 1 && camera !== null) {
+            perEm = this.screenFontPx(camera) * scale;
+        }
+
+        if (this.uploadAt(texture, perEm)) {
+            uploadPremultiplied(texture);
         }
     }
 
@@ -1005,7 +1038,8 @@ export class RichTextLabel {
     public fitTextureToScreen(camera: Camera): boolean {
         const { mesh, texture } = this;
         const shown = mesh?.isEnabled() === true && mesh.isVisible && mesh.visibility > 0;
-        if (!this.options.autoSize || !(texture instanceof LabelTexture) || !shown || this.captureScale !== 1) {
+        const fittable = this.options.autoSize && this.captureScale === 1 && !capturing.has(this.scene);
+        if (!fittable || !(texture instanceof LabelTexture) || !shown) {
             return false;
         }
 
@@ -1026,27 +1060,28 @@ export class RichTextLabel {
         }
 
         this.screenTexelsPerEm = wanted >= own ? null : wanted;
-        this.showOnScreen(texture);
+        this.uploadAt(texture, this.screenTexelsPerEm);
         uploadPremultiplied(texture);
         return true;
     }
 
     /**
-     * Size what the texture uploads by the last fit to the screen: its canvas shrunk to the texels per em the
-     * label covers, or the canvas whole before any fit.
+     * Size what the texture uploads: its canvas shrunk to `perEm` texels per em, or whole.
      * @param texture - The label's texture.
+     * @param perEm - Texels per em; null, or at least the canvas's own, uploads the canvas whole.
+     * @returns Whether the uploaded size changed, so the texture must be uploaded again.
      */
-    private showOnScreen(texture: LabelTexture): void {
-        const perEm = this.screenTexelsPerEm;
+    private uploadAt(texture: LabelTexture, perEm: number | null): boolean {
         const shrunk = perEm !== null && perEm < this.canvasTexelsPerEm(texture);
         const perPx = shrunk ? perEm / this.options.fontSize : 0;
-        texture.showAt(
+        const changed = texture.showAt(
             shrunk
                 ? { width: this.actualDimensions.width * perPx, height: this.actualDimensions.height * perPx }
                 : null,
         );
         // About one texture pixel per screen pixel: sampled straight, since mipmaps would only blur it.
         texture.updateSamplingMode(shrunk ? Texture.BILINEAR_SAMPLINGMODE : Texture.TRILINEAR_SAMPLINGMODE);
+        return changed;
     }
 
     /**
@@ -1148,13 +1183,9 @@ export class RichTextLabel {
 
         // Nothing uses the texture yet; see LabelBatch (issue #2762).
         giveAlphaQuietly(this.scene, texture);
-        // A label redrawn (new words, a capture) keeps the size on screen it was last fitted to.
-        if (this.captureScale === 1) {
-            this.showOnScreen(texture);
-        } else {
-            this.screenTexelsPerEm = null;
-            texture.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
-        }
+        // A label redrawn (new words, the end of a capture) keeps the size on screen it was last fitted to; one
+        // redrawn for a capture is uploaded whole.
+        this.uploadAt(texture, this.captureScale === 1 ? this.screenTexelsPerEm : null);
 
         this._drawContent();
     }

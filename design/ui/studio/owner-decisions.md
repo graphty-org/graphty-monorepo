@@ -4,6 +4,38 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-31 -- For the owner: algorithm levels read as ordered values (graphty-element)
+
+From the tier 5 selection-groups spec (`../selection-groups/spec.md`, section 10). The new condition
+card draws an ordered value with a "Pick levels" checklist and By value / By position, and a category
+with a checklist only. Three built-in fields are ordered levels but read today as categories or plain
+numbers: bfs `level` (its `layered-grouping` shape makes `fieldMeasurement` return categorical),
+k-core `value` and dfs `value`. Declaring them ordinal changes what `catalog` and `fieldMeasurement`
+return for existing consumers, so it is breaking.
+
+- **Options.** (a) Declare them ordinal in the next grouped major. (b) Leave them as they are; the card
+  offers them as today's kinds. (c) Add an optional per-field override a consumer can read, leaving the
+  existing outputs unchanged.
+- **Built meanwhile:** (b). "Within k hops of" works either way, because it is a preset over the bfs
+  level, not a test on its kind.
+
+## 2026-10-31 -- Decided by the team: the selection groups API (graphty-element)
+
+graphty-element, non-breaking, every item `@beta` beside the filter-conditions API
+(`../selection-groups/spec.md`, section 10): a `groups` rule leaf (groups of ordered add / keep /
+except steps, each optionally computed on "so far"); the Scope forms `"focus"` (hovered, else a lone
+selected node) and `"so-far"`; a `measure` leaf that runs, caches and reports an algorithm a condition
+reads; `threshold.from` and `missing` on the range, categories and threshold leaves;
+`scope.countSteps(rule)` (every group's and step's count, state, `{ code, params }` reason and
+resolved color in one pass); `scope.histogram(path, { within })` for any readable value;
+`styles.preview(input)` returning `{ end() }`, with `styles.previewing` and `style:preview-changed`
+(the picking view: layers suspended, group colors, never a layer, never saved); optional descriptor
+facts `valueKind`, `domain`, `polarity`, `order`, `missing`, `unstable` and `keywords`, and
+declaration fixes that change no existing output. Why: the app must not evaluate selections, count,
+sequence runs, pick colors or paint the canvas; every one of these would otherwise be an app
+workaround. The saved `groups` form becomes a file format once released, so it stays `@beta` until
+the tier 5 user study has run on it.
+
 ## 2026-10-30 -- For the owner: two compact-mantine behaviors the tier 4 round faulted (compact-mantine)
 
 From the tier 4 round 1 fix pass (`tier4/rounds/round-1/scores.md`). Both change how a Figma-locked

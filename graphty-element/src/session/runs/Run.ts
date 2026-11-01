@@ -216,11 +216,8 @@ export interface RunDefinition<T = RunResult> {
     readonly sample: number | null;
     /** How long it may take before it publishes what it has, or null when it is not boxed. */
     readonly timeBoxMs: number | null;
-    /**
-     * What the element may paint on first completion; false for nothing. Set again only when a
-     * removed run is started anew under its id ({@link ManagedRun.restyle}).
-     */
-    style: RunStyle;
+    /** What the element may paint on first completion; false for nothing. */
+    readonly style: RunStyle;
     /** The shape of the result, which fixes its field names. */
     readonly shape: ResultShape;
     /** The fields the algorithm declares, until the run says which it actually filled. */
@@ -476,9 +473,10 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     /**
      * Whether the element may apply the derived encoding layer when this run first completes.
      *
-     * Read by the auto-apply policy, which is not this module's to enforce.
+     * Read by the auto-apply policy, which is not this module's to enforce. Set again only when
+     * a removed run is started anew under its id ({@link ManagedRun.restyle}).
      */
-    readonly style: RunStyle;
+    style: RunStyle;
 
     /** The journal entry this run's latest command wrote; set by the session as the entry lands. */
     journalId: JournalId | null = null;

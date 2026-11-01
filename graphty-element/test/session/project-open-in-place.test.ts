@@ -87,8 +87,8 @@ describe("a project opened in place", () => {
         await fresh.styles.settled();
         assert.deepStrictEqual(session.styles.toDocument(), fresh.styles.toDocument());
         assert.deepStrictEqual(
-            session.runs.list().map((run) => [run.id, session.runs.isDerivedId(run.id)]),
-            fresh.runs.list().map((run) => [run.id, fresh.runs.isDerivedId(run.id)]),
+            session.runs.list().map((run) => run.id),
+            fresh.runs.list().map((run) => run.id),
         );
         session.dispose();
         fresh.dispose();

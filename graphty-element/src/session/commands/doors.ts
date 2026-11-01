@@ -2951,6 +2951,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // The doors test saves "door seed" before calling it.
             remove: calls(["set_door-seed"], [{ op: "set.remove", id: "set_door-seed" }]),
             watchSteps: READ,
+            histogram: READ,
             asUnion: READ,
             checkStep: READ,
             options: READ,

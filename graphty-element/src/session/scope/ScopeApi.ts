@@ -58,6 +58,7 @@ import { canonicalEdgeEnds, pairsOrdered } from "../../data/edgeIdentity";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
+import { buildHistogram } from "../results/statistics";
 import type { ResolvedScope } from "../runs/types";
 import { sealedSet } from "../sealed";
 import { resolveSet, SetsCache } from "../sets/cache";
@@ -84,6 +85,7 @@ import type { CodedFact } from "../shared";
 import {
     type FilterSources,
     type FilterValueSource,
+    readersOf,
     readUnionLeaf,
     type ScopeLeaf,
     type UnionStepSource,
@@ -100,6 +102,9 @@ import {
     type StepCheckOptions,
     type StepsReading,
     type StepsWatch,
+    type ValueHistogram,
+    valueHistogram,
+    type ValueHistogramOptions,
 } from "./steps";
 
 export type { ComponentLabels } from "../sets/resolve";
@@ -387,6 +392,17 @@ export interface ScopeApi {
      * @beta
      */
     readonly options: ScopeStepOptions;
+    /**
+     * How one readable value is distributed over a scope: a data column, a run's field or a
+     * structure value (`graphty.degree`), binned when it holds numbers, else counted by value.
+     * What a histogram brush and a counted checklist in a step's card read.
+     * @param path - The value path.
+     * @param options - The scope counted (`within`, the whole graph when absent), the bins and the
+     *     reading.
+     * @returns The histogram.
+     * @beta
+     */
+    histogram(path: Path, options?: ValueHistogramOptions): ValueHistogram;
     /**
      * The reader's Run: a step that waits on its estimate may start, until its definition changes.
      * @param rule - The union leaf holding the step.
@@ -1038,6 +1054,56 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         get options(): ScopeStepOptions {
             return steps.options;
         },
+        histogram(path: Path, options: ValueHistogramOptions = {}): ValueHistogram {
+            const active = context();
+            const graph = active.snapshot;
+            const sourcesNow = filterSourcesIn(active);
+            const readers = readersOf(graph, path, sourcesNow);
+            const onNodes = readers.node !== null || readers.edge === null;
+            const read = readers.node ?? readers.edge ?? ((): unknown => undefined);
+            let within: Uint8Array | null = null;
+            if (options.within !== undefined) {
+                const leaf = scopeLeafIn(scopeOf(options.within), active);
+                const count = onNodes ? graph.nodeCount : graph.edgeCount;
+                const { src, dst } = graph.edgeList();
+                const { nodes, edges } = leaf;
+                // An induced scope's edges are those between its nodes.
+                const inScope = onNodes
+                    ? (index: number): boolean => maskTest(nodes, index)
+                    : (index: number): boolean =>
+                          edges === null
+                              ? maskTest(nodes, src[index]) && maskTest(nodes, dst[index])
+                              : maskTest(edges, index);
+                within = new Uint8Array(count);
+                for (let index = 0; index < count; index++) {
+                    within[index] = inScope(index) ? 1 : 0;
+                }
+            }
+
+            const run = path.startsWith("results.") ? path.split(".")[1] : undefined;
+            const field = path.split(".").at(-1);
+            const unstable =
+                run !== undefined &&
+                sourcesNow
+                    .result?.(run)
+                    ?.fields.some((each) => each.name === field && (each as { unstable?: true }).unstable === true) ===
+                    true;
+            const degrees = graph.degree();
+            return valueHistogram(
+                {
+                    count: onNodes ? graph.nodeCount : graph.edgeCount,
+                    read,
+                    within,
+                    unstable,
+                    ...(onNodes
+                        ? { node: (index: number) => ({ degree: degrees[index], id: graph.ids.idOf(index) }) }
+                        : {}),
+                    bin: (column, binning) => buildHistogram(column, binning),
+                },
+                options,
+            );
+        },
+
         allowRun: (rule, stepId) => {
             steps.allowRun(rule, stepId);
         },

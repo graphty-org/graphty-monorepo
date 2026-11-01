@@ -38,4 +38,6 @@ export {
     type StepsReading,
     type StepState,
     type StepsWatch,
+    type ValueHistogram,
+    type ValueHistogramOptions,
 } from "./steps";

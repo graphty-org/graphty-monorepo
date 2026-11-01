@@ -71,8 +71,21 @@ function degreeInScope(executions: Executions) {
                         type: "number",
                         path: `results.${context.runId}.value`,
                     },
+                    {
+                        name: "group",
+                        plainName: "Group",
+                        technicalName: "group",
+                        kind: "node",
+                        type: "integer",
+                        measurement: "categorical",
+                        unstable: true,
+                        path: `results.${context.runId}.group`,
+                    },
                 ],
-                nodes: [...inside].map((id) => ({ id, values: { value: degree.get(String(id)) ?? 0 } })),
+                nodes: [...inside].map((id) => ({
+                    id,
+                    values: { value: degree.get(String(id)) ?? 0, group: (degree.get(String(id)) ?? 0) % 3 },
+                })),
             }),
         };
     };
@@ -399,5 +412,45 @@ describe("measure steps and runs", () => {
         });
         assert.strictEqual(cancelled.branches[0].steps[0].reason?.code, "run-needed");
         executions.release?.();
+    });
+});
+
+describe("scope.histogram", () => {
+    it("bins degree over a step's input, and counts a category with the best-connected member of each", async () => {
+        const session = await lesMis();
+        const staff: RuleTree = STAFF;
+        const all = session.scope.histogram("graphty.degree");
+        const inStaff = session.scope.histogram("graphty.degree", {
+            within: { define: { kind: "rule", where: staff, reading: "induced" } },
+        });
+        assert.strictEqual(all.kind, "numeric");
+        assert.strictEqual(all.of, IDS.length);
+        assert.strictEqual(inStaff.of, IDS.filter((_id, at) => ROLE(at) === "staff").length);
+        if (inStaff.kind === "numeric") {
+            assert.strictEqual(
+                inStaff.bins.reduce((sum, bin) => sum + bin.count, 0),
+                inStaff.of,
+            );
+        }
+
+        const roles = session.scope.histogram("data.role");
+        assert.strictEqual(roles.kind, "categorical");
+        if (roles.kind === "categorical") {
+            assert.deepEqual(
+                roles.values.map((each) => each.value),
+                ["guest", "staff"],
+            );
+            assert.isUndefined(roles.values[0].member, "a data column's values are stable");
+        }
+    });
+
+    it("names the best-connected member of each value of an unstable field", async () => {
+        const session = await lesMis();
+        const run = await session.runs.start("degree", {}, { scope: "graph", style: false });
+        const groups = session.scope.histogram(`results.${run.runId}.group`);
+        assert.strictEqual(groups.kind, "categorical");
+        const valjean =
+            groups.kind === "categorical" ? groups.values.find((each) => each.member === "Valjean") : undefined;
+        assert.isDefined(valjean, "Valjean, the best-connected character, names his group");
     });
 });

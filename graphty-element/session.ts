@@ -407,6 +407,8 @@ export type {
     StepsReading,
     StepState,
     StepsWatch,
+    ValueHistogram,
+    ValueHistogramOptions,
 } from "./src/session/scope";
 export { DEFAULT_BRANCH_PALETTE } from "./src/session/scope";
 

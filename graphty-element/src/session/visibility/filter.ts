@@ -1996,6 +1996,22 @@ export function readUnionLeaf(graph: GraphSnapshot, leaf: UnionLeaf, sources: Fi
 }
 
 /**
+ * The readers of one value path over a snapshot, on each half that carries it: a run's field, a
+ * structure value (`graphty.degree`), or a data column. Null for a half that carries nothing.
+ * @param graph - The snapshot.
+ * @param path - The path.
+ * @param sources - Where values are read.
+ * @returns The readers.
+ */
+export function readersOf(graph: GraphSnapshot, path: Path, sources: FilterSources): ReturnType<typeof pathReaders> {
+    return pathReaders(
+        { graph, sources, marks: new Map<Path, PathMark>(), unresolvedQueries: new Set<Path>() },
+        path,
+        "histogram",
+    );
+}
+
+/**
  * The text a value is compared by in a category or a same-value test; a list gives each item's.
  * @param value - The value.
  * @returns The texts, none for a value that is not measured.

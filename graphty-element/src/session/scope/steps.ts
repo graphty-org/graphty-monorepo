@@ -21,6 +21,7 @@ import type {
     UnionStep,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import type { Histogram, HistogramOptions } from "../results/types";
 import type { CodedFact } from "../shared";
 import type { Bytes, UnionRead } from "../visibility/union";
 import type { ScopeApi } from "./ScopeApi";
@@ -181,6 +182,43 @@ export interface StepCheckOptions {
     readonly within: UnionLeaf["within"];
     /** A style layer's selector, or a visibility filter condition. */
     readonly host: "selector" | "filter";
+}
+
+/**
+ * How one value is distributed over a scope: `session.scope.histogram`. Numbers are binned as a
+ * run's field is (`kind: "numeric"`); anything else is counted by value, most elements first
+ * (`kind: "categorical"`), each value of an unstable field naming the best-connected member that
+ * holds it, so "the group of X" can be saved and followed across re-runs. `missing` counts the
+ * elements of the scope with no value, `of` the elements of the scope.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type ValueHistogram =
+    | (Histogram & { readonly kind: "numeric"; readonly missing: number; readonly of: number })
+    | {
+          readonly kind: "categorical";
+          readonly values: readonly {
+              readonly value: string | number | boolean;
+              readonly count: number;
+              /** The best-connected node holding the value, for a field whose values are unstable names. */
+              readonly member?: NodeId;
+          }[];
+          readonly missing: number;
+          readonly of: number;
+      };
+
+/**
+ * What `session.scope.histogram` reads.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface ValueHistogramOptions extends HistogramOptions {
+    /** The elements counted. Absent: the whole graph. */
+    readonly within?: Scope;
+    /** Count the values as categories, or bin them as numbers. Absent: numbers when every value is one. */
+    readonly as?: "numeric" | "categorical";
 }
 
 /**
@@ -857,4 +895,101 @@ function digestOf(reading: StepsReading, raw: UnionRead): string {
             branch.steps.map((step) => [step.state, step.reason, step.count, step.orderMatters, step.run]),
         ]),
     ]);
+}
+
+/** What {@link valueHistogram} counts. */
+export interface HistogramInput {
+    /** How many elements the half has. */
+    readonly count: number;
+    /**
+     * One element's value.
+     * @param index - The element's dense index.
+     * @returns The value.
+     */
+    read(index: number): unknown;
+    /** The elements counted, or null for every one. */
+    readonly within: Bytes | null;
+    /** Whether the values are unstable names, so each value names a member. */
+    readonly unstable: boolean;
+    /**
+     * A node's degree and id, for the member an unstable value names; absent on the edge half.
+     * @param index - The node's dense index.
+     * @returns Its degree and id.
+     */
+    readonly node?: (index: number) => { readonly degree: number; readonly id: NodeId };
+    /**
+     * Bins numbers as a run's field is binned.
+     * @param column - The values, NaN where none.
+     * @param options - The bin count and scale.
+     * @returns The histogram.
+     */
+    bin(column: { readonly length: number; get(index: number): number }, options: HistogramOptions): Histogram;
+}
+
+/**
+ * How one value is distributed over the elements counted: see {@link ValueHistogram}.
+ * @param input - What to count.
+ * @param options - The bins, the scale and the reading.
+ * @returns The histogram.
+ */
+export function valueHistogram(input: HistogramInput, options: ValueHistogramOptions = {}): ValueHistogram {
+    const indices: number[] = [];
+    for (let index = 0; index < input.count; index++) {
+        if (input.within === null || input.within[index] === 1) {
+            indices.push(index);
+        }
+    }
+
+    const values = indices.map((index) => input.read(index));
+    const measured = (value: unknown): value is string | number | boolean =>
+        (typeof value === "number" && Number.isFinite(value)) ||
+        typeof value === "string" ||
+        typeof value === "boolean";
+    const missing = values.filter((value) => !measured(value)).length;
+    const numeric =
+        options.as === "numeric" ||
+        (options.as === undefined &&
+            !input.unstable &&
+            values.every((value) => !measured(value) || typeof value === "number"));
+    if (numeric) {
+        const histogram = input.bin(
+            { length: values.length, get: (at) => (typeof values[at] === "number" ? values[at] : Number.NaN) },
+            options,
+        );
+        return Object.freeze({ ...histogram, kind: "numeric", missing, of: indices.length });
+    }
+
+    // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
+    const counts = new Map<string | number | boolean, { count: number; best?: { degree: number; id: NodeId } }>();
+    values.forEach((value, at) => {
+        if (!measured(value)) {
+            return;
+        }
+
+        const entry = counts.get(value) ?? { count: 0 };
+        entry.count++;
+        const node = input.unstable ? input.node?.(indices[at]) : undefined;
+        if (node !== undefined && (entry.best === undefined || node.degree > entry.best.degree)) {
+            entry.best = node;
+        }
+
+        counts.set(value, entry);
+    });
+
+    return Object.freeze({
+        kind: "categorical",
+        values: Object.freeze(
+            [...counts]
+                .sort((a, b) => b[1].count - a[1].count)
+                .map(([value, entry]) =>
+                    Object.freeze({
+                        value,
+                        count: entry.count,
+                        ...(entry.best === undefined ? {} : { member: entry.best.id }),
+                    }),
+                ),
+        ),
+        missing,
+        of: indices.length,
+    });
 }

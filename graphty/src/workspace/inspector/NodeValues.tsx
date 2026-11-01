@@ -268,7 +268,7 @@ async function showNeighborhood(
     hops: 1 | 2 | 3,
     direction: SelectionDirection,
 ): Promise<void> {
-    await session.selection.apply({ neighborsOf: [center], depth: hops, direction });
+    await session.selection.apply({ neighborsOf: [center], depth: hops, direction }, "replace", { cause: "user" });
     const around = session.selection.nodes.filter((node) => node !== center).length;
     // The selection change closes the open row, so it is opened again on the new reach.
     store.set({

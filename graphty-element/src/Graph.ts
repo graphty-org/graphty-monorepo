@@ -3131,31 +3131,56 @@ export class Graph implements GraphContext {
         edges: Record<string | number, unknown>[],
         options?: AddEdgesOptions & QueueableOptions,
     ): Promise<void> {
-        const replace = (): void => {
-            this.dataManager.setEdges(edges, options);
-        };
+        await this.replaceRows(
+            () => {
+                this.dataManager.setEdges(edges, options);
+            },
+            `Replacing the graph's edges with ${edges.length}`,
+            options,
+        );
+    }
 
-        if (options?.skipQueue) {
-            replace();
-            return;
+    /**
+     * Run a replacement of the graph's nodes or edges in its place in the session's load line,
+     * taken when it was asked for (issue #3604): it lands on what a load asked for earlier, still
+     * reading, loaded rather than under it, and at once when none is.
+     * @param replace - The data manager's replacement.
+     * @param description - What the operation queue calls it.
+     * @param options - Queue options.
+     * @returns Once the replacement has landed (and, on the queue, is drawn).
+     */
+    private async replaceRows(replace: () => void, description: string, options?: QueueableOptions): Promise<void> {
+        const line = loadLineOf(dispatcherOf(this.session));
+        const turn = line.join(undefined, "edit");
+        const inTurn = (): void => {
+            line.within(turn, replace);
+        };
+        try {
+            if (options?.skipQueue) {
+                inTurn();
+            } else {
+                await this.operationQueue.queueOperationAsync(
+                    "data-add",
+                    (context) => {
+                        if (context.signal.aborted) {
+                            throw new Error("Operation cancelled");
+                        }
+
+                        inTurn();
+                    },
+                    { description, ...options },
+                );
+            }
+
+            await dataManagerInternals.lastEdit(this.dataManager);
+        } finally {
+            turn.leave();
         }
 
-        await this.operationQueue.queueOperationAsync(
-            "data-add",
-            (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                replace();
-            },
-            {
-                description: `Replacing the graph's edges with ${edges.length}`,
-                ...options,
-            },
-        );
-        // Settled once the pass that derives the replacement has drawn and painted it.
-        await dispatcherOf(this.session).lane.settled();
+        if (!options?.skipQueue) {
+            // Settled once the pass that derives the replacement has drawn and painted it.
+            await dispatcherOf(this.session).lane.settled();
+        }
     }
 
     /**
@@ -3177,31 +3202,13 @@ export class Graph implements GraphContext {
         idPath?: string,
         options?: QueueableOptions,
     ): Promise<void> {
-        const replace = (): void => {
-            this.dataManager.setNodes(nodes, idPath);
-        };
-
-        if (options?.skipQueue) {
-            replace();
-            return;
-        }
-
-        await this.operationQueue.queueOperationAsync(
-            "data-add",
-            (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                replace();
+        await this.replaceRows(
+            () => {
+                this.dataManager.setNodes(nodes, idPath);
             },
-            {
-                description: `Replacing the graph's nodes with ${nodes.length}`,
-                ...options,
-            },
+            `Replacing the graph's nodes with ${nodes.length}`,
+            options,
         );
-        // Settled once the pass that derives the replacement has drawn and painted it.
-        await dispatcherOf(this.session).lane.settled();
     }
 
     /**
@@ -3802,7 +3809,15 @@ export class Graph implements GraphContext {
     private async applyData(mutation: DataMutation | BatchCommand, options?: QueueableOptions): Promise<void> {
         const dispatcher = dispatcherOf(this.session);
         const command = "op" in mutation ? mutation : { op: "data.apply" as const, mutation };
-        await dispatcher.dispatch(command, options?.skipQueue === true ? { beside: true } : undefined);
+        // In the session's load line (issue #3604): at once when no load asked for earlier still
+        // reads, and otherwise once it has dispatched, queued behind its step rather than beside it.
+        let waited = false;
+        const sent = loadLineOf(dispatcher).edit(
+            () => dispatcher.dispatch(command, options?.skipQueue === true && !waited ? { beside: true } : undefined),
+            undefined,
+        );
+        waited = true;
+        await sent;
         // Settled once the pass that derives it has drawn and painted it: what a caller that
         // awaited the add reads is the graph with the add in it.
         await dispatcher.lane.settled();
@@ -3927,7 +3942,11 @@ export class Graph implements GraphContext {
             const named: DispatcherTransactionOptions = {
                 fact: { code: "transaction", params: { label: label ?? null } },
             };
-            await this.session.transaction(label ?? "Batch of changes", (tx) => fn(tx), named);
+            // An edit in the session's load line (issue #3604): it starts once every load asked
+            // for before it has dispatched, so its writes land on what they loaded.
+            await loadLineOf(dispatcherOf(this.session)).edit(async () => {
+                await this.session.transaction(label ?? "Batch of changes", (tx) => fn(tx), named);
+            }, undefined);
         } finally {
             if (--this.openBatches === 0) {
                 for (const verb of Object.keys(BATCH_VERBS)) {
@@ -4068,19 +4087,7 @@ export class Graph implements GraphContext {
         // the graph's own, dispatched or not, and every session load or edit still waiting in line
         // (issue #3524). The clear itself happens before this returns, as it always has; only
         // while a project open writes does it wait for the open, which it would otherwise land in.
-        this.dataManager.supersedeLoads();
-        loadLineOf(dispatcherOf(this.session))
-            .clear(() => {
-                this.dataManager.clear();
-                return Promise.resolve();
-            })
-            .catch((error: unknown) => {
-                this.eventManager.emitGraphError(
-                    this,
-                    error instanceof Error ? error : new Error(String(error)),
-                    "other",
-                );
-            });
+        this.dataManager.clear();
     }
 
     /**

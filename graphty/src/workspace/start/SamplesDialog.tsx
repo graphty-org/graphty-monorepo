@@ -24,28 +24,20 @@ import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import {
     addGraph,
     addSource,
+    copyOf,
     datasetBase,
     type GraphLoad,
     type Incoming,
     openProject,
     openSeparate,
+    OWN_COPIES,
     pictureOf,
+    samplePicture,
 } from "./open";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "./samples";
 
 /** The id of the graph-samples source, whose samples are listed as Datasets rather than Live. */
 const GRAPH_SAMPLES = "graph-samples";
-
-/**
- * The graph-samples dataset each of the app's own four sample files is a copy of, by sample id: the
- * app's copy is listed (it carries the readable names), the dataset is not, so none is listed twice.
- */
-const OWN_COPIES: Readonly<Record<string, string>> = {
-    "les-miserables": "les-miserables",
-    karate: "karate",
-    "college-football": "football",
-    florentine: "florentine-families",
-};
 
 /** Where a picked sample goes: into this project (the {@link addSource} rule), or a new project. */
 type Target = "add" | "separate";
@@ -155,7 +147,7 @@ function sampleEntries(
         };
     });
     const graphs = START_SAMPLES.map((sample): SampleEntry => {
-        const copy = DATASET_DESCRIPTORS.find((dataset) => dataset.name === OWN_COPIES[sample.id]);
+        const copy = copyOf(sample);
         const incoming = { name: sample.name, source: { config: { url: sample.url }, name: sample.name } };
         return {
             key: sample.id,
@@ -164,7 +156,7 @@ function sampleEntries(
             provider: OWN,
             nodes: copy?.nodes,
             edges: copy?.edges,
-            picture: copy === undefined ? undefined : pictureOf(copy),
+            picture: samplePicture(sample),
             words: `${sample.name} ${sample.sentence} ${OWN}`.toLowerCase(),
             open: (target) => {
                 bringFile(ctx, incoming, target);

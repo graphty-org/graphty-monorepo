@@ -830,7 +830,22 @@ describe("arrowheads", () => {
             ),
             "vee",
         );
-        // a crow's foot: tines spreading towards the node
+        // a crow's foot: tines spreading towards the node, one along the line (Graphviz's, a spike of no width)
+        assert.strictEqual(
+            arrowShapeOf(
+                poly([
+                    [0, 0],
+                    [10, -5],
+                    [5, 0],
+                    [10, 0],
+                    [5, 0],
+                    [10, 5],
+                ]),
+                right,
+            ),
+            "crow",
+        );
+        // a vee turned back, its notch empty (vis-network's crow): no crow's foot
         assert.strictEqual(
             arrowShapeOf(
                 poly([
@@ -841,7 +856,7 @@ describe("arrowheads", () => {
                 ]),
                 right,
             ),
-            "crow",
+            "inverted-vee",
         );
         assert.strictEqual(
             arrowShapeOf(

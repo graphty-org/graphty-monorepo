@@ -20,19 +20,19 @@ export const SOURCE_ISSUE = Object.freeze({
     E_SOURCE_BLOCKED: "E_SOURCE_BLOCKED",
     /** 401 or a database login failure. Params: `origin`, `status`, `scheme`, `serverCode`. */
     E_SOURCE_AUTH: "E_SOURCE_AUTH",
-    /** 403 or a database authorization failure. Params: `status`, `serverCode`. */
+    /** 403 or a database authorization failure. Params: `origin`, `status`, `serverCode`. */
     E_SOURCE_FORBIDDEN: "E_SOURCE_FORBIDDEN",
-    /** The named item does not exist. Params: `what`, `value`. */
+    /** The named item does not exist. Params: `origin`, `what`, `value`. */
     E_SOURCE_NOT_FOUND: "E_SOURCE_NOT_FOUND",
-    /** 429 after the retries. Params: `retryAfterMs`. */
+    /** 429 after the retries. Params: `origin`, `retryAfterMs`. */
     E_SOURCE_QUOTA: "E_SOURCE_QUOTA",
-    /** `timeoutMs` passed, or the server's own timeout. Params: `timeoutMs`, `serverSide`. */
+    /** `timeoutMs` passed, or the server's own timeout. Params: `origin`, `timeoutMs`, `serverSide`. */
     E_SOURCE_TIMEOUT: "E_SOURCE_TIMEOUT",
-    /** The server rejected the query. Params: `serverCode`, `line`, `column`, `serverMessage`. */
+    /** The server rejected the query. Params: `origin`, `serverCode`, `line`, `column`, `serverMessage`. */
     E_SOURCE_QUERY: "E_SOURCE_QUERY",
     /** The result holds no node, relationship or path. Params: `columns`. */
     E_SOURCE_NOT_A_GRAPH: "E_SOURCE_NOT_A_GRAPH",
-    /** A response body of the wrong shape. Params: `expected`, `contentType`. */
+    /** A response body of the wrong shape. Params: `origin`, `expected`, `contentType`. */
     E_SOURCE_RESPONSE: "E_SOURCE_RESPONSE",
     /** A redirect, or a changed origin, while a credential was attached. Params: `from`, `to`. */
     E_SOURCE_REDIRECT: "E_SOURCE_REDIRECT",
@@ -104,6 +104,8 @@ export interface SourceIssueParams {
     };
     /** Not allowed. */
     readonly E_SOURCE_FORBIDDEN: {
+        /** The origin that answered, or null when no single server did. */
+        readonly origin: string | null;
         /** The HTTP status, or null when there was none. */
         readonly status: number | null;
         /** The service's own code, passed through, or null. */
@@ -111,6 +113,8 @@ export interface SourceIssueParams {
     };
     /** No such item. */
     readonly E_SOURCE_NOT_FOUND: {
+        /** The origin that answered, or null when no single server did. */
+        readonly origin: string | null;
         /** What was looked up (`url`, `network`, `node`). */
         readonly what: string;
         /** The value that reached the cap, or what was looked up. */
@@ -118,11 +122,15 @@ export interface SourceIssueParams {
     };
     /** Out of quota. */
     readonly E_SOURCE_QUOTA: {
+        /** The origin that answered, or null when no single server did. */
+        readonly origin: string | null;
         /** How long the service asked to wait, when readable. */
         readonly retryAfterMs: number | null;
     };
     /** Took too long. */
     readonly E_SOURCE_TIMEOUT: {
+        /** The origin that answered, or null when no single server did. */
+        readonly origin: string | null;
         /** The time limit, or null for the server's own. */
         readonly timeoutMs: number | null;
         /** Whether the server timed the query out. */
@@ -130,6 +138,8 @@ export interface SourceIssueParams {
     };
     /** The query was refused. */
     readonly E_SOURCE_QUERY: {
+        /** The origin that answered, or null when no single server did. */
+        readonly origin: string | null;
         /** The service's own code, passed through, or null. */
         readonly serverCode: string | null;
         /** The query line the server named, or null. */
@@ -146,6 +156,8 @@ export interface SourceIssueParams {
     };
     /** Wrong body. */
     readonly E_SOURCE_RESPONSE: {
+        /** The origin that answered, or null when no single server did. */
+        readonly origin: string | null;
         /** What shape was expected (`json`, `graph-file`, `link-header`). */
         readonly expected: string;
         /** The response's Content-Type, or null. */

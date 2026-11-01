@@ -5,6 +5,7 @@
  */
 
 import { type ImportReportBuilder } from "../../common/report.js";
+import { originOf } from "../credentials.js";
 import { failOn } from "../fail.js";
 import { type RestPaging } from "./params.js";
 import { selectOne } from "./selectors.js";
@@ -128,6 +129,7 @@ function nextLink(rel: string, page: PageResponse, endpoint: URL, report: Import
         if (page.runtime === "browser") {
             // a browser reads Link only when the service exposes it: never a silent single page
             failOn(report, "E_SOURCE_RESPONSE", "the Link header cannot be read", {
+                origin: originOf(endpoint),
                 expected: "link-header",
                 contentType: page.headers.get("content-type"),
             });

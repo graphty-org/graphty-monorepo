@@ -1,3 +1,14 @@
+## 0.1.43 (2026-11-01)
+
+### 🩹 Fixes
+
+- **graph-samples:** keep each dataset source copy in an immutable release of its own ([#3362](https://github.com/graphty-org/graphty-monorepo/issues/3362))
+- **graph-samples:** rebuild a changed hosted dataset when the sources release lacks its source ([#3362](https://github.com/graphty-org/graphty-monorepo/issues/3362))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.11
+
 ## 0.1.42 (2026-10-31)
 
 ### 🩹 Fixes

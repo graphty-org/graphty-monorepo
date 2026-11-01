@@ -40,6 +40,45 @@ const CHECKED_ELSEWHERE: Readonly<Record<string, string>> = {
     "SessionDataApi.collapse": "test/session/sources/expand.test.ts; needs a node a source expanded",
 };
 
+/**
+ * The renderer rows `test/browser/renderer-load-entry.test.ts` calls with a load held in line,
+ * or a test it names checks; kept in step with that file's own list.
+ */
+const RENDERER_CHECKED = new Set([
+    ...[
+        "addNode",
+        "addNodes",
+        "addEdge",
+        "addEdges",
+        "removeNodes",
+        "removeEdges",
+        "updateNodes",
+        "updateEdges",
+    ].flatMap((member) => [`Graph.${member}`, `Graphty.${member}`]),
+    ...["batchOperations", "setData", "addDataFromSource", "loadFromFile", "loadFromUrl", "clearData"].flatMap(
+        (member) => [`Graph.${member}`, `Graphty.${member}`],
+    ),
+    "Graph.setNodes",
+    "Graph.setEdges",
+    "Graphty.loadFromSource",
+    "Graphty.dataSource",
+    "Graphty.dataSourceConfig",
+    "Graphty.nodeData",
+    "Graphty.edgeData",
+    ...[
+        "addNode",
+        "addNodes",
+        "addEdge",
+        "addEdges",
+        "removeEdge",
+        "removeNodeAndIncidentEdges",
+        "setNodes",
+        "setEdges",
+        "clear",
+        "addDataFromSource",
+    ].map((member) => `DataManager.${member}`),
+]);
+
 /** The document the `LoadDraft` row of `doors.ts` prepares. */
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
@@ -220,13 +259,16 @@ describe("the load entry's ratchet", () => {
         assert.deepEqual(stray, []);
     });
 
-    it("routes every session door through the entry, and names the issue of every renderer door that is not", () => {
-        const session = new Set(rowsOf("session").map(([label]) => label));
-        const wrong = Object.entries(LOAD_ORDER)
-            .filter(([label, order]) => typeof order !== "string" && (session.has(label) || !(order.direct > 0)))
-            .map(([label]) => label);
+    it("checks every renderer door in the browser", () => {
+        const renderer = rowsOf("renderer")
+            .map(([label]) => label)
+            .filter((label) => label in LOAD_ORDER);
 
-        assert.deepEqual(wrong, []);
+        assert.deepEqual(
+            renderer.filter((label) => !RENDERER_CHECKED.has(label)),
+            [],
+            "renderer doors in LOAD_ORDER that test/browser/renderer-load-entry.test.ts does not call",
+        );
     });
 
     it("calls every ordered door here, or names the test that checks it", () => {
@@ -513,6 +555,27 @@ describe("session.data edits land after a load queued before them (issue #3526)"
             await edited.catch(() => undefined);
             assert.deepEqual(ops, ["data.import-source", "data.apply"], `${verb} dispatched under the load`);
         }
+    });
+});
+
+describe("a write beside a running load is not counted as the load's rows (issue #5416)", () => {
+    it("an add-nodes member of a batch beside an import leaves the import's tally alone", async () => {
+        const session = fresh();
+        await dispatcherOf(session).dispatchNow({
+            op: "batch",
+            fact: { code: "data.import", params: { name: null, type: "csv" } },
+            steps: [
+                {
+                    op: "data.import",
+                    source: { type: "csv", config: { data: "source,target\nA,B\n" }, name: "f.csv" },
+                    mode: "merge",
+                },
+                { op: "data.apply", mutation: { kind: "add-nodes", records: [{ id: "X" }, { id: "Y" }] } },
+            ],
+        });
+
+        assert.deepEqual(session.data.sources()[0].added, { nodes: 2, edges: 1 });
+        assert.strictEqual(session.data.snapshot().nodeCount, 4, "the write's own nodes were not added");
     });
 });
 

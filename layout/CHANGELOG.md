@@ -1,3 +1,16 @@
+## 2.5.14 (2026-11-01)
+
+### 🩹 Fixes
+
+- **workspace:** shrink CLAUDE.md files and move area rules to where they apply ([#3304](https://github.com/graphty-org/graphty-monorepo/issues/3304), [#1607](https://github.com/graphty-org/graphty-monorepo/issues/1607), [#1591](https://github.com/graphty-org/graphty-monorepo/issues/1591), [#1595](https://github.com/graphty-org/graphty-monorepo/issues/1595), [#1741](https://github.com/graphty-org/graphty-monorepo/issues/1741))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.43
+- Updated visual-review to 0.2.39
+- Updated graph-format to 1.4.11
+- Updated algorithms to 3.4.18
+
 ## 2.5.13 (2026-10-31)
 
 ### 🩹 Fixes

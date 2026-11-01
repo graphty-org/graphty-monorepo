@@ -23,6 +23,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { FrameRoster } from "../../src/meshes/FrameRoster";
+import { TEXTURE_FIT_CHECKS_PER_FRAME } from "../../src/meshes/labelTextureFit";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
@@ -158,7 +159,11 @@ describe("per-frame work of labels and edges grows no faster than the graph", ()
                 // frame takes its material off full opacity, which Babylon answers by marking
                 // every mesh in the scene; that happens once, so it is left out of the count.
                 const busy = label(scene, 0, true);
-                scene.onBeforeRenderObservable.notifyObservers(scene);
+                // New labels fit their textures to the screen once, at most a fixed number a frame
+                // (see labelTextureFit), so the frames that do that are left out of the count too.
+                for (let frame = 0; frame <= Math.ceil((size + 1) / TEXTURE_FIT_CHECKS_PER_FRAME); frame++) {
+                    scene.onBeforeRenderObservable.notifyObservers(scene);
+                }
                 const before = busy.labelMesh?.scaling.x;
                 const visits = await visitsDuring(() => {
                     scene.onBeforeRenderObservable.notifyObservers(scene);

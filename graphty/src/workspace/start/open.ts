@@ -11,7 +11,7 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import type { AssetSource, DataSourceInput, GraphSession } from "@graphty/graphty-element/session";
+import type { AssetSource, DataSourceInput, GraphSession, LoadDraft } from "@graphty/graphty-element/session";
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
@@ -164,14 +164,16 @@ export function incomingFiles(files: readonly File[]): Incoming {
  * @param session - the project's session.
  * @param source - what to load.
  * @param fresh - whether it is a new project's first load, which starts its history.
+ * @param read - the source already read into a draft (by `project.open`), else it is read here.
  */
 async function drawFirst(
     workspace: WorkspaceStore,
     session: GraphSession,
     source: DataSourceInput,
     fresh = false,
+    read?: LoadDraft,
 ): Promise<void> {
-    const draft = await session.data.prepare(source, { guess: "values" });
+    const draft = read ?? (await session.data.prepare(source, { guess: "values" }));
     const fixed = draft.tables.every((table) => table.fixed);
     const ready = Object.values(draft.missing()).every((roles) => roles.length === 0);
     const lone = draft.tables.length === 1 && !ready;
@@ -200,12 +202,19 @@ async function drawFirst(
  * @param workspace - the workspace store.
  * @param session - the project's session.
  * @param incoming - the source.
+ * @param read - the source already read into a draft onto the graph (by `project.open`).
  */
-async function takeIn(workspace: WorkspaceStore, session: GraphSession, incoming: Incoming): Promise<void> {
+async function takeIn(
+    workspace: WorkspaceStore,
+    session: GraphSession,
+    incoming: Incoming,
+    read?: LoadDraft,
+): Promise<void> {
     if (await routeToReplace(workspace, session, incoming)) {
+        read?.dispose();
         return;
     }
-    const draft = await session.data.prepare(incoming.source, { onto: "graph", guess: "values" });
+    const draft = read ?? (await session.data.prepare(incoming.source, { onto: "graph", guess: "values" }));
     workspace.set({ joining: { name: incoming.name, draft, source: incoming.source } });
 }
 
@@ -259,14 +268,19 @@ export function openUrl(workspace: WorkspaceStore, url: string): void {
  * @param ctx.workspace - the workspace store.
  * @param ctx.session - the open project's session, or null.
  * @param incoming - the source.
+ * @param read - the source already read into a draft by the project's session (`project.open`):
+ *     onto the graph when the graph holds data.
  */
-export function addSource({ workspace, session }: CommandContext, incoming: Incoming): void {
+export function addSource({ workspace, session }: CommandContext, incoming: Incoming, read?: LoadDraft): void {
     if (workspace.get().project === null || session === null) {
+        read?.dispose();
         openSeparate(workspace, incoming);
         return;
     }
     const first = session.data.sources().length === 0;
-    const work = first ? drawFirst(workspace, session, incoming.source) : takeIn(workspace, session, incoming);
+    const work = first
+        ? drawFirst(workspace, session, incoming.source, false, read)
+        : takeIn(workspace, session, incoming, read);
     if (first) {
         // The project's first graph: an open, which `opened` follows as a new project's.
         workspace.set({ opened: work });
@@ -285,14 +299,15 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
  * @param ctx.workspace - the workspace store.
  * @param ctx.session - the new project's session.
  * @param incoming - the source.
+ * @param read - the source already read into a draft by the new project's session (`project.open`).
  */
-async function openFirst({ workspace, session }: CommandContext, incoming: Incoming): Promise<void> {
+async function openFirst({ workspace, session }: CommandContext, incoming: Incoming, read?: LoadDraft): Promise<void> {
     if (session === null) {
         return;
     }
     const focusLater = focusOpenedGraphLater();
     try {
-        await drawFirst(workspace, session, incoming.source, true);
+        await drawFirst(workspace, session, incoming.source, true, read);
         focusLater();
     } catch (error) {
         focusLater(false);
@@ -355,11 +370,11 @@ export function openFiles(ctx: CommandContext, files: readonly File[]): void {
     if (files.length === 1 && incoming !== undefined) {
         void openProjectFile(ctx, files[0], {
             name: incoming.name.replace(/\.[^.]*$/, "") || incoming.name,
-            onData: (next, fresh) => {
+            onData: (next, fresh, draft) => {
                 if (fresh) {
-                    return openFirst(next, incoming);
+                    return openFirst(next, incoming, draft);
                 }
-                addSource(next, incoming);
+                addSource(next, incoming, draft);
                 return Promise.resolve();
             },
         });

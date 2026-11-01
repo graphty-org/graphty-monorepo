@@ -191,6 +191,37 @@ export function keyExpression(name: string): string {
 }
 
 /**
+ * A table cell that names a node, as text: a CSV file's ids are text, as `session.data.import`
+ * reads them, though the draft types each cell for the mapping (`1`, `true`).
+ * @param value - The cell.
+ * @returns The cell, a number or a truth value written as text.
+ */
+function idText(value: unknown): unknown {
+    return typeof value === "number" || typeof value === "boolean" ? String(value) : value;
+}
+
+/**
+ * Rows with the cells that name nodes as text (see {@link idText}) and last, where the CSV reader
+ * puts a node's id.
+ * @param rows - The rows.
+ * @param columns - The columns that name nodes.
+ * @returns The rows.
+ */
+function withIdText(
+    rows: readonly Record<string, unknown>[],
+    columns: readonly (string | null | undefined)[],
+): readonly Record<string, unknown>[] {
+    const named = new Set(columns.filter((column): column is string => typeof column === "string"));
+    return rows.map((row) => {
+        const entries = Object.entries(row);
+        return Object.fromEntries([
+            ...entries.filter(([column]) => !named.has(column)),
+            ...entries.filter(([column]) => named.has(column)).map(([column, value]) => [column, idText(value)]),
+        ]);
+    });
+}
+
+/**
  * The name of one file of a pair: the `File`'s name, or the URL's last part.
  * @param value - A `nodeFile`, `edgeFile`, `nodeURL` or `edgeURL` option.
  * @returns The name, or undefined.
@@ -1054,11 +1085,12 @@ export class Draft implements LoadDraft {
             Object.assign(named, { edgeWeightMeaning: null });
         }
 
-        // A graph file's label column, which the element reads by itself, or the label column a
-        // table's columns name, labels the nodes as the draft's mapping says it will, unless a
-        // label path is configured already or a merge keeps how the graph names its nodes.
+        // A graph file's `label` field, as `data.import` names a graph file's nodes (whether or not
+        // this file has one), or the label column a table's mapping names, labels the nodes, unless
+        // a label path is configured already or a merge keeps how the graph names its nodes.
         const nodeMapping = Object.values(mapping.tables).find((table) => table.rowsAre === "nodes");
-        const label = read.tables[0].table.fixed || choices.mode !== "merge" ? (nodeMapping?.label ?? null) : null;
+        const tableLabel = read.tables[0].table.fixed ? FORMAT_LABEL : (nodeMapping?.label ?? null);
+        const label = choices.mode === "merge" ? null : tableLabel;
         const labelled =
             label === null || this.host.config().knownFields.nodeLabelPath !== null
                 ? named
@@ -1105,8 +1137,10 @@ export class Draft implements LoadDraft {
         const key = nodeRoles?.key ?? null;
         const nodeRows = nodeTable?.rows ?? [];
         const kinds = withKinds(
-            key === null ? nodeRows.map((row, index) => ({ ...row, [ROW_ID]: String(index) })) : nodeRows,
-            edgeTable?.rows ?? [],
+            key === null
+                ? nodeRows.map((row, index) => ({ ...row, [ROW_ID]: String(index) }))
+                : withIdText(nodeRows, [key]),
+            withIdText(edgeTable?.rows ?? [], [edgeRoles?.source?.column, edgeRoles?.target?.column]),
             {
                 key: key ?? ROW_ID,
                 nodeKind: nodeRoles?.kind ?? null,
@@ -1159,8 +1193,9 @@ export class Draft implements LoadDraft {
         // Only this table need be ready: another table's missing role does not stop reading this one.
         const { mapping, held: rows } = this.plan(read, choices, held.table.id);
         const roles = mapping.tables[held.table.id];
+        // A CSV table's ids are read as text, as the plan loads them.
         const value = (row: Readonly<Record<string, unknown>>, expression: string): unknown =>
-            readEndpoint(row, expression);
+            held.table.fixed ? readEndpoint(row, expression) : idText(readEndpoint(row, expression));
         const picked: number[] = [];
         if (roles.rowsAre === "nodes") {
             if (only !== "unmatched") {

@@ -66,6 +66,15 @@
             "^tools/check-quick\\.sh$"
         ]
     },
+    "standaloneTools": {
+        "$comment": "Tools under tools/ that are projects of their own, outside the pnpm workspace and nx: their own sources, fixtures and tests, run by their own workflow (pipeline-health.yml, results-service.yml), never by a test shard. A change to one of their files runs only the package tests that import it or name its path or a folder above it (never one that names only its file name: text.ts in pipeline-health is not graph-io's text.ts), and otherwise no shard, instead of every shard as an unknown root file (issue #4506).",
+        "patterns": [
+            "^tools/pipeline-health/",
+            "^tools/results-service/",
+            "^tools/release-scheduler/",
+            "^tools/nx-cache-worker/"
+        ]
+    },
     "wholePackage": {
         "$comment": "A change matching one of these, inside a package, runs every shard of that package: data and recordings read at run time, and the files that decide how its tests run. A code file under the package's src/ is never matched (src/data/ holds data-source code): the import graph judges it. public/ is Vite's publicDir, served by URL (graphty's samples), which no import shows.",
         "patterns": [

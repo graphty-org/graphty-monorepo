@@ -371,18 +371,17 @@ describe("a Pajek file's lengths are drawn in one unit", () => {
     });
 });
 
-describe("a sigma.js (graphology) file's labels are canvas px over positions fitted to the canvas", () => {
-    // Nodes 10 across (size 5 is a radius) in a 90 x 90 box. sigma 4 fits the box 540 px tall in an
-    // 800 x 600 canvas (600 less its 30 px stagePadding at each end): 6 px a unit, so a 12 px label
-    // is 2 units tall, a fifth of a node.
+describe("a sigma.js (graphology) file's labels are drawn in screen px, as sigma draws them at every zoom", () => {
+    // Nodes 10 across (size 5 is a radius) in a 90 x 90 box. sigma draws a 12 px label 12 px tall on
+    // screen however the view is zoomed or the canvas sized (issue #3106).
     const doc = JSON.stringify({
-        options: { type: "undirected", multi: false, allowSelfLoops: true },
+        options: { type: "directed", multi: false, allowSelfLoops: true },
         nodes: [
             { key: "a", attributes: { x: 0, y: 0, size: 5, label: "a" } },
-            { key: "b", attributes: { x: 90, y: 0, size: 5, label: "b" } },
+            { key: "b", attributes: { x: 90, y: 0, size: 8, label: "b" } },
             { key: "c", attributes: { x: 0, y: 90, size: 5, label: "c" } },
         ],
-        edges: [],
+        edges: [{ key: "ab", source: "a", target: "b", attributes: { label: "ab" } }],
     });
 
     /**
@@ -400,26 +399,37 @@ describe("a sigma.js (graphology) file's labels are canvas px over positions fit
         return session;
     }
 
-    it("draws a 12 px label as sigma does on the element's canvas, beside nodes in proportion to their spacing", async () => {
+    /**
+     * An element's label style.
+     * @param session - The session.
+     * @param target - The element.
+     * @returns The style.
+     */
+    function labelStyle(session: GraphSession, target: { node: NodeId } | { edge: string }): Record<string, unknown> {
+        const kind = "node" in target ? "node" : "edge";
+        return (drawn(session, target, `${kind}.labelStyle`) ?? {}) as Record<string, unknown>;
+    }
+
+    for (const viewport of [{ width: 800, height: 600 }, { width: 1200, height: 900 }, null]) {
+        it(`draws every node label at sigma's 12 px on screen, whatever the canvas (${JSON.stringify(viewport)})`, async () => {
+            const session = await loadedSigma(viewport);
+            for (const node of ["a", "b"]) {
+                const style = labelStyle(session, { node });
+                assert.strictEqual(style.sizeMode, "screen", `${node}'s label size mode`);
+                assert.strictEqual(style.sizePx, 12, `${node}'s label size`);
+                // never sized in the scene, which would override the screen size
+                assert.isUndefined(style.letterSize, `${node}'s letter size`);
+            }
+            session.dispose();
+        });
+    }
+
+    it("draws an edge label at sigma's 12 px on screen", async () => {
         const session = await loadedSigma({ width: 800, height: 600 });
-        const node = number(session, { node: "a" }, "node.size") * 1.5;
-        assert.approximately(letters(fontSize(session, { node: "a" })) / node, 2 / 10, 1e-6);
-        assert.approximately(spacing(session) / node, 90 / 10, 1e-4);
-        session.dispose();
-    });
-
-    it("draws the label smaller against the graph on a larger canvas, as sigma does", async () => {
-        // 1200 x 900: the box is 840 px tall, 840 / 90 px a unit
-        const session = await loadedSigma({ width: 1200, height: 900 });
-        const node = number(session, { node: "a" }, "node.size") * 1.5;
-        assert.approximately(letters(fontSize(session, { node: "a" })) / node, 12 / (840 / 90) / 10, 1e-6);
-        session.dispose();
-    });
-
-    it("keeps the label in the unit of the node sizes without a canvas to fit to", async () => {
-        const session = await loadedSigma(null);
-        const node = number(session, { node: "a" }, "node.size") * 1.5;
-        assert.approximately(letters(fontSize(session, { node: "a" })) / node, 12 / 10, 1e-6);
+        const [edge] = session.data.edges();
+        const style = labelStyle(session, { edge: edge.id });
+        assert.strictEqual(style.sizeMode, "screen");
+        assert.strictEqual(style.sizePx, 12);
         session.dispose();
     });
 });

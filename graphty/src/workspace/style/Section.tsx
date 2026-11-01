@@ -145,7 +145,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
         ...added.filter((d) => set.includes(d) || pending.includes(d)),
     ].filter((d) => !folded.has(d.channel));
     const fail = (verb: string) => (error: unknown) => {
-        focusLineNext(null);
+        focusLineNext(ctx.session, null);
         startingAdds.delete(ctx.session);
         store.set({ notice: { message: failureWords(spec.title, verb, error), error: true } });
     };
@@ -161,7 +161,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
             .catch(fail("added"));
     };
     const add = (descriptor: ChannelDescriptor, value?: boolean): void => {
-        focusLineNext(descriptor.channel);
+        focusLineNext(ctx.session, descriptor.channel);
         if (value === undefined) {
             setWaiting((now) => (now.includes(descriptor.channel) ? now : [...now, descriptor.channel]));
             const every = ctx.many === undefined ? "" : " for every layer";
@@ -187,7 +187,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
             return false;
         }
         if (set.includes(descriptor)) {
-            focusLineNext(channel);
+            focusLineNext(ctx.session, channel);
             setWaiting((now) => [...now]);
         } else {
             add(descriptor, channel === "node.wireframe" ? true : undefined);

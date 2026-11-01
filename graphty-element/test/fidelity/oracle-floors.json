@@ -4088,7 +4088,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 0.98,
             "edge.extra": 0.961,
-            "edge.route": 0.908,
+            "edge.route": 0.912,
             "edge.curve": 0.986,
             "edge.color": 0.997,
             "edge.width": 1,
@@ -4119,12 +4119,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.92,
             "raster.canvas": 0.96,
             "raster.edge": 0.89,
-            "raster.label": 0.88,
-            "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.91,
+            "raster.label": 0.89,
+            "raster.nodeBody": 0.92,
+            "raster.nodeOutline": 0.92,
             "edge.wiggle": 1
         },
         "cx2-signor-aml@matched": {
@@ -4159,7 +4159,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 0.98,
             "edge.extra": 0.961,
-            "edge.route": 0.908,
+            "edge.route": 0.912,
             "edge.curve": 0.986,
             "edge.color": 0.997,
             "edge.width": 1,
@@ -31936,8 +31936,8 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.996,
-            "edge.extra": 0.996,
+            "edge.present": 1,
+            "edge.extra": 1,
             "edge.route": 0.967,
             "edge.curve": 1,
             "edge.color": 1,
@@ -31987,8 +31987,8 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.996,
-            "edge.extra": 0.996,
+            "edge.present": 1,
+            "edge.extra": 1,
             "edge.route": 0.967,
             "edge.curve": 1,
             "edge.color": 1,
@@ -36492,7 +36492,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.97,
-            "raster.edge": 0.86,
+            "raster.edge": 0.87,
             "raster.label": 0.79,
             "raster.nodeBody": 0.72,
             "raster.nodeOutline": 0.82,
@@ -38430,11 +38430,11 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.arrowhead": 0.82,
-            "raster.canvas": 0.89,
+            "raster.canvas": 0.9,
             "raster.edge": 0.64,
             "raster.label": 0.52,
             "raster.nodeBody": 0.66,
-            "raster.nodeOutline": 0.68,
+            "raster.nodeOutline": 0.69,
             "edge.wiggle": 1
         },
         "graphml-galaxy-lcms-workflow@matched": {
@@ -38676,9 +38676,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.86,
-            "raster.canvas": 0.94,
-            "raster.edge": 0.77,
+            "raster.arrowhead": 0.88,
+            "raster.canvas": 0.95,
+            "raster.edge": 0.79,
             "raster.label": 0.85,
             "raster.nodeBody": 0.91,
             "raster.nodeOutline": 0.89,
@@ -39182,12 +39182,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.89,
+            "raster.arrowhead": 0.9,
             "raster.canvas": 0.98,
-            "raster.edge": 0.88,
+            "raster.edge": 0.89,
             "raster.label": 0.91,
             "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "graphml-synthetic-edges@matched": {
@@ -39305,7 +39305,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.arrowhead": 0.82,
-            "raster.canvas": 0.96,
+            "raster.canvas": 0.97,
             "raster.edge": 0.83,
             "raster.label": 0.8,
             "raster.nodeBody": 0.83,
@@ -40735,7 +40735,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "stray.extra": 0.5,
+            "stray.extra": 0.667,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 0,
@@ -40772,7 +40772,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "stray.extra": 0.5,
+            "stray.extra": 0.667,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 0,
@@ -53231,6 +53231,90 @@
                 "date": "2026-11-01"
             }
         },
+        "gml-specimen-groups": {
+            "label.offset": {
+                "floor": 1,
+                "to": 0,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
+        "gml-specimen-groups@matched": {
+            "label.offset": {
+                "floor": 1,
+                "to": 0,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
+        "gml-specimen-labels-p3": {
+            "label.offset": {
+                "floor": 0.375,
+                "to": 0.125,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 0.375,
+                "to": 0.125,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
+        "gml-specimen-labels-p3@matched": {
+            "label.offset": {
+                "floor": 0.375,
+                "to": 0.125,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 0.375,
+                "to": 0.125,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
+        "gml-synthetic-coverage": {
+            "label.offset": {
+                "floor": 0.475,
+                "to": 0.2,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 0.475,
+                "to": 0.163,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
+        "gml-synthetic-coverage@matched": {
+            "label.offset": {
+                "floor": 0.475,
+                "to": 0.2,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 0.475,
+                "to": 0.163,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
         "graphml-galaxy-lcms-workflow": {
             "edge.curve": {
                 "floor": 0.476,
@@ -53578,90 +53662,6 @@
                 "floor": 0.474,
                 "to": 0.421,
                 "reason": "comparator: yEd draws table node table-lane-style-rows as three stacked 30.85 px rows. The twin rule used to take a row drawn one row lower as the outline of the row above, so the node read as two rows merged (61.7 of 92.6 px, light fill). Since #5332, stacked boxes are no twins (the cx2-wp1449-tlr fix), so it reads the gray header row alone. Neither reading is the whole table; reading a table drawn as rows as one body is #5347",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-groups": {
-            "label.offset": {
-                "floor": 1,
-                "to": 0,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 1,
-                "to": 0,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-groups@matched": {
-            "label.offset": {
-                "floor": 1,
-                "to": 0,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 1,
-                "to": 0,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-labels-p3": {
-            "label.offset": {
-                "floor": 0.375,
-                "to": 0.125,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 0.375,
-                "to": 0.125,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-labels-p3@matched": {
-            "label.offset": {
-                "floor": 0.375,
-                "to": 0.125,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 0.375,
-                "to": 0.125,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-synthetic-coverage": {
-            "label.offset": {
-                "floor": 0.475,
-                "to": 0.2,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 0.475,
-                "to": 0.163,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-synthetic-coverage@matched": {
-            "label.offset": {
-                "floor": 0.475,
-                "to": 0.2,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 0.475,
-                "to": 0.163,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
                 "date": "2026-11-01"
             }
         }

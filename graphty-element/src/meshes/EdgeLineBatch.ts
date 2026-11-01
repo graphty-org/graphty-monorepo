@@ -55,6 +55,19 @@ export function forceExpandedLines(expanded: boolean | null): void {
     expandedOverride = expanded;
 }
 
+/** Every mesh an edge line batch draws with, so a teardown can tell a shared batch from an edge's own mesh. */
+const batchMeshes = new WeakSet<Mesh>();
+
+/**
+ * Whether a mesh is a shared edge line batch rather than one edge's own mesh. An expanded batch has
+ * no instances, so `hasThinInstances` cannot tell.
+ * @param mesh - The mesh.
+ * @returns True for a batch's mesh.
+ */
+export function isEdgeLineBatchMesh(mesh: unknown): boolean {
+    return batchMeshes.has(mesh as Mesh);
+}
+
 /**
  * Whether joined lines on this engine are drawn as one plain mesh rather than as instances.
  *
@@ -239,6 +252,7 @@ export class EdgeLineBatch {
      */
     constructor(mesh: Mesh, scene: Scene, retire: () => void = (): void => undefined) {
         this.mesh = mesh;
+        batchMeshes.add(mesh);
         this.retire = retire;
         const meta = (mesh.metadata ?? {}) as EdgeLineMeta;
         this.pattern = meta.pattern;

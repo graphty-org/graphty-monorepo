@@ -7571,6 +7571,8 @@ export class UpdateManager implements Manager {
     fitAnnotations: (() => void) | null;
     forceEdgeWalk(): void;
     get frameIsStable(): boolean;
+    // @internal
+    framing: GraphFraming | undefined;
     getRenderFrameCount(): number;
     holdSelectionFollow(): void;
     init(): Promise<void>;

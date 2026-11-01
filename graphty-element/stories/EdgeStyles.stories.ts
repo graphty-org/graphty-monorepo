@@ -2331,28 +2331,19 @@ const BENDS_LAYERS: LayerSpec[] = [
 ];
 
 /**
- * A pair of nodes per angle and look, the angles across and the looks down, and four small nodes
- * at the corners: the camera frames the nodes, not the bends, and the sharpest bends reach well
- * above their row.
+ * A pair of nodes per angle and look, the angles across and the looks down. The sharpest bends
+ * reach well above their row, and the camera frames them with the nodes.
  */
-const BENDS_NODES = [
-    ...BEND_LOOKS.flatMap((look, row) =>
-        BEND_ANGLES.flatMap((angle, column) => {
-            const x = (column - 2) * 4;
-            const y = (1 - row) * 5 - 1.5;
-            return [
-                { id: `${look.kind}-${String(angle)}-a`, position: { x: x - 1.2, y, z: 0 } },
-                { id: `${look.kind}-${String(angle)}-b`, position: { x: x + 1.2, y, z: 0 } },
-            ];
-        }),
-    ),
-    ...[
-        [-10, 8],
-        [10, 8],
-        [-10, -7.5],
-        [10, -7.5],
-    ].map(([x, y], i) => ({ id: `frame-${String(i)}`, position: { x, y, z: 0 } })),
-];
+const BENDS_NODES = BEND_LOOKS.flatMap((look, row) =>
+    BEND_ANGLES.flatMap((angle, column) => {
+        const x = (column - 2) * 4;
+        const y = (1 - row) * 5 - 1.5;
+        return [
+            { id: `${look.kind}-${String(angle)}-a`, position: { x: x - 1.2, y, z: 0 } },
+            { id: `${look.kind}-${String(angle)}-b`, position: { x: x + 1.2, y, z: 0 } },
+        ];
+    }),
+);
 
 const BENDS_EDGES = BEND_LOOKS.flatMap((look) =>
     BEND_ANGLES.map((angle) => ({

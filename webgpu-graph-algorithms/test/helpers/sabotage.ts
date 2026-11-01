@@ -286,8 +286,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             // attraction pushes away from the neighbour instead of towards it (row_force_dense: karate reaches no
             // degree of 32, so every check in this suite folds through TIER 0)
             name: "attraction-sign-flipped",
-            find: "total = total + d * mag;",
-            replace: "total = total - d * mag;",
+            find: "total = total + d * select(",
+            replace: "total = total - d * select(",
             minFactor: 10,
             test: INSPECT_TEST,
         },

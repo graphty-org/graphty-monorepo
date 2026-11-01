@@ -100,9 +100,9 @@ describe("the Style panel", () => {
         });
         await session.styles.settled();
         await clickRow("Plain");
-        const row = await screen.findByRole("button", { name: /^Which nodes, / });
-        // The same count the layer's row and the open editor read: what it paints.
-        assert.strictEqual(row.getAttribute("aria-label"), "Which nodes, 77 of 77");
+        const row = await screen.findByRole("treeitem", { name: /^Which nodes, / });
+        // The same count the layer's row and the outline read: what it paints.
+        assert.strictEqual(row.getAttribute("aria-label"), "Which nodes, 77 of 77 nodes");
         assert.notInclude(row.textContent ?? "", "add a condition");
         assert.isNull(document.querySelector("[data-warn]"), "no warning outline");
     });

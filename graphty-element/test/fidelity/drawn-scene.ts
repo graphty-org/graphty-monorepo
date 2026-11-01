@@ -78,7 +78,8 @@ const OTHER_END: Readonly<Record<string, "arrowHead" | "arrowTail">> = {
 const POINTS_BACK: Readonly<Record<string, string>> = {
     normal: "inverted",
     inverted: "normal",
-    vee: "crow",
+    // a vee turned round is no crow's foot: it has no tine along its line
+    vee: "inverted-vee",
     crow: "vee",
 };
 
@@ -1095,6 +1096,11 @@ export interface DrawnEdge {
     shown: boolean;
     /** The path on screen, source end first. */
     points: [number, number][];
+    /**
+     * Where the line itself ends on screen, source end first, where `points` runs on to an end cap's tip: the line
+     * stops short of a cap by its length. Absent for a line not read so.
+     */
+    lineEnds?: [[number, number], [number, number]];
     thicknessPx: number;
     /** Its thickness is its line's screen floor (`line.minScreenWidth`): the same pixels on screen at every zoom. */
     screenFloored?: boolean;
@@ -1400,6 +1406,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         cap !== null && !cap.isDisposed() && cap.visibility > 0 && !((position ?? 0) > 0) ? cap.position.clone() : null;
     const tail = tip(edge.arrowTailCap, internal.drawnStyle?.arrowTail?.position);
     const head = tip(edge.arrowCap, internal.drawnStyle?.arrowHead?.position);
+    const [lineFrom, lineTo] = [world.at(0), world.at(-1)];
     if (world.length >= 2 && tail !== null) {
         world = [tail, ...world.slice(1)];
     }
@@ -1442,13 +1449,17 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
             ...(own === undefined || other === undefined ? {} : { position: own.position ?? 0 }),
         };
     });
+    const screenOf = (v: Vector3): [number, number] => {
+        const s = p.point(v);
+        return [s.x, s.y];
+    };
     return {
         kind,
         shown: edge.isRenderVisible(),
-        points: world.map((v) => {
-            const s = p.point(v);
-            return [s.x, s.y];
-        }),
+        points: world.map(screenOf),
+        ...(lineFrom === undefined || lineTo === undefined || world.length < 2
+            ? {}
+            : { lineEnds: [screenOf(lineFrom), screenOf(lineTo)] as [[number, number], [number, number]] }),
         thicknessPx,
         ...(screenFloored ? { screenFloored } : {}),
         color,

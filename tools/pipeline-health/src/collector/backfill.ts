@@ -12,6 +12,7 @@
 //
 //   aws lambda invoke --profile graphty --region us-east-2 --function-name graphty-health-backfill \
 //       --cli-binary-format raw-in-base64-out --payload '{"mode":"backfill","days":28}' /dev/stdout
+//   (add "restart": true to the first call's payload to read the range again from the start, rewriting its rows)
 //   cd tools/pipeline-health && AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run backfill [-- --days 28 --per-hour 2000]
 //   (the same from this machine, src/collector/backfill-cli.ts)
 //
@@ -20,7 +21,7 @@
 // created_at for every job with no dependency arithmetic.
 
 import rates from "../../config/rates.json" with { type: "json" };
-import { DAILY_ROW_LIMIT, DAY, homeKey, type RawItem, type TestItem } from "../model/items.js";
+import { cursorKey, DAILY_ROW_LIMIT, DAY, homeKey, type RawItem, type TestItem } from "../model/items.js";
 import { getCursor, putRaw, recordSource, setCursor, takeQuota } from "../model/raw.js";
 import type { Store } from "../model/store.js";
 import { type GitHub, runJobs } from "./github.js";
@@ -68,6 +69,12 @@ export interface BackfillOptions {
      * an earlier backfill lost (before hourRuns, a day over GitHub's listed limit kept only its newest runs).
      */
     repair?: { days: string[]; workflows: string[] };
+    /**
+     * Start over: drop the flaky, runs and pull request cursors first, so the whole range is read again and every
+     * stored row in it is rewritten with what the collector records now (a job's run kind and offMaster, which rows
+     * stored before them lack). Pass it on the first call only; the calls after it continue from the new cursors.
+     */
+    restart?: boolean;
     log?: (line: string) => void;
     sleep?: (ms: number) => Promise<void>;
     /** The clock the throttle and the deadline read (tests pass a fake one). */
@@ -156,6 +163,10 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
             r.done = true;
             r.calls = o.gh.calls - calls0;
             return r;
+        }
+        if (o.restart) {
+            const names = [FLAKY_CURSOR, PRS_CURSOR, ...o.repos.flatMap((x) => [runsCursor(x), `backfill#${x}`])];
+            await o.store.batch(names.map((n) => ({ delete: cursorKey(n) })));
         }
         await flakyTests(ctx, first);
         for (const repo of o.repos) await repoRuns(ctx, repo, first);

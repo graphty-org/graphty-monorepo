@@ -10,6 +10,7 @@ import {
     jobHistories,
     jobMembers,
     nonGatingJobs,
+    titleOwnsJob,
     type JobHistory,
 } from "../../src/collector/jobs.js";
 import { releaseAttempt, type GhJob, type GhRun } from "../../src/collector/parse.js";
@@ -129,6 +130,40 @@ describe("chronically failing jobs", () => {
         const { list, obs } = await jobMembers(store, gh, REPO, NOW);
         expect(list.map((j) => j.issue)).toEqual([3413]);
         expect(obs).toEqual({ "ci.chronic_jobs": 1, "ci.chronic_no_issue": 0 });
+    });
+
+    it("gives an issue only the job of the workflow it names, not another workflow's job of the same name", async () => {
+        // 2026-10-29: #4530, about release.yml's CI call, was shown on the CodeQL workflow's "All Checks Pass" row.
+        const same = (workflow: string, name: string, load: JobItem["load"]) =>
+            PERF.map(([run, end, c]) =>
+                jobItem(run, name, end, c, { id: `${REPO}/${run}/${workflow}/${name}`, workflow, load }),
+            );
+        const store = await stored([
+            ...same("release.yml", "CI / All Checks Pass", "full"),
+            ...same("ci.yml", "All Checks Pass", "master"),
+            ...same("codeql", "All Checks Pass", "other"),
+        ]);
+        const { gh } = searchGitHub([
+            { number: 4530, title: "Full run: CI / All Checks Pass red in 5 of 10 full runs", body: "" },
+        ]);
+        const { list, obs } = await jobMembers(store, gh, REPO, NOW);
+        expect(list.map((j) => [j.workflow, j.job, j.issue]).sort()).toEqual([
+            ["ci.yml", "All Checks Pass", undefined],
+            ["codeql", "All Checks Pass", undefined],
+            ["release.yml", "CI / All Checks Pass", 4530],
+        ]);
+        expect(obs).toEqual({ "ci.chronic_jobs": 3, "ci.chronic_no_issue": 2 });
+    });
+
+    it("reads a workflow from its file's name or its run kind, never from a conventional-commit type", () => {
+        const ci = { workflow: "ci.yml", job: "Lint" };
+        expect(titleOwnsJob("Red master: Lint fails on every push", ci)).toBe(true);
+        expect(titleOwnsJob("ci.yml Lint fails since the eslint upgrade", ci)).toBe(true);
+        expect(titleOwnsJob("ci: Lint fails since the eslint upgrade", ci)).toBe(false);
+        expect(titleOwnsJob("Full run: CI / Lint red", ci)).toBe(false);
+        const mac = { workflow: "work-protection-macos.yml", job: "Autosave (webkit)" };
+        expect(titleOwnsJob("work protection (macOS): Autosave (webkit) red since 2026-10-20", mac)).toBe(true);
+        expect(titleOwnsJob("Autosave (webkit) red since 2026-10-20", mac)).toBe(false);
     });
 
     it("is a job that the release lanes still call passed", () => {

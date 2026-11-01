@@ -1243,6 +1243,46 @@ describe("misses found by mutation testing", () => {
         assert.deepEqual(tool.unexplainedRoot, ["tools/nobody-reads-this-xyz.mjs"]);
     });
 
+    it("a file of a standalone tool runs no shard, and its file name alone names nothing (#4506)", () => {
+        for (const f of [
+            "tools/pipeline-health/web/fixtures/ci.1h.json",
+            "tools/pipeline-health/web/src/text.ts",
+            "tools/results-service/migrations/0001_init.sql",
+            "tools/release-scheduler/wrangler.toml",
+            "tools/nx-cache-worker/src/index.mjs",
+        ]) {
+            const sel = run([f], ["layout"]);
+            assert.equal(sel.everything, null, f);
+            assert.deepEqual(sel.unexplainedRoot, [], f);
+            assert.equal(sel.packages.get("layout").mode, "none", f);
+        }
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-standalone-"));
+        try {
+            mkdirSync(join(fixture, "pa/test"), { recursive: true });
+            writeFileSync(
+                join(fixture, "pa/test/a.test.ts"),
+                'const names = ["text.ts", "../../tools/pipeline-health/web/src/read.ts"];\n',
+            );
+            const g = {
+                ...empty("pa")[0],
+                projects: { unit: { specs: ["pa/test/a.test.ts"], setup: [] } },
+                imports: { "pa/test/a.test.ts": [] },
+            };
+            useNamesRoot(fixture);
+            const specs = (f) => [
+                ...run([f], ["pa"], { graphs: new Map([["pa", [g]]]) })
+                    .packages.get("pa")
+                    .specs.keys(),
+            ];
+            assert.deepEqual(specs("tools/pipeline-health/web/src/text.ts"), [], "a file name alone");
+            assert.deepEqual(specs("tools/pipeline-health/web/src/read.ts"), ["pa/test/a.test.ts"], "its path");
+            assert.deepEqual(specs("tools/text.ts"), ["pa/test/a.test.ts"], "any other tools/ file, by name");
+        } finally {
+            useNamesRoot(ROOT);
+            rmSync(fixture, { recursive: true, force: true });
+        }
+    });
+
     it("a file Vite serves from public/ runs its whole package", () => {
         assert.ok(wholePackageRule("public/samples/karate.gml", real));
     });

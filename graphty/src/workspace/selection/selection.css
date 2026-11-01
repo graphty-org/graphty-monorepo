@@ -1,0 +1,63 @@
+/* The selection editor (design/ui/selection-groups/spec.md, section 3): Figma Layers rows for
+   groups, one-line Fill rows for steps, 32 px rows, 24 px controls, 11/16 type. */
+
+.sel-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 32px;
+    padding-inline: 4px;
+    border-radius: var(--mantine-radius-sm);
+    cursor: default;
+}
+
+.sel-row:hover {
+    background: var(--cm-bg-hover, var(--mantine-color-default-hover));
+}
+
+.sel-row:focus-visible {
+    outline: 2px solid var(--mantine-primary-color-filled);
+    outline-offset: -2px;
+}
+
+.sel-step-row[aria-expanded="true"] {
+    background: var(--cm-bg-selected, var(--mantine-color-default-hover));
+}
+
+/* Inert and pending steps say so in neutral ink, never red. */
+.sel-step-row[data-state="inert"] .sel-value,
+.sel-step-row[data-state="pending"] .sel-value,
+.sel-step-row[data-state="off"] .sel-value {
+    color: var(--mantine-color-dimmed);
+}
+
+/* The remove x shows on hover and focus only. */
+.sel-step-row .sel-remove {
+    visibility: hidden;
+}
+
+.sel-step-row:hover .sel-remove,
+.sel-step-row:focus-within .sel-remove {
+    visibility: visible;
+}
+
+.sel-count {
+    font-variant-numeric: tabular-nums;
+}
+
+/* The chit: hollow at rest, filled while the preview draws group colors. */
+.sel-chit {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border: 2px solid;
+    border-radius: 3px;
+}
+
+.sel-card-head {
+    min-height: 24px;
+}
+
+.sel-plus {
+    align-self: flex-start;
+}

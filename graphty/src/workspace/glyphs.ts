@@ -8,6 +8,7 @@ import type { ReadableValueKind } from "@graphty/graphty-element/catalog";
 import {
     Activity,
     ArrowDownToLine,
+    ArrowDownUp,
     ArrowLeftToLine,
     ArrowRight,
     ArrowRightToLine,
@@ -101,6 +102,9 @@ import {
     Square,
     SquareArrowOutUpRight,
     SquareDashed,
+    SquaresIntersect,
+    SquaresSubtract,
+    SquaresUnite,
     StepBack,
     StepForward,
     StickyNote,
@@ -215,6 +219,12 @@ export const GLYPHS = {
     undo: Undo2,
     redo: Redo2,
     add: Plus,
+    // A selection step's verbs, Figma's boolean glyphs: Add (union), Except (subtract), Keep (intersect).
+    union: SquaresUnite,
+    subtract: SquaresSubtract,
+    intersect: SquaresIntersect,
+    // A step whose result depends on where it sits in its list.
+    order: ArrowDownUp,
     // Take a value or a row out of a list.
     remove: Minus,
     // Delete a thing for good (a note).

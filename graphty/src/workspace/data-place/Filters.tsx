@@ -27,6 +27,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { isPanelEscape, isTypingTarget } from "../keys/keys";
+import { FilterSelection } from "../selection/FilterSelection";
+import { filterSelection } from "../selection/values";
+import { stepWords } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -485,7 +488,14 @@ function FilterCard({
     const pending = useRef<readonly Card[] | null>(null);
     const [typing, setTyping] = useState(false);
     const draft = condition === undefined;
-    const side = shape.kind === "fields" ? shape.side : "node";
+    let side: Side = shape.kind === "fields" ? shape.side : "node";
+    if (condition?.rule.kind === "union") {
+        side = condition.rule.side === "nodes" ? "node" : "edge";
+    }
+    // A written condition is edited as a selection (design/ui/selection-groups/spec.md).
+    const selection = condition === undefined ? null : filterSelection(session, condition.rule, side);
+    // A draft's first value just wrote it: its step's card opens, focused, in the selection.
+    const justWritten = useRef(false);
 
     // A new card puts focus on its first value.
     useEffect(() => {
@@ -520,6 +530,7 @@ function FilterCard({
         const rule = condition === undefined ? made : keepReadings(made, condition.rule);
         if (condition === undefined) {
             written.current = JSON.stringify(rule);
+            justWritten.current = true;
             void writeCondition(store, () => session.visibility.addCondition({ id, ...startEffect, rule }));
         } else if (!sameRule(rule, condition.rule)) {
             written.current = JSON.stringify(rule);
@@ -567,7 +578,12 @@ function FilterCard({
     ] as const;
     // The header names the card's field (or its kind); the summary under it says the rule.
     let title = "Rule";
-    if (shape.kind === "fields") {
+    if (selection !== null) {
+        title =
+            selection.branches
+                .flatMap((branch) => branch.steps.map((step) => stepWords(session, step, side).value))
+                .join(", ") || name;
+    } else if (shape.kind === "fields") {
         title = cards.map((each) => ("field" in each ? each.field.name : "Rule")).join(", ") || name;
     } else if (shape.kind === "largest") {
         title = "Largest component";
@@ -589,7 +605,11 @@ function FilterCard({
                 // no value is taken back. Caught before a box takes the key to keep its text; an
                 // open list still takes its own Escape.
                 onKeyDownCapture={(event) => {
-                    if (!isPanelEscape(event.nativeEvent)) {
+                    // The selection editor takes its own Escape, one thing per press.
+                    if (
+                        !isPanelEscape(event.nativeEvent) ||
+                        (event.target as Element).closest(".sel-editor") !== null
+                    ) {
                         return;
                     }
                     event.preventDefault();
@@ -693,16 +713,30 @@ function FilterCard({
                 )}
                 {open ? (
                     <div className="dp-filter-body">
-                        <CardContent
-                            session={session}
-                            store={store}
-                            id={id}
-                            condition={condition}
-                            shape={shape}
-                            cards={cards}
-                            onCards={change}
-                            onRemove={remove}
-                        />
+                        {selection !== null ? (
+                            <FilterSelection
+                                session={session}
+                                store={store}
+                                id={id}
+                                rule={selection}
+                                openFirst={justWritten.current}
+                                onDone={() => {
+                                    onOpen(false);
+                                    box.current?.querySelector<HTMLElement>(ON_BOX)?.focus();
+                                }}
+                            />
+                        ) : (
+                            <CardContent
+                                session={session}
+                                store={store}
+                                id={id}
+                                condition={condition}
+                                shape={shape}
+                                cards={cards}
+                                onCards={change}
+                                onRemove={remove}
+                            />
+                        )}
                     </div>
                 ) : (
                     condition !== undefined && (

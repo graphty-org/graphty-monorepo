@@ -55,6 +55,14 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
             const who = rule.seeds.length === 1 ? names.node(rule.seeds[0]) : `${String(rule.seeds.length)} nodes`;
             return `within ${String(rule.depth)} ${rule.depth === 1 ? "hop" : "hops"} of ${who}`;
         }
+        case "union": {
+            // A selection built from steps: each group's steps in order, the groups joined by "or".
+            const verbs = { add: "add", keep: "keep", except: "except" } as const;
+            const groups = rule.branches.map((branch) =>
+                branch.steps.map((step) => `${verbs[step.op]} ${ruleWords(step.rule, names)}`).join(", "),
+            );
+            return groups.filter((each) => each !== "").join(" or ") || "a selection";
+        }
         default:
             return "a rule";
     }

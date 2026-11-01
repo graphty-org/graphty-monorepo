@@ -97,6 +97,9 @@ export function Workspace({
         // base look as values a reader edits, a pinned node wears a thin gray ring (under Selected,
         // which wins), and a finished run's layer lands on top, where the reader sees it. Set
         // before anything loads, so the rows are there from the first frame.
+        // The app's run limits for selection steps (design/ui/selection-groups/spec.md, section 6):
+        // a run that follows hover or edits starts under 50 ms; one above a second waits for Run.
+        session.scope.setOptions({ liveMs: 50, askAboveMs: 1000 });
         const defaults =
             project?.id === startProjectId ||
             (session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top")

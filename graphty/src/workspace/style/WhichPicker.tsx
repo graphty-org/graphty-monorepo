@@ -1,5 +1,5 @@
 import { focusWithRing, useNumberParser } from "@graphty/compact-mantine";
-import type { GraphSession, HistoryStepId, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Autocomplete,
@@ -27,7 +27,9 @@ import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
 import { useAsyncValue, useSessionVersion } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
-import { hasPendingEdit, isPanelEscape, isTypingTarget } from "../keys/keys";
+import { isPanelEscape } from "../keys/keys";
+import { SelectionRow, StyleSelection } from "../selection/StyleSelection";
+import { layerSelection } from "../selection/values";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace } from "../state/WorkspaceContext";
 import {
@@ -56,6 +58,7 @@ import {
     type TextMode,
 } from "./cards";
 import { keystrokeTarget } from "./useFocusLine";
+import { useStepWriter } from "./useStepWriter";
 import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, NATURAL, prefixFirst, valueName } from "./words";
 
 /** One tree row a picker writes: its part of this kind and, on the Node tab, its edge part. */
@@ -426,6 +429,10 @@ export function WhichPicker({
     if (base && shown.length === 0 && !open) {
         return <BaseRow session={session} rows={rows} side={side} />;
     }
+    // One layer's own selector is edited as a selection (design/ui/selection-groups/spec.md); a
+    // base layer, several layers at once and held cards keep the cards.
+    const selection =
+        held === undefined && rows.length === 1 && !base ? layerSelection(session, rows[0].layer.selector, side) : null;
     // Done, Enter or Escape: focus goes back to the Which row it opened from -- the one drawn now,
     // when the panel was drawn again for the row the cards changed (a new layer's first edit).
     const close = (): void => {
@@ -439,7 +446,27 @@ export function WhichPicker({
     };
     return (
         <div className="ws-which" data-testid="which-picker" data-side={side}>
-            {open ? (
+            {open && selection !== null ? (
+                <StyleSelection
+                    session={session}
+                    layer={rows[0].layer}
+                    name={rows[0].name}
+                    side={side}
+                    onDone={close}
+                />
+            ) : null}
+            {!open && selection !== null && selection !== "new" ? (
+                <SelectionRow
+                    session={session}
+                    rule={selection}
+                    side={side}
+                    buttonRef={rowButton}
+                    onOpen={() => {
+                        setOpen(true);
+                    }}
+                />
+            ) : null}
+            {selection === null && open && (
                 <Cards
                     session={session}
                     rows={rows}
@@ -456,7 +483,8 @@ export function WhichPicker({
                         setOpen(false);
                     }}
                 />
-            ) : (
+            )}
+            {!open && (selection === null || selection === "new") && (
                 <WhichRow
                     session={session}
                     rows={rows}
@@ -1106,78 +1134,6 @@ function tickOnEnter(event: React.KeyboardEvent<HTMLInputElement>): void {
     }
 }
 
-/** The notice a layer's refused rule leaves. */
-const RULE_REFUSED = "That rule could not be used for this layer";
-
-/**
- * Writes several layers, one undo step per finished change: a number typed and committed, a handle
- * dragged, a match picked. Typing that writes as it goes (a text card's words) is one step while
- * focus stays in that box: each keystroke merges into the step its first one recorded
- * (`TransactionOptions.after`) while it is still the newest. Writes go one at a time, and a write
- * waiting behind another is replaced by a newer one.
- * @param session - the element's session.
- * @param label - the step's label.
- * @param landed - called after each write has landed (or been refused).
- * @returns the writer, and whether a write is on its way.
- */
-function useStepWriter(
-    session: GraphSession,
-    label: string,
-    landed: () => void,
-): { write: (patches: readonly LayerPatch[]) => void; busy: () => boolean } {
-    const { store } = useWorkspace();
-    const step = useRef<HistoryStepId | undefined>(undefined);
-    const chain = useRef<Promise<void>>(Promise.resolve());
-    const waiting = useRef<{ patches: readonly LayerPatch[]; merge: boolean } | null>(null);
-    const pending = useRef(0);
-    // The box whose typing the last step holds: typing on in it merges, anything else starts a step.
-    const typingIn = useRef<Element | null>(null);
-    return {
-        busy: () => pending.current > 0,
-        write: (patches) => {
-            const active = document.activeElement;
-            const typing = isTypingTarget(active) && hasPendingEdit(active) ? active : null;
-            const merge = typing !== null && typing === typingIn.current;
-            typingIn.current = typing;
-            const queued = waiting.current;
-            // A write that replaces a queued one starts a step when either would have.
-            waiting.current = { patches, merge: merge && (queued?.merge ?? true) };
-            if (queued !== null) {
-                return;
-            }
-            pending.current += 1;
-            chain.current = chain.current
-                .then(async () => {
-                    const next = waiting.current;
-                    waiting.current = null;
-                    if (next === null) {
-                        return;
-                    }
-                    const after = next.merge ? step.current : undefined;
-                    await session.transaction(
-                        label,
-                        (tx) => tx.styles.updateMany(next.patches),
-                        after === undefined ? {} : { after },
-                    );
-                    step.current = after ?? session.history.steps[session.history.position - 1]?.id;
-                })
-                .then(() => {
-                    // A rule the layer took clears the notice a refused one left.
-                    if (store.get().notice?.message === RULE_REFUSED) {
-                        store.set({ notice: null });
-                    }
-                })
-                .catch(() => {
-                    store.set({ notice: { message: RULE_REFUSED, error: true } });
-                })
-                .finally(() => {
-                    landed();
-                    pending.current -= 1;
-                });
-        },
-    };
-}
-
 /**
  * After a card is added to several layers: the layers it leaves with nothing, in words.
  * @param session - the element's session.
@@ -1220,6 +1176,16 @@ export interface ExtraItem {
     readonly name: string;
     readonly glyph: (typeof GLYPHS)[keyof typeof GLYPHS];
     readonly onPick: () => void;
+    /** One fact that tells it from its neighbors, drawn dimmed at the right. */
+    readonly fact?: string;
+    /** Why it cannot be picked here: greyed, with the reason as its tooltip and in its name. */
+    readonly unusable?: string;
+}
+
+/** A heading of rows that are not fields, listed after the field groups. */
+interface ExtraSection {
+    readonly group: string;
+    readonly items: readonly ExtraItem[];
 }
 
 /** The option value an extra row is listed under, apart from every field's `<side>:<path>`. */
@@ -1239,6 +1205,9 @@ const EXTRA = "extra:";
  * @param props.plus - draws the opener as a "+" icon button with this name
  * @param props.opened - opens the list from outside
  * @param props.onOpened - told when the list closes
+ * @param props.sections - headings of rows that are not fields, after the field groups
+ * @param props.anchor - drawn in place of the opener button (the list opens under it)
+ * @param props.placeholder - the search box's words
  * @returns The control
  */
 export function AddCondition({
@@ -1252,6 +1221,9 @@ export function AddCondition({
     plus,
     opened,
     onOpened,
+    sections: more = [],
+    anchor,
+    placeholder = FIND_ATTRIBUTE,
 }: Readonly<{
     fields: readonly CardField[];
     elsewhere?: readonly CardField[];
@@ -1268,6 +1240,12 @@ export function AddCondition({
     opened?: boolean;
     /** Told when the list closes, so `opened` can be put back. */
     onOpened?: (opened: boolean) => void;
+    /** Headings of rows that are not fields (a selection step's Analyze categories, Relative to), after the field groups. */
+    sections?: readonly ExtraSection[];
+    /** Drawn in place of the opener button: the list opens under it. */
+    anchor?: React.ReactElement;
+    /** The search box's words. */
+    placeholder?: string;
 }>): React.JSX.Element {
     const [search, setSearch] = useState("");
     // The option Enter takes, which the search names as its active descendant.
@@ -1284,7 +1262,7 @@ export function AddCondition({
         },
         onDropdownOpen: () => {
             // As wide as the cards it adds to, so the list stays inside the inspector (or the Data place).
-            const column = button.current?.closest(".ws-which-open, .dp");
+            const column = (button.current ?? document.activeElement)?.closest(".ws-which-open, .dp, .sel-editor");
             if (column instanceof HTMLElement && column.clientWidth > 0) {
                 setWidth(column.clientWidth);
             }
@@ -1318,7 +1296,15 @@ export function AddCondition({
         (each) => each.name,
         search,
     );
-    const count = groups.reduce((sum, { items }) => sum + items.length, 0) + extras.length;
+    const foundRow = (each: ExtraItem): boolean => typed === "" || each.name.toLowerCase().includes(typed);
+    const moreShown = more
+        .map(({ group, items }) => ({ group, items: prefixFirst(items.filter(foundRow), (each) => each.name, search) }))
+        .filter(({ items }) => items.length > 0);
+    const extraRows = [...moreShown.flatMap(({ items }) => items), ...extra];
+    const count =
+        groups.reduce((sum, { items }) => sum + items.length, 0) +
+        moreShown.reduce((sum, { items }) => sum + items.length, 0) +
+        extras.length;
     // Typed on one kind's tab, a value the other kind carries is pointed to its tab.
     const other = typed === "" ? undefined : prefixFirst(elsewhere.filter(found), (each) => each.name, search)[0];
     const otherTab = other?.on === "edge" ? "Edge" : "Node";
@@ -1419,7 +1405,7 @@ export function AddCondition({
             withinPortal
             onOptionSubmit={(value) => {
                 const field = fields.find((f) => keyOf(f) === value);
-                const other = extra.find((each) => `${EXTRA}${each.key}` === value);
+                const other = extraRows.find((each) => `${EXTRA}${each.key}` === value);
                 combobox.closeDropdown();
                 if (field !== undefined) {
                     onAdd(field);
@@ -1428,46 +1414,47 @@ export function AddCondition({
             }}
         >
             <Combobox.Target withAriaAttributes={false}>
-                {plus === undefined ? (
-                    <Button
-                        ref={button}
-                        size="compact-xs"
-                        variant="subtle"
-                        leftSection={<GLYPHS.add size={12} aria-hidden />}
-                        data-add
-                        aria-haspopup="listbox"
-                        aria-expanded={dropdownOpened}
-                        onClick={() => {
-                            combobox.toggleDropdown();
-                        }}
-                        onKeyDown={(event) => {
-                            // An open list takes Escape; the picker around it stays open.
-                            if (event.key === "Escape" && dropdownOpened) {
-                                event.preventDefault();
-                                combobox.closeDropdown();
-                            }
-                        }}
-                        style={{ alignSelf: "flex-start" }}
-                    >
-                        Add a condition
-                    </Button>
-                ) : (
-                    <Tooltip label={plus}>
-                        <ActionIcon
+                {anchor ??
+                    (plus === undefined ? (
+                        <Button
                             ref={button}
+                            size="compact-xs"
                             variant="subtle"
+                            leftSection={<GLYPHS.add size={12} aria-hidden />}
                             data-add
-                            aria-label={plus}
                             aria-haspopup="listbox"
                             aria-expanded={dropdownOpened}
                             onClick={() => {
                                 combobox.toggleDropdown();
                             }}
+                            onKeyDown={(event) => {
+                                // An open list takes Escape; the picker around it stays open.
+                                if (event.key === "Escape" && dropdownOpened) {
+                                    event.preventDefault();
+                                    combobox.closeDropdown();
+                                }
+                            }}
+                            style={{ alignSelf: "flex-start" }}
                         >
-                            <GLYPHS.add size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                )}
+                            Add a condition
+                        </Button>
+                    ) : (
+                        <Tooltip label={plus}>
+                            <ActionIcon
+                                ref={button}
+                                variant="subtle"
+                                data-add
+                                aria-label={plus}
+                                aria-haspopup="listbox"
+                                aria-expanded={dropdownOpened}
+                                onClick={() => {
+                                    combobox.toggleDropdown();
+                                }}
+                            >
+                                <GLYPHS.add size={14} aria-hidden />
+                            </ActionIcon>
+                        </Tooltip>
+                    ))}
             </Combobox.Target>
             <Combobox.Dropdown>
                 <Combobox.Search // NOSONAR(S6811): aria-description is a global ARIA 1.3 attribute, valid on a combobox
@@ -1475,8 +1462,8 @@ export function AddCondition({
                     onChange={(event) => {
                         setSearch(event.currentTarget.value);
                     }}
-                    placeholder={FIND_ATTRIBUTE}
-                    aria-label={FIND_ATTRIBUTE}
+                    placeholder={placeholder}
+                    aria-label={placeholder}
                     // A combobox over the list below: what it controls, the option Enter takes,
                     // and how many it holds.
                     role="combobox"
@@ -1559,6 +1546,13 @@ export function AddCondition({
                                     })}
                                 </Combobox.Group>
                             ))}
+                            {moreShown.map(({ group, items }) => (
+                                <Combobox.Group key={group} label={group} role="group" aria-label={group}>
+                                    {items.map((each) => (
+                                        <ExtraOption key={each.key} item={each} />
+                                    ))}
+                                </Combobox.Group>
+                            ))}
                             {extras.length > 0 && (
                                 <Combobox.Group label="Structure" role="group" aria-label="Structure">
                                     {extras.map((each) => (
@@ -1580,6 +1574,42 @@ export function AddCondition({
                 </Combobox.Options>
             </Combobox.Dropdown>
         </Combobox>
+    );
+}
+
+/**
+ * One row of the add list that is not a field: its icon, name and fact; greyed with its reason as
+ * a tooltip when it cannot be picked here.
+ * @param props - Component props
+ * @param props.item - the row
+ * @returns The option
+ */
+function ExtraOption({ item }: Readonly<{ item: ExtraItem }>): React.JSX.Element {
+    const option = (
+        <Combobox.Option
+            value={`${EXTRA}${item.key}`}
+            disabled={item.unusable !== undefined}
+            aria-label={[item.name, item.fact, item.unusable].filter((each) => each !== undefined).join(", ")}
+        >
+            <Group gap={8} wrap="nowrap" justify="space-between">
+                <Group gap={8} wrap="nowrap">
+                    <item.glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
+                    <span>{item.name}</span>
+                </Group>
+                {item.fact !== undefined && (
+                    <Text size="xs" c="dimmed" span>
+                        {item.fact}
+                    </Text>
+                )}
+            </Group>
+        </Combobox.Option>
+    );
+    return item.unusable === undefined ? (
+        option
+    ) : (
+        <Tooltip label={item.unusable} position="right">
+            <div>{option}</div>
+        </Tooltip>
     );
 }
 

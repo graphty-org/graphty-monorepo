@@ -66,8 +66,7 @@ Outline mode, a view, not an edit.
    Structure (within k hops of, connected to, on a path between, linked to at least N of, shares a
    value with, edges within / leaving, largest component; Data source only with 2+ sources; Time
    window only in Filters; "while ... is not empty").
-   Entries name the value first ("community -- Louvain"), kind glyph left, range or "not run" right.
-   Descriptions go in the entry's tooltip, not under the list (owner: no sentences).
+   Entries name the value first ("community -- Louvain"); descriptions go in tooltips.
 5. **Test**: chosen by kind, segmented, not a dropdown: number/time/ordered "By value | By position";
    category checklist with search and counts; flag "Is | Is not"; text keeps the approved operator
    Select (Contains, Starts with, Is, Matches). Histogram vs slider and "Computed on: Whole graph |
@@ -110,5 +109,5 @@ offers "Color by" instead.
 5. **Screen sentences** above and the "Dropped ..." toast must go.
 6. **Preview mode honesty**: a muted canvas the reader forgets is on reads as a lost style. It must end
    with the card and show as a list row.
-7. **Missing element facts** (`valueKind`, `polarity`, `domain`, `measure` leaf): all additive, but
-   bfs `level` retagged ordinal may break `catalog` readers; group it or defer it.
+7. **Element facts** (`valueKind`, `polarity`, `domain`, `measure` leaf) are additive; bfs `level`
+   retagged ordinal may break `catalog` readers, so group or defer it.

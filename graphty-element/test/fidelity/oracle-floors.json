@@ -4088,7 +4088,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 0.98,
             "edge.extra": 0.961,
-            "edge.route": 0.912,
+            "edge.route": 0.918,
             "edge.curve": 0.986,
             "edge.color": 0.997,
             "edge.width": 1,
@@ -4159,7 +4159,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 0.98,
             "edge.extra": 0.961,
-            "edge.route": 0.912,
+            "edge.route": 0.918,
             "edge.curve": 0.986,
             "edge.color": 0.997,
             "edge.width": 1,
@@ -52966,22 +52966,6 @@
                 "floor": 1,
                 "to": 0.907,
                 "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-signor-aml": {
-            "edge.curve": {
-                "floor": 0.986,
-                "to": 0.98,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-signor-aml@matched": {
-            "edge.curve": {
-                "floor": 0.986,
-                "to": 0.98,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
                 "date": "2026-11-01"
             }
         },

@@ -1016,14 +1016,16 @@ function slice(
 
         return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t];
     };
+    // each corner the stretch passes is taken by its index, not by its distance: a corner cut square (`mitredEdges`)
+    // is two points at one distance along the inner edge, and both of its outer points belong in the stretch
     const corners = lengths.map((length, i) => ({ length, i })).filter(({ length }) => length > from && length < to);
-    const distances = [from, ...corners.map(({ length }) => length), to];
+    const edgeOf = (edge: readonly Point2[]): Point2[] => [
+        at(from, edge),
+        ...corners.map(({ i }) => edge[i % edge.length]),
+        at(to, edge),
+    ];
 
-    return {
-        inner: distances.map((distance) => at(distance, inner)),
-        outer: distances.map((distance) => at(distance, outer)),
-        closed: false,
-    };
+    return { inner: edgeOf(inner), outer: edgeOf(outer), closed: false };
 }
 
 /** A point on a closed outline and the outline's direction there. */

@@ -2,15 +2,15 @@
   "version": 2,
   "pr": null,
   "subject": {
-    "builtMerge": "4f766aef7cb3f23f5113ab01cd08948fcad4d3ca",
+    "builtMerge": "9e3e450944637c28ded93ce610805dfb85f20d2a",
     "head": null,
-    "runId": 41256221732,
+    "runId": 41269717488,
     "runAttempt": 1,
     "environment": {
       "harness": "story-test",
       "mode": "production",
       "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
-      "tool": "4f766aef7cb3f23f5113ab01cd08948fcad4d3ca",
+      "tool": "9e3e450944637c28ded93ce610805dfb85f20d2a",
       "chromium": "143.0.7499.4"
     },
     "scale": 2
@@ -257,10 +257,10 @@
       "reason": null
     },
     {
-      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-specimens--images-charts.png",
-      "from": "71de4ce4b4301ecfc27a0ea6cae620ec8a66f6178ce91ef1c718b91e2d784ff5",
-      "to": "2fd6a092f88f87dfeba839e9608b35a753dd363234e421d03713f0d3e6c5247f",
-      "reason": null
+      "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-specimens--images-charts.json",
+      "from": null,
+      "to": "b74e4e1b7986d6a1ec36607da7d993a483c513620f8ef7f4f47dc042c768e1cc",
+      "reason": "exclude: unstable image, can't approve"
     },
     {
       "path": "visual-baselines/graph-io-fidelity/style-fidelity-graphviz-dot-specimens--labels-p-2.png",
@@ -533,6 +533,54 @@
       "reason": null
     },
     {
+      "path": "visual-baselines/graphty-element/data-file-styles--cytoscape-session.png",
+      "from": "aac5e6c86a09fc6be4b015392aa575328c518d04a7a782bc7a52ee34acfdf211",
+      "to": "bed513ee12bf66c5dda884fbab9c060c8c980cd6ceaff7ebc73adb0eeb3fe06e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/layout-graphviz--dot-file-recommended.png",
+      "from": "83d815092707cf22b97574d1d625f1108ca36d9a708170e92e10164b72231a06",
+      "to": "339b8d0c5f2c285f7bade1a14d529c3da7d074e10afe02a62a0c6a2f153cefd1",
+      "reason": null,
+      "approvedBefore": {
+        "pr": null,
+        "commit": "13ab62a0bbe7954161a27b9df46b0f59a3c0b700",
+        "record": "visual-baselines/reviews/20261029T084253Z-master.json",
+        "reviewedAt": "2026-10-29T08:42:53.137Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-node--border-widths-and-styles.png",
+      "from": "844007370e61d56177a7e254fce68fe3bdc5cffe25983792a9107d0937808f80",
+      "to": "d3a8105fc3a5e411c430a8f5eea5cea58c18ef785959bf3ea29580c9ea7ca51c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--add-field-menu.dark.png",
+      "from": "754e63efa9a119ceba371b6711a4bca1f30d824db7731ee095db7057d953cc95",
+      "to": "69163e3c52a5d73c940095a7049b1bcd77303a255808da8dc8a99bd7d3346850",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--add-field-menu.light.png",
+      "from": "0df36e50250c691b37067bcb9c927152846a81871b73bd8940e5cc6dbad0f324",
+      "to": "ce8e236d6606afba3080bdcaf25b145eb9fa9c36a0af1044c8eb8129cbf3d680",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--two-sources.dark.png",
+      "from": "d328535a36c7dbf549f19cdc3712f36afd1af28b0d3e349a025987c240febbd7",
+      "to": "1fef61bc7b2a1f3f7e81dc775522daaf42600f6c35567af4f2c29df9b606c8e1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-place--two-sources.light.png",
+      "from": "1e916ca2b81b0403d886d63b08d6f5969795b6daa944193edee58bffebed1789",
+      "to": "9f5c7313e9eae76964b7e69540503e2c13884f33d4eac721fdbad6cd2656dd5a",
+      "reason": null
+    },
+    {
       "path": "visual-baselines/graphty/workspace-start-screen--network-data.dark.png",
       "from": "acd4471e68ea79f6e5c5d6d3c742733f628797ca4989dc457d1b39bb4d21f584",
       "to": "f242334e3360b303bae9dddac83269b7f7ffadae0ab08991f988b01bde84e18e",
@@ -557,15 +605,9 @@
       "reason": null
     },
     {
-      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-categories.dark.png",
-      "from": "58df565dcb5da213a373f2d9d72f7849191aa6e39eda0b9eea9d6a5909cbdef7",
-      "to": "2ab72853782bbde76c7ff7ddc0c25a2228eaf14b3dca505e02ca030f46661f7f",
-      "reason": null
-    },
-    {
-      "path": "visual-baselines/graphty/workspace-style-panel-review--louvain-categories.light.png",
-      "from": "dc0ce53bf7e7385052493cfdc23656ead7ece148dec78e80384969b6e714231f",
-      "to": "77b471bfff763da97ea20a14bd3faf35a5f29ac2739057a6cb7093630df32df2",
+      "path": "visual-baselines/graphty/workspace-style-panel-review--labels-menu.dark.png",
+      "from": "1fad4a986063045eb7a53a4d1f44b6e3796d15095afe75137aca2310c3080b24",
+      "to": "a0a3100f8f2f9b0d7647fcc7cd01073c7432b7ecb5c8711b0601e39e198f3aad",
       "reason": null
     },
     {
@@ -578,6 +620,24 @@
       "path": "visual-baselines/graphty/workspace-style-panel-review--selected-at-rest.light.png",
       "from": "ebc1b9b69cd3a184c2b55e66d8d05fe479e74dc18c64e8355197b44d6126df30",
       "to": "63b920a16602ba9c8e6759344cfc2aaff821946e7d945cff53490af8ebac6989",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--shape-menu.dark.png",
+      "from": "d0886cf020216a0f9b4c2b6b962dc7f89ab6c06d9e742466beb82642e57109e8",
+      "to": "11e2656d39b53f01d1eb8b699071b618b8e2fb37ccd87f2eddb9f0381cc95756",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--shape-menu.light.png",
+      "from": "26da4aa976a5e430cbf5067ead20ef8e9d8dcae82da95644f334483f449d4f29",
+      "to": "43e650ac07b8595ab5757fffd353cf4153b12ca4dee18d1783c1856345a53c93",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-tab--plus-menu.dark.png",
+      "from": "6998a7ffec5345eb0ab8c637e0e75e2d5b877aceece87b1934ca00264a185f70",
+      "to": "b5ccae6ff358d443dea8f10a1e13ff5876e997e68d572d39bff351dad8bbb9ca",
       "reason": null
     },
     {
@@ -594,5 +654,5 @@
     }
   ],
   "rejects": [],
-  "reviewedAt": "2026-11-01T02:55:42.667Z"
+  "reviewedAt": "2026-11-01T05:54:19.671Z"
 }

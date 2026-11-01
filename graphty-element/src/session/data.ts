@@ -4837,7 +4837,8 @@ export function headlessDataService(
         apply: (mutation, draft) => {
             ingest.apply(mutation, dispatcher.graph.writer(draft, store));
         },
-        import: (command, draft, signal) => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal),
+        import: (command, draft, signal) =>
+            ingest.oneAtATime(() => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal)),
         values: (values, draft) => {
             dispatcher.graph.writer(draft, store).setGraphValues(values);
         },

@@ -1232,6 +1232,10 @@ class Runs implements SessionRunsApi {
                 this.identities.set(id, result);
             }
 
+            if (!this.listed(existing) && !this.adopting) {
+                this.restart(existing, options.style ?? true, command, derived);
+            }
+
             const reused = this.reuse(existing, identity, result, descriptor, launch);
             this.recordWeight(id);
             return reused;
@@ -1245,6 +1249,29 @@ class Runs implements SessionRunsApi {
         this.recordWeight(id);
 
         return this.create(id, identity, result, descriptor, { spec, options, derived }, launch);
+    }
+
+    /**
+     * Make a removed run's handle answer a new start under its id (#3231): a removed run has no
+     * first completion behind it, so its styling choice, its command and whether its id was
+     * minted are the new start's, never the start before the removal. Without this, a project
+     * opened in place over the session that ran it painted the run's suggested layer again,
+     * which the file does not hold.
+     * @param run - The removed run.
+     * @param style - The new start's `style`.
+     * @param command - The new start's command.
+     * @param derived - Whether the element minted the id this time.
+     */
+    private restart(run: ManagedRun, style: RunStyle, command: AlgorithmRunCommand, derived: boolean): void {
+        run.restyle(style);
+        this.commands.set(run.id, withoutSuggested(command));
+        this.groupStyles.delete(run.id);
+        if (derived) {
+            this.derivedIds.add(run.id);
+        } else {
+            this.derivedIds.delete(run.id);
+            this.names.delete(run.id);
+        }
     }
 
     /**

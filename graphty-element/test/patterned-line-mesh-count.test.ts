@@ -166,7 +166,7 @@ describe("patterned line element count", () => {
         }
     });
 
-    describe("a line that shortens", () => {
+    describe("a line whose length changes", () => {
         let scene: Scene;
 
         beforeEach(() => {
@@ -200,6 +200,30 @@ describe("patterned line element count", () => {
             }
             line.dispose();
         });
+
+        // A line that reached its length through other lengths draws what a line made at that
+        // length draws: with a one-element slack, a dashed edge whose ends settled in another
+        // order kept one dash more or less, and a screenshot of it changed between runs.
+        for (const pattern of ["dash", "dot", "zigzag"] as const) {
+            test(`${pattern} updated to a length matches one created there`, () => {
+                const options = { width: 0.1, color: "#000000", opacity: 1 };
+                const start = new Vector3(0, 0, 0);
+                const line = PatternedLineRenderer.create(pattern, start, new Vector3(10, 0, 0), scene, options);
+                for (const length of [10.1, 10.3, 10.6, 9.9, 9.6, 9.3, 10]) {
+                    line.update(start, new Vector3(length, 0, 0));
+                    const fresh = PatternedLineRenderer.create(
+                        pattern,
+                        start,
+                        new Vector3(length, 0, 0),
+                        scene,
+                        options,
+                    );
+                    assert.equal(line.elements.length, fresh.elements.length, `${pattern} at length ${length}`);
+                    fresh.dispose();
+                }
+                line.dispose();
+            });
+        }
     });
 
     describe("the material leak this suite also guards", () => {

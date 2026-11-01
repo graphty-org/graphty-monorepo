@@ -34,6 +34,7 @@ import {
     plan,
     SHARDS,
     storiesPlan,
+    STORY_PROJECTS,
     STORY_SHARDS,
 } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
@@ -1982,6 +1983,8 @@ describe("verification runs of ci.yml", () => {
         // plan-read.mjs asks for the `-shots` family of exactly the shards this job runs
         const include = parseYaml(ci).jobs["story-tests"].strategy.matrix.include;
         assert.deepEqual([...new Set(include.map((e) => e.shard))].sort(), [...STORY_SHARDS].sort());
+        // and the screenshot run's inputs key holds the baselines of the project each shard captures
+        for (const e of include) assert.equal(STORY_PROJECTS[e.shard], e.project, e.shard);
     });
 
     it("runs the story tests' capture blocking, outside All Checks Pass", () => {
@@ -7448,6 +7451,8 @@ describe("release.yml's nightly promotion (#1020)", () => {
         assert.deepEqual(decide.env, {
             STATE: "${{ steps.verdict.outputs.state }}",
             GATE: "${{ steps.gate.outputs.outcome }}",
+            // the gate's own refusal lines, so the why names the real reason
+            GATE_REASON: "${{ steps.gate.outputs.reason }}",
             FIRST: "${{ steps.gate.outputs.first }}",
             // while a candidate is held, only it promotes (channels-pipeline.md section 3): the hold as the store had it
             // at the verdict, not the pick's, which a re-run attempt keeps from attempt 1
@@ -7512,9 +7517,21 @@ describe("release.yml's nightly promotion (#1020)", () => {
         assert.equal(passed.status, 0);
         assert.match(passed.out, /^outcome=success\nscreenshots=approved:tree-abc:visual-baselines\n$/);
         assert.match(passed.git, /--base origin\/channel\/nightly|fetch .*channel\/nightly/);
-        const refused = gateRun(0, 1, "Review them with `visual-review serve` (the README).");
+        const refused = gateRun(
+            0,
+            1,
+            [
+                "::error::visual changes not accepted -- graph-io-fidelity: 1 unstable (not accepted; x)",
+                "::error::visual changes not accepted -- algorithms: 2 changed",
+                "Review them with `visual-review serve` (the README).",
+            ].join("\n"),
+        );
         assert.equal(refused.status, 0, "a refusal is a decision");
-        assert.equal(refused.out, "outcome=failure\n");
+        assert.equal(
+            refused.out,
+            "outcome=failure\nreason=graph-io-fidelity: 1 unstable (not accepted; x); algorithms: 2 changed\n",
+            "the refusal carries the gate's own reasons",
+        );
         const crashed = gateRun(0, 1, "TypeError: boom");
         assert.equal(crashed.status, 1, "an error fails the job, so re-running it retries the gate");
         assert.equal(crashed.out, "");
@@ -7607,7 +7624,11 @@ describe("release.yml's nightly promotion (#1020)", () => {
         );
         const withBaselines = scenario(true);
         assert.equal(withBaselines.status, 0, withBaselines.stderr);
-        assert.equal(withBaselines.out, "outcome=failure\n", "changed baselines are still judged against nightly's");
+        assert.equal(
+            withBaselines.out,
+            "outcome=failure\nreason=\n",
+            "changed baselines are still judged against nightly's",
+        );
     });
 
     it("waits while a publish hold is open", () => {
@@ -8791,6 +8812,52 @@ describe("the CI workflow tests never reach the real world (#3392)", () => {
             assert.match(r.stdout, /refused a network call to https:\/\/api\.github\.com/);
             assert.match(r.stdout, /refused a network call to https:\/\/results\.example/);
             assert.match(r.stdout, /refused a write to .*tmp\/quarantine\/state\.json/);
+            assert.deepEqual(readdirSync(join(dir, "tmp/quarantine")), [], "nothing written to the shared state");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("lets a checkout inside the main checkout's tmp/ (a live.sh copy) write its own tree, and still refuses the rest of tmp/ (#5432)", () => {
+        const dir = mkdtempSync(join(tmpdir(), "ci-workflow-tests-"));
+        const git = (...a) => execFileSync("git", a, { cwd: dir, encoding: "utf8", stdio: "pipe" });
+        try {
+            git("init", "-q", "-b", "master");
+            git("config", "user.email", "t@t");
+            git("config", "user.name", "t");
+            git("config", "commit.gpgsign", "false");
+            mkdirSync(join(dir, "tools"));
+            for (const f of ["run-ci-workflow-tests.mjs", "tool-test-guard.mjs"]) {
+                copyFileSync(new URL(f, import.meta.url), join(dir, "tools", f));
+            }
+            const files = {
+                // the copy's own results file, at a path under the main checkout's tmp/live/
+                "own.mjs": `(await import("node:fs")).writeFileSync("tools/results.json", "{}");`,
+                "write.mjs": `try { (await import("node:fs")).writeFileSync("../../quarantine/state.json", "{}"); } catch {}`,
+                "sibling.mjs": `try { (await import("node:fs")).writeFileSync("../other-1/x", "x"); } catch {}`,
+            };
+            for (const [f, body] of Object.entries(files)) writeFileSync(join(dir, "tools", f), body);
+            writeFileSync(
+                join(dir, "tools/tool-tests.txt"),
+                Object.keys(files)
+                    .map((f) => `tools/${f}`)
+                    .join("\n"),
+            );
+            git("add", ".");
+            git("commit", "-qm", "tools");
+            // the shared state, there before the run: tmp/live/ holds the copy and another tool's copy
+            mkdirSync(join(dir, "tmp/quarantine"), { recursive: true });
+            mkdirSync(join(dir, "tmp/live/other-1"), { recursive: true });
+            const copy = join(dir, "tmp/live/gate-1");
+            git("worktree", "add", "-q", "--detach", copy);
+            const r = spawnSync(process.execPath, [join(copy, "tools/run-ci-workflow-tests.mjs")], {
+                cwd: copy,
+                encoding: "utf8",
+            });
+            assert.match(r.stdout, /1 of 3 test files passed/, r.stdout);
+            assert.match(r.stdout, /refused a write to \.\.\/\.\.\/quarantine\/state\.json/);
+            assert.match(r.stdout, /refused a write to \.\.\/other-1\/x/);
+            assert.equal(readFileSync(join(copy, "tools/results.json"), "utf8"), "{}");
             assert.deepEqual(readdirSync(join(dir, "tmp/quarantine")), [], "nothing written to the shared state");
         } finally {
             rmSync(dir, { recursive: true, force: true });

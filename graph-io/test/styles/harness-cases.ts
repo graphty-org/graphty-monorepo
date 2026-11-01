@@ -39,7 +39,6 @@ export const FORMATS = [...registered, ...unregistered];
  * failure, so the fix turns it red until it is removed from here. All found by the style fidelity fixtures.
  */
 const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
-    ["dot/fidelity/real-depcruise.gv writes", "an outside edit of the written DOT gives no new exception"],
     [
         "json/fidelity/vis-siblings.json writes",
         "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",

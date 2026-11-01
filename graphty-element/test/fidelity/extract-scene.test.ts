@@ -8,7 +8,7 @@ import { assert, describe, it } from "vitest";
 import type { SceneNode } from "../../../graph-io/test/fidelity/scene";
 import { EdgeArrowTypes, EdgeLineTypes, NodeShapes } from "../../schema";
 import { FILE_STYLE_SHAPES } from "../../src/session/styles/fileStyles/shapes";
-import type { DrawnNode } from "./drawn-scene";
+import type { DrawnLabel, DrawnNode } from "./drawn-scene";
 import {
     arrowClassOf,
     capClassOf,
@@ -197,6 +197,61 @@ describe("what the graphty scene extractor counts as hidden, and as a group", ()
             groupsOf(hidden, nodes).map((g) => [g.id, g.members]),
             [["outer", ["inner"]]],
         );
+    });
+
+    it("reads no group off a node that is not drawn, as an expanded Cytoscape group's own node", () => {
+        // xgmml-syn-bypass: graph-io marks an expanded group's node hidden; its box still holds its members
+        const nodes = new Map([
+            ["g", drawn(0, 0, 100, 100, 36)],
+            ["m", member],
+        ]);
+        const scene = [...nodes].map(([id, d]) => sceneOf(id, d, id !== "g"));
+        assert.deepEqual(groupsOf(scene, nodes), []);
+    });
+
+    it("reads a group only off a node the graph nests others in, when the nesting is given", () => {
+        // json-cyjs-tokyo, cx2-signor-aml: a plain node drawn round a smaller one is no group in the reference
+        const nodes = new Map([
+            ["parent", drawn(0, 0, 100, 100, 37)],
+            ["big", drawn(110, 0, 210, 100, 36)],
+            ["m", member],
+            ["small", drawn(150, 40, 170, 60, 35)],
+        ]);
+        const scene = [...nodes].map(([id, d]) => sceneOf(id, d));
+        assert.deepEqual(
+            groupsOf(scene, nodes, new Set(["parent"])).map((g) => [g.id, g.members]),
+            [["parent", ["m"]]],
+        );
+        // with no nesting given, as an SVG with no ids shows it, both are groups
+        assert.deepEqual(
+            groupsOf(scene, nodes).map((g) => g.id),
+            ["parent", "big"],
+        );
+    });
+
+    it("shows a label drawn under one pixel tall, and leaves its size to fontSize", () => {
+        // cx-ddram: a 1 pt label drawn in proportion at 0.09 px in a frame that shrinks the drawing
+        const label: DrawnLabel = {
+            text: "SMARCA/CD\nARID1A",
+            box: { x0: 48, y0: 48, x1: 52, y1: 52, near: 30, far: 30 },
+            fontPx: 0.09,
+            color: "#000000",
+            enabled: true,
+            onTop: false,
+            family: "sans-serif",
+            weight: 400,
+            style: "normal",
+            rotation: 0,
+            textBox: null,
+            opacity: 1,
+            lineCount: 2,
+            align: "middle",
+            outline: null,
+            background: null,
+        };
+        const n = sceneNode("801", { ...member, label }, {}, null);
+        assert.isTrue(n.label?.visible);
+        assert.strictEqual(n.label?.fontSize, 0.09);
     });
 
     it("draws an unfilled node with an outline: visible, with no fill", () => {

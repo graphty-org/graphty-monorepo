@@ -7,7 +7,18 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { issueBody, junitFailures, LABELS, MARKER, MAX_FILED, packageOf, plan } from "./restricted-cpu-stress.mjs";
+import {
+    issueBody,
+    junitFailures,
+    junitTests,
+    LABELS,
+    MARKER,
+    MAX_FILED,
+    packageOf,
+    plan,
+    RACE_LABELS,
+    tally,
+} from "./restricted-cpu-stress.mjs";
 
 // The shape vitest 3.2's junit reporter writes: attributes escaped, one testcase per test, the suite
 // chain joined with " > ", a failure child for a failed test.
@@ -53,6 +64,65 @@ describe("reading the junit report", () => {
 
     it("returns nothing for a report with no failure", () => {
         assert.deepEqual(junitFailures(XML.replaceAll(/<failure[\s\S]*?<\/failure>/g, ""), "x", "s"), []);
+    });
+});
+
+describe("repeats on the same commit", () => {
+    const passing = XML.replaceAll(/<failure[\s\S]*?<\/failure>/g, "");
+
+    it("reads passed tests too, a self-closing testcase among them, and leaves skipped ones out", () => {
+        const xml = passing.replace(
+            "</testsuite>",
+            '<testcase classname="c" name="short" time="0"/><testcase classname="c" name="skip" time="0"><skipped/></testcase></testsuite>',
+        );
+        const got = junitTests(xml, "graph-io", "s");
+        assert.deepEqual(
+            got.map((t) => [t.name, t.failed]),
+            [
+                ['reader > parses "x"', false],
+                ["reader > passes", false],
+                ["short", false],
+                ["b", false],
+            ],
+        );
+        assert.deepEqual(
+            junitTests(XML, "graph-io", "s").map((t) => t.failed),
+            [true, false, true],
+        );
+    });
+
+    it("counts how often each failing test ran and failed across the repeats", () => {
+        const runs = [
+            ...junitTests(XML, "graph-io", "small-browser-r1"),
+            ...junitTests(passing, "graph-io", "small-browser-r2"),
+            ...junitTests(XML.replace(/<failure[\s\S]*?<\/failure>/, ""), "graph-io", "small-browser-r3"),
+        ];
+        const got = tally(runs);
+        assert.deepEqual(
+            got.map((t) => [t.name, t.shard, t.fails, t.runs]),
+            [
+                ['reader > parses "x"', "small-browser-r1", 1, 3],
+                ["b", "small-browser-r1", 2, 3],
+                ["b", "small-browser-r3", 2, 3],
+            ],
+        );
+    });
+
+    it("says a test whose outcomes differed is a race, and one that always failed failed every run", () => {
+        const [raced, , always] = tally([
+            ...junitTests(XML, "graph-io", "r1"),
+            ...junitTests(passing, "graph-io", "r2"),
+        ]).concat(tally(junitTests(XML, "graph-io", "r1")));
+        assert.match(issueBody(raced, CTX), /Outcomes differed on the same commit: failed 1 of 2 runs .*a race/);
+        assert.match(issueBody(always, CTX), /Failed all 1 of its runs on this commit\./);
+        const [a] = plan([raced], [{ number: 9, state: "open", body: `${MARKER}${raced.id}` }], CTX);
+        assert.match(a.comment, /Outcomes differed on the same commit/);
+        assert.deepEqual(plan([raced], [], CTX)[0].create.labels, RACE_LABELS);
+        assert.ok(RACE_LABELS.includes("priority:critical"));
+        assert.deepEqual(plan([always], [], CTX)[0].create.labels, LABELS);
+        // a test without a tally (no repeats read) says neither
+        const [plain] = junitFailures(XML, "graph-io", "s");
+        assert.doesNotMatch(issueBody(plain, CTX), /Outcomes differed|Failed all/);
     });
 });
 
@@ -134,6 +204,19 @@ describe("the workflow", () => {
         assert.match(code, /node tools\/ci-test-matrix\.mjs "\$all" "\$all"/);
         assert.match(code, /continue-on-error: true\n\s+run: \|/);
         assert.match(code, /cpu\.max/);
+    });
+
+    it("repeats every browser and story shard in its own job, and keeps each repeat's artifact and record apart", () => {
+        assert.match(code, /REPEATS: "3"/);
+        assert.match(
+            code,
+            /range\(1; \(if \$s\["needs-browser"\] then \$n else 1 end\) \+ 1\) \| \$s \+ \{repeat: \.\}/,
+        );
+        assert.match(code, /name: Restricted CPU \(\$\{\{ matrix\.shard \}\}, repeat \$\{\{ matrix\.repeat \}\}\)/);
+        assert.match(code, /name: junit-\$\{\{ matrix\.shard \}\}-r\$\{\{ matrix\.repeat \}\}/);
+        assert.match(code, /RESULTS_REPEAT: \$\{\{ matrix\.repeat \}\}/);
+        // the screenshot capture is never repeated here
+        assert.doesNotMatch(code, /visual-review|capture/);
     });
 
     it("files nothing from a dispatch on a branch", () => {

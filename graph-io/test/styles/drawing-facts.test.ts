@@ -179,3 +179,11 @@ describe("TOOL_DEFAULTS nodeBorderOnScreen", () => {
         expect(TOOL_DEFAULTS.get("vis-network")?.nodeBorderOnScreen?.source).toMatch(/view\.scale/);
     });
 });
+
+describe("TOOL_DEFAULTS labelSizeOnScreen", () => {
+    it("is set for sigma alone, which draws every label at its size in screen pixels whatever the zoom", () => {
+        const onScreen = [...TOOL_DEFAULTS].filter(([, d]) => d.labelSizeOnScreen?.value === true).map(([t]) => t);
+        expect(onScreen).toEqual(["sigma"]);
+        expect(TOOL_DEFAULTS.get("sigma")?.labelSizeOnScreen?.source).toMatch(/zoomToLabelSizeRatioFunction/);
+    });
+});

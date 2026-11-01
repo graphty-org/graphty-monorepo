@@ -519,7 +519,9 @@ function closingQuote(where: string, from: number, quote: string): number {
  * @param shapes - The 2D-to-3D shape table.
  * @param graphty - Whether graphty wrote the file.
  * @param arrowsSized - Whether arrow sizes are drawn in a pass of their own (`#arrowSizes`).
- * @param borderOnScreen - Whether the writing program draws a node's border width in screen pixels.
+ * @param onScreen - Whether the writing program draws a node's border width, and its label sizes, in screen pixels.
+ * @param onScreen.border - A node's border width.
+ * @param onScreen.label - Every label size, node and edge.
  * @param imageBase - The URL a picture's relative path is resolved against, or undefined.
  * @returns The plans per property.
  */
@@ -529,7 +531,7 @@ function channelPlans(
     shapes: FileStyleShapeTable,
     graphty: boolean,
     arrowsSized: boolean,
-    borderOnScreen = false,
+    onScreen: { readonly border: boolean; readonly label: boolean },
     imageBase?: string,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
@@ -587,7 +589,20 @@ function channelPlans(
     // Each size converted on its own: a label's letters are not in proportion to its `sizePx` (see LABEL).
     // The letters' height in the scene, besides the canvas size: `sizePx / 48` scene units is a line of the font's own
     // line height, which differs from one font to the next.
+    // Where the program draws them in screen pixels (sigma), as the screen size they are, with its label style's
+    // `sizeMode: "screen"` beside them, never scaled by the lengths.
     const labelSize = (channel: Channel, letters: Channel): ChannelPlan[] => {
+        if (onScreen.label) {
+            return [
+                id(channel),
+                {
+                    channel: channel.replace(/Size$/, "Style") as Channel,
+                    convert: (value) => (typeof value === "number" ? { sizeMode: "screen" } : null),
+                    identity: false,
+                },
+            ];
+        }
+
         const px = factors.label;
         const { letter } = factors;
         return px === null || letter === null
@@ -610,7 +625,7 @@ function channelPlans(
     // sizes need it
     // A label box's border width is a whole stroke's width, so it is not halved.
     const labelLength = (channel: Channel, half = true): ChannelPlan => {
-        const px = factors.label;
+        const px = onScreen.label ? null : factors.label;
         const ratio = (px === null ? 1 : px(14) / 14) / (half ? 2 : 1);
         return {
             channel,
@@ -636,7 +651,7 @@ function channelPlans(
             // scaled by the lengths, which is drawn in place of the length.
             [
                 "borderWidth",
-                borderOnScreen
+                onScreen.border
                     ? [length("node.borderWidth"), id("node.borderScreenWidth")]
                     : [length("node.borderWidth")],
             ],
@@ -1753,7 +1768,10 @@ class KindTranslation {
             input.options.shapes ?? FILE_STYLE_SHAPES,
             tool === "graphty",
             this.#arrowhead !== null,
-            tool !== null && toolDefaults(tool)?.nodeBorderOnScreen?.value === true,
+            {
+                border: tool !== null && toolDefaults(tool)?.nodeBorderOnScreen?.value === true,
+                label: tool !== null && toolDefaults(tool)?.labelSizeOnScreen?.value === true,
+            },
             input.options.imageBaseUrl,
         );
         this.#keys = new Set(input.extracted.columns[kind].keys());

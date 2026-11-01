@@ -404,10 +404,12 @@ void main(void) {
             {
                 attributes: [
                     "position",
+                    "pPrev2",
                     "pPrev",
                     "pA",
                     "pB",
                     "pNext",
+                    "pNext2",
                     "run",
                     ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
                 ],
@@ -416,6 +418,7 @@ void main(void) {
                     "viewProjection",
                     "projection",
                     "resolution",
+                    "fragmentSize",
                     "width",
                     "minWidth",
                     "miterLimit",
@@ -434,6 +437,22 @@ void main(void) {
         if (widened) {
             material.setFloat("edgeReach", 1);
         }
+
+        // The pixels the viewport being drawn holds, read as each draw binds -- the canvas, a
+        // capture's larger target or one eye's half -- so the fragment shader can snap to the
+        // pixel it draws (edgeJoinShader). Set on the bound effect, not the material, which would
+        // reach the shader one draw late.
+        material.onBindObservable.add(() => {
+            const engine = scene.getEngine();
+            const viewport = scene.activeCamera?.viewport;
+            material
+                .getEffect()
+                ?.setFloat2(
+                    "fragmentSize",
+                    engine.getRenderWidth() * (viewport?.width ?? 1),
+                    engine.getRenderHeight() * (viewport?.height ?? 1),
+                );
+        });
 
         const opacity = options.opacity ?? 1;
         const colorObj = Color3.FromHexString(options.color);

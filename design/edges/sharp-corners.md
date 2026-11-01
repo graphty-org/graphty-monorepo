@@ -169,6 +169,37 @@ three defects.
 The browser test `graphty-element/test/browser/edge-corner-joins.test.ts` draws the scene above and
 checks every bend against the canvas reference, for all three.
 
+### Who draws a pixel where pieces overlap
+
+The split at the bisector was later restated as a rule that also covers pieces that are not
+neighbours and the 3D camera's perspective (issues #3096 and #3114):
+
+- **Each piece reads five pieces:** itself, its neighbours and the pieces two away (a slot carries
+  the corners two back and two ahead, 20 floats). A piece shorter than the line is wide lets the
+  pieces either side of it overlap each other, along their whole length when they run side by side.
+- **Of the pieces whose shape covers a pixel's centre, the one whose centre line is nearest draws
+  it, the earlier on a tie.** A shape is the piece and the joins at its corners. Between two
+  neighbours the nearest-line split is the bisector, so this is the old rule there; past a short
+  piece it settles the overlap of the pieces either side, and where three pieces overlap exactly
+  one draws, because distance orders them. Inside a join at a piece's own corner the two pieces'
+  triangles already split it along that same line, so there the rasterizer decides.
+- **Every piece tests the same point with the same numbers.** The fragment's position interpolated
+  from a varying is off by a few hundredths of a pixel, differently in each piece's triangles, so
+  the shader snaps it to the centre of the pixel being drawn (it reads the viewport's size in
+  pixels as each draw binds). Two pieces compare a pair of distances from the same point by the
+  same arithmetic, so their tests are exact complements; distances within 0.001 px tie, so two
+  pieces along one line (a U-turn) split by order rather than by rounding.
+- **Under perspective a piece is a trapezoid,** wider at its nearer end, and a neighbour is tested
+  at its width at both ends, as its triangles draw it.
+- **Coverage is tested 0.05 px inside the edges first,** where it always agrees with what the
+  rasterizer drew (it snaps corners to a sub-pixel grid). Only a pixel no shape covers by that much
+  -- where two edges cross, or the line's anti-aliased edge -- is tested at the edges themselves.
+
+`graphty-element/test/browser/edge-corner-joins-3d.test.ts` draws each piece of a bent edge on its
+own, from the slot the batch wrote for it, at bends from 150 to 35 degrees and U-turns with a short
+middle, as the camera turns from straight on to 80 degrees: no pixel is drawn by two pieces, and
+together they cover every pixel the pieces cover drawn as plain lines.
+
 ## Past the miter limit
 
 Every miter join needs a rule for a corner so sharp that its point would reach far beyond the
@@ -293,13 +324,11 @@ pieces into a plain mesh, would move the per-move work back onto the CPU on ever
 
 ## Known limits
 
-- **Non-adjacent pieces can overlap.** A piece knows only its two neighbours, so when a piece is
-  shorter than the line is wide, the pieces either side of it can overlap each other, and a
-  translucent line shows that overlap darker (the short-middle U at 24 px). Fixing it means giving
-  each piece the corner two pieces away as well.
-- **In 3D the overlap test is approximate.** The neighbour's rectangle is tested with the line's
-  width at the shared corner; under strong perspective a sliver at the far end of a very sharp bend
-  can be drawn twice.
+- **Pieces three apart can overlap.** A piece reads the pieces two away, not three, so two pieces
+  in a row shorter than the line is wide can let the pieces either side of them overlap, and a
+  translucent line shows that overlap darker.
+- **A dash on a piece two away is placed at its neighbour's scale.** Under perspective the dash
+  there can be off by a fraction of a pixel; in 2D the scale is the same for every piece.
 
 ## Prior art
 

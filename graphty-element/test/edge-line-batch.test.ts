@@ -2,6 +2,7 @@ import { ArcRotateCamera, Buffer, Matrix, Mesh, NullEngine, Scene, Vector3 } fro
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { CustomLineRenderer } from "../src/meshes/CustomLineRenderer";
+import { JOIN_FLOATS_PER_PIECE, WIDENED_FLOATS_PER_PIECE } from "../src/meshes/edgeJoinShader";
 import { EdgeLineBatch, segmentMatrixToRef } from "../src/meshes/EdgeLineBatch";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
 import { assertScalesLinearly } from "./helpers/cost";
@@ -200,10 +201,20 @@ describe("EdgeLineBatch", () => {
             return new EdgeLineBatch(mesh, scene);
         }
 
-        /** One slot's fourteen floats, read back through the GPU buffer the batch uploads. */
+        /**
+         * One slot's first fourteen floats -- the piece, its neighbours and where it is along the
+         * edge -- read back through the GPU buffer the batch uploads.
+         */
         function slotOf(drawn: EdgeLineBatch, slot: number): number[] {
             const data = (drawn as unknown as { slots: Float32Array }).slots;
-            return [...data.subarray(slot * 14, slot * 14 + 14)];
+            return [...data.subarray(slot * JOIN_FLOATS_PER_PIECE, slot * JOIN_FLOATS_PER_PIECE + 14)];
+        }
+
+        /** One slot's corners two pieces back and two ahead. */
+        function twoAwayOf(drawn: EdgeLineBatch, slot: number): number[] {
+            const data = (drawn as unknown as { slots: Float32Array }).slots;
+            const at = slot * JOIN_FLOATS_PER_PIECE;
+            return [...data.subarray(at + 14, at + 20)];
         }
 
         test("draws instances of the join template, not thin instances", () => {
@@ -234,6 +245,21 @@ describe("EdgeLineBatch", () => {
             assert.deepEqual(slotOf(drawn, slots[0]), [0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 4, 0, 0, 0]);
             assert.deepEqual(slotOf(drawn, slots[1]), [0, 0, 0, 3, 0, 0, 3, 4, 0, 6, 0, 0, 3, 0]);
             assert.deepEqual(slotOf(drawn, slots[2]), [3, 0, 0, 3, 4, 0, 6, 0, 0, 6, 0, 0, 7, 0]);
+        });
+
+        test("each piece of a run carries the corners two pieces away, or its neighbours' where there are none", () => {
+            const drawn = joined();
+            const slots = [drawn.acquire(), drawn.acquire(), drawn.acquire(), drawn.acquire()];
+            // A U whose middle is shorter than the line is wide, with a tail: the pieces either
+            // side of a short piece overlap, so each must know the other (issue #3096).
+            drawn.placeRun(slots, [0, 5, 0, 0, 0, 0, 1, 0, 0, 1, 5, 0, 3, 5, 0]);
+
+            assert.deepEqual(twoAwayOf(drawn, slots[0]), [0, 5, 0, 1, 5, 0], "none back; the far end of the third");
+            assert.deepEqual(twoAwayOf(drawn, slots[1]), [0, 5, 0, 3, 5, 0], "none back; the end");
+            assert.deepEqual(twoAwayOf(drawn, slots[2]), [0, 5, 0, 3, 5, 0]);
+            assert.deepEqual(twoAwayOf(drawn, slots[3]), [0, 0, 0, 3, 5, 0], "none ahead");
+            drawn.place(slots[0], new Vector3(1, 2, 0), new Vector3(4, 6, 0));
+            assert.deepEqual(twoAwayOf(drawn, slots[0]), [1, 2, 0, 4, 6, 0], "a straight line is its own");
         });
 
         test("a run shorter than its slots hides the slots it does not use", () => {
@@ -314,15 +340,16 @@ describe("EdgeLineBatch", () => {
             return new EdgeLineBatch(mesh, scene);
         }
 
-        test("a widened slot carries the whole edge's length beside the plain fourteen floats", () => {
+        test("a widened slot carries the whole edge's length beside the plain slot's floats", () => {
             const drawn = widened();
             const slots = [drawn.acquire(), drawn.acquire()];
             drawn.placeRun(slots, [0, 0, 0, 3, 0, 0, 3, 4, 0]);
             const data = (drawn as unknown as { slots: Float32Array }).slots;
 
             assert.isTrue(drawn.widened);
-            assert.strictEqual(data[14], 7, "the first piece knows the edge is 7 long");
-            assert.strictEqual(data[16 + 14], 7, "and so does the second");
+            const total = JOIN_FLOATS_PER_PIECE;
+            assert.strictEqual(data[total], 7, "the first piece knows the edge is 7 long");
+            assert.strictEqual(data[WIDENED_FLOATS_PER_PIECE + total], 7, "and so does the second");
             assert.isNotNull(drawn.mesh.getVertexBuffer("runTotal"));
             assert.isNotNull(drawn.mesh.getVertexBuffer("edgeMeta"), "the static values are instanced attributes");
         });
@@ -370,8 +397,8 @@ describe("EdgeLineBatch", () => {
             assert.isNull(drawn.staticOf(0), "a plain batch keeps no static values");
             assert.notExists(drawn.mesh.getVertexBuffer("runTotal"));
             assert.lengthOf(uploaded, 1, "one buffer a frame");
-            // The slots double from 32, so 10,000 edges sit in 16,384 slots of 14 floats.
-            assert.strictEqual(uploaded[0], 16_384 * 14 * 4);
+            // The slots double from 32, so 10,000 edges sit in 16,384 slots.
+            assert.strictEqual(uploaded[0], 16_384 * JOIN_FLOATS_PER_PIECE * 4);
         });
 
         function joined(): EdgeLineBatch {

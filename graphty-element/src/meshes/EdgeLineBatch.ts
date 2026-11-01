@@ -566,8 +566,10 @@ export class EdgeLineBatch {
         next.toArray(s, at + 9);
         s[at + 12] = distance;
         s[at + 13] = spacing;
+        prev.toArray(s, at + 14);
+        next.toArray(s, at + 17);
         if (this.statics !== null) {
-            s[at + 14] = total;
+            s[at + 20] = total;
         }
 
         this.writeMatrix(index);
@@ -577,7 +579,9 @@ export class EdgeLineBatch {
     /**
      * Write one piece of a run from points in a flat array. Its neighbours are the pieces either
      * side; the first piece's previous corner is its own start and the last's next corner its own
-     * end, which the shader draws as a square end. See {@link EdgeLineBatch.write}.
+     * end, which the shader draws as a square end. The corner two pieces back is the previous
+     * corner when there is none, and the corner two ahead the next corner. See
+     * {@link EdgeLineBatch.write}.
      * @param index - The slot.
      * @param flat - The run's points.
      * @param piece - Which piece: from point `piece` to point `piece + 1`.
@@ -596,7 +600,9 @@ export class EdgeLineBatch {
     ): void {
         const { distance, spacing, total } = along;
         const prev = piece === 0 ? piece : piece - 1;
+        const prev2 = piece < 2 ? prev : piece - 2;
         const next = piece === pieces - 1 ? piece + 1 : piece + 2;
+        const next2 = piece >= pieces - 2 ? next : piece + 3;
         const at = index * this.stride;
         const s = this.slots;
         for (let k = 0; k < 3; k++) {
@@ -604,12 +610,14 @@ export class EdgeLineBatch {
             s[at + 3 + k] = flat[piece * 3 + k];
             s[at + 6 + k] = flat[(piece + 1) * 3 + k];
             s[at + 9 + k] = flat[next * 3 + k];
+            s[at + 14 + k] = flat[prev2 * 3 + k];
+            s[at + 17 + k] = flat[next2 * 3 + k];
         }
 
         s[at + 12] = distance;
         s[at + 13] = spacing;
         if (this.statics !== null) {
-            s[at + 14] = total;
+            s[at + 20] = total;
         }
 
         this.writeMatrix(index);
@@ -656,7 +664,7 @@ export class EdgeLineBatch {
     }
 
     /**
-     * Hand the slots to the mesh: as five instanced attributes for a joined line, or as the
+     * Hand the slots to the mesh: as seven instanced attributes for a joined line, or as the
      * thin-instance matrix buffer otherwise. Called again after the arrays grow.
      */
     private bindBuffers(): void {
@@ -671,9 +679,11 @@ export class EdgeLineBatch {
             this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pB", 6, 3, stride, true));
             this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pNext", 9, 3, stride, true));
             this.mesh.setVerticesBuffer(buffer.createVertexBuffer("run", 12, 2, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pPrev2", 14, 3, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pNext2", 17, 3, stride, true));
             this.buffer = buffer;
             if (this.statics !== null) {
-                this.mesh.setVerticesBuffer(buffer.createVertexBuffer("runTotal", 14, 2, stride, true));
+                this.mesh.setVerticesBuffer(buffer.createVertexBuffer("runTotal", 20, 1, stride, true));
                 this.staticBuffer?.dispose();
                 const statics = new Buffer(this.mesh.getEngine(), this.statics, true, EDGE_STATIC_FLOATS, false, true);
                 EDGE_STATIC_ATTRIBUTES.forEach((name, i) => {

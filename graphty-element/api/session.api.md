@@ -1150,7 +1150,7 @@ export interface FileStyleOptions {
     readonly imageBaseUrl?: string;
     // @deprecated
     readonly labelLayers?: number;
-    readonly lengths?: "median" | "file";
+    readonly lengths?: "median" | "file" | "spacing";
     readonly shapes?: FileStyleShapeTable;
     readonly toolDefaults?: boolean;
 }

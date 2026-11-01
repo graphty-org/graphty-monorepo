@@ -9,10 +9,12 @@
 //   node tools/results/cli.mjs base-check --variant <v> --file <f> [--repeat <n>] [--build]
 //       What base-check.yml runs on master's code at a pull request's base: one test file of the variant's
 //       family, <n> times, each run through run-group.mjs as its own record (kind `base` from the workflow's
-//       OIDC token). --build builds the shard's package (and what it depends on) first.
+//       OIDC token). --build builds the shard's package (and what it depends on) first. A `<family>-shots`
+//       variant runs the story with its screenshots, as ci.yml's story-tests job does.
 
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -114,14 +116,48 @@ function nxProject(root, dir) {
 }
 
 /**
- * Runs one test file of a variant's family `repeat` times, each as its own record.
+ * What a base check runs for a family: the SHARDS slice that runs the file and its command, or for a screenshot
+ * run's `<family>-shots` family (tools/results/run-group.mjs groupFamily()) the story shard ci.yml's story-tests job
+ * runs (STORY_RUNS), with its visual-review project and the Git LFS files its screenshots need (#5428).
+ * @param root the checkout
+ * @param matrix tools/ci-test-matrix.mjs
+ * @param matrix.SHARDS its SHARDS
+ * @param matrix.STORY_PROJECTS its STORY_PROJECTS
+ * @param matrix.STORY_RUNS its STORY_RUNS
+ * @param family the variant's family
+ * @param file the test file
+ * @returns `{ shard, cmd, shots? }`, `shots` being `{ project, lfs }`; or null when nothing runs the file
+ */
+function checkRun(root, { SHARDS, STORY_PROJECTS, STORY_RUNS }, family, file) {
+    const story = Object.keys(STORY_RUNS).find((s) => `${familyOf(s)}-shots` === family);
+    if (story) {
+        const shard = SHARDS.find((s) => s.shard === story);
+        const cmd = shard && selectedCommand(root, { ...shard, "test-command": STORY_RUNS[story].command }, [file]);
+        if (!cmd) return null;
+        const project = STORY_PROJECTS[story];
+        return {
+            shard,
+            cmd,
+            shots: { project, lfs: `visual-baselines/${project}/**,visual-fonts/**${STORY_RUNS[story].lfs ?? ""}` },
+        };
+    }
+    const slices = SHARDS.filter((s) => familyOf(s.shard) === family);
+    const shard = slices[0];
+    // a family whose command is not a plain vitest run (the WebGPU node passes, a script) runs its one shard whole
+    const cmd = shard && (selectedCommand(root, shard, [file]) ?? (slices.length === 1 ? shard["test-command"] : null));
+    return cmd ? { shard, cmd } : null;
+}
+
+/**
+ * Runs one test file of a variant's family `repeat` times, each as its own record. A `-shots` variant runs the story
+ * with its screenshots taken and compared (VISUAL_REVIEW_STORY_OUT), as ci.yml's story-tests job does.
  * @param o the check
  * @param o.root the checkout
  * @param o.variant the variant to record
  * @param o.file the test file
  * @param [o.repeat] how many runs
  * @param [o.env] the environment
- * @param [o.build] build the shard's package first
+ * @param [o.build] build the shard's package first, and for a `-shots` variant fetch its baselines and fonts
  * @param [o.run] runGroup (tests replace it)
  * @param [o.exec] execFileSync (tests replace it)
  * @returns the worst exit code
@@ -136,18 +172,19 @@ export async function baseCheck({
     run = runGroup,
     exec = execFileSync,
 }) {
-    const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
+    const matrix = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
     const family = variant.split("|")[0];
-    const slices = SHARDS.filter((s) => familyOf(s.shard) === family);
-    const shard = slices[0];
-    // a family whose command is not a plain vitest run (the WebGPU node passes, a script) runs its one shard whole
-    const cmd = shard && (selectedCommand(root, shard, [file]) ?? (slices.length === 1 ? shard["test-command"] : null));
-    if (!cmd) {
+    const found = checkRun(root, matrix, family, file);
+    if (!found) {
         console.error(`base-check: no shard of family ${family} runs ${file}`);
         return 2;
     }
-    if (build)
+    const { shard, cmd, shots } = found;
+    if (build) {
+        if (shots) exec("git", ["lfs", "pull", "--include", shots.lfs], { cwd: root, stdio: "inherit" });
         exec("pnpm", ["exec", "nx", "run", `${nxProject(root, shard.package)}:build`], { cwd: root, stdio: "inherit" });
+    }
+    const out = shots && (env.VISUAL_REVIEW_STORY_OUT || mkdtempSync(join(tmpdir(), "base-check-shots-")));
     const flags = variant.includes("|flags=on|") ? "on" : "off";
     let worst = 0;
     let best = Infinity;
@@ -161,6 +198,7 @@ export async function baseCheck({
             RESULTS_REPEAT: String(i),
             RESULTS_BASE_FILE: file,
             RESULTS_FILE_FAILING: i === repeat && best > 0 ? "1" : "0",
+            ...(out && { VISUAL_REVIEW_STORY_OUT: join(out, `run-${i}`) }),
         };
         console.log(`base-check: ${file} at ${variant}, run ${i} of ${repeat}`);
         const code = await run(shard.shard, cmd, { root, env: runEnv });

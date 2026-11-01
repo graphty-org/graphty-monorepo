@@ -4,6 +4,39 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-31 -- For the owner: a filter condition that reads the selection goes stale (graphty-element)
+
+**What.** Not done; a question. `visibility.addCondition` accepts `{ kind: "member", of: "selection" }`
+(`session/visibility/filter.ts`, which refuses only `"visible"` and `"search"`), but nothing in the
+filter reacts to a selection change, so such a condition keeps the selection it first read and says
+nothing. Both fixes change what an existing API does, so both are breaking:
+
+- **Options.** (a) Refuse live view-state scopes in filter conditions with `E_BAD_COMMAND`, in the
+  next grouped major. (b) Freeze them to node ids on write, as the new `union` leaf does. (c) Make
+  the filter follow the selection (it would re-lay the graph on every click). (d) Leave it.
+- **Built meanwhile:** (d). The graphty app never writes it, and inside the tier 5 `union` leaf the
+  element freezes live references on write (`../selection-groups/element-api.md`, section 7).
+
+## 2026-10-31 -- Decided by the team: the selection groups API, revised after review (graphty-element)
+
+Replaces the shape in the entry "Decided by the team: the selection groups API" below, after three
+reviews (`tier5/spec-review-*.md`). Non-breaking, every item `@beta`; the contract is
+`../selection-groups/element-api.md`. Changes: the leaf is `{ kind: "union", side, within, branches }`
+(the glossary keeps "group" for partition parts), with `start`, `side` and `within` required; `Scope`
+is unchanged, and step references are a new `StepReference = Scope | "hovered-or-selected" |
+"so-far"`, because widening the returned `Scope` would break exhaustive switches; new leaves
+`measure`, `hops`, `touching`, `nonempty`, `same-value` and `by-size`; `threshold` gains `from`,
+`percentile`, `as` and `missing`, `range` and `categories` gain `missing`, `categories` gains `match`
+for list values, and degree paths are accepted; `scope.watchSteps` (live counts, states, reasons,
+member scopes, `branchOf`) replaces `countSteps`; `scope.asUnion`, `scope.checkStep`,
+`scope.allowRun`, `scope.cancelRun` and `scope.setOptions` (run limits, unset by default, and the
+branch palette); live references freeze when written into a filter or a set; the picking view is
+`styles.showBranches` (with `showingBranches` and `style:branches-shown-changed`), because
+`styles.preview` is already a public binding preview. Why: as first written the app would have
+compared estimates, sequenced runs, converted saved forms and worked out group membership itself.
+"Within k hops of" is now the `hops` leaf, not a preset over the bfs level, so the owner question
+below does not block it.
+
 ## 2026-10-31 -- For the owner: algorithm levels read as ordered values (graphty-element)
 
 From the tier 5 selection-groups spec (`../selection-groups/spec.md`, section 10). The new condition

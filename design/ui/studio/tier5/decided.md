@@ -71,7 +71,109 @@ reader asks). Tier 3 and 4 entries on Escape, Tab, commit and remove buttons sti
   this redesign). Their reference screenshots are retaken from the first build that holds the spec and
   listed here before the screenshot audit uses them.
 
+## Revised after the spec reviews, 2026-10-31 (Design Director)
+
+Three reviews of the spec (`spec-review-redteam.md`, `spec-review-architecture.md`,
+`spec-review-completeness.md`) found blockers in it. These entries narrow or reverse entries above;
+the entries above stay as the record. The graphty-element contract moved to
+`../../selection-groups/element-api.md`.
+
+- **Reversal of tier 3 / tier 4 "an unfinished card is dropped when its picker closes" and "Escape on
+  a just-added line that holds nothing takes it back, says so".** A step that has a value is kept;
+  while its test is untouched it is _inert_ (changes nothing, its row reads "No test"). A step with
+  no value is taken back when its value picker closes with nothing chosen (Escape or a click away),
+  focus returns to its "+", and only the screen reader hears it (no toast: no sentences at rest).
+  Why: tier 5's card is several controls (value, test, computed on), and dropping a step the reader
+  chose a value for loses work; a step with no value holds nothing to lose. The red team showed the
+  two old rules and the spec contradicting each other with no dated reversal.
+- **Step states are applied, inert or pending.** An untouched test, an unchosen reference or several
+  nodes in a one-node option make a step inert, never pending, so an unfinished step never blanks a
+  layer. Pending is only about runs (computing, waiting for Run, paused while hovering, failed,
+  stale). A pending group keeps its last ready result; a group never ready yet contributes nothing,
+  at rest and while picking. A chosen reference that is empty now matches nothing, and a Keep or
+  Except step whose input is empty is applied with nothing. Why: the hover recipe must draw the
+  resting graph when nothing is hovered (completeness B2), and an untested step must not wipe a
+  layer's paint.
+- **Start with is written when a group is made and never derived.** New selections and "+ Or" groups
+  start None; converted tier 4 cards start All. Why: deriving it from the first verb let a reorder
+  flip a whole group's answer, and made "+"'s verb circular (red team 4).
+- **Order and counts.** A step's chip counts the group so far, and says so in its tooltip and name;
+  a run of base Keep and Except steps, or of base Add steps, is order-free. Narrows "order never
+  matters between whole-graph steps" above, which an Add below a Keep contradicted (red team 5).
+- **Runs: one run per algorithm, settings and scope**, shared by every reader of that scope. Narrows
+  "one value per algorithm everywhere": a filter reads full-graph runs and a style layer
+  filtered-graph runs, so Louvain can have two runs, told apart by their scope word. In the import
+  filter, filtered-graph runs are greyed (circular) and the algorithm stays startable on the full
+  graph (red team 3, completeness B4).
+- **Every algorithm step saves as a `measure` step; graphty-element starts, gates and keeps consent
+  for its runs.** Run limits are element options, unset by default; the app sets 50 ms live and 1 s
+  ask. Consent holds until the step's definition changes; the "within twice the consented estimate"
+  rule is dropped (it needed estimate history and no evidence asked for it). Why: as written the app
+  would have compared estimates and sequenced runs, which CLAUDE.md forbids (architecture 2).
+- **So far and live-reference computations are the step's own and are not listed in Analyze**
+  (reverses "listed in Analyze as <Method> (A, step 2)"). Why: every layer and card has an A, so the
+  names collided (red team 16), and the title was English the element would have had to write.
+- **The picker keeps the approved Structure section, in both hosts** (Largest component, Isolated,
+  Self-loops, Repeated edges); "Neighbors of selection" is an alias of "within 1 hop of Selected".
+  Degree is listed under Data, read with no run.
+- **Both pickers list the same entries in the same order, except Time window (filter only); states
+  may differ by host.** Narrows "One test asserts both list the same entries".
+- **A count chip's click.** Style selector: selects what it counts (task-flows 4.3, as everywhere in
+  graphty). Import filter: opens the table on its rows, never selects, because a hand selection change
+  switches every Select card off (tier 4), including the one being edited. An armed target button's
+  click is part of picking: it never changes the selection and never ends the preview.
+- **The chit is hollow at rest and filled while group colors show**, so it is never read as a
+  layer's paint (red team 8, `panel/figma.md` risks).
+- **Group colors are written into the group when it is made** (first free palette color) and never
+  change on delete or reorder; the palette never wraps, so "+ Or" is disabled when it is used up.
+- **Owner question 2, corrected count.** Eight of nine said yes; the Figma designer wanted group colors
+  off by default in a style layer. The default stays on in both hosts, and the dry run asks style-layer
+  readers which default they want. The element method is `styles.showBranches`, because
+  `styles.preview` is a public binding preview since 3.26.0.
+- **Words.** Scopes are Filtered graph and Full graph everywhere, run titles included (the app's
+  "visible" and "whole graph" change). The table toggle is "Matches only" (the glossary rejects "Show
+  only"). Keys are written Mod+D, Mod+] and Mod+[; the style layer tree's rows gain the same reorder
+  keys, and every "..." item with a key shows it.
+- **Element API shape** (`element-api.md`): the leaf is `union` with `branches` (the glossary keeps
+  "group" for partition parts); `Scope` is unchanged and step references are a new `StepReference`;
+  new leaves `measure`, `hops`, `touching`, `nonempty`, `same-value`, `by-size`; `watchSteps`,
+  `asUnion`, `checkStep`, `allowRun`, `cancelRun`; live references freeze inside filters and sets;
+  `valueKind` on descriptors.
+
+### Review findings rejected or changed, with the reason
+
+- **Red team 6, "skip a pending step so the group's last ready result applies".** Changed: a pending
+  group keeps its last ready result, but a group that was never ready contributes nothing, and the
+  later steps are not applied past a pending one. Applying a partial rule would paint or filter
+  elements the reader's rule has not decided.
+- **Red team 7, "Largest component as a Relative to preset".** Changed: the approved picker's
+  Structure section keeps it (an owner-approved surface; Largest component takes no reference).
+- **Architecture 2, `allowRun` returning a `Run`.** Changed to `allowRun` and `cancelRun` returning
+  nothing, state read from `watchSteps`: a So far computation is not a session run, so one handle type
+  would not fit both.
+- **Architecture 3, `scope?` on the `measure` leaf.** Changed: the scope is the `union` leaf's
+  required `within`, and `measure` is valid only inside a `union` step in this build, so one leaf
+  cannot disagree with its group.
+- **Architecture 6, refusing live view-state scopes in every filter condition.** Narrowed: inside a
+  `union` leaf the element freezes them on write. Refusing today's accepted `member of "selection"`
+  in a filter would change an existing API; it goes to the owner (below).
+- **Completeness M1, extending `neighborhood` with a Scope and a direction.** Changed to the new
+  `hops` and `touching` leaves: making `neighborhood.seeds` optional would change a type the element
+  returns. "Linked to at least N of" moves to Not in this build.
+- **Completeness M2, `whole?: Scope` on the leaf.** Changed to a required `within: "graph" |
+"visible"`: only the two bases exist, and a required member keeps the default from being anyone's
+  preference.
+- **Completeness M3, mock J's Except default "edges only (nodes stay)" on a node step.** Rejected: in
+  this spec a selection has one side, so on the node side it would change nothing. Node steps read
+  edge values as nodes touching for every verb; edge steps keep mock J's both-ends / either-end chip.
+- **Completeness M4, By value for named ordered levels.** Dropped: Pick is By value for levels, and
+  `range.as` cannot be widened without changing a returned type; By position uses `threshold.as:
+"order"`.
+
 ## Waiting for the owner
 
 - Retagging bfs `level`, k-core `value` and dfs `value` as ordinal changes what `fieldMeasurement`
   returns (`../owner-decisions.md`, 2026-10-31). The build keeps today's kind for them.
+- A filter condition `member of "selection"` is accepted today and silently goes stale when the
+  selection changes. Refusing it, or making it follow the selection, changes an existing API
+  (`../owner-decisions.md`, 2026-10-31). The app never writes it; `union` leaves freeze it.

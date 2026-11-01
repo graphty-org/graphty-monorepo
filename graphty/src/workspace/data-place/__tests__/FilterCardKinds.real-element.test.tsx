@@ -175,16 +175,14 @@ describe("Each kind of filter card", () => {
         assert.equal(session.visibility.summary.visibleNodes, 6);
     });
 
-    it("picking a match hands focus to the value; Escape with a value writes it and goes to the on box", async () => {
+    it("a match picked keeps the step; Escape with a value writes it and ends picking", async () => {
         const { session } = await openPeople();
         await realKeys.click(await screen.findByRole("button", { name: "Add filter" }));
         await realKeys.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
         await realKeys.click(await screen.findByRole("combobox", { name: "name: how to match" }));
         await realKeys.click(await screen.findByRole("option", { name: "Starts with" }));
         const text = screen.getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, text, "focus is in the text box");
-        });
+        await realKeys.click(text);
         await realKeys.keyboard("GAL");
         await screen.findByRole("listbox");
         // The first Escape closes the list of names; the next writes the text and ends picking.

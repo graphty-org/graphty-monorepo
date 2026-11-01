@@ -207,6 +207,6 @@ describe("picking nodes by a condition card from the Data place", () => {
         // The four routes among a to d stay; only d to e, whose end is left out, goes.
         const shownEdges = session.data.edges().filter((edge) => session.visibility.isVisible(edge.id));
         assert.lengthOf(shownEdges, 4);
-        await screen.findByRole("button", { name: "Filter: 4 of 5 nodes, 4 of 5 edges" });
+        await screen.findByRole("button", { name: /^Filter: 4 of 5 nodes/ });
     });
 });

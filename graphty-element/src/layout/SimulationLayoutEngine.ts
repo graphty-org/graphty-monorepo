@@ -1224,9 +1224,19 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#fixedRows = rows;
         simulation.setFixed(mask);
 
-        // A group following its members is drawn round them, not laid out with them: inert in the
-        // simulation, it neither repels them nor pulls on them, so they settle exactly where they
-        // would without it (issue #3075; the ngraph engine gives it no mass for the same reason).
+        this.#applyInert(simulation, nodeCount);
+    }
+
+    /**
+     * Marks the groups that follow their members inert in the simulation.
+     *
+     * A group following its members is drawn round them, not laid out with them: inert in the
+     * simulation, it neither repels them nor pulls on them, so they settle exactly where they
+     * would without it (issue #3075; the ngraph engine gives it no mass for the same reason).
+     * @param simulation - The running simulation.
+     * @param nodeCount - The loaded snapshot's node count.
+     */
+    #applyInert(simulation: LayoutSimulation, nodeCount: number): void {
         const inert = makeMask(nodeCount);
         for (let i = 0; i < nodeCount && this.holdsAny; i += 1) {
             if (this.isFollower(i)) {

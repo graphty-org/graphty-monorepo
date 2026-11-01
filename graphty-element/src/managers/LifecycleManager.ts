@@ -189,27 +189,13 @@ export class LifecycleManager implements Manager {
         // Dispose managers in reverse order
         const reverseOrder = [...this.initOrder].reverse();
 
+        // The event manager is held back until `lifecycle-disposed` has gone out: disposing it
+        // clears the observable that `graph.on` listeners and the element's DOM forwarder hang
+        // on, so an event emitted after it reaches nobody (#1645).
         for (const managerName of reverseOrder) {
             const manager = this.managers.get(managerName);
-            if (manager) {
-                try {
-                    this.logger.debug(`Disposing manager: ${managerName}`);
-                    manager.dispose();
-                } catch (error) {
-                    // Log error but continue disposing other managers
-                    this.logger.error(
-                        `Error disposing manager: ${managerName}`,
-                        error instanceof Error ? error : new Error(String(error)),
-                        { managerName },
-                    );
-
-                    this.eventManager.emitGraphError(
-                        null,
-                        error instanceof Error ? error : new Error(String(error)),
-                        "other",
-                        { component: "LifecycleManager", operation: "dispose", managerName },
-                    );
-                }
+            if (manager && manager !== this.eventManager) {
+                this.disposeManager(managerName, manager);
             }
         }
 
@@ -219,10 +205,35 @@ export class LifecycleManager implements Manager {
             managerCount: this.managers.size,
         });
 
-        // Emit lifecycle disposed event
         this.eventManager.emit("lifecycle-disposed", {
             managerCount: this.managers.size,
         });
+
+        // Only when it was registered as one of the managers: one handed in alone is not ours.
+        if ([...this.managers.values()].includes(this.eventManager)) {
+            this.eventManager.dispose();
+        }
+    }
+
+    /**
+     * Dispose one manager for `dispose`, reporting a failure and carrying on with the rest.
+     * @param managerName - The manager's name.
+     * @param manager - The manager.
+     */
+    private disposeManager(managerName: string, manager: Manager): void {
+        try {
+            this.logger.debug(`Disposing manager: ${managerName}`);
+            manager.dispose();
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            // Log error but continue disposing other managers
+            this.logger.error(`Error disposing manager: ${managerName}`, err, { managerName });
+            this.eventManager.emitGraphError(null, err, "other", {
+                component: "LifecycleManager",
+                operation: "dispose",
+                managerName,
+            });
+        }
     }
 
     /**
@@ -235,12 +246,14 @@ export class LifecycleManager implements Manager {
             return;
         }
 
-        // Dispose all managers that were initialized before the failure
+        // Dispose all managers that were initialized before the failure -- except the event
+        // manager: the failure is reported through it after this returns, and `dispose` (which
+        // a failed graph still gets) disposes it last (#1645).
         for (let i = failedIndex - 1; i >= 0; i--) {
             const managerName = this.initOrder[i];
             const manager = this.managers.get(managerName);
 
-            if (manager) {
+            if (manager && manager !== this.eventManager) {
                 try {
                     manager.dispose();
                 } catch (error) {

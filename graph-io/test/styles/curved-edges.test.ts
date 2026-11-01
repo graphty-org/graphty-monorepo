@@ -162,7 +162,6 @@ describe("curved edges: Cytoscape desktop", () => {
         const doc = cx2(
             [
                 [1, 2],
-                [2, 1],
                 [1, 2],
                 [2, 3],
                 [3, 3],
@@ -170,7 +169,22 @@ describe("curved edges: Cytoscape desktop", () => {
             ],
             { EDGE_CURVED: true, EDGE_BEND: "" },
         );
-        expect(await curved(doc, "cx2")).toEqual([true, true, false, false, false, false]);
+        expect(await curved(doc, "cx2")).toEqual([true, false, false, false, false]);
+    });
+
+    it("draws straight the newest edge out of the pair's newer node, though an edge out of the older one is newer", async () => {
+        // desktop walks a pair's edges as it made their views: the newer node's outgoing edges first, newest first
+        // (cx2-signor-aml: 68 -> 27 straight, the later 27 -> 68 curved)
+        const doc = cx2(
+            [
+                [2, 1],
+                [1, 2],
+                [2, 1],
+                [1, 2],
+            ],
+            { EDGE_CURVED: true, EDGE_BEND: "" },
+        );
+        expect(await curved(doc, "cx2")).toEqual([true, true, false, true]);
     });
 
     it("fans nothing when the bundle's last edge has bends; fans them under EDGE_CURVED false too", async () => {

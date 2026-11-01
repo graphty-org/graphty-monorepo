@@ -32,7 +32,10 @@ describe("runner history", () => {
         const store = new MemoryStore();
         await putRaw(store, items, T0);
         // A week of marks drains over several collector cycles (MAX_MARKS a cycle).
-        while ((await recompute(store, T0)).buckets > 0);
+        let left = 1;
+        while (left > 0) {
+            ({ buckets: left } = await recompute(store, T0));
+        }
         const s = (await jobs(new Reads(store, T0, await evaluate(store, T0), SLAS), "7d")) as JobsSection;
         expect(s.kind).toBe("jobs");
         expect(s.step).toBe("15m");

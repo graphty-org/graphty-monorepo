@@ -89,3 +89,8 @@ speedEfficiency keep their state -- in `compat: "networkx"` the accumulated swin
 oracle has it; `load()` is the one call that resets the whole controller). A reload with another node count clears the
 pins; the same node count keeps them. `step()`, `setFixed()` and `setPosition()` throw before `load()`; `load()`,
 `step()`, `setFixed()`, `setPosition()` and `reheat()` throw after `dispose()`, which is idempotent.
+`setInert(mask)` (optional on the interface, implemented by both CPU classes and every GPU simulation) takes rows out
+of the forces: an inert row never moves, repels nothing, pulls nothing along its edges and is left out of the
+centroid, the RMS radius and every count (FA2's jitter estimate included), so the other rows run bit for bit as they
+would without it (`test/simulation/inert.test.ts`). It never reheats, survives a same-size reload and is cleared by a
+new node count. graphty-element marks the groups that follow their members inert (issue #3075).

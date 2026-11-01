@@ -81,3 +81,21 @@ export function freeArea(insets: ViewInsets | undefined, width: number, height: 
 
     return { width: h.share, height: v.share, x: h.center, y: v.center };
 }
+
+/**
+ * Shrink a free area by a padding about its own center, by the same share on both axes: `padding` px off each end of
+ * its shorter side, and that side's share off the longer one (sigma.js's `stagePadding`).
+ * @param free - The free area.
+ * @param padding - The padding in the same units as `width` and `height`; undefined leaves the area as it is.
+ * @param width - The viewport's width; 0 (unmeasured) leaves the area as it is.
+ * @param height - The viewport's height.
+ * @returns The padded area.
+ */
+export function paddedArea(free: FreeArea, padding: number | undefined, width: number, height: number): FreeArea {
+    const shorter = Math.min(free.width * width, free.height * height);
+    if (padding === undefined || !isPositive(padding) || !isPositive(shorter)) {
+        return free;
+    }
+    const keep = Math.max(MIN_FREE, 1 - (2 * padding) / shorter);
+    return { ...free, width: free.width * keep, height: free.height * keep };
+}

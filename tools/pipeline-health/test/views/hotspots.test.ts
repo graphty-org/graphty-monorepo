@@ -55,11 +55,19 @@ async function tree(quarantine?: unknown): Promise<TreeSection> {
     const store = new MemoryStore();
     const runs: ShardRunItem[] = [];
     // FILE ran 40 times: 30 in selected bins, 10 in whole runs; OTHER 50 times. A retry (attempt 2) never counts.
-    for (let i = 0; i < 30; i++) runs.push(shardRun(`s${i}`, "graphty|flags=off|selected", [FILE, OTHER]));
-    for (let i = 0; i < 10; i++) runs.push(shardRun(`w${i}`, "graphty|flags=off|whole", [FILE, OTHER]));
-    for (let i = 0; i < 10; i++) runs.push(shardRun(`o${i}`, "graphty|flags=off|selected", [OTHER]));
+    for (let i = 0; i < 30; i++) {
+        runs.push(shardRun(`s${i}`, "graphty|flags=off|selected", [FILE, OTHER]));
+    }
+    for (let i = 0; i < 10; i++) {
+        runs.push(shardRun(`w${i}`, "graphty|flags=off|whole", [FILE, OTHER]));
+    }
+    for (let i = 0; i < 10; i++) {
+        runs.push(shardRun(`o${i}`, "graphty|flags=off|selected", [OTHER]));
+    }
     runs.push(shardRun("s0", "graphty|flags=off|selected", [FILE], 2));
-    for (let i = 0; i < 20; i++) runs.push(shardRun(`v${i}`, "graphty-storybook-shots|flags=off|shots", [STORY]));
+    for (let i = 0; i < 20; i++) {
+        runs.push(shardRun(`v${i}`, "graphty-storybook-shots|flags=off|shots", [STORY]));
+    }
     const tests = [
         flaky("40906925253.1.test.graphty-3.1#a", "graphty", FILE, "keeps the seed"),
         flaky("40906925254.1.test.graphty-3.1#a", "graphty", FILE, "keeps the seed"),
@@ -67,7 +75,9 @@ async function tree(quarantine?: unknown): Promise<TreeSection> {
         flaky("40906925253.1.story-tests.graphty-storybook.1#c", "graphty-storybook-shots", STORY, "Graph Place"),
     ];
     await putRaw(store, [...runs, ...tests], T0);
-    if (quarantine !== undefined) await setCursor(store, "quarantine", JSON.stringify(quarantine), T0);
+    if (quarantine !== undefined) {
+        await setCursor(store, "quarantine", JSON.stringify(quarantine), T0);
+    }
     await recompute(store, T0);
     return (await hotspots(new Reads(store, T0, await evaluate(store, T0), SLAS), "7d")) as TreeSection;
 }

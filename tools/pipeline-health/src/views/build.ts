@@ -21,21 +21,13 @@ import type {
     StatusResponse,
 } from "../../web/src/contract.js";
 import type { Store } from "../model/store.js";
-import { SLAS, type SlaConfig } from "../sla/config.js";
+import { type SlaConfig, SLAS } from "../sla/config.js";
 import { categoryOf, type Evaluation, type MemberStatus, type SourceStatus } from "../sla/engine.js";
+import { benchmarksTable, chronicTable, nonGatingTable } from "./job-sections.js";
 import type { ViewRoute } from "./keys.js";
 import { CATEGORY, iso, LOCAL, localMember, memberAt, Reads, sourceState, SPEC } from "./members.js";
-import { benchmarksTable, chronicTable, nonGatingTable } from "./job-sections.js";
 import {
-    channelTiles,
-    lanesTable,
-    ownerTable,
-    prTime,
-    quarantineTable,
-    trainsTable,
-    workflowsTable,
-} from "./snapshot-sections.js";
-import {
+    byWorkflow,
     causes,
     dimBars,
     holders,
@@ -47,15 +39,23 @@ import {
     notCollected,
     notSetUpTable,
     redSpans,
+    runnerMinutes,
     shards,
     shared,
     sourcesTable,
     stressTable,
-    runnerMinutes,
-    unitCosts,
-    byWorkflow,
     superseded,
+    unitCosts,
 } from "./sections.js";
+import {
+    channelTiles,
+    lanesTable,
+    ownerTable,
+    prTime,
+    quarantineTable,
+    trainsTable,
+    workflowsTable,
+} from "./snapshot-sections.js";
 
 export type ViewBody = StatusResponse | OverviewResponse | PageResponse | SectionResponse;
 export interface View {
@@ -117,7 +117,12 @@ const CATEGORY_STATE: Record<Evaluation["categories"][number]["state"], Category
     IDLE: "idle",
 };
 
-/** Members of one page, in config order, one row per contract id. */
+/**
+ * Members of one page, in config order, one row per contract id.
+ * @param ev - this cycle's evaluation
+ * @param page - the category page, or the Runners view of CI
+ * @returns the engine members shown on the page
+ */
 function membersOf(ev: Evaluation, page: CategoryPage | "runners"): MemberStatus[] {
     const seen = new Set<string>();
     return ev.members.filter((m) => {
@@ -139,16 +144,19 @@ class Builder {
     readonly reads: Reads;
 
     /**
-     * @param reads
+     * A builder over one cycle's shared reads.
+     * @param reads - the store reads shared by this build
      */
     constructor(reads: Reads) {
         this.reads = reads;
     }
 
     /**
-     * @param id
-     * @param range
-     * @param as
+     * One member's row at a range, built once per member, range and id and then shared.
+     * @param id - the engine member id
+     * @param range - the page range to build for
+     * @param as - the contract id to show it under, when not its own
+     * @returns the member's row
      */
     member(id: string, range: Range, as?: MemberId): Promise<Member> {
         const key = `${id}:${range}:${as ?? ""}`;
@@ -165,13 +173,15 @@ class Builder {
     }
 
     /**
-     * @param c
-     * @param range
+     * One category's status: its state, the member that set it, its headline and the others past a line.
+     * @param c - the engine's category result
+     * @param range - the page range to build for
+     * @returns the category's status
      */
     async category(c: Evaluation["categories"][number], range: Range): Promise<CategoryStatus> {
         const id = CATEGORY[c.id];
         const head = c.headline ?? membersOf(this.reads.ev, id)[0]?.id;
-        const ref = async (mid: string) => refOf(await this.member(mid, "1h"));
+        const ref = async (mid: string): Promise<MemberRef> => refOf(await this.member(mid, "1h"));
         return {
             id,
             state: CATEGORY_STATE[c.state],
@@ -184,7 +194,9 @@ class Builder {
     }
 
     /**
-     * @param range
+     * Every category's status at a range.
+     * @param range - the page range to build for
+     * @returns the status of each category, in the engine's order
      */
     async categories(range: Range): Promise<CategoryStatus[]> {
         return Promise.all(this.reads.ev.categories.map((c) => this.category(c, range)));
@@ -218,7 +230,8 @@ class Builder {
     /**
      * Whether a member is past a line now: an episode stays open through an hour of gray steps, but a member too
      * thin to judge now shows no state, so the overview must not call its episode ongoing.
-     * @param id
+     * @param id - the engine member id
+     * @returns true when the member is WARNING or FAILING now
      */
     private judgedNow(id: string): boolean {
         const s = this.reads.ev.members.find((m) => m.id === id)?.state;
@@ -265,7 +278,8 @@ class Builder {
 
     /**
      * The three Local runs members: informational, read from the local writer's rollups (members.ts, LOCAL).
-     * @param range
+     * @param range - the page range to build for
+     * @returns the Local runs page state and its members
      */
     async local(range: Range): Promise<{ state: PageResponse["state"]; members: Member[] }> {
         const src = this.reads.ev.sources.find((s) => s.id === "local");
@@ -280,8 +294,10 @@ class Builder {
     }
 
     /**
-     * @param page
-     * @param range
+     * The sections below a page's members.
+     * @param page - which page
+     * @param range - the page range to build for
+     * @returns the page's sections, in display order
      */
     async sections(page: Exclude<PageId, "overview" | "costs">, range: Range): Promise<Section[]> {
         const empty = (NOT_COLLECTED[page] ?? []).map(notCollected);
@@ -331,8 +347,10 @@ class Builder {
     }
 
     /**
-     * @param page
-     * @param range
+     * One page's payload at a range: its state, its members and its sections.
+     * @param page - which page
+     * @param range - the page range to build for
+     * @returns the page payload
      */
     async page(page: Exclude<PageId, "overview" | "costs">, range: Range): Promise<PageResponse> {
         const base = { page, range, generated: iso(this.reads.now), notes: [] as Fact[] };
@@ -371,7 +389,8 @@ class Builder {
 
     /**
      * Costs, at 7 d or 28 d only (section 7): month-to-date members, the money table.
-     * @param range
+     * @param range - the 7 d or 28 d range
+     * @returns the Costs page payload
      */
     async costs(range: SlowRange): Promise<PageResponse> {
         const cat = (await this.categories("1h")).find((c) => c.id === "costs");
@@ -398,10 +417,11 @@ class Builder {
 
 /**
  * Every view the page reads, for one collector cycle.
- * @param store
- * @param nowMs
+ * @param store - the table to read the collected items from
+ * @param nowMs - the current time in epoch milliseconds
  * @param ev the result of evaluate(store, nowMs, cfg)
- * @param cfg
+ * @param cfg - the SLA definitions
+ * @returns every view, each with its route and body
  */
 export async function buildViews(store: Store, nowMs: number, ev: Evaluation, cfg: SlaConfig = SLAS): Promise<View[]> {
     const b = new Builder(new Reads(store, nowMs, ev, cfg));

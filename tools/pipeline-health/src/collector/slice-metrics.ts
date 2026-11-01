@@ -31,10 +31,15 @@ export interface StoryCaptures {
  * The full set's age: the oldest of every rotation unit's newest capture. Units not rendered for UNIT_GONE_MS are left
  * out and counted (`dropped`), so a renamed story file does not hold the age old forever; when every unit is that old,
  * all count. Before units exist, the store's oldest newest capture.
+ * @param body - the GET /v1/story-captures body
+ * @param now - the current time, in ms
+ * @returns the oldest newest capture (null before any) and the units left out
  */
 export function setAge(body: StoryCaptures, now: number): { oldestAt: number | null; dropped: number } {
     const units = body.units ?? [];
-    if (!units.length) return { oldestAt: body.summary?.oldestNewestAt ?? null, dropped: 0 };
+    if (!units.length) {
+        return { oldestAt: body.summary?.oldestNewestAt ?? null, dropped: 0 };
+    }
     const live = units.filter((u) => u.at > now - UNIT_GONE_MS);
     return {
         oldestAt: Math.min(...(live.length ? live : units).map((u) => u.at)),
@@ -42,10 +47,20 @@ export function setAge(body: StoryCaptures, now: number): { oldestAt: number | n
     };
 }
 
-/** Slice runner-minutes as a share of each cap: base and idle per UTC day, idle over the last hour. */
-export function budgetShares(spent: SliceSpend[], now: number, cfg: SliceConfig) {
-    const day = (t: number) => Math.floor(t / DAY);
-    const sum = (f: (s: SliceSpend) => boolean) => spent.filter(f).reduce((n, s) => n + s.minutes, 0);
+/**
+ * Slice runner-minutes as a share of each cap: base and idle per UTC day, idle over the last hour.
+ * @param spent - the finished slice runs
+ * @param now - the current time, in ms
+ * @param cfg - the dispatcher's limits
+ * @returns each share of its cap, as a fraction
+ */
+export function budgetShares(
+    spent: SliceSpend[],
+    now: number,
+    cfg: SliceConfig,
+): { base: number; idle: number; idleHour: number } {
+    const day = (t: number): number => Math.floor(t / DAY);
+    const sum = (f: (s: SliceSpend) => boolean): number => spent.filter(f).reduce((n, s) => n + s.minutes, 0);
     return {
         base: sum((s) => s.mode === "base" && day(s.at) === day(now)) / cfg.baseDailyMin,
         idle: sum((s) => s.mode === "idle" && day(s.at) === day(now)) / cfg.idleDailyMin,
@@ -64,6 +79,7 @@ export function budgetShares(spent: SliceSpend[], now: number, cfg: SliceConfig)
  * @param saturated this cycle's saturation flag
  * @param minutes the cycle's length
  * @param nowMs the time of the sample
+ * @returns the contended slice minutes and other jobs' queue wait, in minutes
  */
 export function contention(
     open: { run: GhRun; jobs?: GhJob[] }[],
@@ -77,13 +93,19 @@ export function contention(
     for (const { run, jobs } of open) {
         const slice = workflowFile(run.path) === workflow;
         for (const j of jobs ?? []) {
-            if (pool(j.labels) === "other") continue;
-            if (slice && j.status === "in_progress") held++;
-            else if (!slice && waitsForRunner(j, nowMs))
+            if (pool(j.labels) === "other") {
+                continue;
+            }
+            if (slice && j.status === "in_progress") {
+                held++;
+            } else if (!slice && waitsForRunner(j, nowMs)) {
                 waited += Math.min(minutes, (nowMs - Date.parse(j.created_at)) / MIN);
+            }
         }
     }
-    if (!held) return { contendedMin: 0, queueWaitMin: 0 };
+    if (!held) {
+        return { contendedMin: 0, queueWaitMin: 0 };
+    }
     return { contendedMin: saturated || waited ? held * minutes : 0, queueWaitMin: waited };
 }
 
@@ -104,7 +126,8 @@ const WAITING = new Set(["changed", "new"]);
  * @param prev the state of the last read
  * @param captures every story's newest capture
  * @param merged approval merge times seen since
- * @param now
+ * @param now the current time, in ms
+ * @returns the new state and the lags of pictures approved since, in ms
  */
 export function reviewLags(
     prev: ReviewState | undefined,
@@ -121,11 +144,14 @@ export function reviewLags(
     for (const c of captures) {
         const key = `${c.project}/${c.story}/${c.mode}`;
         const was = old[key];
-        if (WAITING.has(c.status)) pending[key] = was ?? { since: c.at, tree: c.baselinesTree };
-        else if (was && c.status === "unchanged" && c.baselinesTree !== was.tree) {
+        if (WAITING.has(c.status)) {
+            pending[key] = was ?? { since: c.at, tree: c.baselinesTree };
+        } else if (was && c.status === "unchanged" && c.baselinesTree !== was.tree) {
             const end = approvals.findLast((t) => t > was.since && t <= c.at) ?? c.at;
             lags.push(end - was.since);
-        } else if (was && c.status !== "unchanged") pending[key] = was; // failed or unstable: still waiting
+        } else if (was && c.status !== "unchanged") {
+            pending[key] = was;
+        } // failed or unstable: still waiting
     }
     return { state: { pending, approvals }, lags };
 }

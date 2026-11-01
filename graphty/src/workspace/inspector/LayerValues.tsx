@@ -283,7 +283,11 @@ function CategoryValues({
                                 ) : undefined
                             }
                             onClick={() => {
-                                void session.selection.apply({ scope: valueScope(layer, read.path, category.value) });
+                                void session.selection.apply(
+                                    { scope: valueScope(layer, read.path, category.value) },
+                                    "replace",
+                                    { cause: "user" },
+                                );
                             }}
                         />
                     );
@@ -509,7 +513,9 @@ function WhereItShows({
                                 name={`Covered by ${session.styles.get(cover.layerId)?.name ?? "a layer"}`}
                                 value={count(cover.count, noun)}
                                 onClick={() => {
-                                    void session.selection.apply({ layer: cover.layerId });
+                                    void session.selection.apply({ layer: cover.layerId }, "replace", {
+                                        cause: "user",
+                                    });
                                 }}
                             />
                         ))}

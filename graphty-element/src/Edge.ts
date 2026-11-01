@@ -621,6 +621,8 @@ export class Edge {
     xlabelLabel: RichTextLabel | null = null;
     private _xlabelOffset = 0;
     private _xlabelAttachPosition: AttachPosition = EDGE_XLABEL_LOCATION;
+    /** The labels the layout left out when it last placed this edge ({@link EdgePosition.leftOut}). */
+    private leftOutLabels: NonNullable<EdgePosition["leftOut"]> = [];
     /** Whether the external label's style names a location of its own, which a layout's place does not override. */
     private _xlabelPlacedByStyle = false;
     /** What the external label on screen was drawn from, or undefined for none. See {@link syncXlabel}. */
@@ -1123,6 +1125,9 @@ export class Edge {
 
         this.placeXlabel(src, dst, bent, lnk.xlabelAt);
         this.placeArrowCaptions(src, dst, lnk);
+        // the layout may leave a label out (Graphviz's `forcelabels=false` with no room for it)
+        this.leftOutLabels = lnk.leftOut ?? [];
+        this.setTextsDrawn(true);
 
         // Cache positions for next frame
         this._lastSrcPos = srcPos.clone();
@@ -2599,16 +2604,30 @@ export class Edge {
             }
         }
 
-        for (const text of [this.label, this.xlabelLabel, this.arrowHeadText, this.arrowTailText]) {
-            const labelMesh = text?.labelMesh;
-
-            if (labelMesh && !labelMesh.isDisposed()) {
-                labelMesh.setEnabled(drawn);
-            }
-        }
+        this.setTextsDrawn(drawn);
 
         if (drawn) {
             this.invalidatePositionCache();
+        }
+    }
+
+    /**
+     * Show or hide the edge's texts: its label, external label and end captions; one the layout left out stays hidden.
+     * @param drawn - Whether the edge is drawn.
+     */
+    private setTextsDrawn(drawn: boolean): void {
+        const texts = [
+            [this.label, "label"],
+            [this.xlabelLabel, "xlabel"],
+            [this.arrowHeadText, "headLabel"],
+            [this.arrowTailText, "tailLabel"],
+        ] as const;
+        for (const [text, part] of texts) {
+            const labelMesh = text?.labelMesh;
+
+            if (labelMesh && !labelMesh.isDisposed()) {
+                labelMesh.setEnabled(drawn && !this.leftOutLabels.includes(part));
+            }
         }
     }
 

@@ -12,8 +12,9 @@ const PR_BASE = `
 const PR_CHECKS = `
   commits(last: 1) { nodes { commit { oid committedDate statusCheckRollup { state
     contexts(first: 100) { nodes { __typename
-      ... on CheckRun { name status conclusion startedAt detailsUrl }
-      ... on StatusContext { context state createdAt } } } } } } }`;
+      ... on CheckRun { id name status conclusion startedAt detailsUrl }
+      ... on StatusContext { context state createdAt } } } } } } }
+  stackCommits: commits(last: 100) { nodes { commit { oid } } }`;
 
 /** Open pull requests the collector reads: one page. A full page may have left some out. */
 export const OPEN_PAGE = 50;
@@ -41,6 +42,11 @@ export const ISSUE_QUERY = `query($owner: String!, $name: String!, $cursor: Stri
   held: search(query: $held, type: ISSUE, first: 20) { nodes { ... on Issue { ${ISSUE_FIELDS} } } }
   nightly: search(query: $nightly, type: ISSUE, first: 5) { nodes { ... on Issue {
     number title state createdAt body comments(last: 20) { nodes { body createdAt } } } } }
+}`;
+
+/** The steps of a batch of failing check runs, to name the step that failed (4.1 red on the same check). */
+export const STEPS_QUERY = `query($ids: [ID!]!) {
+  nodes(ids: $ids) { ... on CheckRun { id steps(first: 100) { nodes { name conclusion } } } }
 }`;
 
 /** Check runs and their first annotations for a batch of check suites (cancel class, hangs). */
@@ -71,7 +77,11 @@ export const TAG_QUERY = `query($owner: String!, $name: String!) {
   }
 }`;
 
-/** The files of the pull requests waiting on the owner, one alias each (`p<number>`). */
+/**
+ * The files of the pull requests waiting on the owner, one alias each (`p<number>`).
+ * @param numbers - the pull request numbers to ask about
+ * @returns the GraphQL query text
+ */
 export const ownerFilesQuery = (numbers: number[]): string =>
     `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${numbers
         .map((n) => `p${Math.trunc(n)}: pullRequest(number: ${Math.trunc(n)}) { files(first: 100) { nodes { path } } }`)

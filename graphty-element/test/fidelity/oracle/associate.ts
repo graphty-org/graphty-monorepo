@@ -34,6 +34,7 @@ import {
     type PStray,
     type Pt,
     type PText,
+    strokedBarb,
     taperPaintedAsFill,
 } from "./primitives";
 
@@ -541,15 +542,43 @@ export function measureArrow(
     const along = outline.map(([x, y]) => x * dx + y * dy);
     const across = outline.map(([x, y]) => -x * dy + y * dx);
     const at = areaCentroid(outline) ?? [cx(box), cy(box)];
+    const [back0, front0] = [Math.min(...along), Math.max(...along)];
+    const gap = lineGapUnder(along, across, tip, [dx, dy]);
     return {
         end,
-        length: Math.max(...along) - Math.min(...along),
+        length: front0 - back0,
         width: Math.max(...across) - Math.min(...across),
         filled,
         shape: look.shape ?? shapeAlong(outline, look.pieces, [dx, dy]),
         color,
         at,
+        ...(end === "middle" || gap === null ? {} : { lineGap: gap }),
     };
+}
+
+/** How far off its line's middle a head's point may lie and still meet the line, at least, in pixels. */
+const ON_LINE_PX = 1.5;
+
+/**
+ * The break between where a line stops and where its end's head first meets it, as a share of the head's length:
+ * from the line's end to the head's point on the line nearest its back (within `ON_LINE_PX`, or a seventh of its
+ * width), 0 where the line runs on to it or past it.
+ * @param along - each of the head's points along the axis
+ * @param across - each across it
+ * @param end - where the line stops
+ * @param dir - the axis, back to tip
+ * @returns the share, or null for a head of no length or none on the line
+ */
+function lineGapUnder(along: readonly number[], across: readonly number[], end: Pt, dir: Pt): number | null {
+    const [back, front] = [Math.min(...along), Math.max(...along)];
+    const lineAt = -end[0] * dir[1] + end[1] * dir[0];
+    const slack = Math.max(ON_LINE_PX, (Math.max(...across) - Math.min(...across)) / 7);
+    const meets = along.filter((_, i) => Math.abs(across[i] - lineAt) <= slack);
+    if (!(front - back > 1e-9) || meets.length === 0) {
+        return null;
+    }
+    const stops = end[0] * dir[0] + end[1] * dir[1];
+    return Math.min(1, Math.max(0, (Math.min(...meets) - stops) / (front - back)));
 }
 
 /**
@@ -806,11 +835,13 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
     // fill and outline alike, where a hollow one's faint fill sits under an outline painted at full strength
     const solid = 0.5 * (p.stroke?.opacity ?? p.fill?.opacity ?? 1);
     const filled = p.fill !== null && p.fill.opacity >= solid && deltaE(p.fill.color, background) > 3;
-    return measureArrow(p.points, path, end, {
+    const arrow = measureArrow(p.points, path, end, {
         filled,
         color: filled ? (p.fill?.color ?? null) : (p.stroke?.color ?? null),
         ...(p.subpaths === undefined ? {} : { pieces: p.subpaths }),
     });
+    // half an arrow drawn as a thin strip is one open stroked barb (Cytoscape desktop's HALF_TOP), not a filled wedge
+    return arrow.shape === "half" && arrow.filled && strokedBarb(p.points) ? { ...arrow, filled: false } : arrow;
 }
 
 /**

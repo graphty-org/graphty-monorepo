@@ -52,7 +52,7 @@ const CI_CLAIMS = {
 const event = (
     rawPath: string,
     body: unknown,
-    { claims = CI_CLAIMS as Record<string, string>, auth }: { claims?: Record<string, string>; auth?: string } = {},
+    { claims = CI_CLAIMS, auth }: { claims?: Record<string, string>; auth?: string } = {},
 ) =>
     ({
         rawPath,
@@ -445,12 +445,12 @@ describe("ingest: what it stores", () => {
             (m) =>
                 METRICS.find((d) => d.id === m)!.from.find((f) => f.kind === "test")!.fold as (i: unknown) => unknown,
         );
-        for (const [head_ref, n, bump] of [
+        for (const [headRef, n, bump] of [
             ["dependabot/npm_and_yarn/vite-8.1.6", "601", true],
             ["chore/deps-refresh-graphty-v1", "602", true],
             ["fix/1234-topic", "603", false],
         ] as const) {
-            const claims = { ...CI_CLAIMS, head_ref, run_id: n };
+            const claims = { ...CI_CLAIMS, head_ref: headRef, run_id: n };
             // try 1 failed, try 2 passed: flaky by the shard's own retry.
             await h(event("/v1/invocations", invocation({ id: `${n}.1.layout.1`, variant: "layout" }), { claims }));
             const passed = invocation({ id: `${n}.1.layout.2`, try: 2, variant: "layout", outcome: "passed" });
@@ -458,8 +458,10 @@ describe("ingest: what it stores", () => {
             await h(event("/v1/invocations", passed, { claims }));
             const test = mem.items.get(`R#test#${n}.1.layout.1#a.test.ts#draws\u0000A#1`);
             expect(test?.outcome).toBe("flaky");
-            expect(test?.bump, head_ref).toBe(bump ? true : undefined);
-            for (const fold of flakyFolds) expect(fold(test) === null, head_ref).toBe(bump);
+            expect(test?.bump, headRef).toBe(bump ? true : undefined);
+            for (const fold of flakyFolds) {
+                expect(fold(test) === null, headRef).toBe(bump);
+            }
         }
     });
 
@@ -546,7 +548,9 @@ describe("ingest: what it stores", () => {
             const try2 = invocation({ id: "500.1.test.layout.2", try: 2, variant: "layout", outcome: "passed" });
             (try2 as Record<string, unknown>).failures = [];
             const posts = [event("/v1/invocations", try1), event("/v1/invocations", try2)];
-            if (order) posts.reverse();
+            if (order) {
+                posts.reverse();
+            }
             await Promise.all(posts.map((e) => h(e)));
             // A late failures post for try 1 does not turn it back either.
             await h(event("/v1/failures", fail));
@@ -589,9 +593,9 @@ describe("recompute and read", () => {
 
         const { recomputeAll } = await import("../src/recompute.ts");
         await setCursor(mem, "fold-version", FOLD_VERSION, NOW);
-        await recomputeAll(mem, NOW, { getSecret: vi.fn(async () => undefined), fetch: vi.fn() });
+        await recomputeAll(mem, NOW, { getSecret: vi.fn(() => Promise.resolve(undefined)), fetch: vi.fn() });
         const { handler: read } = await import("../src/handlers/read.ts");
-        const page = JSON.parse((await read(event("/v1/page/local", "", {}) as never)).body!);
+        const page = JSON.parse((await read(event("/v1/page/local", "", {}))).body!);
         const runs = page.sections.find((s: { id: string }) => s.id === "runs");
         expect(runs.groups[0].items[0]).toMatchObject({ label: { t: "name", v: "graphty-element" }, n: 1 });
         const time = page.sections.find((s: { id: string }) => s.id === "shard-time");
@@ -624,7 +628,7 @@ describe("recompute and read", () => {
         const { recomputeAll } = await import("../src/recompute.ts");
         // A table already folded at this version: the cycle's only marks are the post's.
         await setCursor(mem, "fold-version", FOLD_VERSION, NOW);
-        const getSecret = vi.fn(async () => undefined);
+        const getSecret = vi.fn(() => Promise.resolve(undefined));
         const done = await recomputeAll(mem, NOW, { getSecret, fetch: vi.fn() });
         expect(done.pages).toBeGreaterThan(30);
         // sendAlerts ran on the cycle's evaluation: it asked for the Pushover secrets and found none.
@@ -633,7 +637,7 @@ describe("recompute and read", () => {
         expect([...mem.items.values()].some((i) => i.pk === "DIRTY")).toBe(false);
 
         const { handler: read } = await import("../src/handlers/read.ts");
-        const res = await read(event("/v1/page/local", "", {}) as never);
+        const res = await read(event("/v1/page/local", "", {}));
         expect(res.statusCode).toBe(200);
         expect(res.headers?.["cache-control"]).toBe("public, max-age=60");
         const page = JSON.parse(res.body!);
@@ -651,13 +655,13 @@ describe("recompute and read", () => {
         const canon = await read({
             ...event("/v1/page/local-runs", "", {}),
             queryStringParameters: { range: "1h" },
-        } as never);
+        });
         expect(canon.statusCode).toBe(200);
         expect(JSON.parse(canon.body!)).toEqual(page);
         const { readViewJson } = await import("../src/views/index.ts");
         expect(await readViewJson(mem, { kind: "page", page: "local-runs", range: "1h" })).toEqual(page);
 
-        const gz = await read({ ...event("/v1/status", "", {}), headers: { "accept-encoding": "gzip, br" } } as never);
+        const gz = await read({ ...event("/v1/status", "", {}), headers: { "accept-encoding": "gzip, br" } });
         expect(gz.headers?.["content-encoding"]).toBe("gzip");
         const status = JSON.parse(gunzipSync(Buffer.from(gz.body!, "base64")).toString("utf8"));
         expect(status.categories.map((c: { id: string }) => c.id)).toEqual([
@@ -673,13 +677,12 @@ describe("recompute and read", () => {
 
     it("answers no_data before the first recompute, and 4xx for unknown routes", async () => {
         const { handler: read } = await import("../src/handlers/read.ts");
-        const none = await read(event("/v1/page/master", "", {}) as never);
+        const none = await read(event("/v1/page/master", "", {}));
         expect(none.statusCode).toBe(503);
         expect(JSON.parse(none.body!)).toEqual({ code: "no_data" });
         expect((await read(event("/v1/page/nope", "", {}) as never)).statusCode).toBe(404);
         expect(
-            (await read({ ...event("/v1/page/master", "", {}), queryStringParameters: { range: "9d" } } as never))
-                .statusCode,
+            (await read({ ...event("/v1/page/master", "", {}), queryStringParameters: { range: "9d" } })).statusCode,
         ).toBe(400);
         expect((await read(event("/v1/health", "", {}) as never)).statusCode).toBe(200);
     });
@@ -691,7 +694,7 @@ describe("drill-down routes", () => {
         expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(200);
         const { handler: read } = await import("../src/handlers/read.ts");
         const get = async (rawPath: string, q: Record<string, string>) =>
-            read({ ...event(rawPath, "", {}), queryStringParameters: q } as never);
+            read({ ...event(rawPath, "", {}), queryStringParameters: q });
         const res = await get("/v1/test-history", { file: "a.test.ts", test: "draws", range: "7d" });
         expect(res.statusCode).toBe(200);
         expect(JSON.parse(res.body as string)).toMatchObject({

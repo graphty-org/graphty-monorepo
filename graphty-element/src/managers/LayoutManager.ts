@@ -8,6 +8,7 @@ import type {
 import { z } from "zod";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
+import { resolveLayoutWeight } from "../algorithms/input/weight";
 import { LAYOUT_DESCRIPTORS, layoutAlias, layoutDescriptor } from "../catalog/layouts";
 import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
@@ -369,12 +370,17 @@ function optionRefusal(type: string, error: unknown, passed: Record<string, unkn
 const FRAME_LOOP_OPTIONS: readonly string[] = ["iterationsPerStep", "maxInFlight", "settleThreshold", "settleWindow"];
 
 /**
- * The options a layout will run without, for the engines that do not refuse an unknown name.
+ * The options a layout will run without, for the engines that do not refuse an unknown name, and
+ * a `seed` given to any layout that takes none.
  *
  * `ngraph` and the simulation layouts read their options without a strict schema, so a misspelled
  * option used to be dropped with no sign. Refusing it now would break a call that runs today, so
  * it is reported instead, as `W_UNKNOWN_OPTION`. Every other built-in engine refuses an unknown
- * name with `E_UNKNOWN_OPTION` while it is built, and a registered layout's descriptor does.
+ * name with `E_UNKNOWN_OPTION` while it is built, and a registered layout's descriptor does --
+ * except `seed`: a layout that takes no seed draws the same graph the same way every time, so a
+ * consumer that set one for repeatable drawings has asked for nothing it does not already do.
+ * Refusing it made `layout = "fixed"` with a seed fail where `ngraph` ran (issue #5124); it is
+ * reported as `W_UNKNOWN_OPTION` and the layout runs without it.
  * @param engineClass - The engine the consumer named.
  * @param passed - The consumer's options.
  * @returns The ignored names and the names the layout takes, or undefined when none is ignored.
@@ -384,12 +390,12 @@ function ignoredOptions(
     passed: Record<string, unknown>,
 ): { options: string[]; available: string[] } | undefined {
     const simulation = engineClass.simulationType !== undefined;
-    if (!simulation && engineClass.type !== NGraphEngine.type) {
-        return undefined;
-    }
-
-    const available = [...Object.keys(engineClass.getZodOptionsSchema()), ...(simulation ? FRAME_LOOP_OPTIONS : [])];
-    const options = Object.keys(passed).filter((name) => !available.includes(name));
+    const lenient = simulation || engineClass.type === NGraphEngine.type;
+    const available = engineClass.descriptor?.options.map((option) => option.name) ?? [
+        ...Object.keys(engineClass.getZodOptionsSchema()),
+        ...(simulation ? FRAME_LOOP_OPTIONS : []),
+    ];
+    const options = Object.keys(passed).filter((name) => !available.includes(name) && (lenient || name === "seed"));
     return options.length > 0 ? { options, available } : undefined;
 }
 
@@ -1207,20 +1213,30 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * Report the consumer's options a layout will run without, as `W_UNKNOWN_OPTION`.
-     * @param type - The layout.
-     * @param engineClass - Its engine.
-     * @param passed - The consumer's options.
+     * What the graph's stored edge weights mean to one layout engine, asked each time it reads
+     * them: the loaded weight checked against `data.knownFields.edgeWeightMeaning` by the same rule
+     * an algorithm run uses. A meaning assumed or left unread is reported as a `layout-warning`,
+     * once per engine until the answer changes.
+     * @param type - The layout, which the warning names.
+     * @returns The reader.
      */
-    private warnIgnoredOptions(
-        type: string,
-        engineClass: LayoutEngineStatics & { simulationType?: SimulationType },
-        passed: Record<string, unknown>,
-    ): void {
-        const ignored = ignoredOptions(engineClass, passed);
-        if (ignored !== undefined) {
-            this.warnLayout(type, { code: "W_UNKNOWN_OPTION", params: ignored });
-        }
+    private weightMeaningFor(type: string): () => "strength" | "distance" | null {
+        let warned: string | null = null;
+        return () => {
+            const attribute = this.dataManager.lastImport?.weights.attribute ?? null;
+            const reading = resolveLayoutWeight(
+                attribute === null
+                    ? null
+                    : { attribute, meaning: this.styles.config.data.knownFields.edgeWeightMeaning },
+            );
+            const key = JSON.stringify(reading.warning ?? null);
+            if (reading.warning !== undefined && key !== warned) {
+                this.warnLayout(type, reading.warning);
+            }
+
+            warned = key;
+            return reading.meaning;
+        };
     }
 
     /**
@@ -1269,7 +1285,14 @@ export class LayoutManager implements Manager {
         // The CONSUMER'S options are checked on their own, before the element adds anything: the
         // dimension options below are the element's to add and are not the layout's to declare,
         // so validating after the merge would refuse the element's own key.
-        const callerOpts = resolveLayoutOptions(type, engineClass.descriptor, opts);
+        // A `seed` the layout takes none of is left out before the layout sees it, and reported
+        // with the other ignored options once the engine is built: see `ignoredOptions`.
+        const ignored = ignoredOptions(engineClass, opts as Record<string, unknown>);
+        const passed =
+            ignored?.options.includes("seed") === true
+                ? Object.fromEntries(Object.entries(opts).filter(([name]) => name !== "seed"))
+                : opts;
+        const callerOpts = resolveLayoutOptions(type, engineClass.descriptor, passed);
         // The layout's dimension options follow the graph's 2D/3D mode; in 3D the caller may
         // choose otherwise, in 2D never: see `withDimensionOptions`.
         const { dimension } = how;
@@ -1281,7 +1304,9 @@ export class LayoutManager implements Manager {
 
         const engine = await this.buildEngine(type, driver, driverClass, layoutOpts, how);
 
-        this.warnIgnoredOptions(type, engineClass, callerOpts);
+        if (ignored !== undefined) {
+            this.warnLayout(type, { code: "W_UNKNOWN_OPTION", params: ignored });
+        }
         if (overridden !== undefined) {
             this.warnLayout(type, { code: "W_DIMENSION_OVERRIDDEN", params: overridden });
         }
@@ -1427,6 +1452,7 @@ export class LayoutManager implements Manager {
                     },
                     dataManager: this.dataManager,
                     fromSeed: how.fromSeed,
+                    weightMeaning: this.weightMeaningFor(type),
                 };
                 engine = new SimulationLayoutEngine(init);
             }
@@ -1473,6 +1499,7 @@ export class LayoutManager implements Manager {
                 this.reportLayoutFailure(type, error, "stepped");
             },
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
+            weightMeaning: this.weightMeaningFor(type),
             drawPaint: () => {
                 this.drawArrivedPaint?.();
             },

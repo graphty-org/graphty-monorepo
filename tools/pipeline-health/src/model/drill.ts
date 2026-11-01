@@ -2,19 +2,27 @@
 // its jobs (GET /v1/run/<id>) and one test file's or test's failures (GET /v1/test-history).
 
 import type { RunResponse, TestHistoryResponse } from "../../web/src/contract.js";
-import { DAY, skTime, type JobItem, type RunItem, type ShardRunItem, type TestItem } from "./items.js";
+import { DAY, type JobItem, type RunItem, type ShardRunItem, skTime, type TestItem } from "./items.js";
 import { isLive, type Store } from "./store.js";
 
-const iso = (t: number) => new Date(t).toISOString().replace(/\.\d{3}Z$/, "Z");
-const isoOrNull = (t: number | undefined) => (t === undefined ? null : iso(t));
+const iso = (t: number): string => new Date(t).toISOString().replace(/\.\d{3}Z$/, "Z");
+const isoOrNull = (t: number | undefined): string | null => (t === undefined ? null : iso(t));
 const CANCEL: Record<string, RunResponse["cancel"]> = { superseded: "superseded", "by-hand": "by-hand", red: "other" };
 
-/** The newest attempt of a run and that attempt's jobs, or undefined when the run was never stored. */
+/**
+ * The newest attempt of a run and that attempt's jobs, or undefined when the run was never stored.
+ * @param store - the table
+ * @param runId - GitHub run id
+ * @param nowMs - current time, to skip expired items
+ * @returns the run's drill-down page
+ */
 export async function runDrill(store: Store, runId: number, nowMs: number): Promise<RunResponse | undefined> {
     const rows = (await store.query(`RUN#${runId}`)).filter((i) => isLive(i, nowMs));
     const runs = rows.filter((i) => i.sk.startsWith("run#")) as unknown as RunItem[];
     const run = runs.toSorted((a, b) => b.attempt - a.attempt)[0];
-    if (!run) return undefined;
+    if (!run) {
+        return undefined;
+    }
     const jobs = (rows.filter((i) => i.sk.startsWith("job#")) as unknown as JobItem[])
         .filter((j) => j.attempt === run.attempt)
         .sort((a, b) => a.createdAt - b.createdAt || a.name.localeCompare(b.name));
@@ -41,13 +49,22 @@ export async function runDrill(store: Store, runId: number, nowMs: number): Prom
 }
 
 function kindOf(t: TestItem, s: ShardRunItem | undefined): TestHistoryResponse["events"][number]["kind"] {
-    if (t.source === "local") return "local";
+    if (t.source === "local") {
+        return "local";
+    }
     return s?.full ? "full" : "pr";
 }
 
 /**
  * A file's (or one test's) failed and flaky results in the range, newest first, joined to their shard runs for the
  * pull request, commit and kind; undefined when there are none.
+ * @param store - the table
+ * @param q - the query
+ * @param q.file - test file path
+ * @param q.test - one test's id, to narrow to that test
+ * @param q.range - how far back to look
+ * @param nowMs - current time
+ * @returns the history page
  */
 export async function testHistory(
     store: Store,
@@ -59,14 +76,18 @@ export async function testHistory(
     const tests = (live as unknown as TestItem[])
         .filter((t) => q.test === undefined || t.name === q.test)
         .sort((a, b) => b.seenAt - a.seenAt);
-    if (!tests.length) return undefined;
+    if (!tests.length) {
+        return undefined;
+    }
     const shards = new Map<string, ShardRunItem | undefined>();
-    for (const t of tests)
-        if (!shards.has(t.invocation))
+    for (const t of tests) {
+        if (!shards.has(t.invocation)) {
             shards.set(
                 t.invocation,
                 ((await store.query(`R#shard_run#${t.invocation}`)) as unknown as ShardRunItem[]).at(-1),
             );
+        }
+    }
     return {
         generated: iso(nowMs),
         range: q.range,

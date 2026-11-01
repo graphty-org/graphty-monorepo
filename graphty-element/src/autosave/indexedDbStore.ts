@@ -161,46 +161,32 @@ async function sha256(value: string | Uint8Array): Promise<string | null> {
 }
 
 /**
- * Hashes the large parts before the transaction opens: a digest is not an IndexedDB request.
+ * Hashes the large parts before the transaction opens: a digest is not an IndexedDB request. All
+ * of them at once: each answer waits for a turn of the page's event loop (see writeAll).
  * @param writes - the commit's writes
  * @returns per write, each part ready to store
  */
-async function prepare(writes: readonly AutosaveWrite[]): Promise<Map<string, PreparedPart>[]> {
+function prepare(writes: readonly AutosaveWrite[]): Promise<Map<string, PreparedPart>[]> {
     return Promise.all(
-        writes.map(async (write) => {
-            const prepared = new Map<string, PreparedPart>();
-            for (const [name, value] of Object.entries(write.parts)) {
-                if (value === null) {
-                    prepared.set(name, null);
-                    continue;
-                }
-                const hash = value.length > AUTOSAVE_BLOB_THRESHOLD ? await sha256(value) : null;
-                prepared.set(name, hash === null ? { inline: value } : { blob: hash, value });
-            }
-            return prepared;
-        }),
+        writes.map(
+            async (write) =>
+                new Map(
+                    await Promise.all(
+                        Object.entries(write.parts).map(async ([name, value]): Promise<[string, PreparedPart]> => {
+                            if (value === null) {
+                                return [name, null];
+                            }
+                            const hash = value.length > AUTOSAVE_BLOB_THRESHOLD ? await sha256(value) : null;
+                            return [name, hash === null ? { inline: value } : { blob: hash, value }];
+                        }),
+                    ),
+                ),
+        ),
     );
 }
 
 /** Awaits one request of a transaction, reporting progress. */
 type Step = <T>(req: IDBRequest<T>) => Promise<T>;
-
-/**
- * Check every write's fence: the entry is still at the generation the write expects.
- * @param entries - the entries store, in the commit's transaction
- * @param writes - the commit's writes
- * @param step - awaits one request
- * @throws {AutosaveConflict} when another writer committed first
- */
-async function checkFences(entries: IDBObjectStore, writes: readonly AutosaveWrite[], step: Step): Promise<void> {
-    for (const write of writes) {
-        const stored = (await step(entries.get(write.id))) as AutosaveEntryMeta | undefined;
-        const storedGen = stored?.gen ?? 0;
-        if (storedGen !== write.expectedGen) {
-            throw new AutosaveConflict(write.id, write.expectedGen, storedGen);
-        }
-    }
-}
 
 /**
  * The highest sequence number of a key's entries.
@@ -214,36 +200,91 @@ async function newestSeq(entries: IDBObjectStore, key: string, step: Step): Prom
     return newest === null ? 0 : ((newest.key as [string, number])[1] ?? 0);
 }
 
+/** What a commit reads before it writes. */
+interface CommitReads {
+    /** Each write's stored meta, for its fence. */
+    readonly stored: (AutosaveEntryMeta | undefined)[];
+    /** The newest sequence number of each key. */
+    readonly seqs: Map<string, number>;
+    /** Each write's old record of each part it writes, in the order of its prepared parts. */
+    readonly olds: (PartRecord | undefined)[][];
+    /** The large values stored already. */
+    readonly blobsStored: Set<string>;
+}
+
 /**
- * Write one entry's parts: inline, or by reference to a blob stored once.
+ * Every read a commit needs, requested together: the fences, the sequence numbers, the parts' old
+ * records and whether each large value is stored already. Each answer waits for a turn of the
+ * page's event loop, which a page drawing a large graph in software gives once a frame, seconds
+ * apart; asked one after another they cost a 50,000-node write a frame each (#2957).
+ * @param tx - the commit's transaction
+ * @param writes - the commit's writes
+ * @param prepared - their parts, from prepare()
+ * @param step - awaits one request
+ * @returns what was read
+ */
+async function readForCommit(
+    tx: IDBTransaction,
+    writes: readonly AutosaveWrite[],
+    prepared: readonly Map<string, PreparedPart>[],
+    step: Step,
+): Promise<CommitReads> {
+    const entries = tx.objectStore(ENTRIES);
+    const parts = tx.objectStore(PARTS);
+    const blobs = tx.objectStore(BLOBS);
+    const keys = [...new Set(writes.map((write) => write.meta.key))];
+    const large = [
+        ...new Set(
+            prepared.flatMap((each) =>
+                [...each.values()].flatMap((value) => (value !== null && "blob" in value ? [value.blob] : [])),
+            ),
+        ),
+    ];
+    const [stored, seqs, olds, counts] = await Promise.all([
+        Promise.all(writes.map((write) => step(entries.get(write.id)) as Promise<AutosaveEntryMeta | undefined>)),
+        Promise.all(keys.map((key) => newestSeq(entries, key, step))),
+        Promise.all(
+            writes.map((write, i) =>
+                Promise.all(
+                    [...(prepared[i] ?? new Map<string, PreparedPart>()).keys()].map(
+                        (part) => step(parts.get([write.id, part])) as Promise<PartRecord | undefined>,
+                    ),
+                ),
+            ),
+        ),
+        Promise.all(large.map((hash) => step(blobs.count(hash)))),
+    ]);
+    return {
+        stored,
+        seqs: new Map(keys.map((key, i) => [key, seqs[i] ?? 0])),
+        olds,
+        blobsStored: new Set(large.filter((_, i) => counts[i] !== 0)),
+    };
+}
+
+/**
+ * Write one entry's parts: inline, or by reference to a blob stored once. Issues requests only.
  * @param parts - the parts store
  * @param blobs - the blobs store
  * @param entryId - the entry
  * @param prepared - its parts, from prepare(); null removes a part
- * @param step - awaits one request
- * @returns the blobs the old records referenced, to drop if nothing else does
+ * @param olds - their old records, in the same order
+ * @param blobsStored - the large values stored already; grows with each blob written
+ * @returns the blobs the old records referenced and the new ones do not, to drop if nothing else does
  */
-async function writeParts(
+function writeParts(
     parts: IDBObjectStore,
     blobs: IDBObjectStore,
     entryId: string,
     prepared: Map<string, PreparedPart> | undefined,
-    step: Step,
-): Promise<string[]> {
-    // The parts' old records requested together, not one after another: each answer waits
-    // for a turn of the page's event loop, which a busy page takes a long frame to give.
-    const written = [...(prepared ?? [])];
-    // Whether each large value is stored already, asked with them.
-    const large = [...new Set(written.flatMap(([, value]) => (value !== null && "blob" in value ? [value.blob] : [])))];
-    const [olds, counts] = await Promise.all([
-        Promise.all(written.map(([part]) => step(parts.get([entryId, part])) as Promise<PartRecord | undefined>)),
-        Promise.all(large.map((hash) => step(blobs.count(hash)))),
-    ]);
-    const stored = new Set(large.filter((_, i) => counts[i] !== 0));
+    olds: readonly (PartRecord | undefined)[],
+    blobsStored: Set<string>,
+): string[] {
     const released: string[] = [];
-    for (const [j, [part, value]] of written.entries()) {
+    for (const [j, [part, value]] of [...(prepared ?? [])].entries()) {
         const old = olds[j];
-        if (old?.blob !== undefined) {
+        const blob = value !== null && "blob" in value ? value.blob : undefined;
+        if (old?.blob !== undefined && old.blob !== blob) {
             released.push(old.blob);
         }
         if (value === null) {
@@ -251,8 +292,8 @@ async function writeParts(
         } else if ("inline" in value) {
             parts.put({ entryId, part, value: value.inline } satisfies PartRecord);
         } else {
-            if (!stored.has(value.blob)) {
-                stored.add(value.blob);
+            if (!blobsStored.has(value.blob)) {
+                blobsStored.add(value.blob);
                 blobs.put({ hash: value.blob, value: value.value } satisfies BlobRecord);
             }
             parts.put({ entryId, part, blob: value.blob } satisfies PartRecord);
@@ -275,7 +316,7 @@ async function dropUnreferencedBlobs(
     const byBlob = tx.objectStore(PARTS).index("blob");
     const blobs = tx.objectStore(BLOBS);
     const unique = [...new Set(hashes)];
-    // Asked together: each answer waits for a turn of the page's event loop (see writeParts).
+    // Asked together: each answer waits for a turn of the page's event loop (see readForCommit).
     const counts = await Promise.all(unique.map((hash) => step(byBlob.count(hash))));
     unique.forEach((hash, i) => {
         if (counts[i] === 0) {
@@ -360,15 +401,26 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
     async function read(id: string): Promise<{ meta: AutosaveEntryMeta; parts: AutosaveParts } | undefined> {
         const db = await open();
         const tx = db.transaction(STORES, "readonly");
-        const meta = (await request(tx.objectStore(ENTRIES).get(id))) as AutosaveEntryMeta | undefined;
+        // Requested together, and the blobs together: each answer waits for a turn of the page's
+        // event loop (see readForCommit).
+        const [meta, records] = await Promise.all([
+            request(tx.objectStore(ENTRIES).get(id)) as Promise<AutosaveEntryMeta | undefined>,
+            request(tx.objectStore(PARTS).getAll(partsOf(id))) as Promise<PartRecord[]>,
+        ]);
         if (meta === undefined) {
             return undefined;
         }
-        const records = (await request(tx.objectStore(PARTS).getAll(partsOf(id)))) as PartRecord[];
+        const blobs = await Promise.all(
+            records.map((record) =>
+                record.blob === undefined
+                    ? Promise.resolve(undefined)
+                    : (request(tx.objectStore(BLOBS).get(record.blob)) as Promise<BlobRecord | undefined>),
+            ),
+        );
         const parts: Record<string, string | Uint8Array> = {};
-        for (const record of records) {
+        for (const [i, record] of records.entries()) {
             if (record.blob !== undefined) {
-                const blob = (await request(tx.objectStore(BLOBS).get(record.blob))) as BlobRecord | undefined;
+                const blob = blobs[i];
                 if (blob === undefined) {
                     // Never hand back an entry with a part silently missing.
                     throw new DOMException(`autosave blob ${record.blob} is missing`, "NotFoundError");
@@ -394,20 +446,31 @@ export function indexedDbAutosaveStore(options: IndexedDbAutosaveStoreOptions = 
         prepared: Map<string, PreparedPart>[],
         step: <T>(req: IDBRequest<T>) => Promise<T>,
     ): Promise<void> {
+        const { stored, seqs, olds, blobsStored } = await readForCommit(tx, writes, prepared, step);
+        for (const [i, write] of writes.entries()) {
+            const storedGen = stored[i]?.gen ?? 0;
+            if (storedGen !== write.expectedGen) {
+                throw new AutosaveConflict(write.id, write.expectedGen, storedGen);
+            }
+        }
+
         const entries = tx.objectStore(ENTRIES);
-        const parts = tx.objectStore(PARTS);
-        const blobs = tx.objectStore(BLOBS);
-
-        await checkFences(entries, writes, step);
-
-        const nextSeq = new Map<string, number>();
         const released: string[] = [];
         for (const [i, write] of writes.entries()) {
             const { key } = write.meta;
-            const seq = (nextSeq.get(key) ?? (await newestSeq(entries, key, step))) + 1;
-            nextSeq.set(key, seq);
+            const seq = (seqs.get(key) ?? 0) + 1;
+            seqs.set(key, seq);
             entries.put({ ...write.meta, id: write.id, gen: write.expectedGen + 1, seq });
-            released.push(...(await writeParts(parts, blobs, write.id, prepared[i], step)));
+            released.push(
+                ...writeParts(
+                    tx.objectStore(PARTS),
+                    tx.objectStore(BLOBS),
+                    write.id,
+                    prepared[i],
+                    olds[i] ?? [],
+                    blobsStored,
+                ),
+            );
         }
         await dropUnreferencedBlobs(tx, released, step);
     }

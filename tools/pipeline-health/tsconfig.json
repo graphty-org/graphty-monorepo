@@ -10,7 +10,12 @@
         "erasableSyntaxOnly": true,
         "skipLibCheck": true,
         "resolveJsonModule": true,
-        "types": ["node"]
+        "types": ["node"],
+        // vitest.config.ts imports the monorepo's shared vitest.base.mjs, whose types name
+        // "vitest/node". Resolved from the repository root, that is the root workspace's Vitest, a
+        // second copy whose classes do not match this package's, and the config fails to type-check.
+        // This standalone package has its own install, so its own copy is the one meant.
+        "paths": { "vitest/node": ["./node_modules/vitest/dist/node.d.ts"] }
     },
     "include": ["infra", "src", "test", "vitest.config.ts"],
     "exclude": ["test/web"]

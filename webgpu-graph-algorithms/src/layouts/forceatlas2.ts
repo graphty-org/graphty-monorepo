@@ -411,13 +411,14 @@ export class ForceAtlas2Model
      * the flags).
      * @param iteration - the trace slot of the iteration inside its batch
      * @param options - the simulation's current option record
+     * @param live - n less the inert rows (default n)
      * @returns the uniform values
      */
-    paramsFor(iteration: number, options: ForceAtlas2Options): UniformValues {
+    paramsFor(iteration: number, options: ForceAtlas2Options, live?: number): UniformValues {
         this.requireResources();
         const resolved = resolveForceAtlas2Options(options, this.current);
         return {
-            ...this.sharedParams(iteration, resolved),
+            ...this.sharedParams(iteration, resolved, live),
             scalingRatio: resolved.scalingRatio,
             gravity: resolved.gravity,
             jitterTolerance: resolved.jitterTolerance,

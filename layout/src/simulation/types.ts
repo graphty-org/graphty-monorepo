@@ -105,6 +105,15 @@ export interface LayoutSimulation {
     readonly settled: boolean;
     /** The same bitmap layout as a bool column with role "fixed". */
     setFixed(mask: NodeMask): void;
+    /**
+     * Takes rows out of the forces, in the same bitmap layout: an inert row never moves and exerts no force on any
+     * other row -- no repulsion and no pull along its edges -- and it is left out of the centroid, the spread and every
+     * count the simulation keeps, so the rest lay out as if it were absent. For a node the owner places itself, such
+     * as a group drawn round its members. Call it after load(); a same-size reload keeps it, a new node count clears it. The mask is copied; an all-zero mask makes every row live again. Optional, so an
+     * accelerator written before it still type-checks; every simulation in this package and in
+     * `@graphty/webgpu-graph-algorithms` implements it.
+     */
+    setInert?(mask: NodeMask): void;
     /** A drag during the simulation: one node's scene-unit position. */
     setPosition(index: number, x: number, y: number, z: number): void;
     dispose(): void;

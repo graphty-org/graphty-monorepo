@@ -714,7 +714,7 @@ async function runTypedRule(
             setRefusal(unknown);
             return;
         }
-        await current.selection.apply({ text: rule });
+        await current.selection.apply({ text: rule }, "replace", { cause: "user" });
     } catch (error) {
         const refused = ruleRefusal(error);
         if (refused === null) {
@@ -750,7 +750,9 @@ async function addPick(
     session: GraphSession,
     option: Extract<Option, { type: "value" | "hit" }>,
 ): Promise<void> {
-    await session.selection.apply(option.type === "hit" ? option.hit.target : valueTarget(option), "add");
+    await session.selection.apply(option.type === "hit" ? option.hit.target : valueTarget(option), "add", {
+        cause: "user",
+    });
     ctx.shiftPicked.current = true;
     if (option.type === "value") {
         ctx.setPickedValues((before) => new Set(before).add(valueKey(option)));
@@ -767,7 +769,7 @@ async function addPick(
 async function pickHit(ctx: PickContext, session: GraphSession, hit: FindHit): Promise<void> {
     // The keyboard follows the pick into the node's or the edge's values, out of the box (task T12).
     focusValuesNext();
-    await session.selection.apply(hit.target);
+    await session.selection.apply(hit.target, "replace", { cause: "user" });
     // The inspector shows what is selected once no row is open.
     ctx.store.set({ inspected: null });
     // On the Style tab no values view takes the request: the title does, so Enter leaves the
@@ -817,7 +819,7 @@ async function pickOption(ctx: PickContext, option: Option, adding: boolean): Pr
     ctx.setText("");
     ctx.setActive(-1);
     if (option.type === "value") {
-        await session.selection.apply(valueTarget(option));
+        await session.selection.apply(valueTarget(option), "replace", { cause: "user" });
         return;
     }
     await pickHit(ctx, session, option.hit);

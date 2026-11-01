@@ -43,11 +43,7 @@ describe("raw writes", () => {
 
     it("a merging write keeps only the live collector's fields, never a field the new record unsets", async () => {
         const store = new MemoryStore();
-        await putRaw(
-            store,
-            [{ ...run(1), conclusion: "failure", cause: "infrastructure", tested: true } as RawItem],
-            T0,
-        );
+        await putRaw(store, [{ ...run(1), conclusion: "failure", cause: "infrastructure", tested: true }], T0);
         const fresh = { ...run(1), conclusion: undefined } as RawItem;
         await putRaw(store, [fresh], T0 + MIN, { merge: true });
         const stored = (await store.get(homeKey(fresh))) as Record<string, unknown>;

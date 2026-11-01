@@ -127,8 +127,10 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > `git fetch origin`, `git merge origin/master` (never rebase), `pnpm install --frozen-lockfile`, resolve any conflict
 > keeping both intents, then run the affected lint, typecheck and build, and only the test files you touched or
 > wrote plus those that exercise the code you changed, never whole shards (CI runs the rest, owner 2026-10-25;
-> `pnpm run test:changed --dry-run --base origin/master` names the candidates). Then run
-> `node tools/sonar-gate.mjs` on the merged code and commit. A change that adds a graphty-element channel or a
+> `pnpm run test:changed --dry-run --base origin/master` names the candidates). Then run `pnpm run check:quick`
+> once in the background (CI's Checks job, the selected tests and `node tools/sonar-gate.mjs`; it catches the
+> repository-wide rules a narrow run misses -- every public method classified, every kernel test run twice, the
+> shard lists -- which sent a third of 2026-11-01's pull requests back from CI) and fix what it reports, then commit. A change that adds a graphty-element channel or a
 > graph-io style property also lists it in the graphty app's channel records (`graphty/src/workspace/style/words.ts`,
 > `style/coverage.ts`, `inspector/words.ts`), regenerates graph-io's docs (`npm run docs:reference`) and runs
 > `pnpm run lint:knip` and `npm run api:report` before its pull request. A long-lived branch (open more than about two days,
@@ -150,7 +152,9 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL. A change to the graphty app's
 > UI follows the owner's UI rules: no sentences as UI in the data screens (use Figma patterns: property rows, chips,
 > dropdowns, + sections, pop-overs, context menus); every hotkey has a visible button showing its key; never remove
-> or restyle owner-approved UI; compact-mantine's look stays locked to Figma.
+> or restyle owner-approved UI; compact-mantine's look stays locked to Figma. A guard or hook that refuses a command
+> is never worked around (no script, no other tool doing the same thing): stop and report it; a false positive is
+> fixed in the guard (2026-11-01, #5518).
 
 ## Escalation
 

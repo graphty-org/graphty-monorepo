@@ -53,6 +53,7 @@ import {
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { narrowLayout } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION, type GraphAccelerator } from "../acceleration/types";
+import { asStrength } from "../algorithms/input/weight";
 import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
@@ -314,7 +315,16 @@ export interface SimulationEngineInit {
      * after `init()` as for any build.
      */
     readonly fromSeed?: boolean;
+    /**
+     * What the stored edge weights mean, asked at every load of a simulation that reads them:
+     * a strength is read as it is, a distance inverted, and null leaves them unread. Absent reads
+     * every weight as a strength.
+     */
+    readonly weightMeaning?: () => "strength" | "distance" | null;
 }
+
+/** The derived edge column a distance weight is inverted into, for the simulation to read. */
+const STRENGTH_COLUMN = "graphty.layoutStrength";
 
 /**
  * The refusal for a bridge built without a controller, which is what `LayoutEngine.get(type, {})`
@@ -359,6 +369,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
     readonly #controller: AccelerationController;
     readonly #report: (error: GraphtyError) => void;
     readonly #dataManager: DataManager;
+    readonly #weightMeaning: () => "strength" | "distance" | null;
+    /**
+     * The `weight` the running simulation was built with, or undefined for a simulation that reads
+     * no weight: a load whose answer differs rebuilds it.
+     */
+    #weightSpec: boolean | string | undefined = undefined;
     /** See {@link SimulationEngineInit.fromSeed}; cleared by the first load. */
     #fromSeed: boolean;
 
@@ -443,6 +459,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
     /** Batches submitted and not yet landed or rejected. See `#syncWork`. */
     #inFlight = 0;
 
+    /** Frame batches that have landed, and how many of them the last publish included. */
+    #landed = 0;
+    #landedPublished = 0;
+
     /** Set by `LayoutManager` while it is not stepping this layout. See {@link paused}. */
     #paused = false;
     #iterations = 1;
@@ -486,6 +506,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#report = built.report as (error: GraphtyError) => void;
         this.#dataManager = built.dataManager as DataManager;
         this.#fromSeed = built.fromSeed === true;
+        this.#weightMeaning = built.weightMeaning ?? ((): "strength" => "strength");
         this.#targetCentre = resolveCentre(this.#options.model.center ?? this.#options.center);
 
         // THE FIRST ADOPTION IS THE IDENTITY. Nothing has been published yet, so an arrangement
@@ -542,6 +563,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     get iterationsDone(): number {
         return this.#iterationsDone;
+    }
+
+    /**
+     * How many of the batches `step()` submitted had landed when the positions were last
+     * published. An accelerated batch lands frames after the one that submitted it, so the
+     * published positions move only when this does: a move measured across a frame in which it
+     * did not is no move at all, not a settled layout (issue #4437).
+     * @returns The count; it only grows.
+     */
+    get landedBatchesPublished(): number {
+        return this.#landedPublished;
     }
 
     /**
@@ -647,6 +679,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const simulation = this.#simulation;
         this.#snapshot = snapshot;
         this.#positions = positions;
+        const loadable = this.#loadable(snapshot);
 
         // BEFORE THE PLAN, and at every reload whether or not the simulation is rebuilt: a freeze
         // renumbers the rows, and the element's array is the copy it renumbered.
@@ -662,14 +695,19 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // and survives a freeze on its own, which is why this is the one option that can force a
         // rebuild, and why it forces one at EVERY reload.
         const massStale = this.#nodeMass !== null;
-        if (simulation === null || decision.accelerated !== this.#accelerated || massStale) {
+        if (
+            simulation === null ||
+            decision.accelerated !== this.#accelerated ||
+            massStale ||
+            loadable.weight !== this.#weightSpec
+        ) {
             this.replaceSimulation();
             return;
         }
 
         this.#iterations = this.#resolveIterations(snapshot.nodeCount);
         this.#seed(snapshot, simPositions);
-        simulation.load(this.#dataManager.undirected(snapshot).snapshot, simPositions);
+        simulation.load(loadable.graph, simPositions);
 
         // THE STOP FLAG SURVIVES A RELOAD. A simulation whose batch rejected is not made well by
         // a new graph, and only a rebuild clears the flag -- which the controller's next
@@ -750,6 +788,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 () => {
                     // The batch has landed, so the simulation knows by now whether it settled.
                     this.#inFlight -= 1;
+                    this.#landed += 1;
                     this.#syncWork();
                     // Submitted before a restore, it read back coordinates the restore replaced:
                     // take the element's array again, which still holds the restored ones.
@@ -912,6 +951,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // lands on a pinned row too -- moving a pinned node is what a pin is for.
         this.writeNodePosition(n, p.x, p.y, z, "placement");
 
+        // A GROUP FOLLOWING ITS MEMBERS IS INERT IN THE SIMULATION, so where the element puts it
+        // is nothing the simulation reads: telling it would only reheat it, every frame the box
+        // moves, and a Fruchterman-Reingold run would never cool past 70% of its budget.
+        if (this.isFollower(n.index) && this.#simulation?.setInert !== undefined) {
+            return;
+        }
+
         const scale = this.#envelopeScale;
         this.#simulation?.setPosition(
             n.index,
@@ -1057,6 +1103,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const store = this.#dataManager[WRITABLE_LANE];
+        this.#landedPublished = this.#landed;
         this.#fitEnvelope(snapshot, simPositions);
 
         const scale = this.#envelopeScale;
@@ -1103,10 +1150,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // inside -- and since the held row is not published, the rest of the graph would shrink
         // under a pointer that stayed where it was. Measured, at 40 nodes and `scalingFactor`
         // 100: one node dragged to x 400 took the other 39 from a radius of 99.993 to 25.626.
+        // A group following its members is placed by the element, never by this publish.
         const held =
             this.#fixedRows.size === 0
                 ? null
-                : (row: number): boolean => this.#fixedRows.has(row) && store.isPlaced(row);
+                : (row: number): boolean => (this.#fixedRows.has(row) && store.isPlaced(row)) || this.isFollower(row);
         const measured = measureEnvelope(simPositions, snapshot.nodeCount, this.#options.scalingFactor, held);
 
         // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
@@ -1215,6 +1263,27 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#mask = mask;
         this.#fixedRows = rows;
         simulation.setFixed(mask);
+
+        this.#applyInert(simulation, nodeCount);
+    }
+
+    /**
+     * Marks the groups that follow their members inert in the simulation.
+     *
+     * A group following its members is drawn round them, not laid out with them: inert in the
+     * simulation, it neither repels them nor pulls on them, so they settle exactly where they
+     * would without it (issue #3075; the ngraph engine gives it no mass for the same reason).
+     * @param simulation - The running simulation.
+     * @param nodeCount - The loaded snapshot's node count.
+     */
+    #applyInert(simulation: LayoutSimulation, nodeCount: number): void {
+        const inert = makeMask(nodeCount);
+        for (let i = 0; i < nodeCount && this.holdsAny; i += 1) {
+            if (this.isFollower(i)) {
+                maskSet(inert, i, true);
+            }
+        }
+        simulation.setInert?.(inert);
     }
 
     /**
@@ -1267,7 +1336,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             });
         }
 
-        const undirected = this.#dataManager.undirected(snapshot).snapshot;
+        const { graph: undirected, weight } = this.#loadable(snapshot);
+        this.#weightSpec = weight;
         this.#seed(snapshot, simPositions);
         this.#nodeMass = this.#resolveNodeMass(undirected);
         this.#iterations = this.#resolveIterations(snapshot.nodeCount);
@@ -1365,7 +1435,34 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #simulationOptions(): ForceAtlas2Options | FruchtermanReingoldOptions | SpringElectricalOptions {
         const { model, iterationsPerStep: _explicit, stepMultiplier: _base, ...common } = this.#options;
         const resolved = this.#nodeMass === null ? {} : { nodeMass: this.#nodeMass };
-        return { ...common, ...model, ...resolved, iterationsPerStep: this.#iterations };
+        const weight = this.#weightSpec === undefined ? {} : { weight: this.#weightSpec };
+        return { ...common, ...model, ...resolved, ...weight, iterationsPerStep: this.#iterations };
+    }
+
+    /**
+     * The undirected graph a simulation is loaded with, and the `weight` it reads it by.
+     *
+     * Only a simulation asked to read weights (ForceAtlas2 with `weighted`) asks what they mean: a
+     * strength is the snapshot's own weights, a distance is inverted into a derived column (same
+     * core and serial, so an accelerator's residency for the snapshot is reused and released with
+     * it), and null reads none. The CPU and the accelerator read the same answer.
+     * @param snapshot - The graph, as `getSnapshot()` returns it.
+     * @returns The graph to load, and the `weight` option, undefined when the model reads none.
+     */
+    #loadable(snapshot: GraphSnapshot): { graph: GraphSnapshot; weight: boolean | string | undefined } {
+        const graph = this.#dataManager.undirected(snapshot).snapshot;
+        if ((this.#options.model as { weight?: unknown }).weight !== true) {
+            return { graph, weight: undefined };
+        }
+
+        const meaning = this.#weightMeaning();
+        const { weights } = graph.edgeList();
+        if (meaning !== "distance" || weights === null) {
+            return { graph, weight: meaning !== null };
+        }
+
+        const strengths = Float32Array.from(weights, (w) => asStrength(w, "distance"));
+        return { graph: graph.withColumns(undefined, { [STRENGTH_COLUMN]: strengths }), weight: STRENGTH_COLUMN };
     }
 
     /**

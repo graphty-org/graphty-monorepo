@@ -27,9 +27,13 @@ import type { Store } from "../model/store.js";
 import { type GitHub, runJobs } from "./github.js";
 import {
     flakyTestItem,
+    type GhRun,
+    type GqlIssue,
+    type GqlPr,
     llmCost,
     loadKind,
     offMaster,
+    type Rates,
     t4Cost,
     toIssueItem,
     toJobItem,
@@ -37,10 +41,6 @@ import {
     toRunItem,
     toStepItems,
     workflowFile,
-    type GhRun,
-    type GqlIssue,
-    type GqlPr,
-    type Rates,
 } from "./parse.js";
 import { FLAKY_SUITE_QUERY, ISSUE_QUERY, PR_QUERY } from "./queries.js";
 
@@ -93,11 +93,15 @@ export interface BackfillReport {
 }
 
 const STEP_WORKFLOWS = new Set(["release.yml", "restricted-cpu-stress.yml"]);
-const isoDay = (t: number) => new Date(t).toISOString().slice(0, 10);
+const isoDay = (t: number): string => new Date(t).toISOString().slice(0, 10);
 export const PRS_CURSOR = "backfill#prs-issues";
 export const FLAKY_CURSOR = "backfill#flaky";
-/** A repository's runs cursor: the next older day and page to load. */
-export const runsCursor = (repo: string) => `backfill#${repo}#newest`;
+/**
+ * A repository's runs cursor: the next older day and page to load.
+ * @param repo - owner/name of the repository
+ * @returns the cursor's name
+ */
+export const runsCursor = (repo: string): string => `backfill#${repo}#newest`;
 /** The workflows whose jobs run test shards through tools/test-quarantine.mjs (release.yml and golden-verify.yml call ci.yml). */
 const SHARD_WORKFLOWS = new Set(["ci.yml", "golden-verify.yml", "release.yml", "restricted-cpu-stress.yml"]);
 
@@ -116,19 +120,31 @@ interface RunsCursor {
     hour?: number;
 }
 
-/** A cursor's `{ day, page, hour }`, or undefined when there is none or it cannot be read (then start over: writes are idempotent). */
+/**
+ * A cursor's `{ day, page, hour }`, or undefined when there is none or it cannot be read (then start over: writes are idempotent).
+ * @param store - the table to read from
+ * @param name - the cursor's name
+ * @returns the parsed cursor with its day as epoch ms, or undefined
+ */
 async function readCursor(store: Store, name: string): Promise<(RunsCursor & { day: number }) | undefined> {
     try {
         const raw = await getCursor(store, name);
         const c = raw ? (JSON.parse(raw) as RunsCursor & { day: string }) : undefined;
-        if (c && Number.isFinite(Date.parse(c.day)))
+        if (c && Number.isFinite(Date.parse(c.day))) {
             return { day: Date.parse(c.day), page: c.page, ...(c.hour === undefined ? {} : { hour: c.hour }) };
+        }
     } catch {
         // unreadable
     }
     return undefined;
 }
 
+/**
+ * Runs the backfill's phases (or only the repair, when `o.repair` is set) until done or stopped by the deadline, the
+ * App's rate limit or the write budget.
+ * @param o - what to load and the limits to load it under
+ * @returns counts of what was loaded, and whether it finished or why it stopped
+ */
 export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
     const sleep = o.sleep ?? ((ms) => new Promise<void>((ok) => setTimeout(ok, ms)));
     const clock = o.clock ?? Date.now;
@@ -138,19 +154,26 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
     const calls0 = o.gh.calls;
     const r: BackfillReport = { flaky: 0, runs: 0, items: 0, calls: 0, done: false };
     // Before each call: the deadline, the App's hour, then a wait until the request budget so far allows it.
-    const gate = async () => {
-        if (o.deadline !== undefined && clock() >= o.deadline) throw new Stop("deadline");
-        if (o.gh.rate && o.gh.rate.remaining < (o.minRateShare ?? 0.25) * o.gh.rate.limit) throw new Stop("rate");
+    const gate = async (): Promise<void> => {
+        if (o.deadline !== undefined && clock() >= o.deadline) {
+            throw new Stop("deadline");
+        }
+        if (o.gh.rate && o.gh.rate.remaining < (o.minRateShare ?? 0.25) * o.gh.rate.limit) {
+            throw new Stop("rate");
+        }
         const wait = started + ((o.gh.calls - calls0) * 3_600_000) / o.perHour - clock();
-        if (wait > 0) await sleep(wait);
+        if (wait > 0) {
+            await sleep(wait);
+        }
     };
-    const get = async <T>(path: string) => {
+    const get = async <T>(path: string): Promise<T | undefined> => {
         await gate();
         return o.gh.rest<T>(path);
     };
-    const write = async (out: RawItem[]) => {
-        if (out.length && !(await takeQuota(o.store, out.length, o.now, o.rowLimit ?? DAILY_ROW_LIMIT / 2)))
+    const write = async (out: RawItem[]): Promise<void> => {
+        if (out.length && !(await takeQuota(o.store, out.length, o.now, o.rowLimit ?? DAILY_ROW_LIMIT / 2))) {
             throw new Stop("write_budget");
+        }
         await putRaw(o.store, out, o.now, { merge: true });
         r.items += out.length;
     };
@@ -169,7 +192,9 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
             await o.store.batch(names.map((n) => ({ delete: cursorKey(n) })));
         }
         await flakyTests(ctx, first);
-        for (const repo of o.repos) await repoRuns(ctx, repo, first);
+        for (const repo of o.repos) {
+            await repoRuns(ctx, repo, first);
+        }
         if ((await getCursor(o.store, PRS_CURSOR)) !== "done") {
             await pullRequestsAndIssues(o, gate, write, first);
             await setCursor(o.store, PRS_CURSOR, "done", o.now);
@@ -179,7 +204,9 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
         await recordSource(o.store, "collector", o.now, { ok: true }, first);
         r.done = true;
     } catch (e) {
-        if (!(e instanceof Stop)) throw e;
+        if (!(e instanceof Stop)) {
+            throw e;
+        }
         r.stopped = e.why;
     }
     r.calls = o.gh.calls - calls0;
@@ -200,6 +227,9 @@ interface Ctx {
  * One repository's runs, day by day from yesterday back to the range's first day. A cursor written by the earlier
  * oldest-first backfill (`backfill#<repo>`, its next day) means every day before that day is loaded: the walk stops
  * there.
+ * @param c - the backfill's shared context
+ * @param repo - owner/name of the repository
+ * @param first - epoch ms of the range's first day
  */
 async function repoRuns(c: Ctx, repo: string, first: number): Promise<void> {
     const older = await readCursor(c.o.store, `backfill#${repo}`);
@@ -208,8 +238,9 @@ async function repoRuns(c: Ctx, repo: string, first: number): Promise<void> {
         day: Math.floor(c.o.now / DAY) * DAY - DAY,
         page: 1,
     };
-    for (let day = at.day; day >= floor; day -= DAY)
+    for (let { day } = at; day >= floor; day -= DAY) {
         await dayRuns(c, repo, day, day === at.day ? at : { day, page: 1 });
+    }
 }
 
 /** GitHub lists at most this many runs for one query; past it a page comes back empty. */
@@ -219,23 +250,42 @@ export const LISTED_RUNS = 1000;
  * One day's runs (a day already over: no page shifts), a page at a time from the cursor's page; the cursor moves
  * after each. A day with more runs than GitHub lists for one query (1,945 on 2026-10-12, whose 945 oldest runs and
  * their T4 jobs were lost) is read an hour at a time instead, newest first, with the hour in the cursor.
+ * @param c - the backfill's shared context
+ * @param repo - owner/name of the repository
+ * @param day - epoch ms of the day's midnight
+ * @param from - the cursor to start from
  */
 async function dayRuns(c: Ctx, repo: string, day: number, from: RunsCursor): Promise<void> {
-    if (from.hour !== undefined) return hourRuns(c, repo, day, from.hour, from.page);
+    if (from.hour !== undefined) {
+        await hourRuns(c, repo, day, from.hour, from.page);
+        return;
+    }
     const limit = c.o.listedRuns ?? LISTED_RUNS;
-    for (let page = from.page; page <= Math.ceil(limit / c.perPage); page++) {
+    for (let { page } = from; page <= Math.ceil(limit / c.perPage); page++) {
         const res = await c.get<{ total_count: number; workflow_runs: GhRun[] }>(
             `repos/${repo}/actions/runs?created=${isoDay(day)}&per_page=${c.perPage}&page=${page}`,
         );
-        if ((res?.total_count ?? 0) > limit) return hourRuns(c, repo, day, 23, 1);
+        if ((res?.total_count ?? 0) > limit) {
+            await hourRuns(c, repo, day, 23, 1);
+            return;
+        }
         const last = await runsPage(c, repo, res?.workflow_runs ?? [], `${isoDay(day)} page ${page}`);
         const next = last ? { day: isoDay(day - DAY), page: 1 } : { day: isoDay(day), page: page + 1 };
         await setCursor(c.o.store, runsCursor(repo), JSON.stringify(next), c.o.now);
-        if (last) return;
+        if (last) {
+            return;
+        }
     }
 }
 
-/** A day's runs an hour at a time from `hour` down to midnight. ponytail: an hour past the listed limit loses its tail. */
+/**
+ * A day's runs an hour at a time from `hour` down to midnight. ponytail: an hour past the listed limit loses its tail.
+ * @param c - the backfill's shared context
+ * @param repo - owner/name of the repository
+ * @param day - epoch ms of the day's midnight
+ * @param hour - the hour (UTC) to start from
+ * @param fromPage - the page to start from within that hour
+ */
 async function hourRuns(c: Ctx, repo: string, day: number, hour: number, fromPage: number): Promise<void> {
     const limit = c.o.listedRuns ?? LISTED_RUNS;
     for (let h = hour; h >= 0; h--) {
@@ -247,9 +297,13 @@ async function hourRuns(c: Ctx, repo: string, day: number, hour: number, fromPag
             );
             const last = await runsPage(c, repo, res?.workflow_runs ?? [], `${hh}h page ${page}`);
             let next: RunsCursor & { day: string } = { day: isoDay(day), page: page + 1, hour: h };
-            if (last) next = h > 0 ? { day: isoDay(day), page: 1, hour: h - 1 } : { day: isoDay(day - DAY), page: 1 };
+            if (last) {
+                next = h > 0 ? { day: isoDay(day), page: 1, hour: h - 1 } : { day: isoDay(day - DAY), page: 1 };
+            }
             await setCursor(c.o.store, runsCursor(repo), JSON.stringify(next), c.o.now);
-            if (last) break;
+            if (last) {
+                break;
+            }
         }
     }
 }
@@ -261,6 +315,9 @@ export const REPAIR_CURSOR = "backfill#repair";
  * Each day's runs of each workflow in `o.repo` (a workflow lists far fewer than LISTED_RUNS a day), with their items.
  * The cursor moves after each page, so an invocation stopped by its deadline or the write budget continues there
  * instead of re-reading (and re-writing) the same first pages every time; a finished repair reads nothing again.
+ * @param c - the backfill's shared context
+ * @param days - ISO days to re-read
+ * @param workflows - workflow files to re-read on each of those days
  */
 async function repairRuns(c: Ctx, days: string[], workflows: string[]): Promise<void> {
     const key = JSON.stringify({ days, workflows });
@@ -268,14 +325,19 @@ async function repairRuns(c: Ctx, days: string[], workflows: string[]): Promise<
     let at = { i: 0, page: 1, done: false };
     try {
         const v = saved ? (JSON.parse(saved) as { key?: string; i?: number; page?: number; done?: boolean }) : {};
-        if (v.key === key) at = { i: v.i ?? 0, page: v.page ?? 1, done: v.done === true };
+        if (v.key === key) {
+            at = { i: v.i ?? 0, page: v.page ?? 1, done: v.done === true };
+        }
     } catch {
         // unreadable: start over (writes are idempotent)
     }
-    const save = (v: object) => setCursor(c.o.store, REPAIR_CURSOR, JSON.stringify({ key, ...v }), c.o.now);
-    if (at.done) return;
+    const save = (v: object): Promise<void> =>
+        setCursor(c.o.store, REPAIR_CURSOR, JSON.stringify({ key, ...v }), c.o.now);
+    if (at.done) {
+        return;
+    }
     const pairs = days.flatMap((day) => workflows.map((wf) => [day, wf] as const));
-    for (let i = at.i; i < pairs.length; i++) {
+    for (let { i } = at; i < pairs.length; i++) {
         const [day, wf] = pairs[i];
         for (let page = i === at.i ? at.page : 1; page <= LISTED_RUNS / c.perPage; page++) {
             const res = await c.get<{ workflow_runs: GhRun[] }>(
@@ -283,16 +345,27 @@ async function repairRuns(c: Ctx, days: string[], workflows: string[]): Promise<
             );
             const last = await runsPage(c, c.o.repo, res?.workflow_runs ?? [], `${wf} ${day} page ${page}`);
             await save(last ? { i: i + 1, page: 1 } : { i, page: page + 1 });
-            if (last) break;
+            if (last) {
+                break;
+            }
         }
     }
     await save({ done: true });
 }
 
-/** Writes one listed page of runs with their items; true when it was the query's last page. */
+/**
+ * Writes one listed page of runs with their items; true when it was the query's last page.
+ * @param c - the backfill's shared context
+ * @param repo - owner/name of the repository
+ * @param list - the page's runs
+ * @param what - a label for the page in the log line
+ * @returns true when the page was short, so it was the last
+ */
 async function runsPage(c: Ctx, repo: string, list: GhRun[], what: string): Promise<boolean> {
     const out: RawItem[] = [];
-    for (const run of list) out.push(...(await runItems(c.get, repo, run)));
+    for (const run of list) {
+        out.push(...(await runItems(c.get, repo, run)));
+    }
     await c.write(out);
     c.r.runs += list.length;
     c.log(`${repo} ${what}: ${out.length} items, ${c.o.gh.calls} calls`);
@@ -314,6 +387,8 @@ interface FlakySuite {
  * The flaky tests of the range, day by day from today back: each day's test-shard runs (`o.repo` only), their check
  * suites' annotations ten suites a query, each detection the live feed's row. A row already stored (the live feed's,
  * or an earlier invocation's) is left as it is. The cursor holds the next older day; a stop mid-day redoes that day.
+ * @param c - the backfill's shared context
+ * @param first - epoch ms of the range's first day
  */
 async function flakyTests(c: Ctx, first: number): Promise<void> {
     const at = await getCursor(c.o.store, FLAKY_CURSOR);
@@ -321,7 +396,11 @@ async function flakyTests(c: Ctx, first: number): Promise<void> {
         const runs = await shardRuns(c, day);
         const found = await runsFlaky(c, runs);
         const fresh: TestItem[] = [];
-        for (const t of found) if (!(await c.o.store.get(homeKey(t)))) fresh.push(t);
+        for (const t of found) {
+            if (!(await c.o.store.get(homeKey(t)))) {
+                fresh.push(t);
+            }
+        }
         await c.write(fresh);
         c.r.flaky += fresh.length;
         c.log(`flaky ${isoDay(day)}: ${runs.length} runs, ${found.length} detections, ${fresh.length} new`);
@@ -329,7 +408,12 @@ async function flakyTests(c: Ctx, first: number): Promise<void> {
     }
 }
 
-/** One day's runs of the workflows that run test shards. */
+/**
+ * One day's runs of the workflows that run test shards.
+ * @param c - the backfill's shared context
+ * @param day - epoch ms of the day's midnight
+ * @returns the day's runs of SHARD_WORKFLOWS that have a check suite
+ */
 async function shardRuns(c: Ctx, day: number): Promise<GhRun[]> {
     const runs: GhRun[] = [];
     for (let page = 1; page <= 10; page++) {
@@ -338,12 +422,19 @@ async function shardRuns(c: Ctx, day: number): Promise<GhRun[]> {
         );
         const list = res?.workflow_runs ?? [];
         runs.push(...list.filter((x) => SHARD_WORKFLOWS.has(workflowFile(x.path)) && x.check_suite_node_id));
-        if (list.length < 100) break;
+        if (list.length < 100) {
+            break;
+        }
     }
     return runs;
 }
 
-/** The runs' flaky detections, ten check suites a query, one per test id. */
+/**
+ * The runs' flaky detections, ten check suites a query, one per test id.
+ * @param c - the backfill's shared context
+ * @param runs - the runs whose check suites to read
+ * @returns the detections, the last one kept per test id
+ */
 async function runsFlaky(c: Ctx, runs: GhRun[]): Promise<TestItem[]> {
     const found = new Map<string, TestItem>();
     for (let i = 0; i < runs.length; i += 10) {
@@ -352,13 +443,23 @@ async function runsFlaky(c: Ctx, runs: GhRun[]): Promise<TestItem[]> {
         const data = await c.o.gh.graphql<{ nodes: (FlakySuite | null)[] }>(FLAKY_SUITE_QUERY, {
             ids: batch.map((x) => x.check_suite_node_id),
         });
-        for (const [k, suite] of data.nodes.entries())
-            for (const t of await suiteFlaky(c, c.o.repo, batch[k], suite)) found.set(t.id, t);
+        for (const [k, suite] of data.nodes.entries()) {
+            for (const t of await suiteFlaky(c, c.o.repo, batch[k], suite)) {
+                found.set(t.id, t);
+            }
+        }
     }
     return [...found.values()];
 }
 
-/** One check suite's flaky detections; a re-run's check runs get their attempt from the run's jobs (job id = check run id). */
+/**
+ * One check suite's flaky detections; a re-run's check runs get their attempt from the run's jobs (job id = check run id).
+ * @param c - the backfill's shared context
+ * @param repo - owner/name of the repository
+ * @param run - the run the suite belongs to
+ * @param suite - the check suite with its check runs' annotations, or null
+ * @returns one test item per flaky annotation
+ */
 async function suiteFlaky(c: Ctx, repo: string, run: GhRun, suite: FlakySuite | null): Promise<TestItem[]> {
     const hits = (suite?.checkRuns.nodes ?? []).flatMap((cr) =>
         cr.annotations.nodes.map((a) => ({ cr, message: a.message })),
@@ -367,19 +468,30 @@ async function suiteFlaky(c: Ctx, repo: string, run: GhRun, suite: FlakySuite | 
     const out: TestItem[] = [];
     for (const { cr, message } of hits) {
         const probe = flakyTestItem(message, cr.name, run.id, 1, 0);
-        if (!probe) continue;
+        if (!probe) {
+            continue;
+        }
         if (run.run_attempt > 1 && !attempts) {
             const jobs = await runJobs(c.get, `repos/${repo}/actions/runs/${run.id}/jobs?filter=all`);
             attempts = new Map(jobs.map((j) => [j.id, j.run_attempt]));
         }
         const attempt = attempts?.get(cr.databaseId) ?? 1;
         const seenAt = cr.completedAt ? Date.parse(cr.completedAt) : Date.parse(run.updated_at);
-        out.push(flakyTestItem(message, cr.name, run.id, attempt, seenAt)!);
+        const item = flakyTestItem(message, cr.name, run.id, attempt, seenAt);
+        if (item) {
+            out.push(item);
+        }
     }
     return out;
 }
 
-/** One run's items: every attempt (filter=all), its jobs, release and stress steps, T4 and LLM costs. */
+/**
+ * One run's items: every attempt (filter=all), its jobs, release and stress steps, T4 and LLM costs.
+ * @param get - the throttled REST getter
+ * @param repo - owner/name of the repository
+ * @param run - the run to expand
+ * @returns the run's raw items
+ */
 async function runItems(
     get: <T>(path: string) => Promise<T | undefined>,
     repo: string,
@@ -390,21 +502,37 @@ async function runItems(
     const jobs = await runJobs(get, `repos/${repo}/actions/runs/${run.id}/jobs?filter=all`);
     for (let a = 1; a < run.run_attempt; a++) {
         const earlier = await get<GhRun>(`repos/${repo}/actions/runs/${run.id}/attempts/${a}`);
-        if (earlier) out.push(toRunItem(earlier, repo));
+        if (earlier) {
+            out.push(toRunItem(earlier, repo));
+        }
     }
     for (const j of jobs) {
         out.push(toJobItem(j, repo, workflow, false, loadKind(run), offMaster(run)));
-        if (j.status !== "completed") continue;
-        if (STEP_WORKFLOWS.has(workflow)) out.push(...toStepItems(j, repo, workflow));
+        if (j.status !== "completed") {
+            continue;
+        }
+        if (STEP_WORKFLOWS.has(workflow)) {
+            out.push(...toStepItems(j, repo, workflow));
+        }
         const t4 = t4Cost(j, repo, rates as unknown as Rates, workflow);
         const llm = llmCost(j, repo, rates as unknown as Rates, workflow, run);
-        if (t4) out.push(t4);
-        if (llm) out.push(llm);
+        if (t4) {
+            out.push(t4);
+        }
+        if (llm) {
+            out.push(llm);
+        }
     }
     return out;
 }
 
-/** Pull requests and issues updated in the range, paged by update time. */
+/**
+ * Pull requests and issues updated in the range, paged by update time.
+ * @param o - the backfill's options
+ * @param gate - waits until the next request is allowed, or throws Stop
+ * @param write - writes rows under the write budget
+ * @param first - epoch ms of the range's first day
+ */
 async function pullRequestsAndIssues(
     o: BackfillOptions,
     gate: () => Promise<void>,
@@ -429,14 +557,22 @@ async function pullRequestsAndIssues(
             const data: { repository: { recent: Page } } = await o.gh.graphql(query, { owner, name, cursor, ...vars });
             const nodes = data.repository.recent.nodes.filter((x) => Date.parse(x.updatedAt) >= first);
             await write(nodes.map((x) => (query === PR_QUERY ? toPrItem(x, o.repo) : toIssueItem(x, o.repo))));
-            if (nodes.length < data.repository.recent.nodes.length || !data.repository.recent.pageInfo.hasNextPage)
+            if (nodes.length < data.repository.recent.nodes.length || !data.repository.recent.pageInfo.hasNextPage) {
                 break;
+            }
             cursor = data.repository.recent.pageInfo.endCursor;
         }
     }
 }
 
-/** The organization's repositories pushed to in 28 days, and `repo` always. */
+/**
+ * The organization's repositories pushed to in 28 days, and `repo` always.
+ * @param gh - the GitHub client
+ * @param org - the organization to list
+ * @param repo - owner/name of the repository always included
+ * @param now - the current epoch ms
+ * @returns owner/name of each repository, `repo` first when it was missing
+ */
 export async function backfillRepos(gh: GitHub, org: string, repo: string, now: number): Promise<string[]> {
     const list =
         (await gh.rest<{ full_name: string; archived: boolean; pushed_at: string }[]>(

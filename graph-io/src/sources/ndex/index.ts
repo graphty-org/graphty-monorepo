@@ -13,6 +13,7 @@
  * @module @graphty/graph-io/sources/ndex
  */
 
+import { endpointOrigin } from "../credentials.js";
 import { defineSource } from "../define.js";
 import { failOn } from "../fail.js";
 import { NDEX_SOURCE_ID } from "../ids.js";
@@ -70,6 +71,7 @@ async function readSummary(uuid: string, ctx: SourceContext): Promise<{ summary:
         return { summary: JSON.parse(text) as NdexSummary, bytes: new TextEncoder().encode(text).byteLength };
     } catch {
         return failOn(ctx.report, "E_SOURCE_RESPONSE", "the NDEx summary is not JSON", {
+            origin: endpointOrigin(ctx.endpoint),
             expected: "json",
             contentType: response.headers.get("content-type"),
         });
@@ -200,6 +202,7 @@ export const ndexSource: GraphSource<NdexParams> = defineSource<NdexParams>({
         const networks = Array.isArray(body.networks)
             ? (body.networks as readonly NdexSearchHit[])
             : failOn(ctx.report, "E_SOURCE_RESPONSE", "the NDEx search answer has no networks", {
+                  origin: endpointOrigin(ctx.endpoint),
                   expected: "ndex-search",
                   contentType: "application/json",
               });

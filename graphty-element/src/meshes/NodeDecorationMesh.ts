@@ -17,6 +17,7 @@ import {
 } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
+import { fontFamilies, noteLabelFont } from "./labelFonts";
 import type { LabelTableImage } from "./labelTable";
 import type { MeshCache } from "./MeshCache";
 import {
@@ -215,6 +216,24 @@ function tableImage(
 /** How many texture pixels a glyph's font size is drawn at, whatever its size in the scene. */
 const GLYPH_TEXTURE_PX = 128;
 
+/** The font family list each cached glyph mesh was drawn in, so a font that lands can find its glyphs. */
+const glyphFonts = new WeakMap<Mesh, string>();
+
+/**
+ * Forget the cached glyphs drawn in a family that has just loaded (issue #5140): drawn while it
+ * loaded, they show the fallback face. Every instance of them is disposed, so each node drawing one
+ * builds it again; see `Node.refreshFonts`.
+ * @param cache - The mesh cache.
+ * @param families - The families that loaded, as `fontFamilies` gives them.
+ * @returns True when any glyph was forgotten.
+ */
+export function forgetGlyphs(cache: MeshCache, families: ReadonlySet<string>): boolean {
+    return cache.forget((mesh) => {
+        const font = glyphFonts.get(mesh);
+        return font !== undefined && fontFamilies(font).some((family) => families.has(family));
+    });
+}
+
 /**
  * The glyph as a mesh textured with its text: a box as wide as the text and a line and a half of the
  * font tall, centered on the node, the text's middle (canvas `textBaseline` "middle") at the node's
@@ -236,7 +255,10 @@ function buildGlyph(
     scene: Scene,
 ): Mesh {
     const text = glyph.text ?? "";
-    const font = `${String(glyph.weight ?? 400)} ${String(GLYPH_TEXTURE_PX)}px ${glyph.font ?? "sans-serif"}`;
+    const family = glyph.font ?? "sans-serif";
+    const font = `${String(glyph.weight ?? 400)} ${String(GLYPH_TEXTURE_PX)}px ${family}`;
+    // A web font still loading draws in its fallback: load it, and the glyph is rebuilt when it lands.
+    noteLabelFont(scene, `normal ${String(glyph.weight ?? 400)}`, family);
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (ctx !== null) {
@@ -284,6 +306,7 @@ function buildGlyph(
         nodePieces: [{ kind: "image", box: { x0: -ink / 2, y0: -em / 2, x1: ink / 2, y1: em / 2 } }],
     };
     mesh.metadata = metadata;
+    glyphFonts.set(mesh, family);
     return mesh;
 }
 

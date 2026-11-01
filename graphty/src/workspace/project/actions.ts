@@ -7,7 +7,13 @@
  * the words: the notices and the problem sentences.
  */
 
-import { browserProjects, type GraphSession, isGraphtyError, projectFileName } from "@graphty/graphty-element/session";
+import {
+    browserProjects,
+    type GraphSession,
+    isGraphtyError,
+    type LoadDraft,
+    projectFileName,
+} from "@graphty/graphty-element/session";
 
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
@@ -49,10 +55,12 @@ export interface FileSource {
     /** The new project's name until the file names it, when it opens from the start screen. */
     name?: string;
     /**
-     * Imports the file when `project.open` reads it as data (`opened: "graph"`) rather than a
-     * project; `fresh` when it opens a new project from the start screen.
+     * Loads the file when `project.open` reads it as data (`opened: "graph"`) rather than a
+     * project: the draft it was read into (read onto the graph when the graph holds data), or, for
+     * a file the element could not read as data, none, so the caller reads it and says why;
+     * `fresh` when it opens a new project from the start screen.
      */
-    onData?: (ctx: CommandContext, fresh: boolean) => Promise<void>;
+    onData?: (ctx: CommandContext, fresh: boolean, draft?: LoadDraft) => Promise<void>;
 }
 
 /** A file waiting to open, and whether it opens a new project from the start screen. */
@@ -512,17 +520,19 @@ async function openInSession(
     const { file, onData, fresh = false } = pending;
     const focusLater = focusOpenedGraphLater();
     try {
-        // From the start screen a document opens as a new graph, so it starts the history.
+        // From the start screen a document opens as a new graph, so it starts the history. A data
+        // file is read as the caller loads one: its roles guessed from the values too, and onto the
+        // graph when the graph holds data.
+        const onto = !fresh && session.data.sources().length > 0;
         const report = await session.project.open(file, {
             discard,
             fileName: file.name,
             ...(fresh ? { history: "start" as const } : {}),
+            draft: { guess: "values", ...(onto ? { onto: "graph" as const } : {}) },
         });
         if (report.opened === "graph" && onData !== undefined) {
-            // A data file: imported the way the caller imports one, not as the element's draft.
             focusLater(false);
-            report.draft?.dispose();
-            await onData(ctx, fresh);
+            await onData(ctx, fresh, report.draft);
             return true;
         }
         if (report.opened !== "project") {

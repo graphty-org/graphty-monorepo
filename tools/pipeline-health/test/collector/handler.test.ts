@@ -1,5 +1,6 @@
 // The collector Lambda's handler with the AWS SDK mocked: today's live state, no GitHub App in SSM.
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import { MemoryStore } from "../../src/model/store.ts";
 
 const ssmSend = vi.fn();
@@ -50,7 +51,9 @@ describe("collector handler", () => {
         });
         vi.stubGlobal(
             "fetch",
-            vi.fn(async () => new Response(JSON.stringify({ created_at: "2026-10-25T23:00:00Z" }), { status: 200 })),
+            vi.fn(() =>
+                Promise.resolve(new Response(JSON.stringify({ created_at: "2026-10-25T23:00:00Z" }), { status: 200 })),
+            ),
         );
     });
 

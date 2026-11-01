@@ -197,6 +197,10 @@ jobs:
             # the light check's bins when the bins step planned them, else the Plan step's whole shards
             test-matrix: ${{ steps.bins.outputs.test-matrix || steps.plan.outputs.test-matrix }}
             test-count: ${{ steps.bins.outputs.test-count || steps.plan.outputs.test-count }}
+            # a plan above GitHub's 256-job matrix cap, cut in two for the test and test-2 jobs (#5537); unset at
+            # or below it. Only the bins can pass the cap: the Plan step's whole shards are SHARDS, far fewer.
+            test-matrix-1: ${{ steps.bins.outputs.test-matrix-1 }}
+            test-matrix-2: ${{ steps.bins.outputs.test-matrix-2 }}
             # the light check's story bins (the Stories jobs); unset when the bins step made no plan
             stories-matrix: ${{ steps.bins.outputs.stories-matrix }}
             stories-count: ${{ steps.bins.outputs.stories-count }}
@@ -571,7 +575,7 @@ jobs:
                       "$plan/results-plan.json" "$plan/light-plan.json" > "$plan/rules.json" \
                       && mv "$plan/rules.json" "$plan/results-plan.json"
                   node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" --pull-request \
-                      | grep -E '^(test|stories)-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
+                      | grep -E '^(test|stories)-(matrix|count)(-[12])?=' | tee -a "$GITHUB_OUTPUT"
                   # the summary describes the bins only when their matrix was written (else every shard runs whole)
                   if grep -q '^test-matrix=' "$GITHUB_OUTPUT"; then
                       node tools/test-select.mjs --summary "$plan/light-plan.json" --affected "$AFFECTED" \
@@ -1537,7 +1541,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 30
         # id-token: write is the results store's credential (tools/results/run-group.mjs posts each shard's record)
-        permissions:
+        permissions: &test-permissions
             contents: read
             checks: write
             id-token: write
@@ -1552,9 +1556,11 @@ jobs:
             # at 14. A pull request keeps 40. The features-on shards come last in the matrix
             # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
             max-parallel: ${{ github.event_name == 'pull_request' && 40 || 14 }}
-            matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
+            # a plan above GitHub's 256-job cap runs its first 256 here and the rest in test-2
+            matrix: ${{ fromJSON(needs.packages.outputs.test-matrix-1 || needs.packages.outputs.test-matrix) }}
 
-        steps:
+        # test-2 runs these same steps (*test-steps)
+        steps: &test-steps
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
@@ -1883,6 +1889,23 @@ jobs:
               with:
                   job: test
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
+
+    # The Test legs of a plan above GitHub's 256-job matrix cap past the first 256 (#5537): GitHub fails a larger
+    # matrix's job without running a leg. The same job as test (its permissions and steps are YAML aliases, so the
+    # two cannot drift, and its legs report as test); All Checks Pass counts the two as one Test result.
+    test-2:
+        name: Test (${{ matrix.shard }})
+        needs: packages
+        if: needs.packages.outputs.test-matrix-2 != '' && needs.packages.outputs.reuse-run == ''
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        permissions: *test-permissions
+        strategy:
+            fail-fast: false
+            # only a pull request's bins pass the cap, so only the pull request value matters here
+            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 14 }}
+            matrix: ${{ fromJSON(needs.packages.outputs.test-matrix-2) }}
+        steps: *test-steps
 
     # Dead links: relative links and anchors, this repository's files on GitHub, everything else
     # under github.com/graphty-org, and every link to graphty.app -- checked against the site the
@@ -3039,7 +3062,7 @@ jobs:
     all-checks:
         name: All Checks Pass
         # capture-impact is report-only; it is needed so the hold step below runs after it labels
-        needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, stories, capture-impact]
+        needs: [packages, build, lint, checks, docs, test, test-2, links, cost-accuracy, stories, capture-impact]
         if: always()
         runs-on: ubuntu-24.04
         timeout-minutes: 70
@@ -3060,6 +3083,7 @@ jobs:
                   R_CHECKS: ${{ needs.checks.result }}
                   R_DOCS: ${{ needs.docs.result }}
                   R_TEST: ${{ needs.test.result }}
+                  R_TEST_2: ${{ needs.test-2.result }}
                   R_LINKS: ${{ needs.links.result }}
                   R_COST: ${{ needs.cost-accuracy.result }}
                   R_STORIES: ${{ needs.stories.result }}
@@ -3073,6 +3097,8 @@ jobs:
                   STORIES_COUNT: ${{ needs.packages.outputs.stories-count }}
                   DOCS: ${{ needs.packages.outputs.docs }}
               run: |
+                  # A plan above GitHub's 256-job matrix cap runs as two Test jobs (test, test-2): Test passed only if both did.
+                  (( ${TEST_COUNT:-0} > 256 )) && [[ "$R_TEST" == "success" ]] && R_TEST=$R_TEST_2
                   # The tests set NEEDS themselves; in CI it is built from the results above.
                   [[ -n "${NEEDS:-}" ]] || NEEDS=$(jq -n --arg packages "$R_PACKAGES" --arg build "$R_BUILD" \
                       --arg lint "$R_LINT" --arg checks "$R_CHECKS" --arg docs "$R_DOCS" --arg test "$R_TEST" \
@@ -3381,7 +3407,7 @@ jobs:
     # pattern and passes it to gh without a shell. Never gates: outside All Checks Pass.
     base-checks:
         name: Dispatch base checks
-        needs: [test, story-tests]
+        needs: [test, test-2, story-tests]
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         runs-on: ubuntu-24.04
         continue-on-error: true

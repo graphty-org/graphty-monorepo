@@ -1,3 +1,11 @@
+## 3.4.18 (2026-11-01)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.43
+- Updated visual-review to 0.2.39
+- Updated graph-format to 1.4.11
+
 ## 3.4.17 (2026-10-31)
 
 ### 🩹 Fixes

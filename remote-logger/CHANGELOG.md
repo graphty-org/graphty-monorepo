@@ -1,3 +1,11 @@
+## 2.0.27 (2026-11-01)
+
+### 🩹 Fixes
+
+- **remote-logger:** report a startup error with top-level await ([#3226](https://github.com/graphty-org/graphty-monorepo/issues/3226))
+- **remote-logger:** bind the port it is given, with no cap at 9099 ([#3226](https://github.com/graphty-org/graphty-monorepo/issues/3226))
+- **release:** fail the publish when a package's exports are not in its pack ([#3275](https://github.com/graphty-org/graphty-monorepo/issues/3275))
+
 ## 2.0.26 (2026-10-31)
 
 This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.

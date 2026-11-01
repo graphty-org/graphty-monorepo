@@ -55,6 +55,8 @@ export interface CameraController {
     fitInsets?: FitInsets;
     /** What a 3D fit fits into view; see `camera.fitBounds`. */
     fitBounds?: FitBounds;
+    /** CSS pixels a fit keeps clear at each end of the free area's shorter side; see `ProjectConfig.framing`. */
+    fitPadding?: number;
     /** Turn the view on its own by an angle, for `camera.autoRotate`; a camera that never turns has none. */
     autoTurn?(radians: number): void;
 }
@@ -237,6 +239,16 @@ export class CameraManager {
             if ("zoomToPointer" in input) {
                 input.zoomToPointer = on;
             }
+        }
+    }
+
+    /**
+     * Hand every camera the padding a fit keeps clear, in place of its own margin.
+     * @param padding - CSS pixels at each end of the shorter side, or undefined for the camera's margin.
+     */
+    public setFitPadding(padding: number | undefined): void {
+        for (const controller of this.controllers.values()) {
+            controller.fitPadding = padding;
         }
     }
 

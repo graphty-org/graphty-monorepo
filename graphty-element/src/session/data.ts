@@ -72,6 +72,7 @@ import {
 } from "./columns";
 import type { BatchCommand } from "./commands";
 import {
+    checkMutation,
     COLUMNS_VALUE,
     type ColumnSettings,
     type DataImportCommand,
@@ -250,6 +251,8 @@ interface DataWrites {
 interface PageSources {
     /** The session's input tick: it moves whenever anything a page could show moves. */
     revision(): number;
+    /** The data's own revision: it moves on a freeze or an attribute write, never on a mask. */
+    dataRevision(): unknown;
     /**
      * A scope's members now.
      * @param spec - the scope
@@ -629,7 +632,7 @@ export class SessionData implements SessionDataApi {
     private readonly orders: RevisionCache<Uint32Array>;
     /** The last few neighbor lists, by node and options, for the current revision. */
     private readonly neighborLists: RevisionCache<NeighborList>;
-    /** The attribute walk, for the current revision. */
+    /** The attribute walk, for the current data revision. */
     private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
     /** The descriptors with their declarations and roles laid over, and what they were laid from. */
     private attributeOverlay: {
@@ -717,7 +720,7 @@ export class SessionData implements SessionDataApi {
         this.pages = pages;
         this.orders = new RevisionCache(() => pages.revision());
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
-        this.attributeCache = new RevisionCache(() => pages.revision());
+        this.attributeCache = new RevisionCache(() => pages.dataRevision());
     }
 
     /**
@@ -804,6 +807,7 @@ export class SessionData implements SessionDataApi {
      * @returns Settles once it is applied, or cancelled by a clear.
      */
     private edit(mutation: DataMutation): Promise<unknown> {
+        checkMutation(mutation);
         const send = this.writes.applier();
         return this.loadLine.edit(() => send(mutation), undefined);
     }
@@ -3541,8 +3545,9 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     attributes(): readonly AttributeDescriptor[] {
-        // Keyed on the input tick, which moves on a freeze AND on an attribute write: keyed on the
-        // snapshot alone, an edited value never reached the descriptors.
+        // Keyed on the data revision, which moves on a freeze AND on an attribute write (keyed on the
+        // snapshot alone, an edited value never reached the descriptors), and not on a mask change,
+        // which moves the input tick but no column, type or value (issue #4386).
         const snapshot = this.current();
         // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns.
         const described = this.attributeCache.get("", () =>

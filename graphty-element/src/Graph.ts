@@ -224,6 +224,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
+import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
@@ -242,7 +243,16 @@ import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js"
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
-import { addsRows, COLUMNS_VALUE, type DataMutation, SOURCE_VALUE, SOURCES_VALUE } from "./session/commands/data";
+import {
+    addsRows,
+    checkMutation,
+    checkRows,
+    COLUMNS_VALUE,
+    type DataMutation,
+    recordFault,
+    SOURCE_VALUE,
+    SOURCES_VALUE,
+} from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
 import { assertViewName } from "./session/commands/view";
@@ -1222,6 +1232,10 @@ export class Graph implements GraphContext {
                 this.applyViewRotation(true);
             }
 
+            if (changed("framing")) {
+                this.applyFraming();
+            }
+
             if (changed("selectionStyle") || changed("startingRows")) {
                 for (const node of this.dataManager.nodes.values()) {
                     node.refreshSelectionOverlay();
@@ -1442,7 +1456,11 @@ export class Graph implements GraphContext {
         this.updateManager.pending.watch(
             "style",
             "a style edit has not been repainted yet",
-            () => dispatcherOf(this.session).lane.deriving || this.getStylePainter().isPainting,
+            // A live set a graph change queued for a later frame is a repaint still to come (#3667).
+            () =>
+                dispatcherOf(this.session).lane.deriving ||
+                this.getStylePainter().isPainting ||
+                setsNotifierOfSession(this.session).pending > 0,
             "wait",
             () => this.session.styles.settled(),
         );
@@ -3127,31 +3145,56 @@ export class Graph implements GraphContext {
         edges: Record<string | number, unknown>[],
         options?: AddEdgesOptions & QueueableOptions,
     ): Promise<void> {
-        const replace = (): void => {
-            this.dataManager.setEdges(edges, options);
-        };
+        await this.replaceRows(
+            () => {
+                this.dataManager.setEdges(edges, options);
+            },
+            `Replacing the graph's edges with ${edges.length}`,
+            options,
+        );
+    }
 
-        if (options?.skipQueue) {
-            replace();
-            return;
+    /**
+     * Run a replacement of the graph's nodes or edges in its place in the session's load line,
+     * taken when it was asked for (issue #3604): it lands on what a load asked for earlier, still
+     * reading, loaded rather than under it, and at once when none is.
+     * @param replace - The data manager's replacement.
+     * @param description - What the operation queue calls it.
+     * @param options - Queue options.
+     * @returns Once the replacement has landed (and, on the queue, is drawn).
+     */
+    private async replaceRows(replace: () => void, description: string, options?: QueueableOptions): Promise<void> {
+        const line = loadLineOf(dispatcherOf(this.session));
+        const turn = line.join(undefined, "edit");
+        const inTurn = (): void => {
+            line.within(turn, replace);
+        };
+        try {
+            if (options?.skipQueue) {
+                inTurn();
+            } else {
+                await this.operationQueue.queueOperationAsync(
+                    "data-add",
+                    (context) => {
+                        if (context.signal.aborted) {
+                            throw new Error("Operation cancelled");
+                        }
+
+                        inTurn();
+                    },
+                    { description, ...options },
+                );
+            }
+
+            await dataManagerInternals.lastEdit(this.dataManager);
+        } finally {
+            turn.leave();
         }
 
-        await this.operationQueue.queueOperationAsync(
-            "data-add",
-            (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                replace();
-            },
-            {
-                description: `Replacing the graph's edges with ${edges.length}`,
-                ...options,
-            },
-        );
-        // Settled once the pass that derives the replacement has drawn and painted it.
-        await dispatcherOf(this.session).lane.settled();
+        if (!options?.skipQueue) {
+            // Settled once the pass that derives the replacement has drawn and painted it.
+            await dispatcherOf(this.session).lane.settled();
+        }
     }
 
     /**
@@ -3173,31 +3216,13 @@ export class Graph implements GraphContext {
         idPath?: string,
         options?: QueueableOptions,
     ): Promise<void> {
-        const replace = (): void => {
-            this.dataManager.setNodes(nodes, idPath);
-        };
-
-        if (options?.skipQueue) {
-            replace();
-            return;
-        }
-
-        await this.operationQueue.queueOperationAsync(
-            "data-add",
-            (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                replace();
+        await this.replaceRows(
+            () => {
+                this.dataManager.setNodes(nodes, idPath);
             },
-            {
-                description: `Replacing the graph's nodes with ${nodes.length}`,
-                ...options,
-            },
+            `Replacing the graph's nodes with ${nodes.length}`,
+            options,
         );
-        // Settled once the pass that derives the replacement has drawn and painted it.
-        await dispatcherOf(this.session).lane.settled();
     }
 
     /**
@@ -3727,6 +3752,7 @@ export class Graph implements GraphContext {
         updates: { id: string | number; [key: string]: unknown }[],
         options?: QueueableOptions,
     ): Promise<void> {
+        checkRows("update-rows", updates, recordFault);
         await this.applyData(
             { kind: "update-rows", target: "node", rows: updates.map(({ id, ...values }) => ({ id, values })) },
             options,
@@ -3741,6 +3767,7 @@ export class Graph implements GraphContext {
      * @returns Settles once the change is drawn
      */
     async updateEdges(updates: { id: string; [key: string]: unknown }[], options?: QueueableOptions): Promise<void> {
+        checkRows("update-rows", updates, recordFault);
         await this.applyData(
             { kind: "update-rows", target: "edge", rows: updates.map(({ id, ...values }) => ({ id, values })) },
             options,
@@ -3797,8 +3824,20 @@ export class Graph implements GraphContext {
      */
     private async applyData(mutation: DataMutation | BatchCommand, options?: QueueableOptions): Promise<void> {
         const dispatcher = dispatcherOf(this.session);
+        if (!("op" in mutation)) {
+            checkMutation(mutation);
+        }
+
         const command = "op" in mutation ? mutation : { op: "data.apply" as const, mutation };
-        await dispatcher.dispatch(command, options?.skipQueue === true ? { beside: true } : undefined);
+        // In the session's load line (issue #3604): at once when no load asked for earlier still
+        // reads, and otherwise once it has dispatched, queued behind its step rather than beside it.
+        let waited = false;
+        const sent = loadLineOf(dispatcher).edit(
+            () => dispatcher.dispatch(command, options?.skipQueue === true && !waited ? { beside: true } : undefined),
+            undefined,
+        );
+        waited = true;
+        await sent;
         // Settled once the pass that derives it has drawn and painted it: what a caller that
         // awaited the add reads is the graph with the add in it.
         await dispatcher.lane.settled();
@@ -3923,7 +3962,11 @@ export class Graph implements GraphContext {
             const named: DispatcherTransactionOptions = {
                 fact: { code: "transaction", params: { label: label ?? null } },
             };
-            await this.session.transaction(label ?? "Batch of changes", (tx) => fn(tx), named);
+            // An edit in the session's load line (issue #3604): it starts once every load asked
+            // for before it has dispatched, so its writes land on what they loaded.
+            await loadLineOf(dispatcherOf(this.session)).edit(async () => {
+                await this.session.transaction(label ?? "Batch of changes", (tx) => fn(tx), named);
+            }, undefined);
         } finally {
             if (--this.openBatches === 0) {
                 for (const verb of Object.keys(BATCH_VERBS)) {
@@ -4064,19 +4107,7 @@ export class Graph implements GraphContext {
         // the graph's own, dispatched or not, and every session load or edit still waiting in line
         // (issue #3524). The clear itself happens before this returns, as it always has; only
         // while a project open writes does it wait for the open, which it would otherwise land in.
-        this.dataManager.supersedeLoads();
-        loadLineOf(dispatcherOf(this.session))
-            .clear(() => {
-                this.dataManager.clear();
-                return Promise.resolve();
-            })
-            .catch((error: unknown) => {
-                this.eventManager.emitGraphError(
-                    this,
-                    error instanceof Error ? error : new Error(String(error)),
-                    "other",
-                );
-            });
+        this.dataManager.clear();
     }
 
     /**
@@ -4650,6 +4681,14 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Frame the graph as the project setting `framing` says, and frame it again if the element frames on its own.
+     */
+    private applyFraming(): void {
+        this.updateManager.framing = this.session.config.framing;
+        this.autoFrame();
+    }
+
+    /**
      * Turn the 2D view as the project setting `viewRotation` says.
      * @param reframe - Whether to frame the turned drawing again, when the view is 2D and the
      *     element frames on its own initiative.
@@ -4685,13 +4724,15 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Rebuild the labels drawn in font families that have just loaded, so they show and measure the
-     * loaded face rather than its fallback, and frame the graph again for their new size unless the
+     * Rebuild the labels, node glyphs and text annotations drawn in font families that have just
+     * loaded, so they show and measure the loaded face rather than its fallback, and frame the graph again for their new size unless the
      * camera was placed since the element last framed it. Nothing is rebuilt when no label uses them.
      * @param families - The families that loaded, as `fontFamilies` gives them.
      */
     private refreshFonts(families: ReadonlySet<string>): void {
-        let rebuilt = false;
+        // Glyphs are shared by style through the mesh cache: forget them once, and each node builds its own again.
+        forgetGlyphs(this.dataManager.meshCache, families);
+        let rebuilt = this.#annotations?.refreshFonts(families) === true;
         for (const node of this.dataManager.nodes.values()) {
             rebuilt = node.refreshFonts(families) || rebuilt;
         }
@@ -5288,7 +5329,7 @@ export class Graph implements GraphContext {
         if (frame) {
             // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
             // labels are framed by zoom-to-fit, on a data load or a layout change.
-            const box = nodeFramingBox(this.getNodes());
+            const box = nodeFramingBox(this.getNodes(), this.session.config.framing?.extent);
             if (box) {
                 this.camera.zoomToBoundingBox(box.min, box.max, box.spots);
             }

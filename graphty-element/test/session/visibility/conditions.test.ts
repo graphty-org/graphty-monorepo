@@ -208,6 +208,36 @@ describe("filter conditions", () => {
         session.dispose();
     });
 
+    it("switches the select conditions off for a selection.apply a reader made, never for a script's", async () => {
+        const session = await graph();
+        await session.visibility.addCondition({ id: "hosts", effect: "select", rule: HOSTS });
+        const causes: string[] = [];
+        session.on("selection:changed", (delta) => causes.push(delta.cause));
+
+        // A script's selection leaves the condition on, as it always did.
+        await session.selection.apply({ nodes: ["c"] });
+        assert.isTrue(session.visibility.conditions[0]?.on);
+
+        // A reader's pick from a table acts like a click on the canvas.
+        const delta = await session.selection.apply({ nodes: ["d"] }, "replace", { cause: "user" });
+        assert.strictEqual(delta.cause, "user");
+        assert.isFalse(session.visibility.conditions[0]?.on, "the reader's selection switched the condition off");
+        assert.deepStrictEqual(selected(session).nodes, ["d"], "the reader's selection stands");
+        assert.deepStrictEqual(session.selection.origin, { nodes: ["d"] }, "the target is still the origin");
+        assert.deepStrictEqual(causes, ["api", "user"]);
+
+        await session.undo();
+        assert.isTrue(session.visibility.conditions[0]?.on, "undo switches the condition back on");
+
+        try {
+            await session.selection.apply({ nodes: ["d"] }, "replace", { cause: "history" as "user" });
+            assert.fail("a cause other than user or api is refused");
+        } catch (error) {
+            assert.strictEqual((error as { code?: string }).code, "E_BAD_COMMAND");
+        }
+        session.dispose();
+    });
+
     it("selects only what the other conditions leave in the picture, whatever order they come in", async () => {
         const conditions: FilterConditionInput[] = [
             { id: "high", effect: "exclude", rule: HIGH },

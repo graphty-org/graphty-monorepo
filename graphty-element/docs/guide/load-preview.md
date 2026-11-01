@@ -98,11 +98,12 @@ tables is refused. Only CSV tables have `fixed: false`. A graph file's `label` f
 column (`suggested: "label"`), and a load from the draft labels the nodes with it, unless
 `data.knownFields.nodeLabelPath` names another column already.
 
-For a graph file, `draft.load()` loads what `session.data.import` of the same source loads -- the
-same nodes, edges, columns and graph values -- except that the draft also sets
-`data.knownFields.nodeLabelPath` to the file's `label` field, as above, where `import` leaves it
-unset. A CSV table is read from its cells as written, so the reader can map them, and its ids
-keep the type the cells hold, where `import` reads them as text.
+`draft.load()` with the draft's own mapping loads what `session.data.import` of the same source
+loads -- the same nodes, edges, columns, labels and graph values. A CSV table's cells are typed
+for the mapping (`1` is a number), but the cells that name nodes -- the key and the two ends --
+load as text, as `import` reads them. What differs is how the load is recorded: the draft keeps
+the mapping it loaded with in `session.data.sources()`, and its import report names the end
+columns the mapping declared.
 
 Each column is described the way `session.data.attributes()` will describe it after the load:
 `name`, `type`, `completeness` (the fraction of rows with a value), `uniqueCount` and

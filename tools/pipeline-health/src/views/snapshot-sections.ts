@@ -5,6 +5,7 @@
 import type { Cell, ChannelId, ChannelTile, Fact, Range, Section, TableRow } from "../../web/src/contract.js";
 import { quantile } from "../model/histogram.js";
 import { MIN } from "../model/items.js";
+import type { MetricWindow } from "../model/rollup.js";
 import {
     CHANNEL_ATTEMPTS,
     type ChannelAttempt,
@@ -28,11 +29,12 @@ const WIDER: Partial<Record<Range, Range>> = { "1h": "6h", "6h": "24h" };
 /**
  * Where the time goes (4.2): median minutes per stage of the pull requests merged in the range, widened while
  * the window holds fewer than MIN_MERGED.
- * @param reads
- * @param range
+ * @param reads - the store and time window this cycle's sections read from
+ * @param range - the page range the section is built for
+ * @returns median minutes per stage as bars, noting any widened range, or an empty section
  */
 export async function prTime(reads: Reads, range: Range): Promise<Section> {
-    const count = async (r: Range) => {
+    const count = async (r: Range): Promise<{ total: MetricWindow["total"]; n: number }> => {
         const { total } = await reads.window("pr.stage_time", r);
         return { total, n: total.dims?.runners?.n ?? 0 };
     };
@@ -43,11 +45,17 @@ export async function prTime(reads: Reads, range: Range): Promise<Section> {
         at = WIDER[at] as Range;
         got = await count(at);
     }
-    if (!got.n) return { kind: "empty", id: "time", fact: f("section.no_events", { metric: "pr.stage_time" }) };
+    if (!got.n) {
+        return { kind: "empty", id: "time", fact: f("section.no_events", { metric: "pr.stage_time" }) };
+    }
     const items = STAGES.map((s) => {
         const a = got.total.dims?.[s];
         const med = a?.hist ? (quantile(a.hist, 0.5) ?? 0) : 0;
-        return { label: { t: "label", code: `stage.${s}` } as Cell, n: Math.round(med / MIN), unit: "min" as const };
+        return {
+            label: { t: "label", code: `stage.${s}` } satisfies Cell,
+            n: Math.round(med / MIN),
+            unit: "min" as const,
+        };
     });
     return {
         kind: "bars",
@@ -60,21 +68,32 @@ export async function prTime(reads: Reads, range: Range): Promise<Section> {
 /**
  * Waiting on the owner (4.2): open pull requests with auto-merge off by rule, oldest first, each naming the
  * failing release workflow it would fix (its title names the workflow file).
- * @param reads
+ * @param reads - the store and time window this cycle's sections read from
+ * @returns the owner-wait table, or a not-collected section
  */
 export async function ownerTable(reads: Reads): Promise<Section> {
     const list = await readSnapshot(reads.store, "owner-wait");
-    if (!list) return notCollected("owner");
+    if (!list) {
+        return notCollected("owner");
+    }
     const failing = ((await readSnapshot(reads.store, "release-workflows")) ?? []).filter((w) => w.inRow > 0);
     const rows: TableRow[] = list
         .toSorted((a, b) => a.since - b.since)
         .map((p) => {
             const why: Cell[] = [];
-            if (p.paths.length) why.push(fact("owner.why", { paths: p.paths }));
-            if (p.breaking) why.push(fact("owner.breaking"));
-            for (const l of p.labels) why.push(fact("owner.label", { label: l }));
+            if (p.paths.length) {
+                why.push(fact("owner.why", { paths: p.paths }));
+            }
+            if (p.breaking) {
+                why.push(fact("owner.breaking"));
+            }
+            for (const l of p.labels) {
+                why.push(fact("owner.label", { label: l }));
+            }
             const fixes = failing.find((w) => p.title.includes(w.workflow));
-            if (fixes) why.push({ t: "mark", state: "bad", cell: fact("owner.fixes", { workflow: fixes.workflow }) });
+            if (fixes) {
+                why.push({ t: "mark", state: "bad", cell: fact("owner.fixes", { workflow: fixes.workflow }) });
+            }
             return {
                 cells: {
                     pr: {
@@ -95,12 +114,17 @@ export async function ownerTable(reads: Reads): Promise<Section> {
 
 /**
  * The quarantine in force (the results store; tools/test-quarantine.json on master without one).
- * @param reads
+ * @param reads - the store and time window this cycle's sections read from
+ * @returns the quarantined tests table, or an empty or not-collected section
  */
 export async function quarantineTable(reads: Reads): Promise<Section> {
     const list = await readSnapshot(reads.store, "quarantine");
-    if (!list) return notCollected("quarantine");
-    if (!list.length) return { kind: "empty", id: "quarantine", fact: f("flaky.quarantine.empty") };
+    if (!list) {
+        return notCollected("quarantine");
+    }
+    if (!list.length) {
+        return { kind: "empty", id: "quarantine", fact: f("flaky.quarantine.empty") };
+    }
     const rows: TableRow[] = list.map((q) => ({
         cells: {
             test: {
@@ -120,11 +144,13 @@ export async function quarantineTable(reads: Reads): Promise<Section> {
     return { kind: "table", id: "quarantine", rows };
 }
 
-const attempts = (seen: Record<string, ReleaseSeen>) =>
+const attempts = (seen: Record<string, ReleaseSeen>): ReleaseSeen[] =>
     Object.values(seen).toSorted((a, b) => (b.created ?? b.at) - (a.created ?? a.at));
 
 const laneJobCell = (j: LaneJob | undefined): Cell => {
-    if (!j) return none;
+    if (!j) {
+        return none;
+    }
     return j.n > 1 ? fact("lane.jobs", { workflow: j.job, jobs: j.n }) : fact("lane.job", { job: j.job, s: j.s });
 };
 
@@ -133,12 +159,15 @@ const ORDER: Record<string, number> = { failed: 0, running: 1, passed: 2 };
 /**
  * Lanes on the candidate (4.5): each lane of the newest attempt that tested, failed first; skipped lanes in one
  * muted row.
- * @param reads
+ * @param reads - the store and time window this cycle's sections read from
+ * @returns the lanes table of the newest tested attempt, or a not-collected section
  */
 export async function lanesTable(reads: Reads): Promise<Section> {
     const seen = await readSnapshot(reads.store, "release");
     const a = seen && attempts(seen).find((x) => x.tested && x.lanes);
-    if (!a?.lanes) return notCollected("lanes");
+    if (!a?.lanes) {
+        return notCollected("lanes");
+    }
     const entries = Object.entries(a.lanes).filter(([, r]) => r !== "absent" && r !== "not in this mode");
     const ran = entries
         .filter(([, r]) => r !== "skipped")
@@ -178,40 +207,68 @@ export async function lanesTable(reads: Reads): Promise<Section> {
 /**
  * Whether an attempt moved nightly: promoted (its nightly site job passed), held (it passed every lane but did not
  * promote: changed screenshots wait for review, or a hold is open), or not promoted (it failed or tested nothing).
+ * @param failed - the attempt failed
+ * @param untested - the attempt tested nothing
+ * @param lanes - the lanes cell to mark
+ * @returns the lanes cell, marked red when failed and yellow when untested
  */
 function laneMark(failed: boolean, untested: boolean, lanes: Cell): Cell {
-    if (failed) return { t: "mark", state: "bad", cell: lanes };
+    if (failed) {
+        return { t: "mark", state: "bad", cell: lanes };
+    }
     return untested ? { t: "mark", state: "warn", cell: lanes } : lanes;
 }
 
 function nightlyCell(a: ReleaseSeen): Cell {
-    if (a.nightly === undefined) return none;
-    if (a.nightly === "passed") return fact("train.promoted");
-    if (a.tested && !a.red.length && a.ok !== false) return { t: "mark", state: "warn", cell: fact("train.held") };
+    if (a.nightly === undefined) {
+        return none;
+    }
+    if (a.nightly === "passed") {
+        return fact("train.promoted");
+    }
+    if (a.tested && !a.red.length && a.ok !== false) {
+        return { t: "mark", state: "warn", cell: fact("train.held") };
+    }
     return fact("train.not_promoted");
 }
 
-/** One attempt's outcome as a fact code and params. */
+/**
+ * One attempt's outcome as a fact code and params.
+ * @param a - the release attempt
+ * @param testedShas - commits some attempt tested
+ * @returns the outcome fact code and its params
+ */
 function outcome(a: ReleaseSeen, testedShas: Set<string>): { code: string; params?: Fact["params"] } {
-    if (a.tested && a.red.length) return { code: "train.tested_failed", params: { lanes: a.red } };
-    if (a.tested) return { code: "train.tested_passed" };
-    if (a.ok === false && a.failedJob) return { code: "train.failed_before", params: { job: a.failedJob } };
+    if (a.tested && a.red.length) {
+        return { code: "train.tested_failed", params: { lanes: a.red } };
+    }
+    if (a.tested) {
+        return { code: "train.tested_passed" };
+    }
+    if (a.ok === false && a.failedJob) {
+        return { code: "train.failed_before", params: { job: a.failedJob } };
+    }
     return testedShas.has(a.sha) ? { code: "train.nothing_new" } : { code: "train.untested" };
 }
 
 /**
  * Train attempts (4.5): the newest release.yml attempts read, newest first; runs of "nothing new" fold into one
  * muted row. A promotion, a hold's end or a held candidate's re-test with no fix to test is not a train attempt.
- * @param reads
+ * @param reads - the store and time window this cycle's sections read from
+ * @returns the train attempts table, or a not-collected section
  */
 export async function trainsTable(reads: Reads): Promise<Section> {
     const seen = await readSnapshot(reads.store, "release");
-    if (!seen) return notCollected("trains");
+    if (!seen) {
+        return notCollected("trains");
+    }
     const all = attempts(seen);
     const tested = new Set(all.filter((a) => a.tested).map((a) => a.sha));
     const rows: (TableRow & { code: string })[] = [];
     for (const a of all) {
-        if (!a.tested && a.mode && NOT_A_TRAIN.has(a.mode)) continue;
+        if (!a.tested && a.mode && NOT_A_TRAIN.has(a.mode)) {
+            continue;
+        }
         const o = outcome(a, tested);
         const time: Cell = { t: "time", at: iso(a.created ?? a.at) };
         const sha: Cell = { t: "sha", v: a.sha };
@@ -220,7 +277,9 @@ export async function trainsTable(reads: Reads): Promise<Section> {
             const at = prev.cells.attempt as Extract<Cell, { t: "list" }>;
             const shas = prev.cells.candidate as Extract<Cell, { t: "list" }>;
             at.items.push(time);
-            if (!shas.items.some((c) => c.t === "sha" && c.v === a.sha)) shas.items.push(sha);
+            if (!shas.items.some((c) => c.t === "sha" && c.v === a.sha)) {
+                shas.items.push(sha);
+            }
             continue;
         }
         const lanes = fact(o.code, o.params);
@@ -243,17 +302,25 @@ export async function trainsTable(reads: Reads): Promise<Section> {
 /**
  * Release workflows (4.5): release.yml, promote.yml and release-watch.yml, the last hour's runs and a failing
  * streak. ponytail: no cause column yet (needs the failed run's log); add when a writer records it.
- * @param reads
+ * @param reads - the store and time window this cycle's sections read from
+ * @returns the release workflows table, or a not-collected section
  */
 export async function workflowsTable(reads: Reads): Promise<Section> {
     const list = await readSnapshot(reads.store, "release-workflows");
-    if (!list) return notCollected("workflows");
+    if (!list) {
+        return notCollected("workflows");
+    }
     const runs = (w: WorkflowState): Cell => {
-        if (!w.failed && !w.inRow) return { t: "num", n: w.runs };
+        if (!w.failed && !w.inRow) {
+            return { t: "num", n: w.runs };
+        }
         const items: Cell[] = [];
-        if (w.failed)
+        if (w.failed) {
             items.push({ t: "mark", state: "bad", cell: fact("wf.failed_of", { failed: w.failed, runs: w.runs }) });
-        if (w.inRow) items.push(fact("wf.in_a_row", { n: w.inRow }));
+        }
+        if (w.inRow) {
+            items.push(fact("wf.in_a_row", { n: w.inRow }));
+        }
         return { t: "list", items, sep: "comma" };
     };
     const rows: TableRow[] = list
@@ -273,10 +340,18 @@ export async function workflowsTable(reads: Reads): Promise<Section> {
 /** The release modes that can promote a candidate to nightly. */
 const NIGHTLY_MODES = new Set(["full", "restart", "candidate", "promote-nightly"]);
 
-/** A nightly attempt's outcome: cancelled, failed, promoted (its nightly site job passed), or held back. */
+/**
+ * A nightly attempt's outcome: cancelled, failed, promoted (its nightly site job passed), or held back.
+ * @param a - the release attempt
+ * @returns the attempt's outcome on the nightly channel
+ */
 function nightlyOutcome(a: ReleaseSeen): ChannelAttempt["outcome"] {
-    if (a.conclusion === "cancelled") return "cancelled";
-    if (a.ok === false) return "bad";
+    if (a.conclusion === "cancelled") {
+        return "cancelled";
+    }
+    if (a.ok === false) {
+        return "bad";
+    }
     return a.nightly === "passed" ? "ok" : "held";
 }
 
@@ -284,7 +359,8 @@ function nightlyOutcome(a: ReleaseSeen): ChannelAttempt["outcome"] {
  * Nightly's attempts, newest first: release attempts in a promoting mode that tested a candidate, ran the nightly
  * site job or failed. Promoted when the nightly site job passed; held when the run passed without promoting (a
  * green-images candidate). Attempts read before the nightly site job was kept are left out.
- * @param seen
+ * @param seen - every release attempt read, by key
+ * @returns the nightly attempts, newest first
  */
 export function nightlyAttempts(seen: Record<string, ReleaseSeen>): ChannelAttempt[] {
     return attempts(seen)
@@ -307,7 +383,13 @@ export function nightlyAttempts(seen: Record<string, ReleaseSeen>): ChannelAttem
 
 const TILE_STATE = { ok: "ok", bad: "bad", held: "warn" } as const;
 
-/** One channel's tile from its attempts (newest first) and the commit its ref holds. */
+/**
+ * One channel's tile from its attempts (newest first) and the commit its ref holds.
+ * @param id - which channel
+ * @param newestFirst - the channel's attempts, newest first
+ * @param ref - the commit the channel's ref holds, when known
+ * @returns the channel's tile
+ */
 function tile(id: ChannelId, newestFirst: ChannelAttempt[], ref: string | undefined): ChannelTile {
     const shown = newestFirst.slice(0, CHANNEL_ATTEMPTS);
     const judged = shown.find((a) => a.outcome !== "cancelled");
@@ -331,7 +413,8 @@ function tile(id: ChannelId, newestFirst: ChannelAttempt[], ref: string | undefi
  * The overview's release channels (#4460): Canary (deploy-pages.yml), Nightly (release attempts that can promote)
  * and Production (promote.yml), each with what it serves and its newest attempts. A channel with no attempt
  * collected is NO DATA.
- * @param reads
+ * @param reads - the store and time window this cycle's sections read from
+ * @returns the Canary, Nightly and Production tiles
  */
 export async function channelTiles(reads: Reads): Promise<ChannelTile[]> {
     const snap = await readSnapshot(reads.store, "channels");

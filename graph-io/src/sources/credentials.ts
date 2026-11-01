@@ -71,6 +71,15 @@ export function originOf(url: URL): string {
 }
 
 /**
+ * The origin of a load's endpoint, the server a failure names.
+ * @param endpoint - the endpoint, if any
+ * @returns its origin, or null when there is none
+ */
+export function endpointOrigin(endpoint: URL | null): string | null {
+    return endpoint === null ? null : originOf(endpoint);
+}
+
+/**
  * Normalize the origins a credential is bound to.
  * @param bind - the bind option
  * @returns the normalized origins

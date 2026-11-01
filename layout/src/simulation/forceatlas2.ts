@@ -514,7 +514,10 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     private rowPtr: Uint32Array = new Uint32Array(1);
     private colIdx: Uint32Array = new Uint32Array(0);
     private weights: Float64Array | null = null;
+    /** The mass every force reads: the resolved mass, 0 on an inert row (see setInert). */
     private mass: Float64Array = new Float64Array(0);
+    /** The resolved mass, kept so that a row made live again gets it back. */
+    private liveMass: Float64Array = new Float64Array(0);
     /** The owner's stride-3 scene-unit array (empty until load()). */
     private owner: F32 = new Float32Array(0);
     /** Layout-unit positions, stride 3 (z = 0 in 2D). */
@@ -522,6 +525,10 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     /** F(t-1), stride 3 (the paper-mode swing reference). */
     private oldForce: Float64Array = new Float64Array(0);
     private fixed: NodeMask | null = null;
+    /** The rows taken out of the forces (setInert), or null for none. */
+    private inert: NodeMask | null = null;
+    /** n less the inert rows: what every statistic divides by. */
+    private liveRows = 0;
     private scratch: Scratch = allocateScratch(0);
 
     private speedValue = 1;
@@ -610,11 +617,14 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         const weights = weightSource === null ? null : Float64Array.from(weightSource);
         if (n !== this.n) {
             this.fixed = null;
+            this.inert = null;
         }
         this.n = n;
         this.rowPtr = snapshot.rowPtr;
         this.colIdx = snapshot.colIdx;
-        this.mass = mass;
+        this.liveMass = mass;
+        this.mass = this.inertMass();
+        this.liveRows = this.liveCount();
         this.weights = weights;
         this.owner = positions;
         const { scale, center, seed } = this.options;
@@ -694,6 +704,29 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     }
 
     /**
+     * Takes rows out of the forces (LayoutSimulation.setInert): an inert row weighs 0, so it repels nothing and no
+     * gravity acts on it, its edges pull nothing, and it never moves. The mask must hold ceil(n / 32) words; it is
+     * copied, survives a same-size reload and is cleared when n changes, as the fixed mask is. Never reheats.
+     * @param mask - the NodeMask (LSB-first words, the bool-column bit layout)
+     */
+    setInert(mask: NodeMask): void {
+        this.assertLoaded();
+        const words = Math.ceil(this.n / 32);
+        if (mask.length < words) {
+            throw new RangeError(
+                `ForceAtlas2Simulation: setInert: the mask has ${mask.length} words, ${words} needed for ${this.n} nodes`,
+            );
+        }
+        this.inert = mask.slice(0, words);
+        this.mass = this.inertMass();
+        this.liveRows = this.liveCount();
+        if (this.pending === null) {
+            // the first iteration reads load()'s centroid: count the live rows only, as every later fold does
+            this.writeInitialStatistics();
+        }
+    }
+
+    /**
      * A drag (design 7.12): writes the three scene-unit floats into the owner's array at once, converts them into
      * the layout-unit position (z forced to 0 in 2D), then reheat() -- the settle window and the iteration budget
      * only; the speed controller keeps its state (D8).
@@ -743,6 +776,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         this.positions = new Float64Array(0);
         this.oldForce = new Float64Array(0);
         this.mass = new Float64Array(0);
+        this.liveMass = new Float64Array(0);
+        this.inert = null;
         this.weights = null;
         this.rowPtr = new Uint32Array(1);
         this.colIdx = new Uint32Array(0);
@@ -771,7 +806,47 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
      * @returns true when the node is fixed
      */
     private isFixed(i: number): boolean {
-        return this.fixed !== null && maskTest(this.fixed, i);
+        return (this.fixed !== null && maskTest(this.fixed, i)) || this.isInert(i);
+    }
+
+    /**
+     * Whether setInert took this row out of the forces.
+     * @param i - the node index
+     * @returns true for an inert row
+     */
+    private isInert(i: number): boolean {
+        return this.inert !== null && maskTest(this.inert, i);
+    }
+
+    /**
+     * How many rows are not inert: the count every statistic divides by.
+     * @returns n less the inert rows
+     */
+    private liveCount(): number {
+        let live = this.n;
+        for (let i = 0; i < this.n && this.inert !== null; i++) {
+            if (maskTest(this.inert, i)) {
+                live--;
+            }
+        }
+        return live;
+    }
+
+    /**
+     * The mass the forces read: the resolved mass with every inert row at 0.
+     * @returns liveMass itself when no row is inert, else a copy
+     */
+    private inertMass(): Float64Array {
+        if (this.inert === null) {
+            return this.liveMass;
+        }
+        const mass = this.liveMass.slice();
+        for (let i = 0; i < this.n; i++) {
+            if (this.isInert(i)) {
+                mass[i] = 0;
+            }
+        }
+        return mass;
     }
 
     /** The scene-unit write-back of the free rows (design 7.13 / 7.18: `layout * scale + center`, z = center.z in 2D). */
@@ -797,14 +872,18 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         const { n, positions: pos } = this;
         const c: [number, number, number] = [0, 0, 0];
         for (let i = 0; i < n; i++) {
+            if (this.isInert(i)) {
+                continue;
+            }
             for (let a = 0; a < 3; a++) {
                 c[a] += pos[3 * i + a];
             }
         }
-        if (n === 0) {
+        const live = this.liveRows;
+        if (live === 0) {
             this.centroid = [0, 0, 0];
         } else {
-            this.centroid = [c[0] / n, c[1] / n, c[2] / n];
+            this.centroid = [c[0] / live, c[1] / live, c[2] / live];
         }
         this.settledCountValue = 0;
     }
@@ -831,7 +910,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
      */
     private fold(p: GroupPartials): void {
         const t = this.foldTotals(p);
-        const nf = this.n;
+        const nf = Math.max(this.liveRows, 1); // inert rows are not counted (setInert); all inert: no NaN
         const rmsRadius = Math.sqrt(Math.max(t.sumSq, 0) / nf);
         const meanDisplacement = t.free === 0 ? 0 : t.disp / t.free; // all-fixed: 0, never NaN (7.4)
         this.centroid = [t.sum[0] / nf, t.sum[1] / nf, t.sum[2] / nf];
@@ -891,8 +970,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             const pz = pos[3 * i + 2];
             for (let a = rowPtr[i]; a < rowPtr[i + 1]; a++) {
                 const j = colIdx[a];
-                if (j === i) {
-                    continue; // a self-loop exerts no force
+                if (j === i || mass[j] === 0) {
+                    continue; // a self-loop exerts no force, and an inert neighbour none (setInert)
                 }
                 const w = weights === null ? 1 : weights[a];
                 const dx = pos[3 * j] - px;
@@ -907,7 +986,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
                 fy = fy + dy * mag;
                 fz = fz + dz * mag;
             }
-            if (distributed) {
+            if (distributed && mass[i] > 0) {
+                // an inert row weighs 0 and never moves: its force is left undivided, so it stays finite
                 fx = fx / mass[i];
                 fy = fy / mass[i];
                 fz = fz / mass[i];
@@ -1014,7 +1094,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             globalTraction = this.tractionValue + freshTraction;
         }
         const est = estimateFactor(
-            n,
+            Math.max(this.liveRows, 1),
             globalSwing,
             globalTraction,
             this.speedValue,
@@ -1060,10 +1140,11 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             const qx = px - cx;
             const qy = py - cy;
             const qz = pz - cz;
-            sumX[i] = px;
-            sumY[i] = py;
-            sumZ[i] = pz;
-            sumW[i] = qx * qx + qy * qy + qz * qz; // |p - c|^2 about the start-of-iteration centroid
+            const live = mass[i] > 0; // an inert row is left out of the statistics (setInert)
+            sumX[i] = live ? px : 0;
+            sumY[i] = live ? py : 0;
+            sumZ[i] = live ? pz : 0;
+            sumW[i] = live ? qx * qx + qy * qy + qz * qz : 0; // |p - c|^2 about the start-of-iteration centroid
             if (!fixed) {
                 disp[i] = len3(dx, dy, dz);
                 free[i] = 1;

@@ -534,23 +534,23 @@ export type GraphtyErrorCode =
      */
     | "E_SOURCE_AUTH"
     /**
-     * A network source refused the request for this credential. `details.status`, `details.serverCode`. Experimental.
+     * A network source refused the request for this credential. `details.origin` is the host that answered, `details.status`, `details.serverCode`. Experimental.
      */
     | "E_SOURCE_FORBIDDEN"
     /**
-     * The item a network source was asked for does not exist. `details.what`, `details.value`. Experimental.
+     * The item a network source was asked for does not exist. `details.origin` is the host that answered, `details.what`, `details.value`. Experimental.
      */
     | "E_SOURCE_NOT_FOUND"
     /**
-     * A network source answered 429 after the retries. `details.retryAfterMs`. Recoverable later. Experimental.
+     * A network source answered 429 after the retries. `details.origin` is the host that answered, `details.retryAfterMs`. Recoverable later. Experimental.
      */
     | "E_SOURCE_QUOTA"
     /**
-     * A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.timeoutMs`, `details.serverSide`. Experimental.
+     * A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.origin` is the host, `details.timeoutMs`, `details.serverSide`. Experimental.
      */
     | "E_SOURCE_TIMEOUT"
     /**
-     * A database rejected the query. `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
+     * A database rejected the query. `details.origin` is the host that answered, `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
      */
     | "E_SOURCE_QUERY"
     /**
@@ -558,7 +558,7 @@ export type GraphtyErrorCode =
      */
     | "E_SOURCE_NOT_A_GRAPH"
     /**
-     * A network source answered with a body of the wrong shape. `details.expected`, `details.contentType`. Experimental.
+     * A network source answered with a body of the wrong shape. `details.origin` is the host that answered, `details.expected`, `details.contentType`. Experimental.
      */
     | "E_SOURCE_RESPONSE"
     /**
@@ -769,7 +769,8 @@ export type GraphtyWarningCode =
     /**
      * A layout was given options it does not take, and ran without them. Emitted as a
      * `layout-warning` event by the layouts that do not refuse an unknown option with
-     * `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
+     * `E_UNKNOWN_OPTION` (`ngraph`, `forceatlas2`, `spring` and `spring-electrical`), and by every
+     * other layout for a `seed` when it takes none: one that takes no seed draws the same every time.
      * `params.options` lists the names it ignored and `params.available` the names it takes.
      */
     | "W_UNKNOWN_OPTION"
@@ -852,6 +853,19 @@ export type GraphtyWarningCode =
      * reason, such as `graphviz.unavailable` or `graphviz.timeout`.
      */
     | "W_ROUTES_NOT_LAID"
+    /**
+     * A layout that reads edge weights (`forceatlas2`, `kamada-kawai`) read a weight whose meaning
+     * nobody stated as a strength: a larger weight drawn closer. Set `data.knownFields.edgeWeightMeaning`
+     * to say what it means. Emitted as a `layout-warning` event. `params.attribute` is the weight's
+     * column and `params.meaning` the meaning assumed, `"strength"`.
+     */
+    | "W_WEIGHT_MEANING_ASSUMED"
+    /**
+     * A layout that reads edge weights left the weight unread, because its meaning is neither a
+     * strength nor a distance (a capacity): every edge counts the same. Emitted as a `layout-warning`
+     * event. `params.attribute` is the weight's column and `params.meaning` its meaning.
+     */
+    | "W_WEIGHT_MEANING_MISMATCH"
     /**
      * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
      * the `graphty-sources` member: query parameters of a URL load's address, or of a network

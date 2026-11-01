@@ -75,7 +75,7 @@ import {
     isGraphvizBox,
 } from "./drawing.js";
 import { type LabelTable, readLabelTable } from "./html-table.js";
-import { type LabelPlaceContext, readLabelPlaces } from "./label-places.js";
+import { type LabelPlaceContext, leftOutEdgeLabels, leftOutXlabels, readLabelPlaces } from "./label-places.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
 import { layoutRecord } from "./record.js";
 
@@ -1163,10 +1163,18 @@ function readNodeImageFit(n: NodeRead): void {
  * @param center - its stored center, in points, y up; null when the file stores none
  * @param put - receives the values
  * @param at - the sites
+ * @param leftOut - whether Graphviz leaves the label out (`forcelabels=false` and no room; leftOutXlabels())
  */
-function readNodeXlabel(get: Attr, cx: NodeContext, center: readonly number[] | null, put: Put, at: At): void {
+function readNodeXlabel(
+    get: Attr,
+    cx: NodeContext,
+    center: readonly number[] | null,
+    put: Put,
+    at: At,
+    leftOut: boolean,
+): void {
     const raw = nonEmpty(get("xlabel"));
-    if (cx.cluster || raw === null) {
+    if (cx.cluster || raw === null || leftOut) {
         return;
     }
     const names: DotEscapeNames = { node: cx.name, graph: cx.graph, edge: "" };
@@ -2606,6 +2614,9 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     const notes = new StyleNotes();
     const cx = contexts(snapshot);
     const places = labelPlaceContext(snapshot);
+    const leftOut = leftOutXlabels(cellText(snapshot.graph, "forcelabels", 0), snapshot.nodeCount, places, (i) =>
+        isCluster(snapshot, i),
+    );
     const node = valueColumns(snapshot.nodeCount);
     const nameColumn = new Array<StyleValue | null>(snapshot.nodeCount).fill(null);
     const clusterColumn = new Array<StyleValue | null>(snapshot.nodeCount).fill(null);
@@ -2620,7 +2631,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
             node.put(i, p, v);
         };
         readNode(get, ncx, put, at);
-        readNodeXlabel(get, ncx, places.center(i), put, at);
+        readNodeXlabel(get, ncx, places.center(i), put, at, leftOut.has(i));
         const shown = defaultLabel(ncx, (get("shape") ?? "").toLowerCase(), notes);
         if (shown !== null) {
             nameColumn[i] = shown;
@@ -2632,13 +2643,21 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         }
     }
     const edge = valueColumns(snapshot.edgeCount);
+    const leftOutOfEdges = leftOutEdgeLabels(
+        cellText(snapshot.graph, "forcelabels", 0),
+        snapshot.edgeCount,
+        (e, name) => cellText(snapshot.edges, name, e),
+        [snapshot.nodes, snapshot.edges].some((t) => t.has("xlp")),
+    );
     const loops = graphvizLoops(snapshot);
     // `splines=none` and `splines=""` draw no edges at all (https://graphviz.org/docs/attrs/splines/)
     const splines = cellText(snapshot.graph, "splines", 0)?.trim().toLowerCase();
     const noEdges = splines === "" || splines === "none";
     for (let e = 0; e < snapshot.edgeCount; e++) {
         context.budget.spend("edge", EDGE_ATTRIBUTES.length);
-        const get: Attr = (name) => cellText(snapshot.edges, name, e);
+        // a label Graphviz left out reads as unset: drawn nowhere, and its stored place read for nothing
+        const gone = leftOutOfEdges.get(e);
+        const get: Attr = (name) => (gone?.has(name) ? null : cellText(snapshot.edges, name, e));
         const at: At = (property) => ({ notes, target: "edge", property, element: e, budget: context.budget });
         readEdge(
             get,

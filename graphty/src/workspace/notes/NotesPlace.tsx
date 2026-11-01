@@ -50,7 +50,7 @@ function openTarget(session: GraphSession, note: Note, index: number, openRun: (
     } else if ("result" in target) {
         openRun(target.result);
     } else {
-        void session.selection.apply({ note: note.id, target: index });
+        void session.selection.apply({ note: note.id, target: index }, "replace", { cause: "user" });
     }
 }
 

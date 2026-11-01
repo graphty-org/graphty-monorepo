@@ -275,8 +275,11 @@ export function RecordTable({
                 });
                 // The ids come from the page just read, so the element has no reason to refuse them;
                 // if it does, the selection it already has stays, which is what the table shows.
+                // The reader picked the rows, so the change acts like a click on the canvas.
                 session.selection
-                    .apply(kind === "node" ? { nodes: picked } : { edges: picked.map(String) })
+                    .apply(kind === "node" ? { nodes: picked } : { edges: picked.map(String) }, "replace", {
+                        cause: "user",
+                    })
                     .catch(() => undefined);
             }}
         />

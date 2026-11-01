@@ -17,6 +17,7 @@ import {
     rowLayers as treeRowLayers,
 } from "../graph-place/rows";
 import { isPanelEscape } from "../keys/keys";
+import { errorWords } from "../project/words";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, isBlankRow, selectionName, writeKind } from "./cards";
@@ -173,8 +174,9 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
                     announcement: `${name} ${on ? "now styles" : "no longer styles"} ${KIND_WORDS[side].many}`,
                 });
             } catch (error) {
-                const why = error instanceof Error ? ` ${error.message}` : "";
-                store.set({ notice: { message: `Could not change what the layer styles.${why}`, error: true } });
+                store.set({
+                    notice: { message: errorWords("Could not change what the layer styles", error), error: true },
+                });
             }
         },
         pick: (side, justOn, elsewhere) => (

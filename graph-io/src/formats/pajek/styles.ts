@@ -1216,12 +1216,9 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
     const labels = drawsLineLabels(draw);
     const place = places(snapshot);
     // Pajek stretches the file's 0..1 to its Draw window one axis at a time, 500 x 500 without one
-    const window = draw ?? { width: PAJEK_POINTS_PER_UNIT, height: PAJEK_POINTS_PER_UNIT };
+    const window = draw ?? PAJEK_SQUARE;
     const loops = new Map<number, LoopControls>();
-    const runOf = (e: number): Run | null => {
-        const [s, t] = [place(snapshot.edgeSource(e)), place(snapshot.edgeTarget(e))];
-        return s === null || t === null ? null : [(t[0] - s[0]) * window.width, (t[1] - s[1]) * window.height];
-    };
+    const runOf = lineRuns(snapshot, window);
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -1292,7 +1289,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
     }
     layLoops(snapshot, loops, node, edge);
     if (block !== null) {
-        exactFromBlock(snapshot, block, { node, edge }, labels);
+        exactFromBlock(snapshot, block, { node, edge }, labels, runOf);
     }
     // Pajek's defaults that are a rule: an arc has an arrow at its target and is drawn grey and thinner, an edge not
     const rules: StyleRule[] = [];
@@ -1343,6 +1340,29 @@ function places(snapshot: GraphSnapshot): (i: number) => Place | null {
         return typeof x === "number" && typeof y === "number" ? [x, y] : null;
     };
 }
+
+/**
+ * Each line from its source's center to its target's, in drawn units, as Pajek stretches the file's 0..1 to its Draw
+ * window, or null where either end is unplaced.
+ * @param snapshot - the graph
+ * @param window - the Draw window's size
+ * @param window.width - its width
+ * @param window.height - its height
+ * @returns the line of an edge
+ */
+function lineRuns(
+    snapshot: GraphSnapshot,
+    window: { readonly width: number; readonly height: number },
+): (e: number) => Run | null {
+    const place = places(snapshot);
+    return (e) => {
+        const [s, t] = [place(snapshot.edgeSource(e)), place(snapshot.edgeTarget(e))];
+        return s === null || t === null ? null : [(t[0] - s[0]) * window.width, (t[1] - s[1]) * window.height];
+    };
+}
+
+/** The Draw window a file is read in without the `pajekDraw` option. */
+const PAJEK_SQUARE = { width: PAJEK_POINTS_PER_UNIT, height: PAJEK_POINTS_PER_UNIT } as const;
 
 /**
  * What the import kept for the styles: the `graphty.styles` block, the Draw window of the `pajekDraw` option, and the
@@ -1681,9 +1701,15 @@ function lineDefaults(directed: boolean): {
  * @param get - the line's values
  * @param directed - whether the line is an arc
  * @param approximate - records approximations
+ * @param run - the line from its source's center to its target's, in drawn units, or null when unplaced
  * @returns the parameters
  */
-function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<string, Written> {
+function lineParams(
+    get: Get,
+    directed: boolean,
+    approximate: Approximate,
+    run: Run | null = null,
+): Map<string, Written> {
     const out = new Map<string, Written>();
     opaque(get, ["opacity"], approximate);
     const defaults = lineDefaults(directed);
@@ -1699,7 +1725,7 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
     if (typeof lineStyle === "string" && lineStyle !== "solid" && pajekDots(lineStyle, out, directed, approximate)) {
         out.set("p", "Dots");
     }
-    arrowParams(get, out);
+    arrowParams(get, out, run);
     lineLabelParams(get, out, approximate);
     const target = get("targetArrow");
     if (target !== null && target !== (directed ? "triangle" : "none")) {
@@ -1716,16 +1742,23 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
  * A line's arrowhead parameters: its size `s`, which also places a Bezier arc's end (`readArcEnd`), and its place `ap`.
  * @param get - the line's values
  * @param out - the parameters, changed in place
+ * @param run - the line from its source's center to its target's, in drawn units, or null when unplaced
  */
-function arrowParams(get: Get, out: Map<string, Written>): void {
+function arrowParams(get: Get, out: Map<string, Written>, run: Run | null = null): void {
     const arrowSize = get("arrowSize");
     if (typeof arrowSize === "number" && arrowSize !== 1) {
         out.set("s", arrowSize);
     }
     const position = get("arrowPosition");
-    if (typeof position === "number" && position > 0) {
-        out.set("ap", position);
+    if (typeof position !== "number" || position <= 0) {
+        return;
     }
+    // the point `ap` names is 5 s behind the tip graphty places (`readArrowPosition`): a share up to 1, past it a
+    // distance from the target's center
+    const length = run === null ? 0 : Math.hypot(run[0], run[1]);
+    const ahead = PAJEK_AP_TIP_AHEAD * (typeof arrowSize === "number" ? arrowSize : 1);
+    const share = length === 0 ? position : position + ahead / length;
+    out.set("ap", Number((share <= 1 ? share : position * length + ahead).toPrecision(6)));
 }
 
 /**
@@ -1788,12 +1821,14 @@ function pajekDots(
  * @param read.node - the node values
  * @param read.edge - the edge values
  * @param labels - whether the lines' labels are drawn
+ * @param runOf - each line from its source's center to its target's, or null when unplaced
  */
 function exactFromBlock(
     snapshot: GraphSnapshot,
     text: string,
     read: { readonly node: ValueColumns; readonly edge: ValueColumns },
     labels: boolean,
+    runOf: (e: number) => Run | null,
 ): void {
     const notes = new StyleNotes();
     const directed = directedEdges(snapshot);
@@ -1802,7 +1837,14 @@ function exactFromBlock(
         properties: READ[target],
         writes: PAJEK_STYLE_CAPABILITIES[target],
         readBack: (i, want) => {
-            const back = writtenAndReadBack(target, want, directed[i], notes, labels);
+            const back = writtenAndReadBack(
+                target,
+                want,
+                directed[i],
+                notes,
+                labels,
+                target === "edge" ? runOf(i) : null,
+            );
             return (property) => back.get(property) ?? null;
         },
         // a label the block places by a side clears the offsets its `lphi` reads back as
@@ -1823,6 +1865,7 @@ const LABEL_PLACE: ReadonlySet<string> = new Set(["labelOffsetX", "labelOffsetY"
  * @param directed - for a line, whether it is an arc
  * @param notes - a scratch for the notes the round trip makes
  * @param labels - whether the lines' labels are drawn
+ * @param run - for a line, from its source's center to its target's, or null when unplaced
  * @returns the values read back, by property
  */
 function writtenAndReadBack(
@@ -1831,9 +1874,10 @@ function writtenAndReadBack(
     directed: boolean,
     notes: StyleNotes,
     labels: boolean,
+    run: Run | null = null,
 ): Map<string, StyleValue> {
     const ignore: Approximate = () => undefined;
-    const params = target === "node" ? vertexParams(want, ignore) : lineParams(want, directed, ignore);
+    const params = target === "node" ? vertexParams(want, ignore) : lineParams(want, directed, ignore, run);
     const back = new Map<string, StyleValue>();
     const label = target === "node" ? want("label") : null;
     if (typeof label === "string") {
@@ -1859,6 +1903,8 @@ function writtenAndReadBack(
         readVertex(get, put, at);
     } else {
         readLine(get, put, at, directed, labels);
+        // the arrowhead's place is read on the placed line, as the file's is
+        readArrowPosition(get("ap"), put, at, run, get("s"));
     }
     return back;
 }
@@ -1890,6 +1936,8 @@ export function pajekStyledExport(
     }
     const approximated = new StyleApproximations();
     const out = snapshot.withColumns();
+    // the lines as a reader without the `pajekDraw` option places them
+    const runOf = lineRuns(snapshot, PAJEK_SQUARE);
     const directed = directedEdges(snapshot);
     for (const target of ["node", "edge"] as const) {
         const table = target === "node" ? out.nodes : out.edges;
@@ -1899,7 +1947,9 @@ export function pajekStyledExport(
         const get = elementValues((t, p) => input.picture(t, p as never), target, PAJEK_STYLE_CAPABILITIES[target]);
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const params = (i: number): Map<string, Written> =>
-            target === "node" ? vertexParams(get(i), approximate) : lineParams(get(i), directed[i], approximate);
+            target === "node"
+                ? vertexParams(get(i), approximate)
+                : lineParams(get(i), directed[i], approximate, runOf(i));
         const columns = paramColumns(n, params);
         if (target === "edge") {
             keepLineLabels(snapshot, columns);

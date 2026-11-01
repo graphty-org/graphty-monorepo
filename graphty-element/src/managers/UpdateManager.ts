@@ -24,6 +24,7 @@ import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
+import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
@@ -112,7 +113,7 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
  * in 2D and 3D -- counts for exactly the room it takes. Those bounds are only refreshed when the
  * plane's world matrix is computed, and a node label is parented to the node it annotates, so
  * without the forced compute the label would stretch the box to where it was drawn last frame
- * rather than to where its node has just moved.
+ * rather than to where its node has just moved (`withoutEyeLine` forces it).
  * @param box - The box to grow.
  * @param labelMesh - The plane, or nothing.
  */
@@ -121,17 +122,19 @@ function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void
         return;
     }
 
-    labelMesh.computeWorldMatrix(true);
+    // A center label slides onto its node's line of sight for the camera it is seen from; the framing is
+    // about to move that camera, so it measures the plane before the slide (see withoutEyeLine).
+    withoutEyeLine(labelMesh, () => {
+        const { minimumWorld, maximumWorld, vectorsWorld } = labelMesh.getBoundingInfo().boundingBox;
+        for (const corner of vectorsWorld) {
+            box.spots.push({ pos: corner.clone(), half: 0 });
+        }
 
-    const { minimumWorld, maximumWorld, vectorsWorld } = labelMesh.getBoundingInfo().boundingBox;
-    for (const corner of vectorsWorld) {
-        box.spots.push({ pos: corner, half: 0 });
-    }
-
-    for (const axis of ["x", "y", "z"] as const) {
-        box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
-        box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
-    }
+        for (const axis of ["x", "y", "z"] as const) {
+            box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
+            box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
+        }
+    });
 }
 
 /**

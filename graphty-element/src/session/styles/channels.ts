@@ -414,6 +414,7 @@ export interface ChannelValues {
     "node.outerBorderCount": number;
     "node.cornerRadius": number;
     "node.exactCornerRadius": boolean;
+    "node.cornerFraction": number;
     "node.underlayColor": ColorValue;
     "node.underlayOpacity": number;
     "node.underlayPadding": number;
@@ -3449,6 +3450,24 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "Whether `node.cornerRadius` is drawn as given, up to half the shorter side, so a large radius " +
             "draws a pill (true), or capped at a quarter of the shorter side on a round-rectangle and a " +
             "tenth on the round-* polygons (false). Other shapes ignore it.",
+    },
+    "node.cornerFraction": {
+        channel: "node.cornerFraction",
+        target: "node",
+        plainName: "Node Corner Fraction",
+        shortName: "Corner fraction",
+        group: "shape",
+        default: 0.25,
+        accepts: "number",
+        min: 0,
+        max: 0.5,
+        stylePath: "shape.cornerFraction",
+        renderable: true,
+        caveat:
+            "The share of a round-rectangle's shorter side its corners are rounded by, never more than " +
+            "`node.cornerRadius`: a quarter by default, as Cytoscape.js rounds; an eighth, as Cytoscape " +
+            "desktop rounds, with no `node.cornerRadius` keeps large boxes round. Ignored when " +
+            "`node.exactCornerRadius` is on. Other shapes ignore it.",
     },
     "node.shapePoints": {
         channel: "node.shapePoints",

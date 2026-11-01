@@ -631,7 +631,7 @@ usage members are not set up until their read-only tokens exist (section 16).
 | -------------------- | ------------------------------------------------ | ---------- | ------ |
 | Spend this month (H) | sum of every money line                          | <= 415 USD | > 415  |
 | T4 GPU               | machine.dev                                      | <= 240 USD | > 240  |
-| LLM regression       | Gemini (the owner's ceiling)                     | <= 90 USD  | > 90   |
+| LLM regression       | Gemini (the owner's ceiling)                     | <= 150 USD | > 150  |
 | AWS                  | month to date, Cost Explorer (the 10 USD Budget) | <= 8 USD   | > 10   |
 | Cloudflare usage     | usage / the plan's allowance                     | < 50%      | > 90%  |
 | Sentry usage         | events / the plan's quota                        | < 80%      | > 100% |

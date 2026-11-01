@@ -31,6 +31,8 @@ export interface FailingCheck {
     /** The family for a binned test check, else the check's name. */
     check: string;
     name: string;
+    /** The step that failed, when the collector read the check run's steps. */
+    step?: string;
     /** An aggregator failing while every check it summarizes passed. */
     alone: boolean;
     startedAt?: number;
@@ -69,6 +71,7 @@ export function failingChecks(p: GqlPr, now?: number): FailingCheck[] {
         return {
             check: family(name) ?? name,
             name,
+            ...(c.failedStep ? { step: c.failedStep } : {}),
             alone: !own.length,
             ...(at === undefined ? {} : { startedAt: at }),
         };
@@ -105,7 +108,72 @@ export interface SharedSnapshot {
 }
 
 /**
- * The checks failing in 3 or more open, ready pull requests, or failing alone, with the pull requests and start.
+ * The cause a failure is grouped by: the check (or its family) and the step that failed, when known, so two
+ * different steps of one big job ("Checks") are two causes.
+ * @param check - the check or family name
+ * @param step - the failed step's name, if known
+ * @returns the cause key
+ */
+export const causeKey = (check: string, step?: string): string => (step ? `${check}: ${step}` : check);
+
+/**
+ * Each open pull request's stack: the base-most open pull request whose head is among its commits, itself when none.
+ * A branch that merged another pull request's branch fails with that one's change, so the stack counts once.
+ * @param open - the open pull requests with their commits
+ * @returns the stack's pull request number by pull request number
+ */
+export function stacks(open: GqlPr[]): Map<number, number> {
+    const oids = new Map(open.map((p) => [p.number, new Set(p.stackCommits?.nodes.map((n) => n.commit.oid))]));
+    const out = new Map<number, number>();
+    for (const p of open) {
+        const own = oids.get(p.number) ?? new Set<string>();
+        const under = open
+            .filter((q) => q.number !== p.number && q.headRefOid && own.has(q.headRefOid))
+            .sort((a, b) => (oids.get(a.number)?.size ?? 0) - (oids.get(b.number)?.size ?? 0) || a.number - b.number);
+        out.set(p.number, under[0]?.number ?? p.number);
+    }
+    return out;
+}
+
+export interface FailureGroup {
+    /** Distinct check names folded into it (the bins of a family). */
+    names: Set<string>;
+    alone: boolean;
+    prs: Set<number>;
+    /** The stacks among prs: what the group counts. */
+    units: Set<number>;
+    startedAt?: number;
+}
+
+/**
+ * The open, ready pull requests' failures grouped by cause (causeKey), each with its pull requests and stacks.
+ * @param open - the open pull requests with their checks
+ * @param now - the current time, in ms; omitted, stale checks are kept
+ * @returns the groups by cause
+ */
+export function failureGroups(open: GqlPr[], now?: number): Map<string, FailureGroup> {
+    const ready = open.filter((p) => p.state === "OPEN" && !p.isDraft);
+    const stack = stacks(ready);
+    const by = new Map<string, FailureGroup>();
+    for (const p of ready) {
+        for (const f of failingChecks(p, now)) {
+            const key = causeKey(f.check, f.step);
+            const g = by.get(key) ?? { names: new Set<string>(), alone: f.alone, prs: new Set(), units: new Set() };
+            by.set(key, g);
+            g.names.add(f.name);
+            g.prs.add(p.number);
+            g.units.add(stack.get(p.number) ?? p.number);
+            if (f.startedAt !== undefined) {
+                g.startedAt = Math.min(g.startedAt ?? Infinity, f.startedAt);
+            }
+        }
+    }
+    return by;
+}
+
+/**
+ * The causes failing in 3 or more open, ready pull requests (a stack counts once), or failing alone, with the pull
+ * requests and start.
  * @param open - the open pull requests with their checks
  * @param now - the current time, in ms; omitted, stale checks are kept
  * @returns the shared checks
@@ -114,23 +182,8 @@ export function sharedChecks(
     open: GqlPr[],
     now?: number,
 ): { check: string; bins: number; alone: boolean; prs: number[]; startedAt?: number }[] {
-    const by = new Map<string, { names: Set<string>; alone: boolean; prs: Set<number>; startedAt?: number }>();
-    for (const p of open) {
-        if (p.state !== "OPEN" || p.isDraft) {
-            continue;
-        }
-        for (const f of failingChecks(p, now)) {
-            const g = by.get(f.check) ?? { names: new Set<string>(), alone: f.alone, prs: new Set<number>() };
-            by.set(f.check, g);
-            g.names.add(f.name);
-            g.prs.add(p.number);
-            if (f.startedAt !== undefined) {
-                g.startedAt = Math.min(g.startedAt ?? Infinity, f.startedAt);
-            }
-        }
-    }
-    return [...by]
-        .filter(([, g]) => g.prs.size >= 3 || g.alone)
+    return [...failureGroups(open, now)]
+        .filter(([, g]) => g.units.size >= 3 || g.alone)
         .map(([check, g]) => ({
             check,
             bins: g.names.size,
@@ -204,7 +257,7 @@ const RED = new Set(["failure", "timed_out", "startup_failure"]);
  * @param run - the completed run
  * @param jobs - the run's jobs
  * @param hung - names of jobs that hung
- * @param shared - the checks in the shared set
+ * @param shared - the causes (causeKey) in the shared set
  * @returns the cause, or undefined when the run is not a red first attempt of a pull request
  */
 export function failureCause(run: GhRun, jobs: GhJob[], hung: Set<string>, shared: Set<string>): Cause | undefined {
@@ -222,7 +275,8 @@ export function failureCause(run: GhRun, jobs: GhJob[], hung: Set<string>, share
     if (!own.length && failed.some((j) => AGGREGATORS.has(j.name))) {
         return "shared_aggregator";
     }
-    if (own.some((j) => shared.has(family(j.name) ?? j.name))) {
+    const failedStep = (j: GhJob): string | undefined => j.steps?.find((st) => RED.has(st.conclusion ?? ""))?.name;
+    if (own.some((j) => shared.has(causeKey(family(j.name) ?? j.name, failedStep(j))))) {
         return "shared_check";
     }
     return "change";

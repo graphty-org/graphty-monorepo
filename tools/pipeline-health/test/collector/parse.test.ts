@@ -374,8 +374,10 @@ describe("pull requests and issues", () => {
 
     it("counts open pull requests failing one check family, aggregators left out", () => {
         const p = page.data.repository.open.nodes[0];
+        let n = 0;
         const failing = (names: string[]): GqlPr => ({
             ...p,
+            number: ++n,
             isDraft: false,
             state: "OPEN",
             commits: {

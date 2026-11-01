@@ -4088,7 +4088,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 0.98,
             "edge.extra": 0.961,
-            "edge.route": 0.912,
+            "edge.route": 0.918,
             "edge.curve": 0.986,
             "edge.color": 0.997,
             "edge.width": 1,
@@ -4159,7 +4159,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 0.98,
             "edge.extra": 0.961,
-            "edge.route": 0.912,
+            "edge.route": 0.918,
             "edge.curve": 0.986,
             "edge.color": 0.997,
             "edge.width": 1,
@@ -28341,7 +28341,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.57,
+            "edge.arrowPlace": 0.834,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28353,7 +28353,7 @@
             "background": 1,
             "raster.arrowhead": 0.91,
             "raster.canvas": 0.97,
-            "raster.edge": 0.87,
+            "raster.edge": 0.88,
             "raster.label": 0.86,
             "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.88,
@@ -28401,7 +28401,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.57,
+            "edge.arrowPlace": 0.834,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28676,12 +28676,12 @@
             "frame.rotation": 1,
             "frame.zoom": 0,
             "background": 1,
-            "raster.arrowhead": 0.81,
-            "raster.canvas": 0.91,
-            "raster.edge": 0.81,
+            "raster.arrowhead": 0.82,
+            "raster.canvas": 0.92,
+            "raster.edge": 0.82,
             "raster.label": 0.79,
-            "raster.nodeBody": 0.82,
-            "raster.nodeOutline": 0.81,
+            "raster.nodeBody": 0.83,
+            "raster.nodeOutline": 0.82,
             "edge.wiggle": 1
         },
         "pajek-lin-rel4@matched": {
@@ -28766,7 +28766,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.81,
+            "edge.arrowPlace": 0.905,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28781,7 +28781,7 @@
             "raster.edge": 0.95,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "pajek-specimen-arrows-p2": {
@@ -28812,7 +28812,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.81,
+            "edge.arrowPlace": 0.905,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28857,7 +28857,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.81,
+            "edge.arrowPlace": 0.905,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28897,7 +28897,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.857,
+            "edge.arrowPlace": 0.952,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28912,7 +28912,7 @@
             "raster.edge": 0.94,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "pajek-specimen-arrows-p3@matched": {
@@ -28943,7 +28943,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.857,
+            "edge.arrowPlace": 0.952,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28983,7 +28983,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.81,
+            "edge.arrowPlace": 0.905,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -29047,7 +29047,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
             "raster.edge": 0.94,
             "raster.label": 0.88,
@@ -29093,7 +29093,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
             "raster.edge": 0.95,
             "raster.label": 0.86,
@@ -29233,9 +29233,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.95,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.95,
@@ -29279,7 +29279,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
             "raster.edge": 0.93,
             "raster.label": 0.86,
@@ -29365,7 +29365,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.92,
             "raster.canvas": 0.99,
             "raster.edge": 0.97,
             "raster.label": 0.86,
@@ -29451,7 +29451,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
             "raster.edge": 0.94,
             "raster.label": 0.86,
@@ -29661,7 +29661,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.88,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "pajek-specimen-labels-p2": {
@@ -30050,7 +30050,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.95
         },
         "pajek-specimen-node-fills-borders-p3@matched": {
             "node.present": 1,
@@ -30234,7 +30234,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.93
+            "raster.nodeOutline": 0.94
         },
         "pajek-specimen-node-sizes-opacity-p2@matched": {
             "node.present": 1,
@@ -30484,11 +30484,11 @@
             "frame.rotation": 1,
             "frame.zoom": 0,
             "background": 1,
-            "raster.canvas": 0.94,
-            "raster.edge": 0.83,
-            "raster.label": 0.83,
-            "raster.nodeBody": 0.89,
-            "raster.nodeOutline": 0.86,
+            "raster.canvas": 0.96,
+            "raster.edge": 0.89,
+            "raster.label": 0.84,
+            "raster.nodeBody": 0.91,
+            "raster.nodeOutline": 0.9,
             "edge.wiggle": 1
         },
         "pajek-synth-vertices@matched": {
@@ -52969,22 +52969,6 @@
                 "date": "2026-11-01"
             }
         },
-        "cx2-signor-aml": {
-            "edge.curve": {
-                "floor": 0.986,
-                "to": 0.98,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-signor-aml@matched": {
-            "edge.curve": {
-                "floor": 0.986,
-                "to": 0.98,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
-                "date": "2026-11-01"
-            }
-        },
         "cx2-specimen-arrows": {
             "edge.arrowPlace": {
                 "floor": 1,
@@ -53813,6 +53797,12 @@
                 "to": 0.905,
                 "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
                 "date": "2026-11-01"
+            },
+            "edge.arrow": {
+                "floor": 1,
+                "to": 0.985,
+                "reason": "On these 33 px lines the comparator reads Pajek's part-way head, its middle on the source half, as an inverted head at the source, while graphty's head, its tip now where Pajek's is, is read at the target; graphty also draws that head about 2.6 times Pajek's length beside the line (#4514)",
+                "date": "2026-11-01"
             }
         },
         "pajek-synth-lines@matched": {
@@ -53820,6 +53810,12 @@
                 "floor": 0.937,
                 "to": 0.905,
                 "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
+                "date": "2026-11-01"
+            },
+            "edge.arrow": {
+                "floor": 1,
+                "to": 0.985,
+                "reason": "On these 33 px lines the comparator reads Pajek's part-way head, its middle on the source half, as an inverted head at the source, while graphty's head, its tip now where Pajek's is, is read at the target; graphty also draws that head about 2.6 times Pajek's length beside the line (#4514)",
                 "date": "2026-11-01"
             }
         },

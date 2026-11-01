@@ -1464,6 +1464,14 @@ export class Graph implements GraphContext {
             "the map under the graph is still loading",
             () => this.basemapManager.loading,
         );
+        // A picture Babylon.js loads itself (a node's `image`, a table cell's `<IMG>`, a map tile) is drawn only
+        // once it lands; Babylon.js counts it as the scene's pending data until it has loaded or failed (#5344).
+        // Entered after every watch that owns such a load (the map's tiles), so a wait names the owner, not this.
+        this.updateManager.pending.watch(
+            "picture",
+            "a picture Babylon.js is loading is still on its way",
+            () => this.scene.getWaitingItemsCount() > 0,
+        );
         // The node label counts the picture drew are announced a few frames after it
         // (`graphty-label-change`): a page that shows them is not final until they are. Asking it
         // asks the counts to be published on the first frame with nothing left to re-decide, so it

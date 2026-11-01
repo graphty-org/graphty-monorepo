@@ -1475,13 +1475,6 @@ export class UpdateManager implements Manager {
         // read and not yet on its nodes is painted onto them when it does.
         work.watch("model", "a node's 3D model is still loading", () => modelsLoading(scene()));
         work.watch("picture", "a node's picture is still loading", () => texturesLoading(scene()));
-        // A picture Babylon.js loads itself (a node's `image`, a table cell's `<IMG>`) is drawn only once it lands;
-        // Babylon.js counts it as the scene's pending data until it has loaded or failed (#5344).
-        work.watch(
-            "picture",
-            "a picture Babylon.js is loading is still on its way",
-            () => scene().getWaitingItemsCount() > 0,
-        );
         // A template nothing uses is freed by counting frames, which a graph drawing on demand
         // stops making once the picture is finished.
         work.watch("model", "an unused 3D model is still being freed", () => modelsFreeing(scene()));

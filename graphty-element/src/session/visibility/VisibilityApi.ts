@@ -524,6 +524,13 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @returns The bytes, or null while not ghosting.
      */
     ghosts(): { readonly node: Uint8Array; readonly edge: Uint8Array } | null;
+    /**
+     * Hold one filter condition while a reader edits it (`styles.showBranches` with `hold`): it
+     * still decides what is visible, but what it would remove stays drawn, as ghosts. Records no
+     * step. Null lets it go.
+     * @param id - The condition, or null.
+     */
+    hold(id: string | null): void;
 }
 
 /** What is drawn, one mask per kind. */
@@ -583,7 +590,7 @@ export interface VisibilitySources extends FilterSources {
      * @param change - The counts, the unresolved paths, and what produced the change.
      */
     readonly onChange?: (change: VisibilityChange) => void;
-    /** Told after the time cursor slid the masks, which no step records. */
+    /** Told after the drawn masks moved without a step: the time cursor slid them, or a condition is held. */
     readonly onSlide?: () => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
@@ -957,6 +964,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let drawnTag: {
         readonly graph: GraphSnapshot;
         readonly filter: RuleTree | null;
+        readonly window: TimeWindow | null;
         readonly inputs: readonly unknown[];
     } | null = null;
 
@@ -1228,9 +1236,48 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * Whether ghosts are drawn now.
      * @returns True while the `outside` setting is `"ghost"` and a window is in force.
      */
-    const ghostingNow = (): boolean =>
+    const timeGhosting = (): boolean =>
         dispatcher.state.visibility.playback?.outside === "ghost" &&
         (dispatcher.state.visibility.window !== null || slid);
+
+    /** The condition a reader is editing, whose removals stay drawn as ghosts (`hold`). */
+    let held: string | null = null;
+    /** The held condition's rule-less stand-in: the rule the rest draws by, by its inputs. */
+    let heldRule: {
+        readonly conditions: readonly FilterCondition[];
+        readonly filter: RuleTree | null;
+        readonly held: string;
+        readonly rule: RuleTree | null;
+    } | null = null;
+
+    /**
+     * What is drawn by: the rule in force, or while a condition that removes anything is held,
+     * the rule without it. The same object until its inputs move.
+     * @returns The rule.
+     */
+    const drawnRuleNow = (): RuleTree | null => {
+        const { filter, conditions } = dispatcher.state.visibility;
+        const holding = conditions.find((each) => each.id === held);
+        if (held === null || holding === undefined || !holding.on || holding.effect === "select") {
+            return ruleNow();
+        }
+
+        if (heldRule?.conditions !== conditions || heldRule.filter !== filter || heldRule.held !== held) {
+            heldRule = {
+                conditions,
+                filter,
+                held,
+                rule: combinedRule(
+                    filter,
+                    conditions.filter((each) => each.id !== held),
+                ),
+            };
+        }
+
+        return heldRule.rule;
+    };
+
+    const ghostingNow = (): boolean => timeGhosting() || drawnRuleNow() !== ruleNow();
 
     /**
      * Bring the drawn masks up to date: what the filter keeps with no window.
@@ -1238,9 +1285,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      */
     const drawnUpToDate = (): VisibilityFrame => {
         const active = upToDate();
-        const filter = ruleNow();
-        const inputs = inputsFor(filter, null);
-        if (drawnTag?.graph === active.graph && drawnTag.filter === filter && sameInputs(drawnTag.inputs, inputs)) {
+        const filter = drawnRuleNow();
+        // Time ghosts are drawn whatever the window says; a held condition alone keeps the window.
+        const window = timeGhosting() ? null : dispatcher.state.visibility.window;
+        const inputs = inputsFor(filter, window);
+        if (
+            drawnTag?.graph === active.graph &&
+            drawnTag.filter === filter &&
+            drawnTag.window === window &&
+            sameInputs(drawnTag.inputs, inputs)
+        ) {
             return active;
         }
 
@@ -1248,15 +1302,15 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         drawnEdges.grow(active.graph.edgeCount);
         drawnNodes.clear();
         drawnEdges.clear();
-        if (filter === null) {
+        if (filter === null && window === null) {
             drawnNodes.fill();
             drawnEdges.fill();
         } else {
-            const compiled = compileVisibility(active.graph, filter, null, passSources(active.graph));
+            const compiled = compileVisibility(active.graph, filter, window, passSources(active.graph));
             runPass({ compiled, edges: drawnEdges, graph: active.graph, nodes: drawnNodes });
         }
 
-        drawnTag = { graph: active.graph, filter, inputs };
+        drawnTag = { graph: active.graph, filter, window, inputs };
 
         return active;
     };
@@ -1280,6 +1334,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             edgeMaskValue.version,
             state.graph.token,
             ruleNow(),
+            drawnRuleNow(),
+            state.visibility.window,
             state.runs,
             sources.snapshot(),
         ];
@@ -2220,6 +2276,15 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         ghosted(target: "node" | "edge", index: number): boolean {
             const ghosts = ghostsNow();
             return ghosts !== null && ghosts[target][index] === 1;
+        },
+
+        hold(id: string | null): void {
+            if (held === id) {
+                return;
+            }
+
+            held = id;
+            sources.onSlide?.();
         },
     };
 }

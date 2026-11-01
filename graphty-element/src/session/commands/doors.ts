@@ -3365,6 +3365,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ghosts: READ,
             rule: READ,
             previewSteps: READ,
+            hold: exempt(
+                "Draws a condition's removals as ghosts while a reader edits it; the conditions are unchanged.",
+            ),
             commitWindow: calls(
                 [{ attribute: "data.t", from: 0, to: 1 }],
                 [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 }, ownStep: true }],

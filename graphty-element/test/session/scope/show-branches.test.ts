@@ -99,6 +99,36 @@ describe("styles.showBranches", () => {
     });
 });
 
+describe("a branches view holding a filter condition", () => {
+    it("keeps what the held condition removes drawn faint, still not visible, until the view ends", async () => {
+        const { session } = await painted();
+        const { id } = await session.visibility.addCondition({
+            effect: "exclude",
+            rule: { kind: "neighborhood", seeds: ["Valjean"], depth: 1 },
+        });
+        const visible = session.visibility.summary.visibleNodes;
+        const opacity = (): unknown =>
+            (session.styles.explain({ node: "Valjean" }).merged as Record<string, unknown>)["node.opacity"];
+        const before = opacity();
+
+        // A filter's selection reads the full graph, so what the condition hides is still a member.
+        const view = session.styles.showBranches({
+            rule: { ...NEAR_VALJEAN, within: "graph" },
+            rest: "faint",
+            hold: id,
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.visibility.summary.visibleNodes, visible, "the held condition still filters");
+        assert.strictEqual(opacity(), 0.2, "what it removes is drawn faint");
+        assert.strictEqual(colorOf(session, "Valjean").value, "#009E73", "a member keeps its branch color");
+
+        view.end();
+        await session.styles.settled();
+        assert.strictEqual(opacity(), before, "ending the view lets the condition go");
+        assert.strictEqual(session.visibility.summary.visibleNodes, visible);
+    });
+});
+
 describe("a branches view and the key", () => {
     it("the legend and a layer's counts keep describing the stack while a view is drawn", async () => {
         const { session, red } = await painted();

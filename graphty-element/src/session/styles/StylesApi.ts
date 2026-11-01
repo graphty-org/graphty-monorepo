@@ -448,6 +448,11 @@ export interface BranchesView {
     readonly rule: UnionLeaf;
     /** How what no branch holds is drawn: faint, or at the base look (default `"plain"`). */
     readonly rest?: "faint" | "plain";
+    /**
+     * A filter condition the reader is editing, by id: what it would remove stays drawn, faint,
+     * while the view is shown (it still decides what is visible). Absent, nothing is held.
+     */
+    readonly hold?: string;
 }
 
 export interface StylesApi {
@@ -1558,6 +1563,8 @@ export interface StylesSources {
      * @param shown - Whether one is drawn now.
      */
     readonly onBranchesShown?: (shown: boolean) => void;
+    /** Holds a filter condition while a branches view is drawn, or lets it go with null. */
+    readonly holdCondition?: (id: string | null) => void;
     /**
      * A number that moves whenever the data or the run results change, which is half of what
      * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
@@ -2564,6 +2571,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
         }
 
+        // A ghost (what a held condition would remove, or what lies outside the time window) is
+        // drawn faint, a member keeping its branch's color.
+        specs.push(
+            {
+                name: "Held",
+                target: "node",
+                selector: { match: "state", state: "ghosted" },
+                set: { "node.opacity": 0.2 },
+            },
+            {
+                name: "Held",
+                target: "edge",
+                selector: { match: "state", state: "ghosted" },
+                set: { "edge.opacity": 0.15 },
+            },
+        );
+
         return specs.map((spec, at) => {
             const checked = check(spec, `graphty-branches-${String(at)}`);
             if (checked.layer === null) {
@@ -2700,7 +2724,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return lastPainted.get(versionsOf(entry)) ?? prepared;
     };
 
-    /** What a layer's counts are read from: the stack's own layers, never a branches view's. */
+    /**
+     * What a layer's counts are read from: the stack's own layers, never a branches view's.
+     * @returns The sources.
+     */
     const countSources = (): ExplainSources => ({ ...explainSources, stack: () => basePainting(current()) });
 
     /** What an explanation, an unbound report and a resolved rule are read from. */
@@ -4589,6 +4616,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const shown = { layers };
             const was = branchesShown !== null;
             branchesShown = shown;
+            sources.holdCondition?.(view.hold ?? null);
             repaintBetween(before, painting(current()));
             if (!was) {
                 sources.onBranchesShown?.(true);
@@ -4602,6 +4630,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
                     const drawn = painting(current());
                     branchesShown = null;
+                    sources.holdCondition?.(null);
                     repaintBetween(drawn, painting(current()));
                     sources.onBranchesShown?.(false);
                 },

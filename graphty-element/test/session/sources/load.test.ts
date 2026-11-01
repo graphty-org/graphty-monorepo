@@ -306,6 +306,29 @@ describe("credentials for a source load", () => {
             assert.strictEqual(error?.details.stored, true);
         });
     });
+
+    it("passes the origin of a server that refused through, as details.origin", async () => {
+        await withSession(async (session) => {
+            for (const [status, code] of [
+                [403, "E_SOURCE_FORBIDDEN"],
+                [404, "E_SOURCE_NOT_FOUND"],
+                [429, "E_SOURCE_QUOTA"],
+            ] as const) {
+                const error = await rejection(
+                    session.data.import(
+                        { source: "people-load", config: { team: "core" } },
+                        {
+                            endpoint: ENDPOINT,
+                            fetch: () => Promise.resolve(new Response("", { status })),
+                            retry: false,
+                        },
+                    ),
+                );
+                assert.strictEqual(error?.code, code);
+                assert.strictEqual(error?.details.origin, ENDPOINT);
+            }
+        });
+    });
 });
 
 describe("a saved project with source loads", () => {

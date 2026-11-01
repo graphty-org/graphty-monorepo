@@ -322,7 +322,10 @@ describe("the sparql source against a local endpoint", () => {
             ),
         );
         expect(err.issue?.code).toBe("E_SOURCE_QUERY");
-        expect(err.issue?.params).toMatchObject({ serverMessage: expect.stringContaining("BROKEN") });
+        expect(err.issue?.params).toMatchObject({
+            origin: new URL(fixture.endpoint).origin,
+            serverMessage: expect.stringContaining("BROKEN"),
+        });
     });
 
     it("refuses an answer that is not N-Triples", async () => {
@@ -331,7 +334,11 @@ describe("the sparql source against a local endpoint", () => {
             { method: "POST", url: endpoint, headers: { "content-type": "text/html" }, body: "<html></html>" },
         ]);
         const err = await rejection(loadFromSource(sparqlSource, { query: ADVISORS }, { endpoint, fetch: html }));
-        expect(err.issue?.params).toEqual({ expected: "n-triples", contentType: "text/html" });
+        expect(err.issue?.params).toEqual({
+            origin: "https://sparql.example.org",
+            expected: "n-triples",
+            contentType: "text/html",
+        });
         const turtle = replayFetch([{ method: "POST", url: endpoint, body: "@prefix a: <http://a/> .\n" }]);
         const bad = await rejection(loadFromSource(sparqlSource, { query: ADVISORS }, { endpoint, fetch: turtle }));
         expect(bad.issue?.code).toBe("E_SOURCE_RESPONSE");

@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import type { GhJob, GhRun, GqlPr } from "../../src/collector/parse.js";
-import { failingChecks, failureCause, nextHolders, nextShared, supersededRuns } from "../../src/collector/snapshots.js";
+import { type GhJob, type GhRun, type GqlPr, prStocks } from "../../src/collector/parse.js";
+import {
+    failingChecks,
+    failureCause,
+    nextHolders,
+    nextShared,
+    stacks,
+    supersededRuns,
+} from "../../src/collector/snapshots.js";
 import { HOUR, MIN, T0 } from "../model/helpers.js";
 
 const at = (ms: number) => new Date(ms).toISOString();
@@ -74,7 +81,51 @@ const gqlPr = (number: number, failing: string[], over: Partial<GqlPr> = {}): Gq
     ...over,
 });
 
+/** An open pull request whose "Checks" job failed at `step`, with its head and the commits under it. */
+const checksAt = (number: number, step: string, head: string, under: string[] = []): GqlPr => {
+    const p = gqlPr(number, ["Checks"], {
+        headRefOid: head,
+        stackCommits: { nodes: [...under, head].map((oid) => ({ commit: { oid } })) },
+    });
+    p.commits!.nodes[0].commit.statusCheckRollup!.contexts.nodes[0].failedStep = step;
+    return p;
+};
+
 describe("snapshots", () => {
+    // Issue #5405, as the dashboard read it at 2026-11-01 06:30Z: #5394 merges #5393's branch and both fail the
+    // pipeline-round skill test in "CI workflow tests"; #4516 fails "No committed walk screenshots".
+    const issue5405 = [
+        checksAt(5393, "CI workflow tests", "a5393"),
+        checksAt(5394, "CI workflow tests", "a5394", ["a5393"]),
+        checksAt(4516, "No committed walk screenshots", "a4516"),
+    ];
+
+    it("finds no shared cause in different steps of one job and in a stack of pull requests (#5405)", () => {
+        expect(nextShared(undefined, issue5405, [], T0).rows).toEqual([]);
+        expect(prStocks(issue5405, T0).maxFailingSameCheck).toBe(1);
+        expect(stacks(issue5405)).toEqual(
+            new Map([
+                [5393, 5393],
+                [5394, 5393],
+                [4516, 4516],
+            ]),
+        );
+    });
+
+    it("shares a step failing in three unrelated pull requests, under the check and step", () => {
+        const open = [1, 2, 3].map((n) => checksAt(n, "CI workflow tests", `h${n}`));
+        expect(nextShared(undefined, open, [], T0).rows.map((r) => r.check)).toEqual(["Checks: CI workflow tests"]);
+        const jobs = (step: string) => [
+            ghJob("Checks", {
+                conclusion: "failure",
+                steps: [{ name: step, conclusion: "failure", started_at: null, completed_at: null }],
+            }),
+        ];
+        const shared = new Set(["Checks: CI workflow tests"]);
+        expect(failureCause(ghRun(1), jobs("CI workflow tests"), new Set(), shared)).toBe("shared_check");
+        expect(failureCause(ghRun(1), jobs("No committed walk screenshots"), new Set(), shared)).toBe("change");
+    });
+
     it("classifies a failed first attempt: infrastructure, aggregator alone, shared check, the change", () => {
         const jobs = [ghJob("Lint", { conclusion: "failure" })];
         expect(failureCause(ghRun(1, { conclusion: "startup_failure" }), [], new Set(), new Set())).toBe(
@@ -124,7 +175,7 @@ describe("snapshots", () => {
 
     it("judges a check by its newest run: a failure a later run of the same check passed is not failing", () => {
         const p = gqlPr(1, ["PR Integrity", "All Checks Pass"]);
-        const nodes = p.commits!.nodes[0].commit.statusCheckRollup!.contexts.nodes;
+        const { nodes } = p.commits!.nodes[0].commit.statusCheckRollup!.contexts;
         expect(failingChecks(p).map((f) => f.name)).toEqual(["PR Integrity"]);
         nodes.push(
             { __typename: "CheckRun", name: "PR Integrity", conclusion: "SUCCESS", startedAt: at(T0 - 29 * MIN) },

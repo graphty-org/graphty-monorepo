@@ -11,7 +11,7 @@
 import "@graphty/graphty-element";
 
 import { defineSource, type GraphSession, registerSource } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -132,6 +132,21 @@ registerSource(
                 sink.addNodeRecord(`c${String(i)}`, {});
             }
             return Promise.resolve(ctx.finish({ next: { page: 1 }, total: { nodes: 171 } }));
+        },
+    }),
+);
+
+/** A server that is out of quota: it answers 429 to every request it gets. */
+const BUSY = "test-busy-server";
+const BUSY_ENDPOINT = "https://busy.example";
+
+registerSource(
+    defineSource({
+        id: BUSY,
+        descriptor: { plainName: "Busy server", defaultEndpoint: BUSY_ENDPOINT, params: [] },
+        records: async (_params, ctx) => {
+            await ctx.fetchJson("/graph");
+            return { nodes: [], edges: [] };
         },
     }),
 );
@@ -361,6 +376,32 @@ describe("server sources on the real element", () => {
             "",
             "Hetionet's Bolt does not carry over",
         );
+    });
+
+    it("names the server that answered on the failure chip", async () => {
+        const realFetch = globalThis.fetch;
+        // Only the busy server's requests are answered here; nothing reaches the network.
+        const busy = vi
+            .spyOn(globalThis, "fetch")
+            .mockImplementation((input, init) =>
+                String(input instanceof Request ? input.url : input).startsWith(BUSY_ENDPOINT)
+                    ? Promise.resolve(new Response("", { status: 429, headers: { "retry-after": "0" } }))
+                    : realFetch(input, init),
+            );
+        try {
+            await openDataPlace();
+            const form = await openForm();
+            await pick(form, "Kind", "Busy server");
+            await userEvent.click(within(form).getByRole("button", { name: "Test" }));
+            const chip = await waitFor(() => {
+                const found = form.querySelector('.sv-actions [data-code="E_SOURCE_QUOTA"]');
+                assert.isNotNull(found);
+                return found;
+            });
+            assert.strictEqual(chip?.textContent, "too many requests: busy.example");
+        } finally {
+            busy.mockRestore();
+        }
     });
 
     it("keeps focus on Test while it reads", async () => {

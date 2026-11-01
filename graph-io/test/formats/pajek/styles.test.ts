@@ -331,6 +331,23 @@ describe("Pajek styles: sizes, label placement and line labels", () => {
         expect(drawn(styles, snapshot, "node", "labelOffsetY")).toEqual([0, -25.1975, 5.194804845, 14.121016526]);
     });
 
+    it("turns a label turned by la about where its text starts", async () => {
+        // pajek-synth-vertices v39 `la 60 lr 12 lphi 270 fos 10`: translate(140 262) rotate(-60), the text's start 12
+        // below the center; its left middle, 0.3465 of 10 above the baseline in the label's own frame, turns with it
+        const turned =
+            "*Vertices 2\n1 a 0.2 0.2 0.5 ellipse la 60 lr 12 lphi 270 fos 10\n2 b 0.8 0.8 0.5 ellipse la 60\n";
+        const { snapshot, styles } = await load(turned);
+        expect(drawn(styles, snapshot, "node", "labelRotation")).toEqual([300, 300]);
+        const [x, y] = (["labelOffsetX", "labelOffsetY"] as const).map(
+            (property) => drawn(styles, snapshot, "node", property) as number[],
+        );
+        expect(x[0]).toBeCloseTo(-3.0008, 4);
+        expect(y[0]).toBeCloseTo(10.2675, 4);
+        // the default place, 20 out at 285 degrees, at the default size 15
+        expect(x[1]).toBeCloseTo(0.6752, 4);
+        expect(y[1]).toBeCloseTo(16.7198, 4);
+    });
+
     it("reads a line's label, its color, size and font, and its width in points", async () => {
         const { snapshot, styles } = await load(doc);
         // Pajek draws no line label but under Mark Lines / with Labels (`pajek-specimen-edge-labels-p2`)
@@ -364,6 +381,19 @@ describe("Pajek styles: sizes, label placement and line labels", () => {
         expect(out).toMatch(/^1 2 .*\bap 0\.5\b/m);
         const back = await load(out.replace(/^% graphty\.styles .*\n/m, ""));
         expect(drawn(back.styles, back.snapshot, "edge", "arrowPosition")).toEqual([0.5, null, null]);
+    });
+
+    it("writes a placed line's arrow position back as the ap Pajek reads it, with the block and without", async () => {
+        // a 200 px line: ap 0.5 puts the tip at 0.475 (5 px past the middle); ap 20 at 0.075
+        const arcs = "*Vertices 3\n1 a 0.1 0.1\n2 b 0.5 0.1\n3 c 0.9 0.1\n*Arcs\n1 2 1 ap 0.5\n2 3 1 ap 20\n";
+        const { snapshot, styles } = await load(arcs);
+        expect(drawn(styles, snapshot, "edge", "arrowPosition")).toEqual([0.475, 0.075]);
+        const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
+        expect(out).toMatch(/^1 2 .*\bap 0\.5\b/m);
+        for (const file of [out, out.replace(/^% graphty\.styles .*\n/m, "")]) {
+            const back = await load(file);
+            expect(drawn(back.styles, back.snapshot, "edge", "arrowPosition")).toEqual([0.475, 0.075]);
+        }
     });
 
     it("writes the same sizes, label places and line labels back, read without the block as with it", async () => {

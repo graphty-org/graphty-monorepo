@@ -835,6 +835,7 @@ export const READ_ONLY: readonly string[] = [
     "LayoutEngine.hasZodOptions",
     "LayoutEngine.isFollower",
     "LayoutEngine.isHeld",
+    "LayoutEngine.isNodeXlabelLeftOut",
     "LayoutEngine.pairWeightKey",
     "LayoutEngine.pairWeights",
     "LayoutEngine.publishOnRead",

@@ -443,7 +443,7 @@ export class Node implements ModelUser {
     private wantedXlabel?: NodeStyleConfig;
 
     /** Where the layout placed the external label when it was drawn, right and down of the node's center. */
-    private drawnXlabelPlace?: readonly [number, number];
+    private drawnXlabelPlace?: readonly [number, number] | null;
 
     /**
      * The text lines of the table this node's label is drawn as (`shape.labelTable`), each `[x, y, text]` as
@@ -1290,21 +1290,36 @@ export class Node implements ModelUser {
      * @internal
      */
     refreshFonts(families: ReadonlySet<string>): boolean {
-        const texts = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels];
-        if (this.disposed || !texts.some((text) => text?.usesFont(families) === true)) {
+        if (this.disposed) {
             return false;
         }
 
-        // Forget what they were drawn from, so the repaint builds them again and fits the node anew.
-        this.drawnLabelStyle = undefined;
-        this.drawnShapeTexts = undefined;
-        this.drawnXlabel = undefined;
-        this.fittedFor = null;
-        const tooltipShown = this.tooltip !== undefined;
-        this.updateStyle();
-        if (tooltipShown) {
-            this.hideTooltip();
-            this.showTooltip();
+        const texts = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels];
+        const textsUse = texts.some((text) => text?.usesFont(families) === true);
+        // A glyph drawn in the family was forgotten by the mesh cache (`forgetGlyphs`), its instance with it.
+        const glyphGone = this.decorations.some((mesh) => mesh.isDisposed());
+        if (!textsUse && !glyphGone) {
+            return false;
+        }
+
+        if (textsUse) {
+            // Forget what they were drawn from, so the repaint builds them again and fits the node anew.
+            this.drawnLabelStyle = undefined;
+            this.drawnShapeTexts = undefined;
+            this.drawnXlabel = undefined;
+            this.fittedFor = null;
+            const tooltipShown = this.tooltip !== undefined;
+            this.updateStyle();
+            if (tooltipShown) {
+                this.hideTooltip();
+                this.showTooltip();
+            }
+        }
+
+        // A repaint that kept the mesh kept its decorations: build the glyph again in the loaded face.
+        if (this.drawnStyle !== null && this.decorations.some((mesh) => mesh.isDisposed())) {
+            const fit = this.fitToLabel(this.meshKey, this.drawnStyle);
+            this.syncDecorations(fit.meshKey, fit.style);
         }
 
         return true;
@@ -2960,12 +2975,14 @@ export class Node implements ModelUser {
     private syncXlabel(o: NodeStyleConfig, rebuild: boolean): void {
         // its words switch it on, whichever way they were written
         const own = o.xlabel;
-        const wanted =
+        const asked =
             own?.text === undefined || own.text === "" || own.enabled === false
                 ? undefined
                 : drawnText({ ...own, enabled: true });
-        this.wantedXlabel = wanted === undefined ? undefined : o;
-        const place = this.xlabelPlace(wanted);
+        this.wantedXlabel = asked === undefined ? undefined : o;
+        const place = this.xlabelPlace(asked);
+        // null: the layout left it out (Graphviz's `forcelabels=false` with no room for it)
+        const wanted = place === null ? undefined : asked;
         const key = wanted === undefined ? undefined : JSON.stringify([o.label, wanted, place]);
         if (!rebuild && key === this.drawnXlabel) {
             return;
@@ -2983,9 +3000,9 @@ export class Node implements ModelUser {
         const look = omit(o.label ?? {}, XLABEL_UNSHARED);
         const style = {
             ...look,
-            location: place === undefined ? ("top-left" as const) : ("center" as const),
+            location: place ? ("center" as const) : ("top-left" as const),
             attachOffset: 0,
-            ...(place === undefined ? {} : { offsetX: place[0], offsetY: place[1] }),
+            ...(place ? { offsetX: place[0], offsetY: place[1] } : {}),
             ...wanted,
         };
         this.xlabelLabel = new RichTextLabel(this.mesh.getScene(), this.createLabelOptions(String(wanted.text), style));
@@ -3002,7 +3019,7 @@ export class Node implements ModelUser {
         }
         const place = this.xlabelPlace(o.xlabel);
         const drawn = this.drawnXlabelPlace;
-        if (place?.[0] !== drawn?.[0] || place?.[1] !== drawn?.[1]) {
+        if ((place === null) !== (drawn === null) || place?.[0] !== drawn?.[0] || place?.[1] !== drawn?.[1]) {
             this.syncXlabel(o, true);
         }
     }
@@ -3010,12 +3027,15 @@ export class Node implements ModelUser {
     /**
      * Where the layout placed the external label, when its style names no place of its own.
      * @param wanted - The external label's resolved block.
-     * @returns Right and down of the node's center, in scene units, or undefined.
+     * @returns Right and down of the node's center, in scene units, null when the layout left the label out, or
+     *     undefined.
      */
-    private xlabelPlace(wanted: NodeStyleConfig["xlabel"]): readonly [number, number] | undefined {
-        return wanted === undefined || wanted.location !== undefined
-            ? undefined
-            : this.context.getLayoutManager().layoutEngine?.getNodeXlabelOffset(this);
+    private xlabelPlace(wanted: NodeStyleConfig["xlabel"]): readonly [number, number] | null | undefined {
+        const engine = this.context.getLayoutManager().layoutEngine;
+        if (wanted === undefined || wanted.location !== undefined || engine === undefined) {
+            return undefined;
+        }
+        return engine.isNodeXlabelLeftOut(this) ? null : engine.getNodeXlabelOffset(this);
     }
 
     /**

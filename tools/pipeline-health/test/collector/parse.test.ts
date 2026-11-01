@@ -1,14 +1,18 @@
 import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
+
 import rates from "../../config/rates.json" with { type: "json" };
-import { DAY, MIN } from "../../src/model/items.js";
-import type { ReleaseSeen } from "../../src/model/snapshots.js";
 import {
     canaryAttempts,
     classifyCancel,
     failedInRow,
     family,
     fixedCosts,
+    type GhJob,
+    type GhRun,
+    type GqlIssue,
+    type GqlPr,
     isGhostRun,
     llmCost,
     loadKind,
@@ -20,17 +24,20 @@ import {
     OWNER_LOGIN,
     pool,
     prOfRun,
+    promotion,
     prStocks,
+    type Rates,
     RELEASE_WORKFLOW_EVENTS,
     releaseAttempt,
     releaseMode,
     releaseTags,
     runnerFlags,
     runnerUse,
-    waitsOnConcurrency,
+    screenshotReview,
     STRESS_FOUND,
     stressQuiet,
     stressRunState,
+    type SuiteNode,
     suiteNotes,
     t4Cost,
     taggedNotOnNpm,
@@ -40,26 +47,24 @@ import {
     toPrItem,
     toRunItem,
     trainSkipped,
+    waitsOnConcurrency,
     workflowState,
-    type GhJob,
-    type GhRun,
-    screenshotReview,
-    type GqlIssue,
-    type GqlPr,
-    type Rates,
-    type SuiteNode,
-    promotion,
 } from "../../src/collector/parse.js";
 import { nextShared } from "../../src/collector/snapshots.js";
+import { DAY, MIN } from "../../src/model/items.js";
+import type { ReleaseSeen } from "../../src/model/snapshots.js";
 import { fixture, masterRuns, NOW } from "./fake-github.js";
+
+/** A GitHub Actions expression, `${{ body }}`, as a workflow file spells it. */
+const ghExpr = (body: string): string => ["$", "{{ ", body, " }}"].join("");
 
 const R = rates as unknown as Rates;
 const REPO = "graphty-org/graphty-monorepo";
-const jobs = (name: string) => fixture<{ jobs: GhJob[] }>(name).jobs;
+const jobs = (name: string) => (fixture(name) as { jobs: GhJob[] }).jobs;
 
 describe("runs and jobs", () => {
     it("maps a pull request run, its budget and its pull request", () => {
-        const r = toRunItem(fixture<GhRun>("run-pr-40238975833.json"), REPO);
+        const r = toRunItem(fixture("run-pr-40238975833.json") as GhRun, REPO);
         expect(r).toMatchObject({
             id: `${REPO}/40238975833`,
             attempt: 1,
@@ -91,8 +96,8 @@ describe("runs and jobs", () => {
     });
 
     it("sorts runs by the load they put on the runners, and stamps it on their jobs", () => {
-        const at = (path: string, event: string, head_branch: string | null = "fix/x") =>
-            loadKind({ path: `.github/workflows/${path}`, event, head_branch });
+        const at = (path: string, event: string, headBranch: string | null = "fix/x") =>
+            loadKind({ path: `.github/workflows/${path}`, event, head_branch: headBranch });
         expect(at("ci.yml", "pull_request")).toBe("pr");
         expect(at("pr-issue-link.yml", "pull_request_target")).toBe("pr");
         expect(at("ci.yml", "push", "master")).toBe("master");
@@ -133,7 +138,7 @@ describe("runs and jobs", () => {
         expect(family("Test (graphty-element-browser-3)")).toBe("graphty-element-browser");
         expect(family("CI / Test (graphty-4)")).toBe("graphty");
         expect(family("Test (small-node)")).toBe("small-node");
-        expect(family("Test (${{ matrix.shard }})")).toBeUndefined();
+        expect(family(`Test (${ghExpr("matrix.shard")})`)).toBeUndefined();
         expect(family("Lint")).toBeUndefined();
         expect(pool(["ubuntu-24.04"])).toBe("linux_windows");
         expect(pool(["windows-2025"])).toBe("linux_windows");
@@ -143,7 +148,7 @@ describe("runs and jobs", () => {
 });
 
 describe("cancel classification", () => {
-    const suites = fixture<{ data: { nodes: SuiteNode[] } }>("cancel-annotations.json").data.nodes;
+    const suites = (fixture("cancel-annotations.json") as { data: { nodes: SuiteNode[] } }).data.nodes;
 
     it("calls a cancel by a person (or a session acting as one) by hand", () => {
         expect(classifyCancel(suiteNotes(suites[0]))).toBe("by-hand");
@@ -190,8 +195,8 @@ describe("master state", () => {
 // Recorded 2026-10-27 20:47 UTC: master's ci.yml push runs, where two builds were cancelled while they waited
 // because a newer push replaced them (ci.yml's concurrency group, #3940). Their check suites have no check run.
 describe("replaced runs (recorded 2026-10-27)", () => {
-    const master = fixture<{ workflow_runs: GhRun[] }>("runs-master-replaced.json").workflow_runs;
-    const suites = fixture<{ data: { nodes: SuiteNode[] } }>("suites-master-replaced.json").data.nodes;
+    const master = (fixture("runs-master-replaced.json") as { workflow_runs: GhRun[] }).workflow_runs;
+    const suites = (fixture("suites-master-replaced.json") as { data: { nodes: SuiteNode[] } }).data.nodes;
     const items = (runs: GhRun[]) =>
         runs.map((r) => {
             const node = suites.find((n) => n.id === r.check_suite_node_id);
@@ -217,8 +222,8 @@ describe("replaced runs (recorded 2026-10-27)", () => {
         expect(masterState(items(running))).toMatchObject({ red: false, redBuilds: 0 });
     });
 
-    const releases = fixture<{ workflow_runs: GhRun[] }>("release-runs-replaced.json").workflow_runs;
-    const seen = Object.values(fixture<Record<string, ReleaseSeen>>("release-seen-replaced.json")).sort(
+    const releases = (fixture("release-runs-replaced.json") as { workflow_runs: GhRun[] }).workflow_runs;
+    const seen = Object.values(fixture("release-seen-replaced.json") as Record<string, ReleaseSeen>).sort(
         (a, b) => b.at - a.at,
     );
 
@@ -348,9 +353,9 @@ describe("runner use: waiting is not queued", () => {
 });
 
 describe("pull requests and issues", () => {
-    const page = fixture<{ data: { repository: { open: { nodes: GqlPr[] }; recent: { nodes: GqlPr[] } } } }>(
-        "gql-pr.json",
-    );
+    const page = fixture("gql-pr.json") as {
+        data: { repository: { open: { nodes: GqlPr[] }; recent: { nodes: GqlPr[] } } };
+    };
 
     it("maps pull requests with their ready time and owner wait", () => {
         const p = page.data.repository.open.nodes[0];
@@ -372,8 +377,10 @@ describe("pull requests and issues", () => {
 
     it("counts open pull requests failing one check family, aggregators left out", () => {
         const p = page.data.repository.open.nodes[0];
+        let n = 0;
         const failing = (names: string[]): GqlPr => ({
             ...p,
+            number: ++n,
             isDraft: false,
             state: "OPEN",
             commits: {
@@ -407,18 +414,20 @@ describe("pull requests and issues", () => {
     });
 
     it("maps issues with lower-case state reasons", () => {
-        const nodes = fixture<{ data: { repository: { recent: { nodes: GqlIssue[] } } } }>("gql-issue.json").data
-            .repository.recent.nodes;
+        const { nodes } = (fixture("gql-issue.json") as { data: { repository: { recent: { nodes: GqlIssue[] } } } })
+            .data.repository.recent;
         const closed = nodes.find((n) => n.closedAt);
         const item = toIssueItem(closed ?? nodes[0], REPO);
         expect(item.kind).toBe("issue");
-        if (closed) expect(item.closedAt).toBe(Date.parse(closed.closedAt!));
+        if (closed) {
+            expect(item.closedAt).toBe(Date.parse(closed.closedAt!));
+        }
         expect(item.stateReason ?? "completed").toMatch(/^[a-z_]+$/);
     });
 });
 
 describe("release lanes", () => {
-    const runs = fixture<{ workflow_runs: GhRun[] }>("release-runs.json").workflow_runs;
+    const runs = (fixture("release-runs.json") as { workflow_runs: GhRun[] }).workflow_runs;
 
     it("sees a skipped attempt as untested", () => {
         const a = releaseAttempt(
@@ -500,7 +509,7 @@ describe("release lanes", () => {
 });
 
 describe("release channels", () => {
-    const base = fixture<{ workflow_runs: GhRun[] }>("release-runs.json").workflow_runs[0];
+    const base = (fixture("release-runs.json") as { workflow_runs: GhRun[] }).workflow_runs[0];
     const run = (id: number, conclusion: string, at: string, more: Partial<GhRun> = {}): GhRun => ({
         ...base,
         id,
@@ -591,8 +600,8 @@ describe("costs", () => {
     it("prices each point of a bisect of the llm lane, and no point of another lane", () => {
         // bisect.yml run 40492117633 (2026-10-27) bisected the llm lane before the run name carried the lane: one
         // point, its paid step "Run the failing files" (375 Gemini calls).
-        const run = fixture<GhRun>("run-bisect-llm-40492117633.json");
-        const point = fixture<{ jobs: GhJob[] }>("jobs-bisect-llm-40492117633.json").jobs.find((j) =>
+        const run = fixture("run-bisect-llm-40492117633.json") as GhRun;
+        const point = (fixture("jobs-bisect-llm-40492117633.json") as { jobs: GhJob[] }).jobs.find((j) =>
             j.name.startsWith("Point "),
         )!;
         expect(llmCost(point, REPO, R, "bisect.yml", run)).toMatchObject({
@@ -620,7 +629,7 @@ describe("costs", () => {
 
 describe("npm", () => {
     const tags = releaseTags(
-        fixture<{ data: { repository: { refs: { nodes: never[] } } } }>("gql-tag.json").data.repository.refs.nodes,
+        (fixture("gql-tag.json") as { data: { repository: { refs: { nodes: never[] } } } }).data.repository.refs.nodes,
     );
 
     it("keeps {project}@{version} tags only, scoped names included", () => {
@@ -630,7 +639,7 @@ describe("npm", () => {
     });
 
     it("lists tagged versions npm does not have, apart from projects never published", () => {
-        const npm = fixture<{ time: Record<string, string> }>("npm-graph-format.json");
+        const npm = fixture("npm-graph-format.json") as { time: Record<string, string> };
         const times = new Map([["@graphty/graph-format", npm.time]]);
         const missing = taggedNotOnNpm(tags, times).map((t) => `${t.project}@${t.version}`);
         expect(missing).not.toContain("graph-format@1.4.7");
@@ -691,7 +700,7 @@ describe("pull request of a run", () => {
 });
 
 describe("stale and retired checks (live 2026-10-27: 9 old pull requests red on All Checks Pass and Queue Checks Pass)", () => {
-    const page = fixture<{ data: { repository: { open: { nodes: GqlPr[] } } } }>("gql-pr.json");
+    const page = fixture("gql-pr.json") as { data: { repository: { open: { nodes: GqlPr[] } } } };
     const base = page.data.repository.open.nodes[0];
     const NOW_27 = Date.parse("2026-10-27T20:49:22Z");
     /** An open pull request whose head's checks failed, as the open page returns them. */
@@ -742,7 +751,7 @@ describe("stale and retired checks (live 2026-10-27: 9 old pull requests red on 
 });
 
 describe("pull requests waiting on the owner", () => {
-    const page = fixture<{ data: { repository: { open: { nodes: GqlPr[] } } } }>("gql-pr.json");
+    const page = fixture("gql-pr.json") as { data: { repository: { open: { nodes: GqlPr[] } } } };
     const base = { ...page.data.repository.open.nodes[0], state: "OPEN", isDraft: false, labels: { nodes: [] } };
     const at = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
     const armed = { enabledAt: at(1) };
@@ -771,7 +780,7 @@ describe("pull requests waiting on the owner", () => {
 });
 
 describe("auto-merge stocks", () => {
-    const page = fixture<{ data: { repository: { open: { nodes: GqlPr[] } } } }>("gql-pr.json");
+    const page = fixture("gql-pr.json") as { data: { repository: { open: { nodes: GqlPr[] } } } };
     const base = { ...page.data.repository.open.nodes[0], state: "OPEN", isDraft: false, labels: { nodes: [] } };
     const at = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
     const pr = (armedH: number | null, rollup: "SUCCESS" | "FAILURE" | "PENDING"): GqlPr => ({
@@ -832,7 +841,7 @@ describe("stress run state", () => {
 });
 
 describe("ghost runs", () => {
-    const ghost = fixture<GhRun>("run-ghost-40441556963.json");
+    const ghost = fixture("run-ghost-40441556963.json") as GhRun;
     const open = (branch: string) => [{ number: 4000, headRefName: branch }] as unknown as GqlPr[]; // only what the match reads
 
     it("calls a queued pull request run a ghost once no open pull request has its branch", () => {
@@ -849,12 +858,12 @@ describe("runs waiting on their own concurrency group", () => {
     // status "queued", behind full run 41188440989; the collector read it as a 15.5 min wait for a runner.
     const at = Date.parse("2026-10-31T10:20:00Z");
     const full: GhRun = {
-        ...fixture<GhRun>("run-release-full-41188440989.json"),
+        ...(fixture("run-release-full-41188440989.json") as GhRun),
         status: "in_progress",
         conclusion: null,
     };
     const restart: GhRun = {
-        ...fixture<GhRun>("run-release-restart-41191120998.json"),
+        ...(fixture("run-release-restart-41191120998.json") as GhRun),
         status: "queued",
         conclusion: null,
     };
@@ -886,7 +895,7 @@ describe("release workflows count only their declared events", () => {
     });
 
     it("ignores the push runs GitHub records for branches where promote.yml cannot run", () => {
-        const push = fixture<{ workflow_runs: GhRun[] }>("promote-runs-push.json").workflow_runs;
+        const push = (fixture("promote-runs-push.json") as { workflow_runs: GhRun[] }).workflow_runs;
         const now = Date.parse(push[0].created_at) + 30 * MIN;
         expect(workflowState("promote.yml", push, now)).toMatchObject({ runs: 0, failed: 0, inRow: 0 });
         // The same runs as dispatches would be a real streak.

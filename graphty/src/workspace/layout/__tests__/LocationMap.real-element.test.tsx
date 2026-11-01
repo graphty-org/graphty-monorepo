@@ -146,8 +146,9 @@ async function pick(scope: HTMLElement, label: string, option: RegExp | string):
 
 /**
  * Picks an entry of a select with the keyboard: opens it, walks the highlight down to the entry
- * and presses Enter. For a list that runs past the popover's visible body, where a click has to
- * scroll the popover and the list moves under the pointer (compact-mantine defect, #4484).
+ * and presses Enter. For a list near the bottom of the popover's visible body: it opens two rows
+ * tall, and a click on a later entry scrolls the popover and moves the list under the pointer
+ * (compact-mantine defect, #5528, after #4484). Switch to clicks when #5528 is fixed.
  * @param scope - where the select is.
  * @param label - the select's label.
  * @param option - the entry's name.
@@ -286,6 +287,7 @@ describe("the location map", () => {
 
         await pickByKeys(popover, "Map", "None");
         await waitFor(() => {
+            assert.strictEqual(map.value, "None", "the field shows the reader's pick");
             assert.deepStrictEqual(element.session.layout.options.map, { source: "none" });
         });
         await element.waitForStableFrame();
@@ -294,6 +296,9 @@ describe("the location map", () => {
         // A map of the reader's own: tiles from an address, with the credit it requires, which
         // the element draws on the canvas.
         await pickByKeys(popover, "Map", "Tiles");
+        await waitFor(() => {
+            assert.strictEqual(map.value, "Tiles");
+        });
         await userEvent.fill(within(popover).getByRole("textbox", { name: "Credit" }), "Test tiles");
         await userEvent.fill(
             within(popover).getByRole("textbox", { name: "Address" }),
@@ -312,6 +317,7 @@ describe("the location map", () => {
 
         await pickByKeys(popover, "Map", "Natural Earth");
         await waitFor(() => {
+            assert.strictEqual(map.value, "Natural Earth");
             assert.deepStrictEqual(element.session.layout.options.map, { source: "natural-earth" });
         });
         await element.waitForStableFrame();

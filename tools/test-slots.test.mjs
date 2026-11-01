@@ -257,6 +257,24 @@ describe("test-slots", () => {
         assert.equal(shardCacheDir({}), undefined);
     });
 
+    // Without `force` a second run in the same checkout trusts the old bundle and reloads mid-run on an import
+    // added since (#5134, #5240); without the shard directory side-by-side gate shards delete each other's bundles.
+    it("bundles afresh into the shard's own Vite cache in every package's storybook config", () => {
+        const configs = readdirSync(ROOT, { withFileTypes: true })
+            .filter((d) => d.isDirectory() && !d.name.startsWith("."))
+            .flatMap((d) =>
+                readdirSync(join(ROOT, d.name))
+                    .filter((f) => /^vitest\.storybook\.config\.m?[jt]s$/.test(f))
+                    .map((f) => join(d.name, f)),
+            );
+        assert.ok(configs.length >= 5, `found ${configs.length} storybook configs`);
+        const missing = configs.filter((f) => {
+            const text = readFileSync(join(ROOT, f), "utf8");
+            return !/optimizeDeps: \{[^}]*force: true/.test(text) || !/cacheDir: shardCacheDir\(\)/.test(text);
+        });
+        assert.deepEqual(missing, [], "these storybook configs lack optimizeDeps.force or cacheDir: shardCacheDir()");
+    });
+
     it("wraps a command: holds a slot while it runs, marks its environment, passes its exit code", () => {
         const dir = fresh();
         const r = spawnSync(

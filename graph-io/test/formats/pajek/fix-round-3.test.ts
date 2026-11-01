@@ -97,6 +97,67 @@ describe("Pajek Bezier arcs", () => {
     });
 });
 
+describe("Pajek undirected Bezier lines", () => {
+    it("starts the curve at the lower-numbered vertex, whichever way *Edges writes the line", async () => {
+        // Pajek 6.02 draws `2 1 1 a1 45 k1 1 a2 75 k2 1` from 1 (100, 100) to 2 (400, 100):
+        // M 100 100 C 206.07 206.07 361.18 244.89 400 100, the same curve as `1 2`; graphty's line runs from 2 to 1
+        const result = await registry.importGraph(
+            "*Vertices 4\n1 a 0.2 0.2\n2 b 0.8 0.2\n3 c 0.2 0.4\n4 d 0.8 0.4\n" +
+                "*Edges\n2 1 1 a1 45 k1 1 a2 75 k2 1\n3 4 1 a1 45 k1 1 a2 75 k2 1\n",
+            { format: "pajek", styles: true },
+        );
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        const bends = resolveStyles(result.styles, "edge", "bends", result.snapshot) as string[];
+        const points = (b: string): number[][] => b.split(" ").map((p) => p.split(",").map(Number));
+        // from 2, along the line to 1 and to its left (down on screen): (361.18, 244.89) then (206.07, 206.07)
+        const [c1, c2] = points(bends[0]);
+        expect(c1[0]).toBeCloseTo(38.82 / 300, 3);
+        expect(c1[1]).toBeCloseTo(144.89 / 300, 3);
+        expect(c2[0]).toBeCloseTo(193.93 / 300, 3);
+        expect(c2[1]).toBeCloseTo(106.07 / 300, 3);
+        // written low to high, from its source as before: (206.07, 306.07) then (361.18, 344.89), left of it is up
+        const [d1, d2] = points(bends[1]);
+        expect(d1[0]).toBeCloseTo(106.07 / 300, 3);
+        expect(d1[1]).toBeCloseTo(-106.07 / 300, 3);
+        expect(d2[0]).toBeCloseTo(261.18 / 300, 3);
+        expect(d2[1]).toBeCloseTo(-144.89 / 300, 3);
+    });
+});
+
+describe("Pajek Bezier arcs under Lines finished at Vertex Border", () => {
+    it("starts the curve where the straight line leaves the source's outline (pajek-specimen-arrows-p3)", async () => {
+        // `arrow-bezier`: M 64 709.33 C 99.92 735.39 87.10 679.10 123.02 705.16, the source's center at (58, 709.33)
+        // 12 across; on the default page the same arc starts at its center, M 58 709.33
+        const result = await registry.importGraph(
+            "*Vertices 2\n1 a 0.048333 0.788148 0.5 ellipse x_fact 0.6 y_fact 0.6\n" +
+                "2 b 0.111667 0.788148 0.5 ellipse x_fact 0.6 y_fact 0.6\n" +
+                "*Arcs\n1 2 1 s 1 a A ap 0 a1 40 k1 1.5 a2 -40 k2 1.5\n",
+            {
+                format: "pajek",
+                styles: true,
+                pajekDraw: { width: 1200, height: 900, ini: { "Form10.LinesFinishedatBorder": "" } },
+            },
+        );
+        const { styles } = result;
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const at = (property: "sourcePort" | "bends"): string =>
+            resolveStyles(styles, "edge", property, result.snapshot)[0] as string;
+        expect(at("sourcePort")).toBe("1,0");
+        const [c1, c2] = at("bends")
+            .split(" ")
+            .map((p) => p.split(",").map(Number));
+        // (41.92, 26.06) and (29.10, -30.23) from the source's center, y down, along and to the left of the line 76 long
+        expect(c1[0]).toBeCloseTo(41.92 / 76, 2);
+        expect(c1[1]).toBeCloseTo(-26.06 / 76, 2);
+        expect(c2[0]).toBeCloseTo(29.1 / 76, 2);
+        expect(c2[1]).toBeCloseTo(30.23 / 76, 2);
+    });
+});
+
 describe("Pajek arcs between the same two vertices", () => {
     it("bows each as a1 15 k1 0.25 a2 15 k2 0.25, the first of two the same way the other way round", async () => {
         // pajek-synth-lines 20 -> 30 and 30 -> 20; pajek-iliad 250 -> 123 twice: a1 -15 and then a1 15; an arc
@@ -161,11 +222,25 @@ describe("Pajek arrowhead places", () => {
         if (result.styles === null || result.styles === undefined) {
             throw new Error("no styles");
         }
-        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.5, null, 0.25]);
+        // Pajek draws the tip 5 px past the point ap names: (100 - 5) / 200 and (0.25 * 282.84 - 5) / 282.84
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.475, null, 0.232322]);
+    });
+
+    it("places the tip 5 s px past the point ap names, as Pajek 6.02 draws it, at the node when that is past it", async () => {
+        // pajek-specimen-arrows arc 27 28 `ap 0.5`: the point at the middle, x 432, the tip at 437; s 2 puts it 10 on
+        const result = await registry.importGraph(
+            "*Vertices 3\n1 a 0.1 0.1\n2 b 0.5 0.1\n3 c 0.51 0.1\n*Arcs\n1 2 1 s 2 ap 0.5\n2 3 1 ap 0.5\n",
+            { format: "pajek", styles: true },
+        );
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        // the second line is 5 px long: its tip would be past the target's center, so it is drawn at the node, part-way
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.45, 1e-6]);
     });
 
     it("reads ap above 1 as a distance from the target's center, a share of a placed line", async () => {
-        // pajek-synth-lines arc 3 4 ap 20: the arrowhead's back 20 px from the target's center; here on a line 200 px
+        // pajek-synth-lines arc 3 4 ap 20: the point 20 px from the target's center, the tip 5 px nearer; here on a line 200 px
         // long (0.4 of Pajek's 500 px square)
         const result = await registry.importGraph("*Vertices 2\n1 a 0.1 0.1\n2 b 0.5 0.1\n*Arcs\n1 2 1 ap 20\n", {
             format: "pajek",
@@ -174,7 +249,7 @@ describe("Pajek arrowhead places", () => {
         if (result.styles === null || result.styles === undefined) {
             throw new Error("no styles");
         }
-        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.1]);
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.075]);
     });
 });
 

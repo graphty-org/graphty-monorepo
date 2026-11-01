@@ -58,7 +58,7 @@ import { GraphtyError, isGraphtyError } from "../errors";
 import { type EnabledFeatures, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
-import { type InputCounters, inputCountersOf } from "./attributes";
+import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
@@ -1574,6 +1574,9 @@ function configOf(
         get viewRotation() {
             return read().viewRotation;
         },
+        get framing() {
+            return read().framing;
+        },
         // Read from the controller, not from a value frozen at construction: the policy and the
         // threshold are changed at runtime through the session's accessors and the element's
         // attributes.
@@ -2551,6 +2554,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     };
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
     const snapshot = (): GraphSnapshot => store.store.getSnapshot();
+    const dataRevision = dataRevisionOf(snapshot, inputs);
     dispatcher.arrangement.bind({
         snapshot,
         get positions() {
@@ -2624,6 +2628,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         {
             revision: () => inputs.tick.value,
+            dataRevision,
             // Read through a call: the resolver is built below.
             resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
             // And the query engine, below that.
@@ -3112,6 +3117,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const time = createTimeApi({
         snapshot,
         token: () => dispatcher.state.graph.token,
+        dataRevision,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         knownFields: () => {
             const known = readProject().data.knownFields;
@@ -3742,6 +3748,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             () => keptSets.list(),
         ),
         inputTick: () => inputs.tick.value,
+        dataRevision,
         snapshot,
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,

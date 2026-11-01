@@ -66,6 +66,7 @@ export const ranAt = (j: Pick<JobItem, "conclusion" | "createdAt" | "startedAt">
  * A flake hotspot family (design section 5): a shard run's variant `<family>|flags=..|<shape>` and a flaky test's
  * family (`graphty`, `graphty-storybook-shots`) name the same family once the variant's flags and shape are dropped.
  * @param family a shard run's or flaky test's family
+ * @returns the family without its flags and shape
  */
 export const hotspotFamily = (family: string): string => family.split("|")[0];
 
@@ -74,6 +75,7 @@ export const hotspotFamily = (family: string): string => family.split("|")[0];
  * every file CI ran (about 3,000) stays near 80 KB, under DynamoDB's 400 KB item limit and cheap to rewrite.
  * @param family the shard run's or the flaky test's family
  * @param file the test file, repository-relative
+ * @returns an 8-character base64url hash
  */
 export const fileRunKey = (family: string, file: string): string =>
     createHash("sha256")
@@ -82,7 +84,7 @@ export const fileRunKey = (family: string, file: string): string =>
         .slice(0, 8);
 
 const FINISHED = new Set(["success", "failure", "timed_out", "startup_failure"]);
-const isMaster = (base: string) => base === "master" || base === "main";
+const isMaster = (base: string): boolean => base === "master" || base === "main";
 /** A finished job's own verdict: cancelled and skipped jobs say nothing about the job. */
 const JOB_PASS = new Set(["success"]);
 const JOB_FAIL = new Set(["failure", "timed_out", "startup_failure"]);
@@ -93,6 +95,7 @@ const JOB_POSTS = new Set(["success", "failure", "timed_out"]);
  * A job's name with its bin or shard number folded, as checks are grouped by family (section 4):
  * "CI / Test (graphty-element-browser-3)" -> "CI / Test (graphty-element-browser)".
  * @param name the job's name
+ * @returns the name with its trailing bin number dropped
  */
 export const jobFamily = (name: string): string => name.replace(/(\bTest \([^)]+?)-\d+\)$/, "$1)");
 
@@ -239,8 +242,12 @@ export const METRICS: MetricDef[] = [
         from: [
             src("job", "completedAt", (j) => {
                 const pass = JOB_PASS.has(j.conclusion ?? "");
-                if (!j.load || j.load === "pr" || j.offMaster || j.completedAt === undefined) return null;
-                if (!pass && !JOB_FAIL.has(j.conclusion ?? "")) return null;
+                if (!j.load || j.load === "pr" || j.offMaster || j.completedAt === undefined) {
+                    return null;
+                }
+                if (!pass && !JOB_FAIL.has(j.conclusion ?? "")) {
+                    return null;
+                }
                 return {
                     value: j.completedAt,
                     exact: true,

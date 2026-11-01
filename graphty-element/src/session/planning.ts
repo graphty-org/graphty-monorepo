@@ -33,7 +33,7 @@ import type {
 } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
 import { GraphtyError } from "../errors/GraphtyError";
-import { bestRole, cachedGazetteer, GAZETTEER_URL } from "../layout/locationMap/gazetteer";
+import { bestRole, cachedGazetteer, type Gazetteer, GAZETTEER_URL } from "../layout/locationMap/gazetteer";
 import {
     chosenLocation,
     type ColumnValues,
@@ -70,6 +70,7 @@ import {
     type ScopeCandidate,
 } from "./cost";
 import type { DataIssuesCommand } from "./issues";
+import { RevisionCache } from "./revision";
 import type { Caveats, ResolvedScope } from "./runs";
 import { noted } from "./runs/caveatFacts";
 import type { GraphStatistics, LocationColumns } from "./types";
@@ -307,6 +308,11 @@ export interface PlanningContext {
      * so a layout estimate is kept until it does.
      */
     readonly inputTick?: () => number;
+    /**
+     * The data's own revision: it moves on a freeze or an attribute write, never on a mask, so the
+     * location columns are kept until a column or a value changes.
+     */
+    readonly dataRevision?: () => unknown;
     /** The graph as it stands, for the checks a layout's availability needs. */
     readonly snapshot?: () => GraphSnapshot;
     /** The values a layout's `groupBy` names, by row of the snapshot, or null when no node carries it. */
@@ -883,17 +889,42 @@ function nodeColumns(context: PlanningContext): ColumnValues[] {
  * @returns The columns and where they come from.
  */
 export function locationColumns(context: PlanningContext): LocationColumns {
-    const none = { location: null, latitude: null, longitude: null };
-    const designation = context.locationDesignation?.();
-    const choice = chosenLocation(none, designation);
-    const designated = choice.location !== null || choice.latitude !== null || choice.longitude !== null;
-    const places = cachedGazetteer();
-    const answer = resolveLocation(choice, nodeColumns(context), (path) => context.nodeValues?.(path) ?? null, places);
+    const { dataRevision } = context;
+    if (dataRevision === undefined) {
+        return locationColumnsNow(context, cachedGazetteer());
+    }
+
+    let cache = locationCaches.get(context);
+    if (cache === undefined) {
+        // The gazetteer's layers are part of the revision: one that finishes loading can name a place.
+        cache = new RevisionCache<LocationColumns>(() => [dataRevision(), ...Object.values(cachedGazetteer())], 1);
+        locationCaches.set(context, cache);
+    }
+
+    const key = JSON.stringify([context.locationDesignation?.() ?? null, context.nodeAttributes?.() ?? []]);
+    return cache.get(key, () => locationColumnsNow(context, cachedGazetteer()));
+}
+
+/** {@link locationColumns} per planning context, until the data or the gazetteer moves. */
+const locationCaches = new WeakMap<PlanningContext, RevisionCache<LocationColumns>>();
+
+/**
+ * The location kinds the graph carries, the one used and the ones left unused.
+ * @param designation - The designated location, if any.
+ * @param answer - What the resolver found.
+ * @param places - The gazetteer as loaded now.
+ * @returns The listing part of {@link LocationColumns}.
+ */
+function listedLocation(
+    designation: LocationDesignation | undefined,
+    answer: Parameters<typeof listLocation>[1],
+    places: Gazetteer,
+): Pick<LocationColumns, "kinds" | "using" | "unused"> {
     const listing = listLocation(designation, answer, (source) =>
         source.role === "auto" ? (bestRole(source.values, places) ?? "city") : source.role,
     );
     const { using } = listing;
-    const listed = {
+    return {
         kinds: listing.kinds,
         using,
         unused: Object.freeze(
@@ -902,6 +933,21 @@ export function locationColumns(context: PlanningContext): LocationColumns {
                 : listing.unused.map((kind) => ({ code: "location.unused" as const, params: { kind, using } })),
         ),
     };
+}
+
+/**
+ * {@link locationColumns}, uncached: reads every node column's values.
+ * @param context - What planning reads.
+ * @param places - The gazetteer as loaded now.
+ * @returns The columns and where they come from.
+ */
+function locationColumnsNow(context: PlanningContext, places: Gazetteer): LocationColumns {
+    const none = { location: null, latitude: null, longitude: null };
+    const designation = context.locationDesignation?.();
+    const choice = chosenLocation(none, designation);
+    const designated = choice.location !== null || choice.latitude !== null || choice.longitude !== null;
+    const answer = resolveLocation(choice, nodeColumns(context), (path) => context.nodeValues?.(path) ?? null, places);
+    const listed = listedLocation(designation, answer, places);
     if (isLocationRefusal(answer)) {
         const { location, latitude, longitude } = choice;
         return Object.freeze({

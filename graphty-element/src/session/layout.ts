@@ -173,6 +173,7 @@ const GRAPHVIZ_FILE_ATTRIBUTES = [
     "quadtree",
     "beautify",
     "center",
+    "forcelabels",
 ] as const;
 
 /** The graph attributes Graphviz's routes between placed nodes follow: the kind of line, and how far they keep from the nodes. */

@@ -1274,8 +1274,10 @@ function sanitizeEdgeIds(column: Column | null, mode: "error" | "mangle", edgeCo
     for (const e of bad) {
         const base = mangleNmtoken(edgeIdText(column, e));
         let candidate = base;
-        for (let k = 2; used.has(candidate); k++) {
+        let k = 2;
+        while (used.has(candidate)) {
             candidate = `${base}_${k}`;
+            k++;
         }
         used.add(candidate);
         out[e] = candidate;

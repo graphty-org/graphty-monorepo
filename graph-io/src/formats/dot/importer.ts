@@ -576,21 +576,29 @@ function countGraphs(lexer: DotTokenizer, first: DotToken): number {
         if (!isPunct(token, "{")) {
             throw new DotSyntaxError(`expected "{" after the graph header, found ${describeToken(token)}`, token.line);
         }
-        for (let depth = 1; depth > 0;) {
-            token = lexer.next();
-            if (token.kind === "eof") {
-                throw new DotSyntaxError('missing "}" at the end of a graph', token.line);
-            }
-            if (isPunct(token, "{")) {
-                depth++;
-            } else if (isPunct(token, "}")) {
-                depth--;
-            }
-        }
+        skipGraphBody(lexer);
         count++;
         token = lexer.next();
     }
     return count;
+}
+
+/**
+ * Read past a graph's statements up to the `}` that balances its opening `{`.
+ * @param lexer - the tokenizer, positioned after the graph's `{`
+ */
+function skipGraphBody(lexer: DotTokenizer): void {
+    for (let depth = 1; depth > 0;) {
+        const token = lexer.next();
+        if (token.kind === "eof") {
+            throw new DotSyntaxError('missing "}" at the end of a graph', token.line);
+        }
+        if (isPunct(token, "{")) {
+            depth++;
+        } else if (isPunct(token, "}")) {
+            depth--;
+        }
+    }
 }
 
 /** How many leading bytes the `charset` search sees: a license comment may come before the graph. */

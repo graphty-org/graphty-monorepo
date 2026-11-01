@@ -198,7 +198,7 @@ token, keep it in the main checkout's `.env` as `HEALTH_LOCAL_TOKEN` (or in the 
 only its hash:
 
 ```bash
-aws ssm put-parameter --profile graphty --region us-east-2 --type SecureString --overwrite \
+aws ssm put-parameter --profile graphty-deploy --region us-east-2 --type SecureString --overwrite \
   --name /graphty-health/local-token-sha256 --value "$(printf %s "$HEALTH_LOCAL_TOKEN" | sha256sum | cut -d' ' -f1)"
 ```
 
@@ -268,7 +268,7 @@ To load the last 28 days of flaky tests, runs, jobs, pull requests and issues (i
 parameters):
 
 ```bash
-aws lambda invoke --profile graphty --region us-east-2 --function-name graphty-health-backfill \
+aws lambda invoke --profile graphty-deploy --region us-east-2 --function-name graphty-health-backfill \
     --cli-binary-format raw-in-base64-out --payload '{"mode":"backfill","days":28}' /dev/stdout
 ```
 
@@ -342,3 +342,23 @@ schedule, alarms and Budget) and `graphty-health-deploy` (a CodeBuild project th
 change to `infra/deploy-stack.ts` itself takes effect after `npx cdk deploy graphty-health-deploy --profile
 graphty`). The page is published to
 https://health.graphty.app by `.github/workflows/pipeline-health-pages.yml`.
+
+### AWS access for agents
+
+Agents use the profile `graphty-deploy` (IAM user `graphty-health-deployer`, a long-lived key), never the
+owner's profile `graphty`, whose `aws login` session lasts at most 12 hours. `graphty-deploy` can read the
+`graphty-health` stacks, invoke and describe the `graphty-health-*` Lambdas, read their logs and the table,
+start the deploy build, write the `/graphty-health/*` parameters and run `cdk deploy`. It cannot list log
+groups, and the Lambda and log group names carry CDK suffixes, so look the names up in the stack first:
+
+```bash
+aws cloudformation list-stack-resources --stack-name graphty-health --profile graphty-deploy --region us-east-2 \
+    --query 'StackResourceSummaries[?ResourceType==`AWS::Logs::LogGroup`].PhysicalResourceId' --output text
+aws logs filter-log-events --profile graphty-deploy --region us-east-2 \
+    --log-group-name <graphty-health-CollectorLogs...> --start-time <epoch ms> --filter-pattern '"lastRun"'
+```
+
+Each collector cycle logs one `lastRun` line with what it read (`github`) and how many pages it wrote
+(`pages`). An AccessDenied from `graphty-deploy` means the call is outside that list; the owner's profile
+is needed only to change the user's policy (`tmp/aws-deploy-user.sh` in the main checkout) or to write the
+table from a workstation.

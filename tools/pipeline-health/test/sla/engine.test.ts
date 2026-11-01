@@ -243,7 +243,7 @@ describe("data states", () => {
         expect(e.categories.find((c) => c.id === "ci")).toMatchObject({ state: "NO DATA", setBy: "ci.hangs" });
     });
 
-    it("pages that stop being written age the collector though it still reads GitHub (2026-11-01)", async () => {
+    it("pages that stop being written age the collector though it still reads GitHub", async () => {
         const store = new MemoryStore();
         await recordSource(store, "collector", T0, { ok: true });
         await recordSource(store, "views", T0 - 30 * MIN, { ok: true });

@@ -275,6 +275,18 @@ aws lambda invoke --profile graphty-deploy --region us-east-2 --function-name gr
 The backfill also records each job's run kind, which "Runner-minutes per merge" needs: jobs stored before it was
 recorded are left out of that measure until a backfill rewrites them.
 
+A backfill that has finished, or whose cursors stand past the range, reads nothing when invoked again. To read the
+range again and rewrite every row in it with what the collector records now (a job's run kind, whether its run was on
+master), add `"restart": true` to the first call only; it drops the cursors and starts from yesterday:
+
+```bash
+aws lambda invoke --profile graphty-deploy --region us-east-2 --function-name graphty-health-backfill \
+    --cli-binary-format raw-in-base64-out --payload '{"mode":"backfill","days":28,"restart":true}' /dev/stdout
+```
+
+Then invoke it without `restart` until it answers `"done": true`; passing `restart` again would start over each time.
+From a workstation the same is `pnpm run backfill -- --days 28 --restart`.
+
 Each call works for up to 15 minutes and answers `{"done": false, ...}` until the range is loaded;
 invoke it again and it continues from its cursor. `AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run
 backfill -- --days 28` runs the same from a workstation. `-- --repair-days 2026-10-09,2026-10-11

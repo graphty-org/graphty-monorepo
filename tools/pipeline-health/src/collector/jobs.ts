@@ -99,18 +99,42 @@ export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] 
 /** The name an issue uses for a job: its own name without the caller's ("CI / Performance Benchmarks"). */
 export const shortName = (job: string): string => job.split(" / ").at(-1) ?? job;
 
+/** Run kinds a title may name a workflow's runs by, beside the workflow's own name ("Full run: ..." is release.yml). */
+const RUN_KINDS: Record<string, string[]> = { "release.yml": ["full run"], "ci.yml": ["master"] };
+
 /**
- * The open issue owning each job, in one GraphQL query: a search per job for an open bug naming it that is not a
- * CI budget issue (those are about a job's time, not its failures), confirmed by the name appearing in the title as
- * words. A mention in a body is not ownership: it named #3447 for "All Checks Pass" and #3606 for "Dependabot".
+ * Whether an issue title owns a job: it names the job as words, and names the job's workflow -- its file's name
+ * ("release", "codeql", "work protection macos") or the kind of its runs ("full run") -- outside a leading
+ * conventional-commit type ("ci: ..." names no workflow). A title naming a called job ("CI / All Checks Pass", called by
+ * release.yml) does not own a job of the same name that nothing calls (ci.yml's own "All Checks Pass").
+ * @param title
+ * @param job - its workflow file and its name
+ */
+export function titleOwnsJob(title: string, job: Pick<ChronicJob, "workflow" | "job">): boolean {
+    const short = shortName(job.job);
+    if (!words(title).includes(words(short))) return false;
+    const called = title
+        .toLowerCase()
+        .replaceAll(/\s*\/\s*/g, "/")
+        .includes(`/${short.toLowerCase()}`);
+    if (called && short === job.job) return false;
+    const rest = words(title.replace(/^[a-z]+(\([^)]*\))?!?:/, ""));
+    const names = [job.workflow.replace(/\.ya?ml$/, ""), ...(RUN_KINDS[job.workflow] ?? [])];
+    return names.some((n) => rest.includes(words(n)));
+}
+
+/**
+ * The open issue owning each job (titleOwnsJob), in one GraphQL query: a search per job name for an open bug naming
+ * it that is not a CI budget issue (those are about a job's time, not its failures). A mention in a body is not
+ * ownership: it named #3447 for "All Checks Pass" and #3606 for "Dependabot".
  * @param gh
  * @param repo
  * @param jobs
+ * @returns each job's issue number, in the order of `jobs`
  */
-export async function issuesNamingJobs(gh: GitHub, repo: string, jobs: ChronicJob[]): Promise<Map<string, number>> {
-    const out = new Map<string, number>();
+export async function issuesNamingJobs(gh: GitHub, repo: string, jobs: ChronicJob[]): Promise<(number | undefined)[]> {
     const names = [...new Set(jobs.map((j) => shortName(j.job)))];
-    if (!names.length) return out;
+    if (!names.length) return [];
     const vars: Record<string, string> = {};
     const fields = names.map((n, i) => {
         vars[`q${i}`] = `repo:${repo} is:issue is:open label:bug -label:ci-budget "${n.replaceAll('"', " ")}" in:title`;
@@ -122,11 +146,10 @@ export async function issuesNamingJobs(gh: GitHub, repo: string, jobs: ChronicJo
         `query(${decl}) { ${fields.join(" ")} }`,
         vars,
     );
-    names.forEach((n, i) => {
-        const hit = (data[`j${i}`]?.nodes ?? []).find((x) => x && words(x.title).includes(words(n)));
-        if (hit) out.set(n, hit.number);
+    return jobs.map((j) => {
+        const nodes = data[`j${names.indexOf(shortName(j.job))}`]?.nodes ?? [];
+        return nodes.find((x) => x && titleOwnsJob(x.title, j))?.number;
     });
-    return out;
 }
 
 /** A job of ci.yml, run on its own or called by another workflow as "CI" (release.yml's "CI / Lint"). */
@@ -149,8 +172,8 @@ export async function jobMembers(store: Store, gh: GitHub, repo: string, now: nu
         (j) => !ciJobs || !isCiJob(j) || ciJobs.some((p) => isJob(p, j.job)),
     );
     const issues = await issuesNamingJobs(gh, repo, chronic);
-    const list = chronic.map((j) => {
-        const issue = issues.get(shortName(j.job));
+    const list = chronic.map((j, i) => {
+        const issue = issues[i];
         return issue === undefined ? j : { ...j, issue };
     });
     return {

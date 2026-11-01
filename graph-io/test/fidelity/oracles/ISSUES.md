@@ -159,7 +159,10 @@ Gaps found while finishing, each open:
   back as a layer of its own (graphty-element `export-styles` and `export-round-trip`, expected failures), and
   rounds a label offset to 5 decimals where the rules hold 4.333333333333334 (two harness plans, expected
   failures).
-- Graphviz's arrow gap is written into Cytoscape files, which have none, and read back as Cytoscape's 4; an edge
+- Fixed 2026-11-01 (#3111): Graphviz's arrow gap written into a Cytoscape file (XGMML, CX2) read back as
+  Cytoscape's 4, and a per-element exceptions column of repro-shared-interaction.cx2 came back from XGMML and CX2
+  as a layer of its own; every format's block repair now takes the block's none as well as its value.
+- An edge
   label Gephi hides is written as a label of opacity 0; graphology keeps a label's markup and line breaks only as
   text; the CSV writer names label settings CSV has no column for as written. Each is an expected failure in
   graphty-element's `export-round-trip`.

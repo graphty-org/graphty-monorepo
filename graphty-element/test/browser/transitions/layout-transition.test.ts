@@ -7,7 +7,7 @@
 
 import "../../../src/graphty-element";
 
-import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import {
     type AuthoredLayoutDescriptor,
@@ -266,6 +266,19 @@ describe("layout transitions", () => {
         });
         const element = await mounted();
         const scene = element.graph.getScene();
+        // The move runs on the wall clock, and the test samples it once a drawn frame: one slow
+        // frame (the cloud's first draw compiles its shader) stepped the 0.4 s move past the
+        // whole span where node a is shrunk, and the wait never saw it. So time advances one
+        // 60 Hz frame per drawn frame, and the move takes the same 24 frames however slow they are.
+        let clock = performance.now();
+        const now = vi.spyOn(performance, "now").mockImplementation(() => clock);
+        const tick = scene.onBeforeRenderObservable.add(() => {
+            clock += 1000 / 60;
+        });
+        cleanups.push(() => {
+            scene.onBeforeRenderObservable.remove(tick);
+            now.mockRestore();
+        });
         const cloud = (): boolean => scene.meshes.some((mesh) => mesh.name === "graphtyTransitionParticles");
         await element.session.config.set({
             layoutTransition: { transition: "e7/particles", seconds: 0.4, params: { particles: 4 } },

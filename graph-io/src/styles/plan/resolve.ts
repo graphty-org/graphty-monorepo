@@ -680,6 +680,26 @@ export function resolveStyles(
 }
 
 /**
+ * Every element's value of one property under one rule of a file's styles, read the way `resolveStyles()` reads it:
+ * the rule's value where its condition selects the element and its value or mapping gives one, null elsewhere.
+ * @param extracted - the styles whose columns and features the rule reads
+ * @param rule - the rule (one of `extracted.styles.rules`, or one made from them)
+ * @param property - the property
+ * @param snapshot - the graph; when given, data columns and degrees are read from it, otherwise from
+ * `extracted.features`
+ * @returns each element of the rule's target's value, or null where the rule gives none
+ * @category Styles
+ */
+export function resolveRule(
+    extracted: ExtractedStyles,
+    rule: StyleRule,
+    property: StyleProperty,
+    snapshot?: GraphSnapshot,
+): readonly (StyleValue | null)[] {
+    return resolveRules([rule], rule.target, property, sourceOf(extracted, rule.target, snapshot));
+}
+
+/**
  * Which elements a rule's condition selects under a file's styles, read the way `resolveStyles()` reads it.
  * @param extracted - the styles whose columns and features the condition reads
  * @param target - nodes or edges

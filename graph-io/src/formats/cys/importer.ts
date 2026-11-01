@@ -699,7 +699,41 @@ async function applyTables(
             unmatched += await applyTable(ctx, entry, table);
         }
     }
+    await applyGroupCollapsed(doc, layout.tables, tableOf);
     return unmatched;
+}
+
+/** The hidden network column where Cytoscape keeps the SUIDs of the networks a group is collapsed in. */
+const GROUP_COLLAPSED = "__groupCollapsed.SUID";
+
+/**
+ * Give each group's nested graph the networks it is collapsed in, from its own hidden network table. A session
+ * writes the nested graph's atts empty and keeps this state only there (`CyGroupImpl` stores it in the group
+ * network's hidden table); an XGMML file Cytoscape exports writes it as the nested graph's att, which is what the
+ * style reader reads.
+ * @param doc - the network file
+ * @param tables - the session's tables
+ * @param tableOf - reads a table by its path
+ */
+async function applyGroupCollapsed(
+    doc: Parsed["doc"],
+    tables: readonly TableEntry[],
+    tableOf: (path: string) => Promise<CyTable | null>,
+): Promise<void> {
+    for (const graph of doc.graphs) {
+        if (graph.owner === null || graph.id === null || graph.atts.some((a) => a.name === GROUP_COLLAPSED)) {
+            continue;
+        }
+        const entry = tables.find((t) => t.network === graph.id && t.namespace === "HIDDEN" && t.element === "network");
+
+        const table = entry === undefined ? null : await tableOf(entry.tablePath);
+        const at = table?.columns.findIndex((c) => c.name === GROUP_COLLAPSED) ?? -1;
+        const cells = table?.rows.get(graph.id);
+        if (table === null || table === undefined || at < 0 || cells === undefined) {
+            continue;
+        }
+        pushAtt(graph.atts, cellAtt(table.columns[at], cells[at] ?? "", table.lines.get(graph.id) ?? 0, null, true));
+    }
 }
 
 /**

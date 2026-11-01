@@ -85,11 +85,31 @@ describe("isStyleSlotColumn", () => {
 });
 
 describe("TOOL_DEFAULTS roundedCornerRadius", () => {
-    it("is Cytoscape.js's stated 8 for every program, each citing where it comes from", () => {
-        for (const [tool, d] of TOOL_DEFAULTS) {
-            expect(d.roundedCornerRadius?.value, tool).toBe(8);
-            expect(d.roundedCornerRadius?.source, tool).toMatch(/^cytoscape\.js 3\.34\.3 .* line 4386/);
+    // the programs whose own cap is read from their source or their drawing
+    const MEASURED: Readonly<Record<string, number>> = { "cytoscape-js": 8, graphviz: 12, "vis-network": 6 };
+
+    it("is each program's own cap where it is known: Cytoscape.js 8, Graphviz 12 points, vis-network 6", () => {
+        for (const [tool, cap] of Object.entries(MEASURED)) {
+            expect(TOOL_DEFAULTS.get(tool)?.roundedCornerRadius?.value, tool).toBe(cap);
         }
+        expect(TOOL_DEFAULTS.get("cytoscape-js")?.roundedCornerRadius?.source).toMatch(
+            /^cytoscape\.js 3\.34\.3 .* line 4386/,
+        );
+        expect(TOOL_DEFAULTS.get("graphviz")?.roundedCornerRadius?.source).toContain("RBCONST 12");
+        expect(TOOL_DEFAULTS.get("vis-network")?.roundedCornerRadius?.source).toContain("borderRadius 6");
+    });
+
+    it("is Cytoscape.js's 8 elsewhere, its source saying it is unverified for that program and why", () => {
+        for (const [tool, d] of TOOL_DEFAULTS) {
+            if (d.roundedCornerRadius === undefined || tool in MEASURED) {
+                continue;
+            }
+            expect(d.roundedCornerRadius.value, tool).toBe(8);
+            expect(d.roundedCornerRadius.source, tool).toMatch(/^cytoscape\.js 3\.34\.3 .* line 4386/);
+            expect(d.roundedCornerRadius.source, tool).toContain(`unverified for ${tool}`);
+        }
+        // Cytoscape desktop rounds by an eighth of the shorter side, which no cap states
+        expect(TOOL_DEFAULTS.get("cytoscape")?.roundedCornerRadius?.source).toContain("an eighth of the shorter side");
     });
 });
 

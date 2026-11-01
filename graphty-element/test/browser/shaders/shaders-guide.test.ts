@@ -8,7 +8,6 @@
 import "../../../src/graphty-element";
 
 import { Vector3 } from "@babylonjs/core";
-import type { Graphty as PublishedGraphty } from "@graphty/graphty-element";
 import { afterAll, afterEach, assert, describe, it } from "vitest";
 
 import { flow } from "../../../docs/examples/shaders/flow";
@@ -120,7 +119,7 @@ async function pixelAt(element: Graphty, x: number, y: number): Promise<number[]
 describe("the shader guide's examples", () => {
     it("draws the heat look with the layer's hot color", async () => {
         const element = await mounted();
-        await heat(element as unknown as PublishedGraphty);
+        await heat(element);
         await operationQueueOf(element.graph).waitForCompletion();
         await until(element, "the node is drawn by the heat look", () => nodeSlots(element, "impostor") === 1);
 
@@ -138,7 +137,7 @@ describe("the shader guide's examples", () => {
 
     it("draws the flow look on the edge's line", async () => {
         const element = await mounted(true);
-        await flow(element as unknown as PublishedGraphty);
+        await flow(element);
         await operationQueueOf(element.graph).waitForCompletion();
         await until(element, "the edge is drawn by the flow look", () =>
             [...(EdgeShaderDrawing.peek(element.graph.getScene())?.stats().slots.values() ?? [])].some(

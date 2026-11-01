@@ -222,6 +222,94 @@ function withIdText(
 }
 
 /**
+ * Refuse a table the reader maps that lacks an end, naming it: read with one end, every row would
+ * be rejected, and read with none, the probe has already failed.
+ * @param read - The rows.
+ * @param mapping - The mapping the load reads them with.
+ * @param only - The one table that must be ready; every table must be when absent.
+ * @throws `E_EDGE_ENDPOINTS_UNRESOLVED` for the first table that is not ready.
+ */
+function refuseUnready(read: ReadSource, mapping: LoadMappingRead, only: string | undefined): void {
+    const missing = missingRoles(mapping);
+    const unready = read.tables.find(
+        (held) =>
+            (only === undefined || held.table.id === only) &&
+            !held.table.fixed &&
+            held.rows.length > 0 &&
+            missing[held.table.id].length > 0,
+    );
+    if (unready !== undefined) {
+        const { id } = unready.table;
+        throw new GraphtyError({
+            code: "E_EDGE_ENDPOINTS_UNRESOLVED",
+            source: "data",
+            message: `Table ${JSON.stringify(id)} has no ${missing[id].join(" or ")} column; name it in the mapping.`,
+            details: { table: id, missing: missing[id], columns: unready.order },
+        });
+    }
+}
+
+/**
+ * The settings a load writes: the roles its mapping names, its label path, and a weight meaning --
+ * none for a new graph unless named, and `"strength"` for a confidence, score or strength column.
+ * @param read - The rows.
+ * @param mapping - The mapping the load reads them with.
+ * @param choices - The load's choices.
+ * @param configured - `data.knownFields` as configured now.
+ * @returns The settings.
+ */
+function loadFields(
+    read: ReadSource,
+    mapping: LoadMappingRead,
+    choices: LoadChoices,
+    configured: SessionDataConfig["knownFields"],
+): Plan["knownFields"] {
+    const named: Plan["knownFields"] = knownFieldsOf(mapping, choices.mapping, read);
+    const merge = choices.mode === "merge";
+    if (!merge && !("edgeWeightMeaning" in named) && configured.edgeWeightMeaning !== null) {
+        // A new graph does not inherit the last one's weight meaning.
+        Object.assign(named, { edgeWeightMeaning: null });
+    }
+
+    const label = loadLabel(read, mapping, choices, configured.nodeLabelPath);
+    const labelled = label === null ? named : { ...named, nodeLabelPath: label };
+    // A confidence, score or strength weighs how alike the ends are, unless a meaning is set.
+    const meaning = named.edgeWeightMeaning ?? (merge ? configured.edgeWeightMeaning : null);
+    const similar =
+        typeof named.edgeWeightPath === "string" &&
+        SIMILARITY_COLUMNS.has(named.edgeWeightPath.toLowerCase()) &&
+        meaning === null;
+    return similar ? { ...labelled, edgeWeightMeaning: "strength" as const } : labelled;
+}
+
+/**
+ * The label path a load sets: a graph file's `label` field, as `data.import` names a graph file's
+ * nodes (whether or not this file has one), or the label column a table's mapping names -- unless
+ * a label path is configured already or a merge keeps how the graph names its nodes.
+ * @param read - The rows.
+ * @param mapping - The mapping the load reads them with.
+ * @param choices - The load's choices.
+ * @param configured - `data.knownFields.nodeLabelPath`.
+ * @returns The path, or null to leave it as it is.
+ */
+function loadLabel(
+    read: ReadSource,
+    mapping: LoadMappingRead,
+    choices: LoadChoices,
+    configured: string | null,
+): string | null {
+    if (choices.mode === "merge" || configured !== null) {
+        return null;
+    }
+
+    if (read.tables[0].table.fixed) {
+        return FORMAT_LABEL;
+    }
+
+    return Object.values(mapping.tables).find((table) => table.rowsAre === "nodes")?.label ?? null;
+}
+
+/**
  * The name of one file of a pair: the `File`'s name, or the URL's last part.
  * @param value - A `nodeFile`, `edgeFile`, `nodeURL` or `edgeURL` option.
  * @returns The name, or undefined.
@@ -1055,55 +1143,9 @@ export class Draft implements LoadDraft {
      */
     private plan(read: ReadSource, choices: LoadChoices, only?: string): Plan {
         const mapping = this.effective(read, choices.mapping);
-        const missing = missingRoles(mapping);
-        // A table the reader maps that lacks an end is refused here, naming it: read with one end,
-        // every row would be rejected, and read with none, the probe has already failed.
-        const unready = read.tables.find(
-            (held) =>
-                (only === undefined || held.table.id === only) &&
-                !held.table.fixed &&
-                held.rows.length > 0 &&
-                missing[held.table.id].length > 0,
-        );
-        if (unready !== undefined) {
-            const { id } = unready.table;
-            throw new GraphtyError({
-                code: "E_EDGE_ENDPOINTS_UNRESOLVED",
-                source: "data",
-                message: `Table ${JSON.stringify(id)} has no ${missing[id].join(" or ")} column; name it in the mapping.`,
-                details: { table: id, missing: missing[id], columns: unready.order },
-            });
-        }
+        refuseUnready(read, mapping, only);
 
-        const named: Plan["knownFields"] = knownFieldsOf(mapping, choices.mapping, read);
-        if (
-            choices.mode !== "merge" &&
-            !("edgeWeightMeaning" in named) &&
-            this.host.config().knownFields.edgeWeightMeaning !== null
-        ) {
-            // A new graph does not inherit the last one's weight meaning.
-            Object.assign(named, { edgeWeightMeaning: null });
-        }
-
-        // A graph file's `label` field, as `data.import` names a graph file's nodes (whether or not
-        // this file has one), or the label column a table's mapping names, labels the nodes, unless
-        // a label path is configured already or a merge keeps how the graph names its nodes.
-        const nodeMapping = Object.values(mapping.tables).find((table) => table.rowsAre === "nodes");
-        const tableLabel = read.tables[0].table.fixed ? FORMAT_LABEL : (nodeMapping?.label ?? null);
-        const label = choices.mode === "merge" ? null : tableLabel;
-        const labelled =
-            label === null || this.host.config().knownFields.nodeLabelPath !== null
-                ? named
-                : { ...named, nodeLabelPath: label };
-        // A confidence, score or strength weighs how alike the ends are, unless a meaning is set.
-        const meaning =
-            named.edgeWeightMeaning ??
-            (choices.mode === "merge" ? this.host.config().knownFields.edgeWeightMeaning : null);
-        const similar =
-            typeof named.edgeWeightPath === "string" &&
-            SIMILARITY_COLUMNS.has(named.edgeWeightPath.toLowerCase()) &&
-            meaning === null;
-        const knownFields = similar ? { ...labelled, edgeWeightMeaning: "strength" as const } : labelled;
+        const knownFields = loadFields(read, mapping, choices, this.host.config().knownFields);
         if (read.tables.every((held) => held.table.fixed)) {
             const [nodes, edges] = read.tables;
             const held: HeldRows = {

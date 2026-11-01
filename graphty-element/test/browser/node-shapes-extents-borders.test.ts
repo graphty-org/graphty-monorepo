@@ -15,7 +15,7 @@ import { FLAT_NODE_SHAPES, NodeShapes } from "../../src/config/NodeStyle";
 import type { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { NODE_EXTENT_PER_SIZE } from "../../src/meshes/NodeMesh";
-import { flatShapeOutline, type Point2 } from "../../src/meshes/shapeOutlines";
+import { convexHull, flatShapeOutline, type Point2 } from "../../src/meshes/shapeOutlines";
 import { wheel } from "../helpers/real-input";
 
 const WIDTH = 480;
@@ -352,6 +352,52 @@ describe("node borders (#2316)", () => {
         assert.isNotNull(srcPoint);
         assert.approximately(srcPoint.x, NODE_EXTENT_PER_SIZE / 2 + 0.5 * NODE_EXTENT_PER_SIZE, 0.02);
     });
+
+    // Issue #3104: a polygon's ring reaches its width past every side, measured square to the side in the world,
+    // not along the corner's direction or scaled from the node's middle.
+    for (const shape of ["triangle", "hexagon"] as const) {
+        it(`draws a ${shape}'s border its width wide on every side`, async () => {
+            const element = await mounted(
+                "2d",
+                [{ id: "n", position: { x: 0, y: 0, z: 0 } }],
+                [],
+                [layerFor(["n"], { "node.shape": shape, "node.size": 6, "node.borderWidth": 0.5 })],
+            );
+            const node = element.graph.getDataManager().nodes.get("n");
+            assert.isDefined(node);
+            const ring = (node as unknown as { border: AbstractMesh | null }).border;
+            assert.isNotNull(ring);
+            const worldPoints = (mesh: AbstractMesh): Point2[] => {
+                mesh.computeWorldMatrix(true);
+                const source = (mesh as InstancedMesh).sourceMesh ?? mesh;
+                const positions = source.getVerticesData("position") ?? [];
+                const world = mesh.getWorldMatrix();
+                const points: Point2[] = [];
+                for (let i = 0; i < positions.length; i += 3) {
+                    const p = Vector3.TransformCoordinates(
+                        new Vector3(positions[i], positions[i + 1], positions[i + 2]),
+                        world,
+                    );
+                    points.push([p.x, p.y]);
+                }
+
+                return points;
+            };
+            const hull = convexHull(worldPoints(node.mesh));
+            const outer = worldPoints(ring);
+            const asked = 0.5 * NODE_EXTENT_PER_SIZE;
+
+            assert.strictEqual(hull.length, shape === "triangle" ? 3 : 6, "the fill is the polygon");
+            hull.forEach(([x0, y0], i) => {
+                const [x1, y1] = hull[(i + 1) % hull.length];
+                const length = Math.hypot(x1 - x0, y1 - y0);
+                // the hull runs counter-clockwise, so the side's outward normal is it turned clockwise
+                const [nx, ny] = [(y1 - y0) / length, -(x1 - x0) / length];
+                const reach = Math.max(...outer.map(([x, y]) => (x - x0) * nx + (y - y0) * ny));
+                assert.approximately(reach, asked, asked * 0.02, `side ${String(i)} of the ${shape}`);
+            });
+        });
+    }
 });
 
 describe("a border in screen pixels", () => {

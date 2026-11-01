@@ -642,4 +642,44 @@ describe("node borders", () => {
             assert.approximately(ringBox.x * 2, outerWidth, 2e-3);
         });
     }
+
+    // Issue #3104: a polygon's border is as wide as it asks on every side, measured square to the side, not along
+    // the corner's direction (a mitre) or scaled from the center.
+    for (const type of ["triangle", "hexagon", "rectangle"] as const) {
+        test(`a ${type}'s border is drawn its width wide on every side`, () => {
+            const options = { styleId: `width-${type}`, is2D: true, size: 1 };
+            const shape = { type, size: 2 };
+            const width = 0.25;
+            const fill = NodeMesh.create(cache, options, { shape }, scene);
+            const ring = NodeMesh.createBorder(cache, options, { shape, border: { width } }, fill, scene);
+            assert.isNotNull(ring);
+            const pointsOf = (mesh: Mesh): Point2[] => {
+                mesh.computeWorldMatrix(true);
+                const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+                const world = mesh.getWorldMatrix().m;
+                const points: Point2[] = [];
+                for (let i = 0; i < positions.length; i += 3) {
+                    const [x, y, z] = [positions[i], positions[i + 1], positions[i + 2]];
+                    points.push([
+                        x * world[0] + y * world[4] + z * world[8] + world[12],
+                        x * world[1] + y * world[5] + z * world[9] + world[13],
+                    ]);
+                }
+
+                return points;
+            };
+            const hull = convexHull(pointsOf(fill));
+            const outer = pointsOf(ring.sourceMesh);
+            const asked = width * NODE_EXTENT_PER_SIZE;
+
+            hull.forEach(([x0, y0], i) => {
+                const [x1, y1] = hull[(i + 1) % hull.length];
+                const length = Math.hypot(x1 - x0, y1 - y0);
+                // the hull runs counter-clockwise, so its outward normal is the side turned clockwise
+                const [nx, ny] = [(y1 - y0) / length, -(x1 - x0) / length];
+                const reach = Math.max(...outer.map(([x, y]) => (x - x0) * nx + (y - y0) * ny));
+                assert.approximately(reach, asked, asked * 0.02, `side ${String(i)} of the ${type}`);
+            });
+        });
+    }
 });

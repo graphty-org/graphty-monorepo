@@ -136,7 +136,11 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > graphty-element's styling, layout or rendering), whose change reaches the graphty app also runs
 > `pnpm run check:quick --with-dry-run` (the app's dry run on the NVIDIA card; or `pnpm exec nx run graphty:build`
 > then `node graphty/acceptance/run.mjs`, faster when the quick check runs whole test shards) and fixes every failed
-> route before opening its pull request. Run long commands through `tools/low-priority.sh`;
+> route before opening its pull request. A change that takes effect on this machine (a tool `tools/live.sh --list`
+> names: visual-review's server, worktree-new.sh and the land tools, the gate, worktree cleanup, the local health
+> collector, the SonarQube baseline) goes live at once, without waiting for CI: right after its commit, run
+> `tools/live.sh <tool> <branch>` and open the pull request in parallel as the record (owner, 2026-11-01; CLAUDE.md
+> "Where a change takes effect"); say in the Proof that it is live. Run long commands through `tools/low-priority.sh`;
 > start each long run once and end your turn; do not re-check it again and again. When you stop, done or not, write
 > where the work stands on the branch's issue:
 > `node tools/branch-note.mjs update --done "<what is done>" --left "<what is left>" --next "<the next step>"`.

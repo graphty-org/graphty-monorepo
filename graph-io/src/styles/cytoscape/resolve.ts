@@ -875,10 +875,11 @@ function arrowProportions(
 /**
  * Marks straight every curved edge without bends, except where Cytoscape desktop fans it: `EDGE_CURVED` only
  * rounds the bends an edge has, and the bends Cytoscape adds itself. Among the edges joining the same two nodes
- * (either way round, not loops), it draws the last it created straight and bends each earlier one without bends
+ * (either way round, not loops), it draws the first it walks straight and bends each later one without bends
  * of its own round an anchor beside the line (`DEdgeDetails.getAnchors`, `EDGE_STACKING` `AUTO_BEND`, the default;
- * it walks the pair's edges newest first, measured on Cytoscape 3.10.5's SVG of edges joining two nodes both ways)
- * -- unless the last has bends, when every anchor falls on the line. Its anchors are the larger side of the two
+ * it walks them in the order it made their views: the edges out of the newer node newest first, then those out of
+ * the older one, measured on Cytoscape 3.10.5's SVG of edges joining two nodes both ways and of cx2-signor-aml)
+ * -- unless that first one has bends, when every anchor falls on the line. Its anchors are the larger side of the two
  * nodes times twice `EDGE_STACKING_DENSITY` apart, so the curves' middles half that: each fanned edge's
  * `fanSpacing`, when the node sizes are known. A fanned edge is drawn curved even under `EDGE_CURVED` false, and an
  * edge whose `EDGE_STACKING` is HAYSTACK is neither fanned nor counted: desktop draws it straight (both measured on
@@ -930,8 +931,10 @@ function straightenBendless(
 
 /**
  * The edges desktop fans, each with its place in its node pair's walk (1 for the first fanned). Desktop walks a node
- * pair's edges newest first (its adjacency lists take each new edge at the head); the first it meets is drawn
- * straight, and each later one fanned unless that first one has bends. Loops and haystack edges are left out.
+ * pair's edges in the order of their view SUIDs (`DEdgeDetails.getAnchors`), which is the order it made the views
+ * in: `SimpleNetwork.getEdgeList` lists each node's outgoing edges, nodes newest first and each node's edges newest
+ * first. So the edges out of the newer node of the pair come first, and the first it meets is drawn straight, and
+ * each later one fanned unless that first one has bends. Loops and haystack edges are left out.
  * @param ends - each edge's source and target node index, and the order they were created in
  * @param count - the edge count
  * @param bent - whether an edge has bends of its own
@@ -946,7 +949,7 @@ function fanPlaces(
 ): Map<number, number> {
     const place = new Map<number, number>();
     const first = new Map<string, { f: number; k: number }>();
-    for (const i of newestFirst(count, ends.created?.edge)) {
+    for (const i of viewOrder(count, ends)) {
         const [s, t] = [ends.source[i], ends.target[i]];
         if (s === t || haystack(i)) {
             continue;
@@ -964,14 +967,19 @@ function fanPlaces(
 }
 
 /**
- * The edges newest first: by the order they were created in when it is known, else last index first.
+ * The edges in the order desktop makes their views (`SimpleNetwork.getEdgeList`): by source node, newest first, and
+ * each node's outgoing edges newest first. Newest is by the order the nodes and edges were created in when it is
+ * known, else the last index.
  * @param count - the edge count
- * @param created - each edge's place in the creation order, when known
+ * @param ends - each edge's source node index, and the order the nodes and edges were created in, when known
  * @returns the edge indices in that order
  */
-function newestFirst(count: number, created: ArrayLike<number> | undefined): number[] {
+function viewOrder(count: number, ends: NonNullable<CytoscapeElements["ends"]>): number[] {
+    const { source, created } = ends;
+    const node = (i: number): number => created?.node[source[i]] ?? source[i];
+    const edge = (i: number): number => created?.edge[i] ?? i;
     const walk = Array.from({ length: count }, (_, i) => i);
-    walk.sort(created === undefined ? (a, b) => b - a : (a, b) => created[b] - created[a]);
+    walk.sort((a, b) => node(b) - node(a) || edge(b) - edge(a));
     return walk;
 }
 

@@ -6,6 +6,7 @@
 
 import { pickFiles as pickFromBrowser, useFileDrop } from "@graphty/compact-mantine";
 import {
+    DATASET_DESCRIPTORS,
     type DatasetMeta,
     DEFAULT_DATASET_BASE_URL,
     type GeneratorDescriptor,
@@ -100,6 +101,35 @@ export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbn
     return entry.thumbnail === undefined
         ? undefined
         : new URL(entry.thumbnail, datasetBase().baseUrl ?? DEFAULT_DATASET_BASE_URL).href;
+}
+
+/** The graph-samples dataset each of the app's own four sample files is a copy of, by sample id. */
+export const OWN_COPIES: Readonly<Record<string, string>> = {
+    "les-miserables": "les-miserables",
+    karate: "karate",
+    "college-football": "football",
+    florentine: "florentine-families",
+};
+
+/**
+ * The graph-samples dataset one of the app's own samples is a copy of.
+ * @param sample - the app's sample.
+ * @returns the dataset's metadata, or undefined when it is not a copy of one.
+ */
+export function copyOf(sample: Pick<StartSample, "id">): DatasetMeta | undefined {
+    return DATASET_DESCRIPTORS.find((dataset) => dataset.name === OWN_COPIES[sample.id]);
+}
+
+/**
+ * The address of the picture of one of the app's own samples: graph-samples' picture of the dataset
+ * it is a copy of, else the app's own picture of it. The start page's tile and the Samples dialog
+ * both show this one.
+ * @param sample - the app's sample.
+ * @returns the address, or undefined when it has no picture.
+ */
+export function samplePicture(sample: Pick<StartSample, "id" | "picture">): string | undefined {
+    const copy = copyOf(sample);
+    return copy === undefined ? sample.picture : pictureOf(copy);
 }
 
 /**

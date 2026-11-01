@@ -96,6 +96,7 @@ export function CardContents({
                         placement="left"
                         alignment="start"
                         header={{ variant: "title", title: "Add card row" }}
+                        closeLabel="Close Add card row"
                     >
                         <ValuePicker
                             title="Add card row"
@@ -255,6 +256,7 @@ function CardRow({
                 placement="left"
                 alignment="start"
                 header={{ variant: "title", title: place }}
+                closeLabel={`Close ${place}`}
             >
                 <ValuePicker
                     title={place}

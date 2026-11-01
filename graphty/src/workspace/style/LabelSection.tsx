@@ -512,7 +512,13 @@ function SourcePicker({
     return (
         <Popout opened={opened} onOpenChange={onOpenChange}>
             <Popout.Trigger>{children}</Popout.Trigger>
-            <Popout.Panel width={LIST_WIDTH} placement="left" alignment="start" header={{ variant: "title", title }}>
+            <Popout.Panel
+                width={LIST_WIDTH}
+                placement="left"
+                alignment="start"
+                header={{ variant: "title", title }}
+                closeLabel={`Close ${title}`}
+            >
                 <ValuePicker
                     title={title}
                     target={target}
@@ -745,6 +751,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                         alignment="start"
                         boundaryTop={settingsOpen ? headerBottom() : 0}
                         header={{ variant: "title", title: `${kind.name} settings` }}
+                        closeLabel={`Close ${kind.name} settings`}
                     >
                         <Popout.Content>
                             {card && words !== undefined ? (

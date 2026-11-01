@@ -47,6 +47,8 @@ import {
     refreshPlan,
     runGroup,
     runShape,
+    shotsInputs,
+    shotsPlan,
     storeList,
 } from "./run-group.mjs";
 
@@ -568,6 +570,93 @@ describe("groupFamily", () => {
             quarantine.map((q) => [q.name, q.family]),
             [["Shots", "layout-shots"]],
         );
+    });
+});
+
+describe("a screenshot run's own plan and inputs (#3648)", () => {
+    it("asks the store for the `-shots` family the plan file does not cover and judges by its quarantine", async () => {
+        const s = await serve((req) =>
+            new URL(req.url, "http://x").searchParams.get("variants") === "layout-shots|flags=off|shots"
+                ? { quarantine: [{ family: "layout-shots", file: "l/A.stories.ts", name: "Shots", issue: 9 }] }
+                : {},
+        );
+        const root = join(TMP, "checkout-shots-own-plan");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout", "test-command": "exit 0" }];\n`,
+        );
+        writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine: [] }));
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        // the light check asked about other packages only: its plan has no `layout-shots`
+        writeFileSync(join(root, "plan.json"), JSON.stringify({ families: ["graphty"], quarantine: [] }));
+        const out = join(root, "quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            RESULTS_URL: s.url,
+            GRAPHTY_RESULTS_TOKEN: "t",
+            GITHUB_EVENT_NAME: "workflow_call",
+            VISUAL_REVIEW_STORY_OUT: join(root, "stories"),
+            RESULTS_PLAN: join(root, "plan.json"),
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        assert.equal(await runGroup("layout", undefined, { root, env }), 0);
+        const { quarantine } = JSON.parse(readFileSync(out, "utf8"));
+        assert.deepEqual(
+            quarantine.map((q) => [q.name, q.family]),
+            [["Shots", "layout-shots"]],
+        );
+        assert.ok(s.seen.some((r) => r.url.startsWith("/v1/plan") && r.url.includes("layout-shots")));
+    });
+
+    it("fails open to no plan when the store is not configured or does not answer", async () => {
+        const facts = { sha: "a", base: null, family: "f-shots", variant: "f-shots|flags=off|shots" };
+        assert.equal(await shotsPlan(null, { ...facts, cfg: null }), null);
+        const s = await serve(() => ({ unavailable: "down" }));
+        assert.equal(await shotsPlan(null, { ...facts, cfg: { url: s.url, token: "t" } }), null);
+        const t = await serve(() => ({ quarantine: [] }));
+        const touched = { base: "b", affected: ["x.ts"], unknownFamilies: [] };
+        assert.deepEqual(await shotsPlan(touched, { ...facts, base: "b", cfg: { url: t.url, token: "t" } }), {
+            quarantine: [],
+            affected: ["x.ts"],
+            unknownFamilies: [],
+            base: "b",
+            families: ["f-shots"],
+        });
+    });
+
+    it("keys a screenshot run by the Chromium revision and its project's baseline tree", () => {
+        const root = join(TMP, "checkout-shots-inputs");
+        mkdirSync(join(root, "node_modules/playwright-core"), { recursive: true });
+        mkdirSync(join(root, "visual-baselines/p"), { recursive: true });
+        writeFileSync(join(root, "package.json"), "{}");
+        const browsers = (revision) =>
+            writeFileSync(
+                join(root, "node_modules/playwright-core/browsers.json"),
+                JSON.stringify({ browsers: [{ name: "chromium", revision }] }),
+            );
+        writeFileSync(join(root, "node_modules/playwright-core/package.json"), '{"name":"playwright-core"}');
+        browsers("1200");
+        writeFileSync(join(root, "visual-baselines/p/a.png"), "one");
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["add", "visual-baselines"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "-m", "x"], { cwd: root });
+        const first = shotsInputs(root, "p");
+        assert.match(first, /^chromium-1200\|baselines-[0-9a-f]{40}$/);
+        writeFileSync(join(root, "visual-baselines/p/a.png"), "two");
+        execFileSync("git", ["commit", "-q", "-am", "y"], { cwd: root });
+        const rebaselined = shotsInputs(root, "p");
+        assert.notEqual(rebaselined, first);
+        browsers("1201");
+        assert.notEqual(shotsInputs(root, "p"), rebaselined);
+        assert.equal(shotsInputs(root, "none"), "chromium-1201|baselines-");
+
+        const env = { PATH: "x", VISUAL_REVIEW_STORY_OUT: "/tmp/s" };
+        const keys = (shots) =>
+            groupKeys({ shardName: "f-1", shard: { "test-command": "c" }, cmd: "c", env, shardKey: "k", shots });
+        assert.notEqual(keys(first).inputs, keys(rebaselined).inputs);
+        assert.equal(keys(first).inputs, keys(first).inputs);
     });
 });
 

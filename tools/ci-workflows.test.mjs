@@ -34,6 +34,7 @@ import {
     plan,
     SHARDS,
     storiesPlan,
+    STORY_PROJECTS,
     STORY_SHARDS,
 } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
@@ -1982,6 +1983,8 @@ describe("verification runs of ci.yml", () => {
         // plan-read.mjs asks for the `-shots` family of exactly the shards this job runs
         const include = parseYaml(ci).jobs["story-tests"].strategy.matrix.include;
         assert.deepEqual([...new Set(include.map((e) => e.shard))].sort(), [...STORY_SHARDS].sort());
+        // and the screenshot run's inputs key holds the baselines of the project each shard captures
+        for (const e of include) assert.equal(STORY_PROJECTS[e.shard], e.project, e.shard);
     });
 
     it("runs the story tests' capture blocking, outside All Checks Pass", () => {

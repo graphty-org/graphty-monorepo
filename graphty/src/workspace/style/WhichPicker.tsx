@@ -28,7 +28,7 @@ import { findTreeRow } from "../graph-place/rows";
 import { useAsyncValue, useSessionVersion } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
 import { isPanelEscape } from "../keys/keys";
-import { SelectionRow, StyleSelection } from "../selection/StyleSelection";
+import { StyleSelection } from "../selection/StyleSelection";
 import { layerSelection } from "../selection/values";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -38,6 +38,7 @@ import {
     cardFields,
     cardsName,
     cardWords,
+    checklistRows,
     dayWords,
     DEFAULT_NAME_KEY,
     edgeCards,
@@ -51,6 +52,7 @@ import {
     nodeLeaves,
     sameSelector,
     selectorOf,
+    SHOWN_VALUES,
     type Side,
     spanOf,
     startWords,
@@ -415,9 +417,6 @@ export function WhichPicker({
         open && document.activeElement?.getAttribute("role") !== "tab" ? "add" : null,
     );
     const rowButton = useRef<HTMLButtonElement>(null);
-    // Opened from the folded row, whose button goes: the editor takes focus. Open on arrival, it
-    // leaves focus where the reader is.
-    const [fromRow, setFromRow] = useState(false);
     const regionId = useId();
     // A card that changes the count says so -- also when the key that changed it (Enter in a
     // number box) closed the cards. The count the picker opens with is not news, nor is a count
@@ -449,28 +448,10 @@ export function WhichPicker({
     };
     return (
         <div className="ws-which" data-testid="which-picker" data-side={side}>
-            {open && selection !== null ? (
-                <StyleSelection
-                    session={session}
-                    layer={rows[0].layer}
-                    name={rows[0].name}
-                    side={side}
-                    autoFocus={fromRow}
-                    onDone={close}
-                />
-            ) : null}
-            {!open && selection !== null ? (
-                <SelectionRow
-                    session={session}
-                    rule={selection}
-                    side={side}
-                    buttonRef={rowButton}
-                    onOpen={() => {
-                        setFromRow(true);
-                        setOpen(true);
-                    }}
-                />
-            ) : null}
+            {selection !== null && (
+                // The outline is the layer's recipe at rest: it is always drawn, never folded.
+                <StyleSelection session={session} layer={rows[0].layer} name={rows[0].name} side={side} />
+            )}
             {selection === null && open && (
                 <Cards
                     session={session}
@@ -1676,6 +1657,12 @@ function glyphOf(kind: CardField["kind"]): (typeof VALUE_GLYPHS)[keyof typeof VA
     return VALUE_GLYPHS[kind === "name" ? "text" : kind];
 }
 
+/**
+ * Where a card body is drawn: a filter card, or a selection step's pane, where "Has a value" and
+ * "Has no value" are not offered (its Advanced holds Not measured) and a checklist has no Match.
+ */
+export type CardVariant = "filter" | "step";
+
 /** The two choices every value card's Match select ends with. */
 const PRESENCE = [
     { value: "present", label: "Has a value" },
@@ -1768,7 +1755,8 @@ function CardEditor({
  * @param props.side - nodes or edges
  * @param props.onChange - takes the card as edited
  * @param props.blank - a new card with no value picked yet: a yes-or-no card shows no choice
- * @param props.variant - "filter": a value row reads box, name, then its count dimmed at the right
+ * @param props.variant - "filter" or "step": a value row reads box, name, then its count dimmed at
+ *     the right; "step" offers no presence choices
  * @returns The body
  */
 export function CardBody({
@@ -1784,11 +1772,11 @@ export function CardBody({
     side: Side;
     onChange: OnCard;
     blank?: boolean;
-    variant?: "filter";
+    variant?: CardVariant;
 }>): React.JSX.Element | null {
     switch (card.type) {
         case "number":
-            return <NumberCard session={session} card={card} side={side} onChange={onChange} />;
+            return <NumberCard session={session} card={card} side={side} onChange={onChange} variant={variant} />;
         case "date":
             return <DateCard session={session} card={card} side={side} onChange={onChange} />;
         case "category":
@@ -1804,7 +1792,11 @@ export function CardBody({
                     label={`${card.field.name} is`}
                     name={card.field.name}
                     value={blank || card.match === "unset" ? null : card.match}
-                    data={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, ...PRESENCE]}
+                    data={[
+                        { value: "yes", label: "Yes" },
+                        { value: "no", label: "No" },
+                        ...(variant === "step" ? [] : PRESENCE),
+                    ]}
                     onChange={(match) => {
                         onChange({ ...card, match: match as typeof card.match });
                     }}
@@ -2136,6 +2128,7 @@ function checkDrafts(
  * @param props.card - the card
  * @param props.side - nodes or edges
  * @param props.onChange - takes the card as edited
+ * @param props.variant - "step": no presence choices
  * @returns The body
  */
 function NumberCard({
@@ -2143,11 +2136,13 @@ function NumberCard({
     card,
     side,
     onChange,
+    variant,
 }: Readonly<{
     session: GraphSession;
     card: Extract<Card, { type: "number" }>;
     side: Side;
     onChange: OnCard;
+    variant?: CardVariant;
 }>): React.JSX.Element {
     const { name, path, range, within, missing: given } = card.field;
     // Counted over the selection's base when the card has one, so a filtered-out node is not.
@@ -2276,7 +2271,11 @@ function NumberCard({
             <MatchSelect
                 name={name}
                 value={card.match}
-                data={[{ value: "range", label: "Between" }, { value: "top", label: "Highest" }, ...PRESENCE]}
+                data={[
+                    { value: "range", label: "Between" },
+                    { value: "top", label: "Highest" },
+                    ...(variant === "step" ? [] : PRESENCE),
+                ]}
                 onChange={(match) => {
                     clear();
                     onChange({
@@ -2544,20 +2543,17 @@ function DateCard({
     );
 }
 
-/** How many values a category card lists before it offers a search and "Show all". */
-const SHOWN_VALUES = 8;
-
 /**
- * A value row's checkbox label: "Paris, 4 nodes" in a layer's card; in a filter card the name and
- * the count dimmed at the right, named as the layer's card says it.
- * @param variant - "filter", or undefined for a layer's card.
+ * A value row's checkbox label: "Paris, 4 nodes" in a layer's card; in a filter card and a
+ * selection step the name and the count dimmed at the right, named as the layer's card says it.
+ * @param variant - "filter" or "step", or undefined for a layer's card.
  * @param label - the value's name.
  * @param count - how many carry it.
  * @param side - nodes or edges.
  * @returns the checkbox's label props.
  */
 function valueRow(
-    variant: "filter" | undefined,
+    variant: CardVariant | undefined,
     label: string,
     count: number,
     side: Side,
@@ -2583,14 +2579,15 @@ function valueRow(
 }
 
 /**
- * A category card: a checklist of the values by count, ticked ones being alternatives; over 8 a
- * search, the top 8 and "Show all N"; "(no value)" when some elements have none.
+ * A category card: a counted checklist of the values, ticked ones being alternatives, drawing at
+ * most 8 rows whatever the column holds; over 8 a search ("Search 5,000"), and while searching
+ * "Check N" ticks every match; "(no value)" when some elements have none.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.card - the card
  * @param props.side - nodes or edges
  * @param props.onChange - takes the card as edited
- * @param props.variant - "filter": each value's count dimmed at the right
+ * @param props.variant - "filter" or "step": each value's count dimmed at the right; "step" draws no Match select
  * @returns The body
  */
 function CategoryCard({
@@ -2604,7 +2601,7 @@ function CategoryCard({
     card: Extract<Card, { type: "category" }>;
     side: Side;
     onChange: OnCard;
-    variant?: "filter";
+    variant?: CardVariant;
 }>): React.JSX.Element {
     const { name, path, within } = card.field;
     const counts = useMemo(() => {
@@ -2619,60 +2616,82 @@ function CategoryCard({
         };
     }, [session, path, side, within]);
     const [search, setSearch] = useState("");
-    const [all, setAll] = useState(false);
     const typed = search.trim().toLowerCase();
-    const named = counts.values
-        .map((each) => ({
-            value: String(each.value),
-            label: valueName(session, path, each.value),
-            count: each.count,
-        }))
-        // Largest first, then GAL1, GAL2 ... GAL10, as a reader counts.
-        .sort((a, b) => b.count - a.count || NATURAL.compare(a.label, b.label));
-    const found = named.filter((each) => typed === "" || each.label.toLowerCase().includes(typed));
-    const listed = all || typed !== "" ? found : found.slice(0, SHOWN_VALUES);
+    const named = useMemo(
+        () =>
+            counts.values
+                .map((each) => ({
+                    value: String(each.value),
+                    label: valueName(session, path, each.value),
+                    count: each.count,
+                }))
+                // Largest first, then GAL1, GAL2 ... GAL10, as a reader counts.
+                .sort((a, b) => b.count - a.count || NATURAL.compare(a.label, b.label)),
+        [counts, session, path],
+    );
+    const checked = useMemo(() => new Set(card.values), [card.values]);
+    const { rows, moreChecked, matches, unchecked } = checklistRows(named, checked, typed);
     const toggle = (value: string, on: boolean): void => {
         const values = on ? [...card.values, value] : card.values.filter((v) => v !== value);
         onChange({ ...card, match: "values", values });
     };
+    const allMatched = matches.length > 0 && matches.every((each) => checked.has(each.value));
+    const checkMatches = (): void => {
+        const found = new Set(matches.map((each) => each.value));
+        const values = allMatched
+            ? card.values.filter((value) => !found.has(value))
+            : [...card.values, ...matches.filter((each) => !checked.has(each.value)).map((each) => each.value)];
+        onChange({ ...card, match: "values", values });
+    };
+    const shownUnchecked = rows.filter((each) => !checked.has(each.value)).length;
     return (
         <Stack gap={4}>
-            <MatchSelect
-                name={name}
-                value={card.match}
-                data={[{ value: "values", label: "Is any of" }, ...PRESENCE]}
-                onChange={(match) => {
-                    onChange({ ...card, match: match as typeof card.match });
-                }}
-            />
+            {variant !== "step" && (
+                <MatchSelect
+                    name={name}
+                    value={card.match}
+                    data={[{ value: "values", label: "Is any of" }, ...PRESENCE]}
+                    onChange={(match) => {
+                        onChange({ ...card, match: match as typeof card.match });
+                    }}
+                />
+            )}
             {card.match === "values" && (
                 <>
                     {named.length > SHOWN_VALUES && (
-                        <TextInput
-                            size="xs"
-                            aria-label={`Search ${name}`}
-                            placeholder="Search"
-                            value={search}
-                            onChange={(event) => {
-                                setSearch(event.currentTarget.value);
-                            }}
-                        />
+                        <Group gap={4} wrap="nowrap">
+                            <TextInput
+                                size="xs"
+                                aria-label={`Search ${name}`}
+                                placeholder={`Search ${formatNumber(named.length)}`}
+                                value={search}
+                                style={{ flex: 1, minWidth: 0 }}
+                                onChange={(event) => {
+                                    setSearch(event.currentTarget.value);
+                                }}
+                            />
+                            {typed !== "" && matches.length > 0 && (
+                                <Button size="compact-xs" variant="default" onClick={checkMatches}>
+                                    {`${allMatched ? "Uncheck" : "Check"} ${formatNumber(matches.length)}`}
+                                </Button>
+                            )}
+                        </Group>
                     )}
                     <Stack gap={2} role="group" aria-label={`${name} values`}>
-                        {listed.map((each) => (
+                        {rows.map((each) => (
                             <Checkbox
                                 key={each.value}
                                 size="xs"
                                 {...valueRow(variant, each.label, each.count, side)}
                                 data-enter-done
                                 onKeyDown={tickOnEnter}
-                                checked={card.values.includes(each.value)}
+                                checked={checked.has(each.value)}
                                 onChange={(event) => {
                                     toggle(each.value, event.currentTarget.checked);
                                 }}
                             />
                         ))}
-                        {counts.missing > 0 && (
+                        {counts.missing > 0 && typed === "" && (
                             <Checkbox
                                 size="xs"
                                 {...valueRow(variant, "(no value)", counts.missing, side)}
@@ -2685,17 +2704,20 @@ function CategoryCard({
                             />
                         )}
                     </Stack>
-                    {!all && typed === "" && named.length > SHOWN_VALUES && (
-                        <Button
-                            size="compact-xs"
-                            variant="subtle"
-                            style={{ alignSelf: "flex-start" }}
-                            onClick={() => {
-                                setAll(true);
-                            }}
-                        >
-                            Show all {String(named.length)}
-                        </Button>
+                    {moreChecked > 0 && (
+                        <Text size="xs" c="dimmed">
+                            {`${formatNumber(moreChecked)} more checked`}
+                        </Text>
+                    )}
+                    {typed === "" && unchecked > shownUnchecked && (
+                        <Text size="xs" c="dimmed">
+                            {`${formatNumber(shownUnchecked)} of ${formatNumber(unchecked)}`}
+                        </Text>
+                    )}
+                    {typed !== "" && matches.length > rows.length && (
+                        <Text size="xs" c="dimmed">
+                            {`${formatNumber(rows.length)} of ${formatNumber(matches.length)}`}
+                        </Text>
                     )}
                 </>
             )}
@@ -2725,7 +2747,7 @@ function SourceCard({
     card: Extract<Card, { type: "source" }>;
     side: Side;
     onChange: OnCard;
-    variant?: "filter";
+    variant?: CardVariant;
 }>): React.JSX.Element {
     const { name } = card.field;
     return (
@@ -2829,6 +2851,8 @@ function TextCard({
                             aria-label={`${name}: text to match`}
                             data-enter-done
                             placeholder="Type the text to match"
+                            // Never more than a checklist draws, whatever the column holds (spec 4.3).
+                            limit={SHOWN_VALUES}
                             data={listed}
                             filter={({ options }) => options}
                             // Focus put here (the card opening, Undo, a card removed) never opens

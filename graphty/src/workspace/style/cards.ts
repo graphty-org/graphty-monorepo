@@ -1190,3 +1190,41 @@ export function selectionName(session: GraphSession): string {
     }
     return countName(nodes.length, edges.length);
 }
+
+/** How many value rows a checklist draws in all, whatever the column holds (spec 4.3). */
+export const SHOWN_VALUES = 8;
+
+/** A value of a checklist: its value, its name and how many carry it. */
+export interface Listed {
+    readonly value: string;
+    readonly label: string;
+    readonly count: number;
+}
+
+/**
+ * The rows a checklist draws, never more than {@link SHOWN_VALUES} (spec 4.3): with nothing typed
+ * the checked values first, then the largest unchecked; while typing, the matches, checked or not.
+ * @param named - every value, largest first.
+ * @param checked - the checked values.
+ * @param typed - the search, lower case.
+ * @returns the rows, how many more are checked than drawn, and the matches and unchecked counts.
+ */
+export function checklistRows(
+    named: readonly Listed[],
+    checked: ReadonlySet<string>,
+    typed: string,
+): { rows: Listed[]; moreChecked: number; matches: readonly Listed[]; unchecked: number } {
+    if (typed !== "") {
+        const matches = named.filter((each) => each.label.toLowerCase().includes(typed));
+        return { rows: matches.slice(0, SHOWN_VALUES), moreChecked: 0, matches, unchecked: 0 };
+    }
+    const ticked = named.filter((each) => checked.has(each.value));
+    const pinned = ticked.slice(0, SHOWN_VALUES);
+    const rest = named.filter((each) => !checked.has(each.value));
+    return {
+        rows: [...pinned, ...rest.slice(0, SHOWN_VALUES - pinned.length)],
+        moreChecked: ticked.length - pinned.length,
+        matches: named,
+        unchecked: rest.length,
+    };
+}

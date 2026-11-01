@@ -34,6 +34,7 @@ import {
     type PStray,
     type Pt,
     type PText,
+    shapeId,
     strokedBarb,
     taperPaintedAsFill,
 } from "./primitives";
@@ -3176,7 +3177,8 @@ export function associate(
             }
             take(p);
             groups.push({
-                id: `box-${String(p.index)}`,
+                // named by its box, not its place in the list of shapes read
+                id: shapeId("box", p.box),
                 box: p.box,
                 fill: p.fill,
                 stroke: p.stroke,

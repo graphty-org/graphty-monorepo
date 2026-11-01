@@ -192,12 +192,18 @@ export function keyExpression(name: string): string {
 
 /**
  * A table cell that names a node, as text: a CSV file's ids are text, as `session.data.import`
- * reads them, though the draft types each cell for the mapping (`1`, `true`).
+ * reads them, though the draft types each cell for the mapping (`1`, `true`). A merge joins a node
+ * the graph already holds under the cell's own value (a GML or JSON file's number ids).
  * @param value - The cell.
- * @returns The cell, a number or a truth value written as text.
+ * @param graph - The ids of the graph a merge loads onto; none for a new graph.
+ * @returns The cell, a number or a truth value written as text unless the graph holds it.
  */
-function idText(value: unknown): unknown {
-    return typeof value === "number" || typeof value === "boolean" ? String(value) : value;
+function idText(value: unknown, graph?: ReadonlySet<unknown>): unknown {
+    if (typeof value !== "number" && typeof value !== "boolean") {
+        return value;
+    }
+
+    return graph?.has(value) === true ? value : String(value);
 }
 
 /**
@@ -205,18 +211,20 @@ function idText(value: unknown): unknown {
  * puts a node's id.
  * @param rows - The rows.
  * @param columns - The columns that name nodes.
+ * @param graph - The ids of the graph a merge loads onto; none for a new graph.
  * @returns The rows.
  */
 function withIdText(
     rows: readonly Record<string, unknown>[],
     columns: readonly (string | null | undefined)[],
+    graph?: ReadonlySet<unknown>,
 ): readonly Record<string, unknown>[] {
     const named = new Set(columns.filter((column): column is string => typeof column === "string"));
     return rows.map((row) => {
         const entries = Object.entries(row);
         return Object.fromEntries([
             ...entries.filter(([column]) => !named.has(column)),
-            ...entries.filter(([column]) => named.has(column)).map(([column, value]) => [column, idText(value)]),
+            ...entries.filter(([column]) => named.has(column)).map(([column, value]) => [column, idText(value, graph)]),
         ]);
     });
 }
@@ -1178,11 +1186,12 @@ export class Draft implements LoadDraft {
         const edgeRoles = edgeTable === undefined ? undefined : mapping.tables[edgeTable.table.id];
         const key = nodeRoles?.key ?? null;
         const nodeRows = nodeTable?.rows ?? [];
+        const onto = choices.mode === "merge" ? this.host.graph().nodes : undefined;
         const kinds = withKinds(
             key === null
                 ? nodeRows.map((row, index) => ({ ...row, [ROW_ID]: String(index) }))
-                : withIdText(nodeRows, [key]),
-            withIdText(edgeTable?.rows ?? [], [edgeRoles?.source?.column, edgeRoles?.target?.column]),
+                : withIdText(nodeRows, [key], onto),
+            withIdText(edgeTable?.rows ?? [], [edgeRoles?.source?.column, edgeRoles?.target?.column], onto),
             {
                 key: key ?? ROW_ID,
                 nodeKind: nodeRoles?.kind ?? null,
@@ -1235,9 +1244,10 @@ export class Draft implements LoadDraft {
         // Only this table need be ready: another table's missing role does not stop reading this one.
         const { mapping, held: rows } = this.plan(read, choices, held.table.id);
         const roles = mapping.tables[held.table.id];
+        const graph = choices.mode === "merge" ? this.host.graph().nodes : new Set<NodeId>();
         // A CSV table's ids are read as text, as the plan loads them.
         const value = (row: Readonly<Record<string, unknown>>, expression: string): unknown =>
-            held.table.fixed ? readEndpoint(row, expression) : idText(readEndpoint(row, expression));
+            held.table.fixed ? readEndpoint(row, expression) : idText(readEndpoint(row, expression), graph);
         const picked: number[] = [];
         if (roles.rowsAre === "nodes") {
             if (only !== "unmatched") {
@@ -1267,7 +1277,6 @@ export class Draft implements LoadDraft {
         const known = new Set<unknown>(
             rows.nodes.map((row) => value(row, rows.idPath ?? this.host.config().knownFields.nodeIdPath)),
         );
-        const graph = choices.mode === "merge" ? this.host.graph().nodes : new Set<NodeId>();
         // With no node rows and no graph to name, every node comes from the edges: none is missing.
         const matching = known.size > 0 || graph.size > 0;
         held.rows.forEach((row, index) => {

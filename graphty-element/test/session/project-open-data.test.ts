@@ -115,6 +115,34 @@ describe("project.open's draft loads a data file as data.import does", () => {
     }
 });
 
+describe("a CSV draft merged onto a graph", () => {
+    it("joins the nodes the graph holds under number ids, and adds new ones as text", async () => {
+        const { session } = makeSession();
+        const gml =
+            'graph [ node [ id 1 label "A" ] node [ id 2 label "B" ] node [ id 3 label "C" ] edge [ source 1 target 2 ] ]';
+        await session.data.import({ config: { file: new File([gml], "abc.gml") }, name: "abc.gml" });
+        const draft = await session.data.prepare(
+            { config: { file: new File(["source,target\n2,3\n3,4\n"], "more.csv") }, name: "more.csv" },
+            { onto: "graph", guess: "values" },
+        );
+        await draft.load({ mode: "merge" });
+
+        assert.deepStrictEqual(
+            session.data.nodes().map((node) => node.id),
+            [1, 2, 3, "4"],
+        );
+        assert.deepStrictEqual(
+            session.data.edges().map(({ source, target }) => [source, target]),
+            [
+                [1, 2],
+                [2, 3],
+                [3, "4"],
+            ],
+        );
+        session.dispose();
+    });
+});
+
 describe("a project file handed to a data import", () => {
     it("is refused with E_PROJECT_FILE_AS_DATA, naming project.open, and the graph is left as it was", async () => {
         const saver = makeSession().session;

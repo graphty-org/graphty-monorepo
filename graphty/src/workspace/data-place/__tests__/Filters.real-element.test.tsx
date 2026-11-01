@@ -54,7 +54,15 @@ const filters = (): HTMLElement =>
  * @returns queries inside it.
  */
 async function card(name: RegExp): Promise<ReturnType<typeof within>> {
-    return within(await within(filters()).findByRole("group", { name }));
+    // The card itself, never a group inside it (an open card's step pane is a group too).
+    const found = await waitFor(() => {
+        const each = [...filters().querySelectorAll<HTMLElement>(":scope > li > [role=group]")].find((group) =>
+            name.test(group.getAttribute("aria-label") ?? ""),
+        );
+        assert.isDefined(each);
+        return each;
+    });
+    return within(found);
 }
 
 /**

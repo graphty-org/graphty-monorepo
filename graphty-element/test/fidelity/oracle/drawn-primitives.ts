@@ -148,6 +148,8 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     inverted: "inverted",
     vee: "vee",
     crow: "crow",
+    // a vee read at its line's other end (drawn-scene.ts, POINTS_BACK)
+    "inverted-vee": "inverted-vee",
     diamond: "diamond",
     "open-diamond": "diamond",
     dot: "circle",
@@ -202,7 +204,9 @@ const SIDED_KEEP_CLASS: ReadonlySet<ArrowShape> = new Set(["box", "tee", "invert
 const POINTING_BACK: Partial<Record<ArrowShape, ArrowShape>> = {
     triangle: "inverted",
     inverted: "triangle",
-    vee: "crow",
+    // a vee turned round has no tine along its line: no crow's foot
+    vee: "inverted-vee",
+    "inverted-vee": "vee",
     crow: "vee",
 };
 
@@ -218,9 +222,10 @@ const CAP_PLACE_PX = 2;
  * off its line, 30 px back along it or 12 px to its side, as a head in its place (extendToTip bridged a gap to it).
  * @param c - the cap
  * @param line - the line as drawn, source end first, before any cap carries it on
+ * @param lineEnds - where the line itself ends, source end first, short of its caps' tips; undefined where not read
  * @returns the arrow
  */
-function drawnArrow(c: DrawnCap, line: readonly Pt[]): PArrow {
+function drawnArrow(c: DrawnCap, line: readonly Pt[], lineEnds?: readonly [Pt, Pt]): PArrow {
     const end = CAP_END[c.end];
     const open =
         (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
@@ -236,7 +241,14 @@ function drawnArrow(c: DrawnCap, line: readonly Pt[]): PArrow {
     }
     const read = measureArrow(c.outline, line, end, { filled: look.filled, color: look.color });
     const backward = end !== "middle" && POINTING_BACK[shape] !== undefined && read.shape === POINTING_BACK[shape];
-    const arrow = measureArrow(c.outline, line, end, backward ? { ...look, shape: read.shape } : look);
+    const measured = measureArrow(c.outline, line, end, backward ? { ...look, shape: read.shape } : look);
+    // the line stops short of the tip `line` runs on to: the break between it and the cap is read where it stops
+    let lineGap: number | undefined;
+    if (end !== "middle" && lineEnds !== undefined) {
+        const ownLine = end === "target" ? [...line.slice(0, -1), lineEnds[1]] : [lineEnds[0], ...line.slice(1)];
+        ({ lineGap } = measureArrow(c.outline, ownLine, end, look));
+    }
+    const arrow = lineGap === undefined ? measured : { ...measured, lineGap };
     // an end's head its style draws part-way along the line is no head at the line's end: where along the line it sits
     // is judged against the program's (pajek-graphstream-b: Pajek's and graphty's both at the middle, failed for
     // standing 260 px off the line's end)
@@ -621,7 +633,7 @@ export function drawnPrimitives(
         // a cap drawn at no opacity or no size draws nothing
         const arrows: PArrow[] = d.caps
             .filter((c) => c.opacity > 0 && c.sizePx > 0)
-            .map((c) => drawnArrow(c, d.points));
+            .map((c) => drawnArrow(c, d.points, d.lineEnds));
         // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
         // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip) -- except
         // an open half circle standing off its node (a gap, Cytoscape's OPEN_HALF_CIRCLE): the line stops at the arc's

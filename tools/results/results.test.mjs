@@ -1409,6 +1409,8 @@ describe("cli", () => {
             );
             assert.equal(execs[0].includes("fidelity/oracles"), project === "graph-io-fidelity");
             assert.match(execs[1], /^pnpm exec nx run \S+:build$/);
+            // graph-io's fidelity stories import graphty-element's source, which needs the other packages built
+            assert.equal(execs.includes("pnpm exec nx run graphty-element:build"), project !== "layout", project);
         }
         // a story file of another package is not the shard's
         const run = async () => 0;
@@ -1420,6 +1422,20 @@ describe("cli", () => {
             run,
         };
         assert.equal(await baseCheck(other), 2);
+    });
+
+    it("still runs a plain family on a base whose matrix predates the story runs", async () => {
+        const root = mkdtempSync(join(tmpdir(), "base-check-old-"));
+        mkdirSync(join(root, "tools"));
+        const shard = { shard: "layout", package: "layout", "test-command": "cd layout && pnpm exec vitest run" };
+        writeFileSync(join(root, "tools/ci-test-matrix.mjs"), `export const SHARDS = [${JSON.stringify(shard)}];\n`);
+        const cmds = [];
+        const run = async (s, cmd) => cmds.push(cmd) && 0;
+        const file = "layout/test/a.test.ts";
+        assert.equal(await baseCheck({ root, variant: "layout|flags=off|selected", file, env: {}, run }), 0);
+        assert.deepEqual(cmds, ["cd layout && pnpm exec vitest run 'test/a.test.ts'"]);
+        assert.equal(await baseCheck({ root, variant: "layout-shots|flags=off|shots", file, env: {}, run }), 2);
+        rmSync(root, { recursive: true, force: true });
     });
 
     it("lets only the last repeat file Failing on master, and only when every repeat failed", async () => {

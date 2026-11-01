@@ -126,9 +126,10 @@ function nxProject(root, dir) {
  * @param matrix.STORY_RUNS its STORY_RUNS
  * @param family the variant's family
  * @param file the test file
- * @returns `{ shard, cmd, shots? }`, `shots` being `{ project, lfs }`; or null when nothing runs the file
+ * @returns `{ shard, cmd, shots? }`, `shots` being `{ project, lfs, build }`; or null when nothing runs the file
  */
-function checkRun(root, { SHARDS, STORY_PROJECTS, STORY_RUNS }, family, file) {
+function checkRun(root, { SHARDS, STORY_PROJECTS = {}, STORY_RUNS = {} }, family, file) {
+    // a base older than STORY_RUNS has no story runs: its plain families still run (master's tools, the base's matrix)
     const story = Object.keys(STORY_RUNS).find((s) => `${familyOf(s)}-shots` === family);
     if (story) {
         const shard = SHARDS.find((s) => s.shard === story);
@@ -138,7 +139,11 @@ function checkRun(root, { SHARDS, STORY_PROJECTS, STORY_RUNS }, family, file) {
         return {
             shard,
             cmd,
-            shots: { project, lfs: `visual-baselines/${project}/**,visual-fonts/**${STORY_RUNS[story].lfs ?? ""}` },
+            shots: {
+                project,
+                lfs: `visual-baselines/${project}/**,visual-fonts/**${STORY_RUNS[story].lfs ?? ""}`,
+                build: STORY_RUNS[story].build ?? [],
+            },
         };
     }
     const slices = SHARDS.filter((s) => familyOf(s.shard) === family);
@@ -182,7 +187,8 @@ export async function baseCheck({
     const { shard, cmd, shots } = found;
     if (build) {
         if (shots) exec("git", ["lfs", "pull", "--include", shots.lfs], { cwd: root, stdio: "inherit" });
-        exec("pnpm", ["exec", "nx", "run", `${nxProject(root, shard.package)}:build`], { cwd: root, stdio: "inherit" });
+        for (const project of [nxProject(root, shard.package), ...(shots?.build ?? [])])
+            exec("pnpm", ["exec", "nx", "run", `${project}:build`], { cwd: root, stdio: "inherit" });
     }
     const out = shots && (env.VISUAL_REVIEW_STORY_OUT || mkdtempSync(join(tmpdir(), "base-check-shots-")));
     const flags = variant.includes("|flags=on|") ? "on" : "off";

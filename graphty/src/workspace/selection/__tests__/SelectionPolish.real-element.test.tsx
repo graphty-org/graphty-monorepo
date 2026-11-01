@@ -238,6 +238,14 @@ describe("the value picker and the cards a value opens", () => {
 });
 
 describe("the editor's verbs, groups and words", () => {
+    it("opening Which nodes from its folded row moves focus into the editor", async () => {
+        const session = await lesMis();
+        await openLayer(session, "Folded", { match: "rule", where: DEGREE_6_TO_10 });
+        await waitFor(() => {
+            assert.isNotNull(document.activeElement?.closest(".sel-editor"), "focus is in the editor, never the page");
+        });
+    });
+
     it("after a group's first step, + refines with Keep", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Refine", {

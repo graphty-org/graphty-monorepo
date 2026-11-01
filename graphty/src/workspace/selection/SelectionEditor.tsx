@@ -712,7 +712,10 @@ export function SelectionEditor({
                                         className="sel-row sel-step-row"
                                         aria-expanded={open}
                                         aria-keyshortcuts="Enter Space Delete Control+D Meta+D Control+] Control+["
-                                        aria-label={`${verb.word}, ${words.value}${summary === "" ? "" : ` ${summary}`}${soFar}${step.on === false ? ", off" : ""}`}
+                                        aria-label={[
+                                            `${verb.word}, ${[words.value, summary].filter((each) => each !== "").join(" ")}${soFar}`,
+                                            ...(step.on === false ? ["off"] : []),
+                                        ].join(", ")}
                                         onKeyDown={(event) => {
                                             rowKeys(event, branch, id);
                                         }}

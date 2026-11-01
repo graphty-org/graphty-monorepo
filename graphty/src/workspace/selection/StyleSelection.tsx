@@ -25,6 +25,7 @@ import { NOUNS, summaryChips, VERB_WORDS } from "./words";
  * @param props.layer - the layer of this side
  * @param props.name - the layer's row name, for the undo step's words
  * @param props.side - nodes or edges
+ * @param props.autoFocus - takes focus on arrival (opened from the folded row, which goes)
  * @param props.onDone - closes the editor, handing focus back to the Which row
  * @returns The editor
  */
@@ -33,12 +34,14 @@ export function StyleSelection({
     layer,
     name,
     side,
+    autoFocus = false,
     onDone,
 }: Readonly<{
     session: GraphSession;
     layer: Layer;
     name: string;
     side: Side;
+    autoFocus?: boolean;
     onDone: () => void;
 }>): React.JSX.Element | null {
     // The rule as last edited, until the element holds it: typing is never undone by a write on its way.
@@ -89,8 +92,7 @@ export function StyleSelection({
                 session={session}
                 rule={rule}
                 host="selector"
-                // Opened from the folded row's button, which goes: focus moves in with it.
-                autoFocus
+                autoFocus={autoFocus}
                 onDone={onDone}
                 onChange={(next) => {
                     setLocal(next);

@@ -415,6 +415,9 @@ export function WhichPicker({
         open && document.activeElement?.getAttribute("role") !== "tab" ? "add" : null,
     );
     const rowButton = useRef<HTMLButtonElement>(null);
+    // Opened from the folded row, whose button goes: the editor takes focus. Open on arrival, it
+    // leaves focus where the reader is.
+    const [fromRow, setFromRow] = useState(false);
     const regionId = useId();
     // A card that changes the count says so -- also when the key that changed it (Enter in a
     // number box) closed the cards. The count the picker opens with is not news, nor is a count
@@ -452,6 +455,7 @@ export function WhichPicker({
                     layer={rows[0].layer}
                     name={rows[0].name}
                     side={side}
+                    autoFocus={fromRow}
                     onDone={close}
                 />
             ) : null}
@@ -462,6 +466,7 @@ export function WhichPicker({
                     side={side}
                     buttonRef={rowButton}
                     onOpen={() => {
+                        setFromRow(true);
                         setOpen(true);
                     }}
                 />

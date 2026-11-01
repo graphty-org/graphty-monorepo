@@ -1185,6 +1185,7 @@ export interface EdgePosition {
     dst: Position;
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
+    leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
     // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];

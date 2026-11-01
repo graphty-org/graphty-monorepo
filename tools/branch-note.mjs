@@ -127,6 +127,20 @@ export const findNote = (issue, branch) =>
     issue?.comments.findLast((c) => c.body.startsWith(noteMarker(branch))) ?? null;
 
 /**
+ * Whether a number is an open issue; says why not on stderr.
+ * @param run runs gh
+ * @param n the number
+ * @returns 0 for an open issue, else 1
+ */
+function checkIssue(run, n) {
+    // GraphQL's issue() answers null for a pull request's number, so only an open issue passes.
+    const found = readIssues(run, [n]).get(n);
+    if (found?.state === "OPEN") return 0;
+    console.error(`branch-note: #${n} is ${found ? "closed" : "a pull request or no issue at all"}`);
+    return 1;
+}
+
+/**
  * Writes or rewrites a branch's note: the fields given replace the note's, the rest are kept.
  * @param run runs gh
  * @param n the issue
@@ -266,13 +280,7 @@ export function main(argv, run = gh, cwd = process.cwd()) {
         console.log(newIssue(run, o));
         return 0;
     }
-    if (command === "check-issue") {
-        // GraphQL's issue() answers null for a pull request's number, so only an open issue passes.
-        const found = readIssues(run, [Number(o.issue)]).get(Number(o.issue));
-        if (found?.state === "OPEN") return 0;
-        console.error(`branch-note: #${o.issue} is ${found ? "closed" : "a pull request or no issue at all"}`);
-        return 1;
-    }
+    if (command === "check-issue") return checkIssue(run, Number(o.issue));
     const branch = o.branch ?? git(cwd, ["symbolic-ref", "-q", "--short", "HEAD"]);
     if (!["start", "update", "commit"].includes(command) || !branch) return usage();
     const n = branchIssue(cwd, branch, o.issue);

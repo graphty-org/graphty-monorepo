@@ -52285,5 +52285,79 @@
             "reason": "the ngraph engine now gives two nodes one spring however many edges join them (d3fc3a2383), where vis-network springs every edge; this sample's one parallel pair now pulls once, so the force layout spreads wider and fills its canvas 1.23 times as much as the oracle's, past the 1.18 tolerance",
             "date": "2026-10-24"
         }
+    },
+    "drops": {
+        "dot-real-crazy": {
+            "node.position": {
+                "floor": 1,
+                "to": 0.683,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 0.976,
+                "to": 0.878,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
+        },
+        "dot-real-crazy@matched": {
+            "label.anchor": {
+                "floor": 0.976,
+                "to": 0.878,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
+        },
+        "dot-real-linux-kernel": {
+            "edge.route": {
+                "floor": 1,
+                "to": 0.975,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
+        },
+        "dot-real-linux-kernel@matched": {
+            "edge.route": {
+                "floor": 1,
+                "to": 0.975,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
+        },
+        "dot-real-siblings": {
+            "node.position": {
+                "floor": 0.13,
+                "to": 0.05,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            },
+            "edge.route": {
+                "floor": 0.958,
+                "to": 0.901,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            },
+            "edge.curve": {
+                "floor": 0.996,
+                "to": 0.989,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
+        },
+        "dot-real-siblings@matched": {
+            "edge.route": {
+                "floor": 0.975,
+                "to": 0.961,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            },
+            "edge.curve": {
+                "floor": 0.993,
+                "to": 0.989,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
+        }
     }
 }

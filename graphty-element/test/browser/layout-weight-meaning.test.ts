@@ -5,14 +5,23 @@
  *
  * The fixture is the path a - b - c - e, whose end edges a-b and c-e are mirror images, so any
  * difference between their drawn lengths is the weight and nothing else. a-b weighs 8, the rest 1.
+ *
+ * The last case runs ForceAtlas2 on a real WebGPU device, and only when the run asked for one
+ * (`GRAPHTY_BROWSER_GPU`, as `webgpu-layout.test.ts` explains): a distance reaches the accelerator
+ * as a derived edge column, and the device has to read it the way the CPU does.
  */
 
 import "../../src/graphty-element";
+import "../../webgpu";
 
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import type { LayoutWarningEvent } from "../../src/events";
+import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
+
+/** Whether this run has a WebGPU device to talk to at all. */
+const GPU_LANE = ((import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "") !== "";
 
 const PATH = ["from,to,km", "a,b,8", "b,c,1", "c,e,1"].join("\n");
 
@@ -29,17 +38,20 @@ afterEach(() => {
  * @param layout - The layout.
  * @param weightMeaning - The meaning chosen at load, or undefined for none.
  * @param weighted - The layout's `weighted` option.
+ * @param acceleration - The element's acceleration policy.
  * @returns the element and the layout warnings it emitted
  */
 async function laidOut(
     layout: "kamada-kawai" | "forceatlas2",
     weightMeaning?: "strength" | "distance" | "capacity",
     weighted = true,
+    acceleration: "auto" | "required" = "auto",
 ): Promise<{ element: Graphty; warnings: Omit<LayoutWarningEvent, "type">[] }> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";
+    element.setAttribute("acceleration", acceleration);
     document.body.appendChild(element);
     mounted.push(element);
     await element.updateComplete;
@@ -131,4 +143,20 @@ describe("layouts read the edge weight as what it means", () => {
             ]);
         });
     }
+});
+
+describe.skipIf(!GPU_LANE)("layouts read the edge weight as what it means, on a real WebGPU device", () => {
+    it("forceatlas2 on the accelerator: a distance draws the heaviest edge farther apart than a similarity does", async () => {
+        const asDistance = await laidOut("forceatlas2", "distance", true, "required");
+        const asStrength = await laidOut("forceatlas2", "strength", true, "required");
+
+        for (const { element } of [asDistance, asStrength]) {
+            const engine = element.graph.getLayoutManager().layoutEngine;
+            assert.instanceOf(engine, SimulationLayoutEngine);
+            assert.isTrue(engine.isAccelerated, "the layout ran on the accelerator, not on the CPU port");
+        }
+
+        assert.isAbove(stretch(asDistance.element), 1, "a distance of 8 is drawn longer than one of 1");
+        assert.isBelow(stretch(asStrength.element), 1, "a strength of 8 is drawn shorter than one of 1");
+    });
 });

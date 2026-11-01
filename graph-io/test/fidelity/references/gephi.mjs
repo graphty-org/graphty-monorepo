@@ -75,6 +75,9 @@ export function svgPathPoints(d, steps = 8) {
  * @returns nodes, edges and gaps
  */
 export function sceneFromGephi(svg, items) {
+    // Gephi's SVG class names write a node id's whitespace as underscores; the items dump keeps the real ids.
+    const real = new Map((items.node ?? []).map((n) => [String(n._id).replace(/\s/g, "_"), String(n._id)]));
+    const idOf = (svgId) => real.get(svgId) ?? svgId;
     const labels = new Map();
     for (const m of svg.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/g)) {
         const a = attrs(m[1]);
@@ -91,7 +94,7 @@ export function sceneFromGephi(svg, items) {
         const fill = parseColor(a.fill);
         const label = labels.get(id);
         nodes.push({
-            id,
+            id: idOf(id),
             x: +a.cx,
             y: +a.cy,
             w: 2 * a.r,
@@ -108,9 +111,16 @@ export function sceneFromGephi(svg, items) {
     const directed = new Map(items.edge.map((e) => [`${e._src}\u0000${e._dst}`, e.directed === "true"]));
     const ordinal = new Map();
     const edges = [];
+    let loops = 0;
     for (const m of svg.matchAll(/<path\b([^>]*)\/>/g)) {
         const a = attrs(m[1]);
-        const [s, t] = a.class.split(/\s+/).map((c) => c.slice(3));
+        const ends = a.class.split(/\s+/).map((c) => idOf(c.slice(3)));
+        // Gephi writes a self-loop's path with its node's class alone, and draws no loop the scene can read
+        if (ends.length < 2) {
+            loops += 1;
+            continue;
+        }
+        const [s, t] = ends;
         const key = `${s}\u0000${t}`;
         const k = ordinal.get(key) ?? 0;
         ordinal.set(key, k + 1);
@@ -135,6 +145,12 @@ export function sceneFromGephi(svg, items) {
         gaps.push({
             property: "labelText",
             reason: `Gephi's label overlap avoidance hid ${hidden} labels, so the preview shows no text for them`,
+        });
+    }
+    if (loops > 0) {
+        gaps.push({
+            property: "edgePath",
+            reason: `${loops} self-loops left out (Gephi writes a loop path with one class)`,
         });
     }
     return { nodes, edges, groups: [], gaps };
@@ -167,7 +183,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
                 tool: "Gephi Toolkit (gephi-toolkit-0.11.3-all.jar), GephiExport.java, on Temurin JDK 17",
                 version: "0.11.3",
                 command:
-                    "java -Djava.awt.headless=true -cp gephi-toolkit-0.11.3-all.jar GephiExport.java <file> <out> labels noscale",
+                    "java -Djava.awt.headless=true -cp gephi-toolkit-0.11.3-all.jar GephiExport.java <file> <out> labels noscale; self-loops dropped",
                 sourceSha256: sha256File(sample),
                 generatedAt: new Date().toISOString(),
             },

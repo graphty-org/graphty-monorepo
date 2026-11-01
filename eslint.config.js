@@ -375,8 +375,8 @@ export default tseslint.config(
     // tools/eslint-rules/no-test-timing.mjs. Story play functions, their helpers, setup files and
     // the vitest configs (a per-project testTimeout) are covered too.
     // Benchmarks are where a timing check that must exist belongs, so they are left out, and so are
-    // the scripts that drive the source programs to draw the fidelity oracles: they are no tests,
-    // and a desktop program that offers no event to wait on is polled.
+    // the scripts that drive the source programs to draw the fidelity oracles and reference scenes: they
+    // are no tests, and a desktop program that offers no event to wait on is polled.
     {
         files: [
             "**/*.test.{ts,tsx,js,mjs}",
@@ -395,6 +395,7 @@ export default tseslint.config(
             "**/bench/**",
             "graph-io/test/fidelity/oracles/tools/**",
             "graph-io/test/fidelity/generators/specimens/**",
+            "graph-io/test/fidelity/references/*.mjs",
         ],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },

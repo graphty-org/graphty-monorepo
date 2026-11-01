@@ -1,25 +1,26 @@
 """Seeded synthetic coverage files for the JSON style dialects graph-io reads.
 
-Writes into tmp/file-styles-corpus/json/<id>/input.json:
+Writes <out dir>/<id>.json (default ../../corpus/styles/json/fidelity, where they are committed):
   cyjs-synth-nodes   Cytoscape.js, every node style feature (JSON stylesheet array)
   cyjs-synth-edges   Cytoscape.js, every edge and compound feature (CSS text stylesheet)
   graphology-synth   graphology / sigma.js keys
   vis-synth          vis-network keys (options.nodes / edges / groups, per-element)
 
-    python3 gen_synthetic.py
+    python3 json_gen_synthetic.py [<out dir>]
 """
 import json
 import os
 import random
+import sys
 
-ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "json")
+ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "corpus", "styles", "json", "fidelity")
 rnd = random.Random(20261016)
 
 
 def write(name, doc):
-    d = os.path.join(ROOT, name)
-    os.makedirs(d, exist_ok=True)
-    with open(os.path.join(d, "input.json"), "w") as f:
+    os.makedirs(ROOT, exist_ok=True)
+    with open(os.path.join(ROOT, name + ".json"), "w") as f:
         json.dump(doc, f, indent=1)
     print(name)
 

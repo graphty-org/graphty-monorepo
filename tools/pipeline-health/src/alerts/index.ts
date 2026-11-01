@@ -109,29 +109,52 @@ export async function sendAlerts(input: AlertsInput): Promise<AlertsResult> {
         }
         return result;
     } catch (err) {
-        return { ...result, state: "error", error: String((err as Error)?.message ?? err) };
+        const why: unknown = (err as Error | undefined)?.message ?? err;
+        return { ...result, state: "error", error: String(why) };
     }
 }
 
-const BAD = (m: MemberStatus) => m.state === "WARNING" || m.state === "FAILING";
+const BAD = (m: MemberStatus): boolean => m.state === "WARNING" || m.state === "FAILING";
 
-const factsHold = (m: MemberStatus, a: AlertConfig) =>
+const factsHold = (m: MemberStatus, a: AlertConfig): boolean =>
     Object.entries(a.facts ?? {}).every(([k, t]) => m.facts?.[k] !== undefined && hit(m.facts[k], t));
 
-/** A fact the page needs is missing (a collector part failed): a gap, like NO DATA, that neither opens nor ends. */
-const factsGap = (m: MemberStatus, a: AlertConfig) =>
+/**
+ * A fact the page needs is missing (a collector part failed): a gap, like NO DATA, that neither opens nor ends.
+ * @param m - the member's status
+ * @param a - its alert
+ * @returns true when a fact the alert names is absent
+ */
+const factsGap = (m: MemberStatus, a: AlertConfig): boolean =>
     Object.keys(a.facts ?? {}).some((k) => m.facts?.[k] === undefined);
 
-/** Judged OK, or bad but no longer meeting the facts its page needs: the episode ends. */
-const settled = (m: MemberStatus, a: AlertConfig) => m.state === "OK" || (BAD(m) && !!a.facts && !factsHold(m, a));
+/**
+ * Judged OK, or bad but no longer meeting the facts its page needs: the episode ends.
+ * @param m - the member's status
+ * @param a - its alert
+ * @returns true when the episode ends
+ */
+const settled = (m: MemberStatus, a: AlertConfig): boolean =>
+    m.state === "OK" || (BAD(m) && !!a.facts && !factsHold(m, a));
 
-/** The member's alert as its cause adjusts it (a GitHub outage blinding the collector pages later and quietly). */
+/**
+ * The member's alert as its cause adjusts it (a GitHub outage blinding the collector pages later and quietly).
+ * @param c - the member's config
+ * @param m - its status
+ * @returns the config with the cause's alert adjustments applied
+ */
 function forCause(c: Paging, m: MemberStatus): Paging {
     const adjust = c.alert.action === "{fix}" ? causeWords(m).alert : undefined;
     return adjust ? { ...c, alert: { ...c.alert, ...adjust } } : c;
 }
 
-/** The page's condition: FAILING (or the value past alert.value), the facts, the day of the month, no other cause. */
+/**
+ * The page's condition: FAILING (or the value past alert.value), the facts, the day of the month, no other cause.
+ * @param ctx - the run
+ * @param m - the member's status
+ * @param a - its alert
+ * @returns true when the page's condition holds
+ */
 async function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): Promise<boolean> {
     if (!BAD(m) || !factsHold(m, a)) {
         return false;
@@ -160,6 +183,9 @@ async function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): Promise<boo
  * runners member is FAILING in a slowdown as well, which never pages and so must not silence master red). Or its
  * page was sent and its episode has not ended: a GitHub outage that later blinds the collector leaves the runners
  * member in a gap, and the outage has already been reported once.
+ * @param ctx - the run
+ * @param id - the other member's id
+ * @returns true when that member is paging
  */
 async function paging(ctx: Ctx, id: string): Promise<boolean> {
     const x = ctx.evaluation.members.find((m) => m.id === id);
@@ -171,8 +197,14 @@ async function paging(ctx: Ctx, id: string): Promise<boolean> {
     return mark?.open === SENT && !mark.endedAt && mark.v === MARK_V;
 }
 
-/** The value past alert.value. */
-const past = (v: number | undefined, a: AlertConfig) => v !== undefined && hit(v, a.value!);
+/**
+ * The value past alert.value.
+ * @param v - the member's value
+ * @param a - its alert
+ * @returns true when the value meets alert.value
+ */
+const past = (v: number | undefined, a: AlertConfig): boolean =>
+    v !== undefined && a.value !== undefined && hit(v, a.value);
 
 async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undefined> {
     // Any other state (NO DATA, a stale source past its limit, partial, not set up) is a gap: it neither opens nor
@@ -218,8 +250,22 @@ async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undef
     };
 }
 
-/** The live episode's mark: a new one when there is none; of two overlapping runs only one resets it. */
-async function openMark(ctx: Ctx, key: Key, mark: Item | undefined, live: boolean, e: Episode) {
+/**
+ * The live episode's mark: a new one when there is none; of two overlapping runs only one resets it.
+ * @param ctx - the run
+ * @param key - the member's mark key
+ * @param mark - the stored mark, if any
+ * @param live - whether the stored mark is a live episode of the current version
+ * @param e - the engine's open episode
+ * @returns the mark to use, or undefined when none could be read
+ */
+async function openMark(
+    ctx: Ctx,
+    key: Key,
+    mark: Item | undefined,
+    live: boolean,
+    e: Episode,
+): Promise<Item | undefined> {
     if (live) {
         if (mark?.okSince) {
             await ctx.store.update(key, { set: { okSince: 0, ttl: ttl(ctx) } }); // a relapse before "resolved" was due
@@ -255,6 +301,10 @@ async function openMark(ctx: Ctx, key: Key, mark: Item | undefined, live: boolea
  * sources) has neither left once it is OK, and the "resolved" must still say how long and which feed. It also keeps
  * when the credential error began (data.sources_age): its "resolved" counts from there, not from the episode's
  * start, which is the oldest bad source of any kind.
+ * @param ctx - the run
+ * @param key - the member's mark key
+ * @param mark - the mark
+ * @param m - the member's status
  */
 async function remember(ctx: Ctx, key: Key, mark: Item, m: MemberStatus): Promise<void> {
     const peak = Math.max(Number(mark.peak ?? 0), m.value ?? 0);
@@ -270,8 +320,20 @@ async function remember(ctx: Ctx, key: Key, mark: Item, m: MemberStatus): Promis
  * Whether a page already sent may go again: a reminder (alert.repeatMs) re-arms once that span has passed since it
  * was sent, the condition on lastOpenAt letting only one of two overlapping runs re-arm it; a new cause re-arms it
  * once it is sent (rearm).
+ * @param ctx - the run
+ * @param key - the member's mark key
+ * @param mark - the mark
+ * @param m - the member's status
+ * @param c - its config
+ * @returns go when the page may be sent, rearm when a new cause re-arms it
  */
-async function reopen(ctx: Ctx, key: Key, mark: Item, m: MemberStatus, c: Paging) {
+async function reopen(
+    ctx: Ctx,
+    key: Key,
+    mark: Item,
+    m: MemberStatus,
+    c: Paging,
+): Promise<{ go: boolean; rearm: boolean }> {
     if (mark.open !== SENT) {
         return { go: true, rearm: false };
     }
@@ -287,7 +349,13 @@ async function reopen(ctx: Ctx, key: Key, mark: Item, m: MemberStatus, c: Paging
     return { go: again || rearm, rearm };
 }
 
-/** A cost page waits for the morning, and any page for its floor (the group's, for a group) to pass. */
+/**
+ * A cost page waits for the morning, and any page for its floor (the group's, for a group) to pass.
+ * @param ctx - the run
+ * @param mark - the member's mark
+ * @param c - its config
+ * @returns true when the page must wait
+ */
 async function waits(ctx: Ctx, mark: Item, c: Paging): Promise<boolean> {
     if (c.alert.daytime && !daytime(ctx.now)) {
         return true;
@@ -299,10 +367,22 @@ async function waits(ctx: Ctx, mark: Item, c: Paging): Promise<boolean> {
 
 const groupKey = (group: string): Key => ({ pk: `ALERT#${group}`, sk: "group" });
 
-/** The cause a page was sent for, for a member whose page names its cause. */
-const causeKey = (m: MemberStatus, c: Paging) => (c.alert.action === "{fix}" ? causeWords(m).problem : undefined);
+/**
+ * The cause a page was sent for, for a member whose page names its cause.
+ * @param m - the member's status
+ * @param c - its config
+ * @returns the cause's problem words, or undefined for a member whose page names no cause
+ */
+const causeKey = (m: MemberStatus, c: Paging): string | undefined =>
+    c.alert.action === "{fix}" ? causeWords(m).problem : undefined;
 
-/** The page was sent for one cause, and now another with a step to take holds (a GitHub outage, then the key refused). */
+/**
+ * The page was sent for one cause, and now another with a step to take holds (a GitHub outage, then the key refused).
+ * @param mark - the member's mark
+ * @param m - its status
+ * @param c - its config
+ * @returns true when a new cause re-arms the page
+ */
 function newCause(mark: Item, m: MemberStatus, c: Paging): boolean {
     const now = causeKey(m, c);
     return !!mark.pagedCause && !!now && now !== mark.pagedCause && !!causeWords(m).fix;
@@ -311,6 +391,11 @@ function newCause(mark: Item, m: MemberStatus, c: Paging): boolean {
 /**
  * The member is settled: the episode ends, with a quiet "resolved" only when its page was sent and the member says
  * so, once it has stayed settled for resolved.clearAfterMs (a flapping recovery sends neither "resolved" nor a page).
+ * @param ctx - the run
+ * @param key - the member's mark key
+ * @param mark - the mark
+ * @param m - the member's status
+ * @param c - its config
  */
 async function end(ctx: Ctx, key: Key, mark: Item, m: MemberStatus, c: Paging): Promise<void> {
     const r = c.alert.resolved;
@@ -347,7 +432,15 @@ async function end(ctx: Ctx, key: Key, mark: Item, m: MemberStatus, c: Paging): 
     await ctx.store.update(key, { set: { endedAt: ctx.now, ttl: ttl(ctx) } });
 }
 
-/** Red: the condition holds; ready: it has held for alert.afterMs without a break. */
+/**
+ * Red: the condition holds; ready: it has held for alert.afterMs without a break.
+ * @param ctx - the run
+ * @param key - the member's mark key
+ * @param m - the member's status
+ * @param a - its alert
+ * @param redSince - when the condition began to hold, 0 when it did not
+ * @returns whether the condition holds and whether it has held long enough
+ */
 async function due(
     ctx: Ctx,
     key: Key,
@@ -362,7 +455,11 @@ async function due(
     return { red, ready: red && (a.afterMs <= 0 || (redSince > 0 && ctx.now - redSince >= a.afterMs)) };
 }
 
-/** One message for the group's members whose page this run could claim. */
+/**
+ * One message for the group's members whose page this run could claim.
+ * @param ctx - the run
+ * @param group - the members due together
+ */
 async function sendOpen(ctx: Ctx, group: Due[]): Promise<void> {
     const claimed: Due[] = [];
     for (const d of group) {
@@ -375,7 +472,15 @@ async function sendOpen(ctx: Ctx, group: Due[]): Promise<void> {
     }
 }
 
-/** Claims, sends and marks one notification; true once it is sent (by this run or another). */
+/**
+ * Claims, sends and marks one notification; true once it is sent (by this run or another).
+ * @param ctx - the run
+ * @param key - the member's mark key
+ * @param kind - the page or the "resolved"
+ * @param ds - the members the message is for
+ * @param msg - the message
+ * @returns true once it is sent
+ */
 async function once(ctx: Ctx, key: Key, kind: "open" | "clear", ds: Due[], msg: Message): Promise<boolean> {
     if (!(await claim(ctx, key, kind))) {
         return (await ctx.store.get(key))?.[kind] === SENT; // another run holds or sent it
@@ -404,7 +509,7 @@ async function deliver(ctx: Ctx, kind: "open" | "clear", ds: Due[], msg: Message
             ctx.result.sent.push({ member: d.m.id, kind });
         }
     }
-    const group = ds[0].c.alert.group;
+    const { group } = ds[0].c.alert;
     if (ok && kind === "open" && group) {
         await ctx.store.update(groupKey(group), { set: { lastOpenAt: ctx.now, ttl: ttl(ctx) } });
     }
@@ -414,15 +519,19 @@ async function deliver(ctx: Ctx, kind: "open" | "clear", ds: Due[], msg: Message
     return ok;
 }
 
-const ttl = (ctx: Pick<Ctx, "now">) => Math.floor(ctx.now / 1000 + TTL_S);
+const ttl = (ctx: Pick<Ctx, "now">): number => Math.floor(ctx.now / 1000 + TTL_S);
 
 const PT_HOUR = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles",
     hour: "numeric",
     hourCycle: "h23",
 });
-/** 9:00 to 21:00 in the owner's time zone. */
-export const daytime = (t: number) => {
+/**
+ * 9:00 to 21:00 in the owner's time zone.
+ * @param t - epoch ms
+ * @returns true in the owner's daytime
+ */
+export const daytime = (t: number): boolean => {
     const h = Number(PT_HOUR.format(t));
     return h >= 9 && h < 21;
 };
@@ -442,6 +551,7 @@ export interface Message {
 /**
  * A span as a person says it: "45 min", "3 h 6 min", "2 d 4 h".
  * @param ms - the span
+ * @returns the span in words
  */
 export function duration(ms: number): string {
     const min = Math.round(Math.max(0, ms) / MIN);
@@ -465,6 +575,7 @@ const TIME: Record<string, number> = { ms: 1, s: 1000, min: MIN, h: HOUR, d: DAY
  * One of a member's values in its dashboard unit, written out.
  * @param id - the member
  * @param v - the engine's value
+ * @returns the value with its unit
  */
 export function human(id: string, v: number | undefined): string {
     if (v === undefined || !Number.isFinite(v)) {
@@ -524,6 +635,7 @@ const CREDENTIALS: Record<string, Omit<CauseWords, "off"> & { off?: string }> = 
 /**
  * The cause of a source or collector page in words, from its source and error.
  * @param m - the member
+ * @returns the cause's words
  */
 export function causeWords(m: MemberStatus): CauseWords {
     const p = m.cause?.params ?? {};
@@ -577,27 +689,37 @@ export function causeWords(m: MemberStatus): CauseWords {
     };
 }
 
-/** A cause's words as placeholders. */
+/**
+ * A cause's words as placeholders.
+ * @param m - the member's status
+ * @returns the placeholder values by name
+ */
 function words(m: MemberStatus): Record<string, string> {
     const w = causeWords(m);
     return { feed: w.feed, frozen: w.frozen, problem: w.problem, fix: w.fix, off: w.off };
 }
 
-const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 3)}...` : s);
+const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 3)}...` : s);
 
-/** The month's last day, as "Oct 31" (UTC, as the engine's months are). */
+/**
+ * The month's last day, as "Oct 31" (UTC, as the engine's months are).
+ * @param now - epoch ms
+ * @returns the last day, as "Oct 31"
+ */
 function monthEnd(now: number): string {
     const d = new Date(now);
     const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
     return last.toLocaleString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-const monthName = (t: number, month: "long" | "short") =>
+const monthName = (t: number, month: "long" | "short"): string =>
     new Date(t).toLocaleString("en-US", { month, timeZone: "UTC" });
 
 /**
  * Which month a budget decision is about: in the month's last week this month is spent, so the choice is next
  * month's budget and a cut starts on its first day; earlier it holds from now on.
+ * @param now - epoch ms
+ * @returns the words for the decision, the month picked and when a cut starts
  */
 function budgetMonth(now: number): { choose: string; pick: string; cutFrom: string } {
     const d = new Date(now);
@@ -612,23 +734,33 @@ function budgetMonth(now: number): { choose: string; pick: string; cutFrom: stri
     };
 }
 
-/** The line a member's page is judged against: red, or the OK line when it has no red. */
-const line = (m: MemberStatus) => m.fail?.[1] ?? m.ok?.[1];
+/**
+ * The line a member's page is judged against: red, or the OK line when it has no red.
+ * @param m - the member's status
+ * @returns the line, or undefined when it has none
+ */
+const line = (m: MemberStatus): number | undefined => m.fail?.[1] ?? m.ok?.[1];
 
-/** What a page measures against its line: spend so far for a limit judged on real spend, else the value. */
-const basis = (d: Due) =>
+/**
+ * What a page measures against its line: spend so far for a limit judged on real spend, else the value.
+ * @param d - the page due
+ * @returns the value judged, or undefined when there is none
+ */
+const basis = (d: Due): number | undefined =>
     d.c.measure.type === "month" && d.c.measure.redOnSpent ? d.m.facts?.month_to_date : d.m.value;
 
 function fill(template: string, d: Due, now: number): string {
     const { m, e, start } = d;
     const p = m.cause?.params ?? {};
     const peak = e.peak ?? m.value;
+    const judged = basis(d);
+    const red = line(m);
     const vars: Record<string, string> = {
         value: human(m.id, m.value),
         limit: human(m.id, m.fail?.[1]),
         target: human(m.id, m.ok?.[1]),
         // A page names one limit: the red line that triggered it (the budget's line when there is none).
-        over: human(m.id, basis(d) === undefined || !line(m) ? undefined : basis(d)! - line(m)!),
+        over: human(m.id, judged === undefined || !red ? undefined : judged - red),
         // The next multiple of 10 above the value, so the suggestion always leaves headroom.
         suggest: human(m.id, m.value === undefined ? undefined : Math.floor(m.value / 10) * 10 + 10),
         mtd: human(m.id, m.facts?.month_to_date),
@@ -663,7 +795,7 @@ function fill(template: string, d: Due, now: number): string {
         .join("\n");
 }
 
-function link(ctx: Pick<Ctx, "evaluation" | "now">, category: string, d?: Due) {
+function link(ctx: Pick<Ctx, "evaluation" | "now">, category: string, d?: Due): Pick<Message, "url" | "url_title"> {
     const own = d?.c.alert.link;
     if (own) {
         return { url: fill(own.url, d, ctx.now), url_title: own.title };
@@ -677,15 +809,16 @@ function link(ctx: Pick<Ctx, "evaluation" | "now">, category: string, d?: Due) {
  * accepts every suggested number at once (alert.short names each), or a cut.
  * @param ctx - the run
  * @param ds - the members due, one or more of one group
+ * @returns the message
  */
 export function openMessage(ctx: Pick<Ctx, "evaluation" | "now">, ds: Due[]): Message {
-    const f = (t: string, d: Due) => fill(t, d, ctx.now);
+    const f = (t: string, d: Due): string => fill(t, d, ctx.now);
     const one = ds.length === 1;
     // The closing step ("Tell any Claude session your choice", a quoted error) is said once per distinct text.
     const then = [...new Set(ds.map((d) => (d.c.alert.then ? f(d.c.alert.then, d) : "")).filter((t) => !!t))];
     const tail = then.length ? `\n${then.join(" ")}` : "";
     const top = Math.max(...ds.map((d) => d.c.alert.priority));
-    const short = (d: Due) => d.c.alert.short ?? d.c.label;
+    const short = (d: Due): string => d.c.alert.short ?? d.c.label;
     const accept = ds.map((d) => `${short(d)} to ${f("{suggest}", d)}`).join(", ");
     // The lock screen shows the title and the first lines: the title asks for the decision, the body leads with it.
     return {
@@ -702,6 +835,9 @@ export function openMessage(ctx: Pick<Ctx, "evaluation" | "now">, ds: Due[]): Me
 /**
  * A group's title: the total against its limit when it is among them (it already holds the others, so they are named,
  * not added), else every item over; then the decision asked.
+ * @param ds - the members due
+ * @param f - fills a template for one member
+ * @returns the title
  */
 function groupTitle(ds: Due[], f: (t: string, d: Due) => string): string {
     const total = ds.find((d) => d.c.id === "cost.spend");
@@ -717,6 +853,9 @@ function groupTitle(ds: Due[], f: (t: string, d: Due) => string): string {
 /**
  * The other option when the LLM tests are over: cut their runs from now on (the one paid service the agents can cut at
  * once; the T4 lane runs on every release). Money already spent stays spent, so no saving is claimed.
+ * @param ds - the members due
+ * @param f - fills a template for one member
+ * @returns the sentence, or empty when the LLM tests are not among them
  */
 function cut(ds: Due[], f: (t: string, d: Due) => string): string {
     const llm = ds.find((d) => d.c.id === "cost.llm");
@@ -728,6 +867,7 @@ function cut(ds: Due[], f: (t: string, d: Due) => string): string {
  * @param ctx - the run
  * @param d - the member, its last episode and when it began
  * @param until - when it was first judged settled
+ * @returns the message
  */
 export function resolvedMessage(ctx: Pick<Ctx, "evaluation" | "now">, d: Due, until = ctx.now): Message {
     const r = d.c.alert.resolved;

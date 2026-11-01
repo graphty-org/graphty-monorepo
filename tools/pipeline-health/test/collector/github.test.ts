@@ -1,13 +1,15 @@
 import { createVerify, generateKeyPairSync } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
+
 import {
+    APP_PARAMS,
     appJwt,
     GitHub,
     HttpError,
     installationToken,
     readAppConfig,
     runJobs,
-    APP_PARAMS,
 } from "../../src/collector/github.js";
 import type { GhJob } from "../../src/collector/parse.js";
 import { fakeGitHub, NOW } from "./fake-github.js";
@@ -31,9 +33,13 @@ describe("GitHub App", () => {
 
     it("reads the App from SSM, and is not set up when a parameter is missing", async () => {
         const all = { [APP_PARAMS.appId]: "1", [APP_PARAMS.installationId]: "2", [APP_PARAMS.privateKey]: pem };
-        expect(await readAppConfig(async () => all)).toEqual({ appId: "1", installationId: "2", privateKey: pem });
-        expect(await readAppConfig(async () => ({ [APP_PARAMS.appId]: "1" }))).toBeUndefined();
-        expect(await readAppConfig(async () => ({}))).toBeUndefined();
+        expect(await readAppConfig(() => Promise.resolve(all))).toEqual({
+            appId: "1",
+            installationId: "2",
+            privateKey: pem,
+        });
+        expect(await readAppConfig(() => Promise.resolve({ [APP_PARAMS.appId]: "1" }))).toBeUndefined();
+        expect(await readAppConfig(() => Promise.resolve({}))).toBeUndefined();
     });
 
     it("caches the installation token until shortly before it expires", async () => {
@@ -47,7 +53,7 @@ describe("GitHub App", () => {
     });
 
     it("keeps the rate limit of the newest response and answers 404 as undefined", async () => {
-        const gh = new GitHub(async () => "t", fakeGitHub().fetch);
+        const gh = new GitHub(() => Promise.resolve("t"), fakeGitHub().fetch);
         expect(await gh.rest("repos/graphty-org/graphty-monorepo/nothing")).toBeUndefined();
         expect(gh.rate).toEqual({ remaining: 4000, limit: 5000 });
         expect(gh.calls).toBe(1);
@@ -57,18 +63,19 @@ describe("GitHub App", () => {
         const answers = [502, 429, 200, 403];
         const seen: number[] = [];
         const gh = new GitHub(
-            async () => "ghs_test",
-            async () => {
+            () => Promise.resolve("ghs_test"),
+            () => {
                 const status = answers.shift() ?? 500;
                 seen.push(status);
                 const later = String(Math.floor(Date.now() / 1000) + 3600);
-                const headers: Record<string, string> =
-                    status === 429
-                        ? { "retry-after": "0" }
-                        : status === 403
-                          ? { "x-ratelimit-remaining": "0", "x-ratelimit-reset": later }
-                          : {};
-                return new Response(status === 200 ? "{}" : "", { status, headers });
+                let headers: Record<string, string> = {};
+                if (status === 429) {
+                    headers = { "retry-after": "0" };
+                }
+                if (status === 403) {
+                    headers = { "x-ratelimit-remaining": "0", "x-ratelimit-reset": later };
+                }
+                return Promise.resolve(new Response(status === 200 ? "{}" : "", { status, headers }));
             },
         );
         expect(await gh.rest("repos/o/r")).toEqual({});
@@ -90,16 +97,18 @@ describe("runJobs", () => {
             name: i === 222 ? "LLM regression" : `CI / Test (shard-${i})`,
         })) as unknown as GhJob[];
         const sizes: number[] = [];
-        const fetch = async (url: string) => {
+        const fetch = (url: string) => {
             const u = new URL(url);
             const size = Number(u.searchParams.get("per_page"));
             const page = Number(u.searchParams.get("page"));
             sizes.push(size);
             const slice = jobs.slice((page - 1) * size, page * size);
-            if (size >= failFrom && slice.some((j) => j.id === jobs[30].id)) return new Response("", { status: 502 });
-            return new Response(JSON.stringify({ total_count: jobs.length, jobs: slice }));
+            if (size >= failFrom && slice.some((j) => j.id === jobs[30].id)) {
+                return Promise.resolve(new Response("", { status: 502 }));
+            }
+            return Promise.resolve(new Response(JSON.stringify({ total_count: jobs.length, jobs: slice })));
         };
-        return { jobs, sizes, gh: new GitHub(async () => "t", fetch) };
+        return { jobs, sizes, gh: new GitHub(() => Promise.resolve("t"), fetch) };
     }
     const path = "repos/graphty-org/graphty-monorepo/actions/runs/40476709992/jobs?filter=all";
 

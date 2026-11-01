@@ -1,18 +1,21 @@
 // Pure mapping from GitHub's responses to the model's raw items and the values the collector observes
 // (design/ci/health-dashboard.md section 4). No I/O here, so every rule is tested on recorded responses.
 
-import type {
-    CostItem,
-    IssueItem,
-    JobItem,
-    LoadKind,
-    PrStages,
-    PullRequestItem,
-    RunItem,
-    StepItem,
-    TestItem,
+import {
+    type CostItem,
+    DAY,
+    isOffMaster,
+    type IssueItem,
+    type JobItem,
+    type LoadKind,
+    loadOf,
+    MIN,
+    type PrStages,
+    type PullRequestItem,
+    type RunItem,
+    type StepItem,
+    type TestItem,
 } from "../model/items.js";
-import { DAY, isOffMaster, loadOf, MIN } from "../model/items.js";
 import {
     type ChannelAttempt,
     type LaneJob,
@@ -72,16 +75,27 @@ export interface GhJob {
 }
 
 const ms = (iso: string | null | undefined): number | undefined => (iso ? Date.parse(iso) : undefined);
-const msOr = (iso: string | null) => (iso ? Date.parse(iso) : NaN);
-const opt = <K extends string, V>(k: K, v: V | undefined | null) =>
+const msOr = (iso: string | null): number => (iso ? Date.parse(iso) : NaN);
+const opt = <K extends string, V>(k: K, v: V | undefined | null): Partial<Record<K, V>> =>
     (v === undefined || v === null ? {} : { [k]: v }) as Partial<Record<K, V>>;
 
-/** "ci.yml" from ".github/workflows/ci.yml" (a dynamic run's path keeps its own name). */
+/**
+ * "ci.yml" from ".github/workflows/ci.yml" (a dynamic run's path keeps its own name).
+ * @param path - the run's workflow path
+ * @returns the workflow file name
+ */
 export const workflowFile = (path: string): string => path.split("/").pop()?.split("@")[0] ?? path;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Runs, jobs, steps.
 
+/**
+ * A REST workflow run as the model's run item.
+ * @param run - the run from the REST API
+ * @param repo - owner/name of the repository
+ * @param extra - fields to set on the item over the mapped ones
+ * @returns the run item
+ */
 export function toRunItem(run: GhRun, repo: string, extra: Partial<RunItem> = {}): RunItem {
     const completed = run.status === "completed";
     const workflow = workflowFile(run.path);
@@ -108,17 +122,28 @@ export function toRunItem(run: GhRun, repo: string, extra: Partial<RunItem> = {}
     };
 }
 
-/** A test family, bins folded: "Test (graphty-element-browser-3)" and "CI / Test (graphty-3)" lose the bin. */
+/**
+ * A test family, bins folded: "Test (graphty-element-browser-3)" and "CI / Test (graphty-3)" lose the bin.
+ * @param name - the job name
+ * @returns the family, or undefined when the job is not a test shard
+ */
 export function family(name: string): string | undefined {
     const m = /(?:^|\/ )Test \(([^$)]+?)(?:-\d+)?\)$/.exec(name);
     return m?.[1];
 }
 
-/** Which runner limit a job counts against (section 4.3): every GitHub-hosted job the 60, macOS also its 5. */
+/**
+ * Which runner limit a job counts against (section 4.3): every GitHub-hosted job the 60, macOS also its 5.
+ * @param labels - the job's runner labels
+ * @returns the pool the job counts against
+ */
 export function pool(labels: string[]): JobItem["pool"] {
-    if (labels.some((l) => /macos/i.test(l))) return "macos";
-    if (labels.some((l) => /^(ubuntu|windows)-/i.test(l) || l === "ubuntu-latest" || l === "windows-latest"))
+    if (labels.some((l) => /macos/i.test(l))) {
+        return "macos";
+    }
+    if (labels.some((l) => /^(ubuntu|windows)-/i.test(l) || l === "ubuntu-latest" || l === "windows-latest")) {
         return "linux_windows";
+    }
     return "other";
 }
 
@@ -136,22 +161,41 @@ export function runnerOs(labels: string[]): JobItem["os"] {
     return OS.find(([re]) => labels.some((l) => re.test(l)))?.[1];
 }
 
-/** A skipped job is created, started and completed at once (sources.md section 1): no wait, no duration. */
-const isSkipped = (j: GhJob) => j.conclusion === "skipped";
+/**
+ * A skipped job is created, started and completed at once (sources.md section 1): no wait, no duration.
+ * @param j - the job
+ * @returns true when the job was skipped
+ */
+const isSkipped = (j: GhJob): boolean => j.conclusion === "skipped";
 
 /**
  * The kind of load a run puts on the runners (4.3, runner-minutes per merge): model/items.ts loadOf.
  * @param run the run
+ * @returns the run's load kind
  */
 export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): LoadKind {
     return loadOf(workflowFile(run.path), run.event, run.head_branch);
 }
 
-/** Whether a run is on a branch other than master (model/items.ts isOffMaster). */
+/**
+ * Whether a run is on a branch other than master (model/items.ts isOffMaster).
+ * @param run - the run
+ * @returns true when the run's branch is not master
+ */
 export function offMaster(run: Pick<GhRun, "head_branch">): boolean {
     return isOffMaster(run.head_branch);
 }
 
+/**
+ * A REST job as the model's job item; a skipped job gets no start or completion time.
+ * @param j - the job from the REST API
+ * @param repo - owner/name of the repository
+ * @param workflow - the workflow file the job's run belongs to
+ * @param hang - true when the job ended at its own timeout
+ * @param load - the kind of load the job's run puts on the runners
+ * @param offMasterRun - true when the job's run is on a branch other than master
+ * @returns the job item
+ */
 export function toJobItem(
     j: GhJob,
     repo: string,
@@ -184,6 +228,13 @@ export function toJobItem(
     };
 }
 
+/**
+ * A job's completed, not skipped steps as step items.
+ * @param j - the job with its steps
+ * @param repo - owner/name of the repository
+ * @param workflow - the workflow file the job's run belongs to
+ * @returns one step item per completed step
+ */
 export function toStepItems(j: GhJob, repo: string, workflow: string): StepItem[] {
     return (j.steps ?? [])
         .filter((s) => s.conclusion !== "skipped" && s.completed_at)
@@ -214,17 +265,32 @@ export interface CheckRunNote {
 
 export type CancelClass = NonNullable<RunItem["cancelClass"]>;
 
+/**
+ * Why a cancelled run was cancelled, from its check runs' annotations.
+ * @param checkRuns - the run's check runs with their annotations
+ * @returns "superseded", "by-hand" or "red"
+ */
 export function classifyCancel(checkRuns: CheckRunNote[]): CancelClass {
     // No job was ever created: the run was cancelled while it waited, because a newer push or dispatch replaced it
     // in its concurrency group (ci.yml since #3855/#3940). It never ran, so it says nothing about the commit.
-    if (!checkRuns.length) return "superseded";
+    if (!checkRuns.length) {
+        return "superseded";
+    }
     const all = checkRuns.flatMap((c) => c.annotations);
-    if (all.some((m) => /Canceling since a higher priority waiting request for/i.test(m))) return "superseded";
-    if (all.some((m) => /The run was cancell?ed by @/i.test(m))) return "by-hand";
+    if (all.some((m) => /Canceling since a higher priority waiting request for/i.test(m))) {
+        return "superseded";
+    }
+    if (all.some((m) => /The run was cancell?ed by @/i.test(m))) {
+        return "by-hand";
+    }
     return "red";
 }
 
-/** Names of jobs that ended at their own timeout-minutes (a hang). */
+/**
+ * Names of jobs that ended at their own timeout-minutes (a hang).
+ * @param checkRuns - the run's check runs with their annotations
+ * @returns the names of the timed-out check runs
+ */
 export function timedOutJobs(checkRuns: CheckRunNote[]): Set<string> {
     return new Set(
         checkRuns
@@ -259,17 +325,27 @@ export interface MasterState {
     buildingSince?: number;
 }
 
-/** Runs newest first or in any order; a gray cancel (superseded, by hand) keeps the verdict before it. */
+/**
+ * Runs newest first or in any order; a gray cancel (superseded, by hand) keeps the verdict before it.
+ * @param runs - master's ci.yml push runs
+ * @returns whether master is red, since when, and the newest build in flight
+ */
 export function masterState(runs: RunItem[]): MasterState {
     const sorted = [...runs].sort((a, b) => b.createdAt - a.createdAt);
     const building = sorted.find((r) => r.status !== "completed");
     const out: MasterState = { red: false, redBuilds: 0, ...opt("buildingSince", building?.createdAt) };
     for (const r of sorted) {
-        if (r.status !== "completed") continue;
+        if (r.status !== "completed") {
+            continue;
+        }
         const c = r.conclusion ?? "";
         const red = RED.has(c) || (c === "cancelled" && r.cancelClass === "red");
-        if (c === "success") break;
-        if (!red) continue; // gray: superseded, by hand, skipped, neutral
+        if (c === "success") {
+            break;
+        }
+        if (!red) {
+            continue;
+        } // gray: superseded, by hand, skipped, neutral
         out.red = true;
         out.redBuilds++;
         out.redSince = r.completedAt ?? r.createdAt;
@@ -293,20 +369,40 @@ export interface RunnerUse {
  * a runner: "waiting" is an environment approval and "pending" a concurrency group, so neither says GitHub is short
  * of runners (the owner's own Promote run read as an outage). macOS jobs queue behind their own 5-job limit while
  * Linux runners sit free: that is no outage. A job queued under 2 minutes is GitHub's normal assignment delay.
+ * @param j - the job
+ * @param nowMs - the current epoch ms
+ * @returns true when the job waits for a Linux or Windows runner
  */
 export function waitsForRunner(j: GhJob, nowMs: number): boolean {
     return j.status === "queued" && pool(j.labels) === "linux_windows" && nowMs - Date.parse(j.created_at) > 2 * MIN;
 }
 
-/** Counts one job that has not started (queued, waiting or pending) into `use`. */
-function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number) {
-    if (p === "other") return; // machine.dev and self-hosted pools are outside GitHub's limit
+/**
+ * Counts one job that has not started (queued, waiting or pending) into `use`.
+ * @param use - the counts to add to
+ * @param j - the job
+ * @param p - the job's pool
+ * @param nowMs - the current epoch ms
+ */
+function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number): void {
+    if (p === "other") {
+        return;
+    } // machine.dev and self-hosted pools are outside GitHub's limit
     const age = nowMs - Date.parse(j.created_at);
     use.queued++;
-    if (waitsForRunner(j, nowMs)) use.queuedOver2++;
+    if (waitsForRunner(j, nowMs)) {
+        use.queuedOver2++;
+    }
     use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
 }
 
+/**
+ * Jobs running per pool and jobs waiting, from the jobs of the unfinished runs.
+ * @param jobs - the jobs of every unfinished run
+ * @param runsWithoutJobs - unfinished runs GitHub has created no jobs for yet
+ * @param nowMs - the current epoch ms
+ * @returns the runner use counts
+ */
 export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number): RunnerUse {
     const use: RunnerUse = {
         running: { linux_windows: 0, macos: 0, other: 0 },
@@ -318,7 +414,9 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
         const p = pool(j.labels);
         if (j.status === "in_progress") {
             use.running[p]++;
-            if (p === "macos") use.running.linux_windows++; // a macOS job counts against the 60 too
+            if (p === "macos") {
+                use.running.linux_windows++;
+            } // a macOS job counts against the 60 too
         } else if (j.status === "queued" || j.status === "waiting" || j.status === "pending") {
             countWaiting(use, j, p, nowMs);
         }
@@ -327,7 +425,9 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
         const age = nowMs - Date.parse(r.created_at);
         use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
         // In an Actions outage runs sit queued before GitHub creates their jobs: each counts as one job waiting.
-        if (age > 2 * MIN && r.status === "queued") use.queuedOver2++;
+        if (age > 2 * MIN && r.status === "queued") {
+            use.queuedOver2++;
+        }
     }
     return use;
 }
@@ -338,9 +438,15 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
  * runner and nobody waits on it, so runner use leaves it out. GitHub empties a merged pull request's runs'
  * pull_requests, so a run is matched to an open pull request by number or head branch. `open` must be every open pull
  * request: with a truncated list nothing is called a ghost.
+ * @param run - the run
+ * @param open - the open pull requests
+ * @param complete - true when `open` is every open pull request
+ * @returns true when the run is a ghost
  */
 export function isGhostRun(run: GhRun, open: GqlPr[], complete: boolean): boolean {
-    if (!complete || run.event !== "pull_request" || run.status === "completed") return false;
+    if (!complete || run.event !== "pull_request" || run.status === "completed") {
+        return false;
+    }
     const listed = new Set((run.pull_requests ?? []).map((p) => p.number));
     return !open.some((p) => listed.has(p.number) || p.headRefName === run.head_branch);
 }
@@ -351,9 +457,14 @@ export function isGhostRun(run: GhRun, open: GqlPr[], complete: boolean): boolea
  * run 41188440989 in release.yml's `release-train` group (2026-10-31, 10:02-10:25Z), as "queued". So a run is taken to
  * wait on its group when it is "pending", or when an older run of the same workflow on the same branch is in progress.
  * It holds no runner, so runner use leaves it out. `unfinished` is the unfinished runs of the run's repository.
+ * @param run - the run
+ * @param unfinished - the unfinished runs of the run's repository
+ * @returns true when the run waits on its concurrency group
  */
 export function waitsOnConcurrency(run: GhRun, unfinished: GhRun[]): boolean {
-    if (run.status === "pending") return true;
+    if (run.status === "pending") {
+        return true;
+    }
     const created = Date.parse(run.created_at);
     return unfinished.some(
         (o) =>
@@ -365,7 +476,12 @@ export function waitsOnConcurrency(run: GhRun, unfinished: GhRun[]): boolean {
     );
 }
 
-/** Saturated: jobs queued > 2 min while running >= limit - 3. Not assigned: queued > 2 min while running < 75%. */
+/**
+ * Saturated: jobs queued > 2 min while running >= limit - 3. Not assigned: queued > 2 min while running < 75%.
+ * @param use - the runner use counts
+ * @param limit - the Linux and Windows runner limit
+ * @returns the saturated and unassigned flags
+ */
 export function runnerFlags(use: RunnerUse, limit: number): { saturated: boolean; unassigned: boolean } {
     const waiting = use.queuedOver2 > 0;
     return {
@@ -421,10 +537,18 @@ export interface GqlPr {
 /** Labels that keep auto-merge off by rule, so the pull request waits on the owner. */
 const OWNER_LABELS = new Set(["hold", "needs-decision"]);
 
-/** Auto-merge off by rule (4.2): a hold label, a breaking title, or a required review (code-owner paths). */
+/**
+ * Auto-merge off by rule (4.2): a hold label, a breaking title, or a required review (code-owner paths).
+ * @param p - the pull request
+ * @returns true when a rule keeps auto-merge off
+ */
 export function ownerWait(p: GqlPr): boolean {
-    if (p.labels.nodes.some((l) => OWNER_LABELS.has(l.name))) return true;
-    if (/^\w+(\([^)]*\))?!:/.test(p.title)) return true;
+    if (p.labels.nodes.some((l) => OWNER_LABELS.has(l.name))) {
+        return true;
+    }
+    if (/^\w+(\([^)]*\))?!:/.test(p.title)) {
+        return true;
+    }
     return p.reviewDecision === "REVIEW_REQUIRED";
 }
 
@@ -434,18 +558,33 @@ export const OWNER_LOGIN = "apowers313";
 /**
  * Waiting on the owner now: auto-merge off by rule (ownerWait), or his own pull request with auto-merge off, which
  * only he merges. Left out of the open count and the oldest open (4.2); listed under "Waiting on the owner".
+ * @param p - the pull request
+ * @returns true when the pull request waits on the owner
  */
 export const waitsOnOwner = (p: GqlPr): boolean =>
     ownerWait(p) || (p.author?.login === OWNER_LOGIN && !p.autoMergeRequest);
 
-/** Ready time: the last ReadyForReviewEvent, else creation when it was never a draft. */
+/**
+ * Ready time: the last ReadyForReviewEvent, else creation when it was never a draft.
+ * @param p - the pull request
+ * @returns epoch ms it became ready, or undefined while it is (or was) a draft with no ready event
+ */
 export function readyAt(p: GqlPr): number | undefined {
     const ready = p.readyEvents.nodes.filter((e) => e.__typename === "ReadyForReviewEvent" && e.createdAt);
-    if (ready.length) return Date.parse(ready[ready.length - 1].createdAt!);
+    const lastReady = ready.at(-1)?.createdAt;
+    if (lastReady) {
+        return Date.parse(lastReady);
+    }
     const drafted = p.readyEvents.nodes.some((e) => e.__typename === "ConvertToDraftEvent");
     return p.isDraft || drafted ? undefined : Date.parse(p.createdAt);
 }
 
+/**
+ * A GraphQL pull request as the model's pull request item.
+ * @param p - the pull request
+ * @param repo - owner/name of the repository
+ * @returns the pull request item
+ */
 export function toPrItem(p: GqlPr, repo: string): PullRequestItem {
     return {
         kind: "pr",
@@ -462,7 +601,13 @@ export function toPrItem(p: GqlPr, repo: string): PullRequestItem {
     };
 }
 
-/** The hold labels and breaking title that keep a pull request waiting on the owner, with the CODEOWNERS paths. */
+/**
+ * The hold labels and breaking title that keep a pull request waiting on the owner, with the CODEOWNERS paths.
+ * @param p - the pull request
+ * @param files - the paths the pull request changes
+ * @param codeowners - the CODEOWNERS patterns
+ * @returns why and since when the pull request waits on the owner
+ */
 export function ownerWaitOf(p: GqlPr, files: string[], codeowners: string[]): OwnerWait {
     return {
         number: p.number,
@@ -474,7 +619,11 @@ export function ownerWaitOf(p: GqlPr, files: string[], codeowners: string[]): Ow
     };
 }
 
-/** A CODEOWNERS pattern as a path test: "/x/" a directory at the root, "x" anywhere, "*" within a name. */
+/**
+ * A CODEOWNERS pattern as a path test: "/x/" a directory at the root, "x" anywhere, "*" within a name.
+ * @param pat - the CODEOWNERS pattern
+ * @returns a regular expression matching the paths the pattern covers
+ */
 function ownerPattern(pat: string): RegExp {
     const body = (pat.startsWith("/") ? pat.slice(1) : `**/${pat}`).replace(/\/$/, "");
     const re = body
@@ -484,7 +633,12 @@ function ownerPattern(pat: string): RegExp {
     return new RegExp(`^${re}(?:/.*)?$`);
 }
 
-/** The CODEOWNERS patterns (as written, leading "/" dropped) that some of `files` match, in CODEOWNERS order. */
+/**
+ * The CODEOWNERS patterns (as written, leading "/" dropped) that some of `files` match, in CODEOWNERS order.
+ * @param files - the paths to test
+ * @param codeowners - the CODEOWNERS patterns
+ * @returns the matching patterns
+ */
 export function ownedPaths(files: string[], codeowners: string[]): string[] {
     return codeowners
         .filter((pat) => {
@@ -494,7 +648,11 @@ export function ownedPaths(files: string[], codeowners: string[]): string[] {
         .map((pat) => pat.replace(/^\//, ""));
 }
 
-/** The patterns of a CODEOWNERS file, one per rule line. */
+/**
+ * The patterns of a CODEOWNERS file, one per rule line.
+ * @param text - the CODEOWNERS file's text
+ * @returns the first field of each rule line
+ */
 export const codeownerPatterns = (text: string): string[] =>
     text
         .split("\n")
@@ -510,13 +668,18 @@ export type PrRun = [number, number, number, 0 | 1];
  * fall back to the head branch among the cycle's pull requests, preferring one whose head is the run's commit,
  * then a merged one when it is the only pull request with that branch name (fork branches named "main" collide);
  * otherwise none.
+ * @param run - the run
+ * @param prs - the cycle's pull requests
+ * @returns the pull request number, or undefined
  */
 export function prOfRun(
     run: Pick<GhRun, "pull_requests" | "head_branch" | "head_sha">,
     prs: GqlPr[],
 ): number | undefined {
     const listed = run.pull_requests?.[0]?.number;
-    if (listed !== undefined || !run.head_branch) return listed;
+    if (listed !== undefined || !run.head_branch) {
+        return listed;
+    }
     const same = prs.filter((p) => p.headRefName === run.head_branch);
     return (
         same.find((p) => p.headRefOid === run.head_sha) ??
@@ -524,10 +687,19 @@ export function prOfRun(
     )?.number;
 }
 
+/**
+ * A finished, passed or failed ci.yml pull request run as a PrRun.
+ * @param run - the run
+ * @param jobs - the run's jobs
+ * @returns the run's start, first job start, end and pass flag, or undefined for any other run
+ */
 export function prRunOf(run: GhRun, jobs: GhJob[]): PrRun | undefined {
-    if (workflowFile(run.path) !== "ci.yml" || run.event !== "pull_request" || run.status !== "completed")
+    if (workflowFile(run.path) !== "ci.yml" || run.event !== "pull_request" || run.status !== "completed") {
         return undefined;
-    if (run.conclusion !== "success" && run.conclusion !== "failure") return undefined;
+    }
+    if (run.conclusion !== "success" && run.conclusion !== "failure") {
+        return undefined;
+    }
     const start = Date.parse(run.run_attempt > 1 && run.run_started_at ? run.run_started_at : run.created_at);
     const starts = jobs.map((j) => msOr(j.started_at)).filter(Number.isFinite);
     const first = starts.length ? Math.max(start, Math.min(...starts)) : start;
@@ -540,18 +712,27 @@ export function prRunOf(run: GhRun, jobs: GhJob[]): PrRun | undefined {
  * to the next run, and green to merged after the last run passed.
  * ponytail: only the first job's runner wait counts as waiting; later jobs' waits count as checks running, and
  * overlapping runs add up. Per-job waits if the bars ever need to be exact.
+ * @param runs - the pull request's ci.yml runs
+ * @param mergedAt - epoch ms of the merge
+ * @returns the time in each stage, or undefined when no run started before the merge
  */
 export function prStages(runs: PrRun[], mergedAt: number): PrStages | undefined {
     const rs = runs.filter((r) => r[0] <= mergedAt).sort((a, b) => a[0] - b[0]);
-    if (!rs.length) return undefined;
+    if (!rs.length) {
+        return undefined;
+    }
     const s: PrStages = { runners: 0, checks: 0, red: 0, merging: 0 };
     rs.forEach(([start, first, end, ok], i) => {
         s.runners += first - start;
         s.checks += end - first;
-        if (!ok) s.red += Math.max(0, Math.min(rs[i + 1]?.[0] ?? mergedAt, mergedAt) - end);
+        if (!ok) {
+            s.red += Math.max(0, Math.min(rs[i + 1]?.[0] ?? mergedAt, mergedAt) - end);
+        }
     });
     const last = rs[rs.length - 1];
-    if (last[3]) s.merging = Math.max(0, mergedAt - last[2]);
+    if (last[3]) {
+        s.merging = Math.max(0, mergedAt - last[2]);
+    }
     return s;
 }
 
@@ -568,12 +749,18 @@ export interface PrStocks {
     prs: PrStockPrs;
 }
 
-/** How long the pull request's pictures have waited for the owner: its pending "Visual review" status, 0 if none. */
+/**
+ * How long the pull request's pictures have waited for the owner: its pending "Visual review" status, 0 if none.
+ * @param p - the pull request
+ * @param nowMs - the current epoch ms
+ * @returns the wait in ms
+ */
 function screenshotWaitMs(p: GqlPr, nowMs: number): number {
     let ms = 0;
     for (const c of p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []) {
-        if (c.__typename === "StatusContext" && c.context === "Visual review" && c.state === "PENDING" && c.createdAt)
+        if (c.__typename === "StatusContext" && c.context === "Visual review" && c.state === "PENDING" && c.createdAt) {
             ms = Math.max(ms, nowMs - Date.parse(c.createdAt));
+        }
     }
     return ms;
 }
@@ -581,6 +768,9 @@ function screenshotWaitMs(p: GqlPr, nowMs: number): number {
 /**
  * The "now" members of 4.2 and "Red on the same check" of 4.1, from the open pull requests.
  * ponytail: reads the first 50 open pull requests; past 50 the counts stop growing, which is already red.
+ * @param open - the open pull requests
+ * @param nowMs - the current epoch ms
+ * @returns the counts and the pull requests behind them
  */
 export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
     const s: PrStocks = {
@@ -594,7 +784,9 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
     };
     const failing = new Map<string, number>();
     for (const p of open) {
-        if (p.state !== "OPEN" || p.isDraft) continue;
+        if (p.state !== "OPEN" || p.isDraft) {
+            continue;
+        }
         if (!waitsOnOwner(p)) {
             s.open++;
             const age = nowMs - Date.parse(p.createdAt);
@@ -616,7 +808,9 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
         s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, screenshotWaitMs(p, nowMs));
         // An aggregator failing alone counts too (4, "Excluded checks").
         const checks = new Set(failingChecks(p, nowMs).map((c) => c.check));
-        for (const c of checks) failing.set(c, (failing.get(c) ?? 0) + 1);
+        for (const c of checks) {
+            failing.set(c, (failing.get(c) ?? 0) + 1);
+        }
     }
     s.maxFailingSameCheck = Math.max(0, ...failing.values());
     return s;
@@ -657,17 +851,29 @@ const HOLD_VERDICT = /\bended (green-images|green-clean|red|owner-item|approved|
  */
 export function screenshotReview(issues: (GqlHoldIssue | null)[]): { since: number; issue: number } | undefined {
     for (const i of issues) {
-        if (i?.state !== "OPEN" || !i.title.startsWith("Nightly held on")) continue;
+        if (i?.state !== "OPEN" || !i.title.startsWith("Nightly held on")) {
+            continue;
+        }
         const said = [{ body: i.body ?? "", createdAt: i.createdAt }, ...(i.comments?.nodes ?? [])]
             .map((x) => ({ at: Date.parse(x.createdAt), state: HOLD_VERDICT.exec(x.body)?.[1] }))
             .filter((x) => x.state);
         let k = said.length;
-        while (k > 0 && said[k - 1].state === "green-images") k--; // re-tests that stay green-images keep the wait
-        if (k < said.length) return { since: said[k].at, issue: i.number };
+        while (k > 0 && said[k - 1].state === "green-images") {
+            k--;
+        } // re-tests that stay green-images keep the wait
+        if (k < said.length) {
+            return { since: said[k].at, issue: i.number };
+        }
     }
     return undefined;
 }
 
+/**
+ * A GraphQL issue as the model's issue item.
+ * @param i - the issue
+ * @param repo - owner/name of the repository
+ * @returns the issue item
+ */
 export function toIssueItem(i: GqlIssue, repo: string): IssueItem {
     return {
         kind: "issue",
@@ -702,20 +908,39 @@ export type LaneResult = "passed" | "failed" | "skipped" | "running" | "not in t
 const TESTING: Lane[] = ["ci", "t4", "hosts", "autosave_macos", "audit", "llm"];
 const BAD = new Set(["failure", "timed_out", "cancelled", "startup_failure", "action_required"]);
 
-/** "full" from "Release (full)"; runs before 2026-10-25 18:00 say just "Release" (legacy). */
+/**
+ * "full" from "Release (full)"; runs before 2026-10-25 18:00 say just "Release" (legacy).
+ * @param title - the run's display title
+ * @returns the release mode
+ */
 export const releaseMode = (title: string | undefined): string => /\(([\w-]+)\)/.exec(title ?? "")?.[1] ?? "legacy";
 
 /** release.yml's job that deploys nightly.graphty.app once the candidate was promoted. */
 const NIGHTLY_SITE = "Deploy the nightly site";
 
-const jobsOf = (jobs: GhJob[], name: string) => jobs.filter((j) => j.name === name || j.name.startsWith(`${name} / `));
+const jobsOf = (jobs: GhJob[], name: string): GhJob[] =>
+    jobs.filter((j) => j.name === name || j.name.startsWith(`${name} / `));
 
+/**
+ * One lane's result from its jobs (the job named `name` or its called workflow's jobs).
+ * @param jobs - the run's jobs
+ * @param name - the lane's job name
+ * @returns the lane's result
+ */
 function laneOf(jobs: GhJob[], name: string): LaneResult {
     const mine = jobsOf(jobs, name);
-    if (!mine.length) return "absent";
-    if (mine.some((j) => j.status !== "completed")) return "running";
-    if (mine.some((j) => BAD.has(j.conclusion ?? ""))) return "failed";
-    if (mine.every((j) => j.conclusion === "skipped")) return "skipped";
+    if (!mine.length) {
+        return "absent";
+    }
+    if (mine.some((j) => j.status !== "completed")) {
+        return "running";
+    }
+    if (mine.some((j) => BAD.has(j.conclusion ?? ""))) {
+        return "failed";
+    }
+    if (mine.every((j) => j.conclusion === "skipped")) {
+        return "skipped";
+    }
     return "passed";
 }
 
@@ -733,9 +958,17 @@ export interface ReleaseAttempt {
     nightly: LaneResult;
 }
 
+/**
+ * A lane's jobs that ran: their name, count, wall time and newest failure.
+ * @param mine - the lane's jobs
+ * @param name - the lane's job name
+ * @returns the summary, or undefined when every job skipped
+ */
 function laneJob(mine: GhJob[], name: string): LaneJob | undefined {
     const ran = mine.filter((j) => j.conclusion !== "skipped");
-    if (!ran.length) return undefined;
+    if (!ran.length) {
+        return undefined;
+    }
     const starts = ran.map((j) => msOr(j.started_at)).filter(Number.isFinite);
     const ends = ran.map((j) => msOr(j.completed_at)).filter(Number.isFinite);
     const bad = ran
@@ -750,18 +983,28 @@ function laneJob(mine: GhJob[], name: string): LaneJob | undefined {
     };
 }
 
+/**
+ * One release.yml run attempt's mode, lane results and failures.
+ * @param run - the release.yml run
+ * @param jobs - the attempt's jobs
+ * @returns the release attempt
+ */
 export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
     const mode = releaseMode(run.display_title);
     const names: Record<Lane, string> = { ...LANES };
     // In full and restart mode version/land/publish are skipped by design: judge the dry run instead.
     const full = mode === "full" || mode === "restart";
-    if (full) names.version = "Version dry run";
+    if (full) {
+        names.version = "Version dry run";
+    }
     const lanes = {} as Record<Lane, LaneResult>;
     const laneJobs: Partial<Record<Lane, LaneJob>> = {};
     for (const [lane, name] of Object.entries(names) as [Lane, string][]) {
         lanes[lane] = laneOf(jobs, name);
         const j = laneJob(jobsOf(jobs, name), name);
-        if (j) laneJobs[lane] = j;
+        if (j) {
+            laneJobs[lane] = j;
+        }
     }
     if (full) {
         lanes.land = "not in this mode";
@@ -798,13 +1041,23 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
 // ---------------------------------------------------------------------------------------------------------------
 // The release channels (#4460): canary's deploys and production's promotions. Nightly's are release attempts.
 
-/** A finished run's outcome as a channel attempt: success is ok, a cancel is cancelled, anything else failed. */
+/**
+ * A finished run's outcome as a channel attempt: success is ok, a cancel is cancelled, anything else failed.
+ * @param conclusion - the run's conclusion
+ * @returns the attempt's outcome
+ */
 const runOutcome = (conclusion: string | null): ChannelAttempt["outcome"] => {
-    if (conclusion === "success") return "ok";
+    if (conclusion === "success") {
+        return "ok";
+    }
     return conclusion === "cancelled" ? "cancelled" : "bad";
 };
 
-/** Canary's attempts, newest first: finished deploy-pages.yml runs; a skipped run (master's build was red) is none. */
+/**
+ * Canary's attempts, newest first: finished deploy-pages.yml runs; a skipped run (master's build was red) is none.
+ * @param runs - deploy-pages.yml runs
+ * @returns one attempt per finished, not skipped run
+ */
 export function canaryAttempts(runs: GhRun[]): ChannelAttempt[] {
     return runs
         .filter((r) => r.status === "completed" && r.conclusion !== "skipped")
@@ -822,26 +1075,45 @@ export function canaryAttempts(runs: GhRun[]): ChannelAttempt[] {
  * A finished promote.yml run as a production promotion: it moved channel/production, or its promotion failed. A dry
  * run, a configuration redeploy or a nightly rollback is null. ponytail: a failed dry run counts as a failed
  * promotion, since the jobs API does not say which runs were dry; read the run's inputs if that misleads.
+ * @param run - the promote.yml run
+ * @param jobs - the run's jobs
+ * @returns the promotion attempt, or null when the run was no promotion
  */
 export function promotion(run: GhRun, jobs: GhJob[]): ChannelAttempt | null {
     const move = jobs.find((j) => j.name.startsWith("Move channel/"));
-    if (move?.name !== "Move channel/production") return null;
+    if (move?.name !== "Move channel/production") {
+        return null;
+    }
     const moved = laneOf(jobs, move.name);
-    if (moved !== "passed" && moved !== "failed" && laneOf(jobs, "Promote (owner approval)") !== "failed") return null;
+    if (moved !== "passed" && moved !== "failed" && laneOf(jobs, "Promote (owner approval)") !== "failed") {
+        return null;
+    }
     // A run that succeeded without moving the channel failed its promotion (its promote job did).
     const failed = run.conclusion === "success" ? "failure" : run.conclusion;
     return { at: Date.parse(run.updated_at), outcome: moved === "passed" ? "ok" : runOutcome(failed), run: run.id };
 }
 
-/** The scheduler's App dispatches the train; anything else is ad hoc. */
+/**
+ * The scheduler's App dispatches the train; anything else is ad hoc.
+ * @param run - the release run
+ * @returns true when the scheduler's App started the run
+ */
 export const isScheduled = (run: GhRun): boolean => run.triggering_actor?.login === "graphty-release-scheduler[bot]";
 
-/** The newest runs that failed in a row, newest first, of one workflow's completed runs. */
+/**
+ * The newest runs that failed in a row, newest first, of one workflow's completed runs.
+ * @param runs - one workflow's runs, any order
+ * @returns the failed runs since the last good one
+ */
 export function failedStreak(runs: GhRun[]): GhRun[] {
     const out: GhRun[] = [];
     for (const r of [...runs].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))) {
-        if (r.status !== "completed" || r.conclusion === "skipped" || r.conclusion === "cancelled") continue;
-        if (!BAD.has(r.conclusion ?? "")) break;
+        if (r.status !== "completed" || r.conclusion === "skipped" || r.conclusion === "cancelled") {
+            continue;
+        }
+        if (!BAD.has(r.conclusion ?? "")) {
+            break;
+        }
         out.push(r);
     }
     return out;
@@ -851,6 +1123,8 @@ export function failedStreak(runs: GhRun[]): GhRun[] {
  * The cancelled runs a newer run of the same workflow took the place of: a newer run was created before the cancel
  * (a concurrency group replacing a waiting run, or a stuck run cancelled by hand after its successor started).
  * Neutral: neither failed nor a skipped train. A run cancelled with no successor yet still counts as it did.
+ * @param runs - one workflow's runs
+ * @returns the ids of the replaced runs
  */
 export function replacedRuns(runs: GhRun[]): Set<number> {
     const created = runs.map((r) => Date.parse(r.created_at));
@@ -871,11 +1145,12 @@ export function replacedRuns(runs: GhRun[]): Set<number> {
  * that a newer run did not replace did not test, on a commit other than the candidate's.
  * @param attempts the seen attempts, newest first
  * @param runs the release workflow's newest runs
+ * @returns true when the newest train attempt skipped testing a new commit
  */
 export function trainSkipped(attempts: ReleaseSeen[], runs: GhRun[]): boolean {
     const replaced = replacedRuns(runs);
     const modes = new Map(runs.map((r) => [r.id, releaseMode(r.display_title)]));
-    const train = (a: ReleaseSeen) => a.run === undefined || !NOT_A_TRAIN.has(modes.get(a.run) ?? "full");
+    const train = (a: ReleaseSeen): boolean => a.run === undefined || !NOT_A_TRAIN.has(modes.get(a.run) ?? "full");
     const candidate = attempts.find((a) => a.tested);
     const newest = attempts.find((a) => train(a) && (a.run === undefined || !replaced.has(a.run)));
     return !!newest && !newest.tested && newest.sha !== candidate?.sha;
@@ -892,17 +1167,30 @@ export const RELEASE_WORKFLOW_EVENTS: Record<string, string[]> = {
     "release-watch.yml": ["workflow_run", "workflow_dispatch"],
 };
 
-/** The runs of an event the workflow declares; every run when the workflow's events are not known. */
+/**
+ * The runs of an event the workflow declares; every run when the workflow's events are not known.
+ * @param workflow - the workflow file
+ * @param runs - the workflow's runs
+ * @returns the runs of a declared event
+ */
 export const declaredRuns = (workflow: string, runs: GhRun[]): GhRun[] =>
     runs.filter((r) => RELEASE_WORKFLOW_EVENTS[workflow]?.includes(r.event) ?? true);
 
-/** Consecutive failed runs, newest first, of one workflow's completed runs. */
+/**
+ * Consecutive failed runs, newest first, of one workflow's completed runs.
+ * @param runs - one workflow's runs, any order
+ * @returns the length of the failing streak
+ */
 export const failedInRow = (runs: GhRun[]): number => failedStreak(runs).length;
 
 /**
  * One release workflow's row (4.5, Release workflows): completed runs in the last 24 hours, how many failed, the
  * failing streak and its start. ponytail: counts only the runs the collector reads (10 or 12), so "in a row"
  * stops there.
+ * @param workflow - the workflow file
+ * @param all - the workflow's newest runs
+ * @param nowMs - the current epoch ms
+ * @returns the workflow's row
  */
 export function workflowState(workflow: string, all: GhRun[], nowMs: number): WorkflowState {
     const runs = declaredRuns(workflow, all);
@@ -969,6 +1257,7 @@ export const STRESS_WEEKS = 3;
  * the runs in them found a failure. Three runs alone are not three weeks: a re-run or a dispatch puts two in a week.
  * @param runs the stress runs (any order)
  * @param nowMs now
+ * @returns true when every one of the last three weeks had a run and none found a failure
  */
 export function stressQuiet(runs: Pick<StressCursorRun, "at" | "foundFailures">[], nowMs: number): boolean {
     const inRange = runs.filter((r) => nowMs - r.at < STRESS_WEEKS * 7 * DAY);
@@ -991,15 +1280,26 @@ export interface Rates {
     fixedMonthly: Record<string, { usd: number } | null>;
 }
 
-const dayOf = (msTime: number) => Math.floor(msTime / DAY) * DAY;
+const dayOf = (msTime: number): number => Math.floor(msTime / DAY) * DAY;
 
-/** One machine.dev T4 job: minutes rounded up, plus boot, times the tenancy's rate. */
+/**
+ * One machine.dev T4 job: minutes rounded up, plus boot, times the tenancy's rate.
+ * @param j - the job
+ * @param repo - owner/name of the repository
+ * @param rates - the cost rates
+ * @param workflow - the workflow file the job's run belongs to
+ * @returns the cost item, or undefined for a job that is no finished T4 job or has no rate
+ */
 export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string): CostItem | undefined {
     const label = j.labels.find((l) => l.startsWith("machine/gpu=t4"));
-    if (!label || !j.started_at || !j.completed_at || isSkipped(j)) return undefined;
+    if (!label || !j.started_at || !j.completed_at || isSkipped(j)) {
+        return undefined;
+    }
     const tenancy = /tenancy=(\w+)/.exec(label)?.[1] ?? "on_demand";
     const rate = rates.t4.usdPerMin[tenancy];
-    if (rate === undefined) return undefined; // a missing rate is NO DATA, never zero
+    if (rate === undefined) {
+        return undefined;
+    } // a missing rate is NO DATA, never zero
     const min = Math.ceil((Date.parse(j.completed_at) - Date.parse(j.started_at)) / MIN) + rates.t4.bootMin;
     const end = Date.parse(j.completed_at);
     return {
@@ -1013,8 +1313,13 @@ export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string):
     };
 }
 
-/** Whether a bisect.yml run bisects the llm lane: its run name says so, or it is listed from before the name did. */
-const llmBisect = (run: Pick<GhRun, "id" | "display_title"> | undefined, rates: Rates) =>
+/**
+ * Whether a bisect.yml run bisects the llm lane: its run name says so, or it is listed from before the name did.
+ * @param run - the bisect.yml run, if known
+ * @param rates - the cost rates (their legacy bisect run list)
+ * @returns true when the run bisects the llm lane
+ */
+const llmBisect = (run: Pick<GhRun, "id" | "display_title"> | undefined, rates: Rates): boolean =>
     !!run && (/\bllm lane\b/.test(run.display_title ?? "") || rates.llm.legacyBisectRuns.includes(run.id));
 
 /** The step after the LLM tests whose name carries the run's logged cost (release.yml, tools/llm-spend.mjs). */
@@ -1024,6 +1329,12 @@ const LLM_COST_STEP = /^LLM regression cost: (\d+(?:\.\d+)?) USD$/;
  * Paid LLM test steps (as tools/llm-spend.mjs counts them) times the per-run cost: release.yml's LLM regression step,
  * and the test step of each point of a bisect of the llm lane. A job whose cost step logged its real cost is priced at
  * that instead.
+ * @param j - the job
+ * @param repo - owner/name of the repository
+ * @param rates - the cost rates
+ * @param workflow - the workflow file the job's run belongs to
+ * @param run - the job's run (its id and display title)
+ * @returns the cost item, or undefined when the job ran no paid LLM step
  */
 export function llmCost(
     j: GhJob,
@@ -1033,12 +1344,16 @@ export function llmCost(
     run?: Pick<GhRun, "id" | "display_title">,
 ): CostItem | undefined {
     const bisect = workflow === "bisect.yml";
-    if (bisect && !llmBisect(run, rates)) return undefined;
+    if (bisect && !llmBisect(run, rates)) {
+        return undefined;
+    }
     const step = bisect ? rates.llm.bisectStep : rates.llm.step;
     const paid = (j.steps ?? []).filter(
         (s) => s.name === step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
     );
-    if (!paid.length) return undefined;
+    if (!paid.length) {
+        return undefined;
+    }
     const logged = (j.steps ?? []).map((s) => LLM_COST_STEP.exec(s.name)?.[1]).find((v) => v !== undefined);
     const end = Date.parse(paid[paid.length - 1].completed_at ?? j.completed_at ?? j.created_at);
     return {
@@ -1052,7 +1367,12 @@ export function llmCost(
     };
 }
 
-/** Each fixed monthly line spread over the month's days, so a month-to-date projection holds. */
+/**
+ * Each fixed monthly line spread over the month's days, so a month-to-date projection holds.
+ * @param rates - the cost rates (their fixed monthly lines)
+ * @param dayMs - an epoch ms in the day to price
+ * @returns one cost item per fixed line for that day
+ */
 export function fixedCosts(rates: Rates, dayMs: number): CostItem[] {
     const d = new Date(dayMs);
     const days = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
@@ -1074,7 +1394,11 @@ export interface Tag {
     taggedAt: number;
 }
 
-/** `{project}@{version}` tags; `golden-good` and other non-release tags are dropped. */
+/**
+ * `{project}@{version}` tags; `golden-good` and other non-release tags are dropped.
+ * @param nodes - the GraphQL tag refs
+ * @returns the release tags with their tag times
+ */
 export function releaseTags(
     nodes: { name: string; target: { committedDate?: string; tagger?: { date: string } } }[],
 ): Tag[] {
@@ -1171,6 +1495,7 @@ const FLAKY_LINE =
  * @param runId the workflow run's id
  * @param attempt the run attempt the check run belongs to
  * @param seenAt when the check run completed
+ * @returns the test item, or undefined
  */
 export function flakyTestItem(
     message: string,
@@ -1181,7 +1506,9 @@ export function flakyTestItem(
 ): TestItem | undefined {
     const job = SHARD_JOBS.find(([re]) => re.test(checkRun));
     const m = FLAKY_LINE.exec(message);
-    if (!job || !m) return undefined;
+    if (!job || !m) {
+        return undefined;
+    }
     const [, shard, file, name] = m;
     const invocation = `${runId}.${attempt}.${job[1]}.${shard}.1`;
     return {

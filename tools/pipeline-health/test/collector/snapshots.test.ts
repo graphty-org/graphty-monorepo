@@ -124,7 +124,7 @@ describe("snapshots", () => {
 
     it("judges a check by its newest run: a failure a later run of the same check passed is not failing", () => {
         const p = gqlPr(1, ["PR Integrity", "All Checks Pass"]);
-        const nodes = p.commits!.nodes[0].commit.statusCheckRollup!.contexts.nodes;
+        const { nodes } = p.commits!.nodes[0].commit.statusCheckRollup!.contexts;
         expect(failingChecks(p).map((f) => f.name)).toEqual(["PR Integrity"]);
         nodes.push(
             { __typename: "CheckRun", name: "PR Integrity", conclusion: "SUCCESS", startedAt: at(T0 - 29 * MIN) },

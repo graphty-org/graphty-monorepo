@@ -109,7 +109,8 @@ function textWords(rule: Extract<RuleTree, { kind: "text" }>, names: Namer): str
  * @returns the words.
  */
 export function chipName(words: string, on: readonly string[]): string {
-    return `Filter: ${words}, showing only ${on.map((card) => `"${card}"`).join(", ")}`;
+    const cards = on.map((card) => `"${card}"`).join(", ");
+    return `Filter: ${words}, showing only ${cards}`;
 }
 
 /** How much of the graph is showing, as the element's summary has it. */

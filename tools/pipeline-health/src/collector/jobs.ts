@@ -115,7 +115,9 @@ export function titleOwnsJob(title: string, job: Pick<ChronicJob, "workflow" | "
     if (!words(title).includes(words(short))) return false;
     const called = title
         .toLowerCase()
-        .replaceAll(/\s*\/\s*/g, "/")
+        .split("/")
+        .map((x) => x.trim())
+        .join("/")
         .includes(`/${short.toLowerCase()}`);
     if (called && short === job.job) return false;
     const rest = words(title.replace(/^[a-z]+(\([^)]*\))?!?:/, ""));

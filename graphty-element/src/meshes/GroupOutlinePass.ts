@@ -26,11 +26,12 @@
 
 import {
     Buffer,
+    type Camera,
     Color4,
     Constants,
     EffectRenderer,
     Layer,
-    type Matrix,
+    Matrix,
     Mesh,
     type Observer,
     type RenderTargetTexture,
@@ -175,6 +176,7 @@ interface GroupTree {
 /** Scratch, so laying out a frame allocates no vectors. */
 const scratch = new Vector3();
 const projected = new Vector3();
+const viewProjection = new Matrix();
 
 /**
  * A group's box in the outline target's pixels, clamped to the target.
@@ -531,7 +533,7 @@ export class GroupOutlinePass {
         }
 
         const camera = this.scene.activeCamera;
-        const placed = camera === null ? [] : this.layOut();
+        const placed = camera === null ? [] : this.layOut(camera);
         this.placed = placed;
         this.follow();
         const drawsAny = placed.some((layer) => layer.groups.length > 0);
@@ -565,14 +567,18 @@ export class GroupOutlinePass {
     /**
      * Lay out every drawable outline for this frame: members' places on screen, each
      * group's box, sphere and field slot, and the splats of the field targets.
+     * @param camera - The camera this frame is drawn from.
      * @returns The layers, bottom first.
      */
-    private layOut(): PlacedLayer[] {
+    private layOut(camera: Camera): PlacedLayer[] {
         const engine = this.scene.getEngine();
         const width = engine.getRenderWidth();
         const height = engine.getRenderHeight();
-        const transform = this.scene.getTransformMatrix();
-        const scaleY = Math.abs(this.scene.activeCamera?.getProjectionMatrix().m[5] ?? 1);
+        // The camera's own matrices, not the scene's transform: Babylon sets that only when the
+        // camera draws, after this, so it still holds the last frame's view (issue #5562).
+        const projection = camera.getProjectionMatrix();
+        const transform = camera.getViewMatrix().multiplyToRef(projection, viewProjection);
+        const scaleY = Math.abs(projection.m[5]);
         const root = this.scene.getTransformNodeByName("graph-root") as TransformNode | null;
         const world = root?.getWorldMatrix();
         const rootScale = world === undefined ? 1 : Math.hypot(world.m[0], world.m[1], world.m[2]);

@@ -401,6 +401,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                     anchorY={sectionBox}
                     boundaryTop={gallery ? headerBottom() : 0}
                     header={{ variant: "title", title: spec.title }}
+                    closeLabel={`Close ${spec.title}`}
                 >
                     <Popout.Content>
                         <ShaderGallery

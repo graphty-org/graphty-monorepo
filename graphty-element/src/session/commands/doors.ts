@@ -1837,6 +1837,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             borderReach: READ,
             framingHalf: READ,
             drawnHalfExtents: READ,
+            surfaceIsBox: READ,
             outlineHalfExtents: READ,
             groupSizing: READ,
             wordedLabel: READ,

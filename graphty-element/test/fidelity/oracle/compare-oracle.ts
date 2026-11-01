@@ -785,11 +785,14 @@ function headParts(heads: readonly PArrow[]): number {
     return placed.length;
 }
 
+/** A line's usual advance, in its font box's heights (CSS's `line-height: normal`, Graphviz's LINESPACING). */
+const LINE_ADVANCE = 1.2;
+
 /**
  * Whether the program draws most of a text's words near it: half its words or more among the program's texts whose
- * middles lie within the text's box, give or take its height, or anywhere where no place relates the two drawings. A
- * text graphty draws on several lines the program draws one line a text (xgmml-wp4271-cy3-export's "Absorption and
- * transport"), and wraps where it wraps.
+ * middles lie within the text's box, give or take a line's advance, or anywhere where no place relates the two
+ * drawings. A text graphty draws on several lines the program draws one line a text (xgmml-wp4271-cy3-export's
+ * "Absorption and transport"), and wraps where it wraps.
  * @param words - the text's words, normalized
  * @param box - its box in the oracle's frame, or null to look anywhere
  * @param texts - the program's texts, words normalized
@@ -800,7 +803,9 @@ function wordsDrawnNear(words: string, box: PBox | null, texts: readonly { words
         if (box === null) {
             return true;
         }
-        const slack = box.y1 - box.y0;
+        // graphty's box is its letters' font box (#5322), no longer the line box 1.2 times as tall that this slack
+        // was set by
+        const slack = LINE_ADVANCE * (box.y1 - box.y0);
         const [x, y] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
         return x >= box.x0 - slack && x <= box.x1 + slack && y >= box.y0 - slack && y <= box.y1 + slack;
     };

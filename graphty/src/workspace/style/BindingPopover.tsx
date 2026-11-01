@@ -24,7 +24,7 @@ import { type DataBinding, type DataChoice, type LayerBinding, startingValue, to
 import { focusLineNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
-import { channelWord, enumWords, failureWords, LAYER_TOKEN, paletteWord, SCALE_WORDS } from "./words";
+import { channelPhrase, channelWord, enumWords, failureWords, LAYER_TOKEN, paletteWord, SCALE_WORDS } from "./words";
 
 /** What `toColorValue` reads. */
 type ColorInput = Parameters<typeof toColorValue>[0];
@@ -243,7 +243,13 @@ function GroupsSection({
         <Stack gap={8}>
             {detail ? null : parts.readAs}
             {plain ? (
-                <PaletteSelect session={session} value={binding.palette} shown={parts.palette} patch={patch} />
+                <PaletteSelect
+                    session={session}
+                    channel={descriptor.channel}
+                    value={binding.palette}
+                    shown={parts.palette}
+                    patch={patch}
+                />
             ) : null}
             {parts.list}
             {plain && overflows ? <OverflowField session={session} descriptor={descriptor} parts={parts} /> : null}
@@ -566,6 +572,7 @@ function SourceHeader({
  * The categorical palettes, each drawn as a strip.
  * @param props - Component props
  * @param props.session - the element's session
+ * @param props.channel - the property the palette paints, which its reset names
  * @param props.value - the palette the binding names
  * @param props.shown - the palette it paints with when it names none
  * @param props.patch - writes the pick
@@ -573,11 +580,13 @@ function SourceHeader({
  */
 function PaletteSelect({
     session,
+    channel,
     value,
     shown,
     patch,
 }: Readonly<{
     session: GraphSession;
+    channel: ChannelDescriptor["channel"];
     value: string | undefined;
     shown: string | undefined;
     patch: (change: { palette: string | undefined }) => void;
@@ -614,6 +623,7 @@ function PaletteSelect({
                     value !== undefined && (
                         <ResetButton
                             label="Palette"
+                            fullLabel={`Reset the ${channelPhrase(channel)} palette to default`}
                             onClick={() => {
                                 patch({ palette: undefined });
                             }}
@@ -1025,7 +1035,6 @@ function Clamp({
  * @param props.chit - the field that edits its entry
  * @param props.hidden - whether it is hidden
  * @param props.onHide - hides or shows it
- * @param props.onClear - clears its entry, when it has one
  * @param props.where - the rule that matches its elements
  * @param props.onNewLayer - makes a layer of that rule
  * @param props.onRename - names the value (F2 on the row, or Rename in its menu); a group's name
@@ -1041,7 +1050,6 @@ function ValueRow({
     chit,
     hidden,
     onHide,
-    onClear,
     where,
     onNewLayer,
     onRename,
@@ -1054,7 +1062,6 @@ function ValueRow({
     chit?: React.ReactNode;
     hidden?: boolean;
     onHide?: (hide: boolean) => void;
-    onClear?: () => void;
     where: RuleTree;
     onNewLayer: (where: RuleTree) => void;
     onRename?: (name: string) => void;
@@ -1127,25 +1134,15 @@ function ValueRow({
                     onChange={onHide}
                 />
             )}
-            <Box w={24} style={{ flex: "none" }} data-clear-column>
-                {onClear === undefined ? null : (
-                    <Tooltip label="Clear: back to the palette">
-                        <ActionIcon
-                            variant="subtle"
-                            size="sm"
-                            aria-label={`Back to the palette: ${full}`}
-                            onClick={onClear}
-                        >
-                            <GLYPHS.remove size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                )}
-            </Box>
+            <Box w={24} style={{ flex: "none" }} data-clear-column />
             <Menu withinPortal={false} position="bottom-end">
                 <Menu.Target>
-                    <ActionIcon variant="subtle" size="sm" aria-label={`${full} actions`}>
-                        <GLYPHS.more size={14} aria-hidden />
-                    </ActionIcon>
+                    {/* An icon alone, so it says its name on hover. */}
+                    <Tooltip label={`${full} actions`}>
+                        <ActionIcon variant="subtle" size="sm" aria-label={`${full} actions`}>
+                            <GLYPHS.more size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
                 </Menu.Target>
                 <Menu.Dropdown>
                     <Menu.Item onClick={select}>{`Select these ${counted}`}</Menu.Item>

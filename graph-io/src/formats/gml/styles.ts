@@ -978,13 +978,7 @@ function readElement(
     if (lg !== null && lg !== undefined) {
         readLabelGraphics(lg, writer, target === "node", putLabel, at);
     }
-    // the GML draft draws the label key; Cytoscape reads it as the node's name, which its default style shows, and
-    // Graphviz labels every node (its label default is \N, the node's name)
-    const drawn =
-        writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz"
-            ? target === "node"
-            : writer.labelKey && (isRec(g) || lg !== undefined);
-    if (!text && drawn && label !== null && label !== undefined) {
+    if (!text && labelKeyDrawn(target, writer, isRec(g) || lg !== undefined) && label !== null && label !== undefined) {
         put(
             "label",
             writer.vocabulary === "graphviz" ? graphvizText(label, at("label")) : canonText(label, at("label")),
@@ -995,6 +989,22 @@ function readElement(
             put("labelPosition", "center");
         }
     }
+}
+
+/**
+ * Whether the writer's program draws an element's `label` key: the GML draft draws it on an element with graphics;
+ * Cytoscape reads it as the node's name, which its default style shows, and Graphviz labels every node (its label
+ * default is \N, the node's name).
+ * @param target - nodes or edges
+ * @param writer - the writer
+ * @param hasGraphics - whether the element has `graphics` or `LabelGraphics`
+ * @returns whether the label is drawn
+ */
+function labelKeyDrawn(target: StyleTarget, writer: GmlWriter, hasGraphics: boolean): boolean {
+    if (writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz") {
+        return target === "node";
+    }
+    return writer.labelKey && hasGraphics;
 }
 
 /** The font size GraphIO::drawSVG draws every label in (SVGSettings), by which it sets a cluster's label off its box. */

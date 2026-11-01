@@ -7,7 +7,7 @@ import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { type AlertsResult, sendAlerts } from "./alerts/index.js";
 import { DAY, dirtyKey, floorTo, MIN } from "./model/items.js";
 import { FOLD_VERSION } from "./model/metrics.js";
-import { getCursor, setCursor } from "./model/raw.js";
+import { getCursor, recordSource, setCursor } from "./model/raw.js";
 import { recompute } from "./model/rollup.js";
 import type { Store } from "./model/store.js";
 import { SLAS } from "./sla/config.js";
@@ -77,7 +77,8 @@ export async function recomputeAll(
     await refold(store, now).catch((err: unknown) => console.error(JSON.stringify({ refold: String(err) })));
     const rolled = await recompute(store, now);
     const evaluation = await evaluate(store, now);
-    const views = await writeViews(store, now, SLAS, evaluation);
+    // Alerts before the pages: a cycle whose pages fail still pages the owner, and the "views" write time ages
+    // data.collector, so pages that keep failing page too.
     const alerts = await sendAlerts({
         evaluation,
         store,
@@ -86,5 +87,13 @@ export async function recomputeAll(
         fetch: deps.fetch ?? globalThis.fetch,
     });
     console.log(JSON.stringify({ alerts }));
+    let views: Awaited<ReturnType<typeof writeViews>>;
+    try {
+        views = await writeViews(store, now, SLAS, evaluation);
+    } catch (err) {
+        await recordSource(store, "views", now, { ok: false, error: String(err) });
+        throw err;
+    }
+    await recordSource(store, "views", now, { ok: true });
     return { ...rolled, pages: views.views, alerts };
 }

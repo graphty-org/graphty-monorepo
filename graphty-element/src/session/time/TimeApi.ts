@@ -870,7 +870,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const node = nodeUnit === undefined ? null : indexKind("node", path, nodeUnit);
         const edge = edgeUnit === undefined ? null : indexKind("edge", path, edgeUnit);
         index = { key, path, unit, inferred, node, edge, whole: wholeInstants(node) && wholeInstants(edge) };
-        sources.emit("time:ready", { field });
+        // The index is built lazily, often inside a read (`time.field`, `extent()`): tell listeners
+        // on a microtask so none runs inside the caller's read (#4450). It still lands before an
+        // `await` of the call that built it resumes.
+        queueMicrotask(() => {
+            sources.emit("time:ready", { field });
+        });
 
         return index;
     };

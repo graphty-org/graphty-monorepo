@@ -3301,6 +3301,78 @@ jobs:
                       echo "$msg" >> "$GITHUB_STEP_SUMMARY"
                   fi
 
+    # Many changed pictures (#5465): Capture impact above flags a change to the capture environment; this flags a
+    # pull request whose own story tests changed many pictures (over MANY_PICTURES_THRESHOLD), such as #5346's
+    # reframe of about 1,000, so a broad change is called out while it is a pull request rather than first seen on
+    # the nightly candidate. It reads the captures the Stories jobs uploaded (tools/many-pictures.sh), labels the
+    # pull request many-pictures with a per-project count (and takes the label off when a later push drops below
+    # the threshold), and writes the count to the job summary. Informative only: continue-on-error, not needed by
+    # All Checks Pass, so it never fails or holds a pull request.
+    many-pictures:
+        name: Many changed pictures
+        needs: [story-tests, story-tests-merge]
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.story-tests.result != 'skipped' }}
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            # the label and the comment
+            issues: write
+            pull-requests: write
+        env:
+            MANY_PICTURES_THRESHOLD: "100"
+            LABEL: many-pictures
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: tools
+                  persist-credentials: false
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - name: Download visual captures
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: visual-*
+                  path: ${{ runner.temp }}/visual
+
+            - name: Count the changed pictures
+              id: count
+              run: tools/many-pictures.sh "$RUNNER_TEMP/visual" "$RUNNER_TEMP/many-pictures.md" | tee -a "$GITHUB_OUTPUT"
+
+            - name: Label a pull request that changes many pictures
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR: ${{ github.event.pull_request.number }}
+                  CHANGED: ${{ steps.count.outputs.changed }}
+              run: |
+                  cat "$RUNNER_TEMP/many-pictures.md" >> "$GITHUB_STEP_SUMMARY"
+                  labeled=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -cx "$LABEL" || true)
+                  if (( CHANGED <= MANY_PICTURES_THRESHOLD )); then
+                      echo "$CHANGED changed pictures, not over the threshold of $MANY_PICTURES_THRESHOLD"
+                      (( labeled == 0 )) || gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PR/labels/$LABEL" --silent
+                      exit 0
+                  fi
+                  echo "::notice title=Many changed pictures::$CHANGED pictures change in this pull request's story tests; labeled $LABEL"
+                  (( labeled == 0 )) || exit 0
+                  gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" -f "labels[]=$LABEL" --silent
+                  {
+                      cat "$RUNNER_TEMP/many-pictures.md"
+                      echo ""
+                      echo "More than $MANY_PICTURES_THRESHOLD pictures change here. This does not block the pull request; the owner reviews them at the nightly gate, so a broad, intended change is worth naming in the description."
+                  } | gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@- --silent
+
     # The last job of a green master push run: whether release.yml should run now (tools/release-due.mjs).
     # release.yml has no workflow_run trigger, so this is how a merge that references an open "Full run red:"
     # issue restarts the full run at once (mode restart); every other merge waits for the next 6-hour slot

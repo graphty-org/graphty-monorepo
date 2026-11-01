@@ -386,7 +386,7 @@ export class FruchtermanReingoldModel
         const resolved = resolveFruchtermanReingoldOptions(options, this.current);
         const adaptive = resolved.cooling === "adaptive";
         return {
-            ...this.sharedParams(iteration, resolved),
+            ...this.sharedParams(iteration, resolved, live),
             flags: adaptive ? FA2_FLAG_ADAPTIVE : 0,
             scalingRatio: 0,
             gravity: 0,

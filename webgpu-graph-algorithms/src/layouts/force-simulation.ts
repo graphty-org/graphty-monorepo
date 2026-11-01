@@ -1671,7 +1671,6 @@ export class ForceSimulation<
         const modelFlags = typeof model.flags === "number" ? model.flags : 0;
         const shared: UniformValues = {
             n: this.n,
-            live: this.liveValue,
             dim: this.dimValue,
             flags: flags | modelFlags,
             iterationIndex: index,

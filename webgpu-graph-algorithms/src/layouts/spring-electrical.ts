@@ -346,7 +346,7 @@ export class SpringElectricalModel
         const n = live ?? all;
         const resolved = resolveSpringElectricalOptions(options, this.current);
         return {
-            ...this.sharedParams(iteration, resolved),
+            ...this.sharedParams(iteration, resolved, live),
             scalingRatio: 0,
             gravity: 0,
             jitterTolerance: 0,

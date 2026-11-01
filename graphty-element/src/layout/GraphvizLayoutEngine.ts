@@ -232,7 +232,7 @@ async function computeWith(
     positions: F32;
     bends: ReadonlyMap<number, string>;
     labels: ReadonlyMap<number, EdgeLabelsAt>;
-    xlabels: ReadonlyMap<number, readonly [number, number]>;
+    xlabels: ReadonlyMap<number, readonly [number, number] | null>;
     margins: ReadonlyMap<number, GroupMargins>;
 }> {
     const n = input.graph.nodeCount;
@@ -295,9 +295,11 @@ async function computeWith(
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
         labels: edgeLabelsAt(reply.json, structure.edges ?? []),
         xlabels: new Map(
-            [...nodeXlabelPlaces(reply.json)].map(([row, [x, y]]) => [
+            [...nodeXlabelPlaces(reply.json)].map(([row, place]) => [
                 row,
-                [(x / POINTS_PER_UNIT) * scale, (y / POINTS_PER_UNIT) * scale] as const,
+                place === null
+                    ? null
+                    : ([(place[0] / POINTS_PER_UNIT) * scale, (place[1] / POINTS_PER_UNIT) * scale] as const),
             ]),
         ),
         margins: new Map(
@@ -482,7 +484,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         /** Where Graphviz put each labelled edge's label and end labels, as `along, across` its two ends. */
         private labelPlaces = new Map<Edge, EdgeLabelsAt>();
         /** Where Graphviz put each node's external label, right and down of its center in scene units, by node id as text. */
-        private xlabelPlaces = new Map<string, readonly [number, number]>();
+        private xlabelPlaces = new Map<string, readonly [number, number] | null>();
 
         /**
          * Build the engine for one `setLayout`.
@@ -540,7 +542,16 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
          * @returns right and down of the node's center, in scene units, or undefined when Graphviz placed none
          */
         override getNodeXlabelOffset(n: Node): readonly [number, number] | undefined {
-            return this.xlabelPlaces.get(String(n.id));
+            return this.xlabelPlaces.get(String(n.id)) ?? undefined;
+        }
+
+        /**
+         * Whether Graphviz left a node's external label out (the graph's `forcelabels=false` and no room for it).
+         * @param n - the node
+         * @returns true when Graphviz was handed the label and gave it no place
+         */
+        override isNodeXlabelLeftOut(n: Node): boolean {
+            return this.xlabelPlaces.get(String(n.id)) === null;
         }
 
         /**

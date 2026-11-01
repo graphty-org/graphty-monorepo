@@ -624,7 +624,8 @@ function scanLeadingBlank(chunk: string, state: LeadingBlank): void {
 function nameCharLength(buffer: string, j: number, first: boolean): number {
     const c = buffer.charCodeAt(j);
     if (c < 0x80) {
-        return (first ? ASCII_NAME_START[c] : ASCII_NAME_CHAR[c]) === 0 ? 0 : 1;
+        const table = first ? ASCII_NAME_START : ASCII_NAME_CHAR;
+        return table[c] === 0 ? 0 : 1;
     }
     const cp = buffer.codePointAt(j);
     if (cp === undefined || (first ? !isNameStart(cp) : !isNameChar(cp))) {

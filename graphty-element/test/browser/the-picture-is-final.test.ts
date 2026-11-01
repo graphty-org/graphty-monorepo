@@ -366,6 +366,35 @@ describe("knowing the picture is final", () => {
         assert.isAbove(drawn, drawnAtEdit, "a frame showing the edit was drawn before the wait resolved");
     });
 
+    it("does not call the picture final while Babylon.js is still loading a picture", async () => {
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await graph.waitForStableFrame();
+
+        // What `new Texture(url)` does while a node's picture is on its way (#5344): the scene holds it as
+        // pending data until the picture loads or fails, and the frame drawn meanwhile leaves the picture out.
+        const scene = graph.getScene();
+        const picture = {};
+        scene.addPendingData(picture);
+        graph.getUpdateManager().meshesAdded();
+
+        assert.isFalse(graph.isFrameStable, "a picture is still loading, so the frame is not final");
+        let resolved = false;
+        const wait = graph.waitForStableFrame().then(() => {
+            resolved = true;
+        });
+        await new Promise<void>((done) => {
+            scene.onAfterRenderObservable.addOnce(() => {
+                done();
+            });
+        });
+        assert.isFalse(resolved, "the wait resolved while the picture was still loading");
+
+        scene.removePendingData(picture);
+        await wait;
+        assert.isTrue(graph.isFrameStable, "the picture landed and a frame showing it was drawn");
+    });
+
     it("does not call the picture final while a mesh's shader is still arriving", async () => {
         // THE MECHANISM, NOT A TIMING GUESS. Babylon 8 fetches a StandardMaterial's shader
         // source with a dynamic `import()` the first time a material needs a new variant, and

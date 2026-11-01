@@ -32,6 +32,7 @@ import {
 import { wordsFor } from "../analyze/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
+import { formatCount } from "../settings/numberFormat";
 
 /** Where a label sits, as the element names it. */
 type LabelLocation = NonNullable<LabelStyle["location"]>;
@@ -907,7 +908,7 @@ function said(value: CodedFact["params"][string] | undefined): string {
  * @returns the text.
  */
 function amount(value: CodedFact["params"][string] | undefined): string {
-    return typeof value === "number" ? value.toLocaleString() : said(value);
+    return typeof value === "number" ? formatCount(value) : said(value);
 }
 
 /** What the app says for each model code. Typed over the element's codes, so a new one fails to compile here. */

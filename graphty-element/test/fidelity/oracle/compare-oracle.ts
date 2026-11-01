@@ -738,6 +738,27 @@ function arrowPlaceMiss(
     };
 }
 
+/** A break between a line and its half arrow of this share of the head's length or more is one a reader sees. */
+const LINE_GAP_SHARE = 0.25;
+
+/**
+ * Whether one side leaves a break between its line and its half arrow where the other does not: a half arrow lies
+ * beside its line, so the line under it shows (Cytoscape desktop runs it on to where its HALF_TOP's barb meets it,
+ * near the tip; a line stopped at the head's back leaves a break before the barb). Only half arrows: another head
+ * covers the line under it.
+ * @param oa - the oracle's arrowhead
+ * @param ga - graphty's
+ * @returns the miss (1 where they differ) and what each side draws, or null where either is no half arrow or unread
+ */
+function halfRunOnMiss(oa: PArrow, ga: PArrow): { miss: number; oracle: string; graphty: string } | null {
+    if (oa.shape !== "half" || ga.shape !== "half" || oa.lineGap === undefined || ga.lineGap === undefined) {
+        return null;
+    }
+    const [o, g] = [oa.lineGap >= LINE_GAP_SHARE, ga.lineGap >= LINE_GAP_SHARE];
+    const say = (gap: boolean, share: number): string => `${gap ? "a break before" : "meets"} it (${R(share)})`;
+    return { miss: o === g ? 0 : 1, oracle: say(o, oa.lineGap), graphty: say(g, ga.lineGap) };
+}
+
 /** An arrowhead whose middle sits this share of its line's length or more from either end is drawn part-way along. */
 const ARROW_PART_WAY = 0.25;
 /** How far along its line a part-way arrowhead may sit from the program's, as a share of the line's length. */
@@ -1330,10 +1351,10 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.overlay": `a band over the line (Cytoscape.js's overlay) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its whole width ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}] and its opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
     "edge.arrow": "an arrowhead at the same ends",
     "edge.arrowShape":
-        "the same shape class at each end (triangle, inverted, vee, crow, diamond, circle, box, tee, half); one no class names matches nothing",
+        "the same shape class at each end (triangle, inverted, vee, crow, inverted-vee, diamond, circle, box, tee, half); one no class names matches nothing",
     "edge.arrowParts": "as many arrowhead parts in a row at each end",
     "edge.dashPeriod": `where both sides read a dash array: its period (a dash and a gap) and the share of it drawn, each ratio in [${ORACLE_TOLERANCES.dashRatio.join(", ")}]`,
-    "edge.arrowPlace": `graphty's arrowhead on its line's end: no gap ahead of it, not wholly back along the line, its middle on the line within a quarter of its width, each within ${String(2)} render pixels`,
+    "edge.arrowPlace": `graphty's arrowhead on its line's end: no gap ahead of it, not wholly back along the line, its middle on the line within a quarter of its width, each within ${String(2)} render pixels; a break between the line and half an arrow on both sides or on neither`,
     "edge.arrowFill": "filled on both or hollow on both, at each end",
     "edge.arrowColor": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at each end`,
     "edge.arrowLength": `ratio in [${ORACLE_TOLERANCES.arrowRatio.join(", ")}], or within ${String(ORACLE_TOLERANCES.pixel)} render pixels`,
@@ -2465,7 +2486,17 @@ export function compareOracle(
                 gg.shape,
             );
             const place = arrowPlaceMiss(vo, oa, vg, gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) });
-            if (place !== null) {
+            const runOn = halfRunOnMiss(oa, gg);
+            if (runOn !== null && runOn.miss > 0) {
+                j.add(
+                    "edge.arrowPlace",
+                    "edge",
+                    at,
+                    Math.max(runOn.miss, place?.miss ?? 0),
+                    runOn.oracle,
+                    runOn.graphty,
+                );
+            } else if (place !== null) {
                 j.add("edge.arrowPlace", "edge", at, place.miss, place.oracle, place.graphty);
             }
             j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled ? 0 : 1, oa.filled, gg.filled);

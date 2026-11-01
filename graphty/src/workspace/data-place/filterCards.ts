@@ -250,7 +250,9 @@ export function filterChange(session: GraphSession, fact: CodedFact<HistoryCode>
  * @param rule - the rule.
  */
 export async function selectRule(session: Pick<GraphSession, "selection">, rule: RuleTree): Promise<void> {
-    await session.selection.apply({ scope: { define: { kind: "rule", where: rule, reading: "clipped" } } });
+    await session.selection.apply({ scope: { define: { kind: "rule", where: rule, reading: "clipped" } } }, "replace", {
+        cause: "user",
+    });
 }
 
 /**

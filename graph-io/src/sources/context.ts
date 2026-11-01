@@ -10,7 +10,7 @@ import { throwIfAborted } from "../common/input.js";
 import { type ImportReportBuilder } from "../common/report.js";
 import { type ImportReport } from "../types.js";
 import { type SourceBlockedCause } from "./codes.js";
-import { applyCredential, originOf } from "./credentials.js";
+import { applyCredential, endpointOrigin, originOf } from "./credentials.js";
 import { failOn, warnOn } from "./fail.js";
 import {
     type Credential,
@@ -307,6 +307,7 @@ class SourceFetcher {
     private timeOut(timeoutMs: number): void {
         try {
             failOn(this.input.report, "E_SOURCE_TIMEOUT", `the load ran longer than ${String(timeoutMs)} ms`, {
+                origin: endpointOrigin(this.input.endpoint),
                 timeoutMs,
                 serverSide: false,
             });
@@ -487,11 +488,20 @@ class SourceFetcher {
                     serverCode: null,
                 });
             case 403:
-                return failOn(report, "E_SOURCE_FORBIDDEN", `${where} answered 403`, { status, serverCode: null });
+                return failOn(report, "E_SOURCE_FORBIDDEN", `${where} answered 403`, {
+                    origin: originOf(url),
+                    status,
+                    serverCode: null,
+                });
             case 404:
-                return failOn(report, "E_SOURCE_NOT_FOUND", `${where} answered 404`, { what: "url", value: where });
+                return failOn(report, "E_SOURCE_NOT_FOUND", `${where} answered 404`, {
+                    origin: originOf(url),
+                    what: "url",
+                    value: where,
+                });
             case 429:
                 return failOn(report, "E_SOURCE_QUOTA", `${where} answered 429`, {
+                    origin: originOf(url),
                     retryAfterMs: retryAfterMs(response),
                 });
             default:
@@ -811,6 +821,7 @@ class SourceFetcher {
             return JSON.parse(text) as T;
         } catch {
             return failOn(this.input.report, "E_SOURCE_RESPONSE", "the response is not JSON", {
+                origin: originOf(this.resolve(target)),
                 expected: "json",
                 contentType: response.headers.get("content-type"),
             });

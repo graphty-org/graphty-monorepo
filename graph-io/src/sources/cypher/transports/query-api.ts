@@ -61,6 +61,7 @@ export function queryApiTransport(input: TransportInput): Transport {
         if (response.status === 404) {
             // no Query API here: a Neo4j before 5.26 answers 404, and speaks only Bolt
             failOn(ctx.report, "E_SOURCE_NOT_FOUND", `${origin} has no Query API at ${path}`, {
+                origin,
                 what: "url",
                 value: `${origin}/${path}`,
             });
@@ -73,6 +74,7 @@ export function queryApiTransport(input: TransportInput): Transport {
         }
         if (body?.data === undefined) {
             failOn(ctx.report, "E_SOURCE_RESPONSE", "the Query API answer has no data", {
+                origin,
                 expected: "json",
                 contentType: response.headers.get("content-type"),
             });

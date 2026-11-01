@@ -5,6 +5,7 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { shardCacheDir } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
@@ -30,9 +31,13 @@ export default withTestGuards(
     defineConfig({
         plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
         ...(VISUAL && PRODUCTION),
+        // Scan the stories and bundle their dependencies afresh every run, so an import added since an earlier run's
+        // cache (a merge, a new story) is never found mid-run, where Vite reloads the page under the running test
+        // (#5134, #5240); each pre-push gate shard bundles into its own directory (tools/test-slots.mjs shardCacheDir()).
+        cacheDir: shardCacheDir(),
         // Bundled before the run starts: React's renderer is first imported when a story mounts, and found then Vite
         // re-optimizes and reloads the page mid-run (vitest.config.ts, browserOptimizeDeps).
-        optimizeDeps: { include: ["react-dom/client", "react/jsx-dev-runtime", "react/jsx-runtime"] },
+        optimizeDeps: { include: ["react-dom/client", "react/jsx-dev-runtime", "react/jsx-runtime"], force: true },
         test: {
             ...baseTest({ reporters: ["default", ...(VISUAL ? [VISUAL.reporter] : [])] }),
             name: "storybook",

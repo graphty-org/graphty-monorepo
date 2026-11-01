@@ -470,6 +470,7 @@ export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";
 export type {
     RuleCheck,
     SelectionApi,
+    SelectionApplyOptions,
     SelectionAttributeStatistics,
     SelectionCause,
     SelectionDelta,

@@ -93,7 +93,7 @@ describe("cypher options", () => {
         const err = await rejection(
             loadFromSource("neo4j", { query: "RETURN 1" }, { endpoint: ENDPOINT, fetch: s.fetch }),
         );
-        expect(err.issue?.params).toEqual({ what: "url", value: `${ENDPOINT}/db/neo4j/query/v2` });
+        expect(err.issue?.params).toEqual({ origin: ENDPOINT, what: "url", value: `${ENDPOINT}/db/neo4j/query/v2` });
     });
 
     it("names a missing database", async () => {
@@ -106,7 +106,7 @@ describe("cypher options", () => {
         const err = await rejection(
             loadFromSource("neo4j", { query: "RETURN 1", database: "nope" }, { endpoint: ENDPOINT, fetch: s.fetch }),
         );
-        expect(err.issue?.params).toEqual({ what: "database", value: "nope" });
+        expect(err.issue?.params).toEqual({ origin: ENDPOINT, what: "database", value: "nope" });
     });
 
     it("picks the transport from the endpoint", async () => {

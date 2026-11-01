@@ -229,7 +229,7 @@ export async function selectWhatItPaints(
         return { nodes: 0, edges: 0 };
     }
     for (const [at, layer] of layers.entries()) {
-        await session.selection.apply({ layer }, at === 0 ? "replace" : "add");
+        await session.selection.apply({ layer }, at === 0 ? "replace" : "add", { cause: "user" });
     }
     return { nodes: session.selection.nodes.length, edges: session.selection.edges.length };
 }

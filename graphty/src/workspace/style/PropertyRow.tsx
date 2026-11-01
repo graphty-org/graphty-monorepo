@@ -1452,6 +1452,7 @@ function VaryButton({
                 placement="left"
                 alignment="start"
                 header={{ variant: "title", title: label }}
+                closeLabel={`Close ${label}`}
             >
                 <ValuePicker
                     title={label}
@@ -1635,6 +1636,7 @@ function BoundValue({
                 alignment="start"
                 anchorY={pill}
                 header={{ variant: "title", title: bindingTitle(channel, sourceWords) }}
+                closeLabel={`Close ${bindingTitle(channel, sourceWords)}`}
             >
                 <Popout.Content>
                     <BindingPopover

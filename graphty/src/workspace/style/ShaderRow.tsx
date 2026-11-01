@@ -175,6 +175,7 @@ function SettingsPopout({
                 placement="left"
                 alignment="start"
                 header={{ variant: "title", title: `${name} settings` }}
+                closeLabel={`Close ${name} settings`}
             >
                 <Popout.Content>
                     <ShaderParams
@@ -250,6 +251,7 @@ function GroupByLine({
                             placement="left"
                             alignment="start"
                             header={{ variant: "title", title: GROUP_BY_WORDS.title }}
+                            closeLabel={`Close ${GROUP_BY_WORDS.title}`}
                         >
                             <ValuePicker
                                 title={GROUP_BY_WORDS.title}

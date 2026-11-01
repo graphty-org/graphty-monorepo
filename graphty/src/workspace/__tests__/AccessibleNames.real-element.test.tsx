@@ -15,6 +15,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { openSampleFromStart } from "../../test/open";
 import { findValuePicker, render, screen, waitFor, within } from "../../test/test-utils";
 import { tooltipOf } from "../../test/tooltip";
 import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
@@ -249,5 +250,71 @@ describe("accessible names in the workspace", () => {
         const values = await within(inspector).findByRole("group", { name: "Summary values" });
         const degree = await within(values).findByRole("button", { name: /^Degree/ });
         assert.equal(degree.getAttribute("aria-description"), "Select this node and its neighbors");
+    });
+
+    it("names a data-colored layer's popover close and palette reset by what they act on", async () => {
+        const { session } = await open(kinds);
+        await session.styles.encode({ column: { kind: "node", name: "kind" }, channel: "node.color", name: "Kinds" });
+        await session.styles.settled();
+        const tab = await openStyle("Kinds");
+        await userEvent.click(await within(tab).findByRole("button", { name: /^Node color: kind/ }));
+        const grid = await screen.findByRole("grid", { name: /groups$/ });
+        const popover = grid.closest<HTMLElement>("[role=dialog]");
+        if (popover === null) {
+            throw new Error("the groups are in no pop-out");
+        }
+        const title = popover.querySelector("h2")?.textContent ?? "";
+        assert.notEqual(title, "", "the pop-out has a title");
+        assert.isNotNull(within(popover).queryByRole("button", { name: `Close ${title}` }), "Close names its panel");
+
+        await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
+        await userEvent.click(await screen.findByRole("option", { name: "Seven bright colors" }));
+        // Waits for the reset, whatever its words, so wrong words fail rather than wait.
+        const reset = await within(popover).findByRole("button", { name: /^Reset .*palette/i });
+        assert.equal(reset.getAttribute("aria-label"), "Reset the node color palette to default");
+        await tooltipIsName(reset);
+    });
+
+    it("says a number-colored layer's step actions in their tooltips", async () => {
+        const { session } = await open(async (s) => {
+            await s.data.addNodes(Array.from({ length: 9 }, (_, i) => ({ id: `n${String(i)}`, score: i + 1 })));
+        });
+        await session.styles.encode({ column: { kind: "node", name: "score" }, channel: "node.color", name: "Scores" });
+        await session.styles.settled();
+        const tab = await openStyle("Scores");
+        await userEvent.click(await within(tab).findByRole("button", { name: /^Node color: score/ }));
+        const popover = await screen.findByRole("dialog", { name: /score/ });
+        await userEvent.click(within(popover).getByRole("combobox", { name: /^Scale/ }));
+        await userEvent.click(await screen.findByRole("option", { name: /^Equal bins/ }));
+        const steps = await within(popover).findByRole("list", { name: "Steps" });
+        const [first] = within(steps).getAllByRole("listitem");
+        await tooltipIsName(within(first).getByRole("button", { name: / actions$/ }));
+    });
+
+    it("says the filter and time window chips' names in their tooltips", async () => {
+        const { session } = await open(async (s) => {
+            await kinds(s);
+            await s.data.addNodes([{ id: "dated", kind: "agency", seen: Date.UTC(2025, 0, 1) }]);
+        });
+        await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "text", reads: "data.kind", mode: "exact", text: "agency" },
+        });
+        await tooltipIsName(await screen.findByRole("button", { name: /^Filter: / }));
+        await session.time.setField({ nodes: { start: "seen" } });
+        await session.time.window({ from: Date.UTC(2024, 11, 30), to: Date.UTC(2025, 0, 2) });
+        await tooltipIsName(await screen.findByRole("button", { name: /^Time: / }));
+    });
+
+    it("names the samples dialog's separate-graph icon in its tooltip too", async () => {
+        // Over an open project, so each tile offers to open as a separate graph.
+        const { session, store } = await openSampleFromStart("Les Miserables");
+        assert.isAbove(session.data.sources().length, 0, "the sample is a source");
+        store.set({ place: "data" });
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
+        const dialog = await screen.findByRole("dialog", { name: "Samples" });
+        // The tiles draw with the dialog, so a missing icon fails at once rather than waits.
+        await tooltipIsName(within(dialog).getByRole("button", { name: "Open Les Miserables as a separate graph" }));
     });
 });

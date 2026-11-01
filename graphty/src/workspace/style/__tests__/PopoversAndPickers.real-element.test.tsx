@@ -173,7 +173,7 @@ describe("the binding popover's rows and readings", () => {
         // A set select's own Clear: the palette, once one is picked.
         await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
         await userEvent.click(await screen.findByRole("option", { name: "Seven bright colors" }));
-        const reset = await within(popover).findByRole("button", { name: /^Reset Palette/ });
+        const reset = await within(popover).findByRole("button", { name: /^Reset the node color palette/ });
         assert.isDefined(reset, "the palette select's Clear");
         const marks = reset.querySelectorAll("svg line, svg path");
         assert.lengthOf(marks, 1, "one stroke");

@@ -1,3 +1,13 @@
+## 0.1.42 (2026-10-31)
+
+### 🩹 Fixes
+
+- **graph-samples:** let Rolldown drop the dataset metadata a page never reads ([91b6abf8c3](https://github.com/graphty-org/graphty-monorepo/commit/91b6abf8c3))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.10
+
 ## 0.1.41 (2026-10-29)
 
 ### 🧱 Updated Dependencies

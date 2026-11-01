@@ -19,6 +19,7 @@ import type { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import { ExpandRequest } from '@graphty/graph-io';
+import { FileLayout } from '@graphty/graph-io';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GEXF_LOSS } from '@graphty/graph-io';
@@ -2834,6 +2835,7 @@ export interface LayoutRecommendationOptions {
     readonly file?: {
         readonly format?: string;
         readonly attributes?: Readonly<Record<string, unknown>>;
+        readonly layout?: FileLayout;
     };
     readonly graphvizAvailable?: boolean;
     readonly largeGraphThreshold?: number;

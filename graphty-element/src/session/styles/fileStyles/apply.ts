@@ -9,6 +9,7 @@
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
+import type { FileLayout } from "@graphty/graph-io";
 import { type ExtractedStyles, readAnnotations, readImageAnnotations } from "@graphty/graph-io/styles";
 
 import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../../../catalog/types";
@@ -77,6 +78,8 @@ export const HELD_READERS = new WeakMap<
     Partial<FileStyleSource> & {
         /** The file's graph-level attributes, as the source read them. */
         readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
+        /** The layout the file asks for, as the source read it. */
+        readonly declaredFileLayout?: FileLayout | null;
     }
 >();
 

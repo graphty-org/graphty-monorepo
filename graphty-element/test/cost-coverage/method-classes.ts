@@ -497,6 +497,7 @@ export const READ_ONLY: readonly string[] = [
     "DataSource.chunkData",
     "DataSource.dataValidator",
     "DataSource.declareDirection",
+    "DataSource.declareFileLayout",
     "DataSource.declareGraphValues",
     "DataSource.fetchWithRetry",
     "DataSource.fromImporter",

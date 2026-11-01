@@ -24,6 +24,9 @@ export {
     INVALID_INDEX,
 } from "@graphty/graph-format";
 
+// The tool a file's layout names (`FileLayout.tool`).
+export type { GraphTool } from "./common/units.js";
+
 // ============================================================ a line format in one function
 export { defineLineFormat, type LineAttributes, type LineFormat, type LineGraph } from "./common/line-format.js";
 
@@ -35,6 +38,7 @@ export {
     type CommonExportOptions,
     type CommonImportOptions,
     type ExportCapabilities,
+    type FileLayout,
     type GraphChoiceOptions,
     type GraphExporter,
     type GraphImporter,
@@ -240,6 +244,7 @@ export {
     DOT_STYLE_CAPABILITIES,
     dotExporter,
     type DotExportOptions,
+    dotFileLayout,
     dotImporter,
     type DotImportOptions,
     type GraphvizFont,

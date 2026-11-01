@@ -422,7 +422,7 @@ export function channelTokens(channels: readonly Channel[]): string[] {
 }
 
 /** The one spelling the inspector, the key and the table share, in the reader's Number format. */
-export { formatNumber };
+export { formatNumber } from "../settings/numberFormat";
 
 /**
  * The graph's direction in one word ("Undirected"); where it came from and what it means for

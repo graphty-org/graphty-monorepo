@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { getDefaults } from "../config/OptionsSchema";
+import { NGRAPH_SPRING_LENGTH } from "../constants/layoutConstants";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
 import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
@@ -25,7 +26,7 @@ const ngraphLayoutOptionsSchema = defineOptions({
         },
     },
     springLength: {
-        schema: z.number().positive().default(10),
+        schema: z.number().positive().default(NGRAPH_SPRING_LENGTH),
         meta: {
             label: "Spring Length",
             description: "Ideal spring length between connected nodes",

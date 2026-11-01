@@ -94,6 +94,12 @@ export function fileStylesChoice(): "file" | "none" {
 }
 
 /**
+ * How the app draws a file's styles: at the spacing the file's own program lays it out at, so a file with no
+ * positions shows its nodes as large beside the gaps as that program does (graphty-element's `lengths: "spacing"`).
+ */
+export const FILE_STYLE_OPTIONS = { lengths: "spacing" } as const;
+
+/**
  * Keeps the import-styles preference.
  * @param on - whether loads draw a file's styles.
  */

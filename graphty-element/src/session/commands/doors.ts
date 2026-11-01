@@ -646,6 +646,28 @@ const IGNORE_STEP: SessionCommand = {
 
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
+/** The label column a draft of TINY_JSON names its nodes by, as `data.import` does. */
+const DRAFT_LABEL: SessionCommand = {
+    op: "config.set",
+    values: { data: { knownFields: { nodeLabelPath: "label" } } },
+};
+
+/** A draft of TINY_JSON's load: the rows it held, without reading the source again. */
+const DRAFT_LOAD: SessionCommand = {
+    op: "data.import",
+    source: { type: "json", config: { data: TINY_JSON } },
+    tables: ["json"],
+    mode: "replace",
+    held: {
+        nodes: [{ id: "j1" }, { id: "j2" }],
+        edges: [{ src: "j1", dst: "j2" }],
+        declaredDirection: null,
+        errors: [],
+        errorLimit: 100,
+    },
+    input: "i1",
+};
+
 /**
  * The document's bytes: what a file or a fetched URL is handed to the reader as, for the importer
  * to decode.
@@ -2876,26 +2898,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             styles: READ,
             suggestJoin: READ,
             joinReport: READ,
-            // A draft of TINY_JSON: the rows it held, loaded without reading the source again.
-            load: calls(
-                [],
-                [
-                    {
-                        op: "data.import",
-                        source: { type: "json", config: { data: TINY_JSON } },
-                        tables: ["json"],
-                        mode: "replace",
-                        held: {
-                            nodes: [{ id: "j1" }, { id: "j2" }],
-                            edges: [{ src: "j1", dst: "j2" }],
-                            declaredDirection: null,
-                            errors: [],
-                            errorLimit: 100,
-                        },
-                        input: "i1",
-                    },
-                ],
-            ),
+            // A draft of TINY_JSON: the rows it held, loaded without reading the source again, its
+            // nodes named by the file's label column, as `data.import` names them.
+            load: calls([], [{ op: "batch", steps: [DRAFT_LABEL, DRAFT_LOAD] }, DRAFT_LABEL, DRAFT_LOAD]),
             dispose: exempt("Lets go of the rows a draft holds; nothing a project saves changes."),
         },
     },

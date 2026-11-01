@@ -14,6 +14,7 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession, type NodeId } from "../../session";
+import { NGRAPH_SPRING_LENGTH } from "../../src/constants/layoutConstants";
 import { dispatcherOf } from "../../src/session/GraphSession";
 
 /** A Cytoscape.js document: nodes 40 across with a border 2 wide and labels 20 high, edges 2 wide, nodes 400 apart. */
@@ -304,7 +305,7 @@ describe("a DOT file's lengths are drawn in one unit", () => {
  */
 async function loadedPajek(
     text: string,
-    styleOptions?: { readonly lengths?: "median" | "file"; readonly toolDefaults?: boolean },
+    styleOptions?: { readonly lengths?: "median" | "file" | "spacing"; readonly toolDefaults?: boolean },
 ): Promise<GraphSession> {
     const session = createGraphSession();
     await session.data.import(
@@ -540,5 +541,63 @@ describe("a file whose nodes are sized by their labels alone", () => {
         // the element's own label is 48 px
         assert.approximately(fontSize(session, { node: "a" }), 48, 0.5);
         session.dispose();
+    });
+});
+
+describe('lengths: "spacing" (issues #3168, #3103)', () => {
+    // vis-network, no positions: 40 px dots, which vis-network lays out with springs 95 px long
+    const doc = JSON.stringify({
+        nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+        edges: [
+            { from: "a", to: "b" },
+            { from: "b", to: "c" },
+        ],
+        options: { nodes: { shape: "dot", size: 20 } },
+    });
+
+    /**
+     * The drawn extent of node a, loaded with these style options.
+     * @param data - The document.
+     * @param styleOptions - The style options of the load.
+     * @returns Scene units.
+     */
+    async function extent(
+        data: string,
+        styleOptions?: { readonly lengths: "median" | "file" | "spacing" },
+    ): Promise<number> {
+        const session = createGraphSession();
+        await session.data.import(
+            { type: "json", config: { data } },
+            { styles: "file", layout: "recommended", ...(styleOptions === undefined ? {} : { styleOptions }) },
+        );
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        assert.strictEqual(session.layout.id, "force");
+        const size = number(session, { node: "a" }, "node.size") * 1.5;
+        session.dispose();
+        return size;
+    }
+
+    it("draws a node as large beside the force layout's spring as the program draws it beside its own", async () => {
+        const inFile = await extent(doc, { lengths: "file" });
+        const spaced = await extent(doc, { lengths: "spacing" });
+        // one file unit is one scene unit with lengths: "file", so the file's node over vis-network's spring length
+        assert.approximately(spaced / NGRAPH_SPRING_LENGTH, inFile / 1.5 / 95, 1e-6);
+    });
+
+    it("leaves the default unchanged: the median node is the element's node size", async () => {
+        assert.approximately(await extent(doc), 1.5, 1e-6);
+    });
+
+    it("scales as the median does for a program that states no spacing", async () => {
+        const cyjs = JSON.stringify({
+            elements: {
+                nodes: [{ data: { id: "a" } }, { data: { id: "b" } }],
+                edges: [{ data: { id: "ab", source: "a", target: "b" } }],
+            },
+            style: [{ selector: "node", style: { width: 40, height: 40 } }],
+        });
+        assert.approximately(await extent(cyjs, { lengths: "spacing" }), await extent(cyjs), 1e-6);
     });
 });

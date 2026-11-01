@@ -40,6 +40,7 @@ import {
 } from "@graphty/graph-io/styles";
 
 import type { Binding, BindingStop, Channel, LayerKind, LayerSpec, Path, Selector } from "../../../catalog/types";
+import { NGRAPH_SPRING_LENGTH } from "../../../constants/layoutConstants";
 import { EDGE_CONSTANTS } from "../../../constants/meshConstants";
 import type { CodedFactParam } from "../../shared";
 import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle, toColorValue } from "../channels";
@@ -80,9 +81,13 @@ export interface FileStyleOptions {
      * How lengths are scaled: `"median"` (the default) scales every length by one factor, so the
      * file's median node size (by its larger side) is the element's default node size and node sizes, borders, edge
      * widths, label sizes and the stored positions a recommended layout keeps all keep the file's
-     * proportions; `"file"` keeps the file's numbers as they are.
+     * proportions; `"file"` keeps the file's numbers as they are; `"spacing"` scales every length by one factor too,
+     * chosen so the spacing the writing program's own layout leaves between connected nodes (graph-io's
+     * `layoutSpacing`) is the element's force-layout spring length, so a file that stores no positions is laid out
+     * with its nodes as large beside the gaps as the program draws them. A program with no stated spacing is scaled
+     * as `"median"` is.
      */
-    readonly lengths?: "median" | "file";
+    readonly lengths?: "median" | "file" | "spacing";
     /**
      * The element shape each 2D node shape of the file is drawn as; `FILE_STYLE_SHAPES` by default.
      * A shape the table leaves out is not drawn from the file, and the load notes it.
@@ -1682,7 +1687,10 @@ function lengthFactors(input: TranslateInput): LengthFactors {
     const labelMedian = nodeMedian === null ? median(resolved("node", "labelSize")) : null;
     const labelBase = typeof base.node["node.labelSize"] === "number" ? base.node["node.labelSize"] : DEFAULT_LABEL_PX;
     let scene: number;
-    if (nodeMedian !== null) {
+    const spacing = input.options.lengths === "spacing" ? programSpacing(extracted.styles.source.tool) : null;
+    if (spacing !== null) {
+        scene = NGRAPH_SPRING_LENGTH / spacing;
+    } else if (nodeMedian !== null) {
         scene = (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
     } else if (labelMedian !== null && sides.includes(0)) {
         scene = labelLetterHeight(labelBase) / labelMedian;
@@ -1703,6 +1711,16 @@ function lengthFactors(input: TranslateInput): LengthFactors {
         letter: perLabelUnit,
         scene,
     };
+}
+
+/**
+ * How far apart the program that wrote a file lays out two connected nodes, in the file's units.
+ * @param tool - The program.
+ * @returns The spacing, or null when the program states none.
+ */
+function programSpacing(tool: StyleTool | null): number | null {
+    const spacing = tool === null ? undefined : toolDefaults(tool)?.layoutSpacing?.value;
+    return spacing !== undefined && spacing > 0 ? spacing : null;
 }
 
 /** The translation of one kind's rules. */

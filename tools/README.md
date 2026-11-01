@@ -289,8 +289,9 @@ closes or its entry expires (14 days at most).
 
 Before shipping a change, ask where it takes effect, because that decides how it ships:
 
-- **On this machine** -- the visual-review server, `worktree-new.sh`, design studio builds, the XR sandbox,
-  dev servers and local watchers. Put it into the running copy at once with
+- **On this machine** -- everything that runs here: the visual-review server, `worktree-new.sh`, design studio
+  builds, the XR sandbox, dev servers, local watchers, and the workspace files every session reads from the
+  main checkout (CLAUDE.md, the skills, `.claude/settings.json`; tool `workspace`). Put it into the running copy at once with
   `tools/live.sh <tool> <branch-or-commit>`, and open the branch's pull request in parallel as the record.
   live.sh merges the branch (never rebases) into the tool's live worktree, runs the tool's tests on the merge
   first, and only when they pass moves the live copy and restarts its servherd servers; a conflict or a failed

@@ -370,15 +370,20 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
   and red pull requests; `issue-round` starts issue work.
 
 **Rolling out a change to this flow.** Sessions read `CLAUDE.md`, the skills and `.claude/settings.json` from the
-main checkout at their start, and `worktree-new.sh` runs from `.worktrees/land-live`. After such a change merges:
-`tools/live.sh land master`, bring the main checkout to master (`git -C <main> switch master`, then
-`git merge --ff-only origin/master`), and restart the `pr-status-broker` server and every running session.
+main checkout at their start, and `worktree-new.sh` runs from `.worktrees/land-live`. Put such a change live as soon
+as it is committed, without waiting for its pull request: `tools/live.sh workspace <commit>` merges it into the main
+checkout and `tools/live.sh land <commit>` into the land copy; then restart every running session, `/loop` included.
+The rounds keep the main checkout following master by merging `origin/master` into it (not only a fast-forward,
+since a live change puts a merge there first).
 
 ## Working beside other agents
 
 - Scratch files go in `tmp/<task>/`, never in `tmp/` itself. Drive only a browser tab or context you opened.
-- A change to a tool on this machine goes live at once with `tools/live.sh <tool> <branch>`, with its pull request
-  in parallel; a change to CI or npm takes effect only when it reaches master.
+- Everything that runs on this machine goes live at once, never after CI (owner, 2026-10-11, 2026-10-22,
+  2026-11-01): a tool `tools/live.sh --list` names, and the workspace files every session reads from the main
+  checkout (CLAUDE.md, the skills, `.claude/settings.json`; tool `workspace`). Run `tools/live.sh <tool> <commit>`
+  right after the commit, with its pull request in parallel; a change to CI or npm takes effect only when it
+  reaches master.
 - Never wait inside a model turn: start a push or a long run in the background and end the turn. A subagent opens
   its pull request and stops. A prompt that starts an agent carries this rule.
 - Every session shares graphty-agent's 5,000 GitHub requests an hour: ask about many pull requests in one GraphQL

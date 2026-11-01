@@ -261,7 +261,7 @@ describe("the selection editor in a style layer", () => {
             assert.isTrue(session.styles.showingBranches);
         });
         // The view is not a layer: the key never lists it.
-        const keyed = session.styles.legend().map((block) => String(block.layerId));
+        const keyed = session.styles.legend().map((block) => block.layerId);
         assert.isFalse(
             keyed.some((id) => id.startsWith("graphty-branches")),
             keyed.join(", "),

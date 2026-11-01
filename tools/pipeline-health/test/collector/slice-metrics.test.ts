@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import rates from "../../config/rates.json" with { type: "json" };
 import sliceConfig from "../../config/slices.json" with { type: "json" };
 import { collect } from "../../src/collector/collect.js";
@@ -150,8 +151,10 @@ async function cycleWithApproval(store: MemoryStore, readStore: () => Promise<St
     const base = fake.fetch;
     fake.fetch = async (url, init) => {
         const res = await base(url, init);
-        const body = init?.body ? String(init.body) : "";
-        if (!url.endsWith("/graphql") || !body.includes("pullRequests")) return res;
+        const body = init?.body ? (init.body as string) : "";
+        if (!url.endsWith("/graphql") || !body.includes("pullRequests")) {
+            return res;
+        }
         const data = (await res.json()) as {
             data: { repository: { recent: { nodes: Record<string, unknown>[] } } };
         };
@@ -169,9 +172,9 @@ async function cycleWithApproval(store: MemoryStore, readStore: () => Promise<St
     return collect({
         store,
         now: NOW,
-        gh: new GitHub(async () => "ghs_test", fake.fetch),
+        gh: new GitHub(() => Promise.resolve("ghs_test"), fake.fetch),
         fetch: fake.fetch,
-        awsCosts: async () => [],
+        awsCosts: () => Promise.resolve([]),
         rates: rates as unknown as Rates,
         limits: { linux_windows: SLAS.runnerLimits.linux_windows, macos: SLAS.runnerLimits.macos },
         org: "graphty-org",
@@ -185,9 +188,9 @@ describe("the collector cycle's dashboard observations", () => {
         const store = new MemoryStore();
         await setCursor(store, "capture-read", String(NOW - 5 * MIN), NOW - 5 * MIN);
         let reads = 0;
-        await cycleWithApproval(store, async () => {
+        await cycleWithApproval(store, () => {
             reads++;
-            return {};
+            return Promise.resolve({});
         });
         expect(reads).toBe(0);
         expect(JSON.parse((await getCursor(store, "review-lag")) ?? "{}").approvals).toEqual([NOW - 2 * HOUR]);
@@ -208,16 +211,19 @@ describe("the collector cycle's dashboard observations", () => {
             JSON.stringify({ canary: [], promotions: {}, refs: { nightly: "c".repeat(40) } }),
             NOW - 5 * MIN,
         );
-        const report = await cycleWithApproval(store, async () => ({
-            units: [{ at: NOW - 4 * HOUR }, { at: NOW - 30 * MIN }],
-            captures: [cap("s", "unchanged", "d".repeat(40), NOW - 10 * MIN)],
-        }));
+        const report = await cycleWithApproval(store, () =>
+            Promise.resolve({
+                units: [{ at: NOW - 4 * HOUR }, { at: NOW - 30 * MIN }],
+                captures: [cap("s", "unchanged", "d".repeat(40), NOW - 10 * MIN)],
+            }),
+        );
         expect(report.errors).toEqual({});
         // One entry per observation (the store keeps an index copy beside each item).
         const byId = new Map([...store.items.values()].filter((i) => i.kind === "obs").map((i) => [String(i.id), i]));
         const obs = new Map<string, number[]>();
-        for (const i of byId.values())
+        for (const i of byId.values()) {
             obs.set(String(i.metric), [...(obs.get(String(i.metric)) ?? []), Number(i.value)]);
+        }
         expect(obs.get("slices.set_age_ms")).toEqual([4 * HOUR]);
         expect(obs.get("slices.units_dropped")).toEqual([0]);
         expect(obs.get("release.review_lag_ms")).toEqual([3 * HOUR]);

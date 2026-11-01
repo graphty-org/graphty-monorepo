@@ -98,3 +98,35 @@ describe("styles.showBranches", () => {
         assert.strictEqual(colorOf(session, "Valjean").layerId, red);
     });
 });
+
+describe("the cost of a branches view", () => {
+    it("grows with the graph, not faster", async () => {
+        const { assertScalesLinearly, visitsDuring } = await import("../../helpers/cost");
+        await assertScalesLinearly(
+            async (size) => {
+                const session = createGraphSession();
+                const ids = Array.from({ length: size }, (_, at) => `n${String(at)}`);
+                await session.data.addNodes(ids.map((id) => ({ id })));
+                await session.data.addEdges(ids.slice(1).map((id, at) => ({ source: ids[at], target: id })));
+                const rule: UnionLeaf = {
+                    ...NEAR_VALJEAN,
+                    branches: [
+                        {
+                            ...NEAR_VALJEAN.branches[0],
+                            steps: [{ op: "add", rule: { kind: "hops", of: { nodes: ["n0"] }, max: 2 } }],
+                        },
+                    ],
+                };
+                const visits = await visitsDuring(async () => {
+                    const view = session.styles.showBranches({ rule, rest: "faint" });
+                    await session.styles.settled();
+                    view.end();
+                    await session.styles.settled();
+                });
+                session.dispose();
+                return visits;
+            },
+            { sizes: [200, 800], growth: "linear", counter: "elements visited by StylesApi.showBranches" },
+        );
+    });
+});

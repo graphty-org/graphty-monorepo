@@ -44,6 +44,10 @@ interface MetricValueName {
      * choosing presentation rather than reading a fact off the result.
      */
     readonly unit?: string;
+    /** The fixed range the measure defines, such as 0 to 1 for a share. */
+    readonly domain?: FieldDescriptor["domain"];
+    /** `"lower"` when a smaller value counts as more, as a distance does. */
+    readonly polarity?: FieldDescriptor["polarity"];
 }
 
 /**
@@ -61,9 +65,25 @@ function metricFields(kind: "node" | "edge", value: MetricValueName): readonly F
             kind,
             type: value.type ?? "number",
             ...(value.unit === undefined ? {} : { unit: value.unit }),
+            ...(value.domain === undefined ? {} : { domain: value.domain }),
+            ...(value.polarity === undefined ? {} : { polarity: value.polarity }),
         }),
-        metricField({ name: "rank", plainName: "Rank", technicalName: "rank", kind, type: "integer" }),
-        metricField({ name: "percentile", plainName: "Percentile", technicalName: "percentile", kind, type: "number" }),
+        metricField({
+            name: "rank",
+            plainName: "Rank",
+            technicalName: "rank",
+            kind,
+            type: "integer",
+            polarity: "lower",
+        }),
+        metricField({
+            name: "percentile",
+            plainName: "Percentile",
+            technicalName: "percentile",
+            kind,
+            type: "number",
+            domain: { min: 0, max: 1 },
+        }),
         metricField({ name: "min", plainName: "Lowest", technicalName: "min", kind: "graph", type: "number" }),
         metricField({ name: "max", plainName: "Highest", technicalName: "max", kind: "graph", type: "number" }),
         metricField({ name: "median", plainName: "Middle", technicalName: "median", kind: "graph", type: "number" }),
@@ -140,6 +160,8 @@ export function communityFields(value: {
             type: "integer",
             // Group ids are names, not amounts: group 3 is not more than group 1.
             measurement: "categorical",
+            // A re-run may number the same groups differently.
+            unstable: true,
         }),
         metricField({
             name: "groupSize",

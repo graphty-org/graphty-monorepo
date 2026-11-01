@@ -336,7 +336,8 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         const known = started.get(key);
         const run = known === undefined ? undefined : sources.runs.get(known);
         const pending = (reason: CodedFact): { gate: StepGate } => ({ gate: { state: "pending", reason } });
-        if (run !== undefined && (run.status === "queued" || run.status === "running")) {
+        // "" marks a run asked for in this turn and not yet started.
+        if (known === "" || (run !== undefined && (run.status === "queued" || run.status === "running"))) {
             return pending({ code: "computing", params: {} });
         }
 

@@ -228,15 +228,19 @@ export const SideBySide: Story = {
         ];
         return (
             <Stack gap={32}>
+                {/* The menus come first: each needs about 250px of canvas under its button. Under
+                    the instructions, a canvas shortened by Storybook's addon panel flipped them
+                    above their buttons, capped and scrolling, and the pointer crossing the scroll
+                    chevron slid "Type" out from under it, so no submenu opened. */}
+                <Group gap={160} align="flex-start" wrap="nowrap">
+                    <DemoMenu label="Today" safe={false} />
+                    <DemoMenu label="With safe triangle" safe />
+                </Group>
                 <Text size="sm" c="dimmed" maw={720}>
                     Open a menu, hover &quot;Type&quot;, then move the pointer straight (diagonally, across the rows
                     below it) to &quot;Date&quot; or &quot;Category&quot; in the submenu. Today the submenu closes on
                     the first row crossed; with the safe triangle it stays open while you head toward it.
                 </Text>
-                <Group gap={160} align="flex-start">
-                    <DemoMenu label="Today" safe={false} />
-                    <DemoMenu label="With safe triangle" safe />
-                </Group>
                 <Stack gap={8}>
                     <Text fw={600}>Today, in a data table header (hover the Node header, click its caret)</Text>
                     <Box style={{ width: 320 }}>

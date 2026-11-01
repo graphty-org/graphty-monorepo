@@ -336,6 +336,16 @@ export function gateMessages(gate: KeyGate): string[] {
 }
 
 /**
+ * Whether a ratchet's `--add` covers a property: every one, unless it names some.
+ * @param add - what is added
+ * @param add.properties - only these properties (all when omitted)
+ * @param property - the property
+ * @returns whether it is added
+ */
+const named = (add: { properties?: readonly string[] } | undefined, property: string): boolean =>
+    add?.properties === undefined || add.properties.includes(property);
+
+/**
  * The accepted drops after a run: a drop whose rate is back at its floor is taken off, and, with a reason, every rate
  * below its floor and its accepted drop is accepted at this run's rate, with the reason. Never accepts without a reason,
  * and never lowers a floor.
@@ -345,12 +355,13 @@ export function gateMessages(gate: KeyGate): string[] {
  * @param add.reason - why the rates are lower
  * @param add.date - `YYYY-MM-DD`
  * @param add.keys - only these keys (all when omitted)
+ * @param add.properties - only these properties (all when omitted)
  * @returns the new accepted drops and what changed
  */
 export function ratchetDrops(
     drops: AcceptedDrops,
     gates: readonly KeyGate[],
-    add?: { reason: string; date: string; keys?: readonly string[] },
+    add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
 ): { drops: AcceptedDrops; removed: number; added: number; unaccepted: number } {
     if (add !== undefined && add.reason.trim().length < 10) {
         throw new Error("accepting a drop below a floor needs a reason of 10 or more characters");
@@ -369,7 +380,7 @@ export function ratchetDrops(
         const row: Record<string, AcceptedDrop> = Object.fromEntries(kept);
         const adding = add !== undefined && (add.keys === undefined || add.keys.includes(gate.key));
         for (const c of gate.belowFloor) {
-            if (!adding || c.now === undefined || c.recorded === undefined) {
+            if (!adding || !named(add, c.property) || c.now === undefined || c.recorded === undefined) {
                 unaccepted += 1;
                 continue;
             }
@@ -392,12 +403,13 @@ export function ratchetDrops(
  * @param add.reason - why they are added
  * @param add.date - `YYYY-MM-DD`
  * @param add.keys - only these keys (all when omitted)
+ * @param add.properties - only these properties (all when omitted)
  * @returns the new known failures and what changed
  */
 export function ratchetKnown(
     records: KnownRecords,
     gates: readonly KeyGate[],
-    add?: { reason: string; date: string; keys?: readonly string[] },
+    add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
 ): { records: KnownRecords; removed: number; added: number; unlisted: number } {
     if (add !== undefined && add.reason.trim().length < 10) {
         throw new Error("adding to the known failures needs a reason of 10 or more characters");
@@ -417,7 +429,7 @@ export function ratchetKnown(
         }
         const adding = add !== undefined && (add.keys === undefined || add.keys.includes(gate.key));
         for (const f of gate.newlyFailing) {
-            if (!adding) {
+            if (!adding || !named(add, f.property)) {
                 unlisted += 1;
                 continue;
             }

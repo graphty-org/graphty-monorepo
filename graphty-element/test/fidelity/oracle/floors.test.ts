@@ -215,6 +215,31 @@ describe("style fidelity gate", () => {
         assert.deepEqual([kept.drops, kept.removed], [{}, 1]);
     });
 
+    it("adds only the properties named, so a drop is accepted without the key's other failures", () => {
+        const gate = judgeKey(
+            "s",
+            run(
+                { "node.position": ["a"], "edge.route": ["e"] },
+                { "node.position": 0.5, "edge.route": 0.5 },
+                { "node.position": ["a", "b"], "edge.route": ["e", "f"] },
+            ),
+            undefined,
+            { "node.position": 0.9, "edge.route": 0.9 },
+            { gateFloors: true },
+        );
+        const add = {
+            reason: "the comparator reads the place anew",
+            date: "2026-11-01",
+            properties: ["node.position"],
+        };
+        const known = ratchetKnown(records({}), [gate], add);
+        assert.deepEqual(known.records.known.s, { "node.position": ["a"] });
+        assert.deepEqual([known.added, known.unlisted], [1, 1]);
+        const drops = ratchetDrops({}, [gate], add);
+        assert.deepEqual(Object.keys(drops.drops.s), ["node.position"]);
+        assert.deepEqual([drops.added, drops.unaccepted], [1, 1]);
+    });
+
     it("raises a floor and records a new one, and never lowers one", () => {
         const table: Record<string, Record<string, number>> = { s: { "node.fill": 0.5, "edge.color": 0.9 } };
         assert.strictEqual(raiseFloors(table, "s", { "node.fill": 0.6, "edge.color": 0.1, "node.shape": 1 }), 2);

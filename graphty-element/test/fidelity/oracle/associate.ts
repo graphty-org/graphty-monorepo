@@ -3513,6 +3513,12 @@ const through =
  * the node lands in the oracle's frame, plus the shapes drawn on the same spot at the same size
  * (a fill and its outline drawn as two primitives).
  */
+/**
+ * How much of a body a shape drawn on its spot covers to be its twin (`matchBodies`): a fill and its outline cover
+ * nearly all of each other, a drop shadow a few pixels off most; two boxes stacked one under the other hardly any.
+ */
+const TWIN_OVERLAP = 0.25;
+
 /** What a box drawn tight round a label adds to its cost as a node's body (`matchBodies`). */
 const LABEL_BACKGROUND_COST = 0.5;
 
@@ -3631,6 +3637,9 @@ function matchBodies(
                 !taken.has(q.index) &&
                 (c.id.startsWith(GROUP_CLAIM) || (bodyOf.get(q.index) ?? c.id) === c.id) &&
                 Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
+                // and over it, not beside it: two flat boxes stacked a little under their height apart are two nodes,
+                // however short that is of their width (cx2-wp1449-tlr: two 45.7 x 10.5 labels 9.6 px apart)
+                (dot(body) || around(q) || boxIoU(q.box, body.box) >= TWIN_OVERLAP) &&
                 ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)) &&
                 // a group's twin is drawn over its box, not a flat node inside it of about its width
                 (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6),

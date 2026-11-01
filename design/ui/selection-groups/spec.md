@@ -73,7 +73,7 @@ lucide icons the app already ships.
   Escape closes the innermost thing per press (disarm target, close list, close card, end picking)
   and keeps edits (tier 3). Only the open card's controls are in the Tab order. A brush previews
   counts while dragging and writes one undo step on release; text writes on commit (tier 4 R3).
-- **Width** (about 240 px): truncate the test before the value name; count and remove stay visible.
+- **Width** (about 240 px): truncate the test, never the value name.
 
 ## 4. Dropdowns and segments, in order
 

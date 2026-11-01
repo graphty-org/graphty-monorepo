@@ -7,6 +7,12 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
+0. (2026-10-31, tier 5 panel) Group selection editor: one editor and one field picker for the
+   Which nodes / Which edges selector and Filters (the two pickers already drift); a filter card is
+   the approved header around a selection; no auto-open table (the count chip is the door); a
+   group-color preview while the editor is open, as an element preview layer; runs stay outside
+   the cards, with no second Runs list; "Hovered", not "Focus" (that collides with "focused"
+   rows). Proposal: `tier5/panel/ia.md`.
 1. (2026-10-30, tier 4 round 1 closed at its 1-round cap) Returning users managing data: task
    success holds (25 of 26), no severity 3 or 4 after the skeptic checks. Bars fail on keyboard
    (a tab names a panel never rendered), the owner's data rule (joined source row clips its

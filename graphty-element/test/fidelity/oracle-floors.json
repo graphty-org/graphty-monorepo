@@ -1,5 +1,5 @@
 {
-    "about": "Recorded pass rates of the oracle scorecard (test/fidelity/oracle-report.test.ts and test/browser/oracle-scorecard.test.ts), informational: each run reports its rates against them (tmp/oracle-report/gate.txt), and none of them fails a sample; a sample fails only when an element fails a property that oracle-known-failures.json does not list. Per sample with an oracle SVG in graph-io/test/fidelity/oracles/ (and <sample>@matched, the comparison with graphty's nodes at the program's own positions), per property of test/fidelity/oracle/compare-oracle.ts and per raster region (raster.<region>, 2 places, recorded from SwiftShader runs only: GRAPHTY_BROWSER_GPU unset, as CI runs). Stand-in oracles (another program's drawing, or a raster) keep theirs in standInFloors, and a sheet judged per setting (judges.ts) keeps its oracle's under <sample>, each stand-in's under <sample>~<route> in standInFloors and the specification's under <sample>~specification in specificationFloors. npm run fidelity:ratchet raises them to what a run measured and never lowers one; lowered is the history of floors lowered by hand before the rates stopped gating.",
+    "about": "Recorded pass rates of the oracle scorecard (test/fidelity/oracle-report.test.ts and test/browser/oracle-scorecard.test.ts): each run reports its rates against them (tmp/oracle-report/gate.txt). A sample fails when an element fails a property that oracle-known-failures.json does not list, or when a rate judged element by element (any property but raster.<region>) measures below its floor and below the rate accepted for it in drops (#5319); npm run fidelity:ratchet -- --add \"<reason>\" accepts such a drop at the rate measured, with the reason, and takes the record off once the rate is back at its floor. Per sample with an oracle SVG in graph-io/test/fidelity/oracles/ (and <sample>@matched, the comparison with graphty's nodes at the program's own positions), per property of test/fidelity/oracle/compare-oracle.ts and per raster region (raster.<region>, 2 places, recorded from SwiftShader runs only: GRAPHTY_BROWSER_GPU unset, as CI runs). Stand-in oracles (another program's drawing, or a raster) keep theirs in standInFloors, and a sheet judged per setting (judges.ts) keeps its oracle's under <sample>, each stand-in's under <sample>~<route> in standInFloors and the specification's under <sample>~specification in specificationFloors. npm run fidelity:ratchet raises them to what a run measured and never lowers one; lowered is the history of floors lowered by hand before the rates stopped gating.",
     "floors": {
         "cx-ddram": {
             "node.present": 1,
@@ -52284,6 +52284,80 @@
             "to": 0,
             "reason": "the ngraph engine now gives two nodes one spring however many edges join them (d3fc3a2383), where vis-network springs every edge; this sample's one parallel pair now pulls once, so the force layout spreads wider and fills its canvas 1.23 times as much as the oracle's, past the 1.18 tolerance",
             "date": "2026-10-24"
+        }
+    },
+    "drops": {
+        "dot-real-crazy": {
+            "node.position": {
+                "floor": 1,
+                "to": 0.683,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 0.976,
+                "to": 0.878,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
+        },
+        "dot-real-crazy@matched": {
+            "label.anchor": {
+                "floor": 0.976,
+                "to": 0.878,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
+        },
+        "dot-real-linux-kernel": {
+            "edge.route": {
+                "floor": 1,
+                "to": 0.975,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
+        },
+        "dot-real-linux-kernel@matched": {
+            "edge.route": {
+                "floor": 1,
+                "to": 0.975,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
+        },
+        "dot-real-siblings": {
+            "node.position": {
+                "floor": 0.13,
+                "to": 0.05,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            },
+            "edge.route": {
+                "floor": 0.958,
+                "to": 0.901,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            },
+            "edge.curve": {
+                "floor": 0.996,
+                "to": 0.989,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
+        },
+        "dot-real-siblings@matched": {
+            "edge.route": {
+                "floor": 0.975,
+                "to": 0.961,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            },
+            "edge.curve": {
+                "floor": 0.993,
+                "to": 0.989,
+                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
+                "date": "2026-11-01"
+            }
         }
     }
 }

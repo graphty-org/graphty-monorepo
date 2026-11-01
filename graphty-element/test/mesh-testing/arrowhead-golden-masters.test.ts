@@ -48,11 +48,11 @@ const ARROW_GEOMETRY: { type: string; vertices: number }[] = [
     { type: "box", vertices: 4 },
     { type: "tee", vertices: 4 },
     { type: "vee", vertices: 4 },
-    { type: "open-normal", vertices: 6 },
+    { type: "open-normal", vertices: 12 },
     { type: "crow", vertices: 7 },
-    { type: "open-diamond", vertices: 8 },
+    { type: "open-diamond", vertices: 16 },
     { type: "dot", vertices: 34 },
-    { type: "open-dot", vertices: 66 },
+    { type: "open-dot", vertices: 128 },
     { type: "sphere-dot", vertices: 703 },
 ];
 

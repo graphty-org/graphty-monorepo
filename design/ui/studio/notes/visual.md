@@ -11,6 +11,11 @@ in git history of this file.
 
 ## Top of mind
 
+0. (2026-10-31) Tier 5 panel: selection groups and steps (mock J). My proposal is
+   `tier5/panel/visual.md`: no automatic table, a picking view owned by the element with a visible
+   "Group colors" toggle, monochrome Figma boolean icons, one picker and one count chip look for
+   both surfaces, group color only as a chit (A2). Live drift found: two picker headings, two
+   count-chip looks, 8 px effect words, the Louvain column's number glyph on a category.
 1. (2026-10-30) Tier 4 closed after one round without meeting its bars; the studio is stopped.
    Settled result: `tier4/rounds/round-1/insights.md`. Next tier starts from it.
 2. The most severe open problem is visual: the join preview tags the wrong rows and leaves the

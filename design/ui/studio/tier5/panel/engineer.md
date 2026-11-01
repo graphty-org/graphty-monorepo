@@ -14,8 +14,7 @@ Walked on build 13ab62a0bbe7 (graphty@0.8.92), Les Miserables; screenshots under
 - Algorithm values reach the picker only after an Analyze run (13.png): PageRank, "PageRank rank
   (1 = highest)" and "PageRank percentile" as three separate entries. Running PageRank also added a
   color layer that repainted every node (12.png): a run started from a picker must not do that.
-- The number card (09c.png) is Between + slider + two boxes, no histogram; an untouched card is
-  dropped on Escape.
+- The number card (09c.png) is Between + slider + two boxes, no histogram.
 - Sentences at rest: "Nodes that pass every condition", "All 77 nodes: add a condition to narrow".
 
 ## Answers to the owner's questions
@@ -24,12 +23,11 @@ Walked on build 13ab62a0bbe7 (graphty@0.8.92), Les Miserables; screenshots under
 it already covers the drawing and overflows its header), the table is view-only, and a choice that
 acts before the reader decides cost the most in tier 4. Instead each group's count chip and the
 total chip are buttons that open the table showing only that group's rows, and the table keeps the
-group color in its mark column. On 100k rows the table refreshes its marks only when a brush is
-released, never per pointer move.
+group color in its mark column; on big graphs its marks refresh on brush release only.
 
 **2. Suspend node/edge styling and paint group colors while picking? Yes, as an element view state,
-on while the editor is open, with one toggle.** It must not be done by hiding layers: that writes
-undo steps, persists, and is manual styling outside the layer system. Proposed additive @beta
+on while the editor is open, with one toggle.** Not by hiding layers (undo steps, persisted, styling outside
+the layer system). Proposed additive @beta
 member: `session.styles.preview({ groups: [{ scope, color }], rest: "plain" | "faint" } | null)`,
 view state like `hover` selectors (no undo, not saved, not in the layer list). The import filter
 draws dropped elements "faint"; the style selector draws the layer's result. A toggle button in the
@@ -52,10 +50,9 @@ One shared picker component for both surfaces (fix the two-picker split in the s
   Intersect) with Figma's boolean icons; the step row shows the icon only, the word in its tooltip.
   No Exclude (no meaning here). "New group" is a separate "+" on the selection header.
 - **Value picker** (search focused, ranked as in mock J), sections in order:
-    1. Data -- node then edge columns, kind glyph and value summary (the approved attribute picker
-       look); `Node id` here.
-    2. Results -- fields of runs that exist, one entry per field, named value first ("community --
-       Louvain"), a dot for computed. No separate rank / percentile entries: "by position" covers them.
+    1. Data -- node then edge columns, the approved attribute picker look; `Node id` here.
+    2. Results -- one entry per field of each existing run, value first ("community -- Louvain");
+       no rank / percentile entries ("by position" covers them).
     3. Algorithms -- not yet run, by catalog category, with an estimate chip; Degree included (it is
        cheap and the most asked-for value).
     4. Added -- user-registered algorithms (catalog "custom").
@@ -97,20 +94,14 @@ computedOn? }] }] }`. Today's flat cards are one group, start All, whole-graph K
 - New value kinds read from descriptor `measurement` / `valueKind`; adding members to
   `ReadableValueKind` would change what an existing API returns.
 
-## Performance plan for big graphs
-
-Masks are bit arrays (1M nodes = 125 KB); a changed step re-evaluates itself and re-folds the steps
-after it from cached prefix masks. Conditions are cached by their canonical hash and data version.
-Costly runs gate on `metrics.estimate`; a Focus step never starts a run above the live budget while
-hovering. Preview colors and table marks update on release, counts on every move.
+Big graphs: masks are bit arrays (1M nodes = 125 KB); a changed step re-folds only the steps after
+it from cached prefix masks; a Focus step never starts a run above the live budget while hovering.
 
 ## Risks
 
 1. Retagging bfs `level` as ordinal changes `fieldMeasurement` for its shape: owner's call (mock J
    section 2); everything else here is additive.
 2. A run started from a picker that adds suggested styles would repaint the graph mid-pick.
-3. Ordered steps contradict tier 4's "order never matters"; the owner's direction for mock J
-   supersedes it, and order matters only when a step reads "so far" or mixes Add with Keep.
-4. The persisted `groups` form becomes a project file format once released: keep it @beta until
-   the user study settles it.
-5. Two pickers drifting again: one component, one test that both surfaces list the same entries.
+3. Ordered steps supersede tier 4's "order never matters" (owner direction for mock J).
+4. The saved `groups` form becomes a file format once released: keep it @beta until the study.
+5. The pickers drifting apart again: one component, and one test that both list the same entries.

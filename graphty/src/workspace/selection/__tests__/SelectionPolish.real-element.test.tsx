@@ -1,12 +1,12 @@
 /**
- * The selection editor's second polish round (design/ui/studio/tier5/decided.md, "Polish round 2
- * fixes") on the REAL graphty-element, driven by real clicks, keys and hovers: a yes-or-no value
- * picked writes nothing, a data column named rank is listed, a text card takes the reader's typing,
- * "+" refines with Keep after a group's first step, a value with no test opens no card, an edge
- * step reading a node value can take either end, a So far step's card draws its test, a filter
- * card is named as its rows say it, "Or" then Escape leaves no group, the key names a single group
- * by the selection's title, hovering a group row marks it, and the style tree's rows move with
- * Mod+[ and Mod+].
+ * The selection editor's polish rounds (design/ui/studio/tier5/decided.md) on the REAL
+ * graphty-element, driven by real clicks, keys and hovers: a yes-or-no value picked removes and
+ * selects nothing until Yes or No, a data column named rank is listed, a text step takes the
+ * reader's typing, "Keep..." adds a Keep step after a group's first, a value with no test shows no
+ * test in its pane, an edge step reading a node value can take either end (in Advanced), a So far
+ * step's pane draws its test, a filter card is named as its rows say it, "Or..." then Escape leaves
+ * no group, the key names a single group by the selection's title, hovering a group row marks it,
+ * and the style tree's rows move with Mod+[ and Mod+].
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -80,7 +80,7 @@ const people = (): Promise<GraphSession> =>
     );
 
 /**
- * A reader's layer, selected in the style tree, its Which editor opened by a click.
+ * A reader's layer, selected in the style tree: its Which outline is drawn.
  * @param session - The session.
  * @param name - Its name.
  * @param selector - What it picks.
@@ -102,9 +102,6 @@ async function openLayer(
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
-    await userEvent.click(
-        await screen.findByRole("button", { name: target === "node" ? /^Which nodes, / : /^Which edges, / }),
-    );
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-editor"));
     });
@@ -135,13 +132,13 @@ async function pickValue(name: string): Promise<void> {
 const DEGREE_6_TO_10: RuleTree = { kind: "range", attribute: "graphty.degree", min: 6, max: 10 };
 
 describe("the value picker and the cards a value opens", () => {
-    it("a yes-or-no value picked writes nothing and selects nothing until Yes or No is picked", async () => {
+    it("a yes-or-no value picked removes and selects nothing until Yes or No is picked", async () => {
         const session = await people();
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
         await pickValue("trained");
         const is = await screen.findByRole<HTMLInputElement>("combobox", { name: "trained is" });
         assert.equal(is.value, "", "no choice is shown");
-        assert.lengthOf(session.visibility.conditions, 0, "nothing is written");
+        assert.strictEqual(session.visibility.nodes.size, 5, "nothing is removed");
         assert.deepEqual(session.selection.nodes, [], "nothing is selected");
     });
 
@@ -157,7 +154,7 @@ describe("the value picker and the cards a value opens", () => {
     it("a text card puts focus in its text box, so typing fills it", async () => {
         const session = await lesMis();
         await openLayer(session, "Named", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
+        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
         await pickValue("name");
         await waitFor(() => {
             const active = document.activeElement;
@@ -167,15 +164,16 @@ describe("the value picker and the cards a value opens", () => {
         assert.equal((document.activeElement as HTMLInputElement).value, "Val");
     });
 
-    it("Largest component applies as picked: no card opens to repeat its row", async () => {
+    it("Largest component applies as picked: its pane shows no test", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Largest", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
+        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
         await pickValue("Largest component");
         await waitFor(() => {
             assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[0]?.rule.kind, "member");
         });
-        assert.isNull(document.querySelector("[data-step-card]"), "no card");
+        const pane = document.querySelector<HTMLElement>("[data-step-pane]");
+        assert.isNull(pane?.querySelector("input:not([type=radio])") ?? null, "no test");
         await waitFor(() => {
             assert.isNotNull(document.activeElement?.closest(".sel-step-row"), "focus is on its row");
         });
@@ -184,10 +182,11 @@ describe("the value picker and the cards a value opens", () => {
     it("an edge step reading a node value can be set to either end", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Ends", { match: "everything" }, "edge");
-        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
+        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
         await pickValue("name");
-        const ends = await screen.findByRole("radiogroup", { name: "Ends" });
-        await userEvent.click(within(ends).getByText("Either end"));
+        await userEvent.click(await screen.findByRole("button", { name: /^Advanced/ }));
+        const ends = await screen.findByRole("radiogroup", { name: "Edge ends" });
+        await userEvent.click(within(ends).getByText("Either"));
         await waitFor(() => {
             assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[0]?.ends, "either");
         });
@@ -225,7 +224,7 @@ describe("the value picker and the cards a value opens", () => {
         });
         await userEvent.click(row?.querySelector(".sel-value") ?? document.body);
         const card = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>('[data-step-card="top"]');
+            const found = document.querySelector<HTMLElement>('[data-step-pane="top"]');
             assert.isNotNull(found);
             return found;
         });
@@ -238,15 +237,7 @@ describe("the value picker and the cards a value opens", () => {
 });
 
 describe("the editor's verbs, groups and words", () => {
-    it("opening Which nodes from its folded row moves focus into the editor", async () => {
-        const session = await lesMis();
-        await openLayer(session, "Folded", { match: "rule", where: DEGREE_6_TO_10 });
-        await waitFor(() => {
-            assert.isNotNull(document.activeElement?.closest(".sel-editor"), "focus is in the editor, never the page");
-        });
-    });
-
-    it("after a group's first step, + refines with Keep", async () => {
+    it("after a group's first step, Keep... adds a Keep step", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Refine", {
             match: "rule",
@@ -257,17 +248,20 @@ describe("the editor's verbs, groups and words", () => {
                 branches: [{ id: "a", start: "none", steps: [{ id: "deg", op: "add", rule: DEGREE_6_TO_10 }] }],
             },
         });
-        await userEvent.click(await screen.findByRole("button", { name: "Add a step: Keep" }));
+        // The Add row is drawn under the group a row of which is selected.
+        await userEvent.click(document.querySelector('[data-row="deg"] .sel-value') ?? document.body);
+        await userEvent.click(await screen.findByRole("button", { name: "Keep..." }));
         await pickValue("Isolated");
         await waitFor(() => {
             assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[1]?.op, "keep");
         });
     });
 
-    it("Or then Escape takes the new group back", async () => {
+    it("Or... then Escape takes the new group back", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "One", { match: "rule", where: DEGREE_6_TO_10 });
-        await userEvent.click(screen.getByRole("button", { name: "Or" }));
+        await userEvent.click(screen.getByRole("treeitem", { name: /^Which nodes, / }));
+        await userEvent.click(await screen.findByRole("button", { name: "Or..." }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -294,7 +288,7 @@ describe("the editor's verbs, groups and words", () => {
                 ],
             },
         });
-        const card = await screen.findByRole("group", { name: /, Filter to$/ });
+        const card = await screen.findByRole("group", { name: /^Within 1 hop of / });
         assert.match(card.getAttribute("aria-label") ?? "", /^Within 1 hop of /);
         assert.notInclude(card.getAttribute("aria-label") ?? "", "a rule");
     });
@@ -396,38 +390,32 @@ describe("polish round 3", () => {
     it("a So far step with no test yet shows its two boxes once its own values land", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Between", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
+        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
         await pickValue("Degree");
-        const card = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-step-card]");
-            assert.isNotNull(found);
-            return found;
-        });
-        if (card === null) {
-            return;
-        }
+        await screen.findByRole("textbox", { name: "Degree from, number" });
         // A second step, so So far is offered: it reads the first step's members.
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
+        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
         await pickValue("Betweenness");
         const second = await waitFor(() => {
             const steps = unionOf(session, layer.id)?.branches[0]?.steps ?? [];
             assert.lengthOf(steps, 2);
-            const found = document.querySelector<HTMLElement>(`[data-step-card="${steps[1]?.id ?? ""}"]`);
+            const found = document.querySelector<HTMLElement>(`[data-step-pane="${steps[1]?.id ?? ""}"]`);
             assert.isNotNull(found);
             return found;
         });
         if (second === null) {
             return;
         }
-        await userEvent.click(within(second).getByRole("button", { name: /^More for / }));
-        await userEvent.click(await screen.findByRole("menuitemradio", { name: "So far" }));
+        await userEvent.click(within(second).getByRole("button", { name: /^Advanced/ }));
+        const on = await within(second).findByRole("radiogroup", { name: "Computed on" });
+        await userEvent.click(within(on).getByText("So far"));
         await waitFor(() => {
             assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[1]?.computedOn, "so-far");
         });
         const opened = await waitFor(() => {
             const id = unionOf(session, layer.id)?.branches[0]?.steps[1]?.id ?? "";
-            const found = document.querySelector<HTMLElement>(`[data-step-card="${id}"]`);
+            const found = document.querySelector<HTMLElement>(`[data-step-pane="${id}"]`);
             assert.isNotNull(found);
             return found;
         });
@@ -439,7 +427,7 @@ describe("polish round 3", () => {
     it("picking a value with no test keeps the preview on in the style host", async () => {
         const session = await lesMis();
         await openLayer(session, "Lone", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
+        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
         await pickValue("Isolated");
         await waitFor(() => {
             assert.isNotNull(document.activeElement?.closest(".sel-step-row"), "focus is on its row");
@@ -476,7 +464,7 @@ describe("polish round 3", () => {
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
         await pickValue("score");
         const card = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-step-card]");
+            const found = document.querySelector<HTMLElement>("[data-step-pane]");
             assert.isNotNull(found);
             return found;
         });
@@ -484,7 +472,7 @@ describe("polish round 3", () => {
         assert.notInclude(card?.textContent ?? "", "left out");
     });
 
-    it("an off step says so on the folded row", async () => {
+    it("an off step says so on its row", async () => {
         const session = await lesMis();
         await session.styles.add({
             name: "Offstep",
@@ -505,8 +493,12 @@ describe("polish round 3", () => {
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Offstep, / }));
-        const folded = await screen.findByRole("button", { name: /^Which nodes, / });
-        assert.match(folded.getAttribute("aria-label") ?? "", /, off$/);
+        const row = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>('[data-row="deg"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.match(row?.getAttribute("aria-label") ?? "", /, Off/);
     });
 
     it("moving a group keeps its name", async () => {

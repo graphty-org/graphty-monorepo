@@ -7,6 +7,7 @@
  */
 
 import {
+    type FilterCondition,
     type GraphSession,
     type MeasureTest,
     type RuleTree,
@@ -14,6 +15,7 @@ import {
     selectorRule,
     type StepReading,
     type StepReference,
+    type UnionBranch,
     type UnionLeaf,
     type UnionStep,
 } from "@graphty/graphty-element/session";
@@ -238,7 +240,7 @@ export function pickSections(
         side === "node"
             ? [
                   item("is-in", "Is in", GLYPHS.neighborhood, { kind: "hops", max: 0 }),
-                  item("within", "Within hops of", GLYPHS.neighborhood, { kind: "hops", max: 1 }),
+                  item("within", "Within hops of", GLYPHS.neighborhood, { kind: "hops", max: 2 }),
                   item("neighbors", "Neighbors of selection", GLYPHS.neighborhood, {
                       kind: "hops",
                       of: "selection",
@@ -476,15 +478,41 @@ export function layerSelection(session: GraphSession, selector: Selector, side: 
 }
 
 /**
- * A condition's rule as a selection: its `union` rule, or a flat rule converted by the element.
+ * A condition as a selection of what stays: its `union` rule, or a flat rule converted by the
+ * element; a removing (Filter out) condition's rule read as what it leaves.
  * @param session - the element's session.
  * @param rule - the condition's rule.
  * @param side - nodes or edges.
+ * @param effect - the condition's effect.
  * @returns the selection, or null for a rule the editor does not edit.
  */
-export function filterSelection(session: GraphSession, rule: RuleTree, side: Side): UnionLeaf | null {
-    if (rule.kind === "union") {
+export function filterSelection(
+    session: GraphSession,
+    rule: RuleTree,
+    side: Side,
+    effect: FilterCondition["effect"] = "keep",
+): UnionLeaf | null {
+    const exclude = effect === "exclude";
+    if (rule.kind === "union" && !exclude) {
         return rule;
     }
-    return session.scope.asUnion(rule, { side: side === "node" ? "nodes" : "edges", within: "graph" });
+    return session.scope.asUnion(rule, {
+        side: side === "node" ? "nodes" : "edges",
+        within: "graph",
+        effect: exclude ? "exclude" : "keep",
+    });
+}
+
+/**
+ * The paths a group's steps already read, so the picker marks them used.
+ * @param rule - the selection.
+ * @param branch - the group.
+ * @returns the picker keys.
+ */
+export function usedPaths(rule: UnionLeaf, branch: UnionBranch): string[] {
+    return branch.steps.flatMap((step) => {
+        const path =
+            (step.rule as { attribute?: string; reads?: string }).attribute ?? (step.rule as { reads?: string }).reads;
+        return path === undefined ? [] : [`${sideOf(rule)}:${path}`];
+    });
 }

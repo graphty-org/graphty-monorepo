@@ -39,14 +39,16 @@ export function newSelection(side: UnionLeaf["side"], within: UnionLeaf["within"
 }
 
 /**
- * The verb "+" writes at a group's foot: Add on an empty None group (its first step says what it
- * holds), else Keep. Refining narrows: widening is what "Or" is for, so a second step never makes
- * a group bigger unasked.
+ * The verbs that can change a group (spec 4.1): an empty None group only grows (Add); an All group
+ * with no step only narrows (Keep, Except); afterwards all three.
  * @param branch - the group.
- * @returns the verb.
+ * @returns the verbs, in the order the Add row draws them.
  */
-export function defaultVerb(branch: UnionBranch): Verb {
-    return branch.start === "none" && branch.steps.length === 0 ? "add" : "keep";
+export function verbsFor(branch: UnionBranch): readonly Verb[] {
+    if (branch.steps.length > 0) {
+        return ["add", "keep", "except"];
+    }
+    return branch.start === "all" ? ["keep", "except"] : ["add"];
 }
 
 /**

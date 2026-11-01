@@ -11,24 +11,22 @@ import type {
     StepReading,
     StepReasonCode,
     StepReference,
-    StepsReading,
     UnionLeaf,
     UnionStep,
 } from "@graphty/graphty-element/session";
 
 import { costLine, wordsFor } from "../analyze/words";
-import { GLYPHS } from "../glyphs";
-import { cardWords, type Side } from "../style/cards";
-import { letterOf, type Verb } from "./model";
+import { formatNumber } from "../inspector/words";
+import { type Card, cardWords, type Side } from "../style/cards";
+import { NATURAL, valueName } from "../style/words";
+import type { Verb } from "./model";
 import { isRelative, referenceOf, stepCard } from "./values";
 
-/** A verb's word, Figma's name for it, the words a search finds it by, and its glyph. */
-export const VERB_WORDS: Readonly<
-    Record<Verb, { word: string; figma: string; aliases: readonly string[]; glyph: (typeof GLYPHS)["union"] }>
-> = {
-    add: { word: "Add", figma: "Union", aliases: ["union", "or"], glyph: GLYPHS.union },
-    except: { word: "Except", figma: "Subtract", aliases: ["subtract", "remove", "minus"], glyph: GLYPHS.subtract },
-    keep: { word: "Keep", figma: "Intersect", aliases: ["intersect", "only", "and"], glyph: GLYPHS.intersect },
+/** A verb's word, Figma's name for it, and the words a search finds it by. Verbs are words everywhere. */
+export const VERB_WORDS: Readonly<Record<Verb, { word: string; figma: string; aliases: readonly string[] }>> = {
+    add: { word: "Add", figma: "Union", aliases: ["union", "or"] },
+    except: { word: "Except", figma: "Subtract", aliases: ["subtract", "remove", "minus"] },
+    keep: { word: "Keep", figma: "Intersect", aliases: ["intersect", "only", "and"] },
 };
 
 /** The nouns a side goes by. */
@@ -112,13 +110,16 @@ export function referenceWords(session: GraphSession, reference: StepReference |
         return "So far";
     }
     if (reference === "selection") {
-        return `Selected (${String(session.selection.nodes.length)})`;
+        return `Selected (${formatNumber(session.selection.nodes.length)})`;
     }
     if (typeof reference === "object" && "set" in reference) {
         return session.sets.get(reference.set)?.name ?? "A set";
     }
     if (typeof reference === "object" && "nodes" in reference) {
-        return reference.nodes.length === 1 ? String(reference.nodes[0]) : `${String(reference.nodes.length)} nodes`;
+        const [only] = reference.nodes;
+        return reference.nodes.length === 1
+            ? (session.data.name(only) ?? String(only))
+            : `${formatNumber(reference.nodes.length)} nodes`;
     }
     return "A scope";
 }
@@ -232,6 +233,78 @@ function ruleStepWords(
 }
 
 /**
+ * A step as its outline row says it (spec 3.1): the value, the short test in the Min and Max
+ * boxes' words ("min 10", "3 to 7", "top 10") or a summary of the values ("1, 3 and 2,083 more"),
+ * and a tag per setting that is not its default ("So far", "Either end").
+ * @param session - the element's session.
+ * @param step - the step.
+ * @param side - the selection's side.
+ * @param reading - the step's reading.
+ * @returns the value, the test and the tags.
+ */
+export function rowWords(
+    session: GraphSession,
+    step: UnionStep,
+    side: Side,
+    reading?: StepReading,
+): { value: string; test: string; tags: string[] } {
+    const words = ruleStepWords(session, step, side, reading);
+    const tags = [
+        ...(step.computedOn === "so-far" ? ["So far"] : []),
+        ...(step.ends === "either" ? ["Either end"] : []),
+    ];
+    if (isRelative(step.rule) || step.rule.kind === "member" || STRUCTURE[step.rule.kind] !== undefined) {
+        return { ...words, tags };
+    }
+    const { card } = stepCard(session, step, reading, side);
+    const short = card === null ? undefined : shortTest(session, card);
+    return { value: words.value, test: short ?? words.test, tags };
+}
+
+/**
+ * A number or category test in a row's short words, or undefined for any other card.
+ * @param session - the element's session.
+ * @param card - the card.
+ * @returns the words.
+ */
+export function shortTest(session: GraphSession, card: Card): string | undefined {
+    if (card.type === "number" && card.match === "top") {
+        return card.top === undefined ? "" : `top ${formatNumber(card.top)}`;
+    }
+    if (card.type === "number" && card.match === "range") {
+        const { min, max } = card;
+        if (min !== undefined && max !== undefined) {
+            return `${formatNumber(min)} to ${formatNumber(max)}`;
+        }
+        if (min !== undefined) {
+            return `min ${formatNumber(min)}`;
+        }
+        return max === undefined ? "" : `max ${formatNumber(max)}`;
+    }
+    if (card.type === "category" && card.match === "values") {
+        const names = [
+            ...card.values.map((value) => valueName(session, card.field.path, value)).sort(NATURAL.compare),
+            ...(card.gaps ? ["(no value)"] : []),
+        ];
+        return valuesWords(names);
+    }
+    return undefined;
+}
+
+/**
+ * Up to three values in full ("1, 3, 4"), else the first two and how many more ("1, 3 and 2,083
+ * more"): a row never lists every value.
+ * @param names - the values' names, in order.
+ * @returns the words.
+ */
+export function valuesWords(names: readonly string[]): string {
+    if (names.length <= 3) {
+        return names.join(", ");
+    }
+    return `${names.slice(0, 2).join(", ")} and ${formatNumber(names.length - 2)} more`;
+}
+
+/**
  * A card's words without its field's name in front: "6 to 10" from "Degree 6 to 10".
  * @param words - the card's words.
  * @param name - the field's name.
@@ -240,47 +313,6 @@ function ruleStepWords(
 function testWords(words: string, name: string): string {
     const head = [`${name}: `, `${name} `].find((each) => name !== "" && words.startsWith(each));
     return head === undefined ? words : words.slice(head.length);
-}
-
-/**
- * A selection folded to one line of chips, the same in both hosts: per step its verb's glyph (none
- * for a None group's first Add, which only says what the group holds), its value and its short
- * test, the group's letter first when there are several; each chip's tooltip says it in full. An off
- * step (or a step of an off group) says "off" and is drawn as its row is.
- * @param session - the element's session.
- * @param side - nodes or edges.
- * @param reading - the element's reading of the selection.
- * @returns the chips, each with its key, its spoken words and its parts.
- */
-export function summaryChips(
-    session: GraphSession,
-    side: Side,
-    reading: StepsReading,
-): { key: string; spoken: string; letter: string; glyph: Verb | null; text: string; off: boolean }[] {
-    // The element's canonical rule: every step has its id.
-    const { rule } = reading;
-    const multi = rule.branches.length > 1;
-    return rule.branches.flatMap((branch, at) =>
-        branch.steps.map((step, index) => {
-            const read = reading.branches[at]?.steps.find((each) => each.id === step.id);
-            const words = stepWords(session, step, side, read);
-            const state =
-                read?.state === "inert" || read?.state === "pending" ? reasonWords(read.reason).short : words.test;
-            const letter = multi ? `${branch.name ?? letterOf(at)}: ` : "";
-            const plain = index === 0 && step.op === "add" && branch.start === "none";
-            const text = state === "" ? words.value : `${words.value} ${state}`;
-            // An off step, or a step of an off group, is drawn and said as its row is.
-            const off = step.on === false || branch.on === false;
-            return {
-                key: step.id ?? "",
-                spoken: `${letter}${VERB_WORDS[step.op].word} ${text}${off ? ", off" : ""}`,
-                letter,
-                glyph: plain ? null : step.op,
-                text,
-                off,
-            };
-        }),
-    );
 }
 
 /**

@@ -13,6 +13,7 @@ import type {
     HistoryCode,
     NodeId,
     RuleTree,
+    UnionLeaf,
 } from "@graphty/graphty-element/session";
 
 import { valueWord } from "../inspector/words";
@@ -277,4 +278,18 @@ export async function selectRule(session: Pick<GraphSession, "selection">, rule:
  */
 export function offersTime(session: GraphSession): boolean {
     return session.time.field !== null || session.time.candidates().length > 0;
+}
+
+/**
+ * The change that writes a card's selection: its rule, and for a tier 4 card the conversion to
+ * what stays (effect keep, no picture scope; a Select card turned off).
+ * @param rule - the selection.
+ * @param effect - the card's effect as the element holds it.
+ * @returns the change.
+ */
+export function keepChange(rule: UnionLeaf, effect: FilterCondition["effect"]): Partial<Omit<FilterCondition, "id">> {
+    if (effect === "keep") {
+        return { rule };
+    }
+    return { rule, effect: "keep", within: undefined, ...(effect === "select" ? { on: false } : {}) };
 }

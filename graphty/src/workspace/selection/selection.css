@@ -1,13 +1,15 @@
-/* The selection editor (design/ui/selection-groups/spec.md, section 3): Figma Layers rows for
-   groups, one-line Fill rows for steps, 32 px rows, 24 px controls, 11/16 type. */
+/* The selection editor (design/ui/selection-groups/spec.md, section 3): an outline of 32 px rows
+   in fixed columns, and one property pane under it for the selected row. 11/16 type, 24 px
+   controls. Nothing inline opens, so rows never move, wrap or leave gaps. */
 
 .sel-row {
     display: flex;
     align-items: center;
-    gap: 4px;
-    min-height: 32px;
-    padding-inline: 4px;
+    gap: 6px;
+    height: 32px;
+    padding-inline: 8px;
     border-radius: var(--mantine-radius-sm);
+    white-space: nowrap;
     cursor: default;
 }
 
@@ -20,31 +22,63 @@
     outline-offset: -2px;
 }
 
-.sel-step-row[aria-expanded="true"] {
+.sel-row[aria-selected="true"] {
     background: var(--cm-bg-selected, var(--mantine-color-default-hover));
 }
 
-/* Inert and pending steps say so in neutral ink, never red. */
+/* Steps sit 16 px in under a group row once there are two groups. */
+.sel-group[data-multi] > .sel-step-row,
+.sel-group[data-multi] > .sel-all-row,
+.sel-group[data-multi] > .sel-add-row {
+    padding-inline-start: 24px;
+}
+
+/* The verb word's column: every value name starts at the same x in a group. */
+.sel-verb {
+    flex: 0 0 40px;
+    width: 40px;
+}
+
+/* The value is named in full; only the test is cut short, at its tail. */
+.sel-value {
+    flex: 0 0 auto;
+}
+
+.sel-test {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sel-tag {
+    flex: none;
+    padding-inline: 4px;
+    border: 1px solid var(--mantine-color-default-border);
+    border-radius: var(--mantine-radius-sm);
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--mantine-color-dimmed);
+}
+
+.sel-state,
+.sel-count {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+}
+
+.sel-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Off and inert steps read in neutral ink, never red. */
 .sel-step-row[data-state="inert"] .sel-value,
 .sel-step-row[data-state="pending"] .sel-value,
 .sel-step-row[data-state="off"] .sel-value {
     color: var(--mantine-color-dimmed);
-}
-
-/* A step row's value is named in full before its test is cut short (figma-spec 9.6 keeps the
-   row's remove at rest). */
-.sel-step-row .sel-value {
-    flex: 0 1 auto;
-    min-width: 0;
-}
-
-.sel-step-row .sel-test {
-    flex: 1 1 0;
-    min-width: 0;
-}
-
-.sel-count {
-    font-variant-numeric: tabular-nums;
 }
 
 /* The chit: hollow at rest, filled while the preview draws group colors. */
@@ -56,48 +90,34 @@
     border-radius: 3px;
 }
 
-.sel-card-head {
-    min-height: 24px;
+/* A group's eye is drawn on hover or focus only, and takes no space at rest. */
+.sel-row:not(:hover, :focus-within) .sel-eye {
+    display: none;
 }
 
-.sel-plus {
-    display: inline-flex;
-    align-items: center;
-    align-self: flex-start;
+.sel-spacer {
+    flex: 1 1 0;
 }
 
-/* A folded selection's chip: the verb's glyph sits on the text's line. */
-.ws-which-chips .ws-chip {
-    display: inline-flex;
+/* The Add row's verbs and Or... sit in the value column, as words. */
+.sel-add-row,
+.sel-or-row {
     gap: 2px;
-    align-items: center;
 }
 
-/* A verb's glyph inside a check row of the verb menu, beside its word. */
-.sel-menu-glyph {
-    vertical-align: -2px;
-    margin-inline-end: 6px;
+.sel-or-row {
+    padding-inline-start: 4px;
 }
 
-/* A step row's words: the value, then its test; the row's controls keep their own tooltips. */
-.sel-step-row .sel-words {
+/* The property pane, under the outline. */
+.sel-pane-box {
+    padding: 8px;
+    border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.sel-advanced {
     display: flex;
-    flex: 1 1 auto;
-    gap: 4px;
-    min-width: 0;
-}
-
-/* The verb "+" adds, said as a word beside it. */
-.sel-plus-word {
-    margin-inline-start: 4px;
-}
-
-/* Inside a filter card the step card is one frame with it: its own border would sit 6 px inside. */
-.sel-editor[data-host="filter"] .sel-card {
-    border-color: transparent;
-}
-
-/* An off step's chip reads as its row does: dimmed. */
-.ws-which-chips .ws-chip[data-off] {
-    color: var(--mantine-color-dimmed);
+    align-items: center;
+    gap: 6px;
+    height: 24px;
 }

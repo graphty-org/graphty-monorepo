@@ -1,23 +1,21 @@
 /**
- * The selection editor in its second host: an import filter card's body
- * (design/ui/selection-groups/spec.md, section 2). The base is the full graph, references freeze to
- * node ids when written (graphty-element does it), and Hovered or selected is not offered. A flat
- * condition opens as one group starting All (`scope.asUnion`); every edit writes the condition's
- * rule, one undo step each. A new card is written with its first step, so it outlives a switch of
- * place: graphty-element reads a selection none of whose steps has a test yet as removing and
- * selecting nothing.
+ * The selection editor in its second host: an import filter card (design/ui/selection-groups/spec.md,
+ * sections 2 and 3.3). A card has no effect word: its selection IS what stays, starting with All
+ * and narrowed by Keep and Except. The base is the full graph, references freeze to node ids when
+ * written (graphty-element does it), and Hovered or selected is not offered. A tier 4 card is read
+ * as what stays (`scope.asUnion`; a Filter out card as All + Except) and is written in that form on
+ * its first edit: Filter to and Filter out keep their effect on the picture, and a Select card,
+ * which never filtered, is written turned off. A new card is written with its first step.
  */
 
-import type { GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
+import type { FilterCondition, GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
 import React, { useRef, useState } from "react";
 
-import { writeCondition } from "../data-place/filterCards";
+import { keepChange, writeCondition } from "../data-place/filterCards";
 import type { WorkspaceStore } from "../state/store";
 import { SelectionEditor } from "./SelectionEditor";
+import type { SelectionMenuItem } from "./SelectionMenu";
 import type { PickSection } from "./values";
-
-/** The effect a new card is written with. */
-export type StartEffect = { readonly effect: "select"; readonly within: "picture" } | { readonly effect: "keep" };
 
 /**
  * The editor on one filter condition, or on a new card not yet written.
@@ -25,15 +23,18 @@ export type StartEffect = { readonly effect: "select"; readonly within: "picture
  * @param props.session - the element's session
  * @param props.store - the chrome store
  * @param props.id - the condition's id (a new card's is the id it is written with)
- * @param props.rule - the condition's rule as a selection, or a new card's
- * @param props.written - whether the element holds the condition
- * @param props.startEffect - the effect a new card is written with
- * @param props.openFirst - opens the first step's card on arrival
+ * @param props.rule - the card's selection (what stays)
+ * @param props.effect - the condition's effect, or undefined for a card not yet written
+ * @param props.openFirst - selects the first step on arrival
  * @param props.openPicker - opens the value picker at once (a new card)
  * @param props.hostPicks - the filter's own picker entries (Time window)
- * @param props.title - the card's name, which titles the canvas key's preview
+ * @param props.title - the card's name
+ * @param props.lead - the card's on box
+ * @param props.titleMenu - the card's "..." items
+ * @param props.titleExtra - a new card's Nodes | Edges
+ * @param props.onEmptyCancel - the value picker closed with nothing chosen on a card with no step
  * @param props.onDraft - takes a new card's selection while it has no step yet, so the host keeps it
- * @param props.onDone - closes the card (Done, or Escape with nothing smaller open)
+ * @param props.onDone - Escape with no row selected
  * @returns The editor
  */
 export function FilterSelection({
@@ -41,37 +42,41 @@ export function FilterSelection({
     store,
     id,
     rule,
-    written,
-    startEffect,
+    effect,
     openFirst,
     openPicker,
     hostPicks,
     title,
+    lead,
+    titleMenu,
+    titleExtra,
     onDraft,
+    onEmptyCancel,
     onDone,
 }: Readonly<{
     session: GraphSession;
     store: WorkspaceStore;
     id: string;
     rule: UnionLeaf;
-    written: boolean;
-    startEffect: StartEffect;
+    effect: FilterCondition["effect"] | undefined;
     openFirst?: boolean;
     openPicker?: boolean;
     hostPicks?: readonly PickSection[];
     title?: string;
+    lead?: React.ReactNode;
+    titleMenu?: readonly SelectionMenuItem[];
+    titleExtra?: React.ReactNode;
     onDraft?: (rule: UnionLeaf) => void;
+    onEmptyCancel?: () => void;
     onDone: () => void;
 }>): React.JSX.Element {
     // The rule as last edited, until the element holds it.
     const [local, setLocal] = useState<UnionLeaf | null>(null);
     const writes = useRef(0);
-    const write = (next: UnionLeaf): Promise<unknown> => {
-        if (written) {
-            return writeCondition(store, () => session.visibility.updateCondition(id, { rule: next }));
-        }
-        return writeCondition(store, () => session.visibility.addCondition({ id, ...startEffect, rule: next }));
-    };
+    const write = (next: UnionLeaf): Promise<unknown> =>
+        effect === undefined
+            ? writeCondition(store, () => session.visibility.addCondition({ id, effect: "keep", rule: next }))
+            : writeCondition(store, () => session.visibility.updateCondition(id, keepChange(next, effect)));
     return (
         <SelectionEditor
             session={session}
@@ -82,10 +87,14 @@ export function FilterSelection({
             hostPicks={hostPicks}
             hold={id}
             title={title}
+            lead={lead}
+            titleMenu={titleMenu}
+            titleExtra={titleExtra}
             onDone={onDone}
+            onEmptyCancel={onEmptyCancel}
             onChange={(next) => {
                 setLocal(next);
-                if (!written && next.branches.every((branch) => branch.steps.length === 0)) {
+                if (effect === undefined && next.branches.every((branch) => branch.steps.length === 0)) {
                     onDraft?.(next);
                     return;
                 }

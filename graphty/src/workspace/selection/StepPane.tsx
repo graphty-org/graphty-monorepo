@@ -1,47 +1,62 @@
 /**
- * One selection step's card, open inline under its row (design/ui/selection-groups/spec.md,
- * sections 3 to 7): its verb, value, count and remove in the header, its "..." menu, and the test
- * its value's kind takes -- the approved condition card's body for a data column or a run's value,
- * the reference picker for Relative to, Run and Cancel for a run that waits. Everything it shows
- * is read from graphty-element; every edit goes to the host as a new rule.
+ * The property pane of a selected step (design/ui/selection-groups/spec.md, section 3.2): the verb
+ * segment, the running count and the "..." menu; the value field, which opens the value picker; the
+ * test its value's kind takes (the approved card body, the reference picker, or Run); and Advanced,
+ * collapsed, holding Computed on, Edge ends and Not measured. Everything it shows is read from
+ * graphty-element; every edit goes to the host as a new rule.
  */
 
-import { MenuCheckItem, SegmentedControl, TargetTooltip, TooltipShortcut } from "@graphty/compact-mantine";
+import { SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
 import type {
     GraphSession,
     RuleTree,
     StepReading,
-    StepReference,
+    UnionBranch,
     UnionLeaf,
     UnionStep,
 } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Button,
-    CloseButton,
-    type ComboboxParsedItem,
+    Checkbox,
+    Collapse,
     Group,
     Menu,
     NumberInput,
-    type OptionsFilter,
-    Select,
+    Stack,
     Text,
     Tooltip,
+    UnstyledButton,
 } from "@mantine/core";
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 
-import { focusRowOf } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
-import { isTypingTarget, matchesKey } from "../keys/keys";
+import { formatNumber } from "../inspector/words";
+import { isTypingTarget } from "../keys/keys";
 import type { Card, Side } from "../style/cards";
-import { CardBody } from "../style/WhichPicker";
+import { AddCondition, CardBody } from "../style/WhichPicker";
 import { type Verb, VERBS } from "./model";
+import { ReferencePicker } from "./ReferencePicker";
 import { SelectionMenuItems } from "./SelectionMenu";
-import { type Host, isRelative, referenceOf, type RelativeRule, ruleOfCard, stepCard, withReference } from "./values";
-import { NOUNS, reasonWords, referenceWords, stepWords, VERB_WORDS } from "./words";
+import {
+    type Host,
+    isRelative,
+    pickerFields,
+    type PickSection,
+    pickSections,
+    referenceOf,
+    type RelativeRule,
+    ruleOfCard,
+    ruleOfField,
+    sideOf,
+    stepCard,
+    usedPaths,
+    withReference,
+} from "./values";
+import { NOUNS, reasonWords, rowWords, VERB_WORDS } from "./words";
 
-/** What a step card asks its editor to do. */
-interface StepActions {
+/** What a step pane asks its editor to do. */
+export interface StepActions {
     readonly onStep: (patch: Partial<UnionStep>) => void;
     readonly onToggle: () => void;
     readonly onMove: (by: -1 | 1) => void;
@@ -49,177 +64,46 @@ interface StepActions {
     readonly onRemove: () => void;
 }
 
+/** The verbs in the segment's order: Figma's Union, Intersect, Subtract. */
+const SEGMENT_VERBS: readonly Verb[] = ["add", "keep", "except"];
+
 /**
- * The verb menu: Figma's boolean order, glyph and word, Figma's name in each tooltip.
+ * The verb segment: Add, Keep, Except, Figma's name in each tooltip.
  * @param props - Component props
  * @param props.verb - the step's verb
  * @param props.onVerb - takes the new verb
- * @param props.tabbable - in the Tab order (the open card's), or reached by pointer only (a row's)
- * @param props.onOpen - told when the menu opens
- * @returns The menu button
+ * @returns The segment
  */
-export function VerbMenu({
-    verb,
-    onVerb,
-    tabbable = true,
-    onOpen,
-}: Readonly<{ verb: Verb; onVerb: (verb: Verb) => void; tabbable?: boolean; onOpen?: () => void }>): React.JSX.Element {
-    const words = VERB_WORDS[verb];
-    const target = useRef<HTMLButtonElement>(null);
-    // A row's menu hands focus back to its row, so the arrow keys keep walking the list.
+function VerbSegment({ verb, onVerb }: Readonly<{ verb: Verb; onVerb: (verb: Verb) => void }>): React.JSX.Element {
     return (
-        <Menu
-            position="bottom-start"
-            withinPortal
-            returnFocus={tabbable}
-            onOpen={onOpen}
-            onClose={() => {
-                if (!tabbable) {
-                    focusRowOf(target.current);
+        <SegmentedControl
+            label="Verb"
+            data={SEGMENT_VERBS.map((each) => ({
+                value: each,
+                label: (
+                    <Tooltip label={VERB_WORDS[each].figma}>
+                        <span>{VERB_WORDS[each].word}</span>
+                    </Tooltip>
+                ),
+            }))}
+            value={verb}
+            onChange={(next) => {
+                if (VERBS.includes(next as Verb)) {
+                    onVerb(next as Verb);
                 }
             }}
-        >
-            <Menu.Target>
-                <TargetTooltip label={`${words.word} (${words.figma})`}>
-                    <ActionIcon
-                        ref={target}
-                        variant="subtle"
-                        size="sm"
-                        aria-label={`Verb: ${words.word}`}
-                        tabIndex={tabbable ? 0 : -1}
-                        data-verb={verb}
-                    >
-                        <words.glyph size={14} aria-hidden />
-                    </ActionIcon>
-                </TargetTooltip>
-            </Menu.Target>
-            <Menu.Dropdown data-portal="">
-                {VERBS.map((each) => {
-                    const item = VERB_WORDS[each];
-                    // The step's own verb is checked, as Figma's boolean menu marks the current one.
-                    return (
-                        <MenuCheckItem
-                            key={each}
-                            radio
-                            checked={each === verb}
-                            aria-label={`${item.word} (${item.figma})`}
-                            onClick={() => {
-                                onVerb(each);
-                            }}
-                        >
-                            <item.glyph size={14} aria-hidden className="sel-menu-glyph" />
-                            {item.word}
-                        </MenuCheckItem>
-                    );
-                })}
-            </Menu.Dropdown>
-        </Menu>
+        />
     );
 }
 
 /**
- * The references a step can test against, as the picker lists them: Hovered or selected (style
- * only), Selected (N), So far, each set, then the nodes by name.
- * @param session - the element's session.
- * @param host - where the selection is edited.
- * @param firstStep - the step is its group's first, where So far holds only the group's start.
- * @returns the options, grouped.
- */
-function referenceOptions(
-    session: GraphSession,
-    host: Host,
-    firstStep: boolean,
-): { group: string; items: { value: string; label: string; disabled?: boolean }[] }[] {
-    const live = [
-        ...(host === "selector" ? [{ value: "hovered-or-selected", label: "Hovered or selected" }] : []),
-        { value: "selection", label: `Selected (${String(session.selection.nodes.length)})` },
-        // So far on a group's first step is its start, which holds nothing on a None group.
-        { value: "so-far", label: "So far", ...(firstStep ? { disabled: true } : {}) },
-    ];
-    const sets = session.sets.list().map((each) => ({ value: `set:${each.id}`, label: each.name }));
-    const nodes = session.data.nodes().map((each) => ({
-        value: `node:${String(each.id)}`,
-        label: session.data.name(each.id) ?? String(each.id),
-    }));
-    // A filter freezes what it reads when written: nothing in it is live, so its heading is the
-    // selection's own.
-    return [
-        { group: host === "selector" ? "Live" : "Selection", items: live },
-        { group: "Sets", items: sets },
-        { group: "Nodes", items: nodes },
-    ].filter((each) => each.items.length > 0);
-}
-
-/**
- * The reference list's search: the items whose name holds the typed text, each section kept only
- * while it holds one.
- * @param input - Mantine's filter input.
- * @param input.options - the sections.
- * @param input.search - the typed text.
- * @returns the sections left.
- */
-const referenceFilter: OptionsFilter = ({ options, search }) => {
-    const typed = search.trim().toLowerCase();
-    const kept: ComboboxParsedItem[] = [];
-    for (const option of options) {
-        if (!("group" in option)) {
-            if (option.label.toLowerCase().includes(typed)) {
-                kept.push(option);
-            }
-            continue;
-        }
-        const items = option.items.filter((item) => item.label.toLowerCase().includes(typed));
-        if (items.length > 0) {
-            kept.push({ ...option, items });
-        }
-    }
-    return kept;
-};
-
-/**
- * A reference as the picker's value.
- * @param reference - the reference.
- * @returns the value, or null while none is chosen.
- */
-function referenceValue(reference: StepReference | undefined): string | null {
-    if (reference === undefined) {
-        return null;
-    }
-    if (typeof reference === "string") {
-        return reference;
-    }
-    if ("set" in reference) {
-        return `set:${reference.set}`;
-    }
-    if ("nodes" in reference && reference.nodes.length === 1) {
-        return `node:${String(reference.nodes[0])}`;
-    }
-    return null;
-}
-
-/**
- * The picker's value as a reference.
- * @param value - the value.
- * @returns the reference.
- */
-function referenceOfValue(value: string): StepReference {
-    if (value.startsWith("set:")) {
-        return { set: value.slice(4) };
-    }
-    if (value.startsWith("node:")) {
-        return { nodes: [value.slice(5)] };
-    }
-    return value as StepReference;
-}
-
-/**
- * A Relative to step's test: the reference, searchable, and the form's own setting (hops, ends).
+ * A Relative to step's test: the reference, and the form's own setting (hops, ends).
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rule - the step's rule
  * @param props.host - where the selection is edited
- * @param props.onRule - takes the rule as edited
  * @param props.firstStep - the step is its group's first
+ * @param props.onRule - takes the rule as edited
  * @returns The controls
  */
 function RelativeBody({
@@ -235,94 +119,49 @@ function RelativeBody({
     firstStep: boolean;
     onRule: (rule: RuleTree) => void;
 }>): React.JSX.Element {
-    const reference = referenceOf(rule);
-    const value = referenceValue(reference);
-    const options = referenceOptions(session, host, firstStep);
-    // A reference no option names (several frozen nodes) is kept and shown by its words.
-    const data =
-        value === null && reference !== undefined
-            ? [{ group: "Now", items: [{ value: "held", label: referenceWords(session, reference) }] }, ...options]
-            : options;
     return (
         <Group gap={4} wrap="nowrap" align="flex-end">
-            <Select
-                size="xs"
-                aria-label="Reference"
-                data-first-focus
-                placeholder="Choose a reference"
-                searchable
-                limit={50}
-                data={data}
-                value={value ?? (reference === undefined ? null : "held")}
-                allowDeselect={false}
-                // As the value picker: typing highlights the first match (Enter takes it), and
-                // focus selects the name, so typing replaces it.
-                selectFirstOptionOnChange
-                // The shared listbox height: the list never covers the card it fills.
-                maxDropdownHeight={240}
-                // TEMPORARY: compact-mantine's lists scroll with no ScrollArea, and Mantine applies
-                // maxDropdownHeight only inside one, so the cap is set on the list itself here
-                // (design/ui/studio/owner-decisions.md, 2026-11-01, list fields ignore the cap).
-                styles={{ dropdown: { maxHeight: 240 } }}
-                // A section the search empties goes with its heading and divider.
-                filter={referenceFilter}
-                onFocus={(event) => {
-                    event.currentTarget.select();
-                }}
-                comboboxProps={{ withinPortal: true }}
-                style={{ flex: 1, minWidth: 0 }}
-                onChange={(next) => {
-                    if (next !== null && next !== "held") {
-                        onRule(withReference(rule, referenceOfValue(next)));
-                    }
+            <ReferencePicker
+                session={session}
+                host={host}
+                reference={referenceOf(rule)}
+                firstStep={firstStep}
+                onReference={(reference) => {
+                    onRule(withReference(rule, reference));
                 }}
             />
-            {rule.kind === "hops" && rule.max !== undefined && rule.direction === undefined && (
+            {rule.kind === "hops" && rule.max !== undefined && rule.max > 0 && rule.direction === undefined && (
                 <Tooltip label="Hops">
                     <NumberInput
                         size="xs"
                         w={56}
-                        min={0}
+                        min={1}
                         max={9}
                         aria-label="Hops"
                         value={rule.max}
                         onChange={(next) => {
-                            if (typeof next === "number" && Number.isInteger(next) && next >= 0) {
+                            if (typeof next === "number" && Number.isInteger(next) && next >= 1) {
                                 onRule({ ...rule, max: next });
                             }
                         }}
                     />
                 </Tooltip>
             )}
-            {rule.kind === "touching" && (
-                <SegmentedControl
-                    label="Ends"
-                    data={[
-                        { value: "either", label: "Either" },
-                        { value: "both", label: "Both" },
-                        { value: "one", label: "One" },
-                    ]}
-                    value={rule.ends}
-                    onChange={(next) => {
-                        onRule({ ...rule, ends: next as typeof rule.ends });
-                    }}
-                />
-            )}
         </Group>
     );
 }
 
 /**
- * A measure step waiting on its run: the short word, and Run (the reader's consent, held by the
- * element until the step changes) or Cancel while it computes.
+ * A measure step waiting on its run: Run (the reader's consent, held by the element until the
+ * step changes) or Cancel while it computes, the short word in the button.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rule - the selection
  * @param props.step - the step
  * @param props.reading - its reading
- * @returns The line
+ * @returns The button, or nothing
  */
-function RunLine({
+function RunButton({
     session,
     rule,
     step,
@@ -332,26 +171,13 @@ function RunLine({
     rule: UnionLeaf;
     step: UnionStep;
     reading: StepReading | undefined;
-}>): React.JSX.Element {
+}>): React.JSX.Element | null {
     const code = reading?.reason?.code;
     const words = reasonWords(reading?.reason ?? null);
     const id = step.id ?? "";
-    return (
-        <Group gap={6} wrap="nowrap">
-            <Text size="sm" c="dimmed" style={{ flex: 1 }}>
-                {words.long}
-            </Text>
-            {(code === "run-needed" || code === "stale" || code === "run-failed") && (
-                <Button
-                    size="compact-xs"
-                    onClick={() => {
-                        session.scope.allowRun(rule, id);
-                    }}
-                >
-                    {code === "run-failed" ? "Run again" : words.short}
-                </Button>
-            )}
-            {code === "computing" && (
+    if (code === "computing") {
+        return (
+            <Tooltip label={words.long}>
                 <Button
                     size="compact-xs"
                     variant="default"
@@ -361,8 +187,24 @@ function RunLine({
                 >
                     Cancel
                 </Button>
-            )}
-        </Group>
+            </Tooltip>
+        );
+    }
+    if (code !== "run-needed" && code !== "stale" && code !== "run-failed") {
+        return null;
+    }
+    return (
+        <Tooltip label={words.long}>
+            <Button
+                size="compact-xs"
+                style={{ alignSelf: "flex-start" }}
+                onClick={() => {
+                    session.scope.allowRun(rule, id);
+                }}
+            >
+                {code === "run-failed" ? "Run again" : words.short}
+            </Button>
+        </Tooltip>
     );
 }
 
@@ -370,7 +212,7 @@ function RunLine({
 const MISSING_KINDS = new Set(["range", "categories", "threshold"]);
 
 /**
- * Whether a step's test can take "Include not measured", and whether it does.
+ * Whether a step's test can take "Not measured", and whether it includes them.
  * @param rule - the step's rule.
  * @returns undefined when it cannot, else whether it includes them.
  */
@@ -400,56 +242,129 @@ function withMissing(rule: RuleTree, include: boolean): RuleTree {
     return strip(rule);
 }
 
-/** Props of a step card. */
-interface StepCardProps extends StepActions {
+/**
+ * The value field: the step's value, opening the value picker; a pick replaces the step's value
+ * and keeps its verb.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.rule - the selection
+ * @param props.branch - the step's group
+ * @param props.value - the value's name
+ * @param props.hostPicks - the host's own picker entries
+ * @param props.onRule - takes the new value's rule
+ * @returns The field
+ */
+function ValueField({
+    session,
+    rule,
+    branch,
+    value,
+    hostPicks,
+    onRule,
+}: Readonly<{
+    session: GraphSession;
+    rule: UnionLeaf;
+    branch: UnionBranch;
+    value: string;
+    hostPicks: readonly PickSection[];
+    onRule: (stepRule: RuleTree) => void;
+}>): React.JSX.Element {
+    const [open, setOpen] = useState(false);
+    const choose = (stepRule: RuleTree): void => {
+        setOpen(false);
+        onRule(stepRule);
+    };
+    return (
+        <AddCondition
+            fields={pickerFields(session, sideOf(rule), rule.within)}
+            used={usedPaths(rule, branch)}
+            placeholder="Find attributes, results"
+            sections={[...hostPicks, ...pickSections(session, rule, choose)]}
+            opened={open}
+            onAdd={(field) => {
+                choose(ruleOfField(session, field));
+            }}
+            onOpened={(next) => {
+                if (!next) {
+                    setOpen(false);
+                }
+            }}
+            anchor={
+                <Button
+                    size="compact-xs"
+                    variant="default"
+                    fullWidth
+                    justify="space-between"
+                    aria-label={`Value: ${value}`}
+                    aria-haspopup="listbox"
+                    rightSection={<GLYPHS.expand size={12} aria-hidden />}
+                    onClick={() => {
+                        setOpen(true);
+                    }}
+                >
+                    {value}
+                </Button>
+            }
+        />
+    );
+}
+
+/** Props of a step pane. */
+interface StepPaneProps extends StepActions {
     readonly session: GraphSession;
     readonly rule: UnionLeaf;
+    readonly branch: UnionBranch;
     readonly step: UnionStep;
     readonly reading: StepReading | undefined;
     readonly host: Host;
     readonly of: number;
-    /** Keys the card's "..." items take, as the editor's rows take them. */
     readonly first: boolean;
     readonly last: boolean;
+    readonly hostPicks: readonly PickSection[];
 }
 
 /**
- * The open step card.
+ * The pane of the selected step.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rule - the selection
+ * @param props.branch - the step's group
  * @param props.step - the step
  * @param props.reading - its reading
  * @param props.host - where the selection is edited
  * @param props.of - the base's size
  * @param props.first - it is its group's first step
  * @param props.last - it is its group's last step
+ * @param props.hostPicks - the host's own value picker entries
  * @param props.onStep - takes a change to the step
  * @param props.onToggle - switches the step on or off
  * @param props.onMove - moves it up or down its group
  * @param props.onDuplicate - copies it under itself
  * @param props.onRemove - removes it
- * @returns The card
+ * @returns The pane
  */
-export function StepCard({
+export function StepPane({
     session,
     rule,
+    branch,
     step,
     reading,
     host,
     of,
     first,
     last,
+    hostPicks,
     onStep,
     onToggle,
     onMove,
     onDuplicate,
     onRemove,
-}: StepCardProps): React.JSX.Element {
-    const side: Side = rule.side === "nodes" ? "node" : "edge";
-    const { value } = stepWords(session, step, side, reading);
+}: StepPaneProps): React.JSX.Element {
+    const side: Side = sideOf(rule);
+    const { value } = rowWords(session, step, side, reading);
     // Typing in a box is held and written when committed (Enter, leaving the box): one undo step.
     const [draft, setDraft] = useState<Card | null>(null);
+    const [advanced, setAdvanced] = useState(false);
     const read = stepCard(session, step, reading, side, rule.within);
     const card = draft ?? read.card;
     const commit = (next: Card | null = draft): void => {
@@ -459,8 +374,7 @@ export function StepCard({
         }
     };
     const onCard = (next: Card): void => {
-        // A text card hands over every keystroke; a number or date card hands over only what its
-        // boxes committed, so that is written at once.
+        // A text card hands over every keystroke; any other card hands over what it committed.
         const active = document.activeElement;
         if (
             next.type === "text" &&
@@ -474,54 +388,32 @@ export function StepCard({
     };
     // A step that waits on a run shows no count: the number would be what comes into it.
     const count = reading === undefined || reading.waiting ? undefined : reading.count;
-    const label = [
-        `${VERB_WORDS[step.op].word}, ${value}`,
-        count === undefined ? "" : `${String(count)} of ${String(of)} ${NOUNS[side].many} so far`,
-    ]
-        .filter((each) => each !== "")
-        .join(", ");
     const missing = missingOf(step.rule);
     const canSoFar =
         step.op !== "add" &&
         step.rule.kind === "measure" &&
         session.catalog.algorithms().find((each) => each.key === (step.rule as { algorithm: string }).algorithm)
             ?.scopeInput === "subgraph";
-    // Only a step that waits on a run says so: a finished one draws its test.
     const pending = reading?.state === "pending";
     // An edge step reading a node value says whether both ends must pass, or either.
     const readsEnds = side === "edge" && card !== null && "field" in card && card.field.on === "node";
+    const changed = [
+        ...(step.computedOn === "so-far" ? ["So far"] : []),
+        ...(step.ends === "either" ? ["Either end"] : []),
+        ...(missing === true ? ["Not measured"] : []),
+    ];
+    const hasAdvanced = canSoFar || readsEnds || missing !== undefined || step.rule.kind === "touching";
+    const base = host === "filter" ? "Full graph" : "Filtered graph";
     return (
         <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
             role="group"
-            aria-label={label}
-            className="ws-card sel-card"
-            data-step-card={step.id}
+            aria-label={`${VERB_WORDS[step.op].word}, ${value}`}
+            className="sel-pane"
+            data-step-pane={step.id}
             data-pending={pending ? "" : undefined}
             onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.nativeEvent.isComposing && draft !== null) {
                     commit();
-                    return;
-                }
-                // The keys its "..." menu lists, as its row takes them, outside a text box.
-                if (isTypingTarget(event.target)) {
-                    return;
-                }
-                const native = event.nativeEvent;
-                if (matchesKey(native, "Mod+[") || matchesKey(native, "Mod+]")) {
-                    event.preventDefault();
-                    // Figma: Ctrl+] brings forward (up), Ctrl+[ sends backward (down).
-                    if (!(event.key === "]" ? first : last)) {
-                        onMove(event.key === "]" ? -1 : 1);
-                    }
-                } else if (matchesKey(native, "Mod+D")) {
-                    event.preventDefault();
-                    onDuplicate();
-                } else if (matchesKey(native, "Shift+Mod+H")) {
-                    event.preventDefault();
-                    onToggle();
-                } else if (event.key === "Delete") {
-                    event.preventDefault();
-                    onRemove();
                 }
             }}
             onBlur={(event) => {
@@ -537,161 +429,246 @@ export function StepCard({
                 }
             }}
         >
-            <Group gap={4} wrap="nowrap" className="sel-card-head">
-                <VerbMenu
-                    verb={step.op}
-                    onVerb={(op) => {
-                        onStep({ op });
-                    }}
-                />
-                <Text size="sm" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
-                    {value}
-                </Text>
-                {count !== undefined && (
-                    <Tooltip label={`${String(count)} of ${String(of)} ${NOUNS[side].many} so far`}>
-                        <Text size="sm" c="dimmed">
-                            {count}
-                        </Text>
-                    </Tooltip>
-                )}
-                <Menu position="bottom-end" withinPortal>
-                    <Menu.Target>
-                        <TargetTooltip label="More">
-                            <ActionIcon variant="subtle" size="sm" aria-label={`More for ${value}`}>
-                                <GLYPHS.more size={14} aria-hidden />
-                            </ActionIcon>
-                        </TargetTooltip>
-                    </Menu.Target>
-                    <Menu.Dropdown data-portal="">
-                        {canSoFar && (
-                            <>
-                                <Menu.Label>Computed on</Menu.Label>
-                                <MenuCheckItem
-                                    radio
-                                    checked={step.computedOn !== "so-far"}
-                                    onClick={() => {
-                                        onStep({ computedOn: "base" });
-                                    }}
-                                >
-                                    {host === "filter" ? "Full graph" : "Filtered graph"}
-                                </MenuCheckItem>
-                                <MenuCheckItem
-                                    radio
-                                    checked={step.computedOn === "so-far"}
-                                    onClick={() => {
-                                        onStep({ computedOn: "so-far" });
-                                    }}
-                                >
-                                    So far
-                                </MenuCheckItem>
-                                <Menu.Divider />
-                            </>
-                        )}
-                        <SelectionMenuItems
-                            items={[
-                                {
-                                    id: "duplicate",
-                                    label: "Duplicate",
-                                    icon: "duplicate",
-                                    group: "edit",
-                                    key: "Mod+D",
-                                    onRun: onDuplicate,
-                                },
-                                {
-                                    id: "up",
-                                    label: "Move up",
-                                    icon: "moveUp",
-                                    group: "edit",
-                                    key: "Mod+]",
-                                    reason: first ? "Already the first step" : null,
-                                    onRun: () => {
-                                        onMove(-1);
-                                    },
-                                },
-                                {
-                                    id: "down",
-                                    label: "Move down",
-                                    icon: "moveDown",
-                                    group: "edit",
-                                    key: "Mod+[",
-                                    reason: last ? "Already the last step" : null,
-                                    onRun: () => {
-                                        onMove(1);
-                                    },
-                                },
-                                {
-                                    id: "hide",
-                                    label: step.on === false ? "Show" : "Hide",
-                                    icon: step.on === false ? "show" : "hide",
-                                    group: "view",
-                                    key: "Shift+Mod+H",
-                                    onRun: onToggle,
-                                },
-                                ...(missing === undefined
-                                    ? []
-                                    : [
-                                          {
-                                              id: "missing",
-                                              label: missing ? "Leave out not measured" : "Include not measured",
-                                              icon: "empty" as const,
-                                              group: "view" as const,
-                                              onRun: () => {
-                                                  onStep({ rule: withMissing(step.rule, !missing) });
-                                              },
-                                          },
-                                      ]),
-                                {
-                                    id: "delete",
-                                    label: "Delete",
-                                    icon: "delete",
-                                    group: "remove",
-                                    key: "Delete",
-                                    onRun: onRemove,
-                                },
-                            ]}
-                        />
-                    </Menu.Dropdown>
-                </Menu>
-                <Tooltip label={<TooltipShortcut label={`Remove ${value}`} shortcut="Delete" />}>
-                    <CloseButton size="xs" aria-label={`Remove ${value}`} onClick={onRemove} />
-                </Tooltip>
-            </Group>
-            {isRelative(step.rule) ? (
-                <RelativeBody
+            <Stack gap={6}>
+                <Group gap={4} wrap="nowrap">
+                    <VerbSegment
+                        verb={step.op}
+                        onVerb={(op) => {
+                            onStep({ op });
+                        }}
+                    />
+                    {count !== undefined && (
+                        <Tooltip label={`${formatNumber(count)} of ${formatNumber(of)} ${NOUNS[side].many} so far`}>
+                            <Text size="xs" c="dimmed" className="sel-count" ml="auto">
+                                {formatNumber(count)}
+                            </Text>
+                        </Tooltip>
+                    )}
+                    <StepMenu
+                        name={value}
+                        on={step.on !== false}
+                        first={first}
+                        last={last}
+                        onToggle={onToggle}
+                        onMove={onMove}
+                        onDuplicate={onDuplicate}
+                        onRemove={onRemove}
+                    />
+                </Group>
+                <ValueField
                     session={session}
-                    rule={step.rule}
-                    host={host}
-                    firstStep={first}
-                    onRule={(next) => {
-                        onStep({ rule: next });
+                    rule={rule}
+                    branch={branch}
+                    value={value}
+                    hostPicks={hostPicks}
+                    onRule={(stepRule) => {
+                        setDraft(null);
+                        onStep({ rule: stepRule });
                     }}
                 />
-            ) : (
-                <>
-                    {pending && <RunLine session={session} rule={rule} step={step} reading={reading} />}
-                    {card !== null && (
-                        <CardBody
-                            session={session}
-                            card={card}
-                            side={"field" in card ? card.field.on : side}
-                            onChange={onCard}
-                        />
-                    )}
-                    {readsEnds && (
-                        <SegmentedControl
-                            label="Ends"
-                            data={[
-                                { value: "both", label: "Both ends" },
-                                { value: "either", label: "Either end" },
-                            ]}
-                            value={step.ends ?? "both"}
-                            onChange={(next) => {
-                                onStep({ ends: next === "either" ? "either" : "both" });
+                {isRelative(step.rule) ? (
+                    <RelativeBody
+                        session={session}
+                        rule={step.rule}
+                        host={host}
+                        firstStep={first}
+                        onRule={(next) => {
+                            onStep({ rule: next });
+                        }}
+                    />
+                ) : (
+                    <>
+                        {pending && <RunButton session={session} rule={rule} step={step} reading={reading} />}
+                        {card !== null && (
+                            <CardBody
+                                session={session}
+                                card={card}
+                                side={"field" in card ? card.field.on : side}
+                                onChange={onCard}
+                                variant="step"
+                            />
+                        )}
+                    </>
+                )}
+                {hasAdvanced && (
+                    <>
+                        <UnstyledButton
+                            className="sel-advanced"
+                            aria-expanded={advanced}
+                            onClick={() => {
+                                setAdvanced(!advanced);
                             }}
-                        />
-                    )}
-                </>
-            )}
+                        >
+                            <GLYPHS.expand
+                                size={12}
+                                aria-hidden
+                                style={{ transform: advanced ? undefined : "rotate(-90deg)" }}
+                            />
+                            <Text size="xs" span>
+                                Advanced
+                            </Text>
+                            {changed.length > 0 && (
+                                <Text size="xs" c="dimmed" span ml="auto">
+                                    {changed.join(", ")}
+                                </Text>
+                            )}
+                        </UnstyledButton>
+                        <Collapse in={advanced}>
+                            <Stack gap={6}>
+                                {canSoFar && (
+                                    <SegmentedControl
+                                        label="Computed on"
+                                        data={[
+                                            { value: "base", label: base },
+                                            { value: "so-far", label: "So far" },
+                                        ]}
+                                        value={step.computedOn === "so-far" ? "so-far" : "base"}
+                                        onChange={(next) => {
+                                            onStep({ computedOn: next === "so-far" ? "so-far" : "base" });
+                                        }}
+                                    />
+                                )}
+                                {readsEnds && (
+                                    <SegmentedControl
+                                        label="Edge ends"
+                                        data={[
+                                            { value: "both", label: "Both" },
+                                            { value: "either", label: "Either" },
+                                        ]}
+                                        value={step.ends ?? "both"}
+                                        onChange={(next) => {
+                                            onStep({ ends: next === "either" ? "either" : "both" });
+                                        }}
+                                    />
+                                )}
+                                {step.rule.kind === "touching" && (
+                                    <SegmentedControl
+                                        label="Edge ends"
+                                        data={[
+                                            { value: "either", label: "Either" },
+                                            { value: "both", label: "Both" },
+                                            { value: "one", label: "One" },
+                                        ]}
+                                        value={step.rule.ends}
+                                        onChange={(next) => {
+                                            onStep({
+                                                rule: { ...step.rule, ends: next } as RuleTree,
+                                            });
+                                        }}
+                                    />
+                                )}
+                                {missing !== undefined && (
+                                    <Checkbox
+                                        size="xs"
+                                        label="Include not measured"
+                                        checked={missing}
+                                        onChange={(event) => {
+                                            onStep({ rule: withMissing(step.rule, event.currentTarget.checked) });
+                                        }}
+                                    />
+                                )}
+                            </Stack>
+                        </Collapse>
+                    </>
+                )}
+            </Stack>
         </div>
+    );
+}
+
+/**
+ * A step's "..." menu: Turn off, Duplicate, Move up, Move down | Delete, each with its key.
+ * @param props - Component props
+ * @param props.name - the step's value
+ * @param props.on - whether it is on
+ * @param props.first - it is its group's first step
+ * @param props.last - it is its group's last step
+ * @param props.onToggle - switches it on or off
+ * @param props.onMove - moves it up or down
+ * @param props.onDuplicate - copies it
+ * @param props.onRemove - removes it
+ * @returns The menu
+ */
+function StepMenu({
+    name,
+    on,
+    first,
+    last,
+    onToggle,
+    onMove,
+    onDuplicate,
+    onRemove,
+}: Readonly<{
+    name: string;
+    on: boolean;
+    first: boolean;
+    last: boolean;
+    onToggle: () => void;
+    onMove: (by: -1 | 1) => void;
+    onDuplicate: () => void;
+    onRemove: () => void;
+}>): React.JSX.Element {
+    return (
+        <Menu position="bottom-end" withinPortal>
+            <Menu.Target>
+                <TargetTooltip label="More">
+                    <ActionIcon variant="subtle" size="sm" aria-label={`More for ${name}`}>
+                        <GLYPHS.more size={14} aria-hidden />
+                    </ActionIcon>
+                </TargetTooltip>
+            </Menu.Target>
+            <Menu.Dropdown data-portal="">
+                <SelectionMenuItems
+                    items={[
+                        {
+                            id: "hide",
+                            label: on ? "Turn off" : "Turn on",
+                            icon: on ? "hide" : "show",
+                            group: "edit",
+                            key: "Shift+Mod+H",
+                            onRun: onToggle,
+                        },
+                        {
+                            id: "duplicate",
+                            label: "Duplicate",
+                            icon: "duplicate",
+                            group: "edit",
+                            key: "Mod+D",
+                            onRun: onDuplicate,
+                        },
+                        {
+                            id: "up",
+                            label: "Move up",
+                            icon: "moveUp",
+                            group: "edit",
+                            key: "Mod+]",
+                            reason: first ? "Already the first step" : null,
+                            onRun: () => {
+                                onMove(-1);
+                            },
+                        },
+                        {
+                            id: "down",
+                            label: "Move down",
+                            icon: "moveDown",
+                            group: "edit",
+                            key: "Mod+[",
+                            reason: last ? "Already the last step" : null,
+                            onRun: () => {
+                                onMove(1);
+                            },
+                        },
+                        {
+                            id: "delete",
+                            label: "Delete",
+                            icon: "delete",
+                            group: "remove",
+                            key: "Delete",
+                            onRun: onRemove,
+                        },
+                    ]}
+                />
+            </Menu.Dropdown>
+        </Menu>
     );
 }

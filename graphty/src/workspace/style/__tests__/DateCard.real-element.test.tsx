@@ -19,6 +19,18 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
+/**
+ * The "Condition..." control: an empty selection's row, else the selected row's pane button.
+ * @param scope - where to look.
+ * @returns the control.
+ */
+function conditionControl(scope: HTMLElement = document.body): HTMLElement {
+    return (
+        within(scope).queryByRole("treeitem", { name: "Condition..." }) ??
+        within(scope).getByRole("button", { name: "Condition..." })
+    );
+}
+
 /** Install dates for the small graph's nodes, in node order: three before 2005. */
 const INSTALLED = ["1998-05-12", "2003-07-01", "2004-12-31", "2005-01-01", "2010-09-09", "2018-06-27"];
 
@@ -114,7 +126,7 @@ describe("the date condition card", () => {
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Old, / }));
-        await userEvent.click(await screen.findByRole("treeitem", { name: "Step..." }));
+        await userEvent.click(await waitFor(() => conditionControl()));
         const option = await screen.findByRole("option", { name: /^installed(,|$)/ });
         assert.isNotNull(option.querySelector("svg.lucide-calendar"), "listed with the calendar glyph");
         await userEvent.click(option);

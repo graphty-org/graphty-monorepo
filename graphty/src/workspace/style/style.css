@@ -498,3 +498,9 @@
 .mantine-ScrollArea-content.ws-list-content {
     display: block;
 }
+
+/* A step's checklist over 8 values holds the height of its 8 rows (and the no-value row) whatever
+   a search leaves, so the controls under it never move. */
+.ws-checklist-fixed {
+    min-height: calc(9 * 18px);
+}

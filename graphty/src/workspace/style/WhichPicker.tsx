@@ -2374,7 +2374,6 @@ function NumberCard({
                 // position, the highest N.
                 <SegmentedControl
                     label={`${name} test`}
-                    size="xs"
                     fullWidth
                     data={[
                         { value: "range", label: "By value" },
@@ -2689,11 +2688,12 @@ function valueRow(
         "aria-label": words,
         styles: { body: { width: "100%" }, labelWrapper: { flex: 1, minWidth: 0 } },
         label: (
+            // A step's checklist rows are the pane's 11/16 type; a filter card's keep its own.
             <Group gap={4} wrap="nowrap" justify="space-between">
-                <Text size="xs" truncate span>
+                <Text size={variant === "step" ? "sm" : "xs"} truncate span>
                     {label}
                 </Text>
-                <Text size="xs" c="dimmed" span>
+                <Text size={variant === "step" ? "sm" : "xs"} c="dimmed" span>
                     {formatNumber(count)}
                 </Text>
             </Group>
@@ -2726,18 +2726,20 @@ function CategoryCard({
     onChange: OnCard;
     variant?: CardVariant;
 }>): React.JSX.Element {
-    const { name, path, within } = card.field;
+    const { name, path, within, counted } = card.field;
     const counts = useMemo(() => {
-        if (within === undefined) {
+        const over = counted ?? within;
+        if (over === undefined) {
             return session.data.valueCounts(path, { kind: side });
         }
-        // Counted over the selection's base, so a value only filtered-out elements hold reads 0.
-        const histogram = session.scope.histogram(path, { within, as: "categorical" });
+        // Counted over the selection's base (or a narrowing step's input), so a value only
+        // elements outside it hold reads 0.
+        const histogram = session.scope.histogram(path, { within: over, as: "categorical" });
         return {
             values: histogram.kind === "categorical" ? histogram.values : [],
             missing: histogram.missing,
         };
-    }, [session, path, side, within]);
+    }, [session, path, side, within, counted]);
     const [search, setSearch] = useState("");
     const typed = search.trim().toLowerCase();
     const named = useMemo(
@@ -2800,7 +2802,14 @@ function CategoryCard({
                             )}
                         </Group>
                     )}
-                    <Stack gap={2} role="group" aria-label={`${name} values`}>
+                    <Stack
+                        gap={2}
+                        role="group"
+                        aria-label={`${name} values`}
+                        // A step's list keeps the height of its 8 rows while it is searched, so the
+                        // pane under it does not jump.
+                        className={variant === "step" && named.length > SHOWN_VALUES ? "ws-checklist-fixed" : undefined}
+                    >
                         {rows.map((each) => (
                             <Checkbox
                                 key={each.value}
@@ -2970,7 +2979,6 @@ function TextCard({
                 card.match !== "absent" && (
                     <>
                         <Autocomplete
-                            size="xs"
                             aria-label={`${name}: text to match`}
                             data-enter-done
                             placeholder="Type the text to match"

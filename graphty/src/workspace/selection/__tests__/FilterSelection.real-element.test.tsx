@@ -23,6 +23,18 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /**
+ * The "Condition..." control: an empty selection's row, else the selected row's pane button.
+ * @param scope - where to look.
+ * @returns the control.
+ */
+function conditionControl(scope: HTMLElement = document.body): HTMLElement {
+    return (
+        within(scope).queryByRole("treeitem", { name: "Condition..." }) ??
+        within(scope).getByRole("button", { name: "Condition..." })
+    );
+}
+
+/**
  * Les Miserables in the workspace, on the Data place.
  * @returns The session.
  */
@@ -153,7 +165,7 @@ describe("the import filter's cards as selections", () => {
         await userEvent.click(within(card).getByRole("treeitem", { name: /^New filter, / }));
         // The segment's radio is visually hidden: a reader clicks its label.
         await userEvent.click(await within(card).findByText("Edges"));
-        await userEvent.click(await within(card).findByRole("treeitem", { name: "Step..." }));
+        await userEvent.click(await waitFor(() => conditionControl(card)));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Self-loops");
         await userEvent.keyboard("{Enter}");

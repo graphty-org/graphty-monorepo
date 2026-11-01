@@ -182,8 +182,17 @@
     flex: 1;
     min-width: 0;
     display: flex;
+    align-items: center;
+    gap: 6px;
+    align-self: stretch;
     font: inherit;
     text-align: start;
+}
+
+/* A collapsed card's name is cut only when its count would otherwise leave the row. */
+.dp-filter-title {
+    flex: 0 1 auto;
+    min-width: 0;
 }
 
 /* Focus on a resting card's name rings the whole row, as a tree row is ringed: a ring round the

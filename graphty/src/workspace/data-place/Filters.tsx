@@ -7,7 +7,7 @@
  * matters. The app holds only a card not yet written.
  */
 
-import { ControlSection, EntityChip, SegmentedControl } from "@graphty/compact-mantine";
+import { ControlSection, EntityChip, focusWithRing, SegmentedControl } from "@graphty/compact-mantine";
 import type { FilterCondition, FilterConditionCount, GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -30,7 +30,7 @@ import { addStep, editBranch, newSelection } from "../selection/model";
 import type { SelectionMenuItem } from "../selection/SelectionMenu";
 import { useSteps } from "../selection/useSteps";
 import { filterSelection, type PickSection, ruleOfField, sideOf } from "../selection/values";
-import { rowWords, stepWords } from "../selection/words";
+import { rowWords, stepWords, VERB_WORDS } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, cardFields, type Side } from "../style/cards";
@@ -287,13 +287,16 @@ export function FiltersSection(): React.JSX.Element {
  * or the hidden-column mark when its rule reads a column that is not there.
  * @param props - Component props
  * @param props.count - the element's count, or undefined for a card not yet written
- * @param props.removes - the card removes what it matches: a card's count says what stays
+ * @param props.effect - what the card does with what it matches: its count says what stays
  * @returns the chips
  */
 function CountChips({
     count,
-    removes = false,
-}: Readonly<{ count: FilterConditionCount | undefined; removes?: boolean }>): React.JSX.Element | null {
+    effect = "keep",
+}: Readonly<{
+    count: FilterConditionCount | undefined;
+    effect?: FilterCondition["effect"];
+}>): React.JSX.Element | null {
     if (count === undefined) {
         return null;
     }
@@ -316,12 +319,28 @@ function CountChips({
             {halves.map(([kind, half]) =>
                 half === null ? null : (
                     <EntityChip key={kind} kind={kind}>
-                        {`${formatNumber(removes ? half.total - half.matched : half.matched)} of ${formatNumber(half.total)}`}
+                        {`${formatNumber(staying(effect, half))} of ${formatNumber(half.total)}`}
                     </EntityChip>
                 ),
             )}
         </>
     );
+}
+
+/**
+ * What stays of a half under a card: what it matches, the rest for a card that removes, all of it
+ * for a Select card, which hides nothing.
+ * @param effect - the card's effect.
+ * @param half - the element's count of one half.
+ * @param half.matched - how many match.
+ * @param half.total - how many there are.
+ * @returns how many stay.
+ */
+function staying(effect: FilterCondition["effect"], half: { matched: number; total: number }): number {
+    if (effect === "exclude") {
+        return half.total - half.matched;
+    }
+    return effect === "select" ? half.total : half.matched;
 }
 
 /** A selection with nothing in it: what a card with no editable selection reads (it counts nothing). */
@@ -377,6 +396,19 @@ function FilterCard({
     onDuplicate: (id: string) => void;
 }>): React.JSX.Element {
     const box = useRef<HTMLDivElement>(null);
+    // A card opened from its row takes focus on its title row once the editor draws, so the next
+    // Space switches its on box rather than landing on "Add filter".
+    const focusOnOpen = useRef(false);
+    useEffect(() => {
+        if (!open || !focusOnOpen.current) {
+            return;
+        }
+        focusOnOpen.current = false;
+        const title = box.current?.querySelector<HTMLElement>('[data-row="title"]');
+        if (title !== null && title !== undefined) {
+            focusWithRing(title);
+        }
+    }, [open]);
     // A new card's selection: one group starting with All, and a Keep step on its field when it has one.
     const [draftRule, setDraftRule] = useState(() => newFilterSelection(session, fresh?.side ?? "node", fresh?.field));
     const draft = condition === undefined;
@@ -390,7 +422,13 @@ function FilterCard({
         }
     }
     // The card's selection is what stays; a Filter out card is read as All + Except.
-    const selection = draft ? draftRule : filterSelection(session, condition.rule, side, condition.effect);
+    // A saved Select card hides nothing: it is shown read-only in its own words, counting what stays
+    // (all of it), until graphty-element reads it as a card that stays (owner-decisions 2026-11-01).
+    let selection: UnionLeaf | null = draftRule;
+    if (!draft) {
+        selection =
+            condition.effect === "select" ? null : filterSelection(session, condition.rule, side, condition.effect);
+    }
     const reading = useSteps(session, selection ?? NO_SELECTION);
     const stepless = draftRule.branches.every((branch) => branch.steps.length === 0);
     // The picker opens by itself only on arrival: after a side switch the reader uses "Keep...".
@@ -406,7 +444,7 @@ function FilterCard({
     // Drawn: the values the card reads; said: the card's rule in words, as the filter chip says it.
     const title = cardName(session, condition, selection, side, fresh?.field?.name);
     // A selection is said as its title says it; a rule no editor reads, in its own words.
-    const name = condition === undefined || selection !== null ? title : conditionWords(session, condition.rule);
+    const name = title;
     // The box says what the element holds: a saved Select card that is on still selects, so it
     // reads on until the reader turns it off (its first edit writes it as a card that stays, off).
     const on = condition === undefined ? true : condition.on;
@@ -511,7 +549,6 @@ function FilterCard({
                             draft ? (
                                 // A new card's side; switching starts its selection again on the other side.
                                 <SegmentedControl
-                                    size="xs"
                                     label="Filter on"
                                     data={[
                                         { value: "node", label: "Nodes" },
@@ -548,25 +585,27 @@ function FilterCard({
                 ) : (
                     <div className="sel-row dp-filter-row">
                         {onBox(false)}
+                        {/* The whole row opens the card, as Figma's collapsed layer rows do; the on box stays its own. */}
                         <UnstyledButton
                             className="dp-filter-name"
                             aria-expanded={open}
                             onClick={() => {
+                                focusOnOpen.current = !open;
                                 onOpen(!open);
                             }}
                         >
-                            <Text size="xs" fw={600} truncate span>
+                            <Text size="sm" fw={600} truncate span className="dp-filter-title">
                                 {title}
                             </Text>
+                            <span className="sel-spacer" />
+                            {total === undefined ? (
+                                <CountChips count={count} effect={condition?.effect} />
+                            ) : (
+                                <Text size="sm" c="dimmed" span className="sel-count">
+                                    {total}
+                                </Text>
+                            )}
                         </UnstyledButton>
-                        <span className="sel-spacer" />
-                        {total === undefined ? (
-                            <CountChips count={count} removes={condition?.effect === "exclude"} />
-                        ) : (
-                            <Text size="xs" c="dimmed" className="sel-count">
-                                {total}
-                            </Text>
-                        )}
                     </div>
                 )}
                 {open && selection === null && (
@@ -607,12 +646,18 @@ function cardName(
     if (first !== undefined && (condition === undefined || stepWords(session, first, side).value !== "Rule")) {
         const words = rowWords(session, first, side);
         const test = words.more === undefined ? words.test : `${words.test} ${words.more}`;
-        return [words.value, test].filter((each) => each !== "").join(" ");
+        // A card says what stays: a first step that removes keeps its verb ("Except role volunteer").
+        const verb = first.op === "except" ? [VERB_WORDS.except.word] : [];
+        return [...verb, words.value, test].filter((each) => each !== "").join(" ");
     }
     if (condition === undefined) {
         return field ?? "New filter";
     }
-    return conditionWords(session, condition.rule);
+    const words = conditionWords(session, condition.rule);
+    if (condition.effect === "select") {
+        return `Select ${words}`;
+    }
+    return condition.effect === "exclude" ? `${VERB_WORDS.except.word} ${words}` : words;
 }
 
 /**

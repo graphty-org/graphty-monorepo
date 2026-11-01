@@ -20,13 +20,16 @@ import {
     Button,
     Checkbox,
     Collapse,
+    Combobox,
     Group,
+    InputBase,
     Menu,
     NumberInput,
     Stack,
     Text,
     Tooltip,
     UnstyledButton,
+    VisuallyHidden,
 } from "@mantine/core";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -98,17 +101,29 @@ function VerbSegment({
     verbs,
     onVerb,
 }: Readonly<{ verb: Verb; verbs: readonly Verb[]; onVerb: (verb: Verb) => void }>): React.JSX.Element {
+    const offered = SEGMENT_VERBS.filter((each) => each === verb || verbs.includes(each));
+    if (offered.length < 2) {
+        // One verb is no choice: it is said, not drawn as a segment of one.
+        return (
+            <Text size="sm" style={{ flex: 1, minWidth: 0 }}>
+                {VERB_WORDS[verb].word}
+            </Text>
+        );
+    }
     return (
         <SegmentedControl
             label="Verb"
-            size="xs"
             fullWidth
             style={{ flex: 1, minWidth: 0 }}
-            data={SEGMENT_VERBS.filter((each) => each === verb || verbs.includes(each)).map((each) => ({
+            data={offered.map((each) => ({
                 value: each,
+                // Figma's word is in the tooltip and, for keyboard focus on the radio, in its name.
                 label: (
                     <Tooltip label={VERB_WORDS[each].figma}>
-                        <span>{VERB_WORDS[each].word}</span>
+                        <span>
+                            <span>{VERB_WORDS[each].word}</span>
+                            <VisuallyHidden>{`, ${VERB_WORDS[each].figma}`}</VisuallyHidden>
+                        </span>
                     </Tooltip>
                 ),
             }))}
@@ -159,11 +174,17 @@ function RelativeBody({
             {rule.kind === "hops" && rule.max !== undefined && rule.max > 0 && rule.direction === undefined && (
                 <Tooltip label="Hops">
                     <NumberInput
-                        size="xs"
-                        w={56}
+                        w={72}
                         min={1}
                         max={9}
                         aria-label="Hops"
+                        rightSection={
+                            <Text size="sm" c="dimmed" span aria-hidden>
+                                hops
+                            </Text>
+                        }
+                        rightSectionWidth={32}
+                        hideControls
                         value={rule.max}
                         onChange={(next) => {
                             if (typeof next === "number" && Number.isInteger(next) && next >= 1) {
@@ -317,20 +338,21 @@ function ValueField({
                 }
             }}
             anchor={
-                <Button
-                    size="compact-xs"
-                    variant="default"
-                    fullWidth
-                    justify="space-between"
+                // The compact Select's trigger, at its default size, with its own chevron.
+                <InputBase
+                    component="button"
+                    type="button"
+                    pointer
                     aria-label={`Value: ${value}`}
                     aria-haspopup="listbox"
-                    rightSection={<GLYPHS.expand size={12} aria-hidden />}
+                    rightSection={<Combobox.Chevron aria-hidden />}
+                    rightSectionPointerEvents="none"
                     onClick={() => {
                         setOpen(true);
                     }}
                 >
-                    {value}
-                </Button>
+                    <span className="sel-field-text">{value}</span>
+                </InputBase>
             }
         />
     );
@@ -350,6 +372,10 @@ interface StepPaneProps extends StepActions {
     readonly hostPicks: readonly PickSection[];
     /** The Done button, drawn last in the first row. */
     readonly done?: React.ReactNode;
+    /** The add actions, drawn first in the first row. */
+    readonly adds?: React.ReactNode;
+    /** Whether it draws its first row; false under a title pane that already has one. */
+    readonly head?: boolean;
 }
 
 /**
@@ -366,6 +392,8 @@ interface StepPaneProps extends StepActions {
  * @param props.last - it is its group's last step
  * @param props.hostPicks - the host's own value picker entries
  * @param props.done - the Done button
+ * @param props.adds - the add actions
+ * @param props.head - whether it draws its first row
  * @param props.onStep - takes a change to the step
  * @param props.onToggle - switches the step on or off
  * @param props.onMove - moves it up or down its group
@@ -385,6 +413,8 @@ export function StepPane({
     last,
     hostPicks,
     done,
+    adds,
+    head = true,
     onStep,
     onToggle,
     onMove,
@@ -413,7 +443,16 @@ export function StepPane({
         () => stepCard(session, step, reading, side, rule.within),
         [session, step, reading, side, rule.within],
     );
-    const card = draft ?? read.card;
+    // A Keep or Except step's checklist counts what comes into the step (spec 5); an Add step's
+    // counts the base, since what it adds comes from there.
+    const counted = useMemo(
+        () =>
+            read.card?.type === "category" && step.op !== "add" && reading !== undefined && !reading.waiting
+                ? { ...read.card, field: { ...read.card.field, counted: reading.input } }
+                : read.card,
+        [read.card, step.op, reading],
+    );
+    const card = draft ?? counted;
     const commit = (next: Card | null = draft): void => {
         setDraft(null);
         if (next !== null) {
@@ -473,19 +512,36 @@ export function StepPane({
             }}
             onBlur={(event) => {
                 const to = event.relatedTarget;
-                if (
-                    to instanceof Element &&
-                    (event.currentTarget.contains(to) || to.closest("[data-portal]") !== null)
-                ) {
+                if (draft === null || (to instanceof Element && to.closest("[data-portal]") !== null)) {
                     return;
                 }
-                if (draft !== null) {
+                // Leaving the text box commits its text, as the Min and Max boxes do; moving between
+                // the pane's other controls keeps nothing to commit.
+                const inside = to instanceof Element && event.currentTarget.contains(to);
+                if (!inside || isTypingTarget(event.target)) {
                     commit();
                 }
             }}
         >
             <Stack gap={6}>
-                <Group gap={4} wrap="nowrap">
+                {head && (
+                    <Group gap={4} wrap="nowrap" className="sel-pane-head">
+                        {adds}
+                        <span className="sel-spacer" />
+                        <StepMenu
+                            name={value}
+                            on={step.on !== false}
+                            first={first}
+                            last={last}
+                            onToggle={onToggle}
+                            onMove={onMove}
+                            onDuplicate={onDuplicate}
+                            onRemove={onRemove}
+                        />
+                        {done}
+                    </Group>
+                )}
+                <Group gap={6} wrap="nowrap">
                     <VerbSegment
                         verb={step.op}
                         verbs={verbsAt(branch, branch.steps.indexOf(step))}
@@ -493,17 +549,11 @@ export function StepPane({
                             onStep({ op });
                         }}
                     />
-                    <StepMenu
-                        name={value}
-                        on={step.on !== false}
-                        first={first}
-                        last={last}
-                        onToggle={onToggle}
-                        onMove={onMove}
-                        onDuplicate={onDuplicate}
-                        onRemove={onRemove}
-                    />
-                    {done}
+                    {count !== undefined && (
+                        <Text size="sm" c="dimmed" className="sel-count" aria-hidden>
+                            {`${formatNumber(count)} so far`}
+                        </Text>
+                    )}
                 </Group>
                 <ValueField
                     session={session}
@@ -572,7 +622,6 @@ export function StepPane({
                                     <CaptionedRow>
                                         <SegmentedControl
                                             label="Computed on"
-                                            size="xs"
                                             fullWidth
                                             data={[
                                                 { value: "base", label: base },
@@ -589,7 +638,6 @@ export function StepPane({
                                     <CaptionedRow>
                                         <SegmentedControl
                                             label="Edge ends"
-                                            size="xs"
                                             fullWidth
                                             data={[
                                                 { value: "both", label: "Both" },
@@ -606,7 +654,6 @@ export function StepPane({
                                     <CaptionedRow>
                                         <SegmentedControl
                                             label="Edge ends"
-                                            size="xs"
                                             fullWidth
                                             data={[
                                                 { value: "either", label: "Either" },

@@ -18,7 +18,6 @@ import {
     SegmentedControl,
     TargetTooltip,
     ToggleIconButton,
-    TooltipShortcut,
 } from "@graphty/compact-mantine";
 import type {
     GraphSession,
@@ -28,14 +27,25 @@ import type {
     UnionBranch,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import {
+    ActionIcon,
+    Button,
+    Collapse,
+    Group,
+    Menu,
+    Stack,
+    Text,
+    TextInput,
+    Tooltip,
+    UnstyledButton,
+} from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { focusInspectorTitle, focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
-import { formatKey, isTypingTarget, matchesKey } from "../keys/keys";
+import { isTypingTarget, matchesKey } from "../keys/keys";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddCondition } from "../style/WhichPicker";
@@ -57,7 +67,16 @@ import {
 import { type SelectionMenuItem, SelectionMenuItems } from "./SelectionMenu";
 import { CaptionedRow, StepPane } from "./StepPane";
 import { useSteps } from "./useSteps";
-import { type Host, pickerFields, type PickSection, pickSections, ruleOfField, sideOf, usedPaths } from "./values";
+import {
+    type Host,
+    isRelative,
+    pickerFields,
+    type PickSection,
+    pickSections,
+    ruleOfField,
+    sideOf,
+    usedPaths,
+} from "./values";
 import { countWords, letterOf, NOUNS, reasonWords, rowWords, stepWords, VERB_WORDS } from "./words";
 
 /** Whether a host's preview shows group colors while picking, for the session (spec 9). */
@@ -278,12 +297,14 @@ export function SelectionEditor({
             setAdding(null);
         }
     }, [holder, owner, picking, store]);
-    // A click outside the editor, its lists and menus and the table ends picking (spec 3).
+    // A click outside the editor, its lists and menus and the table ends picking (spec 3). On the
+    // click, never the press: the pane closing on the press moved what was pressed (another filter
+    // card's row) out from under the pointer, and the click never reached it.
     useEffect(() => {
         if (!picking) {
             return undefined;
         }
-        const down = (event: PointerEvent): void => {
+        const down = (event: MouseEvent): void => {
             escaped.current = false;
             const { target } = event;
             if (
@@ -297,9 +318,9 @@ export function SelectionEditor({
             }
             setSelected(null);
         };
-        document.addEventListener("pointerdown", down, true);
+        document.addEventListener("click", down, true);
         return () => {
-            document.removeEventListener("pointerdown", down, true);
+            document.removeEventListener("click", down, true);
         };
     }, [picking]);
 
@@ -353,6 +374,61 @@ export function SelectionEditor({
             Done
         </Button>
     );
+    /**
+     * The pane's add actions, first in its first row: "Condition..." adds a step to the selected
+     * row's group, "Or..." adds a group. They act on the selection, never move a row.
+     * @param branch - the group "Condition..." adds to, or undefined for none.
+     * @returns the buttons.
+     */
+    const adds = (branch: UnionBranch | undefined): React.ReactNode => {
+        const full = reading.branchesLeft === 0;
+        return (
+            <>
+                {branch !== undefined && (
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        data-add={branch.id}
+                        onClick={() => {
+                            startAdding(branch, newVerb(branch));
+                        }}
+                    >
+                        Condition...
+                    </Button>
+                )}
+                <Tooltip label={`No more: ${String(rule.branches.length)} is the most`} disabled={!full}>
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        data-or=""
+                        aria-disabled={full}
+                        data-disabled={full ? true : undefined}
+                        onClick={addOr}
+                    >
+                        Or...
+                    </Button>
+                </Tooltip>
+            </>
+        );
+    };
+    // The toolbar's Table, as a "..." item of the title pane (same words, key and reason): the
+    // pane's first row has no room for a third icon in a 200 px filter card.
+    const tableDoor = useCommand("table.toggle");
+    const tableOpen = useWorkspaceState((state) => state.dockOpen);
+    const tableItem: SelectionMenuItem | null =
+        tableDoor === null
+            ? null
+            : {
+                  id: "table",
+                  label: tableDoor.tip,
+                  icon: "table",
+                  group: "view",
+                  key: tableDoor.command.keys?.[0],
+                  reason: tableDoor.disabledReason,
+                  onRun: () => {
+                      store.set(tableOpen ? { dockOpen: false } : { dockOpen: true, dockTab: `${side}s` });
+                  },
+              };
     const select = (id: string | null, intoPane = false): void => {
         setSelected(id);
         if (id !== null) {
@@ -532,6 +608,15 @@ export function SelectionEditor({
             setSelected(null);
             return;
         }
+        if (event.key === "F2") {
+            // F2 renames only a group's row; on any other row it is the outline's, never the
+            // project's rename.
+            event.preventDefault();
+            if (branch !== null && stepId === undefined && multi && event.currentTarget.dataset.row === id) {
+                setRenaming(id);
+            }
+            return;
+        }
         if (branch === null) {
             titleKeys(event);
             return;
@@ -555,9 +640,6 @@ export function SelectionEditor({
             } else {
                 removeStepAt(branch, id);
             }
-        } else if (event.key === "F2" && stepId === undefined) {
-            event.preventDefault();
-            setRenaming(id);
         } else if (event.key === " " || matchesKey(event.nativeEvent, "Shift+Mod+H")) {
             event.preventDefault();
             toggle(branch, stepId);
@@ -628,25 +710,48 @@ export function SelectionEditor({
             ),
         [session, rule, reading, side],
     );
-    // The Add row and Or... are drawn for the selected row's group only: pointing or focus never
-    // adds or removes a row, so nothing under the pointer moves (the owner's review, repolish 1).
-    const lit = branchOfRow(selected)?.id ?? (selected === TITLE && !multi ? rule.branches[0]?.id : undefined);
-    const showAdd = (branch: UnionBranch): boolean =>
-        adding?.branch !== branch.id && (empty || (lit !== undefined && lit === branch.id));
-    const showOr = !empty && selected !== null && adding === null;
+    // The outline holds only recipe rows: "Condition..." and "Or..." live in the pane's first row,
+    // so selecting a row changes only its highlight (the owner's review, repolish 2). An empty
+    // selection keeps its one "Condition..." row.
+    const showAdd = (branch: UnionBranch): boolean => empty && adding?.branch !== branch.id;
+    // A filter card named after its only step draws no outline: its title row is the recipe, and its
+    // title pane holds the step's controls under the card's own.
+    const lone = rule.branches.length === 1 ? rule.branches[0]?.steps : undefined;
+    const loneStep = lone?.length === 1 ? lone[0] : undefined;
+    const loneWords = loneStep === undefined ? undefined : outlineWords.get(loneStep.id ?? "");
+    const recipeTitle =
+        host === "filter" &&
+        adding === null &&
+        loneStep !== undefined &&
+        loneWords !== undefined &&
+        loneStep.on !== false &&
+        rule.branches[0]?.on !== false &&
+        !allRow(rule.branches[0]) &&
+        loneStep.op === newVerb(rule.branches[0]) &&
+        title ===
+            [loneWords.value, loneWords.more === undefined ? loneWords.test : `${loneWords.test} ${loneWords.more}`]
+                .filter((each) => each !== "")
+                .join(" ");
     const rowIds = [
         TITLE,
         ...rule.branches.flatMap((branch) => [
             ...(multi ? [branch.id ?? ""] : []),
-            ...(!multi && branch.start === "all" ? [`all:${branch.id ?? ""}`] : []),
-            ...branch.steps.map((step) => step.id ?? ""),
+            ...(!multi && allRow(branch) ? [`all:${branch.id ?? ""}`] : []),
+            ...(recipeTitle ? [] : branch.steps.map((step) => step.id ?? "")),
             ...(showAdd(branch) ? [`add:${branch.id ?? ""}`] : []),
         ]),
-        ...(showOr ? ["or"] : []),
     ];
     const tabbed = active !== null && rowIds.includes(active) ? active : TITLE;
     const selectedBranch = rule.branches.find((branch) => branch.id === selected);
-    const selectedStep = selected === null ? undefined : branchOfRow(selected)?.steps.find((s) => s.id === selected);
+    const recipeRead = loneStep === undefined ? undefined : readingOf(loneStep.id);
+    const recipeState =
+        recipeTitle && loneStep !== undefined
+            ? reasonWords(recipeRead?.reason ?? null).short.replace(/ \(.*\)$/u, "")
+            : "";
+    const recipeOpen = recipeTitle && (selected === TITLE || selected === loneStep?.id);
+    const selectedStep = recipeOpen
+        ? loneStep
+        : branchOfRow(selected)?.steps.find((s) => selected !== null && s.id === selected);
     const rowProps = (
         id: string,
         selects: string,
@@ -738,11 +843,17 @@ export function SelectionEditor({
                         null,
                     )}
                     className="sel-row sel-title-row"
+                    {...(recipeOpen ? { "aria-selected": true } : {})}
                 >
                     {lead}
                     <Text size="sm" fw={600} className="sel-title">
                         {name}
                     </Text>
+                    {recipeTitle && loneStep !== undefined && !recipeOpen && recipeState !== "" && (
+                        <Text size="sm" c="dimmed" className="sel-state">
+                            {recipeState}
+                        </Text>
+                    )}
                     <Tooltip
                         label={
                             reading.pending.length > 0
@@ -780,6 +891,7 @@ export function SelectionEditor({
                                             colorWord(color),
                                             countWords(branchRead?.count ?? 0, of, side),
                                             branch.on === false ? "off" : "",
+                                            startEmpties(branch, branchRead) ? "passes none" : "",
                                         ]
                                             .filter((each) => each !== "")
                                             .join(", "),
@@ -797,6 +909,9 @@ export function SelectionEditor({
                                         setRenaming(branchId);
                                     }}
                                 >
+                                    <Text size="sm" className="sel-verb sel-or-word">
+                                        {at > 0 ? "or" : ""}
+                                    </Text>
                                     <span
                                         className="sel-chit"
                                         data-filled={previewing ? "" : undefined}
@@ -828,9 +943,9 @@ export function SelectionEditor({
                                             {letter}
                                         </Text>
                                     )}
-                                    {branch.on === false && (
+                                    {(branch.on === false || startEmpties(branch, branchRead)) && (
                                         <Text size="sm" c="dimmed" className="sel-state">
-                                            Off
+                                            {branch.on === false ? "Off" : "Passes none"}
                                         </Text>
                                     )}
                                     <span className="sel-spacer" />
@@ -854,7 +969,7 @@ export function SelectionEditor({
                                     </Text>
                                 </div>
                             )}
-                            {branch.start === "all" && (
+                            {allRow(branch) && (
                                 <div
                                     {...(multi
                                         ? { "data-selects": branchId, className: "sel-row sel-all-row" }
@@ -877,13 +992,19 @@ export function SelectionEditor({
                                     </Text>
                                 </div>
                             )}
-                            {branch.steps.map((step, index) => {
+                            {(recipeTitle ? [] : branch.steps).map((step, index) => {
                                 const id = step.id ?? "";
                                 const read = readingOf(id);
                                 const words = outlineWords.get(id) ?? rowWords(session, step, side, read);
                                 const reason = reasonWords(read?.reason ?? null, stepIds);
                                 const verb = VERB_WORDS[step.op];
-                                const state = stateWord(step, read, reason.short, index, branch, reading, of);
+                                // The row says "Run"; the estimate is in its tooltip and the pane's button.
+                                const short = reason.short.replace(/ \(.*\)$/u, "");
+                                const state = stateWord(step, read, short, index, branch, reading, of);
+                                // A group's first step at the group's own verb leaves the verb column empty.
+                                const quiet = index === 0 && step.op === newVerb(branch);
+                                // A selected row's pane already says its state.
+                                const drawnState = selected === id ? "" : state;
                                 const soFar =
                                     read === undefined || read.waiting
                                         ? ""
@@ -905,14 +1026,20 @@ export function SelectionEditor({
                                             className="sel-row sel-step-row"
                                         >
                                             <Text size="sm" className="sel-verb">
-                                                {verb.word}
+                                                {quiet ? "" : verb.word}
                                             </Text>
-                                            <Text size="sm" className="sel-value">
+                                            <Text
+                                                size="sm"
+                                                className="sel-value"
+                                                data-whole={isRelative(step.rule) ? "" : undefined}
+                                            >
                                                 {words.value}
                                             </Text>
-                                            <Text size="sm" className="sel-test">
-                                                {words.test}
-                                            </Text>
+                                            {words.test !== "" && (
+                                                <Text size="sm" className="sel-test">
+                                                    {words.test}
+                                                </Text>
+                                            )}
                                             {words.more !== undefined && (
                                                 <Text size="sm" className="sel-more">
                                                     {words.more}
@@ -923,9 +1050,9 @@ export function SelectionEditor({
                                                     {tag}
                                                 </span>
                                             ))}
-                                            {state !== "" && (
+                                            {drawnState !== "" && (
                                                 <Text size="sm" c="dimmed" className="sel-state">
-                                                    {state}
+                                                    {drawnState}
                                                 </Text>
                                             )}
                                         </div>
@@ -951,7 +1078,6 @@ export function SelectionEditor({
                                 <AddRow
                                     id={`add:${branchId}`}
                                     branchId={branchId}
-                                    op={newVerb(branch)}
                                     tabbed={tabbed}
                                     onWalk={walk}
                                     onFocus={setActive}
@@ -963,64 +1089,43 @@ export function SelectionEditor({
                         </div>
                     );
                 })}
-                {showOr && (
-                    <Tooltip
-                        label={
-                            reading.branchesLeft === 0
-                                ? `No more: ${String(rule.branches.length)} is the most`
-                                : "Or: match another way"
-                        }
-                    >
-                        <div
-                            role="treeitem"
-                            className="sel-row sel-or-row"
-                            data-or=""
-                            data-row="or"
-                            tabIndex={tabbed === "or" ? 0 : -1}
-                            aria-disabled={reading.branchesLeft === 0}
-                            onFocus={() => {
-                                setActive("or");
-                            }}
-                            onKeyDown={(event) => {
-                                if (walk(event)) {
-                                    return;
-                                }
-                                if (event.key === "Enter" || event.key === " ") {
-                                    event.preventDefault();
-                                    addOr();
-                                }
-                            }}
-                            onClick={addOr}
-                        >
-                            <Text size="sm" c={reading.branchesLeft === 0 ? "dimmed" : undefined}>
-                                Or...
-                            </Text>
-                        </div>
-                    </Tooltip>
-                )}
             </div>
             {selected !== null && (
                 <div ref={pane} className="sel-pane-box">
-                    {selected === TITLE && (
+                    {(selected === TITLE || recipeOpen) && (
                         <TitlePane
-                            rule={rule}
-                            reading={reading}
-                            host={host}
                             name={name}
-                            colors={colors}
                             extra={titleExtra}
-                            menu={titleMenu}
+                            adds={adds(multi ? undefined : rule.branches[0])}
+                            menu={[
+                                ...(host === "selector"
+                                    ? [
+                                          {
+                                              id: "select",
+                                              label: `Select ${formatNumber(reading.total.count)}`,
+                                              icon: "selection" as const,
+                                              group: "edit" as const,
+                                              reason: reading.total.count === 0 ? `No ${NOUNS[side].many} match` : null,
+                                              onRun: () => {
+                                                  showMembers(reading.result, null);
+                                              },
+                                          },
+                                      ]
+                                    : []),
+                                ...(titleMenu ?? []),
+                                ...(tableItem === null ? [] : [tableItem]),
+                                {
+                                    id: "colors",
+                                    label: colors ? "Hide group colors" : "Show group colors",
+                                    icon: "groupColors",
+                                    group: "view",
+                                    onRun: () => {
+                                        groupColors[host] = !colors;
+                                        setColors(!colors);
+                                    },
+                                },
+                            ]}
                             done={done}
-                            onColors={(next) => {
-                                groupColors[host] = next;
-                                setColors(next);
-                            }}
-                            onStart={(start) => {
-                                onChange(editBranch(rule, rule.branches[0]?.id ?? "", { start }));
-                            }}
-                            onShow={() => {
-                                showMembers(reading.result, null);
-                            }}
                         />
                     )}
                     {selectedBranch !== undefined && (
@@ -1033,6 +1138,7 @@ export function SelectionEditor({
                             of={of}
                             multi={multi}
                             done={done}
+                            adds={adds(selectedBranch)}
                             first={rule.branches[0] === selectedBranch}
                             last={rule.branches.at(-1) === selectedBranch}
                             onStart={(start) => {
@@ -1070,7 +1176,7 @@ export function SelectionEditor({
                     )}
                     {selectedStep !== undefined &&
                         (() => {
-                            const branch = branchOfRow(selected) as UnionBranch;
+                            const branch = branchOfRow(selectedStep.id ?? null) as UnionBranch;
                             const id = selectedStep.id ?? "";
                             const index = branch.steps.indexOf(selectedStep);
                             return (
@@ -1087,6 +1193,8 @@ export function SelectionEditor({
                                     last={index === branch.steps.length - 1}
                                     hostPicks={hostPicks}
                                     done={done}
+                                    adds={adds(branch)}
+                                    head={!recipeOpen}
                                     onStep={(patch) => {
                                         onChange(editStep(rule, branch.id ?? "", id, patch));
                                     }}
@@ -1118,6 +1226,29 @@ const PANE_FOCUS: readonly string[] = [
     ".sel-pane-box input:not([type=hidden])",
     ".sel-pane-box button",
 ];
+
+/**
+ * Whether a group draws its "All nodes" row: only when it starts with All and has no step yet, or
+ * its first step is Except; otherwise its first step's row already says what it keeps.
+ * @param branch - the group.
+ * @returns true when the row is drawn.
+ */
+function allRow(branch: UnionBranch | undefined): boolean {
+    return branch?.start === "all" && (branch.steps.length === 0 || branch.steps[0]?.op === "except");
+}
+
+/**
+ * Whether Start with empties a group: it starts with nothing and its first step only narrows.
+ * @param branch - the group.
+ * @param read - its reading.
+ * @returns true when the group passes none because of where it starts.
+ */
+function startEmpties(branch: UnionBranch, read: StepsReading["branches"][number] | undefined): boolean {
+    const [first] = branch.steps;
+    return (
+        branch.on !== false && branch.start === "none" && first !== undefined && first.op !== "add" && read?.count === 0
+    );
+}
 
 /**
  * A step row's state word (spec 3.1): Off, the inert or pending reason's short word, or "Passes
@@ -1227,12 +1358,11 @@ function NewStep({
 }
 
 /**
- * The Add row: "Step...", in the value column, a tree item of the outline's walk; it opens the
+ * The Condition row of an empty selection: "Condition...", in the value column, a tree item of the outline's walk; it opens the
  * value picker for a step with the group's default verb (the pane's segment changes it).
  * @param props - Component props
  * @param props.id - its row id
  * @param props.branchId - its group's id
- * @param props.op - the new step's verb
  * @param props.tabbed - the row that holds the outline's Tab stop
  * @param props.onWalk - the outline's arrow walk
  * @param props.onFocus - takes its row id as it takes focus
@@ -1242,7 +1372,6 @@ function NewStep({
 function AddRow({
     id,
     branchId,
-    op,
     tabbed,
     onWalk,
     onFocus,
@@ -1250,38 +1379,35 @@ function AddRow({
 }: Readonly<{
     id: string;
     branchId: string;
-    op: Verb;
     tabbed: string;
     onWalk: (event: React.KeyboardEvent<HTMLElement>) => boolean;
     onFocus: (id: string) => void;
     onRun: () => void;
 }>): React.JSX.Element {
     return (
-        <Tooltip label={`${VERB_WORDS[op].word} a step (${VERB_WORDS[op].figma})`} openDelay={500}>
-            <div
-                role="treeitem"
-                className="sel-row sel-add-row"
-                data-row={id}
-                data-add={branchId}
-                tabIndex={tabbed === id ? 0 : -1}
-                onFocus={() => {
-                    onFocus(id);
-                }}
-                onKeyDown={(event) => {
-                    if (onWalk(event)) {
-                        return;
-                    }
-                    if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onRun();
-                    }
-                }}
-                onClick={onRun}
-            >
-                <span className="sel-verb" />
-                <Text size="sm">Step...</Text>
-            </div>
-        </Tooltip>
+        <div
+            role="treeitem"
+            className="sel-row sel-add-row"
+            data-row={id}
+            data-add={branchId}
+            tabIndex={tabbed === id ? 0 : -1}
+            onFocus={() => {
+                onFocus(id);
+            }}
+            onKeyDown={(event) => {
+                if (onWalk(event)) {
+                    return;
+                }
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onRun();
+                }
+            }}
+            onClick={onRun}
+        >
+            <span className="sel-verb" />
+            <Text size="sm">Condition...</Text>
+        </div>
     );
 }
 
@@ -1306,7 +1432,6 @@ function StartWith({
         <CaptionedRow>
             <SegmentedControl
                 label="Start with"
-                size="xs"
                 fullWidth
                 data={[
                     { value: "none", label: `No ${NOUNS[side].many}` },
@@ -1346,82 +1471,59 @@ function PaneMenu({ name, items }: Readonly<{ name: string; items: readonly Sele
 }
 
 /**
- * The title's pane: the host's own control (a new filter card's Nodes | Edges), Start with while
- * there is one group, the count, the preview toggle, the Table button and the host's "..." items.
+ * The title's pane: the add actions and the "..." items (a style layer's Select N, a filter card's
+ * Select N, Duplicate and Delete, then Table and Group colors), then the host's own control (a new
+ * filter card's Nodes | Edges). Start with lives in a group's Advanced.
  * @param props - Component props
- * @param props.rule - the selection
- * @param props.reading - its reading
- * @param props.host - where it is edited
  * @param props.name - its title
- * @param props.colors - whether the preview shows group colors
  * @param props.extra - the host's own control
- * @param props.menu - the host's "..." items
- * @param props.onColors - takes the preview toggle
- * @param props.onStart - takes the lone group's start
- * @param props.onShow - shows what the selection holds
+ * @param props.adds - the add actions
+ * @param props.menu - the "..." items
  * @param props.done - the Done button
  * @returns The pane
  */
 function TitlePane({
-    rule,
-    reading,
-    host,
     name,
-    colors,
     extra,
+    adds,
     menu,
     done,
-    onColors,
-    onStart,
-    onShow,
 }: Readonly<{
-    rule: UnionLeaf;
-    reading: StepsReading;
-    host: Host;
     name: string;
-    colors: boolean;
     extra?: React.ReactNode;
-    menu?: readonly SelectionMenuItem[];
+    adds: React.ReactNode;
+    menu: readonly SelectionMenuItem[];
     done: React.ReactNode;
-    onColors: (next: boolean) => void;
-    onStart: (start: UnionBranch["start"]) => void;
-    onShow: () => void;
 }>): React.JSX.Element {
-    const side = sideOf(rule);
-    const [only] = rule.branches;
     return (
         <Stack gap={6} className="sel-pane" role="group" aria-label={name}>
-            <Group gap={4} wrap="nowrap">
-                {host === "selector" && (
-                    // The count is on the title row; here only what it does (a filter's Table shows its rows).
-                    <Tooltip label={`Select ${countWords(reading.total.count, reading.total.of, side)}`}>
-                        <Button
-                            size="compact-xs"
-                            variant="subtle"
-                            aria-label={`Select ${countWords(reading.total.count, reading.total.of, side)}`}
-                            onClick={onShow}
-                        >
-                            Select
-                        </Button>
-                    </Tooltip>
-                )}
-                <ToggleIconButton
-                    label="Group colors"
-                    tooltip="Group colors while picking"
-                    icon={<GLYPHS.groupColors size={14} aria-hidden />}
-                    checked={colors}
-                    onChange={onColors}
-                    style={{ marginLeft: "auto" }}
-                />
-                <TableButton side={side} />
-                {menu !== undefined && <PaneMenu name={name} items={menu} />}
+            <PaneHead adds={adds}>
+                <PaneMenu name={name} items={menu} />
                 {done}
-            </Group>
+            </PaneHead>
             {extra}
-            {rule.branches.length === 1 && only !== undefined && (
-                <StartWith side={side} start={only.start} onStart={onStart} />
-            )}
         </Stack>
+    );
+}
+
+/**
+ * A pane's first row, the same in every pane: the add actions at the left, then the pane's icon
+ * buttons, "..." and Done at the right.
+ * @param props - Component props
+ * @param props.adds - the add actions
+ * @param props.children - the icon buttons, "..." and Done
+ * @returns The row
+ */
+export function PaneHead({
+    adds,
+    children,
+}: Readonly<{ adds: React.ReactNode; children: React.ReactNode }>): React.JSX.Element {
+    return (
+        <Group gap={4} wrap="nowrap" className="sel-pane-head">
+            {adds}
+            <span className="sel-spacer" />
+            {children}
+        </Group>
     );
 }
 
@@ -1446,6 +1548,7 @@ function TitlePane({
  * @param props.onDelete - removes it
  * @param props.done - the Done button
  * @param props.onName - takes the name typed in its name box
+ * @param props.adds - the add actions
  * @returns The pane
  */
 function GroupPane({
@@ -1467,7 +1570,9 @@ function GroupPane({
     onDuplicate,
     onMove,
     onDelete,
+    adds,
 }: Readonly<{
+    adds: React.ReactNode;
     branch: UnionBranch;
     reading: StepsReading["branches"][number] | undefined;
     name: string;
@@ -1488,19 +1593,10 @@ function GroupPane({
     onName: (name: string) => void;
 }>): React.JSX.Element {
     const on = branch.on !== false;
+    const [advanced, setAdvanced] = useState(false);
     return (
         <Stack gap={6} className="sel-pane" role="group" aria-label={name}>
-            <Group gap={4} wrap="nowrap">
-                {multi ? (
-                    // The group's name, edited in place: Enter or leaving the box keeps it.
-                    <NameBox key={name} name={name} onName={onName} />
-                ) : (
-                    <Text size="sm">{`All ${NOUNS[side].many}`}</Text>
-                )}
-                <span style={{ marginLeft: "auto" }} />
-                {reading !== undefined && (
-                    <CountChip count={reading.count} of={of} side={side} host={host} onClick={onShow} />
-                )}
+            <PaneHead adds={adds}>
                 {multi && (
                     <PaneMenu
                         name={name}
@@ -1565,8 +1661,39 @@ function GroupPane({
                     />
                 )}
                 {done}
+            </PaneHead>
+            <Group gap={4} wrap="nowrap">
+                {multi ? (
+                    // The group's name, edited in place: Enter or leaving the box keeps it.
+                    <NameBox key={name} name={name} onName={onName} />
+                ) : (
+                    <Text size="sm">{`All ${NOUNS[side].many}`}</Text>
+                )}
+                <span style={{ marginLeft: "auto" }} />
+                {reading !== undefined && (
+                    <CountChip count={reading.count} of={of} side={side} host={host} onClick={onShow} />
+                )}
             </Group>
-            <StartWith side={side} start={branch.start} onStart={onStart} />
+            <UnstyledButton
+                className="sel-advanced"
+                aria-expanded={advanced}
+                onClick={() => {
+                    setAdvanced(!advanced);
+                }}
+            >
+                <GLYPHS.expand size={12} aria-hidden style={{ transform: advanced ? undefined : "rotate(-90deg)" }} />
+                <Text size="sm" span>
+                    Advanced
+                </Text>
+                {branch.start === "all" && (
+                    <Text size="sm" c="dimmed" span ml="auto">
+                        {`All ${NOUNS[side].many}`}
+                    </Text>
+                )}
+            </UnstyledButton>
+            <Collapse in={advanced}>
+                <StartWith side={side} start={branch.start} onStart={onStart} />
+            </Collapse>
         </Stack>
     );
 }
@@ -1598,43 +1725,6 @@ function NameBox({ name, onName }: Readonly<{ name: string; onName: (name: strin
                 }
             }}
         />
-    );
-}
-
-/**
- * The Table button: the toolbar's Table (same glyph and key), opening the table on this side's
- * rows, Matches only, with the Group column; focus stays in the editor (spec 8a).
- * @param props - Component props
- * @param props.side - nodes or edges
- * @returns The button
- */
-function TableButton({ side }: Readonly<{ side: "node" | "edge" }>): React.JSX.Element | null {
-    const { store } = useWorkspace();
-    const door = useCommand("table.toggle");
-    const open = useWorkspaceState((state) => state.dockOpen);
-    if (door === null) {
-        return null;
-    }
-    const key = door.command.keys?.[0];
-    const tip = key === undefined ? door.tip : <TooltipShortcut label={door.tip} shortcut={formatKey(key)} />;
-    return (
-        <Tooltip label={door.disabledReason ?? tip}>
-            <ActionIcon
-                variant="subtle"
-                size="sm"
-                aria-label={door.tip}
-                aria-pressed={open}
-                aria-disabled={door.disabledReason !== null}
-                data-disabled={door.disabledReason === null ? undefined : true}
-                onClick={() => {
-                    if (door.disabledReason === null) {
-                        store.set(open ? { dockOpen: false } : { dockOpen: true, dockTab: `${side}s` });
-                    }
-                }}
-            >
-                <GLYPHS.table size={14} aria-hidden />
-            </ActionIcon>
-        </Tooltip>
     );
 }
 

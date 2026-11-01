@@ -13,6 +13,7 @@ import {
     type ReadableValue,
     type ReadableValueKind,
     type RuleTree,
+    type Scope,
     selectorRule,
     type SourceKey,
 } from "@graphty/graphty-element/session";
@@ -45,6 +46,11 @@ export interface CardField {
     readonly fact?: string;
     /** The elements a card counts over (a selection's base); absent, the whole graph. */
     readonly within?: "graph" | "visible";
+    /**
+     * What a checklist counts its values over when that is narrower than `within`: a Keep or
+     * Except step's input, so each value's count is what the step would keep of it.
+     */
+    readonly counted?: Scope;
     /** How many of them have no value, when the card cannot read it by its path. */
     readonly missing?: number;
 }

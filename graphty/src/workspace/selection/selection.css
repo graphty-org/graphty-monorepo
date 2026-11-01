@@ -40,8 +40,8 @@
     width: 40px;
 }
 
-/* The value is cut short only once the test has no room left, so the tags and the state word
-   always fit; the row's tooltip names it in full. */
+/* The test (its listed names first) gives way long before the value does, so the value keeps its
+   first word; the tags and the state word fit; the row's tooltip names everything in full. */
 .sel-value {
     flex: 0 1 auto;
     min-width: 0;
@@ -50,7 +50,20 @@
 }
 
 .sel-test {
-    flex: 1 1 0;
+    flex: 0 1000 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* A relative condition ("Within 2 hops of", "While ... has nodes") is never cut: its reference and
+   its state word give way instead, with an ellipsis. */
+.sel-value[data-whole] {
+    flex: none;
+}
+
+.sel-step-row:has(.sel-value[data-whole]) .sel-state {
+    flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -73,6 +86,10 @@
     font-variant-numeric: tabular-nums;
 }
 
+.sel-step-row .sel-state {
+    margin-inline-start: auto;
+}
+
 .sel-title {
     flex: 0 1 auto;
     min-width: 0;
@@ -80,12 +97,7 @@
     text-overflow: ellipsis;
 }
 
-/* Off and inert steps read in neutral ink, never red. */
-.sel-step-row[data-state="inert"] .sel-value,
-.sel-step-row[data-state="pending"] .sel-value,
-.sel-step-row[data-state="off"] .sel-value {
-    color: var(--mantine-color-dimmed);
-}
+/* A value keeps normal ink in every state: the state word says Off, No test or Run. */
 
 /* The chit: hollow at rest, filled while the preview draws group colors. */
 .sel-chit {
@@ -105,14 +117,22 @@
     flex: 1 1 0;
 }
 
-/* "Step..." sits in the value column, after an empty verb column; "Or..." at the chit's x. */
-.sel-add-row,
-.sel-or-row {
+/* An empty selection's "Condition..." sits in the value column, after an empty verb column. */
+.sel-add-row {
     cursor: pointer;
 }
 
-.sel-or-row[aria-disabled="true"] {
-    cursor: default;
+/* A pane's first row: the add actions at the left, icons, "..." and Done at the right. */
+.sel-pane-head {
+    min-height: 24px;
+}
+
+/* A field's text (the value, the reference) is cut with an ellipsis, never mid-word. */
+.sel-field-text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* The property pane, under the outline. */
@@ -134,5 +154,5 @@
 }
 
 .sel-more {
-    margin-inline-end: auto;
+    flex: none;
 }

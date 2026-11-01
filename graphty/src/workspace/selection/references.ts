@@ -38,15 +38,28 @@ export interface ReferenceSection {
  */
 export function findNodes(session: GraphSession, typed: string): { nodes: readonly NodeRecord[]; total: number } {
     const sort = { key: "graphty.degree", descending: true } as const;
+    // A node whose id or name is exactly the text comes first, however little it is connected.
+    const exact = session.data.nodePage({
+        matching: { text: typed, mode: "exact", names: true },
+        sort,
+        limit: SHOWN_REFERENCES,
+    }).records;
     const starts = session.data.nodePage({
         matching: { text: typed, mode: "starts-with", names: true },
         sort,
         limit: SHOWN_REFERENCES,
     }).records;
     const holds = session.data.nodePage({ matching: { text: typed, names: true }, sort, limit: SHOWN_REFERENCES * 2 });
-    const seen = new Set(starts.map((each) => String(each.id)));
-    const rest = holds.records.filter((each) => !seen.has(String(each.id)));
-    return { nodes: [...starts, ...rest].slice(0, SHOWN_REFERENCES), total: Math.max(holds.total, starts.length) };
+    const seen = new Set<string>();
+    const nodes = [...exact, ...starts, ...holds.records].filter((each) => {
+        const id = String(each.id);
+        if (seen.has(id)) {
+            return false;
+        }
+        seen.add(id);
+        return true;
+    });
+    return { nodes: nodes.slice(0, SHOWN_REFERENCES), total: Math.max(holds.total, nodes.length) };
 }
 
 /**
@@ -84,6 +97,13 @@ export function referenceSections(
     }));
     const counted = (name: string, shown: number, total: number): string =>
         total > shown ? `${name} ${formatNumber(shown)} of ${formatNumber(total)}` : name;
+    const nodesHeading = (all: number, typedFound: { shown: number; total: number } | null): string => {
+        if (typedFound === null) {
+            return `Nodes ${formatNumber(all)}`;
+        }
+        // A search that finds nothing says so with its count, never a bare heading.
+        return typedFound.total === 0 ? "Nodes 0" : counted("Nodes", typedFound.shown, typedFound.total);
+    };
     const pick = has("Pick on canvas") ? [{ value: PICK_ON_CANVAS, label: "Pick on canvas" }] : [];
     return [
         { heading: host === "selector" ? "Live" : "Selection", items: [...pick, ...live] },
@@ -92,7 +112,7 @@ export function referenceSections(
             items: sets.slice(0, SHOWN_REFERENCES),
         },
         {
-            heading: found === null ? `Nodes ${formatNumber(nodeCount)}` : counted("Nodes", nodes.length, found.total),
+            heading: nodesHeading(nodeCount, found === null ? null : { shown: nodes.length, total: found.total }),
             items: nodes,
         },
     ].filter((each) => each.items.length > 0 || each.heading.startsWith("Nodes"));

@@ -27,6 +27,18 @@ import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
 import { cardFields } from "../style/cards";
 import { Workspace } from "../Workspace";
 
+/**
+ * The "Condition..." control: an empty selection's row, else the selected row's pane button.
+ * @param scope - where to look.
+ * @returns the control.
+ */
+function conditionControl(scope: HTMLElement = document.body): HTMLElement {
+    return (
+        within(scope).queryByRole("treeitem", { name: "Condition..." }) ??
+        within(scope).getByRole("button", { name: "Condition..." })
+    );
+}
+
 declare module "vitest/browser" {
     interface BrowserCommands {
         /** Answers the next file picker with this file (graphty/vitest.config.ts). */
@@ -216,7 +228,7 @@ describe("focus after a command that moves the reader", () => {
         await openRow("Groups");
         const group = cardFields(session, "node").find((field) => field.path.endsWith(".group"));
         const name = group?.name ?? "";
-        await userEvent.click(await screen.findByRole("treeitem", { name: "Step..." }));
+        await userEvent.click(await waitFor(() => conditionControl()));
         await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
         const values = await screen.findByRole("group", { name: new RegExp(`values$`) });
         const [first] = within(values).getAllByRole<HTMLInputElement>("checkbox");

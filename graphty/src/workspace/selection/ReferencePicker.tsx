@@ -137,20 +137,21 @@ export function ReferencePicker({
                     <InputBase
                         component="button"
                         type="button"
-                        size="xs"
                         pointer
                         data-first-focus
                         aria-label={token === "" ? "Reference" : `Reference: ${token}`}
                         aria-haspopup="listbox"
                         aria-expanded={combobox.dropdownOpened}
-                        rightSection={<Combobox.Chevron />}
+                        rightSection={<Combobox.Chevron aria-hidden />}
                         rightSectionPointerEvents="none"
                         style={{ flex: 1, minWidth: 0 }}
                         onClick={() => {
                             combobox.toggleDropdown();
                         }}
                     >
-                        {token === "" ? <Input.Placeholder>Choose a reference</Input.Placeholder> : token}
+                        <span className="sel-field-text">
+                            {token === "" ? <Input.Placeholder>Choose a reference</Input.Placeholder> : token}
+                        </span>
                     </InputBase>
                 </Combobox.Target>
                 <TargetTooltip label="Pick on canvas">

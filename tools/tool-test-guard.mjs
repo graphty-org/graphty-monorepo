@@ -5,7 +5,8 @@
 // this refuses `fetch` to any host but loopback and any write to what the main checkout's tmp/
 // (TOOL_TEST_GUARD_PROTECT) already held when the run started (TOOL_TEST_GUARD_SHARED, a JSON list of names): that
 // is the shared state. A fresh directory a test makes there itself (test-select.test.mjs's fixtures, which must
-// resolve the checkout's vitest) is the test's own. Every refusal throws
+// resolve the checkout's vitest) is the test's own, and so is the tree of a checkout that itself sits inside the main
+// checkout's tmp/ (TOOL_TEST_GUARD_OWN: live.sh tests a tool in a worktree at tmp/live/<tool>-<pid>/, #5432). Every refusal throws
 // and is appended to TOOL_TEST_GUARD_LOG, which fails the test file even when the tool under test swallows the error.
 // A test that needs one of these stubs it (a fake gh first on its PATH, a local server on port 0, its own temp dir).
 import fs from "node:fs";
@@ -17,6 +18,11 @@ const protect = process.env.TOOL_TEST_GUARD_PROTECT;
 // ponytail: a shared file that did not exist yet when the run started is not protected; on a CI runner nothing
 // is shared, and on this machine the state files already exist
 const shared = new Set(JSON.parse(process.env.TOOL_TEST_GUARD_SHARED || "[]"));
+const own = process.env.TOOL_TEST_GUARD_OWN;
+const inside = (dir, p) => {
+    const rel = relative(dir, p);
+    return !rel.startsWith("..") && !rel.startsWith(sep);
+};
 
 function refuse(what) {
     const line = `tool-test-guard: refused ${what} (pid ${process.pid}); stub it in the test`;
@@ -35,8 +41,9 @@ globalThis.fetch = (input, init) => {
 if (protect) {
     // the tmp/ directory itself (a recursive mkdir of it is harmless, anything else is not) or an entry it held
     const isShared = (name, p) => {
-        const rel = relative(protect, resolve(String(p instanceof URL ? p.pathname : p)));
-        if (rel.startsWith("..") || rel.startsWith(sep)) return false;
+        const abs = resolve(String(p instanceof URL ? p.pathname : p));
+        if (!inside(protect, abs) || (own && inside(own, abs))) return false;
+        const rel = relative(protect, abs);
         return rel === "" ? name !== "mkdirSync" && name !== "mkdir" : shared.has(rel.split(sep)[0]);
     };
     const guard = (obj, names) => {

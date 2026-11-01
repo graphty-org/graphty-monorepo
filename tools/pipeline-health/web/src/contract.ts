@@ -603,7 +603,11 @@ export const LIVE_API = "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com"
  */
 export const DEV_API_PATH = "/health-api";
 
-/** The path of an API route, relative to the API base. */
+/**
+ * The path of an API route, relative to the API base.
+ * @param route - The route and its parameters.
+ * @returns The path with its query string.
+ */
 export function apiPath(
     route:
         | { kind: "status" }
@@ -618,16 +622,17 @@ export function apiPath(
         case "page":
             return `/v1/page/${route.page}?range=${route.range}`;
         case "section":
-            return (
-                `/v1/page/${route.page}/${route.section}?range=${route.range}` +
-                (route.runKind ? `&kind=${route.runKind}` : "")
-            );
+            return `/v1/page/${route.page}/${route.section}?range=${route.range}${
+                route.runKind ? `&kind=${route.runKind}` : ""
+            }`;
         case "test-history": {
             const q = new URLSearchParams({ file: route.file, range: route.range });
-            if (route.test) q.set("test", route.test);
+            if (route.test) {
+                q.set("test", route.test);
+            }
             return `/v1/test-history?${q.toString()}`;
         }
-        case "run":
+        default:
             return `/v1/run/${route.id}`;
     }
 }

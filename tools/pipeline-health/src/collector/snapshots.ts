@@ -2,8 +2,7 @@
 // first-attempt failure cause, who holds the runners, superseded runs still running. Pure mapping from what the
 // collector already fetched; the collector keeps each snapshot in a cursor (`view#<name>`) that the views read.
 
-import type { RunItem } from "../model/items.js";
-import { DAY, HOUR } from "../model/items.js";
+import { DAY, HOUR, type RunItem } from "../model/items.js";
 import { family, type GhJob, type GhRun, type GqlPr, pool } from "./parse.js";
 
 export const SNAPSHOT = { shared: "view#shared", holders: "view#holders", superseded: "view#superseded" } as const;
@@ -40,27 +39,36 @@ export interface FailingCheck {
 /**
  * One open pull request's failing checks, each judged by its newest run, bins folded; an aggregator only when it failed alone. With `now`, none
  * when its newest check started over STALE_CHECKS_MS before it (an abandoned pull request's old red).
+ * @param p - the pull request with its head checks
+ * @param now - the current time, in ms; omitted, stale checks are kept
+ * @returns the failing checks
  */
 export function failingChecks(p: GqlPr, now?: number): FailingCheck[] {
     const ctx = p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? [];
     const newest = Math.max(...ctx.map((c) => ms(c.startedAt) ?? -Infinity));
-    if (now !== undefined && Number.isFinite(newest) && now - newest > STALE_CHECKS_MS) return [];
+    if (now !== undefined && Number.isFinite(newest) && now - newest > STALE_CHECKS_MS) {
+        return [];
+    }
     // A check re-run for another event (PR Integrity after the review lands) adds a run; only its newest counts.
     // ponytail: keyed by name alone, since the query has no workflow; add checkSuite's workflow if two collide.
     const latest = new Map<string, (typeof ctx)[number]>();
     for (const c of ctx) {
-        if (c.__typename !== "CheckRun" || !c.name) continue;
+        if (c.__typename !== "CheckRun" || !c.name) {
+            continue;
+        }
         const old = latest.get(c.name);
-        if (!old || (ms(c.startedAt) ?? -Infinity) >= (ms(old.startedAt) ?? -Infinity)) latest.set(c.name, c);
+        if (!old || (ms(c.startedAt) ?? -Infinity) >= (ms(old.startedAt) ?? -Infinity)) {
+            latest.set(c.name, c);
+        }
     }
-    const failed = [...latest.values()].filter((c) => FAILED.has(c.conclusion ?? ""));
-    const own = failed.filter((c) => !EXCLUDED.has(c.name!));
-    const pick = own.length ? own : failed.filter((c) => AGGREGATORS.has(c.name!));
-    return pick.map((c) => {
+    const failed = [...latest].filter(([, c]) => FAILED.has(c.conclusion ?? ""));
+    const own = failed.filter(([name]) => !EXCLUDED.has(name));
+    const pick = own.length ? own : failed.filter(([name]) => AGGREGATORS.has(name));
+    return pick.map(([name, c]) => {
         const at = ms(c.startedAt);
         return {
-            check: family(c.name!) ?? c.name!,
-            name: c.name!,
+            check: family(name) ?? name,
+            name,
             alone: !own.length,
             ...(at === undefined ? {} : { startedAt: at }),
         };
@@ -96,20 +104,29 @@ export interface SharedSnapshot {
     merges: Merge[];
 }
 
-/** The checks failing in 3 or more open, ready pull requests, or failing alone, with the pull requests and start. */
+/**
+ * The checks failing in 3 or more open, ready pull requests, or failing alone, with the pull requests and start.
+ * @param open - the open pull requests with their checks
+ * @param now - the current time, in ms; omitted, stale checks are kept
+ * @returns the shared checks
+ */
 export function sharedChecks(
     open: GqlPr[],
     now?: number,
 ): { check: string; bins: number; alone: boolean; prs: number[]; startedAt?: number }[] {
     const by = new Map<string, { names: Set<string>; alone: boolean; prs: Set<number>; startedAt?: number }>();
     for (const p of open) {
-        if (p.state !== "OPEN" || p.isDraft) continue;
+        if (p.state !== "OPEN" || p.isDraft) {
+            continue;
+        }
         for (const f of failingChecks(p, now)) {
             const g = by.get(f.check) ?? { names: new Set<string>(), alone: f.alone, prs: new Set<number>() };
             by.set(f.check, g);
             g.names.add(f.name);
             g.prs.add(p.number);
-            if (f.startedAt !== undefined) g.startedAt = Math.min(g.startedAt ?? Infinity, f.startedAt);
+            if (f.startedAt !== undefined) {
+                g.startedAt = Math.min(g.startedAt ?? Infinity, f.startedAt);
+            }
         }
     }
     return [...by]
@@ -129,6 +146,11 @@ const SUSPECT_MS = 3 * HOUR;
  * The next snapshot: rows still shared keep their start, new ones start at their earliest failing check, gone ones
  * end now and stay 24 h. ponytail: suspects are master merges in the 3 h before the start, since master runs no
  * tests to say when the check last passed there; the issue and fix column waits for a writer that links them.
+ * @param prev - the last snapshot, if any
+ * @param open - the open pull requests with their checks
+ * @param recent - recently updated pull requests, for their merges
+ * @param now - the current time, in ms
+ * @returns the new snapshot
  */
 export function nextShared(
     prev: SharedSnapshot | undefined,
@@ -137,9 +159,11 @@ export function nextShared(
     now: number,
 ): SharedSnapshot {
     const merges = new Map<number, Merge>((prev?.merges ?? []).map((m) => [m.pr, m]));
-    for (const p of recent)
-        if (p.mergedAt && (p.baseRefName === "master" || p.baseRefName === "main"))
+    for (const p of recent) {
+        if (p.mergedAt && (p.baseRefName === "master" || p.baseRefName === "main")) {
             merges.set(p.number, { pr: p.number, title: p.title, at: Date.parse(p.mergedAt) });
+        }
+    }
     const mergeList = [...merges.values()].filter((m) => now - m.at <= 2 * DAY).sort((a, b) => b.at - a.at);
     const active = new Map((prev?.rows ?? []).filter((r) => r.end === undefined).map((r) => [r.check, r]));
     const rows: SharedRow[] = [];
@@ -156,8 +180,14 @@ export function nextShared(
             suspects: old?.suspects ?? mergeList.filter((m) => m.at <= since && since - m.at <= SUSPECT_MS),
         });
     }
-    for (const r of active.values()) rows.push({ ...r, end: now });
-    for (const r of prev?.rows ?? []) if (r.end !== undefined && now - r.end <= DAY) rows.push(r);
+    for (const r of active.values()) {
+        rows.push({ ...r, end: now });
+    }
+    for (const r of prev?.rows ?? []) {
+        if (r.end !== undefined && now - r.end <= DAY) {
+            rows.push(r);
+        }
+    }
     return { at: now, rows, merges: mergeList };
 }
 
@@ -171,15 +201,30 @@ const RED = new Set(["failure", "timed_out", "startup_failure"]);
  * In order: infrastructure (a startup failure or a job that hung), an aggregator failing alone, shared (a failing
  * check in the shared set), the change. Flaky is set later, when a rerun of the same run passes.
  * ponytail: lost runners, outside 5xx and conflicts need annotations or mergeability the collector does not read.
+ * @param run - the completed run
+ * @param jobs - the run's jobs
+ * @param hung - names of jobs that hung
+ * @param shared - the checks in the shared set
+ * @returns the cause, or undefined when the run is not a red first attempt of a pull request
  */
 export function failureCause(run: GhRun, jobs: GhJob[], hung: Set<string>, shared: Set<string>): Cause | undefined {
-    if (run.run_attempt !== 1 || run.event !== "pull_request" || !RED.has(run.conclusion ?? "")) return undefined;
-    if (run.conclusion === "startup_failure") return "infrastructure";
+    if (run.run_attempt !== 1 || run.event !== "pull_request" || !RED.has(run.conclusion ?? "")) {
+        return undefined;
+    }
+    if (run.conclusion === "startup_failure") {
+        return "infrastructure";
+    }
     const failed = jobs.filter((j) => RED.has(j.conclusion ?? ""));
-    if (failed.some((j) => hung.has(j.name) || j.conclusion === "startup_failure")) return "infrastructure";
+    if (failed.some((j) => hung.has(j.name) || j.conclusion === "startup_failure")) {
+        return "infrastructure";
+    }
     const own = failed.filter((j) => !EXCLUDED.has(j.name));
-    if (!own.length && failed.some((j) => AGGREGATORS.has(j.name))) return "shared_aggregator";
-    if (own.some((j) => shared.has(family(j.name) ?? j.name))) return "shared_check";
+    if (!own.length && failed.some((j) => AGGREGATORS.has(j.name))) {
+        return "shared_aggregator";
+    }
+    if (own.some((j) => shared.has(family(j.name) ?? j.name))) {
+        return "shared_check";
+    }
     return "change";
 }
 
@@ -202,14 +247,29 @@ export interface HoldersSnapshot {
     saturated: { at: number; running: Record<string, number> }[];
 }
 
+/**
+ * The holder a run counts under: its workflow and event, prefixed with the repository's name outside the main one.
+ * @param run - the run
+ * @param repo - the run's repository, as owner/name
+ * @param mainRepo - the monorepo, as owner/name
+ * @returns the holder key
+ */
 export function holderKey(run: GhRun, repo: string, mainRepo: string): string {
     const k = `${run.name}, ${run.event}`;
-    return repo === mainRepo ? k : `${repo.split("/").pop()}: ${k}`;
+    return repo === mainRepo ? k : `${repo.slice(repo.lastIndexOf("/") + 1)}: ${k}`;
 }
 
 const QUEUED = new Set(["queued", "waiting", "pending"]);
 
-/** The holders of every unfinished run; machine.dev and self-hosted pools are outside the limit, so left out. */
+/**
+ * The holders of every unfinished run; machine.dev and self-hosted pools are outside the limit, so left out.
+ * @param prev - the last snapshot, if any
+ * @param open - the unfinished runs with their repository and jobs
+ * @param mainRepo - the monorepo, as owner/name
+ * @param saturated - whether the pool is saturated this cycle
+ * @param now - the current time, in ms
+ * @returns the new snapshot
+ */
 export function nextHolders(
     prev: HoldersSnapshot | undefined,
     open: { run: GhRun; repo: string; jobs?: GhJob[] }[],
@@ -220,7 +280,9 @@ export function nextHolders(
     const holders: Record<string, HolderCount> = {};
     const noJobs: HoldersSnapshot["noJobs"] = {};
     for (const { run, repo, jobs } of open) {
-        if (run.status === "completed") continue;
+        if (run.status === "completed") {
+            continue;
+        }
         const key = holderKey(run, repo, mainRepo);
         if (!jobs?.length) {
             const n = noJobs[key] ?? { runs: 0, since: Date.parse(run.created_at) };
@@ -229,16 +291,22 @@ export function nextHolders(
         }
         for (const j of jobs) {
             const p = pool(j.labels);
-            if (p === "other") continue;
+            if (p === "other") {
+                continue;
+            }
             const h = (holders[key] ??= { running: 0, queued: 0, macos: 0 });
             if (j.status === "in_progress") {
                 h.running++;
-                if (p === "macos") h.macos++;
-            } else if (QUEUED.has(j.status)) h.queued++;
+                if (p === "macos") {
+                    h.macos++;
+                }
+            } else if (QUEUED.has(j.status)) {
+                h.queued++;
+            }
         }
     }
     const sat = (prev?.saturated ?? []).filter((s) => now - s.at < DAY);
-    if (saturated)
+    if (saturated) {
         sat.push({
             at: now,
             running: Object.fromEntries(
@@ -247,6 +315,7 @@ export function nextHolders(
                     .map(([k, h]) => [k, h.running]),
             ),
         });
+    }
     return { at: now, holders, noJobs, saturated: sat };
 }
 
@@ -269,20 +338,33 @@ export interface SupersededSnapshot {
 /**
  * Unfinished pull request runs whose head is not their pull request's head any more. ponytail: the newer commit's
  * time is its commit date (GraphQL has no push time); if: always() jobs still running after a cancel are not read.
+ * @param openRuns - the unfinished runs
+ * @param open - the open pull requests with their head commits
+ * @param now - the current time, in ms
+ * @returns the superseded runs, oldest newer commit first
  */
 export function supersededRuns(openRuns: GhRun[], open: GqlPr[], now: number): SupersededSnapshot {
     const heads = new Map<number, { oid: string; at?: number }>();
     for (const p of open) {
         const c = p.commits?.nodes[0]?.commit;
-        if (c?.oid)
+        if (c?.oid) {
             heads.set(p.number, { oid: c.oid, ...(c.committedDate ? { at: Date.parse(c.committedDate) } : {}) });
+        }
     }
     const rows: SupersededRow[] = [];
     for (const r of openRuns) {
         const pr = r.pull_requests?.[0]?.number;
         const head = pr === undefined ? undefined : heads.get(pr);
-        if (r.status === "completed" || r.event !== "pull_request" || !head || head.oid === r.head_sha) continue;
-        rows.push({ workflow: r.name, runId: r.id, pr: pr!, newerAt: head.at ?? now });
+        if (
+            pr === undefined ||
+            r.status === "completed" ||
+            r.event !== "pull_request" ||
+            !head ||
+            head.oid === r.head_sha
+        ) {
+            continue;
+        }
+        rows.push({ workflow: r.name, runId: r.id, pr, newerAt: head.at ?? now });
     }
     return { at: now, rows: rows.sort((a, b) => a.newerAt - b.newerAt) };
 }

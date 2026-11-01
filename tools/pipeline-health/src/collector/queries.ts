@@ -71,7 +71,11 @@ export const TAG_QUERY = `query($owner: String!, $name: String!) {
   }
 }`;
 
-/** The files of the pull requests waiting on the owner, one alias each (`p<number>`). */
+/**
+ * The files of the pull requests waiting on the owner, one alias each (`p<number>`).
+ * @param numbers - the pull request numbers to ask about
+ * @returns the GraphQL query text
+ */
 export const ownerFilesQuery = (numbers: number[]): string =>
     `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${numbers
         .map((n) => `p${Math.trunc(n)}: pullRequest(number: ${Math.trunc(n)}) { files(first: 100) { nodes { path } } }`)

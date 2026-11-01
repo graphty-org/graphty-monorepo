@@ -151,6 +151,28 @@ export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
+ * The element's arrow for an arrow shape a program draws unlike the shape's own cap, per program: Cytoscape desktop
+ * strokes its half arrows (HALF_TOP, HALF_BOTTOM) as one thin barb where Graphviz's halfopen is a filled wedge, and
+ * vis-network's crow is a vee turned round where Graphviz's is a crow's foot with a tine along the line.
+ */
+export const TOOL_ARROW_SHAPES: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map(
+    Object.entries({
+        cytoscape: { half: "half-barb", "other:half-bottom": "half-barb-flipped" },
+        "cytoscape-fallbacks": { half: "half-barb", "other:half-bottom": "half-barb-flipped" },
+        "vis-network": { crow: "inverted-vee" },
+    }).map(([tool, own]) => [tool, new Map([...ARROW_SHAPES, ...Object.entries(own)])]),
+);
+
+/**
+ * The element's arrow for each arrow shape of a file the program wrote.
+ * @param tool - The program, or null when unknown.
+ * @returns The table: {@link ARROW_SHAPES} with the program's own drawings in place.
+ */
+export function arrowShapesOf(tool: string | null): ReadonlyMap<string, string> {
+    return (tool === null ? undefined : TOOL_ARROW_SHAPES.get(tool)) ?? ARROW_SHAPES;
+}
+
+/**
  * The arrow shapes drawn as the nearest cap rather than exactly: vis-network's
  * inv_curve as an open half circle at the end, where vis-network draws its arc a little back from it, and Cytoscape.js's
  * chevron as a vee.

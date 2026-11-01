@@ -267,7 +267,7 @@ export function leftOutXlabels(
     cluster: (n: number) => boolean,
 ): ReadonlySet<number> {
     const out = new Set<number>();
-    if (!/^(false|no|0+)$/i.test((forcelabels ?? "").trim())) {
+    if (!mayLeaveOut(forcelabels)) {
         return out;
     }
     const nodes = Array.from({ length: count }, (_, n) => n).filter((n) => !cluster(n));
@@ -294,6 +294,65 @@ export function leftOutXlabels(
         const label: Box = [x0 - w, y1, x0, y1 + lines.length * LINE_SPACING * font];
         if (boxes.some(([m, b]) => m !== n && b !== null && overlaps(label, b))) {
             out.add(n);
+        }
+    }
+    return out;
+}
+
+/**
+ * Whether the graph's `forcelabels` lets Graphviz leave out a label it has no room for: `false` (unset is true).
+ * @param forcelabels - the graph's `forcelabels`, null when unset
+ * @returns true when labels may be left out
+ */
+function mayLeaveOut(forcelabels: string | null): boolean {
+    return /^(false|no|0+)$/i.test((forcelabels ?? "").trim());
+}
+
+/** An edge label's attribute and the xdot attribute that draws it (`-Txdot` output). */
+const EDGE_LABEL_DRAWS = [
+    ["label", "_ldraw_"],
+    ["headlabel", "_hldraw_"],
+    ["taillabel", "_tldraw_"],
+] as const;
+
+/**
+ * The labels Graphviz leaves out of each edge: with the graph's `forcelabels=false` it drops an edge's `xlabel`, a head
+ * or tail label it places as an external label, and, in every engine but dot, its `label`, where each would cover a
+ * node or another label (lib/common/postproc.c `addXLabels`). Its output says so for an `xlabel` by leaving out the
+ * edge's `xlp`, read once the file shows Graphviz placed its external labels (`placed`). For the others it still
+ * writes an `lp`, `head_lp` or `tail_lp`, at no place it drew, so only an xdot file (`-Txdot`, the edge has a
+ * `_draw_`) says so: by leaving out the label's `_ldraw_`, `_hldraw_` or `_tldraw_`.
+ * @param forcelabels - the graph's `forcelabels`, null when unset (true)
+ * @param count - how many edges the graph has
+ * @param edge - an edge's attribute
+ * @param placed - whether some node or edge stores an `xlp`
+ * @returns the attributes of the labels left out, by edge; absent for an edge with none left out
+ */
+export function leftOutEdgeLabels(
+    forcelabels: string | null,
+    count: number,
+    edge: (e: number, name: string) => string | null,
+    placed: boolean,
+): ReadonlyMap<number, ReadonlySet<string>> {
+    const out = new Map<number, ReadonlySet<string>>();
+    if (!mayLeaveOut(forcelabels)) {
+        return out;
+    }
+    for (let e = 0; e < count; e++) {
+        const has = (name: string): boolean => (edge(e, name) ?? "") !== "";
+        const xdot = edge(e, "_draw_") !== null;
+        const gone = new Set<string>();
+        if ((placed || xdot) && has("xlabel") && edge(e, "xlp") === null) {
+            gone.add("xlabel");
+        }
+        // ponytail: an edge's label and xlabel share one `_ldraw_`, so a label left out beside a kept xlabel is kept
+        for (const [name, draw] of xdot ? EDGE_LABEL_DRAWS : []) {
+            if (has(name) && !has(draw)) {
+                gone.add(name);
+            }
+        }
+        if (gone.size > 0) {
+            out.set(e, gone);
         }
     }
     return out;

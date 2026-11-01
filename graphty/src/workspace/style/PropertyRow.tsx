@@ -626,7 +626,7 @@ function removeField(remove: RemoveField): void {
     store.set({ announcement: `${name} removed` });
     // Focus goes to the section's "+", never onto the line that slides up into this one's place.
     if (box.current?.contains(document.activeElement) === true) {
-        focusSectionNext(box.current, channel);
+        focusSectionNext(session, box.current, channel);
     }
     // A property "+" added is no longer waiting, set or not.
     onCancel?.();
@@ -1037,7 +1037,7 @@ function varySlotOf(props: VarySlotProps): React.ReactNode {
                         // A property set for a few groups goes back to the one value the rest have.
                         const value = binding.otherwise ?? startingValue(descriptor, ctx.session, own.layer.selector);
                         // Focus stays on the property: its field, now holding the one value.
-                        focusLineNext(channel, "fixed");
+                        focusLineNext(ctx.session, channel, "fixed");
                         store.set({
                             announcement: `${name} no longer varies by data, now ${valueWords(descriptor, value)}`,
                         });
@@ -1062,7 +1062,7 @@ function varySlotOf(props: VarySlotProps): React.ReactNode {
                     size="sm"
                     aria-label={oneName}
                     onClick={() => {
-                        focusLineNext(channel);
+                        focusLineNext(ctx.session, channel);
                         store.set({ announcement: `${name} is ${words} on every layer` });
                         write({ value });
                     }}
@@ -1477,13 +1477,13 @@ function VaryButton({
                         store.set({
                             announcement: `${named === undefined ? fieldName(channel) : label} stays a fixed value`,
                         });
-                        focusLineNext(channel);
+                        focusLineNext(ctx.session, channel);
                     }}
                     onPick={(choice) => {
                         openList(false);
                         // Several layers: the preview opens first, and Apply moves focus on.
                         if (ctx.many === undefined) {
-                            focusLineNext(channel, true);
+                            focusLineNext(ctx.session, channel, true);
                         }
                         onPick(choice);
                     }}

@@ -159,4 +159,24 @@ describe("focus after a graph opens", () => {
         focusLater();
         assert.equal(document.activeElement, screen.getByRole("button", { name: "Elsewhere" }));
     });
+
+    it("goes where the open says (a reopened tab's main heading) when the reader did nothing", () => {
+        render(<Opened />);
+        const focusLater = focusOpenedGraphLater(() => {
+            screen.getByRole("button", { name: "Elsewhere" }).focus();
+        });
+        focusLater();
+        assert.equal(document.activeElement, screen.getByRole("button", { name: "Elsewhere" }));
+    });
+
+    it("leaves the open's own target alone when the reader went somewhere while it loaded", async () => {
+        render(<Opened />);
+        const heading = screen.getByRole("heading", { name: "Les Miserables" });
+        const focusLater = focusOpenedGraphLater(() => {
+            heading.focus();
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Elsewhere" }));
+        focusLater();
+        assert.equal(document.activeElement, screen.getByRole("button", { name: "Elsewhere" }));
+    });
 });

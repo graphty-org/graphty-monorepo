@@ -275,7 +275,7 @@ export async function addShader(ctx: RowContext, id: string, params: Params = {}
     const use: ShaderUse = { shader: id, ...(Object.keys(params).length === 0 ? {} : { params }) };
     const at = ctx.many === undefined ? usesOf(targetsOf(ctx)[0], ctx.side).length : shaderEntries(ctx).length;
     // The new row takes focus once it is drawn.
-    focusLineNext(`${shadersChannel(ctx.side)}:${String(at)}` as Channel);
+    focusLineNext(ctx.session, `${shadersChannel(ctx.side)}:${String(at)}` as Channel);
     await editUses(ctx, SHADER_STEP_WORDS.add(nameOf(ctx.session, id)), (uses) => [...uses, use]);
 }
 

@@ -209,12 +209,20 @@ function graphText(snapshot: GraphSnapshot, name: string): string | null {
 }
 
 /**
- * A node label's `anchor` as a label position: yEd's `n`, `s`, `e`, `w` and the corners `nw`, `ne`, `sw`, `se` place it
- * outside the node; `c` and the inside places `t`, `b`, `l`, `r`, `tl`, `tr`, `bl`, `br` keep it inside, which graphty
- * draws centered.
+ * A node label's `anchor` as a label position, as in yFiles' InteriorLabelModel and ExteriorLabelModel: `c` and the
+ * places `t`, `b`, `l`, `r`, `tl`, `tr`, `bl`, `br` are inside the node; `n`, `s`, `e`, `w` and the corners `nw`,
+ * `ne`, `sw`, `se` are outside it.
  */
 const GML_ANCHORS: ReadonlyMap<string, string> = new Map([
-    ...["c", "t", "b", "l", "r", "tl", "tr", "bl", "br"].map((a): [string, string] => [a, "center"]),
+    ["c", "center"],
+    ["t", "inside-top"],
+    ["b", "inside-bottom"],
+    ["l", "inside-left"],
+    ["r", "inside-right"],
+    ["tl", "inside-top-left"],
+    ["tr", "inside-top-right"],
+    ["bl", "inside-bottom-left"],
+    ["br", "inside-bottom-right"],
     ["n", "top"],
     ["s", "bottom"],
     ["e", "right"],
@@ -224,6 +232,9 @@ const GML_ANCHORS: ReadonlyMap<string, string> = new Map([
     ["sw", "bottom-left"],
     ["se", "bottom-right"],
 ]);
+
+/** A node label position as yEd's GML `anchor`, every neutral position having one. */
+const GML_ANCHOR_OF: ReadonlyMap<string, string> = new Map([...GML_ANCHORS].map(([a, p]) => [p, a]));
 
 /** Node keys only yEd writes: its group hierarchy. */
 const YED_NODE_KEYS: readonly string[] = ["isGroup", "gid"];
@@ -1515,6 +1526,7 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelFont",
         "labelWeight",
         "labelItalic",
+        "labelPosition",
     ] as const),
     edge: Object.freeze([
         "color",
@@ -1569,7 +1581,7 @@ const OWNED: Readonly<Record<"node" | "edge" | "label", ReadonlySet<string>>> = 
         "target_arrow",
         "smoothBends",
     ]),
-    label: new Set(["text", "color", "fill", "fontSize", "fontName", "fontStyle", "visible"]),
+    label: new Set(["text", "color", "fill", "fontSize", "fontName", "fontStyle", "visible", "anchor"]),
 };
 
 /** One element's value of a property. */
@@ -1698,6 +1710,11 @@ function labelGraphics(get: Get): Rec | null {
     if (weight !== null || italic !== null) {
         const style = (weight === "bold" ? "bold" : "") + (italic === true ? "italic" : "");
         lg.fontStyle = style.length === 0 ? "plain" : style;
+    }
+    // a node label's place
+    const anchor = GML_ANCHOR_OF.get(String(get("labelPosition")));
+    if (anchor !== undefined) {
+        lg.anchor = anchor;
     }
     return lg;
 }

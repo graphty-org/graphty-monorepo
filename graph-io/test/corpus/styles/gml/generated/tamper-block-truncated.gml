@@ -9,12 +9,12 @@ graph [
     id 0
     label "compound0"
     LabelGraphics [
-      anchor "c"
       text "compound0"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     LabelGraphics [
       text "note"
@@ -40,12 +40,12 @@ graph [
     id 1
     label "gene1"
     LabelGraphics [
-      anchor "c"
       text "gene1"
       color "#0000FF"
       fontSize 12
       fontName "Dialog"
       fontStyle "bold"
+      anchor "c"
     ]
     graphty_style_node_class 3.0
     graphics [
@@ -65,12 +65,12 @@ graph [
     id 2
     label "protein2"
     LabelGraphics [
-      anchor "c"
       text "protein2"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -90,12 +90,12 @@ graph [
     id 3
     label "compound3"
     LabelGraphics [
-      anchor "c"
       text "compound3"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 2.0
     graphics [
@@ -115,12 +115,12 @@ graph [
     id 4
     label "protein4"
     LabelGraphics [
-      anchor "c"
       text "protein4"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -140,12 +140,12 @@ graph [
     id 5
     label "protein5"
     LabelGraphics [
-      anchor "c"
       text "protein5"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -165,12 +165,12 @@ graph [
     id 6
     label "gene6"
     LabelGraphics [
-      anchor "c"
       text "gene6"
       color "#0000FF"
       fontSize 12
       fontName "Dialog"
       fontStyle "bold"
+      anchor "c"
     ]
     graphty_style_node_class 3.0
     graphics [
@@ -190,12 +190,12 @@ graph [
     id 7
     label "protein7"
     LabelGraphics [
-      anchor "c"
       text "protein7"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -215,12 +215,12 @@ graph [
     id 8
     label "protein8"
     LabelGraphics [
-      anchor "c"
       text "protein8"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -240,12 +240,12 @@ graph [
     id 9
     label "gene9"
     LabelGraphics [
-      anchor "c"
       text "gene9"
       color "#0000FF"
       fontSize 12
       fontName "Dialog"
       fontStyle "bold"
+      anchor "c"
     ]
     graphty_style_node_class 3.0
     graphics [
@@ -265,12 +265,12 @@ graph [
     id 10
     label "gene10"
     LabelGraphics [
-      anchor "c"
       text "gene10"
       color "#0000FF"
       fontSize 12
       fontName "Dialog"
       fontStyle "bold"
+      anchor "c"
     ]
     LabelGraphics [
       text "note"
@@ -296,12 +296,12 @@ graph [
     id 11
     label "protein11"
     LabelGraphics [
-      anchor "c"
       text "protein11"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -321,12 +321,12 @@ graph [
     id 12
     label "compound12"
     LabelGraphics [
-      anchor "c"
       text "compound12"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 2.0
     graphics [
@@ -346,12 +346,12 @@ graph [
     id 13
     label "drug13"
     LabelGraphics [
-      anchor "c"
       text "drug13"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 4.0
     graphics [
@@ -371,12 +371,12 @@ graph [
     id 14
     label "compound14"
     LabelGraphics [
-      anchor "c"
       text "compound14"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 2.0
     graphics [
@@ -396,12 +396,12 @@ graph [
     id 15
     label "protein15"
     LabelGraphics [
-      anchor "c"
       text "protein15"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -421,12 +421,12 @@ graph [
     id 16
     label "compound16"
     LabelGraphics [
-      anchor "c"
       text "compound16"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 2.0
     graphics [
@@ -446,12 +446,12 @@ graph [
     id 17
     label "drug17"
     LabelGraphics [
-      anchor "c"
       text "drug17"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 4.0
     graphics [
@@ -471,12 +471,12 @@ graph [
     id 18
     label "protein18"
     LabelGraphics [
-      anchor "c"
       text "protein18"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -496,12 +496,12 @@ graph [
     id 19
     label "compound19"
     LabelGraphics [
-      anchor "c"
       text "compound19"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 2.0
     graphics [
@@ -521,12 +521,12 @@ graph [
     id 20
     label "protein20"
     LabelGraphics [
-      anchor "c"
       text "protein20"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     LabelGraphics [
       text "note"
@@ -552,12 +552,12 @@ graph [
     id 21
     label "protein21"
     LabelGraphics [
-      anchor "c"
       text "protein21"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -577,12 +577,12 @@ graph [
     id 22
     label "drug22"
     LabelGraphics [
-      anchor "c"
       text "drug22"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 4.0
     graphics [
@@ -602,12 +602,12 @@ graph [
     id 23
     label "protein23"
     LabelGraphics [
-      anchor "c"
       text "protein23"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -627,12 +627,12 @@ graph [
     id 24
     label "gene24"
     LabelGraphics [
-      anchor "c"
       text "gene24"
       color "#0000FF"
       fontSize 12
       fontName "Dialog"
       fontStyle "bold"
+      anchor "c"
     ]
     graphty_style_node_class 3.0
     graphics [
@@ -652,12 +652,12 @@ graph [
     id 25
     label "protein25"
     LabelGraphics [
-      anchor "c"
       text "protein25"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -677,12 +677,12 @@ graph [
     id 26
     label "drug26"
     LabelGraphics [
-      anchor "c"
       text "drug26"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 4.0
     graphics [
@@ -702,12 +702,12 @@ graph [
     id 27
     label "protein27"
     LabelGraphics [
-      anchor "c"
       text "protein27"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -727,12 +727,12 @@ graph [
     id 28
     label "protein28"
     LabelGraphics [
-      anchor "c"
       text "protein28"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [
@@ -752,12 +752,12 @@ graph [
     id 29
     label "protein29"
     LabelGraphics [
-      anchor "c"
       text "protein29"
       color "#000000"
       fontSize 12
       fontName "Dialog"
       fontStyle "plain"
+      anchor "c"
     ]
     graphty_style_node_class 1.0
     graphics [

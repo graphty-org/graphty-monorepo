@@ -21,6 +21,21 @@ const DOT = `digraph {
   b -> m1;
 }`;
 
+/** {@link DOT}'s nodes and edges with the cluster declared last, so the group takes the last row. */
+const DOT_CLUSTER_LAST = `digraph {
+  a -> b;
+  m1; m2; m1 -> m2;
+  b -> m1;
+  subgraph clusterC { label="c"; m1; m2; }
+}`;
+
+/** The same nodes and edges in the same order, with no cluster. */
+const DOT_WITHOUT_CLUSTER = `digraph {
+  a -> b;
+  m1; m2; m1 -> m2;
+  b -> m1;
+}`;
+
 const GRAPHML = `<?xml version="1.0" encoding="UTF-8"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
   <graph id="G" edgedefault="directed">
@@ -446,6 +461,69 @@ describe("a group with no stored position follows its members", () => {
             release();
         }
     });
+
+    /**
+     * Run a simulation layout over a file a counted number of steps and read where its nodes end.
+     * @param on - The graph.
+     * @param layout - The simulation layout's name.
+     * @param data - The DOT file.
+     * @param group - The group to hold, checked unmoved after every step, or null.
+     * @returns Each node's coordinates by id.
+     */
+    async function simulate(
+        on: Graph,
+        layout: string,
+        data: string,
+        group: string | null,
+    ): Promise<Map<string, number[]>> {
+        await on.setLayout(layout, { seed: 3 });
+        await on.addDataFromSource("dot", { data });
+        await operationQueueOf(on).waitForCompletion();
+        const manager = on.getLayoutManager();
+        manager.running = true;
+        manager.placeGroups();
+        const read = (id: string): number[] => {
+            const node = on.getDataManager().nodes.get(id);
+            assert.isDefined(node, id);
+            const out = { x: Number.NaN, y: Number.NaN, z: Number.NaN };
+            on.getDataManager().positions.read(node.index, out);
+            return [out.x, out.y, out.z];
+        };
+        for (let step = 0; step < STEPS; step++) {
+            const was = group === null ? null : read(group);
+            manager.step();
+            // Before the members have a position the group has no box, so the first step has nothing to hold.
+            if (was !== null && was.every(Number.isFinite)) {
+                assert.deepEqual(read(group as string), was, `step ${step}: ${layout} moved group ${group}`);
+            }
+
+            manager.placeGroups();
+        }
+
+        return new Map(["a", "b", "m1", "m2"].map((id) => [id, read(id)]));
+    }
+
+    // Issue #3075: a group held at its members' box used to repel them in the simulation layouts.
+    for (const layout of ["forceatlas2", "spring"]) {
+        it(`holds a group still under ${layout} and lays its members out as without it`, async () => {
+            const withGroup = await simulate(graph, layout, DOT_CLUSTER_LAST, "clusterC");
+            const plainContainer = document.createElement("div");
+            plainContainer.style.width = "400px";
+            plainContainer.style.height = "300px";
+            document.body.appendChild(plainContainer);
+            const plain = new Graph(plainContainer);
+            try {
+                await plain.init();
+                const without = await simulate(plain, layout, DOT_WITHOUT_CLUSTER, null);
+                for (const [id, p] of without) {
+                    assert.deepEqual(withGroup.get(id), p, `${layout}: ${id} lands where it does without the group`);
+                }
+            } finally {
+                plain.dispose();
+                plainContainer.remove();
+            }
+        });
+    }
 
     it("lays a group out like any node when behavior.layout.groupsFollowMembers is false", async () => {
         graph.setLayoutBehavior({ layout: { groupsFollowMembers: false } });

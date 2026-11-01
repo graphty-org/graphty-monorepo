@@ -22,7 +22,7 @@ fn speed_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         var swing = t.x;
         var traction = t.y;
         if (SWING_MODE == 1u) { swing = S.swing + t.x; traction = S.traction + t.y; }   // NetworkX accumulates across iterations from 1
-        let n = f32(P.n);
+        let n = f32(max(P.live, 1u));                                               // inert rows are not counted (setInert)
         let optJitter = 0.05 * sqrt(n);
         let minJitter = sqrt(optJitter);
         let maxJitter = 10.0;

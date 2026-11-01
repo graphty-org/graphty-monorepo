@@ -125,6 +125,8 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     private displacement: Float64Array = new Float64Array(0);
     /** The pinned nodes (NodeMask words), or null when none is pinned. */
     private fixed: U32 | null = null;
+    /** The rows taken out of the forces (setInert), or null for none. */
+    private inert: U32 | null = null;
 
     /** The optimal distance k of this load (the option, else 1 / sqrt(n); 0 and NaN count as no option). */
     private k = 0;
@@ -293,6 +295,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         if (n !== this.n) {
             this.positions = new Float64Array(3 * n);
             this.displacement = new Float64Array(3 * n);
+            this.inert = null;
         }
         this.n = n;
         this.rowPtr = snapshot.rowPtr;
@@ -382,6 +385,27 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     }
 
     /**
+     * Takes rows out of the forces (LayoutSimulation.setInert): an inert row repels nothing, its edges pull nothing,
+     * and it never moves. The mask needs ceil(n / 32) words; it is copied, survives a same-size reload and is
+     * cleared when n changes. Never reheats.
+     * @param mask - the NodeMask (LSB-first words, the bool-column layout)
+     */
+    setInert(mask: NodeMask): void {
+        this.assertLoaded();
+        const words = Math.ceil(this.n / 32);
+        if (mask.length < words) {
+            throw new RangeError(
+                `FruchtermanReingoldSimulation: setInert: the mask has ${mask.length} words, ${words} needed for ${this.n} nodes`,
+            );
+        }
+        this.inert = new Uint32Array(mask.subarray(0, words));
+        // the default optimal distance is 1 / sqrt(n) over the live rows, as without the inert ones
+        this.k = this.kOption ?? 1 / Math.sqrt(Math.max(this.liveRows(), 1));
+        // the next iteration's RMS radius is about this centroid: count the live rows only, as every fold does
+        this.writeInitialStatistics();
+    }
+
+    /**
      * A drag (design 7.12): writes the scene position into the owner's array at once and into the internal layout
      * position `(v - center) / scale` (z forced to 0 in 2D), then reheat().
      * @param index - the node index (< n)
@@ -441,6 +465,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         this.rowPtr = new Uint32Array(1);
         this.colIdx = new Uint32Array(0);
         this.fixed = null;
+        this.inert = null;
     }
 
     // ---------------------------------------------------------------- the loop body
@@ -452,16 +477,23 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         if (this.adaptive && this.pendingEnergy !== null) {
             this.updateAdaptive(this.pendingEnergy);
         }
-        const { n, k, t, positions: pos, displacement: disp, rowPtr, colIdx, fixed } = this;
+        const { n, k, t, positions: pos, displacement: disp, rowPtr, colIdx, fixed, inert } = this;
+        const isInert = (i: number): boolean => inert !== null && maskTest(inert, i);
         // Calculate repulsive forces (lines 88-91): the displacement starts at 0
         disp.fill(0);
 
         // Repulsive forces between nodes (lines 94-115): every unordered pair, k^2 / d along delta / d
         for (let u = 0; u < n; u++) {
+            if (isInert(u)) {
+                continue; // an inert row neither repels nor is repelled (it never moves)
+            }
             const ux = pos[3 * u];
             const uy = pos[3 * u + 1];
             const uz = pos[3 * u + 2];
             for (let v = u + 1; v < n; v++) {
+                if (isInert(v)) {
+                    continue;
+                }
                 // Difference vector (line 100)
                 const dx = ux - pos[3 * v];
                 const dy = uy - pos[3 * v + 1];
@@ -503,6 +535,9 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
             const uz = pos[3 * u + 2];
             for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
                 const v = colIdx[a];
+                if (isInert(v)) {
+                    continue; // an inert neighbour pulls nothing
+                }
                 // Difference vector (line 120)
                 const dx = ux - pos[3 * v];
                 const dy = uy - pos[3 * v + 1];
@@ -530,7 +565,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         let free = 0;
         let energy = 0;
         for (let i = 0; i < n; i++) {
-            if (fixed === null || !maskTest(fixed, i)) {
+            if ((fixed === null || !maskTest(fixed, i)) && !isInert(i)) {
                 const mx = disp[3 * i];
                 const my = disp[3 * i + 1];
                 const mz = disp[3 * i + 2];
@@ -549,6 +584,9 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
                 }
                 moved += limitedMagnitude;
                 free++;
+            }
+            if (isInert(i)) {
+                continue; // an inert row is left out of the statistics
             }
             const px = pos[3 * i];
             const py = pos[3 * i + 1];
@@ -571,8 +609,9 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
 
         // The K1 fold (design 7.17): centroid, RMS radius about the previous centroid, mean free-node displacement
         // (0 when every node is fixed, never NaN), the settle counter
-        this.centroid = [sumX / n, sumY / n, sumZ / n];
-        this.rmsRadiusValue = Math.sqrt(Math.max(sumSq, 0) / n);
+        const live = Math.max(this.liveRows(), 1);
+        this.centroid = [sumX / live, sumY / live, sumZ / live];
+        this.rmsRadiusValue = Math.sqrt(Math.max(sumSq, 0) / live);
         this.meanDisplacementValue = free === 0 ? 0 : moved / free;
         this.settledCountValue =
             this.meanDisplacementValue <= this.settleThreshold * this.rmsRadiusValue ? this.settledCountValue + 1 : 0;
@@ -606,10 +645,10 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
 
     /** Writes every free node's layout position back to the owner's array as `layout * scale + center`. */
     private writeBack(): void {
-        const { n, owner, positions: pos, scale, fixed } = this;
+        const { n, owner, positions: pos, scale, fixed, inert } = this;
         const [cx, cy, cz] = this.center;
         for (let i = 0; i < n; i++) {
-            if (fixed !== null && maskTest(fixed, i)) {
+            if ((fixed !== null && maskTest(fixed, i)) || (inert !== null && maskTest(inert, i))) {
                 continue;
             }
             owner[3 * i] = pos[3 * i] * scale + cx;
@@ -622,8 +661,9 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
      * load()'s statistics: the centroid and the RMS radius of the loaded positions, meanDisplacement 0.
      */
     private writeInitialStatistics(): void {
-        const { n, positions: pos } = this;
-        if (n === 0) {
+        const { n, positions: pos, inert } = this;
+        const live = this.liveRows();
+        if (live === 0) {
             this.centroid = [0, 0, 0];
             this.rmsRadiusValue = 0;
             this.meanDisplacementValue = 0;
@@ -632,24 +672,45 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         let cx = 0;
         let cy = 0;
         let cz = 0;
+        const isLive = (i: number): boolean => inert === null || !maskTest(inert, i);
         for (let i = 0; i < n; i++) {
-            cx += pos[3 * i];
-            cy += pos[3 * i + 1];
-            cz += pos[3 * i + 2];
+            if (isLive(i)) {
+                cx += pos[3 * i];
+                cy += pos[3 * i + 1];
+                cz += pos[3 * i + 2];
+            }
         }
-        cx /= n;
-        cy /= n;
-        cz /= n;
+        cx /= live;
+        cy /= live;
+        cz /= live;
         let sumSq = 0;
         for (let i = 0; i < n; i++) {
+            if (!isLive(i)) {
+                continue;
+            }
             const qx = pos[3 * i] - cx;
             const qy = pos[3 * i + 1] - cy;
             const qz = pos[3 * i + 2] - cz;
             sumSq += qx * qx + qy * qy + qz * qz;
         }
         this.centroid = [cx, cy, cz];
-        this.rmsRadiusValue = Math.sqrt(sumSq / n);
+        this.rmsRadiusValue = Math.sqrt(sumSq / live);
         this.meanDisplacementValue = 0;
+    }
+
+    /**
+     * How many rows are not inert: what the statistics divide by.
+     * @returns n less the inert rows
+     */
+    private liveRows(): number {
+        const { n, inert } = this;
+        let live = n;
+        for (let i = 0; inert !== null && i < n; i++) {
+            if (maskTest(inert, i)) {
+                live--;
+            }
+        }
+        return live;
     }
 
     /**

@@ -912,6 +912,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // lands on a pinned row too -- moving a pinned node is what a pin is for.
         this.writeNodePosition(n, p.x, p.y, z, "placement");
 
+        // A GROUP FOLLOWING ITS MEMBERS IS INERT IN THE SIMULATION, so where the element puts it
+        // is nothing the simulation reads: telling it would only reheat it, every frame the box
+        // moves, and a Fruchterman-Reingold run would never cool past 70% of its budget.
+        if (this.isFollower(n.index) && this.#simulation?.setInert !== undefined) {
+            return;
+        }
+
         const scale = this.#envelopeScale;
         this.#simulation?.setPosition(
             n.index,
@@ -1103,10 +1110,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // inside -- and since the held row is not published, the rest of the graph would shrink
         // under a pointer that stayed where it was. Measured, at 40 nodes and `scalingFactor`
         // 100: one node dragged to x 400 took the other 39 from a radius of 99.993 to 25.626.
+        // A group following its members is placed by the element, never by this publish.
         const held =
             this.#fixedRows.size === 0
                 ? null
-                : (row: number): boolean => this.#fixedRows.has(row) && store.isPlaced(row);
+                : (row: number): boolean => (this.#fixedRows.has(row) && store.isPlaced(row)) || this.isFollower(row);
         const measured = measureEnvelope(simPositions, snapshot.nodeCount, this.#options.scalingFactor, held);
 
         // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
@@ -1215,6 +1223,27 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#mask = mask;
         this.#fixedRows = rows;
         simulation.setFixed(mask);
+
+        this.#applyInert(simulation, nodeCount);
+    }
+
+    /**
+     * Marks the groups that follow their members inert in the simulation.
+     *
+     * A group following its members is drawn round them, not laid out with them: inert in the
+     * simulation, it neither repels them nor pulls on them, so they settle exactly where they
+     * would without it (issue #3075; the ngraph engine gives it no mass for the same reason).
+     * @param simulation - The running simulation.
+     * @param nodeCount - The loaded snapshot's node count.
+     */
+    #applyInert(simulation: LayoutSimulation, nodeCount: number): void {
+        const inert = makeMask(nodeCount);
+        for (let i = 0; i < nodeCount && this.holdsAny; i += 1) {
+            if (this.isFollower(i)) {
+                maskSet(inert, i, true);
+            }
+        }
+        simulation.setInert?.(inert);
     }
 
     /**

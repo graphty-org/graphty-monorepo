@@ -68,7 +68,7 @@ expectTypeOf(routed).toEqualTypeOf<LayoutSimulation | null>();
 // ---- the mirrors are the spec 9.2 / 9.3 declarations verbatim (member lists pinned; at W1 the mirrors become
 // `import type` of the real packages and these lines must still compile)
 expectTypeOf<keyof LayoutSimulation>().toEqualTypeOf<
-    "load" | "step" | "settled" | "setFixed" | "setPosition" | "dispose"
+    "load" | "step" | "settled" | "setFixed" | "setInert" | "setPosition" | "dispose"
 >();
 expectTypeOf<keyof LayoutAccelerator>().toEqualTypeOf<
     "kind" | "forceAtlas2" | "fruchtermanReingold" | "springElectrical" | "release" | "dispose"

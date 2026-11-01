@@ -8823,6 +8823,8 @@ describe("the CI workflow tests never reach the real world (#3392)", () => {
         const git = (...a) => execFileSync("git", a, { cwd: dir, encoding: "utf8", stdio: "pipe" });
         try {
             git("init", "-q", "-b", "master");
+            git("config", "user.email", "t@t");
+            git("config", "user.name", "t");
             git("config", "commit.gpgsign", "false");
             mkdirSync(join(dir, "tools"));
             for (const f of ["run-ci-workflow-tests.mjs", "tool-test-guard.mjs"]) {

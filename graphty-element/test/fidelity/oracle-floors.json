@@ -40735,7 +40735,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "stray.extra": 0.5,
+            "stray.extra": 0.667,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 0,
@@ -40772,7 +40772,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "stray.extra": 0.5,
+            "stray.extra": 0.667,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 0,
@@ -53231,6 +53231,90 @@
                 "date": "2026-11-01"
             }
         },
+        "gml-specimen-groups": {
+            "label.offset": {
+                "floor": 1,
+                "to": 0,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
+        "gml-specimen-groups@matched": {
+            "label.offset": {
+                "floor": 1,
+                "to": 0,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 1,
+                "to": 0,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
+        "gml-specimen-labels-p3": {
+            "label.offset": {
+                "floor": 0.375,
+                "to": 0.125,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 0.375,
+                "to": 0.125,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
+        "gml-specimen-labels-p3@matched": {
+            "label.offset": {
+                "floor": 0.375,
+                "to": 0.125,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 0.375,
+                "to": 0.125,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
+        "gml-synthetic-coverage": {
+            "label.offset": {
+                "floor": 0.475,
+                "to": 0.2,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 0.475,
+                "to": 0.163,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
+        "gml-synthetic-coverage@matched": {
+            "label.offset": {
+                "floor": 0.475,
+                "to": 0.2,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            },
+            "label.anchor": {
+                "floor": 0.475,
+                "to": 0.163,
+                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
+                "date": "2026-11-01"
+            }
+        },
         "graphml-galaxy-lcms-workflow": {
             "edge.curve": {
                 "floor": 0.476,
@@ -53578,90 +53662,6 @@
                 "floor": 0.474,
                 "to": 0.421,
                 "reason": "comparator: yEd draws table node table-lane-style-rows as three stacked 30.85 px rows. The twin rule used to take a row drawn one row lower as the outline of the row above, so the node read as two rows merged (61.7 of 92.6 px, light fill). Since #5332, stacked boxes are no twins (the cx2-wp1449-tlr fix), so it reads the gray header row alone. Neither reading is the whole table; reading a table drawn as rows as one body is #5347",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-groups": {
-            "label.offset": {
-                "floor": 1,
-                "to": 0,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 1,
-                "to": 0,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-groups@matched": {
-            "label.offset": {
-                "floor": 1,
-                "to": 0,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 1,
-                "to": 0,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-labels-p3": {
-            "label.offset": {
-                "floor": 0.375,
-                "to": 0.125,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 0.375,
-                "to": 0.125,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-labels-p3@matched": {
-            "label.offset": {
-                "floor": 0.375,
-                "to": 0.125,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 0.375,
-                "to": 0.125,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-synthetic-coverage": {
-            "label.offset": {
-                "floor": 0.475,
-                "to": 0.2,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 0.475,
-                "to": 0.163,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-synthetic-coverage@matched": {
-            "label.offset": {
-                "floor": 0.475,
-                "to": 0.2,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 0.475,
-                "to": 0.163,
-                "reason": "yEd GML inside anchors (t, b, l, r, tl, tr, bl, br) now read as inside places, as yEd draws them (#3101); these oracles are Graphviz and Cytoscape stand-ins that read no anchor and center every label",
                 "date": "2026-11-01"
             }
         }

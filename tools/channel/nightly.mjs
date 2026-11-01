@@ -4,6 +4,7 @@
 //
 //   node tools/channel/nightly.mjs decide        the verdict job: does a green-clean candidate promote now?
 //       env STATE (the verdict), GH_TOKEN, GITHUB_REPOSITORY, GATE (the screenshot gate's outcome: success or failure),
+//           GATE_REASON (the gate's refusal lines, from screenshot-gate.sh),
 //           HELD (the held candidate's head, from the pick), SHA
 //       writes promote (true | false) and why to GITHUB_OUTPUT
 //   node tools/channel/nightly.mjs channel-json  the site job: channel.json for the site-<sha> prerelease, on stdout
@@ -58,12 +59,14 @@ export const PUBLISH_HOLD = "Release held: publish failed";
  *   owner's screenshot approval
  * @param o.publishHold the open publish hold's issue number, or empty
  * @param o.gate the screenshot gate's outcome on the candidate against channel/nightly: success, or anything else
+ * @param [o.gateReason] the gate's own refusal lines (screenshot-gate.sh's reason), shown instead of the generic
+ *   text when present
  * @param [o.held] the held candidate's head (channels-pipeline.md section 3): "" for none, "unknown" when the store did
  *   not answer; while one is held, only it promotes
  * @param [o.sha] the judged commit
  * @returns `{ promote, why }`
  */
-export function promotion({ state, publishHold, gate, held = "", sha = "" }) {
+export function promotion({ state, publishHold, gate, gateReason = "", held = "", sha = "" }) {
     // approved: a green-images head the owner approved (tools/channel/resume.mjs), gated against its accept commit
     if (state !== "green-clean" && state !== "approved")
         return { promote: false, why: `the verdict is ${state || "missing"}, not green-clean` };
@@ -80,7 +83,9 @@ export function promotion({ state, publishHold, gate, held = "", sha = "" }) {
     if (gate !== "success") {
         return {
             promote: false,
-            why: "the screenshot gate refused: the candidate's visual-baselines/ differ from nightly's without the owner's signed approval of that tree",
+            why: gateReason
+                ? `the screenshot gate refused: ${gateReason}`
+                : "the screenshot gate refused: the candidate's visual-baselines/ differ from nightly's without the owner's signed approval of that tree",
         };
     }
     return { promote: true, why: "green-clean, no publish hold, and the screenshot gate passed" };
@@ -692,7 +697,14 @@ function decideMain(env) {
             process.exit(1);
         }
     }
-    const p = promotion({ state: env.STATE, publishHold: hold, gate: env.GATE, held: env.HELD ?? "", sha: env.SHA });
+    const p = promotion({
+        state: env.STATE,
+        publishHold: hold,
+        gate: env.GATE,
+        gateReason: env.GATE_REASON ?? "",
+        held: env.HELD ?? "",
+        sha: env.SHA,
+    });
     if (!p.promote && env.STATE !== "green-images") console.log(`::notice::${p.why}`);
     if (!p.promote && env.STATE === "green-clean" && env.GATE !== "success" && env.FIRST === "true") {
         // no channel/nightly yet, so no move and no age: without this issue the stall alarm never fires

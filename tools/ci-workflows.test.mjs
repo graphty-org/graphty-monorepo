@@ -7451,6 +7451,8 @@ describe("release.yml's nightly promotion (#1020)", () => {
         assert.deepEqual(decide.env, {
             STATE: "${{ steps.verdict.outputs.state }}",
             GATE: "${{ steps.gate.outputs.outcome }}",
+            // the gate's own refusal lines, so the why names the real reason
+            GATE_REASON: "${{ steps.gate.outputs.reason }}",
             FIRST: "${{ steps.gate.outputs.first }}",
             // while a candidate is held, only it promotes (channels-pipeline.md section 3): the hold as the store had it
             // at the verdict, not the pick's, which a re-run attempt keeps from attempt 1
@@ -7515,9 +7517,21 @@ describe("release.yml's nightly promotion (#1020)", () => {
         assert.equal(passed.status, 0);
         assert.match(passed.out, /^outcome=success\nscreenshots=approved:tree-abc:visual-baselines\n$/);
         assert.match(passed.git, /--base origin\/channel\/nightly|fetch .*channel\/nightly/);
-        const refused = gateRun(0, 1, "Review them with `visual-review serve` (the README).");
+        const refused = gateRun(
+            0,
+            1,
+            [
+                "::error::visual changes not accepted -- graph-io-fidelity: 1 unstable (not accepted; x)",
+                "::error::visual changes not accepted -- algorithms: 2 changed",
+                "Review them with `visual-review serve` (the README).",
+            ].join("\n"),
+        );
         assert.equal(refused.status, 0, "a refusal is a decision");
-        assert.equal(refused.out, "outcome=failure\n");
+        assert.equal(
+            refused.out,
+            "outcome=failure\nreason=graph-io-fidelity: 1 unstable (not accepted; x); algorithms: 2 changed\n",
+            "the refusal carries the gate's own reasons",
+        );
         const crashed = gateRun(0, 1, "TypeError: boom");
         assert.equal(crashed.status, 1, "an error fails the job, so re-running it retries the gate");
         assert.equal(crashed.out, "");
@@ -7610,7 +7624,11 @@ describe("release.yml's nightly promotion (#1020)", () => {
         );
         const withBaselines = scenario(true);
         assert.equal(withBaselines.status, 0, withBaselines.stderr);
-        assert.equal(withBaselines.out, "outcome=failure\n", "changed baselines are still judged against nightly's");
+        assert.equal(
+            withBaselines.out,
+            "outcome=failure\nreason=\n",
+            "changed baselines are still judged against nightly's",
+        );
     });
 
     it("waits while a publish hold is open", () => {

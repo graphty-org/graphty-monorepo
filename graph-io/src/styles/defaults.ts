@@ -312,6 +312,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelLineHeight: CYTOSCAPE_LABEL_LINE_HEIGHT,
                     // EDGE_CURVED is true there, but it only rounds an edge's bends: an edge without bends is straight
                     curved: v(false, `${CY} 422`),
+                    fanned: v(
+                        true,
+                        `${MEASURED}cys-import-and-save, cx-lianhe-affiliation), Cytoscape 3.10.5: the edges joining two nodes are spread apart`,
+                    ),
                     bendCurve: CYTOSCAPE_BEND_CURVE,
                 },
                 graph: { background: v("#ffffff", `${CY} 335`) },
@@ -442,6 +446,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     curved: v(false, `${CYJS} 18658`),
                     // control-point-step-size 40: a quadratic's middle is half as far out as its control point
                     fanSpacing: v(20, `${CYJS} 18647`),
+                    fanned: v(
+                        true,
+                        `${CYJS} 18647 (bezier edges joining the same two nodes are spread control-point-step-size apart)`,
+                    ),
                     labelColor: v("#000000", `${CYJS} 18474`),
                     labelSize: v(16, `${CYJS} 18496`),
                     labelFont: v("Helvetica Neue, Helvetica, sans-serif", `${CYJS} 18493`),
@@ -548,6 +556,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${YED_CORPUS} of y:EdgeLabel`),
                     labelFont: v("DejaVu Sans, sans-serif", `${YED_CORPUS} of y:EdgeLabel (Dialog's face)`),
                     labelSize: v(12, `${YED_CORPUS} of y:EdgeLabel`),
+                    fanned: v(
+                        false,
+                        `${YED_EDGE} (an edge is drawn along its own path and bends, whatever other edges join its nodes)`,
+                    ),
                 },
                 graph: {
                     background: v(
@@ -588,6 +600,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${Y3} LabelStyle textFill`),
                     labelFont: v("Arial", `${Y3} LabelStyle font`),
                     labelSize: v(12, `${Y3} LabelStyle font`),
+                    fanned: v(
+                        false,
+                        `${Y3} PolylineEdgeStyle (an edge is drawn along its own path and bends, whatever other edges join its nodes)`,
+                    ),
                 },
                 graph: {
                     background: v("#ffffff", `${Y3} GraphComponent (a transparent canvas over the page's white)`),

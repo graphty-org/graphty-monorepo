@@ -1258,7 +1258,7 @@ class GraphmlReader implements XmlHandler {
         if (edgedefault === "directed" || edgedefault === "undirected") {
             return edgedefault === "directed";
         }
-        const directed = top ? this.options.defaultDirected : this.graphs[this.graphs.length - 1].directed;
+        const directed = top ? this.options.defaultDirected : this.graphs.at(-1)?.directed === true;
         const direction = directed ? "directed" : "undirected";
         if (edgedefault === undefined) {
             // once per kind: a file of thousands of nested graphs without edgedefault is one finding

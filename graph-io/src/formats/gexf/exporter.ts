@@ -227,6 +227,9 @@ interface RoleColumns {
 }
 
 /** Everything check() decides and export() writes from. */
+/** How a temporal document writes its times: as intervals, as timestamps, or not at all. */
+type TimeRepresentation = "interval" | "timestamp" | null;
+
 interface ExportPlan {
     readonly version: GexfVersion;
     readonly options: ResolvedExportOptions;
@@ -237,7 +240,7 @@ interface ExportPlan {
     readonly edgeAttrs: readonly AttributeSpec[];
     readonly timeFormat: TimeFormat | null;
     readonly temporal: boolean;
-    readonly timeRepresentation: "interval" | "timestamp" | null;
+    readonly timeRepresentation: TimeRepresentation;
 }
 
 /** Records one loss note. */
@@ -410,11 +413,11 @@ function noteVersion12Losses(
  * @returns the representation, or null
  */
 function planTimeRepresentation(
-    declared: "interval" | "timestamp" | null,
+    declared: TimeRepresentation,
     temporal: boolean,
     nodeRoles: RoleColumns,
     edgeRoles: RoleColumns,
-): "interval" | "timestamp" | null {
+): TimeRepresentation {
     if (declared !== null || !temporal) {
         return declared;
     }

@@ -575,11 +575,16 @@ describe("groupFamily", () => {
 
 describe("a screenshot run's own plan and inputs (#3648)", () => {
     it("asks the store for the `-shots` family the plan file does not cover and judges by its quarantine", async () => {
-        const s = await serve((req) =>
-            new URL(req.url, "http://x").searchParams.get("variants") === "layout-shots|flags=off|shots"
-                ? { quarantine: [{ family: "layout-shots", file: "l/A.stories.ts", name: "Shots", issue: 9 }] }
-                : {},
-        );
+        // the store answers by the families asked about: the shard's own one and its `-shots` one
+        const s = await serve((req) => {
+            const variants = new URL(req.url, "http://x").searchParams.get("variants").split(",");
+            const families = new Set(variants.map((v) => v.split("|")[0]));
+            const all = [
+                { family: "layout-shots", file: "l/A.stories.ts", name: "Shots", issue: 9 },
+                { family: "layout", file: "l/A.stories.ts", name: "Plain", issue: 8 },
+            ];
+            return { quarantine: all.filter((q) => families.has(q.family)) };
+        });
         const root = join(TMP, "checkout-shots-own-plan");
         mkdirSync(join(root, "tools"), { recursive: true });
         writeFileSync(
@@ -603,10 +608,10 @@ describe("a screenshot run's own plan and inputs (#3648)", () => {
         };
         assert.equal(await runGroup("layout", undefined, { root, env }), 0);
         const { quarantine } = JSON.parse(readFileSync(out, "utf8"));
-        assert.deepEqual(
-            quarantine.map((q) => [q.name, q.family]),
-            [["Shots", "layout-shots"]],
-        );
+        assert.deepEqual(quarantine.map((q) => [q.name, q.family]).sort(), [
+            ["Plain", "layout-shots"],
+            ["Shots", "layout-shots"],
+        ]);
         assert.ok(s.seen.some((r) => r.url.startsWith("/v1/plan") && r.url.includes("layout-shots")));
     });
 

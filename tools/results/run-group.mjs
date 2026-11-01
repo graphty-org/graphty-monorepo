@@ -236,7 +236,10 @@ export async function refreshPlan(plan, { cfg, sha, family, variant }) {
 export async function shotsPlan(touchedPlan, { cfg, sha, base, family, variant }) {
     if (!cfg) return null;
     try {
-        const fresh = await readPlan(cfg, { sha, base: base ?? undefined, variants: [variant], inputs: ["-"] });
+        // the shard's own family too, as plan-read.mjs asks: judgeRules() carries its quarantine over to `-shots`
+        const own = family.replace(/-shots$/, "");
+        const variants = [`${own}|flags=off|whole`, `${own}|flags=off|selected`, variant];
+        const fresh = await readPlan(cfg, { sha, base: base ?? undefined, variants, inputs: variants.map(() => "-") });
         if (!fresh || fresh.unavailable) return null;
         const touched = { affected: touchedPlan?.affected, unknownFamilies: touchedPlan?.unknownFamilies };
         return { ...fresh, ...touched, ...(base ? { base } : {}), families: [family] };

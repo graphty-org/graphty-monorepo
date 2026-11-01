@@ -72,6 +72,7 @@ import {
 } from "./columns";
 import type { BatchCommand } from "./commands";
 import {
+    checkMutation,
     COLUMNS_VALUE,
     type ColumnSettings,
     type DataImportCommand,
@@ -806,6 +807,7 @@ export class SessionData implements SessionDataApi {
      * @returns Settles once it is applied, or cancelled by a clear.
      */
     private edit(mutation: DataMutation): Promise<unknown> {
+        checkMutation(mutation);
         const send = this.writes.applier();
         return this.loadLine.edit(() => send(mutation), undefined);
     }

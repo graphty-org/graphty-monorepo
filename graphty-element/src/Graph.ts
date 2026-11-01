@@ -242,7 +242,16 @@ import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js"
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
-import { addsRows, COLUMNS_VALUE, type DataMutation, SOURCE_VALUE, SOURCES_VALUE } from "./session/commands/data";
+import {
+    addsRows,
+    checkMutation,
+    checkRows,
+    COLUMNS_VALUE,
+    type DataMutation,
+    recordFault,
+    SOURCE_VALUE,
+    SOURCES_VALUE,
+} from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
 import { assertViewName } from "./session/commands/view";
@@ -3738,6 +3747,7 @@ export class Graph implements GraphContext {
         updates: { id: string | number; [key: string]: unknown }[],
         options?: QueueableOptions,
     ): Promise<void> {
+        checkRows("update-rows", updates, recordFault);
         await this.applyData(
             { kind: "update-rows", target: "node", rows: updates.map(({ id, ...values }) => ({ id, values })) },
             options,
@@ -3752,6 +3762,7 @@ export class Graph implements GraphContext {
      * @returns Settles once the change is drawn
      */
     async updateEdges(updates: { id: string; [key: string]: unknown }[], options?: QueueableOptions): Promise<void> {
+        checkRows("update-rows", updates, recordFault);
         await this.applyData(
             { kind: "update-rows", target: "edge", rows: updates.map(({ id, ...values }) => ({ id, values })) },
             options,
@@ -3808,6 +3819,10 @@ export class Graph implements GraphContext {
      */
     private async applyData(mutation: DataMutation | BatchCommand, options?: QueueableOptions): Promise<void> {
         const dispatcher = dispatcherOf(this.session);
+        if (!("op" in mutation)) {
+            checkMutation(mutation);
+        }
+
         const command = "op" in mutation ? mutation : { op: "data.apply" as const, mutation };
         // In the session's load line (issue #3604): at once when no load asked for earlier still
         // reads, and otherwise once it has dispatched, queued behind its step rather than beside it.

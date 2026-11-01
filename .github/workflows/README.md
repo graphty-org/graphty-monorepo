@@ -210,7 +210,9 @@ starts the same server from the owner's own shell.
   its pick and its verdict; exit 2 means try later), never with `gh pr merge`. ci.yml's Build job fails a pull
   request that changes `visual-baselines/` when merging it would leave master a baselines tree its head does not
   carry (`tools/channel/baselines-tree.mjs`): run `node visual-review/trusted/cli.mjs update <pr>`, and the owner
-  signs again.
+  signs again. When master moved only by the approval of an earlier head of the same held candidate (approved,
+  fixed forward, approved again), `node tools/channel/approval-update.mjs <branch>` merges master and keeps the
+  signed tree instead, with no new review.
 - Every story needs an owner-approved baseline; every project is gated, and no setting turns the gate off
   (`visual-review.config.json` refuses `"gate"`). Seed a story with no baseline from master (`visual-seed.yml`,
   `serve --master-run`, Finish, merge the seed pull request), only from a commit whose images a person reviewed.

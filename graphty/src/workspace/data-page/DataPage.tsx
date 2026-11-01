@@ -579,6 +579,7 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                     <Popout.Panel
                         width={ENTRY_WIDTH}
                         header={{ variant: "title", title: "From a URL" }}
+                        closeLabel="Close From a URL"
                         anchorX={addButton}
                         anchorY={addButton}
                         placement="right"
@@ -963,6 +964,7 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                 <Popout.Panel
                     width={SETTINGS_WIDTH}
                     header={{ variant: "title", title: "File settings" }}
+                    closeLabel="Close File settings"
                     placement="bottom"
                 >
                     <Popout.Content>

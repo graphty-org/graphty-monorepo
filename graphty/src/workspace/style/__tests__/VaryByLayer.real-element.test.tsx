@@ -190,7 +190,7 @@ async function rowShape(popover: HTMLElement): Promise<{ shape: unknown; items: 
  * @param popover - The popover.
  */
 async function close(popover: HTMLElement): Promise<void> {
-    await userEvent.click(within(popover).getByRole("button", { name: "Close panel" }));
+    await userEvent.click(within(popover).getByRole("button", { name: /^Close / }));
 }
 
 /**

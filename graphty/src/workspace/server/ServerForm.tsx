@@ -576,6 +576,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                             <Popout.Panel
                                 width={240}
                                 header={{ variant: "title", title: "Expand settings" }}
+                                closeLabel="Close Expand settings"
                                 placement="right"
                                 alignment="start"
                             >
@@ -718,6 +719,7 @@ export function ServerPlace(): React.JSX.Element {
                     <Popout.Panel
                         width={320}
                         header={{ variant: "title", title: "Server" }}
+                        closeLabel="Close Server"
                         anchorX={anchor}
                         anchorY={anchor}
                         placement="right"

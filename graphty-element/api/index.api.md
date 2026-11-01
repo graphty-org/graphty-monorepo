@@ -5216,6 +5216,7 @@ export const NodeStyle: z.ZodObject<{
         width: z.ZodOptional<z.ZodNumber>;
         height: z.ZodOptional<z.ZodNumber>;
         depth: z.ZodOptional<z.ZodNumber>;
+        relativeExtents: z.ZodOptional<z.ZodBoolean>;
         planar: z.ZodOptional<z.ZodBoolean>;
         zIndex: z.ZodOptional<z.ZodNumber>;
         drawOrder: z.ZodOptional<z.ZodNumber>;

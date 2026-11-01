@@ -159,7 +159,7 @@ import type {
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type { CompiledLayer } from "./styles/Layer";
-import { STRUCTURE_VALUES } from "./styles/sources";
+import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
 import type {
     ColumnHistogram,
     ColumnRole,
@@ -4471,9 +4471,16 @@ export class SessionData implements SessionDataApi {
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
         const counts = new Map<ColumnScalar, number>();
         let missing = 0;
+        // Degree, in-degree and out-degree are read from the snapshot, not a column.
+        const structure = kind === "node" ? structureValuesOf(snapshot, path) : undefined;
         for (let index = 0; index < total; index++) {
-            const value =
-                path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
+            let value: unknown;
+            if (structure !== undefined) {
+                value = structure[index];
+            } else {
+                value =
+                    path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
+            }
             if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
                 counts.set(value, (counts.get(value) ?? 0) + 1);
             } else {

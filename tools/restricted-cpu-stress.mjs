@@ -4,12 +4,14 @@
  * (.github/workflows/restricted-cpu-stress.yml) as issues in the flaky-test tracker's format.
  *
  * Every vitest run in CI writes test-results/junit-<package>-<pid>.xml (vitest.ci-junit.mjs). The
- * workflow uploads each shard's files as the artifact junit-<shard> and downloads them all into one
+ * workflow uploads each shard's files as the artifact junit-<shard>-r<repeat> and downloads them all into one
  * directory; this script reads every failing or timed-out test from them and files one issue per
  * test, or comments on the one it filed before. An issue is found again by the tracker's marker line
  * (githerd/lib/flakes.mjs on feat/githerd: `githerd-flaky-test: <package>/<file> > <test>`), so the
  * tracker and this run share one issue per test. These issues say "load-sensitive under restricted
  * CPU", not "proven flaky": the run only shows that the test fails when CPU is scarce.
+ * The browser and story shards run several times on the same commit; an issue says when a test both
+ * failed and passed there (a race), or failed every time.
  *
  * Usage: node tools/restricted-cpu-stress.mjs <junit dir>
  *   env GITHUB_TOKEN, GITHUB_REPOSITORY, RESTRICTION (the restriction, in words), RUN_URL, SHA,
@@ -23,6 +25,11 @@ import { basename, dirname, join } from "node:path";
 export const MARKER = "githerd-flaky-test: ";
 /** The tracker's labels, at the lowest priority: the tracker raises priority, never lowers it. */
 export const LABELS = ["bug", "intermittent", "effort:medium", "priority:low"];
+/**
+ * A test that failed and passed on the same commit is flaky, not only slow: the repository files those at
+ * priority:critical (CLAUDE.md, "Quarantined tests"), as tools/test-quarantine.mjs does.
+ */
+export const RACE_LABELS = ["bug", "intermittent", "effort:medium", "priority:critical"];
 /** More failing tests than this in one file means that file is broken, not load-sensitive: report it, file none of its tests. */
 export const MAX_FILED = 25;
 const OUTPUT_MAX = 3000;
@@ -50,28 +57,52 @@ export const packageOf = (path) =>
         .replace(/-\d+\.xml$/, "");
 
 /**
- * The failing tests of one vitest junit report: a testcase with a failure child (an assertion, a
- * timeout, a failing hook or a file that failed to load).
+ * Every test one vitest junit report ran, failed or passed; a skipped test is left out. A failed test
+ * has a failure child (an assertion, a timeout, a failing hook or a file that failed to load).
  * @param xml - the report
  * @param pkg - the package directory, which the test's id starts with
  * @param shard - the shard that ran it
- * @returns each failing test: its tracker id, package, file, name, shard and failure output
+ * @returns each test: its tracker id, package, file, name, shard, whether it failed, and its failure output
  */
-export function junitFailures(xml, pkg, shard) {
+export function junitTests(xml, pkg, shard) {
     const out = [];
     for (const suite of xml.split("<testsuite ").slice(1)) {
         const file = `${pkg}/${attr(suite.slice(0, suite.indexOf(">")), "name")}`;
-        for (const m of suite.matchAll(/<testcase\s([^>]*)>([\s\S]*?)<\/testcase>/g)) {
-            const failures = [...m[2].matchAll(/<failure\s([^>]*)>([\s\S]*?)<\/failure>/g)];
-            if (!failures.length) continue;
+        for (const m of suite.matchAll(/<testcase\s([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/g)) {
+            const inner = m[2] ?? "";
+            if (inner.includes("<skipped")) continue;
+            const failures = [...inner.matchAll(/<failure\s([^>]*)>([\s\S]*?)<\/failure>/g)];
             const name = attr(m[1], "name");
             const output = failures
                 .map((f) => unescapeXml(f[2].trim()) || attr(f[1], "message") || "(no message)")
                 .join("\n\n");
-            out.push({ id: `${file} > ${name}`, package: pkg, file, name, shard, output });
+            out.push({ id: `${file} > ${name}`, package: pkg, file, name, shard, failed: failures.length > 0, output });
         }
     }
     return out;
+}
+
+/**
+ * The failing tests of one vitest junit report.
+ * @param xml - the report
+ * @param pkg - the package directory
+ * @param shard - the shard that ran it
+ * @returns each failing test, as junitTests() returns it
+ */
+export const junitFailures = (xml, pkg, shard) => junitTests(xml, pkg, shard).filter((t) => t.failed);
+
+/**
+ * The failing runs, each with how often its test ran and failed on this commit. The workflow runs every
+ * browser and story shard several times (REPEATS), and tools/test-quarantine.mjs retries a failed file
+ * once, so one test runs several times; a test that both failed and passed differed on the same commit.
+ * @param tests - every test run, from junitTests() over every report
+ * @returns the failing runs, each with `runs` (how often the test ran) and `fails` (how often it failed)
+ */
+export function tally(tests) {
+    const byId = Map.groupBy(tests, (t) => t.id);
+    return tests
+        .filter((t) => t.failed)
+        .map((t) => ({ ...t, runs: byId.get(t.id).length, fails: byId.get(t.id).filter((x) => x.failed).length }));
 }
 
 const fence = (text) => {
@@ -79,10 +110,26 @@ const fence = (text) => {
     return ["```text", cut.replaceAll("```", "'''"), "```"].join("\n");
 };
 
+/**
+ * How the test's runs on this commit went: nothing without a tally, else one line.
+ * @param t - the failing test, with `runs` and `fails` from tally()
+ * @returns the lines
+ */
+const outcomes = (t) => {
+    if (!t.runs) return [];
+    if (t.fails < t.runs)
+        return [
+            `Outcomes differed on the same commit: failed ${t.fails} of ${t.runs} runs (repeats and retries), ` +
+                "so this is a race, not only slowness.",
+        ];
+    return [`Failed all ${t.runs} of its runs on this commit.`];
+};
+
 const occurrence = (t, ctx) =>
     [
         `Failed under restricted CPU in shard \`${t.shard}\`, run ${ctx.runUrl} at ${ctx.sha}.`,
         `Restriction: ${ctx.restriction}`,
+        ...outcomes(t),
         "",
         fence(t.output),
     ].join("\n");
@@ -132,7 +179,8 @@ export function plan(failures, issues, ctx) {
     }));
     const filed = tests.map((t) => {
         const found = issues.find((i) => !i.pull_request && (i.body ?? "").split("\n").includes(`${MARKER}${t.id}`));
-        if (!found) return { create: { title: issueTitle(t), body: issueBody(t, ctx), labels: LABELS } };
+        const labels = t.fails < t.runs ? RACE_LABELS : LABELS;
+        if (!found) return { create: { title: issueTitle(t), body: issueBody(t, ctx), labels } };
         return {
             issue: found.number,
             reopen: found.state === "closed",
@@ -143,18 +191,18 @@ export function plan(failures, issues, ctx) {
 }
 
 /**
- * The failing tests of every junit file under a directory; the shard is named by its artifact
- * directory junit-<shard>.
+ * Every test run of every junit file under a directory; the shard is named by its artifact
+ * directory junit-<shard>-r<repeat>.
  * @param dir - the directory the artifacts were downloaded into
- * @returns the failing tests
+ * @returns every test run
  */
-function readFailures(dir) {
+function readTests(dir) {
     return readdirSync(dir, { recursive: true })
         .map(String)
         .filter((f) => /(^|\/)junit-[^/]*\.xml$/.test(f))
         .flatMap((f) => {
             const shard = basename(dirname(join(dir, f))).replace(/^junit-/, "");
-            return junitFailures(readFileSync(join(dir, f), "utf8"), packageOf(f), shard);
+            return junitTests(readFileSync(join(dir, f), "utf8"), packageOf(f), shard);
         });
 }
 
@@ -207,7 +255,7 @@ async function main() {
         if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`);
         return res.json();
     };
-    const failures = readFailures(dir);
+    const failures = tally(readTests(dir));
     const issues = failures.length ? await listIssues(request, repo) : [];
     const actions = plan(failures, issues, ctx);
     const lines = [];

@@ -24,6 +24,7 @@ import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
+import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesLoading } from "../models/TextureCache";
@@ -131,6 +132,24 @@ function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void
         box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
         box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
     }
+}
+
+/**
+ * The most rounds a framing takes to size the labels sized on screen for its own camera. Each round
+ * shrinks the difference by about the share of the view a label takes, so a handful settle it; the
+ * cap only bounds a label as big as the view, which no framing can fit.
+ */
+const MAX_LABEL_FIT_ROUNDS = 32;
+
+/**
+ * Whether two framing boxes are the same, to a billionth of their size: closer than any pixel.
+ * @param a - One box.
+ * @param b - The other.
+ * @returns True when no corner moved by more than that.
+ */
+function sameBox(a: FramingBox, b: FramingBox): boolean {
+    const tolerance = Math.max(Vector3.Distance(a.min, a.max), Vector3.Distance(b.min, b.max)) * 1e-9;
+    return Vector3.Distance(a.min, b.min) <= tolerance && Vector3.Distance(a.max, b.max) <= tolerance;
 }
 
 /**
@@ -2805,7 +2824,7 @@ export class UpdateManager implements Manager {
         if (sphere !== null && active instanceof OrbitCameraController) {
             active.zoomToSphere(Vector3.Zero(), sphere * GLOBE_FRAMING);
         } else {
-            this.camera.zoomToBoundingBox(boundingBoxMin, boundingBoxMax, box.spots);
+            this.frameBox(box, frame);
         }
 
         this.hasZoomedToFit = true;
@@ -2825,6 +2844,40 @@ export class UpdateManager implements Manager {
             boundingBoxMin,
             boundingBoxMax,
         });
+    }
+
+    /**
+     * Frame the camera on a box, and again on the box remeasured while it changes: a label sized on
+     * screen (`sizeMode: "screen"`) takes room in the scene that depends on the camera, and the box
+     * measured it at the size the last frame's camera gave it -- its first, unfitted size, or the size
+     * for a camera since replaced -- so which frames had run decided the framing (issue #3106). Each
+     * round sizes those labels for the camera just framed and measures again; the room a label takes
+     * is a small share of the view, so the rounds close in on the one framing whose labels are sized
+     * for its own camera, wherever they started.
+     * @param box - The box measured this frame.
+     * @param frame - The map the layout draws on, or null.
+     */
+    private frameBox(box: FramingBox, frame: LocationMapFrame | null): void {
+        const fits = screenFitFrames.callbacksOf(this.graphContext.getScene());
+        let current = box;
+        for (let round = 0; ; round++) {
+            const { min, max } = frame === null ? current : this.frameMap(current, frame);
+            this.camera.zoomToBoundingBox(min, max, current.spots);
+            if (fits.size === 0 || round === MAX_LABEL_FIT_ROUNDS) {
+                return;
+            }
+
+            for (const fit of fits) {
+                fit();
+            }
+
+            const next = this.measure();
+            if (next === undefined || sameBox(next, current)) {
+                return;
+            }
+
+            current = next;
+        }
     }
 
     /**

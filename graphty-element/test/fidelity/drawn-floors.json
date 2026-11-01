@@ -894,6 +894,7 @@
         }
     },
     "allowedDrops": {
+        "json-graphology-synth/fontSize": "sigma draws every label 12 px on screen at every zoom, and graphty-element now does too (issue #3106); graphty-element frames this file about 1.27x further out than sigma, which fits node centers with 30 px padding and lets big nodes run off the canvas (issue #5367), so a 12 px label scores 15.18 against the 12 px reference; it returns to 1 when #5367 frames a sigma file as sigma does",
         "json-vis-synth/borderStyle": "reference corrected: vis-network's text shape (node 4) draws no border, so its border style is no longer judged; 68 of 69 pass where 69 of 70 did, the same one failing node (20)",
         "json-sigma-lesmis/labelText": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-sigma-lesmis.png): sigma keeps one node label per 100 px screen cell, so graphty now hides a node label that overlaps a larger one (node.labelDeclutter) and the JSON reference, which lists every label, reads the hidden ones as missing",
         "json-sigma-lesmis/labelColor": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-sigma-lesmis.png): sigma keeps one node label per 100 px screen cell, so graphty now hides a node label that overlaps a larger one (node.labelDeclutter) and the JSON reference, which lists every label, reads the hidden ones as missing",

@@ -62,6 +62,14 @@ describe("a page narrowed by matching text", () => {
         session.dispose();
     });
 
+    it("names: true on a graph with no label column reads every value, so a name column is found", async () => {
+        const session = await cast();
+        // No label column: the cast's names are in "role", as a file's "name" column would be.
+        assert.strictEqual(session.data.nodePage({ matching: { text: "mayor", names: true } }).total, 1);
+        assert.deepStrictEqual(ids(session.data.nodePage({ matching: { text: "may", names: true } })), ["Valjean"]);
+        session.dispose();
+    });
+
     it("takes the text modes selection.apply({ text }) takes, as a mode or a prefix", async () => {
         const session = await cast();
         assert.deepStrictEqual(ids(session.data.nodePage({ matching: { text: "52", mode: "exact" } })), [

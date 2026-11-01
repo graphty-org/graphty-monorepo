@@ -1266,6 +1266,8 @@ const warmKey = () =>
         .update(
             JSON.stringify([
                 dist,
+                // the build itself: a rebuild of the same folder is another build, never a warm one
+                existsSync(join(dist, "index.html")) ? statSync(join(dist, "index.html")).mtimeMs : 0,
                 VIEWPORT,
                 process.env.REAL_SCHEME || "",
                 GPU,

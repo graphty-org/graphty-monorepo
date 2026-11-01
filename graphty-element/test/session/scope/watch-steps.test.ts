@@ -678,6 +678,32 @@ describe("measure steps and runs", () => {
         }
     });
 
+    it("a hops step on Hovered or selected waits, run-paused, over the live limit while the pointer is on a node", async () => {
+        const session = await lesMis();
+        session.scope.setOptions({ liveMs: 0 });
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                { start: "none", steps: [{ op: "add", rule: { kind: "hops", of: "hovered-or-selected", max: 1 } }] },
+            ],
+        };
+        session.selection.hover("Valjean");
+        const hovered = session.scope.watchSteps(rule, () => undefined).current;
+        assert.strictEqual(hovered.branches[0].steps[0].reason?.code, "run-paused");
+        assert.isAbove(Number(hovered.branches[0].steps[0].reason?.params.estimateMs), 0);
+        session.selection.hover(null);
+        await session.selection.apply({ scope: { nodes: ["Valjean"] } });
+        const settled = session.scope.watchSteps(rule, () => undefined).current;
+        assert.notStrictEqual(settled.branches[0].steps[0].reason?.code, "run-paused", "the pointer left: it follows");
+        assert.isAbove(settled.total.count, 1);
+        session.scope.setOptions({ liveMs: 1e9 });
+        session.selection.hover("Valjean");
+        const cheap = session.scope.watchSteps(rule, () => undefined).current;
+        assert.notStrictEqual(cheap.branches[0].steps[0].reason?.code, "run-paused", "under the limit it follows");
+    });
+
     it("above the ask limit a step waits for allowRun; Cancel leaves it waiting", async () => {
         const executions: Executions = { sizes: [], hold: true };
         const session = await lesMis(executions);

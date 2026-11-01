@@ -2140,7 +2140,14 @@ export class SessionData implements SessionDataApi {
         const labelPath = this.readConfig().knownFields.nodeLabelPath;
         let names: readonly Path[] | undefined;
         if (options.matching?.names === true) {
-            names = target === "node" && labelPath !== null ? [labelPath] : [];
+            // A node's name is its label column; a graph with none names its nodes in its other
+            // columns (a "name" column the table shows), so every searchable value is read, as
+            // without `names`. An edge is named by its id and its ends' ids.
+            if (target === "edge") {
+                names = [];
+            } else if (labelPath !== null) {
+                names = [labelPath];
+            }
         }
         const { issue } = options;
         if (

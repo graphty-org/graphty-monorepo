@@ -268,7 +268,8 @@ export interface RecordPageOptions {
         /**
          * Look only at what a record is called: a node's id and its name ({@link SessionDataApi.name}'s
          * label column), an edge's id and its endpoints' ids, never the other columns. What a
-         * picker of nodes by name wants on a graph whose columns hold numbers and codes.
+         * picker of nodes by name wants on a graph whose columns hold numbers and codes. A graph
+         * with no label column names its nodes in its other columns, so there every value is read.
          *
          * ```ts
          * session.data.nodePage({ matching: { text: "1", names: true }, limit: 8 }); // n1, n10, ...

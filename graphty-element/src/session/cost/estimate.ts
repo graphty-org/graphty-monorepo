@@ -684,6 +684,16 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
         term: () => "n(n + m)",
         seconds: (nodes, edges, rates) => (nodes * (nodes + edges)) / (11 * rates.heavyPairsPerSecond),
     },
+    /* Girvan-Newman: each round computes every edge's betweenness (Brandes, n(n + m), charged at
+       betweenness' rate) and cuts the highest, for up to `maxIterations` rounds and never more
+       rounds than there are edges to cut. The class term, n * m, charged ONE round: on 4,000 nodes
+       and 8,000 edges it said about 6 seconds for a run the default 1,000 rounds took over 7
+       minutes to finish (the studio's large-graph review, 2026-11-01). */
+    "girvan-newman": {
+        term: (iterations) => `min(k, m) n(n + m) with k=${group(iterations)}`,
+        seconds: (nodes, edges, rates, iterations) =>
+            (Math.min(iterations, Math.max(1, edges)) * nodes * (nodes + edges)) / (11 * rates.heavyPairsPerSecond),
+    },
     /* One BFS per source, so n(n + m), where betweenness' class term is n * m. Measured on
        2026-09-29 at 131M to 571M n(n + m) per second across random (m = 1.2n to 50n), scale-free,
        grid, path, tree, star and clique-ring graphs of 400 to 1,600 nodes. A node visit costs

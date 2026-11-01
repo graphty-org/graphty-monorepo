@@ -26,7 +26,7 @@ import type { RunExecutor } from "../runs";
 import type { ResolvedScope, RunsApi } from "../runs/types";
 import type { CodedFact } from "../shared";
 import type { FilterRunResult, UnionStepSource } from "../visibility/filter";
-import type { Bytes, StepFrame, StepGate } from "../visibility/union";
+import { type Bytes, referenceOf, type StepFrame, type StepGate } from "../visibility/union";
 import type { ScopeStepOptions } from "./steps";
 
 type MeasureLeaf = Extract<RuleTree, { kind: "measure" }>;
@@ -36,6 +36,14 @@ type MeasureLeaf = Extract<RuleTree, { kind: "measure" }>;
  * while `askAboveMs` is set, as a run estimated above it does.
  */
 const UNKNOWN_COST_ASK_SIZE = 10_000;
+
+/**
+ * What following the pointer costs per node and edge of a step's base, in milliseconds: a hops,
+ * touching or same-value step re-walks its base on every pointer move, then everything after it is
+ * re-read and repainted. One microsecond, the default linear rate (`DEFAULT_COST_RATES`).
+ * ponytail: a fixed rate; read the calibrated linear rate if the pause line needs to be finer.
+ */
+const LIVE_MS_PER_ELEMENT = 0.001;
 
 /** What the step runs read from the session. */
 export interface StepRunsSources {
@@ -420,10 +428,33 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
      * @param frame - Its frame.
      * @returns The gate, and the result when ready.
      */
+    /**
+     * A hops, touching or same-value step on Hovered or selected: it re-walks its base on every
+     * pointer move, so over `liveMs` it waits (`run-paused`) while the pointer is on a node, as a
+     * live measure does.
+     * @param step - The step.
+     * @param frame - Its frame.
+     * @returns The gate, or null when it may follow the pointer.
+     */
+    const liveGate = (step: UnionStep, frame: StepFrame): StepGate | null => {
+        const { liveMs } = sources.options();
+        if (liveMs === undefined || referenceOf(step.rule) !== "hovered-or-selected" || !sources.hovering()) {
+            return null;
+        }
+
+        const { nodeCount, edgeCount } = sources.resolveScope(baseScope(frame));
+        const hops = step.rule.kind === "hops" && step.rule.max !== undefined ? Math.max(1, step.rule.max) : 1;
+        // A walk of h hops reads at most the whole base; more hops reach no further than all of it.
+        const estimateMs = (nodeCount + edgeCount) * Math.min(hops, 2) * LIVE_MS_PER_ELEMENT;
+        return estimateMs > liveMs
+            ? { state: "pending", reason: { code: "run-paused", params: { estimateMs } } }
+            : null;
+    };
+
     const stateOf = (step: UnionStep, frame: StepFrame): { gate: StepGate | null; result?: FilterRunResult } => {
         const leaf = measureOf(step);
         if (leaf === null) {
-            return { gate: null };
+            return { gate: liveGate(step, frame) };
         }
 
         const params = bound(leaf, frame);

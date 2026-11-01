@@ -380,12 +380,8 @@ function engineValue(ctx: Ctx, name: Extract<Measure, { type: "engine" }>["name"
                 views === undefined || meta?.lastOkAt === undefined || views.lastOkAt === undefined
                     ? meta?.lastOkAt
                     : Math.min(meta.lastOkAt, views.lastOkAt);
-            const failed = meta?.error
-                ? { source: "collector", error: meta.error }
-                : views?.error
-                  ? { source: "views", error: views.error }
-                  : undefined;
-            const cause: Computed = failed ? { cause: { code: "error", params: failed } } : {};
+            const [source, error] = meta?.error ? ["collector", meta.error] : ["views", views?.error];
+            const cause: Computed = error ? { cause: { code: "error", params: { source, error } } } : {};
             return ok === undefined ? cause : { value: ctx.now - ok, since: ok, ...cause };
         }
         case "write_budget":

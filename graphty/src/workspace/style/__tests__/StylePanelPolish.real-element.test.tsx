@@ -90,7 +90,7 @@ describe("the Style panel", () => {
         assert.isNull(screen.queryByRole("button", { name: "Add a condition" }));
     });
 
-    it("says All N nodes on any other layer as a plain line, not a warning", async () => {
+    it("reads every node on any other layer as its count, with no sentence and no warning", async () => {
         const { session } = await openScene();
         await session.styles.add({
             name: "Plain",
@@ -101,9 +101,9 @@ describe("the Style panel", () => {
         await session.styles.settled();
         await clickRow("Plain");
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
-        const hint = row.querySelector<HTMLElement>(".ws-which-hint");
-        assert.isNotNull(hint);
-        assert.strictEqual(hint?.textContent, "All 77 nodes: add a condition to narrow");
+        // The same count the layer's row and the open editor read: what it paints.
+        assert.strictEqual(row.getAttribute("aria-label"), "Which nodes, 77 of 77");
+        assert.notInclude(row.textContent ?? "", "add a condition");
         assert.isNull(document.querySelector("[data-warn]"), "no warning outline");
     });
 

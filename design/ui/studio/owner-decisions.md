@@ -3636,3 +3636,12 @@ to hide it.
 
 **Why.** Code comments in `EdgeMesh.ts` and `CustomLineRenderer.ts` call the width pixels, which
 it is not, and the app's Width control shows the bare number with no unit.
+
+## 2026-11-01 -- For the owner: two compact-mantine targets below 24 px
+
+**What.** Not done; a question. The tier 5 accessibility review measured two Figma-locked targets
+below the 24 x 24 px WCAG asks: the split button's chevron (16 x 24 px) and the range slider's
+thumbs (10 x 10 px). Each is compact-mantine's Figma look, so changing it needs your Figma approval.
+The app's own number boxes moved to the default 24 px.
+
+**Why.** A small target is hard to hit by touch or with a tremor.

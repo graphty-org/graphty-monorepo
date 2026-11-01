@@ -110,7 +110,7 @@ describe("Filter cards on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    it("Filter to... opens a card with no count that Escape drops; its first value writes it as one step", async () => {
+    it("Filter to... opens a card with no count that Escape folds and its X drops; its first value writes it as one step", async () => {
         const { session, store } = await openWithGraph();
         await columnVerb("edge", "value", "Filter to...");
         assert.equal(store.get().place, "data");
@@ -118,9 +118,19 @@ describe("Filter cards on the real element", () => {
         // No count before a value, and nothing written.
         assert.isNull(draft.queryByText(/ of /));
         assert.lengthOf(session.visibility.conditions, 0);
-        // Escape drops it: no condition, focus on "+".
+        // Escape closes the step's card, then folds the new card, which is kept with its step
+        // (nothing written); its X drops it: no condition, focus on "+".
         await userEvent.click(draft.getByRole("textbox", { name: "value from, number" }));
         await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector("[data-step-card]"));
+        });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-editor"), "the card folded");
+        });
+        assert.lengthOf(session.visibility.conditions, 0);
+        await userEvent.click((await card("value")).getByRole("button", { name: "Remove value" }));
         await waitFor(() => {
             assert.isNull(
                 within(screen.getByRole("region", { name: "Data place" })).queryByRole("list", { name: "Filters" }),

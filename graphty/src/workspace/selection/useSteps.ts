@@ -55,3 +55,19 @@ export function useEditedSelection(session: GraphSession | null, rule: UnionLeaf
     }, [session, key]);
     return key === null ? null : reading;
 }
+
+/**
+ * Whether graphty-element draws a branches view now.
+ * @param session - the element's session.
+ * @returns true while it does.
+ */
+export function useShowingBranches(session: GraphSession): boolean {
+    const [shown, setShown] = useState(session.styles.showingBranches);
+    useEffect(() => {
+        setShown(session.styles.showingBranches);
+        return session.on("style:branches-shown-changed", (change) => {
+            setShown(change.shown);
+        });
+    }, [session]);
+    return shown;
+}

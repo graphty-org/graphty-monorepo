@@ -35,6 +35,7 @@ import { formatNumber } from "../inspector/words";
 import { isPanelEscape, isTypingTarget } from "../keys/keys";
 import { FilterSelection, type StartEffect } from "../selection/FilterSelection";
 import { addStep, newSelection } from "../selection/model";
+import { SelectionSummary } from "../selection/StyleSelection";
 import { filterSelection, type PickSection, ruleOfField, sideOf } from "../selection/values";
 import { stepWords } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
@@ -683,13 +684,19 @@ function FilterCard({
                                         onDiscard();
                                     }
                                 })}
+                                onDraft={setDraftRule}
                                 onDone={() => {
-                                    if (draft) {
+                                    if (draft && stepless) {
                                         onDiscard();
                                         return;
                                     }
+                                    // A new card with a step but no test yet stays, folded, for
+                                    // the reader to come back to; its X takes it away.
                                     onOpen(false);
-                                    box.current?.querySelector<HTMLElement>(ON_BOX)?.focus();
+                                    const back = draft ? ".dp-filter-name" : ON_BOX;
+                                    requestAnimationFrame(() => {
+                                        box.current?.querySelector<HTMLElement>(back)?.focus();
+                                    });
                                 }}
                             />
                         ) : (
@@ -706,9 +713,10 @@ function FilterCard({
                         )}
                     </div>
                 ) : (
-                    condition !== undefined && (
-                        // The resting card's summary, as a Style card's chip says it; a click opens it, as
-                        // its field's name does by keyboard (the one Tab stop for opening).
+                    (condition !== undefined || !stepless) && (
+                        // The resting card's summary, the same chips a Style layer's folded row
+                        // shows; a click opens it, as its field's name does by keyboard (the one Tab
+                        // stop for opening).
                         <UnstyledButton
                             tabIndex={-1}
                             aria-hidden
@@ -717,9 +725,13 @@ function FilterCard({
                                 onOpen(true);
                             }}
                         >
-                            <Text size="xs" c="dimmed" span>
-                                {name}
-                            </Text>
+                            {selection === null ? (
+                                <Text size="xs" c="dimmed" span>
+                                    {name}
+                                </Text>
+                            ) : (
+                                <SelectionSummary session={session} rule={selection} side={side} />
+                            )}
                         </UnstyledButton>
                     )
                 )}

@@ -455,7 +455,7 @@ export function WhichPicker({
                     onDone={close}
                 />
             ) : null}
-            {!open && selection !== null && selection !== "new" ? (
+            {!open && selection !== null ? (
                 <SelectionRow
                     session={session}
                     rule={selection}
@@ -484,7 +484,7 @@ export function WhichPicker({
                     }}
                 />
             )}
-            {!open && (selection === null || selection === "new") && (
+            {!open && selection === null && (
                 <WhichRow
                     session={session}
                     rows={rows}
@@ -549,7 +549,6 @@ function WhichRow({
         const countWords = count === undefined ? "" : `, ${many(count, side)}`;
         return `${words[at].replace(LAYER_TOKEN, LAYER_SPOKEN)}${countWords}`;
     });
-    const empty = `All ${many(total, side)}: add a condition to narrow`;
     const hint = `All ${many(total, side)}`;
     // A layer whose conditions leave nothing is flagged on its count, or on a chip that leaves none.
     const none =
@@ -576,7 +575,7 @@ function WhichRow({
                     `Which ${NOUN[side].many}`,
                     head,
                     none ? `no ${NOUN[side].one} matches` : "",
-                    ...(shown.length === 0 ? [empty] : spoken),
+                    ...(shown.length === 0 ? [hint] : spoken),
                 ]
                     .filter((part) => part !== "")
                     .join(", ")}
@@ -599,7 +598,7 @@ function WhichRow({
                     {shown.length === 0 ? (
                         // Read with the panel, not a warning: every element is a fine answer.
                         <Text size="xs" c="dimmed" span className="ws-which-hint">
-                            {hint}: add a condition to narrow
+                            {hint}
                         </Text>
                     ) : (
                         shown.map((each, at) => (
@@ -1883,6 +1882,21 @@ function readTyped(text: string, parse: (text: string) => number): number | unde
 const dropLeadingZeros = (text: string): string => text.replace(/^(-?)0+(?=\p{Nd})/u, "$1");
 
 /**
+ * A number as a box shows it at rest: three significant digits after the point at most, every
+ * digit before it; text that is not a number is shown as it is.
+ * @param text - the text.
+ * @returns the shorter text.
+ */
+function shortNumber(text: string): string {
+    const value = Number(text);
+    if (text.trim() === "" || !Number.isFinite(value) || Number.isInteger(value)) {
+        return text;
+    }
+    const before = Math.floor(Math.log10(Math.abs(value))) + 1;
+    return String(Number(value.toFixed(Math.min(20, Math.max(0, 3 - before)))));
+}
+
+/**
  * A number card's box: holds what the reader types until a commit (Enter, leaving the box), so a
  * keystroke is never lost or turned into another number, and selects its value whenever focus
  * comes in (a click, a Tab, focus put there after a choice), so typing replaces it. Escape in a
@@ -1895,6 +1909,7 @@ const dropLeadingZeros = (text: string): string => text.replace(/^(-?)0+(?=\p{Nd
  * @param props.describedBy - the id of the message that says why
  * @param props.onText - takes the text as typed
  * @param props.onCommit - called on Enter, and with true when focus leaves
+ * @param props.placeholder - what it shows while it holds nothing (the domain's end)
  * @returns The box
  */
 function NumberBox({
@@ -1904,6 +1919,7 @@ function NumberBox({
     describedBy,
     onText,
     onCommit,
+    placeholder,
 }: Readonly<{
     label: string;
     text: string;
@@ -1911,23 +1927,35 @@ function NumberBox({
     describedBy: string | undefined;
     onText: (text: string) => void;
     onCommit: (leaving?: boolean) => void;
+    placeholder?: string;
 }>): React.JSX.Element {
     const justFocused = useRef(false);
+    // At rest a long number shows a few digits; the whole number comes back when the box is focused.
+    const [focused, setFocused] = useState(false);
+    const input = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+        // The whole number came in with focus: select it, so typing replaces it.
+        if (focused && document.activeElement === input.current) {
+            input.current?.select();
+        }
+    }, [focused]);
     return (
         <TextInput
-            size="xs"
+            ref={input}
             inputMode="decimal"
             data-enter-done
             aria-label={label}
             aria-invalid={invalid || undefined}
             aria-describedby={invalid ? describedBy : undefined}
             error={invalid}
-            value={text}
+            placeholder={placeholder}
+            value={focused ? text : shortNumber(text)}
             onChange={(event) => {
                 onText(dropLeadingZeros(event.currentTarget.value));
             }}
             onFocus={(event) => {
                 justFocused.current = true;
+                setFocused(true);
                 event.currentTarget.select();
             }}
             onMouseUp={(event) => {
@@ -1952,6 +1980,7 @@ function NumberBox({
             }}
             onBlur={() => {
                 justFocused.current = false;
+                setFocused(false);
                 onCommit(true);
             }}
         />
@@ -2165,10 +2194,11 @@ function NumberCard({
         setRefused(null);
     };
     const shown = (key: keyof Drafts): string => drafts[key] ?? (card[key] === undefined ? "" : String(card[key]));
-    const box = (key: keyof Drafts, label: string): React.JSX.Element => (
+    const box = (key: keyof Drafts, label: string, placeholder?: number): React.JSX.Element => (
         <NumberBox
             label={label}
             text={shown(key)}
+            placeholder={placeholder === undefined ? undefined : shortNumber(String(placeholder))}
             invalid={refused?.bad.includes(key) ?? false}
             describedBy={messageId}
             onText={(text) => {
@@ -2214,6 +2244,12 @@ function NumberCard({
                         label={null}
                         thumbFromLabel={`${name} range start`}
                         thumbToLabel={`${name} range end`}
+                        // Spoken as the boxes show it, never as a raw float.
+                        thumbProps={(index) => ({
+                            "aria-valuetext": shortNumber(
+                                String(index === 0 ? Math.max(low, card.min ?? low) : Math.min(high, card.max ?? high)),
+                            ),
+                        })}
                         value={[Math.max(low, card.min ?? low), Math.min(high, card.max ?? high)]}
                         onChangeEnd={([min, max]) => {
                             clear();
@@ -2221,9 +2257,9 @@ function NumberCard({
                         }}
                     />
                     <Group gap={4} wrap="nowrap">
-                        {box("min", `${name} from, number`)}
+                        {box("min", `${name} from, number`, low)}
                         <Text size="xs">to</Text>
-                        {box("max", `${name} to, number`)}
+                        {box("max", `${name} to, number`, high)}
                     </Group>
                 </>
             )}

@@ -7,17 +7,16 @@
  */
 
 import type { GraphSession, Layer, UnionLeaf } from "@graphty/graphty-element/session";
-import { Group, Text, UnstyledButton } from "@mantine/core";
+import { Group, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import type { Side } from "../style/cards";
 import { useStepWriter } from "../style/useStepWriter";
-import { newSelection } from "./model";
 import { SelectionEditor } from "./SelectionEditor";
 import { useSteps } from "./useSteps";
 import { layerSelection } from "./values";
-import { letterOf, NOUNS, reasonWords, stepWords, VERB_WORDS } from "./words";
+import { NOUNS, summaryChips, VERB_WORDS } from "./words";
 
 /**
  * The open editor on one layer.
@@ -42,7 +41,6 @@ export function StyleSelection({
     side: Side;
     onDone: () => void;
 }>): React.JSX.Element | null {
-    const [draft] = useState(() => newSelection(side === "node" ? "nodes" : "edges", "visible"));
     // The rule as last edited, until the element holds it: typing is never undone by a write on its way.
     const [local, setLocal] = useState<UnionLeaf | null>(null);
     const busy = useRef<() => boolean>(() => false);
@@ -60,7 +58,7 @@ export function StyleSelection({
     if (held === null) {
         return null;
     }
-    const rule = local ?? (held === "new" ? draft : held);
+    const rule = local ?? held;
     return (
         <div
             className="ws-which-open"
@@ -102,8 +100,40 @@ export function StyleSelection({
 }
 
 /**
- * The folded Which row of a layer whose selector is a selection: "Which nodes", the total, and a
- * chip per step (its group's letter first when there are several), read live from the element.
+ * The chips of {@link summaryChips}, drawn.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.rule - the selection
+ * @param props.side - nodes or edges
+ * @returns The chips
+ */
+export function SelectionSummary({
+    session,
+    rule,
+    side,
+}: Readonly<{ session: GraphSession; rule: UnionLeaf; side: Side }>): React.JSX.Element {
+    const reading = useSteps(session, rule);
+    return (
+        <span className="ws-which-chips">
+            {summaryChips(session, side, reading).map((each) => {
+                const Glyph = each.glyph === null ? null : VERB_WORDS[each.glyph].glyph;
+                return (
+                    <Tooltip key={each.key} label={each.spoken} openDelay={500}>
+                        <span className="ws-chip">
+                            {each.letter}
+                            {Glyph !== null && <Glyph size={12} aria-hidden />}
+                            {each.text}
+                        </span>
+                    </Tooltip>
+                );
+            })}
+        </span>
+    );
+}
+
+/**
+ * The folded Which row of a layer whose selector is a selection: "Which nodes", the total, and the
+ * selection's chips ({@link SelectionSummary}), read live from the element.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rule - the selection
@@ -126,19 +156,7 @@ export function SelectionRow({
     onOpen: () => void;
 }>): React.JSX.Element {
     const reading = useSteps(session, rule);
-    const multi = rule.branches.length > 1;
-    const chips = rule.branches.flatMap((branch, at) =>
-        branch.steps.map((step) => {
-            const read = reading.branches[at]?.steps.find((each) => each.id === step.id);
-            const words = stepWords(session, step, side, read);
-            const state =
-                read?.state === "inert" || read?.state === "pending" ? reasonWords(read.reason).short : words.test;
-            return {
-                key: step.id ?? "",
-                words: `${multi ? `${branch.name ?? letterOf(at)}: ` : ""}${VERB_WORDS[step.op].word} ${words.value}${state === "" ? "" : ` ${state}`}`,
-            };
-        }),
-    );
+    const chips = summaryChips(session, side, reading);
     const total = `${String(reading.total.count)} of ${String(reading.total.of)}`;
     return (
         <div // NOSONAR(S6819): an undrawn heading around the disclosure button (the accordion pattern)
@@ -150,7 +168,7 @@ export function SelectionRow({
                 ref={buttonRef}
                 className="ws-which-row"
                 aria-expanded={false}
-                aria-label={[`Which ${NOUNS[side].many}`, total, ...chips.map((each) => each.words)].join(", ")}
+                aria-label={[`Which ${NOUNS[side].many}`, total, ...chips.map((each) => each.spoken)].join(", ")}
                 onClick={onOpen}
             >
                 <Group gap={4} wrap="nowrap" className="ws-which-head">
@@ -162,13 +180,7 @@ export function SelectionRow({
                         {total}
                     </Text>
                 </Group>
-                <span className="ws-which-chips">
-                    {chips.map((each) => (
-                        <span key={each.key} className="ws-chip">
-                            {each.words}
-                        </span>
-                    ))}
-                </span>
+                <SelectionSummary session={session} rule={rule} side={side} />
             </UnstyledButton>
         </div>
     );

@@ -11,6 +11,7 @@ import type {
     StepReading,
     StepReasonCode,
     StepReference,
+    StepsReading,
     UnionStep,
 } from "@graphty/graphty-element/session";
 
@@ -224,4 +225,41 @@ export function stepWords(
 function testWords(words: string, name: string): string {
     const head = [`${name}: `, `${name} `].find((each) => name !== "" && words.startsWith(each));
     return head === undefined ? words : words.slice(head.length);
+}
+
+/**
+ * A selection folded to one line of chips, the same in both hosts: per step its verb's glyph (none
+ * for a None group's first Add, which only says what the group holds), its value and its short
+ * test, the group's letter first when there are several; each chip's tooltip says it in full.
+ * @param session - the element's session.
+ * @param side - nodes or edges.
+ * @param reading - the element's reading of the selection.
+ * @returns the chips, each with its key, its spoken words and its parts.
+ */
+export function summaryChips(
+    session: GraphSession,
+    side: Side,
+    reading: StepsReading,
+): { key: string; spoken: string; letter: string; glyph: Verb | null; text: string }[] {
+    // The element's canonical rule: every step has its id.
+    const { rule } = reading;
+    const multi = rule.branches.length > 1;
+    return rule.branches.flatMap((branch, at) =>
+        branch.steps.map((step, index) => {
+            const read = reading.branches[at]?.steps.find((each) => each.id === step.id);
+            const words = stepWords(session, step, side, read);
+            const state =
+                read?.state === "inert" || read?.state === "pending" ? reasonWords(read.reason).short : words.test;
+            const letter = multi ? `${branch.name ?? letterOf(at)}: ` : "";
+            const plain = index === 0 && step.op === "add" && branch.start === "none";
+            const text = `${words.value}${state === "" ? "" : ` ${state}`}`;
+            return {
+                key: step.id ?? "",
+                spoken: `${letter}${VERB_WORDS[step.op].word} ${text}`,
+                letter,
+                glyph: plain ? null : step.op,
+                text,
+            };
+        }),
+    );
 }

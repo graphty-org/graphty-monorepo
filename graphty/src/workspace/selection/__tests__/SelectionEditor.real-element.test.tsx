@@ -117,11 +117,14 @@ async function counted(session: GraphSession, where: RuleTree): Promise<number> 
 const DEGREE_6_TO_10: RuleTree = { kind: "range", attribute: "graphty.degree", min: 6, max: 10 };
 
 describe("the selection editor in a style layer", () => {
-    it("a fresh layer: + adds Add, its value picker finds Degree, a value with no test is kept and inert", async () => {
+    it("a fresh layer: + adds Keep, its value picker finds Degree, a value with no test is kept and inert", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Busy", { match: "everything" });
-        assert.equal(startWith(), "none", "a new selection's first group starts with no nodes");
-        await userEvent.click(screen.getByRole("button", { name: "Add a step: Add" }));
+        // A layer of every node reads as what it paints: one group of All, so its row, the
+        // folded row and the editor read one count.
+        assert.equal(startWith(), "all", "a layer of every node starts with all nodes");
+        assert.isNotNull(screen.queryByRole("button", { name: "Select 77 of 77 nodes" }));
+        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
         const search = await screen.findByRole("combobox", { name: "Find attributes, results" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, search, "the value picker opens with its search focused");
@@ -135,7 +138,7 @@ describe("the selection editor in a style layer", () => {
             assert.notProperty(rule, "min", "a value with no test yet");
         });
         await waitFor(() => {
-            assert.match(stepRows()[0] ?? "", /^Add, Degree No test, 0 of 77 nodes so far$/);
+            assert.match(stepRows()[0] ?? "", /^Keep, Degree No test, 77 of 77 nodes so far$/);
         });
         // A number written in its box is the test; Enter commits it, and the layer narrows.
         const from = await screen.findByRole("textbox", { name: "Degree from, number" });
@@ -151,7 +154,7 @@ describe("the selection editor in a style layer", () => {
     it("+ then Escape leaves no step, and focus goes back to +", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Nothing", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Add a step: Add" }));
+        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -247,15 +250,18 @@ describe("the selection editor in a style layer", () => {
     it("a Relative to step takes its reference from the picker", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Near Valjean", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Add a step: Add" }));
+        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Within hops");
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
-            assert.match(stepRows()[0] ?? "", /^Add, Within 1 hop of No reference/);
+            assert.match(stepRows()[0] ?? "", /^Keep, Within 1 hop of No reference/);
         });
+        // The new step's card takes focus on its first box: the reference, ready to type into.
         const reference = await screen.findByPlaceholderText("Choose a reference");
-        await userEvent.click(reference);
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, reference);
+        });
         await userEvent.keyboard("Valjean");
         await userEvent.click(await screen.findByRole("option", { name: "Valjean" }));
         const id = session.data.nodes().find((each) => session.data.name(each.id) === "Valjean")?.id;
@@ -326,7 +332,10 @@ describe("the selection editor in a filter card", () => {
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Within hops");
         await userEvent.keyboard("{Enter}");
-        await userEvent.click(await within(card).findByPlaceholderText("Choose a reference"));
+        const reference = await within(card).findByPlaceholderText("Choose a reference");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, reference, "the new step's card focuses its reference");
+        });
         const options = (await screen.findAllByRole("option")).map((each) => each.textContent ?? "");
         assert.notInclude(options, "Hovered or selected");
         assert.include(options, "So far");
@@ -400,10 +409,11 @@ describe("the selection editor and the table", () => {
 
     it("a filter's count chip opens the table on its rows and never selects", async () => {
         const session = await openSample("data");
-        await session.visibility.addCondition({ id: "deg", effect: "keep", rule: DEGREE_6_TO_10 });
+        // A filter card's header counts the whole card; each group's row has its own chip.
+        await session.visibility.addCondition({ id: "deg", effect: "keep", rule: { ...TWO_GROUPS, within: "graph" } });
         const expected = await counted(session, DEGREE_6_TO_10);
         const card = await screen.findByRole("group", { name: /, Filter to$/ });
-        await userEvent.click(within(card).getByRole("button", { name: "Degree" }));
+        await userEvent.click(within(card).getByRole("button", { name: /^Degree/ }));
         await userEvent.click(
             await within(card).findByRole("button", { name: `Show ${String(expected)} of 77 nodes in the table` }),
         );
@@ -449,5 +459,87 @@ describe("the hover highlight template", () => {
             assert.equal(session.styles.counts(made[3].id).matched, 1, "the halo rings Valjean");
             assert.equal(session.styles.counts(made[0].id).matched, 77 - near, "the rest fade");
         });
+    });
+});
+
+/** Six groups: the default branch palette's size. */
+const SIX_GROUPS: UnionLeaf = {
+    kind: "union",
+    side: "nodes",
+    within: "visible",
+    branches: ["a", "b", "c", "d", "e", "f"].map((id) => ({
+        id,
+        start: "none" as const,
+        steps: [{ id: `s${id}`, op: "add" as const, rule: DEGREE_6_TO_10 }],
+    })),
+};
+
+describe("the selection editor's keys, names and limits", () => {
+    it("a group's rename starts with its name selected and keeps what was typed on a click away", async () => {
+        const session = await openSample();
+        const layer = await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        document.querySelector<HTMLElement>('[data-row="b"]')?.focus();
+        await userEvent.keyboard("{F2}");
+        const field = await screen.findByRole("textbox", { name: "Rename B" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, field);
+        });
+        await userEvent.keyboard("Staff");
+        await userEvent.click(screen.getByRole("heading", { name: "Which nodes" }));
+        await waitFor(() => {
+            assert.equal(unionOf(session, layer.id)?.branches[1]?.name, "Staff");
+        });
+    });
+
+    it("Space on a step's row switches it off; Enter on a group's row selects its members", async () => {
+        const session = await openSample();
+        const layer = await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        document.querySelector<HTMLElement>('[data-row="deg"]')?.focus();
+        await userEvent.keyboard(" ");
+        await waitFor(() => {
+            assert.isFalse(unionOf(session, layer.id)?.branches[0]?.steps[0]?.on);
+        });
+        assert.isFalse(
+            screen.getByRole<HTMLInputElement>("checkbox", { name: "Use Degree" }).checked,
+            "the on box says it",
+        );
+        document.querySelector<HTMLElement>('[data-row="b"]')?.focus();
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepEqual(
+                session.selection.nodes.map((id) => session.data.name(id) ?? String(id)),
+                ["Valjean"],
+            );
+        });
+    });
+
+    it("Escape in a step card's box closes the card and ends the preview", async () => {
+        const session = await openSample();
+        await openLayer(session, "Picked", { match: "rule", where: DEGREE_6_TO_10 });
+        const row = document.querySelector<HTMLElement>(".sel-step-row[data-row]");
+        await userEvent.click(row?.querySelector(".sel-value") ?? document.body);
+        const from = await screen.findByRole("textbox", { name: "Degree from, number" });
+        await userEvent.click(from);
+        await waitFor(() => {
+            assert.isTrue(session.styles.showingBranches);
+        });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector("[data-step-card]"), "the card closed");
+            assert.isFalse(session.styles.showingBranches, "the preview ended");
+        });
+        assert.isNotNull(document.querySelector(".sel-editor"), "the editor stays open");
+    });
+
+    it("Or is off once the groups use every color, and pressing it changes nothing", async () => {
+        const session = await openSample();
+        const layer = await openLayer(session, "Six", { match: "rule", where: SIX_GROUPS });
+        const or = await screen.findByRole("button", { name: "Or" });
+        assert.equal(or.getAttribute("aria-disabled"), "true");
+        // Pressed from the keyboard: a pointer cannot press it at all.
+        or.focus();
+        await userEvent.keyboard("{Enter}");
+        assert.lengthOf(unionOf(session, layer.id)?.branches ?? [], 6);
+        assert.isNotNull(document.querySelector(".sel-editor"), "the panel is still drawn");
     });
 });

@@ -108,6 +108,25 @@ describe("the import filter's cards as selections", () => {
         assert.lengthOf(session.visibility.conditions, 0);
     });
 
+    it("Done on a new card whose step has no test yet keeps the card, folded, with its step", async () => {
+        const session = await openData();
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await userEvent.keyboard("Degree");
+        await userEvent.keyboard("{Enter}");
+        await screen.findByRole("textbox", { name: "Degree from, number" });
+        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-editor"), "the card folded");
+        });
+        const card = screen.getByRole("group", { name: "New filter" });
+        assert.lengthOf(session.visibility.conditions, 0, "still nothing written");
+        await userEvent.click(within(card).getByRole("button", { name: "Degree" }));
+        await waitFor(() => {
+            assert.lengthOf(document.querySelectorAll(".sel-step-row[data-row]"), 1, "its step came back");
+        });
+    });
+
     it("a new card's Edges switch starts it again on edges", async () => {
         const session = await openData();
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));

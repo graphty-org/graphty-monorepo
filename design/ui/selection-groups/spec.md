@@ -22,7 +22,8 @@ Binding decisions: `../studio/tier5/decided.md`.
   **test** whose control the value's kind picks (section 5). A **Relative to** card tests against a
   **reference** (section 7).
 - **Start with is written when the group is made, never derived**: a new selection's first group and
-  every "+ Or" group start None; a converted tier 4 card starts All. Moving steps never changes it.
+  every "+ Or" group start None; a converted tier 4 card starts All, and so does a layer of every
+  node (one group of All, no step: what it paints). Moving steps never changes it.
 - **Sides.** Start with speaks the selection's side. A node selection reads an edge value as "nodes
   touching a passing edge"; an edge selection reads a node value as "both ends pass" (default) or
   "either end passes", a chip on the row. A step still silent on the side changes nothing.
@@ -235,7 +236,11 @@ the Hovered layer stay.
 - **Table**: open while picking, it shows a Group column first (a 12 px chit plus the name, never a
   row tint: lime means selected), read from the element, and a new **Matches only** toggle, on (the
   glossary rejects "Show only"). Opening it never takes focus.
-- **Count chips**: section 2. Hovering one marks its members.
+- **Count chips**: section 2. Hovering one marks its members. The selection header's chip is the
+  style host's only (a filter card's own header counts the card); a group row's chip is its Enter.
+- **Preview key rows** count what each group draws in its color (the first group wins, a group that
+  is off draws none), from the element's `BranchReading.drawn`, so the rows and No match add up to
+  the base; the group's full count stays on its editor row.
 
 ### 8a. Owner question: open the data table automatically while picking? No.
 

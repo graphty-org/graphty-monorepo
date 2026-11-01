@@ -31,14 +31,17 @@
     color: var(--mantine-color-dimmed);
 }
 
-/* The remove x shows on hover and focus only. */
-.sel-step-row .sel-remove {
-    visibility: hidden;
+/* A step row's value is named in full before its test is cut short (figma-spec 9.6 keeps the
+   row's remove at rest). */
+.sel-step-row .sel-value {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 70%;
 }
 
-.sel-step-row:hover .sel-remove,
-.sel-step-row:focus-within .sel-remove {
-    visibility: visible;
+.sel-step-row .sel-test {
+    flex: 1 1 0;
+    min-width: 0;
 }
 
 .sel-count {
@@ -60,4 +63,11 @@
 
 .sel-plus {
     align-self: flex-start;
+}
+
+/* A folded selection's chip: the verb's glyph sits on the text's line. */
+.ws-which-chips .ws-chip {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
 }

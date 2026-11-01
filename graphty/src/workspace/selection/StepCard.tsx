@@ -6,7 +6,7 @@
  * is read from graphty-element; every edit goes to the host as a new rule.
  */
 
-import { MenuShortcut, SegmentedControl } from "@graphty/compact-mantine";
+import { MenuCheckItem, MenuShortcut, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
 import type {
     GraphSession,
     RuleTree,
@@ -19,7 +19,7 @@ import { ActionIcon, Button, CloseButton, Group, Menu, NumberInput, Select, Text
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { formatKey, isTypingTarget } from "../keys/keys";
+import { formatKey, isTypingTarget, matchesKey } from "../keys/keys";
 import type { Card, Side } from "../style/cards";
 import { CardBody } from "../style/WhichPicker";
 import { type Verb, VERBS } from "./model";
@@ -29,6 +29,7 @@ import { NOUNS, reasonWords, referenceWords, stepWords, VERB_WORDS } from "./wor
 /** What a step card asks its editor to do. */
 interface StepActions {
     readonly onStep: (patch: Partial<UnionStep>) => void;
+    readonly onToggle: () => void;
     readonly onMove: (by: -1 | 1) => void;
     readonly onDuplicate: () => void;
     readonly onRemove: () => void;
@@ -51,7 +52,7 @@ export function VerbMenu({
     return (
         <Menu position="bottom-start" withinPortal>
             <Menu.Target>
-                <Tooltip label={`${words.word} (${words.figma})`}>
+                <TargetTooltip label={`${words.word} (${words.figma})`}>
                     <ActionIcon
                         variant="subtle"
                         size="sm"
@@ -61,7 +62,7 @@ export function VerbMenu({
                     >
                         <words.glyph size={14} aria-hidden />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown data-portal="">
                 {VERBS.map((each) => {
@@ -181,12 +182,19 @@ function RelativeBody({
             <Select
                 size="xs"
                 aria-label="Reference"
+                data-first-focus
                 placeholder="Choose a reference"
                 searchable
                 limit={50}
                 data={data}
                 value={value ?? (reference === undefined ? null : "held")}
                 allowDeselect={false}
+                // As the value picker: typing highlights the first match (Enter takes it), and
+                // focus selects the name, so typing replaces it.
+                selectFirstOptionOnChange
+                onFocus={(event) => {
+                    event.currentTarget.select();
+                }}
                 comboboxProps={{ withinPortal: true }}
                 style={{ flex: 1, minWidth: 0 }}
                 onChange={(next) => {
@@ -344,6 +352,7 @@ interface StepCardProps extends StepActions {
  * @param props.first - it is its group's first step
  * @param props.last - it is its group's last step
  * @param props.onStep - takes a change to the step
+ * @param props.onToggle - switches the step on or off
  * @param props.onMove - moves it up or down its group
  * @param props.onDuplicate - copies it under itself
  * @param props.onRemove - removes it
@@ -359,6 +368,7 @@ export function StepCard({
     first,
     last,
     onStep,
+    onToggle,
     onMove,
     onDuplicate,
     onRemove,
@@ -389,7 +399,8 @@ export function StepCard({
         }
         commit(next);
     };
-    const count = reading?.count;
+    // A step that waits on a run shows no count: the number would be what comes into it.
+    const count = reading === undefined || reading.waiting ? undefined : reading.count;
     const label = [
         `${VERB_WORDS[step.op].word}, ${value}`,
         count === undefined ? "" : `${String(count)} of ${String(of)} ${NOUNS[side].many} so far`,
@@ -412,6 +423,24 @@ export function StepCard({
             onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.nativeEvent.isComposing && draft !== null) {
                     commit();
+                    return;
+                }
+                // The keys its "..." menu lists, as its row takes them, outside a text box.
+                if (isTypingTarget(event.target)) {
+                    return;
+                }
+                const native = event.nativeEvent;
+                if (matchesKey(native, "Mod+[") || matchesKey(native, "Mod+]")) {
+                    event.preventDefault();
+                    if (!(event.key === "[" ? first : last)) {
+                        onMove(event.key === "[" ? -1 : 1);
+                    }
+                } else if (matchesKey(native, "Mod+D")) {
+                    event.preventDefault();
+                    onDuplicate();
+                } else if (event.key === "Delete") {
+                    event.preventDefault();
+                    onRemove();
                 }
             }}
             onBlur={(event) => {
@@ -434,36 +463,52 @@ export function StepCard({
                         onStep({ op });
                     }}
                 />
-                <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
+                <Text size="sm" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
                     {value}
                 </Text>
                 {count !== undefined && (
                     <Tooltip label={`${String(count)} of ${String(of)} ${NOUNS[side].many} so far`}>
-                        <Text size="xs" c="dimmed">
+                        <Text size="sm" c="dimmed">
                             {count}
                         </Text>
                     </Tooltip>
                 )}
                 <Menu position="bottom-end" withinPortal>
                     <Menu.Target>
-                        <Tooltip label="More">
+                        <TargetTooltip label="More">
                             <ActionIcon variant="subtle" size="sm" aria-label={`More for ${value}`}>
                                 <GLYPHS.more size={14} aria-hidden />
                             </ActionIcon>
-                        </Tooltip>
+                        </TargetTooltip>
                     </Menu.Target>
                     <Menu.Dropdown data-portal="">
                         {canSoFar && (
-                            <Menu.Item
-                                onClick={() => {
-                                    onStep({ computedOn: step.computedOn === "so-far" ? "base" : "so-far" });
-                                }}
-                            >
-                                {step.computedOn === "so-far"
-                                    ? `Computed on: ${host === "filter" ? "Full graph" : "Filtered graph"}`
-                                    : "Computed on: So far"}
-                            </Menu.Item>
+                            <>
+                                <Menu.Label>Computed on</Menu.Label>
+                                <MenuCheckItem
+                                    radio
+                                    checked={step.computedOn !== "so-far"}
+                                    onClick={() => {
+                                        onStep({ computedOn: "base" });
+                                    }}
+                                >
+                                    {host === "filter" ? "Full graph" : "Filtered graph"}
+                                </MenuCheckItem>
+                                <MenuCheckItem
+                                    radio
+                                    checked={step.computedOn === "so-far"}
+                                    onClick={() => {
+                                        onStep({ computedOn: "so-far" });
+                                    }}
+                                >
+                                    So far
+                                </MenuCheckItem>
+                                <Menu.Divider />
+                            </>
                         )}
+                        <Menu.Item rightSection={<MenuShortcut>Space</MenuShortcut>} onClick={onToggle}>
+                            {step.on === false ? "Turn on" : "Turn off"}
+                        </Menu.Item>
                         {missing !== undefined && (
                             <Menu.Item
                                 onClick={() => {

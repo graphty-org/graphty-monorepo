@@ -44,6 +44,7 @@ function applies(session: GraphSession, rule: UnionLeaf): boolean {
  * @param props.openPicker - opens the value picker at once (a new card)
  * @param props.hostPicks - the filter's own picker entries (Time window)
  * @param props.title - the card's name, which titles the canvas key's preview
+ * @param props.onDraft - takes a new card's selection while no step applies yet, so the host keeps it
  * @param props.onDone - closes the card (Done, or Escape with nothing smaller open)
  * @returns The editor
  */
@@ -58,6 +59,7 @@ export function FilterSelection({
     openPicker,
     hostPicks,
     title,
+    onDraft,
     onDone,
 }: Readonly<{
     session: GraphSession;
@@ -70,6 +72,7 @@ export function FilterSelection({
     openPicker?: boolean;
     hostPicks?: readonly PickSection[];
     title?: string;
+    onDraft?: (rule: UnionLeaf) => void;
     onDone: () => void;
 }>): React.JSX.Element {
     // The rule as last edited, until the element holds it.
@@ -95,6 +98,7 @@ export function FilterSelection({
             onChange={(next) => {
                 setLocal(next);
                 if (!written && !applies(session, next)) {
+                    onDraft?.(next);
                     return;
                 }
                 writes.current += 1;

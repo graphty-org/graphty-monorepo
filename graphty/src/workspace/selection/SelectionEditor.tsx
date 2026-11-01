@@ -12,9 +12,11 @@ import "./selection.css";
 
 import {
     focusWithRing,
+    InlineRename,
     MenuShortcut,
     SegmentedControl,
     SplitButton,
+    TargetTooltip,
     ToggleIconButton,
     TooltipShortcut,
 } from "@graphty/compact-mantine";
@@ -26,13 +28,14 @@ import type {
     UnionBranch,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, CloseButton, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, CloseButton, Group, Menu, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { formatKey, isTypingTarget, matchesKey } from "../keys/keys";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddCondition } from "../style/WhichPicker";
+import { colorName } from "../style/words";
 import {
     addBranch,
     addStep,
@@ -124,10 +127,8 @@ export function SelectionEditor({
     const [colors, setColors] = useState(groupColors[host]);
     const box = useRef<HTMLDivElement>(null);
     // The step card opened on arrival takes focus on its first control.
-    const focusAfter = useRef<string | null>(
-        initialStep === undefined
-            ? null
-            : `[data-step-card="${CSS.escape(initialStep)}"] :is(input:not([type=hidden]), button)`,
+    const focusAfter = useRef<string | readonly string[] | null>(
+        initialStep === undefined ? null : cardFocus(initialStep),
     );
     const picking = openStep !== null || adding !== null;
     const multi = rule.branches.length > 1;
@@ -135,13 +136,15 @@ export function SelectionEditor({
     const say = (words: string): void => {
         store.set({ announcement: words });
     };
+    const stepName = (step: UnionBranch["steps"][number]): string => stepWords(session, step, side, undefined).value;
 
     // The picking view (spec 9): every layer suspended, members in their group's color, the rest
     // faint; graphty-element draws it. A changed rule replaces the view in place.
     const view = useRef<{ end(): void } | null>(null);
     const viewKey = JSON.stringify(reading.rule);
+    const previewing = picking && colors;
     useEffect(() => {
-        if (picking && colors) {
+        if (previewing) {
             view.current = session.styles.showBranches({
                 rule: JSON.parse(viewKey) as UnionLeaf,
                 rest: "faint",
@@ -151,7 +154,15 @@ export function SelectionEditor({
             view.current?.end();
             view.current = null;
         }
-    }, [picking, colors, viewKey, session, hold]);
+    }, [previewing, viewKey, session, hold]);
+    // The preview's start and end are said once each (spec 9), never on each redraw.
+    const wasPreviewing = useRef(false);
+    useEffect(() => {
+        if (previewing !== wasPreviewing.current) {
+            wasPreviewing.current = previewing;
+            store.set({ announcement: previewing ? "Preview: group colors" : "Preview ended" });
+        }
+    }, [previewing, store]);
     useEffect(
         () => () => {
             view.current?.end();
@@ -183,8 +194,10 @@ export function SelectionEditor({
         if (want === null) {
             return;
         }
-        const target = box.current?.querySelector<HTMLElement>(want);
-        if (target !== null && target !== undefined) {
+        const target = (typeof want === "string" ? [want] : want)
+            .map((each) => box.current?.querySelector<HTMLElement>(each))
+            .find((each) => each !== null && each !== undefined);
+        if (target !== undefined) {
             focusAfter.current = null;
             focusWithRing(target);
         }
@@ -201,7 +214,7 @@ export function SelectionEditor({
         setAdding(null);
         setOpenStep(made.id);
         setActive(made.id);
-        focusAfter.current = `[data-step-card="${CSS.escape(made.id)}"] :is(input:not([type=hidden]), button)`;
+        focusAfter.current = cardFocus(made.id);
     };
     const startAdding = (branch: UnionBranch, op: Verb = defaultVerb(branch)): void => {
         setOpenStep(null);
@@ -238,6 +251,10 @@ export function SelectionEditor({
         const at = branch.steps.findIndex((step) => step.id === id);
         const next = branch.steps[at + 1]?.id ?? branch.steps[at - 1]?.id;
         onChange(removeStep(rule, branch.id ?? "", id));
+        const gone = branch.steps[at];
+        if (gone !== undefined) {
+            say(`Removed ${stepName(gone)}`);
+        }
         if (openStep === id) {
             setOpenStep(null);
         }
@@ -245,6 +262,45 @@ export function SelectionEditor({
             next === undefined
                 ? `[data-plus="${CSS.escape(branch.id ?? "")}"] button`
                 : `[data-row="${CSS.escape(next)}"]`;
+    };
+    const removeBranchOf = (id: string, name: string): void => {
+        onChange(removeBranch(rule, id));
+        say(`Removed ${name}`);
+    };
+    const duplicate = (branch: UnionBranch, stepId?: string): void => {
+        const id = stepId ?? branch.id ?? "";
+        const made = stepId === undefined ? duplicateBranch(rule, id) : duplicateStep(rule, branch.id ?? "", id);
+        onChange(made.rule);
+        const step = branch.steps.find((each) => each.id === stepId);
+        say(`Copied ${step === undefined ? (branch.name ?? letterOf(rule.branches.indexOf(branch))) : stepName(step)}`);
+        focusAfter.current = `[data-row="${CSS.escape(made.id)}"]`;
+    };
+    const toggle = (branch: UnionBranch, stepId?: string): void => {
+        const step = branch.steps.find((each) => each.id === stepId);
+        const on = (step ?? branch).on === false;
+        onChange(
+            step === undefined
+                ? editBranch(rule, branch.id ?? "", { on })
+                : editStep(rule, branch.id ?? "", stepId ?? "", { on }),
+        );
+        const name = step === undefined ? (branch.name ?? letterOf(rule.branches.indexOf(branch))) : stepName(step);
+        say(`${name} ${on ? "on" : "off"}`);
+    };
+    // A group's members, as its count chip shows them: selected (a style layer), or the table on them.
+    const showMembers = (members: StepsReading["result"] | undefined, branch: string | null): void => {
+        if (members === undefined) {
+            return;
+        }
+        if (host === "selector") {
+            void session.selection.apply({ scope: members });
+            return;
+        }
+        const held = store.get().editingSelection;
+        store.set({
+            dockOpen: true,
+            dockTab: `${side}s`,
+            ...(held === null ? {} : { editingSelection: { ...held, branch } }),
+        });
     };
 
     // The rows are one Tab stop walked with the arrows (roving focus); a row's keys act on it.
@@ -281,22 +337,28 @@ export function SelectionEditor({
             }
         } else if (matchesKey(event.nativeEvent, "Mod+D")) {
             event.preventDefault();
-            const made = stepId === undefined ? duplicateBranch(rule, id) : duplicateStep(rule, branch.id ?? "", id);
-            onChange(made.rule);
-            focusAfter.current = `[data-row="${CSS.escape(made.id)}"]`;
+            duplicate(branch, stepId);
         } else if (event.key === "Delete" || event.key === "Backspace") {
             event.preventDefault();
             if (stepId === undefined) {
-                onChange(removeBranch(rule, id));
+                removeBranchOf(id, branch.name ?? letterOf(rule.branches.indexOf(branch)));
             } else {
                 removeStepAt(branch, id);
             }
         } else if (event.key === "F2" && stepId === undefined) {
             event.preventDefault();
             setRenaming(id);
+        } else if (event.key === " ") {
+            // Space switches the row's group or step on and off (its eye), as a checkbox does.
+            event.preventDefault();
+            toggle(branch, stepId);
         } else if (event.key === "Enter" && stepId !== undefined) {
             event.preventDefault();
             setOpenStep(openStep === id ? null : id);
+        } else if (event.key === "Enter") {
+            // A group row's Enter is its count chip: select its members, or show them in the table.
+            event.preventDefault();
+            showMembers(branchReading(branch.id)?.members, branch.id ?? null);
         }
     };
 
@@ -347,6 +409,29 @@ export function SelectionEditor({
             gap={4}
             className="sel-editor"
             data-host={host}
+            onKeyDownCapture={(event) => {
+                // Escape in a step card's box closes the card (its text is kept as it leaves the
+                // box), unless the box's own list is open: the shared boxes keep their Escape
+                // elsewhere, where a picker stays open around them.
+                const target = event.target as HTMLElement;
+                if (
+                    event.key !== "Escape" ||
+                    openStep === null ||
+                    !target.matches("input, textarea") ||
+                    target.closest("[data-step-card]") === null ||
+                    target.closest("[data-portal]") !== null ||
+                    target.getAttribute("aria-expanded") === "true" ||
+                    "expanded" in target.dataset
+                ) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                target.blur();
+                const id = openStep;
+                setOpenStep(null);
+                focusAfter.current = `[data-row="${CSS.escape(id)}"]`;
+            }}
             onKeyDown={(event) => {
                 // Escape closes the innermost thing per press: the open card, then the editor (spec 3).
                 if (event.key !== "Escape" || event.defaultPrevented) {
@@ -372,16 +457,20 @@ export function SelectionEditor({
             }}
         >
             <Group gap={4} wrap="nowrap" className="sel-head">
-                <CountChip
-                    session={session}
-                    host={host}
-                    count={reading.total.count}
-                    of={of}
-                    side={side}
-                    members={reading.result}
-                    branch={null}
-                    tip={reading.pending.length > 0 ? `${String(reading.pending.length)} waiting` : undefined}
-                />
+                {host === "selector" && (
+                    <CountChip
+                        count={reading.total.count}
+                        of={of}
+                        side={side}
+                        host={host}
+                        disabled={false}
+                        tabbable
+                        tip={reading.pending.length > 0 ? `${String(reading.pending.length)} waiting` : undefined}
+                        onClick={() => {
+                            showMembers(reading.result, null);
+                        }}
+                    />
+                )}
                 <ToggleIconButton
                     label="Group colors"
                     tooltip="Group colors while picking"
@@ -408,7 +497,14 @@ export function SelectionEditor({
                                 tabIndex={tabbed === branch.id ? 0 : -1}
                                 data-row={branch.id}
                                 className="sel-row sel-group-row"
-                                aria-label={`${name}, ${countWords(branchRead?.count ?? 0, of, side)}${branch.on === false ? ", off" : ""}`}
+                                aria-label={[
+                                    name,
+                                    colorWord(color),
+                                    countWords(branchRead?.count ?? 0, of, side),
+                                    branch.on === false ? "off" : "",
+                                ]
+                                    .filter((each) => each !== "")
+                                    .join(", ")}
                                 onKeyDown={(event) => {
                                     rowKeys(event, branch);
                                 }}
@@ -430,57 +526,51 @@ export function SelectionEditor({
                                     aria-hidden
                                 />
                                 {renaming === branch.id ? (
-                                    <TextInput
-                                        size="xs"
-                                        aria-label={`Rename ${name}`}
-                                        defaultValue={name}
-                                        autoFocus
-                                        style={{ flex: 1 }}
-                                        onKeyDown={(event) => {
-                                            if (event.key === "Enter") {
-                                                const text = event.currentTarget.value.trim();
+                                    // Figma's rename: the name preselected, Enter or a click away keeps it.
+                                    <InlineRename
+                                        value={name}
+                                        label={`Rename ${name}`}
+                                        onCommit={(typed) => {
+                                            const text = typed.trim();
+                                            if (text !== name) {
                                                 onChange(
                                                     editBranch(rule, branch.id ?? "", {
                                                         name: text === "" ? undefined : text,
                                                     }),
                                                 );
-                                                setRenaming(null);
-                                                focusAfter.current = `[data-row="${CSS.escape(branch.id ?? "")}"]`;
-                                            } else if (event.key === "Escape") {
-                                                event.preventDefault();
-                                                event.stopPropagation();
-                                                setRenaming(null);
-                                                focusAfter.current = `[data-row="${CSS.escape(branch.id ?? "")}"]`;
                                             }
+                                            setRenaming(null);
                                         }}
-                                        onBlur={() => {
+                                        onCancel={() => {
                                             setRenaming(null);
                                         }}
                                     />
                                 ) : (
-                                    <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
+                                    <Text size="sm" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
                                         {name}
                                     </Text>
                                 )}
-                                <CountChip
-                                    session={session}
-                                    host={host}
-                                    count={branchRead?.count}
-                                    of={of}
-                                    side={side}
-                                    members={branchRead?.members}
-                                    branch={branch.id ?? null}
-                                />
-                                <Tooltip label={`Use ${name}`}>
+                                {branchRead !== undefined && (
+                                    <CountChip
+                                        count={branchRead.count}
+                                        of={of}
+                                        side={side}
+                                        host={host}
+                                        disabled={false}
+                                        tabbable={false}
+                                        onClick={() => {
+                                            showMembers(branchRead.members, branch.id ?? null);
+                                        }}
+                                    />
+                                )}
+                                <Tooltip label={<TooltipShortcut label={`Use ${name}`} shortcut="Space" />}>
                                     <Checkbox
                                         size="xs"
                                         tabIndex={-1}
                                         aria-label={`Use ${name}`}
                                         checked={branch.on !== false}
-                                        onChange={(event) => {
-                                            onChange(
-                                                editBranch(rule, branch.id ?? "", { on: event.currentTarget.checked }),
-                                            );
+                                        onChange={() => {
+                                            toggle(branch);
                                         }}
                                     />
                                 </Tooltip>
@@ -491,14 +581,22 @@ export function SelectionEditor({
                                     onRename={() => {
                                         setRenaming(branch.id ?? null);
                                     }}
+                                    on={branch.on !== false}
+                                    onToggle={() => {
+                                        toggle(branch);
+                                    }}
+                                    onShow={() => {
+                                        showMembers(branchRead?.members, branch.id ?? null);
+                                    }}
+                                    showLabel={host === "selector" ? "Select members" : "Show in table"}
                                     onDuplicate={() => {
-                                        onChange(duplicateBranch(rule, branch.id ?? "").rule);
+                                        duplicate(branch);
                                     }}
                                     onMove={(by) => {
                                         moveBranchBy(branch.id ?? "", by);
                                     }}
                                     onDelete={() => {
-                                        onChange(removeBranch(rule, branch.id ?? ""));
+                                        removeBranchOf(branch.id ?? "", name);
                                     }}
                                 />
                             </div>
@@ -522,7 +620,7 @@ export function SelectionEditor({
                             const reason = reasonWords(read?.reason ?? null, stepIds);
                             const verb = VERB_WORDS[step.op];
                             const soFar =
-                                read === undefined
+                                read === undefined || read.waiting
                                     ? ""
                                     : `, ${String(read.count)} of ${String(of)} ${NOUNS[side].many} so far`;
                             const summary =
@@ -564,21 +662,10 @@ export function SelectionEditor({
                                                     onChange(editStep(rule, branch.id ?? "", id, { op }));
                                                 }}
                                             />
-                                            <Text
-                                                size="xs"
-                                                truncate
-                                                style={{ flex: "0 1 auto", minWidth: 0 }}
-                                                className="sel-value"
-                                            >
+                                            <Text size="sm" truncate className="sel-value">
                                                 {words.value}
                                             </Text>
-                                            <Text
-                                                size="xs"
-                                                c="dimmed"
-                                                truncate
-                                                style={{ flex: 1, minWidth: 0 }}
-                                                className="sel-test"
-                                            >
+                                            <Text size="sm" c="dimmed" truncate className="sel-test">
                                                 {summary}
                                             </Text>
                                             {read?.orderMatters === true && (
@@ -586,8 +673,9 @@ export function SelectionEditor({
                                                     <GLYPHS.order size={12} aria-label="Order matters" />
                                                 </Tooltip>
                                             )}
-                                            {read !== undefined && (
-                                                <Text size="xs" c="dimmed" className="sel-count">
+                                            {/* The open card's header says the count and holds the remove. */}
+                                            {!open && read !== undefined && !read.waiting && (
+                                                <Text size="sm" c="dimmed" className="sel-count">
                                                     {read.count}
                                                 </Text>
                                             )}
@@ -596,23 +684,21 @@ export function SelectionEditor({
                                                 tabIndex={-1}
                                                 aria-label={`Use ${words.value}`}
                                                 checked={step.on !== false}
-                                                onChange={(event) => {
-                                                    onChange(
-                                                        editStep(rule, branch.id ?? "", id, {
-                                                            on: event.currentTarget.checked,
-                                                        }),
-                                                    );
+                                                onChange={() => {
+                                                    toggle(branch, id);
                                                 }}
                                             />
-                                            <CloseButton
-                                                size="xs"
-                                                tabIndex={-1}
-                                                className="sel-remove"
-                                                aria-label={`Remove ${words.value}`}
-                                                onClick={() => {
-                                                    removeStepAt(branch, id);
-                                                }}
-                                            />
+                                            {!open && (
+                                                <CloseButton
+                                                    size="xs"
+                                                    tabIndex={-1}
+                                                    className="sel-remove"
+                                                    aria-label={`Remove ${words.value}`}
+                                                    onClick={() => {
+                                                        removeStepAt(branch, id);
+                                                    }}
+                                                />
+                                            )}
                                         </div>
                                     </Tooltip>
                                     {open && (
@@ -631,8 +717,11 @@ export function SelectionEditor({
                                             onMove={(by) => {
                                                 moveStepBy(branch, id, by);
                                             }}
+                                            onToggle={() => {
+                                                toggle(branch, id);
+                                            }}
                                             onDuplicate={() => {
-                                                onChange(duplicateStep(rule, branch.id ?? "", id).rule);
+                                                duplicate(branch, id);
                                             }}
                                             onRemove={() => {
                                                 removeStepAt(branch, id);
@@ -662,12 +751,23 @@ export function SelectionEditor({
                 );
             })}
             <Group gap={4} justify="space-between">
-                <Tooltip label="Or: match another way">
+                <Tooltip
+                    label={
+                        reading.branchesLeft === 0
+                            ? `No more groups: ${String(rule.branches.length)} is the most`
+                            : "Or: match another way"
+                    }
+                >
                     <Button
                         size="compact-xs"
                         variant="subtle"
                         leftSection={<GLYPHS.add size={12} aria-hidden />}
+                        aria-disabled={reading.branchesLeft === 0}
+                        data-disabled={reading.branchesLeft === 0 ? true : undefined}
                         onClick={() => {
+                            if (reading.branchesLeft === 0) {
+                                return;
+                            }
                             const made = addBranch(rule);
                             onChange(made.rule);
                             setOpenStep(null);
@@ -798,12 +898,17 @@ function StepPlus({
 }
 
 /**
- * A group's "..." menu: Rename, Duplicate, Move up, Move down, Delete, each with its key.
+ * A group's "..." menu: Rename, its on and off, its members, Duplicate, Move up, Move down,
+ * Delete, each with its key.
  * @param props - Component props
  * @param props.name - the group's name
  * @param props.first - it is the first group
  * @param props.last - it is the last group
+ * @param props.on - whether it is on
+ * @param props.showLabel - the members item's words for the host
  * @param props.onRename - starts renaming it
+ * @param props.onToggle - switches it on or off
+ * @param props.onShow - selects its members, or shows them in the table
  * @param props.onDuplicate - copies it under itself
  * @param props.onMove - moves it up or down
  * @param props.onDelete - removes it
@@ -813,7 +918,11 @@ function GroupMenu({
     name,
     first,
     last,
+    on,
+    showLabel,
     onRename,
+    onToggle,
+    onShow,
     onDuplicate,
     onMove,
     onDelete,
@@ -821,7 +930,11 @@ function GroupMenu({
     name: string;
     first: boolean;
     last: boolean;
+    on: boolean;
+    showLabel: string;
     onRename: () => void;
+    onToggle: () => void;
+    onShow: () => void;
     onDuplicate: () => void;
     onMove: (by: -1 | 1) => void;
     onDelete: () => void;
@@ -829,15 +942,21 @@ function GroupMenu({
     return (
         <Menu position="bottom-end" withinPortal>
             <Menu.Target>
-                <Tooltip label="More">
+                <TargetTooltip label="More">
                     <ActionIcon variant="subtle" size="sm" tabIndex={-1} aria-label={`More for ${name}`}>
                         <GLYPHS.more size={14} aria-hidden />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown data-portal="">
                 <Menu.Item rightSection={<MenuShortcut>F2</MenuShortcut>} onClick={onRename}>
                     Rename
+                </Menu.Item>
+                <Menu.Item rightSection={<MenuShortcut>Space</MenuShortcut>} onClick={onToggle}>
+                    {on ? "Turn off" : "Turn on"}
+                </Menu.Item>
+                <Menu.Item rightSection={<MenuShortcut>Enter</MenuShortcut>} onClick={onShow}>
+                    {showLabel}
                 </Menu.Item>
                 <Menu.Item rightSection={<MenuShortcut>{formatKey("Mod+D")}</MenuShortcut>} onClick={onDuplicate}>
                     Duplicate
@@ -908,41 +1027,37 @@ function TableButton({ side }: Readonly<{ side: "node" | "edge" }>): React.JSX.E
 /**
  * A count chip, "24 of 77": in a style layer a click selects what it counts; in a filter it opens
  * the table on those rows, Matches only, and never selects (spec 2: a selection change would switch
- * every Select card off).
+ * every Select card off). The header's is a Tab stop; a group row's is reached by the row's Enter.
  * @param props - Component props
- * @param props.session - the element's session
- * @param props.host - where the selection is edited
  * @param props.count - the count
  * @param props.of - the base's size
  * @param props.side - nodes or edges
- * @param props.members - what it counts, as a scope the selection takes
- * @param props.branch - the group it counts, or null for the whole selection
+ * @param props.host - where the selection is edited
+ * @param props.disabled - whether it has nothing to show yet
+ * @param props.tabbable - whether it is a Tab stop
  * @param props.tip - more words for its tooltip
+ * @param props.onClick - shows what it counts
  * @returns The chip
  */
 function CountChip({
-    session,
-    host,
     count,
     of,
     side,
-    members,
-    branch,
+    host,
+    disabled,
+    tabbable,
     tip,
+    onClick,
 }: Readonly<{
-    session: GraphSession;
-    host: Host;
-    count: number | undefined;
+    count: number;
     of: number;
     side: "node" | "edge";
-    members: StepsReading["result"] | undefined;
-    branch: string | null;
+    host: Host;
+    disabled: boolean;
+    tabbable: boolean;
     tip?: string;
-}>): React.JSX.Element | null {
-    const { store } = useWorkspace();
-    if (count === undefined) {
-        return null;
-    }
+    onClick: () => void;
+}>): React.JSX.Element {
     const words = countWords(count, of, side);
     const label = host === "selector" ? `Select ${words}` : `Show ${words} in the table`;
     return (
@@ -950,28 +1065,40 @@ function CountChip({
             <Button
                 size="compact-xs"
                 variant="subtle"
-                tabIndex={-1}
+                tabIndex={tabbable ? 0 : -1}
                 className="sel-count"
                 aria-label={label}
-                disabled={members === undefined}
-                onClick={() => {
-                    if (members === undefined) {
-                        return;
-                    }
-                    if (host === "selector") {
-                        void session.selection.apply({ scope: members });
-                        return;
-                    }
-                    const held = store.get().editingSelection;
-                    store.set({
-                        dockOpen: true,
-                        dockTab: `${side}s`,
-                        ...(held === null ? {} : { editingSelection: { ...held, branch } }),
-                    });
-                }}
+                disabled={disabled}
+                onClick={onClick}
             >
                 {`${String(count)} of ${String(of)}`}
             </Button>
         </Tooltip>
     );
+}
+
+/**
+ * Where focus goes in a step card that just opened: the control its test is chosen in first (a
+ * Relative to step's reference), else its first box to type in (a bound, the text), else its first
+ * input (a list, which opens to pick from), else its first button.
+ * @param id - the step's id.
+ * @returns the selectors, first match wins.
+ */
+function cardFocus(id: string): readonly string[] {
+    const card = `[data-step-card="${CSS.escape(id)}"]`;
+    return [
+        `${card} input[data-first-focus]`,
+        `${card} input:not([type=hidden], [type=checkbox], [type=radio], [role=combobox])`,
+        `${card} input:not([type=hidden])`,
+        `${card} button`,
+    ];
+}
+
+/**
+ * A group's color as a word for its row's name ("teal").
+ * @param color - the element's color.
+ * @returns the word, or "" for none.
+ */
+function colorWord(color: string): string {
+    return /^#[0-9a-f]{6}/i.test(color) ? colorName(color.slice(0, 7)).toLowerCase() : "";
 }

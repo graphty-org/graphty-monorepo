@@ -19,6 +19,7 @@ import type {
 import { Menu } from "@mantine/core";
 import React, { useState } from "react";
 
+import { useShowingBranches } from "../selection/useSteps";
 import { useNumberFormats } from "../settings/numberFormat";
 import { timeValue } from "../time/timeActions";
 import { elementSort, groupName, type RecordKind, type TableColumnChoice } from "./columns";
@@ -166,6 +167,8 @@ export function RecordTable({
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const numberFormats = useNumberFormats();
+    // The Group column's chits are filled only while the canvas draws the group colors.
+    const filled = useShowingBranches(session);
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
     const sorted = columns.find((column) => column.id === sort?.id);
 
@@ -249,7 +252,10 @@ export function RecordTable({
                 const group = groupOf(row.record.id);
                 return group === null ? null : (
                     <span className="ws-table-group">
-                        <span className="sel-chit" style={{ borderColor: group.color, background: group.color }} />
+                        <span
+                            className="sel-chit"
+                            style={{ borderColor: group.color, background: filled ? group.color : "transparent" }}
+                        />
                         {group.name}
                     </span>
                 );

@@ -396,16 +396,22 @@ export const withReference = (rule: RelativeRule, reference: StepReference): Rul
 
 /**
  * A layer's selector as a selection: its `union` rule, a flat rule converted by the element, or
- * "new" for a layer that picks everything (a new selection, written with its first step); null
- * for a selector the editor does not edit (the selected, the hovered, ids picked by hand).
+ * one group starting All with no step for a layer that picks everything (what it paints, so the
+ * layer's row, the folded row and the editor read one count); null for a selector the editor does
+ * not edit (the selected, the hovered, ids picked by hand).
  * @param session - the element's session.
  * @param selector - the layer's selector.
  * @param side - nodes or edges.
- * @returns the selection, "new", or null.
+ * @returns the selection, or null.
  */
-export function layerSelection(session: GraphSession, selector: Selector, side: Side): UnionLeaf | "new" | null {
+export function layerSelection(session: GraphSession, selector: Selector, side: Side): UnionLeaf | null {
     if (selector.match === "everything") {
-        return "new";
+        return {
+            kind: "union",
+            side: side === "node" ? "nodes" : "edges",
+            within: "visible",
+            branches: [{ start: "all", steps: [] }],
+        };
     }
     const rule = selectorRule(selector)?.where;
     if (rule === undefined) {

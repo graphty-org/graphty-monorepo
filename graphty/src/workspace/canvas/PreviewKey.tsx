@@ -8,28 +8,12 @@
 import { DataRow } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React from "react";
 
-import { useEditedSelection } from "../selection/useSteps";
+import { useEditedSelection, useShowingBranches } from "../selection/useSteps";
 import { letterOf } from "../selection/words";
 import { useWorkspaceState } from "../state/WorkspaceContext";
 import { colorName } from "../style/words";
-
-/**
- * Whether graphty-element draws a branches view now.
- * @param session - the element's session.
- * @returns true while it does.
- */
-function useShowingBranches(session: GraphSession): boolean {
-    const [shown, setShown] = useState(session.styles.showingBranches);
-    useEffect(() => {
-        setShown(session.styles.showingBranches);
-        return session.on("style:branches-shown-changed", (change) => {
-            setShown(change.shown);
-        });
-    }, [session]);
-    return shown;
-}
 
 /**
  * The preview key, in place of the canvas key while the element draws a selection's groups.
@@ -48,12 +32,21 @@ export function PreviewKey({
     if (!shown || edited === null || reading === null) {
         return children;
     }
-    const rows = reading.rule.branches.map((branch, at) => ({
-        id: branch.id ?? String(at),
-        name: branch.name ?? letterOf(at),
-        color: branch.color ?? "",
-        count: reading.branches.find((each) => each.id === branch.id)?.count ?? 0,
-    }));
+    // Each row counts what is drawn in its color (a member of an earlier group is drawn in that
+    // group's), so the rows and No match add up to the base; a group that is off draws nothing.
+    const rows = reading.rule.branches.flatMap((branch, at) => {
+        const read = reading.branches.find((each) => each.id === branch.id);
+        return branch.on === false || read === undefined
+            ? []
+            : [
+                  {
+                      id: branch.id ?? String(at),
+                      name: branch.name ?? letterOf(at),
+                      color: branch.color ?? "",
+                      count: read.drawn,
+                  },
+              ];
+    });
     return (
         <Paper
             component="section"

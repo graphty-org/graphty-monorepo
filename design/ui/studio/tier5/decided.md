@@ -170,6 +170,56 @@ the entries above stay as the record. The graphty-element contract moved to
   `range.as` cannot be widened without changing a returned type; By position uses `threshold.as:
 "order"`.
 
+## Polish round 1 fixes, 2026-11-01 (studio engineer)
+
+Fixed from the polish round 1 reviews (`polish-1-*.md`):
+
+- **A layer of every node reads as one group of All with no step**, not as an empty None group. The
+  layer paints every node, so its row, the folded Which row and the editor now read one count
+  (77 of 77), and "+" starts with Keep. The reviewers asked instead to write a None group when a
+  layer is made; that would leave a new layer painting nothing after its first fill until a step is
+  added, and a layer row paints nodes and edges from one shared selector, so a side's union cannot
+  be written at creation. "Start with is written when a group is made" still holds for new filter
+  cards and "+ Or" groups. "Add a condition to narrow" is gone from every row.
+- **A new filter card whose only step has no test yet is kept, folded**, when Done closes it; its
+  X takes it away. Nothing is written until a step applies, as before.
+- **The two hosts fold to the same chips**: per step the verb's glyph (none on a None group's first
+  Add), the value and the short test, the group's letter first when there are several, the whole
+  step in the chip's tooltip.
+- **Keyboard**: Space on a group or step row switches it on or off and says so; Enter on a group
+  row is its count chip; both are also in the group's and the card's "..." menus. The card takes
+  Mod+[, Mod+], Mod+D and Delete outside a text box. Escape in a step card's box closes the card
+  (the text is kept) unless the box's list is open. A value picked focuses the card's first box.
+  Delete and duplicate are announced, and so are the preview's start and end.
+- **Rename** is compact-mantine's InlineRename: the name preselected, a click away keeps it.
+- **Counts**: the editor header's count chip is the style host's only (a filter card's header
+  already counts it) and a Tab stop. A step that waits on a run shows no number. The preview key
+  counts what each group draws (the first group wins) and leaves off a group that is off, so its
+  rows and No match add up to the base. "Or" is off, with its reason in the tooltip, once the
+  groups use the whole palette.
+- **Number boxes** show a few digits at rest and the whole number when focused, the domain's ends
+  as placeholders until a bound is set, at the default 24 px; the range slider speaks each thumb
+  as the boxes show it.
+- **Smaller**: card and row text is 11/16 body (names and the card's value at 600), a step's remove
+  is shown at rest, the value is cut short only after the test, the verb and "..." menus say they
+  are open (TargetTooltip), Computed on is two radio items, the group row's name says its color,
+  the table's Group chits fill only while the preview draws them, and the reference search selects
+  its text on focus and highlights the first match.
+
+Fixed in graphty-element: a layer edited while the preview suspends it keeps its legend and is never
+read as painted over; a converted "has a value" step is applied, not inert; a step over the
+filtered graph walks (hops, touching) and counts degree (step, histogram) over the filtered graph
+only; a filter card's measure step is written (the visibility compiler reads the step runs);
+`StepsReading.branchesLeft`, `BranchReading.drawn` and `StepReading.waiting` are new (@beta); `DEFAULT_BRANCH_PALETTE` is @beta.
+
+Carried to the next build round (each a rebuild of a control, not a fix): the number and time tests
+of spec section 5 (By value or By position, the HistogramRow brush, the Not measured chip, the tie
+chip), the rows as compact-mantine Tree items with the eye toggle and ColorSwatch, Which nodes as a
+ControlSection header, the Pick on canvas target, card Settings, group Color and Save as set, the
+value picker's shared listbox look (which also fixes its white-on-lime highlight), the new filter card's approved header from the start, the
+Shares a value with and On a path between presets, the element reading `valueKind` and `checkStep`
+in the picker, and `watchSteps` starting no run until a write.
+
 ## Waiting for the owner
 
 - Retagging bfs `level`, k-core `value` and dfs `value` as ordinal changes what `fieldMeasurement`
@@ -177,3 +227,5 @@ the entries above stay as the record. The graphty-element contract moved to
 - A filter condition `member of "selection"` is accepted today and silently goes stale when the
   selection changes. Refusing it, or making it follow the selection, changes an existing API
   (`../owner-decisions.md`, 2026-10-31). The app never writes it; `union` leaves freeze it.
+- The split button's chevron is 16 px wide and the range thumbs 10 px, under the 24 px target:
+  both are compact-mantine's Figma look (`../owner-decisions.md`, 2026-11-01). The build keeps them.

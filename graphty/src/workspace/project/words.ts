@@ -1,5 +1,7 @@
 /** The words Recent projects shows for an entry. */
 
+import { formatCount } from "../settings/numberFormat";
+
 const THIS_YEAR = new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
@@ -23,7 +25,7 @@ export function sizeWords(nodes: number | null): string {
     if (nodes === null) {
         return "";
     }
-    return `${nodes.toLocaleString("en-US")} ${nodes === 1 ? "node" : "nodes"}`;
+    return `${formatCount(nodes)} ${nodes === 1 ? "node" : "nodes"}`;
 }
 
 const DAY_MS = 24 * 3600 * 1000;

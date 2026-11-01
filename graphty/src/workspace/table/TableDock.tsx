@@ -16,6 +16,7 @@ import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
 import { runName } from "../runWords";
+import { formatCount, useNumberFormats } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
@@ -276,7 +277,7 @@ function recordTotal(session: GraphSession, kind: RecordKind, scope: ScopeInput,
 function recordCount(session: GraphSession, kind: RecordKind, scope: ScopeInput): string {
     const shown = recordTotal(session, kind, scope);
     const all = scope === "visible" ? recordTotal(session, kind, "graph") : shown;
-    return shown === all ? countOf(all, kind) : `${shown.toLocaleString("en-US")} of ${countOf(all, kind)}`;
+    return shown === all ? countOf(all, kind) : `${formatCount(shown)} of ${countOf(all, kind)}`;
 }
 
 /**
@@ -527,6 +528,8 @@ export function TableDock(): React.JSX.Element {
     const tab = useWorkspaceState((state) => state.dockTab);
     const maximized = useWorkspaceState((state) => state.dockMaximized);
     useSessionVersion(session);
+    // The reader's Number format respells the counts and the dock's chips.
+    useNumberFormats();
     // A filter step changes which records the table lists.
     useVisibilityVersion(session);
     const { ref: bodyRef, height: bodyHeight } = useElementSize();
@@ -750,7 +753,7 @@ export function TableDock(): React.JSX.Element {
                             setView({ issue: checked ? "any" : null });
                         }}
                     >
-                        {`With issues ${withIssues.toLocaleString("en-US")}`}
+                        {`With issues ${formatCount(withIssues)}`}
                     </Chip>
                 ) : null}
                 <span className="ws-table-spacer" />

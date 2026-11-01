@@ -161,11 +161,25 @@ describe("Pajek arrowhead places", () => {
         if (result.styles === null || result.styles === undefined) {
             throw new Error("no styles");
         }
-        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.5, null, 0.25]);
+        // Pajek draws the tip 5 px past the point ap names: (100 - 5) / 200 and (0.25 * 282.84 - 5) / 282.84
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.475, null, 0.232322]);
+    });
+
+    it("places the tip 5 s px past the point ap names, as Pajek 6.02 draws it, at the node when that is past it", async () => {
+        // pajek-specimen-arrows arc 27 28 `ap 0.5`: the point at the middle, x 432, the tip at 437; s 2 puts it 10 on
+        const result = await registry.importGraph(
+            "*Vertices 3\n1 a 0.1 0.1\n2 b 0.5 0.1\n3 c 0.51 0.1\n*Arcs\n1 2 1 s 2 ap 0.5\n2 3 1 ap 0.5\n",
+            { format: "pajek", styles: true },
+        );
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        // the second line is 5 px long: its tip would be past the target's center, so it is drawn at the node, part-way
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.45, 1e-6]);
     });
 
     it("reads ap above 1 as a distance from the target's center, a share of a placed line", async () => {
-        // pajek-synth-lines arc 3 4 ap 20: the arrowhead's back 20 px from the target's center; here on a line 200 px
+        // pajek-synth-lines arc 3 4 ap 20: the point 20 px from the target's center, the tip 5 px nearer; here on a line 200 px
         // long (0.4 of Pajek's 500 px square)
         const result = await registry.importGraph("*Vertices 2\n1 a 0.1 0.1\n2 b 0.5 0.1\n*Arcs\n1 2 1 ap 20\n", {
             format: "pajek",
@@ -174,7 +188,7 @@ describe("Pajek arrowhead places", () => {
         if (result.styles === null || result.styles === undefined) {
             throw new Error("no styles");
         }
-        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.1]);
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.075]);
     });
 });
 

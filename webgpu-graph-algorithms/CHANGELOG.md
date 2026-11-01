@@ -1,3 +1,15 @@
+## 0.6.64 (2026-10-31)
+
+### 🩹 Fixes
+
+- let dependency bumps pass and keep their failures out of the flaky readings ([#4147](https://github.com/graphty-org/graphty-monorepo/issues/4147))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.10
+- Updated algorithms to 3.4.17
+- Updated layout to 2.5.13
+
 ## 0.6.63 (2026-10-29)
 
 ### 🧱 Updated Dependencies

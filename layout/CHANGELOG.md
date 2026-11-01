@@ -1,3 +1,16 @@
+## 2.5.13 (2026-10-31)
+
+### 🩹 Fixes
+
+- **layout:** add a Barnes-Hut repulsion to ForceAtlas2 and use it for the large dataset stories ([#5001](https://github.com/graphty-org/graphty-monorepo/issues/5001), [#3849](https://github.com/graphty-org/graphty-monorepo/issues/3849), [#3848](https://github.com/graphty-org/graphty-monorepo/issues/3848))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.42
+- Updated visual-review to 0.2.38
+- Updated graph-format to 1.4.10
+- Updated algorithms to 3.4.17
+
 ## 2.5.12 (2026-10-29)
 
 ### 🧱 Updated Dependencies

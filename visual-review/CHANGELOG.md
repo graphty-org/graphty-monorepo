@@ -1,3 +1,24 @@
+## 0.2.38 (2026-10-31)
+
+### 🚀 Features
+
+- **tools:** one approval in flight, rolling notices and the unsigned-tree alarm ([#4540](https://github.com/graphty-org/graphty-monorepo/issues/4540))
+- **visual-review:** master rolling target on the review page ([#4540](https://github.com/graphty-org/graphty-monorepo/issues/4540))
+
+### 🩹 Fixes
+
+- **visual-review:** render the capture browser at 2x all the time, not only during each shot ([#4534](https://github.com/graphty-org/graphty-monorepo/issues/4534), [#4374](https://github.com/graphty-org/graphty-monorepo/issues/4374), [#4388](https://github.com/graphty-org/graphty-monorepo/issues/4388))
+- **ci:** keep onceEach private so knip passes ([#4318](https://github.com/graphty-org/graphty-monorepo/issues/4318))
+- **ci:** find master's story reference once per run, not once per Stories job ([#4318](https://github.com/graphty-org/graphty-monorepo/issues/4318))
+- **visual-review:** list the held candidate above the coupled groups ([#4389](https://github.com/graphty-org/graphty-monorepo/issues/4389))
+- **visual-review:** offer the held candidate in Ready for you and name it by its commit ([#4221](https://github.com/graphty-org/graphty-monorepo/issues/4221), [#4389](https://github.com/graphty-org/graphty-monorepo/issues/4389))
+
+### 🔥 Performance
+
+- **visual-review:** capture a whole story id alone, not every id it prefixes ([#3448](https://github.com/graphty-org/graphty-monorepo/issues/3448))
+- **visual-review:** shoot a changed story once when it is master's capture ([#3448](https://github.com/graphty-org/graphty-monorepo/issues/3448))
+- **visual-review:** read only the reference images a Stories bin compares ([#4205](https://github.com/graphty-org/graphty-monorepo/issues/4205))
+
 ## 0.2.37 (2026-10-29)
 
 ### 🩹 Fixes

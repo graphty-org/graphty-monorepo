@@ -27,7 +27,8 @@ import {
     replaceNodesCommand,
 } from "../session/commands/data";
 import type { FreezeFollower, LaneStore } from "../session/GraphSession";
-import { supersededError } from "../session/loadLine";
+import { loadLineOf, supersededError } from "../session/loadLine";
+import type { SessionCommand } from "../session/planning";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import type { Draft } from "../session/project/draft";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
@@ -331,6 +332,11 @@ export const dataManagerInternals = {} as {
     followRenumbering(manager: DataManager, follower: FreezeFollower): () => void;
     /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
     partialSeeds(manager: DataManager): ReturnType<GraphStore["partialSeeds"]>;
+    /**
+     * Settles once the edit a data door dispatched last has landed, been cancelled or failed (a
+     * failure is published as a graph error): at once unless it waited in the load line.
+     */
+    lastEdit(manager: DataManager): Promise<void>;
 };
 
 /**
@@ -376,6 +382,7 @@ export class DataManager implements Manager {
             };
         };
         dataManagerInternals.partialSeeds = (manager) => manager.store.partialSeeds();
+        dataManagerInternals.lastEdit = (manager) => manager.lastEdit;
         dataManagerInternals.adoptNode = (manager, node) => {
             manager.nodeMap.set(node.id, node);
             manager.nodeVersion++;
@@ -522,6 +529,9 @@ export class DataManager implements Manager {
 
     /** The session's dispatcher, once bound: the data doors dispatch through it. */
     private dispatcher: Dispatcher | null = null;
+
+    /** The edit a data door dispatched last, settled once it landed; see `dispatchEdit`. */
+    private lastEdit: Promise<void> = Promise.resolve();
 
     /** The edges the last removal took out, for the doors that answer with them. */
     private removedEdges: readonly EdgeId[] = [];
@@ -1681,7 +1691,7 @@ export class DataManager implements Manager {
             return;
         }
 
-        this.dispatcher.dispatchNow(command);
+        this.dispatchEdit(command);
     }
 
     /**
@@ -1695,7 +1705,7 @@ export class DataManager implements Manager {
             return;
         }
 
-        this.dispatcher.dispatchNow({
+        this.dispatchEdit({
             op: "data.apply",
             mutation: { kind: "add-nodes", records: nodes, ...(idPath === undefined ? {} : { idPath }) },
         });
@@ -1990,7 +2000,51 @@ export class DataManager implements Manager {
             return;
         }
 
-        this.dispatcher.dispatchNow({ op: "data.apply", mutation });
+        this.dispatchEdit({ op: "data.apply", mutation });
+    }
+
+    /**
+     * Dispatch an edit in the session's load line (issue #3604): at once, throwing what it throws,
+     * when no load asked for earlier is still reading, as a synchronous door always did; otherwise
+     * once that load has dispatched, queued behind its step so it lands on what the load loaded. A
+     * clear asked for while it waits cancels it. A failure after the wait has no caller to throw
+     * to, so it is published as a graph error.
+     * @param command - The edit.
+     */
+    private dispatchEdit(command: SessionCommand): void {
+        const { dispatcher } = this;
+        if (dispatcher === null) {
+            return;
+        }
+
+        let waited = false;
+        const edit = loadLineOf(dispatcher).edit((): Promise<unknown> => {
+            if (waited) {
+                return dispatcher.dispatch(command);
+            }
+
+            dispatcher.dispatchNow(command);
+            return Promise.resolve();
+        }, undefined);
+        waited = true;
+        this.lastEdit = edit.then(
+            () => undefined,
+            (error: unknown) => {
+                this.reportEditFailure(error);
+            },
+        );
+    }
+
+    /**
+     * Publish an edit's failure that came after it waited in the load line.
+     * @param error - What it failed with.
+     */
+    private reportEditFailure(error: unknown): void {
+        this.eventManager.emitGraphError(
+            this.graphContext,
+            error instanceof Error ? error : new Error(String(error)),
+            "other",
+        );
     }
 
     /**
@@ -2057,7 +2111,7 @@ export class DataManager implements Manager {
             return;
         }
 
-        this.dispatcher.dispatchNow({
+        this.dispatchEdit({
             op: "data.apply",
             mutation: {
                 kind: "add-edges",
@@ -2287,7 +2341,7 @@ export class DataManager implements Manager {
         }
 
         // One step: the removal and the new edges roll back together.
-        this.dispatcher.dispatchNow(replaceEdgesCommand([...this.edges.keys()], edges, options));
+        this.dispatchEdit(replaceEdgesCommand([...this.edges.keys()], edges, options));
     }
 
     /**
@@ -2350,7 +2404,14 @@ export class DataManager implements Manager {
             ...(load.coalesce === undefined ? {} : { coalesce: load.coalesce }),
             ...(load.setup === true ? { setup: true } : {}),
         };
-        await this.runLoad(command, generation, load.loadId);
+        if (load.generation !== undefined || this.dispatcher === null) {
+            // Called by a door that already holds the load's place in line (Graph's loads).
+            await this.runLoad(command, generation, load.loadId);
+            return;
+        }
+
+        // Called directly: its place in the session's load line is taken now (issue #3604).
+        await loadLineOf(this.dispatcher).run(() => this.runLoad(command, generation, load.loadId));
     }
 
     /**
@@ -2434,7 +2495,25 @@ export class DataManager implements Manager {
      * Remove every node, edge, record and graph-level value, as one undoable step.
      */
     clear(): void {
-        this.write({ kind: "clear" });
+        if (this.dispatcher === null) {
+            this.write({ kind: "clear" });
+            return;
+        }
+
+        // A load still in flight would otherwise put its data back after the graph was closed:
+        // the graph's own, dispatched or not, and every load or edit still waiting in the
+        // session's line (issues #3524, #3604). The clear itself happens before this returns,
+        // except while a project open writes: then it lands once the open has written.
+        this.supersedeLoads();
+        const { dispatcher } = this;
+        loadLineOf(dispatcher)
+            .clear(() => {
+                dispatcher.dispatchNow({ op: "data.apply", mutation: { kind: "clear" } });
+                return Promise.resolve();
+            })
+            .catch((error: unknown) => {
+                this.reportEditFailure(error);
+            });
     }
 
     /**

@@ -1,3 +1,27 @@
+## 0.9.37 (2026-11-01)
+
+### 🚀 Features
+
+- **compact-mantine:** let a pop-out's close and a reset button take a caller's name ([#5303](https://github.com/graphty-org/graphty-monorepo/issues/5303))
+
+### 🩹 Fixes
+
+- **workspace:** shrink CLAUDE.md files and move area rules to where they apply ([#3304](https://github.com/graphty-org/graphty-monorepo/issues/3304), [#1607](https://github.com/graphty-org/graphty-monorepo/issues/1607), [#1591](https://github.com/graphty-org/graphty-monorepo/issues/1591), [#1595](https://github.com/graphty-org/graphty-monorepo/issues/1595), [#1741](https://github.com/graphty-org/graphty-monorepo/issues/1741))
+- **compact-mantine:** menu buttons with a tooltip keep aria-expanded and the open look ([#5345](https://github.com/graphty-org/graphty-monorepo/issues/5345), [#5357](https://github.com/graphty-org/graphty-monorepo/issues/5357))
+- **compact-mantine:** name ResetButton's caller-given label fullLabel, not name ([#5303](https://github.com/graphty-org/graphty-monorepo/issues/5303))
+- **compact-mantine:** name the kept color in its words when Escape or a refusal takes typing back ([#5165](https://github.com/graphty-org/graphty-monorepo/issues/5165))
+- **compact-mantine:** keep DiscardedEdit module-private ([#5164](https://github.com/graphty-org/graphty-monorepo/issues/5164))
+- **graphty:** give F6 one ring and keep Tab moving through the app ([#1](https://github.com/graphty-org/graphty-monorepo/issues/1), [#5162](https://github.com/graphty-org/graphty-monorepo/issues/5162))
+- **graphty:** lint the live-announcement change ([#5164](https://github.com/graphty-org/graphty-monorepo/issues/5164))
+- **graphty:** announce live changes on time, once, and in one line ([#5164](https://github.com/graphty-org/graphty-monorepo/issues/5164))
+- **graphty-element:** bundle browser test dependencies afresh every run ([#885](https://github.com/graphty-org/graphty-monorepo/issues/885), [#5134](https://github.com/graphty-org/graphty-monorepo/issues/5134))
+- **compact-mantine:** keep a Select list inside its scrolling container ([#4484](https://github.com/graphty-org/graphty-monorepo/issues/4484))
+- **compact-mantine:** touch shows hover-revealed controls; outside scrollbar press closes Popout ([#5055](https://github.com/graphty-org/graphty-monorepo/issues/5055))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.39
+
 ## 0.9.36 (2026-10-31)
 
 ### 🩹 Fixes

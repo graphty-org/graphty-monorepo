@@ -173,7 +173,10 @@ else
         skip && !marked && /^##[ \t]/ { skip = 0; print "" }
         !skip { print }
         END { if (!done) { print ""; put() } }' <<<"$old" >"$body"
-    gh pr edit "$url" --body-file "$body" >/dev/null || die "the Proof could not be refreshed on $url"
+    # The REST call, not `gh pr edit`, which fails on this repository while GitHub retires classic Projects
+    # (tools/land.mjs does the same). A failed refresh only warns: the push, the review and auto-merge go on.
+    gh api -X PATCH "repos/{owner}/{repo}/pulls/${url##*/}" -F "body=@$body" >/dev/null ||
+        echo "pr-open: the Proof could not be refreshed on $url; edit its description by hand" >&2
 fi
 # The review goes on the pull request once per patch id: a re-run after a master merge does not post it again.
 # A report that answers test-integrity findings also names its head, so one for a new head is posted again.

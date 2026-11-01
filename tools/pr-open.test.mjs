@@ -28,8 +28,8 @@ writeFileSync(
 );
 mkdirSync(bin);
 // The fake gh: one JSON line per call (its arguments and the identity it ran as); `pr list` answers
-// with FAKE_EXISTING, `pr view --json body` with FAKE_BODY, `pr create` with a new URL; create and edit save the
-// body they were given.
+// with FAKE_EXISTING, `pr view --json body` with FAKE_BODY, `pr create` with a new URL; create and the REST
+// PATCH of a pull request save the body they were given (the PATCH fails with FAKE_PATCH_FAIL).
 writeFileSync(
     join(bin, "gh"),
     `#!/usr/bin/env node
@@ -38,9 +38,13 @@ const a = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ a, gh: process.env.GH_CONFIG_DIR, git: process.env.GIT_CONFIG_GLOBAL, count: process.env.GIT_CONFIG_COUNT ?? null }) + "\\n");
 if (a[0] === "pr" && a[1] === "list") process.stdout.write(process.env.FAKE_EXISTING ?? "");
 if (a[0] === "pr" && a[1] === "view") process.stdout.write((a.includes("body") ? process.env.FAKE_BODY : process.env.FAKE_REVIEWS) ?? "");
-if (a[0] === "pr" && (a[1] === "create" || a[1] === "edit")) {
+if (a[0] === "api" && a.includes("PATCH")) {
+    if (process.env.FAKE_PATCH_FAIL) process.exit(1);
+    fs.copyFileSync(a.find((x) => x.startsWith("body=@")).slice(6), ${JSON.stringify(join(dir, "body.md"))});
+}
+if (a[0] === "pr" && a[1] === "create") {
     fs.copyFileSync(a[a.indexOf("--body-file") + 1], ${JSON.stringify(join(dir, "body.md"))});
-    if (a[1] === "create") process.stdout.write("https://github.com/o/r/pull/42\\n");
+    process.stdout.write("https://github.com/o/r/pull/42\\n");
 }
 `,
 );
@@ -242,6 +246,19 @@ describe("pr-open.sh", () => {
         });
         assert.equal(r.code, 0, r.out);
         assert.match(readFileSync(join(dir, "body.md"), "utf8"), /^hand written\n\n## Proof\n\n### Tests\n/);
+        assert.ok(
+            calls().some(
+                (x) => x.a.join(" ") === `api -X PATCH repos/{owner}/{repo}/pulls/7 -F body=@${x.a.at(-1).slice(6)}`,
+            ),
+            "the REST PATCH, not gh pr edit",
+        );
+        const failed = run(["--proof", fresh], {
+            FAKE_EXISTING: "https://github.com/o/r/pull/7 graphty-agent",
+            FAKE_PATCH_FAIL: "1",
+        });
+        assert.equal(failed.code, 0, failed.out);
+        assert.match(failed.out, /could not be refreshed/);
+        assert.ok(armed().length > 0, "a failed refresh still arms auto-merge");
     });
 
     it("refuses, pushing and opening nothing: no Proof, no issue, uncommitted changes, master, nothing new", () => {

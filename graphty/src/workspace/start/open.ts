@@ -22,7 +22,7 @@ import { refusalFor } from "../data-page/words";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
-import { fileStylesChoice } from "../settings/preferences";
+import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
 import { newProjectId, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
 
@@ -179,6 +179,7 @@ async function drawFirst(
     // A graph file keeps the roles its format sets.
     await draft.load({
         styles: fileStylesChoice(),
+        styleOptions: FILE_STYLE_OPTIONS,
         ...(fixed ? {} : { mapping }),
         ...(fresh ? { history: "start" as const } : {}),
     });

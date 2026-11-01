@@ -113,6 +113,13 @@ export interface ToolDefaults {
      * size is a length.
      */
     readonly labelSizeOnScreen?: ToolDefaultValue<boolean>;
+    /**
+     * How far apart, in `units`, the program's own layout puts two connected nodes of a file that stores no
+     * positions: the spring length of the layout it runs on load. Not an edge default: it says how the program spaces
+     * a layout, so no rule carries it. Absent for a program whose layout of such a file has no fixed spacing (Gephi
+     * scatters nodes over a square whatever their number).
+     */
+    readonly layoutSpacing?: ToolDefaultValue<number>;
 }
 
 /**
@@ -273,6 +280,11 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 units: "px",
                 roundedCornerRadius: cornerCap("cytoscape"),
                 arrowhead: CYTOSCAPE_ARROWHEAD,
+                layoutSpacing: v(
+                    50,
+                    "cytoscape-impl layout-prefuse-impl ForceDirectedLayoutContext.java (defaultSpringLength 50.0): " +
+                        "Cytoscape lays out a network with no view coordinates with its default layout, force-directed",
+                ),
                 node: {
                     fill: v("#89d0f5", `${CY} 382`),
                     fillOpacity: v(1, `${CY} 383`),
@@ -473,6 +485,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "graphviz main (16.1.0)",
                 units: "px",
                 roundedCornerRadius: cornerCap("graphviz"),
+                // one inch: neato's edge len, and dot's ranks of 0.5 inch nodes 0.5 inch apart (ranksep), center to center
+                layoutSpacing: v(72, `${GV} (len 1.0 inch; height 0.5, ranksep 0.5 inch)`),
                 arrowhead: {
                     // ARROW_LENGTH 10 and the normal arrow's half width 0.35 of its length
                     length: (size) => 10 * size,
@@ -680,6 +694,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "vis-network",
                 version: "vis-network 10.1.2",
                 units: "px",
+                layoutSpacing: v(95, `${VIS} (physics.barnesHut.springLength 95)`),
                 roundedCornerRadius: cornerCap("vis-network"),
                 arrowhead: {
                     // EdgeBase.getArrowData: 15 * scaleFactor + 3 * width; ArrowHead's points at -1, +-0.3

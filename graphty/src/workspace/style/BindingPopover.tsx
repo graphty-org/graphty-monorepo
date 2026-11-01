@@ -18,6 +18,7 @@ import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
+import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { GroupList, LayerGroupList } from "./Groups";
 import { type DataBinding, type DataChoice, type LayerBinding, startingValue, topmostRow } from "./row";
@@ -90,7 +91,7 @@ function literalOf(paint: unknown): ChannelValue | undefined {
  */
 function valueWords(value: unknown): string {
     if (typeof value === "number") {
-        return value.toLocaleString();
+        return formatNumber(value);
     }
     return typeof value === "string" ? value : (cssOf(value) ?? String(value));
 }

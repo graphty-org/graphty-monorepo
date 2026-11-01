@@ -19,6 +19,7 @@ import type {
     XrUnavailableReason,
 } from "@graphty/graphty-element/session";
 
+import { formatCount, formatNumber } from "../settings/numberFormat";
 import { rangeWords as timeRangeWords } from "../time/timeWords";
 import type { InspectedKindId } from "./inspected";
 
@@ -420,21 +421,8 @@ export function channelTokens(channels: readonly Channel[]): string[] {
     return [...new Set(channels.map((channel) => CHANNEL_WORDS[channel]))];
 }
 
-const NUMBER = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 4 });
-/** A number of a thousand or more: its whole part exact, never 12,350 for 12,345. */
-const WHOLE = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-/** Counts are exact: 12,345 nodes, never 12,350. */
-const COUNT = new Intl.NumberFormat();
-
-/**
- * A number as a reader reads it, the one spelling the inspector, the key and the table share:
- * four significant digits, grouped, and never fewer than the whole part's own digits.
- * @param value - the number.
- * @returns the text.
- */
-export function formatNumber(value: number): string {
-    return Math.abs(value) >= 1000 ? WHOLE.format(value) : NUMBER.format(value);
-}
+/** The one spelling the inspector, the key and the table share, in the reader's Number format. */
+export { formatNumber } from "../settings/numberFormat";
 
 /**
  * The graph's direction in one word ("Undirected"); where it came from and what it means for
@@ -528,7 +516,7 @@ export function edgeJoiner(session: GraphSession): string {
  * @returns the words.
  */
 export function count(count: number, noun: string): string {
-    return `${COUNT.format(count)} ${noun}${count === 1 ? "" : "s"}`;
+    return `${formatCount(count)} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 /**
@@ -798,7 +786,7 @@ export function staleWords(
             ? "Out of date: ran on all time"
             : `Out of date: ran on ${timeRangeWords(ran.from, ran.to, unit)}`;
     }
-    return `Ran on ${count(note.ranOn, "node")}; ${COUNT.format(note.nowVisible)} shown now`;
+    return `Ran on ${count(note.ranOn, "node")}; ${formatCount(note.nowVisible)} shown now`;
 }
 
 const ORDINAL = new Intl.PluralRules("en-US", { type: "ordinal" });

@@ -1,5 +1,7 @@
 // The backfill from this machine (src/collector/backfill.ts), with the AWS profile's credentials:
 //   cd tools/pipeline-health && AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run backfill [-- --days 28 --per-hour 2000]
+// To read the range again from the start (the first call only; the calls after it continue from the cursors):
+//   ... pnpm run backfill -- --days 28 --restart
 // To re-read only some days' runs of some workflows (days an earlier backfill lost), whatever the cursors say:
 //   ... pnpm run backfill -- --repair-days 2026-10-09,2026-10-11 --repair-workflows release.yml,bisect.yml
 
@@ -35,6 +37,7 @@ async function main() {
         perHour: arg("per-hour", 2000),
         now: Date.now(),
         ...(days.length ? { repair: { days, workflows: list("repair-workflows") } } : {}),
+        ...(process.argv.includes("--restart") ? { restart: true } : {}),
         log: (l) => console.log(l),
     });
     console.log(JSON.stringify(r));

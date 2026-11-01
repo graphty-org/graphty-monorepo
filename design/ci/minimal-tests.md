@@ -223,6 +223,10 @@ path pattern and what a change to it runs:
   unless a test imports or names the file, which is asked first (2.4).
 - **also run**: a path one package reads from another without importing it, with the packages it
   then runs (graph-io's corpus also runs graphty-element and cytoscape-extensions).
+- **standalone tools**: `tools/pipeline-health/`, `tools/results-service/`, `tools/release-scheduler/`
+  and `tools/nx-cache-worker/` are projects of their own with their own tests and workflows. A change
+  inside one runs only the package tests that import it or name its path, and otherwise no shard; its
+  file name alone (`text.ts`) never names it (issue #4506).
 
 Environment variables that choose a lane (`GRAPHTY_GPU_REQUIRE`, `GRAPHTY_BROWSER_GPU` and the
 rest of `laneEnv()` in `tools/prepush-inputs.mjs`) are part of every shard's pass key, so a pass

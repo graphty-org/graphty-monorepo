@@ -28,6 +28,7 @@ tools/ci-budgets.test.mjs
 tools/ci-run-cap.test.mjs
 tools/ci-workflows.test.mjs
 tools/claude-area-rules.test.mjs
+tools/claude-md-size.test.mjs
 tools/claude-no-foreground-wait.test.mjs
 tools/claude-owner-credential-guard.test.mjs
 tools/dataset-overlay.test.mjs

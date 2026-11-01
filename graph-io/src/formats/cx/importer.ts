@@ -2890,9 +2890,7 @@ class CxReader {
         for (const held of aspect(this.doc, "edges")) {
             this.checkAbort();
             const edge = this.edgeElement(held);
-            if (edge === "skipped") {
-                this.report.counts.skippedEdges++;
-            } else if (edge !== null && !this.addCxEdge(edge, held.line)) {
+            if (edge === "skipped" || (edge !== null && !this.addCxEdge(edge, held.line))) {
                 this.report.counts.skippedEdges++;
             }
         }
@@ -3486,12 +3484,11 @@ class CxReader {
      * @returns the row, or undefined when it is not in this graph
      */
     private targetRow(domain: "node" | "edge", raw: unknown, what: string): number | undefined {
+        const rows = domain === "node" ? this.nodeRows : this.edgeRows;
+        const root = domain === "node" ? this.rootNodes : this.rootEdges;
         const target = refId(raw);
-        const row = target === null ? undefined : (domain === "node" ? this.nodeRows : this.edgeRows).get(target);
-        if (
-            row === undefined &&
-            (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target))
-        ) {
+        const row = target === null ? undefined : rows.get(target);
+        if (row === undefined && (target === null || !root.has(target))) {
             this.dangle(what);
         }
         return row;

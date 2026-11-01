@@ -524,7 +524,7 @@ function decodeCharReference(
     if (low !== null) {
         repairs?.surrogatePair?.(lineAt(raw, amp, line));
         cursor.end = low.end;
-        return String.fromCharCode(cp, low.unit);
+        return String.fromCodePoint(cp, low.unit);
     }
     if (cp < 0 || !isXmlChar(cp)) {
         throw new XmlSyntaxError(`invalid character reference &${name};`, lineAt(raw, amp, line));

@@ -43,6 +43,7 @@
             "labelPadding": 0,
             "labelLineHeight": 1,
             "curved": false,
+            "fanned": true,
             "bendCurve": "midpoints"
         },
         "graph": {
@@ -147,6 +148,7 @@
             "arrowSize": 1,
             "curved": false,
             "fanSpacing": 20,
+            "fanned": true,
             "labelColor": "#000000",
             "labelSize": 16,
             "labelFont": "Helvetica Neue, Helvetica, sans-serif",
@@ -223,7 +225,8 @@
             "targetArrow": "none",
             "labelColor": "#000000",
             "labelFont": "DejaVu Sans, sans-serif",
-            "labelSize": 12
+            "labelSize": 12,
+            "fanned": false
         },
         "graph": {
             "background": "#ffffff"
@@ -250,7 +253,8 @@
             "targetArrow": "none",
             "labelColor": "#000000",
             "labelFont": "Arial",
-            "labelSize": 12
+            "labelSize": 12,
+            "fanned": false
         },
         "graph": {
             "background": "#ffffff"

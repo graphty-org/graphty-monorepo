@@ -78,6 +78,10 @@
             "label": "Coverage published (Coveralls, master)",
             "yellowAfterMs": 86400000
         },
+        "views": {
+            "label": "Dashboard pages rebuilt",
+            "yellowAfterMs": 900000
+        },
         "billing": {
             "label": "Billing (Cost Explorer, Cloudflare, Sentry)",
             "yellowAfterMs": 129600000
@@ -1194,7 +1198,7 @@
                 "afterMs": 600000,
                 "priority": 1,
                 "title": "Health dashboard down ({problem}) for {value}",
-                "text": "The health dashboard has not read GitHub for {value}, so nothing is being watched.",
+                "text": "The health dashboard has not finished an update for {value}, so nothing is being watched and its pages are frozen.",
                 "action": "{fix}",
                 "resolved": {
                     "title": "Health dashboard is working again",

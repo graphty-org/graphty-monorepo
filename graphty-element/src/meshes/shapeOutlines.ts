@@ -1017,12 +1017,13 @@ function slice(
         return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t];
     };
     // each corner the stretch passes is taken by its index, not by its distance: a corner cut square (`mitredEdges`)
-    // is two points at one distance along the inner edge, and both of its outer points belong in the stretch
-    const corners = lengths.map((length, i) => ({ length, i })).filter(({ length }) => length > from && length < to);
+    // is two points at one distance along the inner edge, and both of its outer points belong in the stretch, also
+    // when the stretch starts or ends on that corner (a dash from the start of an outline that starts at a sharp tip)
+    const corners = lengths.map((length, i) => ({ length, i })).filter(({ length }) => length >= from && length <= to);
     const edgeOf = (edge: readonly Point2[]): Point2[] => [
-        at(from, edge),
+        ...(corners[0]?.length === from ? [] : [at(from, edge)]),
         ...corners.map(({ i }) => edge[i % edge.length]),
-        at(to, edge),
+        ...(corners.at(-1)?.length === to ? [] : [at(to, edge)]),
     ];
 
     return { inner: edgeOf(inner), outer: edgeOf(outer), closed: false };

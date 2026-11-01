@@ -7,6 +7,10 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
+- (2026-10-31) Tier 5 selection cards (proposal tier5/panel/content.md): four term collisions to
+  settle first -- the mock's "group" vs the glossary group (proposed: "Rule A"), "Focus" vs the
+  focused node ("Hovered or selected"), "picked" as a second selection (use "Selected (N)"),
+  "whole graph" vs Full/Filtered graph. Live build has three different condition pickers for one act.
 - (2026-10-30) Tier 4 round 1 closed at the 1-round cap: task success held, 0 severity 4, no
   severity 3 survived the skeptic check. Again words were not the main cost -- order of choices,
   defaults and one fact drawn two ways were.

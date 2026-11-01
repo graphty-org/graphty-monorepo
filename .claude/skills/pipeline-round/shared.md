@@ -139,7 +139,8 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > route before opening its pull request. A change that takes effect on this machine (a tool `tools/live.sh --list`
 > names: visual-review's server, worktree-new.sh and the land tools, the gate, worktree cleanup, the local health
 > collector, the SonarQube baseline) goes live at once, without waiting for CI: right after its commit, run
-> `tools/live.sh <tool> <branch>` and open the pull request in parallel as the record (owner, 2026-11-01; CLAUDE.md
+> `tools/live.sh <tool> "$(git rev-parse HEAD)"` (the commit, not the branch name, which live.sh would
+> read from GitHub before the push lands) and open the pull request in parallel as the record (owner, 2026-11-01; CLAUDE.md
 > "Where a change takes effect"); say in the Proof that it is live. Run long commands through `tools/low-priority.sh`;
 > start each long run once and end your turn; do not re-check it again and again. When you stop, done or not, write
 > where the work stands on the branch's issue:

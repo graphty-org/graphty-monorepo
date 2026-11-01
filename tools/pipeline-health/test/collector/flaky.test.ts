@@ -33,7 +33,7 @@ async function day(store: MemoryStore, start: number, tests: [string, string, st
     });
 }
 
-const test = (inv: string, file: string, name: string, outcome: TestItem["outcome"]): TestItem => ({
+const testItem = (inv: string, file: string, name: string, outcome: TestItem["outcome"]): TestItem => ({
     kind: "test",
     id: `${inv}#${file}#${name}`,
     attempt: 1,
@@ -307,14 +307,14 @@ describe("blocked by a flake", () => {
         await putRaw(
             store,
             [
-                test("101.1.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
-                test("101.1.test.graphty-2.1", "b.test.ts", "flaky two", "failed"),
+                testItem("101.1.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
+                testItem("101.1.test.graphty-2.1", "b.test.ts", "flaky two", "failed"),
                 // 102 also failed a test never seen flaky: a real failure, not a block.
-                test("102.1.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
-                test("102.1.test.graphty-1.1", "c.test.ts", "real failure", "failed"),
+                testItem("102.1.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
+                testItem("102.1.test.graphty-1.1", "c.test.ts", "real failure", "failed"),
                 // 103's earlier attempt failed a real test; its newest attempt only the flaky one.
-                test("103.1.test.graphty-1.1", "c.test.ts", "real failure", "failed"),
-                test("103.2.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
+                testItem("103.1.test.graphty-1.1", "c.test.ts", "real failure", "failed"),
+                testItem("103.2.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
             ],
             NOW,
         );
@@ -339,10 +339,10 @@ describe("blocked by a flake", () => {
 
     it("drops a test from the run's failures once its retry passed (rewritten flaky)", async () => {
         const store = new MemoryStore();
-        await putRaw(store, [test("201.1.test.graphty-1.1", "c.test.ts", "real failure", "failed")], NOW);
+        await putRaw(store, [testItem("201.1.test.graphty-1.1", "c.test.ts", "real failure", "failed")], NOW);
         const open = [pr(7, [{ name: "Test (graphty-1)", run: 201 }])];
         expect((await blockedPrs(store, open, flaky, NOW)).prs).toEqual([]);
-        await putRaw(store, [test("201.1.test.graphty-1.1", "c.test.ts", "real failure", "flaky")], NOW);
+        await putRaw(store, [testItem("201.1.test.graphty-1.1", "c.test.ts", "real failure", "flaky")], NOW);
         // No failed test is left in the run, so nothing says the pull request is red on a flake.
         expect((await blockedPrs(store, open, flaky, NOW)).prs).toEqual([]);
         expect((await store.query("RUNTESTS#201")).map((r) => r.outcome)).toEqual(["flaky"]);

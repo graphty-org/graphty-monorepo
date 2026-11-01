@@ -131,7 +131,8 @@ export interface ForceModel<Options, Stats extends LayoutStatsBase> {
     overrides(options: Options): Readonly<Record<string, number | boolean>>;
     specs(overrides: Readonly<Record<string, number | boolean>>, subgroups: boolean): readonly WgslModuleSpec[];
     bind(resources: ModelResources, overrides: Readonly<Record<string, number | boolean>>): Promise<void>;
-    paramsFor(iteration: number, options: Options): UniformValues;
+    /** `live` is n less the inert rows (setInert): what a model that sizes a constant by the node count reads. */
+    paramsFor(iteration: number, options: Options, live?: number): UniformValues;
     recordIteration(batch: CommandBatch, slot: number, tier: "exact" | "grid", upTo?: string): void;
     onLoad(state: StateWriter): void;
     onReheat(state: StateWriter): void;
@@ -651,6 +652,12 @@ export class ForceSimulation<
     private submitChain: Promise<void> = Promise.resolve();
     private fixedWords: U32 = new Uint32Array(0);
     private fixedDirty = false;
+    /** The rows setInert took out of the forces (mass 0 on the device, held still), or null for none. */
+    private inertWords: U32 | null = null;
+    /** The masses the model resolved at the last load, which a row made live again gets back. */
+    private massValues: F32 = new Float32Array(0);
+    /** n less the inert rows: the `live` count K1 and K4 divide by. */
+    private liveValue = 0;
     private iterationsSubmitted = 0;
     private iterationsDoneValue = 0;
     private settledCountValue = 0;
@@ -1010,7 +1017,9 @@ export class ForceSimulation<
             this.overrideList.clear();
             this.fixedWords = makeMask(n);
             this.fixedDirty = false;
+            this.inertWords = null;
         }
+        this.liveValue = n - this.inertCount();
         if (inputs?.fixed !== undefined && inputs.fixed !== null) {
             this.fixedWords.set(inputs.fixed.subarray(0, Math.ceil(n / 32)));
             this.fixedDirty = true;
@@ -1033,6 +1042,7 @@ export class ForceSimulation<
         this.buffers = buffers;
         const range = this.model.kind === "fruchtermanReingold" ? "fr" : "fa2";
         seedPositions(snapshot, positions, this.optionsValue.seed ?? null, this.dimValue, scale, center, range);
+        this.massValues = inputs.mass;
         this.uploadPositions(buffers, positions, inputs.mass);
         const weights = this.resolveWeightsBinding(snapshot, core, inputs.weights);
         const overrides = {
@@ -1203,6 +1213,47 @@ export class ForceSimulation<
         this.fixedDirty = true;
         if (unpinned) {
             this.reheat();
+        }
+    }
+
+    /**
+     * Takes rows out of the forces (LayoutSimulation.setInert, issue #3075): an inert row weighs 0 in the `.w` lane, so
+     * every repulsion kernel skips it as it skips the pad, K2 skips its arcs and K5 leaves it out of partials A; it is
+     * held still with the fixed rows, and `live` (n less the inert rows) is what K1 and K4 divide by. The mask needs
+     * ceil(n / 32) words and is copied; only the rows whose state changed are written. Before the first batch the
+     * load statistics are written again over the live rows. Never reheats.
+     * @param mask - the NodeMask (LSB-first words)
+     */
+    setInert(mask: NodeMask): void {
+        this.assertLoaded();
+        const { n } = this;
+        const words = Math.ceil(n / 32);
+        if (mask.length < words) {
+            throw invalidArgument(
+                "mask",
+                mask.length,
+                words,
+                `setInert: the mask has ${mask.length} words, ${words} needed for ${n} nodes`,
+            );
+        }
+        const previous = this.inertWords;
+        const next = new Uint32Array(mask.subarray(0, words));
+        this.inertWords = next;
+        this.liveValue = n - this.inertCount();
+        this.fixedDirty = true;
+        const { buffers, owner } = this;
+        if (buffers === null || owner === null) {
+            return;
+        }
+        for (let i = 0; i < n; i++) {
+            const now = maskTest(next, i);
+            if ((previous !== null && maskTest(previous, i)) !== now) {
+                const w = new Float32Array([now ? 0 : this.massValues[i]]);
+                this.ctx.device.queue.writeBuffer(buffers.positions, 16 * i + 12, w);
+            }
+        }
+        if (this.firstPending) {
+            this.writeLoadStatistics(this.packLayout(owner), false);
         }
     }
 
@@ -1398,7 +1449,7 @@ export class ForceSimulation<
         const { k } = record;
         const { device } = this.ctx;
         if (this.fixedDirty) {
-            device.queue.writeBuffer(buffers.fixed, 0, this.fixedWords);
+            device.queue.writeBuffer(buffers.fixed, 0, this.heldWords());
             this.fixedDirty = false;
         }
         this.flushStateWrites(buffers.state);
@@ -1616,10 +1667,11 @@ export class ForceSimulation<
      */
     private paramsForSlot(global: number, index: number, flags: number): UniformValues {
         const [cx, cy, cz] = this.center;
-        const model = this.model.paramsFor(global, this.optionsValue);
+        const model = this.model.paramsFor(global, this.optionsValue, this.liveValue);
         const modelFlags = typeof model.flags === "number" ? model.flags : 0;
         const shared: UniformValues = {
             n: this.n,
+            live: this.liveValue,
             dim: this.dimValue,
             flags: flags | modelFlags,
             iterationIndex: index,
@@ -1888,6 +1940,23 @@ export class ForceSimulation<
      * @param mass - the resolved masses
      */
     private uploadPositions(buffers: SimulationBuffers, positions: F32, mass: F32): void {
+        const packed = this.packLayout(positions);
+        for (let i = 0; i < this.n; i++) {
+            packed[4 * i + 3] = this.isInert(i) ? 0 : mass[i]; // an inert row weighs 0 (setInert)
+        }
+        this.ctx.device.queue.writeBuffer(buffers.positions, 0, packed);
+        this.writeLoadStatistics(packed, true);
+        this.model.onLoad(this.writer);
+        this.ctx.device.queue.writeBuffer(buffers.state, 0, this.writer.headerBytes());
+        this.writer.clearQueued();
+    }
+
+    /**
+     * The scene array as layout-unit vec4f rows, `.w` left 0 (z = 0 in 2D).
+     * @param positions - the owner's scene-unit array
+     * @returns 4 n floats
+     */
+    private packLayout(positions: F32): Float32Array<ArrayBuffer> {
         const { n, scale } = this;
         const [cx, cy, cz] = this.center;
         const packed = new Float32Array(4 * n);
@@ -1895,15 +1964,29 @@ export class ForceSimulation<
             packed[4 * i] = (positions[3 * i] - cx) / scale;
             packed[4 * i + 1] = (positions[3 * i + 1] - cy) / scale;
             packed[4 * i + 2] = this.dimValue === 2 ? 0 : (positions[3 * i + 2] - cz) / scale;
-            packed[4 * i + 3] = mass[i];
         }
-        this.ctx.device.queue.writeBuffer(buffers.positions, 0, packed);
+        return packed;
+    }
+
+    /**
+     * Queues load()'s statistics over the live rows (inert rows left out, as K5 leaves them out of partials A): the
+     * centroid, bbox, RMS radius and radius, f64 over the f32 values; with `restart`, iteration 0, settledCount 0
+     * and meanDisplacement 0 too.
+     * @param packed - the layout-unit vec4f rows
+     * @param restart - whether this is a load (the counters restart) or setInert before the first batch
+     */
+    private writeLoadStatistics(packed: Float32Array, restart: boolean): void {
+        const { n } = this;
+        const live = Math.max(this.liveValue, 1);
         let sx = 0;
         let sy = 0;
         let sz = 0;
         const lo = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
         const hi = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
         for (let i = 0; i < n; i++) {
+            if (this.isInert(i)) {
+                continue;
+            }
             const x = packed[4 * i];
             const y = packed[4 * i + 1];
             const z = packed[4 * i + 2];
@@ -1917,12 +2000,15 @@ export class ForceSimulation<
             hi[1] = Math.max(hi[1], y);
             hi[2] = Math.max(hi[2], z);
         }
-        const mx = sx / n;
-        const my = sy / n;
-        const mz = sz / n;
+        const mx = sx / live;
+        const my = sy / live;
+        const mz = sz / live;
         let sumSq = 0;
         let maxSq = 0;
         for (let i = 0; i < n; i++) {
+            if (this.isInert(i)) {
+                continue;
+            }
             const dx = packed[4 * i] - mx;
             const dy = packed[4 * i + 1] - my;
             const dz = packed[4 * i + 2] - mz;
@@ -1931,17 +2017,55 @@ export class ForceSimulation<
             maxSq = Math.max(maxSq, q);
         }
         const { writer } = this;
-        writer.set("iteration", 0);
-        writer.set("settledCount", 0);
-        writer.set("meanDisplacement", 0);
+        if (restart) {
+            writer.set("iteration", 0);
+            writer.set("settledCount", 0);
+            writer.set("meanDisplacement", 0);
+        }
         writer.set("centroid", [mx, my, mz, 0]);
         writer.set("min", [lo[0], lo[1], lo[2], 0]);
         writer.set("max", [hi[0], hi[1], hi[2], 0]);
-        writer.set("rmsRadius", Math.sqrt(sumSq / n));
+        writer.set("rmsRadius", Math.sqrt(sumSq / live));
         writer.set("radius", Math.sqrt(maxSq));
-        this.model.onLoad(writer);
-        this.ctx.device.queue.writeBuffer(buffers.state, 0, writer.headerBytes());
-        writer.clearQueued();
+    }
+
+    /**
+     * Whether setInert took this row out of the forces.
+     * @param i - the row
+     * @returns true for an inert row
+     */
+    private isInert(i: number): boolean {
+        return this.inertWords !== null && maskTest(this.inertWords, i);
+    }
+
+    /**
+     * How many rows below n are inert.
+     * @returns the count
+     */
+    private inertCount(): number {
+        let count = 0;
+        for (let i = 0; i < this.n; i++) {
+            if (this.isInert(i)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * The words the device's fixed mask holds: the pins with every inert row OR-ed in, since an inert row never moves.
+     * @returns the mask words
+     */
+    private heldWords(): U32 {
+        const inert = this.inertWords;
+        if (inert === null) {
+            return this.fixedWords;
+        }
+        const held = this.fixedWords.slice();
+        for (let w = 0; w < held.length && w < inert.length; w++) {
+            held[w] |= inert[w];
+        }
+        return held;
     }
 
     /**
@@ -2118,7 +2242,7 @@ export class ForceSimulation<
         const buffers = this.requireBuffers();
         const { device } = this.ctx;
         if (this.fixedDirty) {
-            device.queue.writeBuffer(buffers.fixed, 0, this.fixedWords);
+            device.queue.writeBuffer(buffers.fixed, 0, this.heldWords());
             this.fixedDirty = false;
         }
         this.flushStateWrites(buffers.state);

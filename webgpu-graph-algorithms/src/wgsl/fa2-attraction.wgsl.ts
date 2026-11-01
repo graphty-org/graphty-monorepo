@@ -41,7 +41,7 @@ fn row_force(i: u32, lane: u32, step: u32) -> vec3f {           // the arcs of r
     var f = vec3f(0.0);
     for (var a = a0 + lane; a < a1; a = a + step) {
         let j = colIdx[a - P.arcBase];
-        if (j == i) { continue; }                              // a self-loop exerts no force
+        if (j == i || pos[j].w <= 0.0) { continue; }           // a self-loop exerts no force, nor an inert neighbour (mass 0)
         var w = 1.0;
         if (HAS_WEIGHTS) { w = weights[a - P.arcBase]; }
         let d = pos[j].xyz - pi.xyz;                           // toward j
@@ -62,7 +62,7 @@ fn row_force_dense(i: u32) -> vec3f {                          // TIER 0's strid
         let arc = hi - left;                                   // lo, lo + 1, ..., hi - 1
         let k = arc - P.arcBase;                               // the window-local index; this walk is contiguous
         let nbr = colIdx[k];
-        if (nbr == i) { continue; }                            // a self-loop exerts no force
+        if (nbr == i || pos[nbr].w <= 0.0) { continue; }       // a self-loop exerts no force, nor an inert neighbour (mass 0)
         var weight = 1.0;
         if (HAS_WEIGHTS) { weight = weights[k]; }
         let d = pos[nbr].xyz - pi.xyz;                         // toward the neighbour
@@ -76,7 +76,7 @@ fn row_force_dense(i: u32) -> vec3f {                          // TIER 0's strid
 }
 fn finish(i: u32, f0: vec3f) {
     var f = f0;
-    if (DISTRIBUTED) { f = f / pos[i].w; }
+    if (DISTRIBUTED && pos[i].w > 0.0) { f = f / pos[i].w; }   // an inert row (mass 0) never moves: left undivided, finite
     if (P.accumulate == 1u) { f = f + load_force(i); }         // the windowed loop of 4.2 (arcBase != 0 dispatches after the first)
     store_force(i, f);                                         // overwrites: attraction is the first writer of force each iteration
 }

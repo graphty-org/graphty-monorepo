@@ -377,10 +377,12 @@ export class FruchtermanReingoldModel
      * The simulation overwrites the shared fields with the same values and OR-s in its own flags.
      * @param iteration - the GLOBAL iteration index
      * @param options - the simulation's current option record
+     * @param live - n less the inert rows: the n of the default k (default n)
      * @returns the uniform values
      */
-    paramsFor(iteration: number, options: FruchtermanReingoldOptions): UniformValues {
-        const { n } = this.requireResources();
+    paramsFor(iteration: number, options: FruchtermanReingoldOptions, live?: number): UniformValues {
+        const { n: all } = this.requireResources();
+        const n = live ?? all;
         const resolved = resolveFruchtermanReingoldOptions(options, this.current);
         const adaptive = resolved.cooling === "adaptive";
         return {

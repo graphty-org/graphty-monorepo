@@ -338,10 +338,12 @@ export class SpringElectricalModel
      * FR temperature) and ngraph's five constants with `gravity` in `coulomb`.
      * @param iteration - the global iteration index
      * @param options - the simulation's current option record
+     * @param live - n less the inert rows: the n the size-scaled constants read (default n)
      * @returns the uniform values
      */
-    paramsFor(iteration: number, options: SpringElectricalOptions): UniformValues {
-        const { n } = this.requireResources();
+    paramsFor(iteration: number, options: SpringElectricalOptions, live?: number): UniformValues {
+        const { n: all } = this.requireResources();
+        const n = live ?? all;
         const resolved = resolveSpringElectricalOptions(options, this.current);
         return {
             ...this.sharedParams(iteration, resolved),

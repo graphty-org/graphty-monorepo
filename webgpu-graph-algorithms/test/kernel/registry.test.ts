@@ -1542,6 +1542,7 @@ const BLOCKS: readonly BlockRow[] = [
             ["timeStep", 120],
             ["midEnd", 124],
             ["settleFloor", 128],
+            ["live", 132],
         ],
     },
     {

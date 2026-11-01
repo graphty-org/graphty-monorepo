@@ -969,15 +969,21 @@ function readElement(
         text ||= property === "label" && value !== null;
         put(property, value);
     };
+    // gv2gml writes no graphics before a layout; Graphviz still draws its defaults (a digraph's arrowheads)
     if (isRec(g)) {
         (target === "node" ? readNodeGraphics : readEdgeGraphics)(g, writer, put, at);
+    } else if (writer.vocabulary === "graphviz" && target === "edge") {
+        readEdgeGraphics({}, writer, put, at);
     }
     if (lg !== null && lg !== undefined) {
         readLabelGraphics(lg, writer, target === "node", putLabel, at);
     }
-    // the GML draft draws the label key; Cytoscape reads it as the node's name, which its default style shows
+    // the GML draft draws the label key; Cytoscape reads it as the node's name, which its default style shows, and
+    // Graphviz labels every node (its label default is \N, the node's name)
     const drawn =
-        writer.vocabulary === "cytoscape" ? target === "node" : writer.labelKey && (isRec(g) || lg !== undefined);
+        writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz"
+            ? target === "node"
+            : writer.labelKey && (isRec(g) || lg !== undefined);
     if (!text && drawn && label !== null && label !== undefined) {
         put(
             "label",
@@ -1053,6 +1059,10 @@ function labelOf(snapshot: GraphSnapshot, writer: GmlWriter, target: StyleTarget
     const label = cellOf(table, "label", i);
     if (writer.vocabulary === "cytoscape" && target === "node" && (label === undefined || label === "")) {
         return String(snapshot.ids.idOf(i));
+    }
+    // gv2gml writes `label` only once a layout has set it; Graphviz draws `\N`, the `name` gv2gml always writes
+    if (writer.vocabulary === "graphviz" && target === "node" && label === undefined) {
+        return cellOf(table, "name", i);
     }
     return label;
 }
@@ -1324,7 +1334,10 @@ function readValues(
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const out = valueColumns(n);
-        if (!table.has("graphics") && !table.has("LabelGraphics") && writer.vocabulary !== "cytoscape") {
+        // Cytoscape names every element, and Graphviz labels every node and arrows a digraph's edges, with or
+        // without graphics (gv2gml writes graphics only once a layout ran)
+        const drawnBare = writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz";
+        if (!table.has("graphics") && !table.has("LabelGraphics") && !drawnBare) {
             return out.values;
         }
         for (let i = 0; i < n; i++) {

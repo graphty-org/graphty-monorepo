@@ -27,6 +27,7 @@ import {
     matchPredicate,
     planStyles,
     type Predicate,
+    resolveRule,
     resolveStyles,
     type StyleArrowShape,
     type StyleNote,
@@ -2627,25 +2628,7 @@ class KindTranslation {
      * @returns The values by element index.
      */
     #evaluate(rule: StyleRule, property: string, source: ExtractedStyles): readonly (StyleValue | null)[] {
-        const one: StyleRule = {
-            id: rule.id,
-            target: this.#kind,
-            role: rule.role,
-            origin: rule.origin,
-            where: rule.where,
-            ...(rule.set?.[property as StyleProperty] === undefined
-                ? {}
-                : { set: { [property]: rule.set[property as StyleProperty] } }),
-            ...(rule.map?.[property as StyleProperty] === undefined
-                ? {}
-                : { map: { [property]: rule.map[property as StyleProperty] } }),
-        };
-        return resolveStyles(
-            { ...source, styles: { ...source.styles, rules: [one] } },
-            this.#kind,
-            property as StyleProperty,
-            this.#input.snapshot,
-        );
+        return resolveRule(source, { ...rule, target: this.#kind }, property as StyleProperty, this.#input.snapshot);
     }
 
     /**

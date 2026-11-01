@@ -53,6 +53,7 @@ export {
     MAX_STYLE_RULES,
     type PlanOptions,
     planStyles,
+    resolveRule,
     resolveStyles,
     styleFingerprint,
     type StyleValues,

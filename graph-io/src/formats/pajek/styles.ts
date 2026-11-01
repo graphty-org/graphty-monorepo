@@ -1847,16 +1847,8 @@ function exactFromBlock(
             );
             return (property) => back.get(property) ?? null;
         },
-        // a label the block places by a side clears the offsets its `lphi` reads back as
-        take: (property, wanted) => wanted !== null || LABEL_PLACE.has(property) || OUTLINE.has(property),
     }));
 }
-
-/** The outline a shape written as `diamond` reads back as, which the block's own shape clears. */
-const OUTLINE: ReadonlySet<string> = new Set(["shapePoints", "shapePointsStretch"]);
-
-/** The label place properties a side written as `lphi` reads back as. */
-const LABEL_PLACE: ReadonlySet<string> = new Set(["labelOffsetX", "labelOffsetY", "labelShiftX"]);
 
 /**
  * An element's values written as the writer writes them and read back as the reader reads them.

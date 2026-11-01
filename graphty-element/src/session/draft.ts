@@ -222,6 +222,33 @@ function withIdText(
 }
 
 /**
+ * The label path a load sets: a graph file's `label` field, as `data.import` names a graph file's
+ * nodes (whether or not this file has one), or the label column a table's mapping names -- unless
+ * a label path is configured already or a merge keeps how the graph names its nodes.
+ * @param read - The rows.
+ * @param mapping - The mapping the load reads them with.
+ * @param choices - The load's choices.
+ * @param configured - `data.knownFields.nodeLabelPath`.
+ * @returns The path, or null to leave it as it is.
+ */
+function loadLabel(
+    read: ReadSource,
+    mapping: LoadMappingRead,
+    choices: LoadChoices,
+    configured: string | null,
+): string | null {
+    if (choices.mode === "merge" || configured !== null) {
+        return null;
+    }
+
+    if (read.tables[0].table.fixed) {
+        return FORMAT_LABEL;
+    }
+
+    return Object.values(mapping.tables).find((table) => table.rowsAre === "nodes")?.label ?? null;
+}
+
+/**
  * The name of one file of a pair: the `File`'s name, or the URL's last part.
  * @param value - A `nodeFile`, `edgeFile`, `nodeURL` or `edgeURL` option.
  * @returns The name, or undefined.
@@ -1085,16 +1112,8 @@ export class Draft implements LoadDraft {
             Object.assign(named, { edgeWeightMeaning: null });
         }
 
-        // A graph file's `label` field, as `data.import` names a graph file's nodes (whether or not
-        // this file has one), or the label column a table's mapping names, labels the nodes, unless
-        // a label path is configured already or a merge keeps how the graph names its nodes.
-        const nodeMapping = Object.values(mapping.tables).find((table) => table.rowsAre === "nodes");
-        const tableLabel = read.tables[0].table.fixed ? FORMAT_LABEL : (nodeMapping?.label ?? null);
-        const label = choices.mode === "merge" ? null : tableLabel;
-        const labelled =
-            label === null || this.host.config().knownFields.nodeLabelPath !== null
-                ? named
-                : { ...named, nodeLabelPath: label };
+        const label = loadLabel(read, mapping, choices, this.host.config().knownFields.nodeLabelPath);
+        const labelled = label === null ? named : { ...named, nodeLabelPath: label };
         // A confidence, score or strength weighs how alike the ends are, unless a meaning is set.
         const meaning =
             named.edgeWeightMeaning ??

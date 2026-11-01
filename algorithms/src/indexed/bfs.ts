@@ -294,7 +294,8 @@ export function directionOptimizedBfs(
     const inDegree = s.inDegree();
     let unexploredArcs = s.arcCount - inDegree[source];
     let bottomUp = false;
-    for (let d = 0; levelStart < tail; d++) {
+    let d = 0;
+    while (levelStart < tail) {
         const frontierSize = tail - levelStart;
         if (bottomUp) {
             bottomUp = frontierSize >= nodeCount / beta;
@@ -344,6 +345,7 @@ export function directionOptimizedBfs(
             unexploredArcs -= inDegree[order[i]];
         }
         levelStart = levelEnd;
+        d++;
     }
     return {
         order: order.subarray(0, tail),

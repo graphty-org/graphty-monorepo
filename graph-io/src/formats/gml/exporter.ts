@@ -410,8 +410,10 @@ function selectColumns(
  */
 function uniqueKey(base: string, used: ReadonlySet<string>): string {
     let candidate = base;
-    for (let k = 2; used.has(candidate); k++) {
+    let k = 2;
+    while (used.has(candidate)) {
         candidate = `${base}_${k}`;
+        k++;
     }
     return candidate;
 }

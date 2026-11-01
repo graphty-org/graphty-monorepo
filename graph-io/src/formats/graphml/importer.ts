@@ -2539,8 +2539,10 @@ class GraphmlReader implements XmlHandler {
         this.hyperedgeCount++;
         const baseId = hyperedge.id ?? `hyperedge${this.hyperedgeCount}`;
         let hubId = baseId;
-        for (let n = 2; this.sink.indexOf(hubId) !== INVALID_INDEX; n++) {
+        let n = 2;
+        while (this.sink.indexOf(hubId) !== INVALID_INDEX) {
             hubId = `${baseId}#${n}`;
+            n++;
         }
         const hub = this.sink.addNode(hubId);
         this.declared.add(hub);

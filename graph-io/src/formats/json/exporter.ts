@@ -1765,8 +1765,10 @@ function edgeIdGenerator(snapshot: GraphSnapshot, p: Plan): (e: number) => strin
     }
     return (e: number): string => {
         let candidate = `e${e}`;
-        for (let k = 2; used.has(candidate); k++) {
+        let k = 2;
+        while (used.has(candidate)) {
             candidate = `e${e}_${k}`;
+            k++;
         }
         used.add(candidate);
         return JSON.stringify(candidate);

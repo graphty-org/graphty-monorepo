@@ -350,6 +350,16 @@ export class UpdateManager implements Manager {
     private lastZoomStep = 0;
     private wasSettled = false;
 
+    /**
+     * Where an accelerated simulation's nodes were drawn at its last measured landing, for
+     * `minDelta`. See `landedMoveBelow`.
+     */
+    private lastLanding: {
+        engine: SimulationLayoutEngine;
+        landed: number;
+        positions: Map<NodeIdType, { x: number; y: number; z: number }>;
+    } | null = null;
+
     /** Where the two masks are read from, or null while nothing has been bound. */
     private viewMasks: ViewMasks | null = null;
 
@@ -1942,6 +1952,13 @@ export class UpdateManager implements Manager {
      * @returns True when the round moved no node as far as `minDelta`: the layout has arrived.
      */
     private stepRound(simulation: boolean, stepMultiplier: number, minDelta: number): boolean {
+        const engine = this.layoutManager.layoutEngine;
+        if (minDelta > 0 && engine instanceof SimulationLayoutEngine && engine.isAccelerated) {
+            this.layoutManager.stepBatch();
+            this.layoutStepCount++;
+            return this.landedMoveBelow(engine, minDelta);
+        }
+
         const before = minDelta > 0 ? this.enginePositions() : null;
 
         if (simulation) {
@@ -1955,6 +1972,30 @@ export class UpdateManager implements Manager {
         }
 
         return before !== null && this.largestMove(before) < minDelta;
+    }
+
+    /**
+     * Whether the last landed batches of an accelerated simulation moved every node less than
+     * `minDelta`. Its `step()` only submits a batch, which lands frames later, so a move measured
+     * across the submit is 0 on every frame nothing landed in, and read as arrived it stopped the
+     * layout on its first stepped frame (issue #4437). Measured instead between the positions the
+     * last two publishes of NEWLY LANDED batches drew.
+     * @param engine - The accelerated simulation.
+     * @param minDelta - The settle threshold, above 0.
+     * @returns True when the latest landing moved no node as far as `minDelta`.
+     */
+    private landedMoveBelow(engine: SimulationLayoutEngine, minDelta: number): boolean {
+        const landed = engine.landedBatchesPublished;
+        const last = this.lastLanding;
+        if (last?.engine === engine && last.landed === landed) {
+            // Nothing new has landed since the last measurement: no evidence either way.
+            return false;
+        }
+
+        const positions = this.enginePositions();
+        this.lastLanding = { engine, landed, positions };
+
+        return last?.engine === engine && this.largestMove(last.positions, positions) < minDelta;
     }
 
     /**
@@ -2004,12 +2045,14 @@ export class UpdateManager implements Manager {
     /**
      * How far the node that moved most has moved since the positions were taken.
      * @param before - The positions to measure against.
+     * @param now - The positions to measure; by default where the engine has them now.
      * @returns The largest distance, or Infinity when there is nothing to compare -- a graph with
      *     no placed nodes has not settled, it has not started.
      */
-    private largestMove(before: Map<NodeIdType, { x: number; y: number; z: number }>): number {
-        const now = this.enginePositions();
-
+    private largestMove(
+        before: Map<NodeIdType, { x: number; y: number; z: number }>,
+        now = this.enginePositions(),
+    ): number {
         if (before.size === 0 || now.size === 0) {
             return Number.POSITIVE_INFINITY;
         }

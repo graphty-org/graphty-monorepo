@@ -130,6 +130,12 @@ interface FakeAcceleratorOptions {
      * `settleAfter` do not apply to it: the simulation settles on its own terms.
      */
     readonly computes?: "translation" | "layout";
+    /**
+     * What a batch waits for before it lands: the readback. Default one microtask, so a batch
+     * lands before the next frame. A test that needs a slower device -- one whose batch lands
+     * frames after the frame that submitted it -- passes a wait on those frames.
+     */
+    readonly readback?: () => Promise<void>;
     /** A device-loss promise, for the recovery paths. Absent means this backend cannot lose one. */
     readonly lost?: Promise<{ reason: string }>;
     /**
@@ -228,6 +234,7 @@ export class FakeSimulation implements LayoutSimulation {
     #iterationsDone = 0;
     #failCode: GraphtyErrorCode | null = null;
     #disposed = false;
+    readonly #readback: () => Promise<void>;
 
     /**
      * Builds a simulation. The accelerator does this; a test reaches it through `fake.forceAtlas2()`.
@@ -237,6 +244,7 @@ export class FakeSimulation implements LayoutSimulation {
      * @param defaults.settleAfter - Landed batches after which the simulation reports `settled`.
      * @param defaults.maxInFlight - Batches accepted before a step coalesces onto the oldest.
      * @param defaults.computes - Whether a batch translates the nodes or runs the real layout.
+     * @param defaults.readback - What a batch waits for before it lands.
      * @param type - Which layout this simulation is, which is what `computes: "layout"` runs.
      * @param options - The simulation options the caller passed to the layout member.
      */
@@ -247,12 +255,14 @@ export class FakeSimulation implements LayoutSimulation {
             settleAfter: number;
             maxInFlight: number;
             computes: "translation" | "layout";
+            readback: () => Promise<void>;
         },
         type: SimulationType,
         options: SimulationOptions = {},
     ) {
         this.options = options;
         this.#computes = defaults.computes;
+        this.#readback = defaults.readback;
         this.#type = type;
         this.#calls = calls;
         this.#moveBy = defaults.moveBy;
@@ -436,13 +446,14 @@ export class FakeSimulation implements LayoutSimulation {
     }
 
     /**
-     * Lands a batch after one microtask, the readback a GPU batch waits for.
+     * Lands a batch once the readback a GPU batch waits for is done: one microtask unless the
+     * accelerator was given a `readback`.
      * @param iterations - Iterations this batch computes.
      * @param failCode - The code to reject with instead of landing, when one was armed.
      */
     async #settle(iterations: number, failCode: GraphtyErrorCode | null): Promise<void> {
         try {
-            await Promise.resolve();
+            await this.#readback();
 
             if (failCode !== null) {
                 throw new GraphtyError({
@@ -622,6 +633,7 @@ export function createFakeAccelerator(options: FakeAcceleratorOptions = {}): Fak
         settleAfter: options.settleAfter ?? DEFAULT_SETTLE_AFTER,
         maxInFlight: options.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT,
         computes: options.computes ?? "translation",
+        readback: options.readback ?? ((): Promise<void> => Promise.resolve()),
     };
     const simulations: FakeSimulation[] = [];
 

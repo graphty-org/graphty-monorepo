@@ -4589,6 +4589,7 @@ export abstract class LayoutEngine {
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
+    isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
     loadArrangement(): void;

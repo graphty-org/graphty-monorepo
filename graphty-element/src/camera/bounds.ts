@@ -41,13 +41,55 @@ function defaultBounds(): GraphBounds {
 }
 
 /**
- * The axis-aligned box around a set of points.
+ * The axis-aligned box around a set of points, grown to take in the boxes the elements are drawn in.
  * @param points - Where the elements being framed are, in world units.
+ * @param boxes - The boxes the elements take up, in world units: a big node at the edge of the
+ *   graph reaches past its centre. They never shrink the box the points give.
  * @returns The box, its centre and its sides. With no points at all this is the element's default
  *   box with `measured` zero, which is what the built-in views have always framed an empty graph
  *   against. When every point is in the same place it is that default box moved onto the point.
  */
-export function measureBounds(points: Iterable<Vec3>): GraphBounds {
+export function measureBounds(
+    points: Iterable<Vec3>,
+    boxes: Iterable<{ readonly min: Vec3; readonly max: Vec3 }> = [],
+): GraphBounds {
+    const bounds = measurePoints(points);
+    if (bounds.measured === 0) {
+        return bounds;
+    }
+
+    const min = { ...bounds.min };
+    const max = { ...bounds.max };
+    let grown = false;
+    for (const box of boxes) {
+        for (const axis of ["x", "y", "z"] as const) {
+            grown ||= box.min[axis] < min[axis] || box.max[axis] > max[axis];
+            min[axis] = Math.min(min[axis], box.min[axis]);
+            max[axis] = Math.max(max[axis], box.max[axis]);
+        }
+    }
+
+    if (!grown) {
+        return bounds;
+    }
+
+    const size = { x: max.x - min.x, y: max.y - min.y, z: max.z - min.z };
+    return Object.freeze({
+        min,
+        max,
+        center: { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2, z: (min.z + max.z) / 2 },
+        size,
+        maxDimension: Math.max(size.x, size.y, size.z),
+        measured: bounds.measured,
+    });
+}
+
+/**
+ * The axis-aligned box around a set of points (see {@link measureBounds}).
+ * @param points - Where the elements being framed are, in world units.
+ * @returns The box.
+ */
+function measurePoints(points: Iterable<Vec3>): GraphBounds {
     let minX = Infinity;
     let minY = Infinity;
     let minZ = Infinity;

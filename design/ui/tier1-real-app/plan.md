@@ -195,6 +195,12 @@ These changes are not additive and wait for one grouped major, with the held bre
 there is none). #676 also changes the label code item 7 touches; its fate is decided before label
 work starts.
 
+The same major also flips the camera views' `extent` default from `"centers"` to `"drawn"`
+(issue #2668): `zoomToNodes`, `applyCameraView` and `resolveCameraPreset` take `extent:
+"centers" | "drawn"` today, defaulting to `"centers"` so the box handed to a camera view (a third
+party's included) and the framing of one node do not change in a minor release. In the next major
+the default becomes `"drawn"`, so every framed node is whole on screen without asking.
+
 ### The items
 
 Each is one pull request into the integration branch. Effort is after the review.

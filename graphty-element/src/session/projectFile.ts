@@ -239,6 +239,13 @@ export interface ProjectOpenOptions {
      * `ImportOptions.history` does for a load. A project always starts the history.
      */
     readonly history?: "step" | "start";
+    /**
+     * For a data file: how it is read into its draft, as `session.data.prepare`'s options of the
+     * same names -- `onto: "graph"` to join it onto the graph, `guess: "values"` to guess its
+     * roles from the values too. Default: as `prepare` with no options.
+     * @since 3.34.0
+     */
+    readonly draft?: { readonly onto?: "graph"; readonly guess?: "names" | "values" };
     readonly limits?: {
         /** The largest file to read, in bytes. Default 256 MiB. */
         readonly fileBytes?: number;
@@ -2436,7 +2443,7 @@ export function projectOf(
                 // Not a graphty document: a data file, read the way session.data.prepare reads one.
                 // Nothing is loaded until its draft is, which takes a place of its own.
                 turn.leave();
-                const draft = await session.data.prepare(dataSourceOf(source, text, fileName));
+                const draft = await session.data.prepare(dataSourceOf(source, text, fileName), options.draft);
                 return Object.freeze({
                     opened: "graph" as const,
                     draft,

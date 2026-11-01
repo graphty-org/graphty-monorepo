@@ -85,6 +85,7 @@ const browser = (script, scriptArgs, opts) =>
     run(WITH_BROWSER, [process.execPath, join(here, script), ...scriptArgs], opts);
 const finish = (json, dest, ...flags) => node("common.mjs", ["finish", ...flags, dest], { input: json });
 const python = (script, file, env) => run("python3", [join(here, script), file], { env });
+const YFILES_HTML_NAMESPACE = "http://www.yworks.com/xml/yfiles-for-html/";
 // yEd draws edges to group boxes, which a scene cannot carry
 const GROUP_EDGES = "--drop-group-edges";
 const need = (path, what) => (existsSync(path) ? null : `${what} (${path})`);
@@ -132,10 +133,11 @@ function recipe(sample, route, file, dest) {
                 );
             }
             // yFiles for HTML (yEd Live) GraphML stores its drawing in another vocabulary than yEd desktop's
+            // (a namespace it declares starts with yFiles for HTML's)
             const bytes = readFileSync(file);
-            const live = (file.endsWith(".gz") ? gunzipSync(bytes) : bytes)
-                .toString("utf8")
-                .includes("http://www.yworks.com/xml/yfiles-for-html/");
+            const text = (file.endsWith(".gz") ? gunzipSync(bytes) : bytes).toString("utf8");
+            const namespaces = [...text.matchAll(/\sxmlns(?::[\w.-]+)?="([^"]*)"/g)].map((m) => m[1]);
+            const live = namespaces.some((ns) => ns.startsWith(YFILES_HTML_NAMESPACE));
             return () => finish(python(live ? "yfiles_html_facts.py" : "yed_facts.py", file), dest, GROUP_EDGES);
         }
         case "gephi-noscale": {

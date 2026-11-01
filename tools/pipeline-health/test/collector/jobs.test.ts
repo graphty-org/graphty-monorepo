@@ -20,6 +20,9 @@ import { putRaw, setCursor } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 
+/** A GitHub Actions expression, `${{ body }}`, as a workflow file spells it. */
+const ghExpr = (body: string): string => ["$", "{{ ", body, " }}"].join("");
+
 const REPO = "graphty-org/graphty-monorepo";
 /** When the owner found Performance Benchmarks red in most full runs, and the dashboard showed nothing. */
 const NOW = Date.parse("2026-10-27T03:00:00Z");
@@ -266,7 +269,7 @@ describe("chronically failing jobs", () => {
         const names = async () => (await jobMembers(store, searchGitHub([]).gh, REPO, NOW)).list.map((j) => j.job);
         // Before the collector has read ci.yml, every job is judged.
         expect(await names()).toContain("CI / Story tests parity (graphty)");
-        const withParity = `${ci}\n    story-tests-parity:\n        name: Story tests parity (\${{ matrix.project }})\n`;
+        const withParity = `${ci}\n    story-tests-parity:\n        name: Story tests parity (${ghExpr("matrix.project")})\n`;
         await setCursor(store, "ci-jobs", JSON.stringify(definedJobs(withParity)), NOW);
         expect(await names()).toContain("CI / Story tests parity (graphty)");
         await setCursor(store, "ci-jobs", JSON.stringify(definedJobs(ci)), NOW);
@@ -391,7 +394,7 @@ describe("non-gating jobs", () => {
         const jobs = nonGatingJobs(ci);
         expect(jobs).toContain("Performance Benchmarks");
         // gating since #4613 (the screenshot gate blocks again)
-        expect(jobs).not.toContain(`Story tests (\${{ matrix.name || matrix.project }})`);
+        expect(jobs).not.toContain(`Story tests (${ghExpr("matrix.name || matrix.project")})`);
         expect(jobs).not.toContain("Build");
         expect(jobs).not.toContain("Lint");
     });
@@ -401,7 +404,7 @@ describe("non-gating jobs", () => {
             "jobs:",
             "    lint:",
             "        name: Lint",
-            `        continue-on-error: \${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint') }}`,
+            `        continue-on-error: ${ghExpr("contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint')")}`,
             "        steps:",
             "            - run: x",
             "              continue-on-error: true",
@@ -421,7 +424,7 @@ describe("non-gating jobs", () => {
     });
 
     it("matches a matrix job's name and a called workflow's prefix", () => {
-        const story = `Story tests (\${{ matrix.name || matrix.project }})`;
+        const story = `Story tests (${ghExpr("matrix.name || matrix.project")})`;
         expect(isJob(story, "CI / Story tests (graphty-element)")).toBe(true);
         expect(isJob(story, "Story tests merge (graphty)")).toBe(false);
         expect(isJob("Performance Benchmarks", "CI / Performance Benchmarks")).toBe(true);

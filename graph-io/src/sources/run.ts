@@ -15,7 +15,7 @@ import { type FormatRegistry } from "../registry.js";
 import { SNIFF_HEAD_BYTES } from "../sniff.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../types.js";
 import { type CreatedContext, createSourceContext, detectRuntime, LimitStop } from "./context.js";
-import { credentialQuery, originOf } from "./credentials.js";
+import { credentialQuery, endpointOrigin } from "./credentials.js";
 import { checkParams } from "./define.js";
 import { failOn, warnOn } from "./fail.js";
 import { SOURCE_FORMAT_PREFIX } from "./ids.js";
@@ -421,15 +421,6 @@ function writeEdges(
 }
 
 /**
- * The origin of an endpoint, or "" without one.
- * @param endpoint - the endpoint
- * @returns its origin
- */
-function endpointOrigin(endpoint: URL | null): string {
-    return endpoint === null ? "" : originOf(endpoint);
-}
-
-/**
  * The edge id column, declared on first use.
  * @param sink - the sink
  * @returns its handle
@@ -476,7 +467,7 @@ function stopOrThrow(err: unknown, page: number, prepared: Prepared): void {
     if (page > 0 && err instanceof ImportError && AUTH_CODES.has(String(err.issue?.code))) {
         const p = err.issue?.params ?? {};
         warnOn(prepared.report, "W_SOURCE_AUTH", "a later page needs a credential; the pages before it are kept", {
-            origin: typeof p.origin === "string" ? p.origin : endpointOrigin(prepared.created.ctx.endpoint),
+            origin: typeof p.origin === "string" ? p.origin : (endpointOrigin(prepared.created.ctx.endpoint) ?? ""),
             status: typeof p.status === "number" ? p.status : null,
         });
         return;
@@ -611,6 +602,7 @@ async function runFile(
         body = bytes;
         if (format === undefined) {
             failOn(prepared.report, "E_SOURCE_RESPONSE", "the file is in no format graph-io reads", {
+                origin: endpointOrigin(ctx.endpoint),
                 expected: "graph-file",
                 contentType: mimeType ?? null,
             });

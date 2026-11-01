@@ -31,14 +31,19 @@ const CODE_WORDS: Readonly<Record<string, string>> = {
 };
 
 /**
- * A coded fact as a short label: "sign-in refused", "missing or wrong value: uuid".
+ * A coded fact as a short label: "missing or wrong value: uuid", or with the host of the server
+ * that answered, "too many requests: api.openalex.org".
  * @param fact - the code and its params.
  * @returns the label.
  */
 export function codeWords(fact: CodedFact): string {
     const words = CODE_WORDS[fact.code] ?? fact.code;
-    const { name } = fact.params;
-    return typeof name === "string" ? `${words}: ${name}` : words;
+    const { name, origin } = fact.params;
+    if (typeof name === "string") {
+        return `${words}: ${name}`;
+    }
+    const host = typeof origin === "string" && URL.canParse(origin) ? new URL(origin).host : null;
+    return host === null ? words : `${words}: ${host}`;
 }
 
 /**

@@ -524,8 +524,10 @@ logic is unchanged, so a non-gating job still never fails a lane.
   change's, which "Red on the same check" and the failure causes judge. Jobs stored before that
   rule count CodeQL's pull request scans as other runs until a backfill rewrites their run kind
   (README, "Backfill"). Each job is listed
-  with its failures, its last pass and the open issue naming it (one GitHub search per job for its
-  name, confirmed in the title or body, as "Flaky in CI with no open issue" matches tests). Yellow
+  with its failures, its last pass and the open bug owning it (one GitHub search per job name; the
+  title must name the job and its workflow, by the workflow file's name or its run kind, "Full run"
+  for release.yml, so release.yml's "CI / All Checks Pass" issue is not shown on ci.yml's or
+  CodeQL's "All Checks Pass"). Yellow
   while every chronic job has an open issue, red while one has none. Read from the rollup
   `ci.job_history` (each job's pass and fail times, 14 days), so it needs no new source.
 - **Allowed to fail, and failing** (a CI section, never judged). Every job ci.yml lets fail --

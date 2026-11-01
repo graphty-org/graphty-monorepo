@@ -44,8 +44,14 @@ Then start nothing, and end the round with one line naming the reason, when:
   bursts, which pass. When the tool errors or is stale, judge from the running and queued counts in `gh run list`.
 
 Otherwise start jobs this round, one subagent each, up to the number of free test slots: the slot count minus the
-`holds` lines, minus this session's jobs that have no pull request yet (they will take a slot when they reach their
-tests). Start at least one when nothing waits and CI is not backed up.
+`holds` lines. Count only runs that hold a slot now: a job still reading or writing code holds none, and when it
+reaches its tests a full machine only queues it (a `waits` line, which stops the next round). Reserving a slot for
+every job without a pull request left slots empty most of the day (2026-11-01: 2 jobs ran while CI sat idle). Start
+at least one when nothing waits and CI is not backed up.
+
+**Between rounds.** When one of this session's subagents reports (its pull request opened, or its job released),
+its slot is free: run steps 1 to 4 again at once rather than waiting for the next scheduled round. The `/loop`
+interval is only the fallback.
 
 ## 2. Pick the top issue
 

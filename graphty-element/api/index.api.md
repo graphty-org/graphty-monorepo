@@ -5221,6 +5221,7 @@ export const NodeStyle: z.ZodObject<{
         drawOrder: z.ZodOptional<z.ZodNumber>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
         exactCornerRadius: z.ZodOptional<z.ZodBoolean>;
+        cornerFraction: z.ZodOptional<z.ZodNumber>;
         points: z.ZodOptional<z.ZodString>;
         stretchPoints: z.ZodOptional<z.ZodBoolean>;
         parts: z.ZodOptional<z.ZodString>;

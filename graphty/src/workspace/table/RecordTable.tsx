@@ -133,6 +133,24 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
 }
 
 /**
+ * A row's Group cell: its group's chit and name, or nothing.
+ * @param group - the row's group, or null.
+ * @param filled - whether the chit is filled with the group's color.
+ * @returns the cell.
+ */
+function groupCell(group: { name: string; color: string } | null, filled: boolean): React.ReactNode {
+    return group === null ? null : (
+        <span className="ws-table-group">
+            <span
+                className="sel-chit"
+                style={{ borderColor: group.color, background: filled ? group.color : "transparent" }}
+            />
+            {group.name}
+        </span>
+    );
+}
+
+/**
  * The records of one kind, read a window at a time from graphty-element's `nodePage` or
  * `edgePage`. The element sorts (a result column by the run's value, a grouping by group size),
  * reads each run's values, and holds the selection; the table draws what it is handed.
@@ -151,24 +169,6 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
  * @param props.groupOf - The group a record is in, while a selection is edited
  * @returns The table
  */
-/**
- * A row's Group cell: its group's chit and name, or nothing.
- * @param group - the row's group, or null.
- * @param filled - whether the chit is filled with the group's color.
- * @returns the cell.
- */
-function groupCell(group: { name: string; color: string } | null, filled: boolean): React.ReactNode {
-    return group === null ? null : (
-        <span className="ws-table-group">
-            <span
-                className="sel-chit"
-                style={{ borderColor: group.color, background: filled ? group.color : "transparent" }}
-            />
-            {group.name}
-        </span>
-    );
-}
-
 export function RecordTable({
     session,
     kind,

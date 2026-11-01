@@ -3,7 +3,7 @@
  * ring a border is drawn as, and the size every shape is fitted to (issues #2318, #2316, #2317,
  * #2495).
  */
-import { type Mesh, NullEngine, Scene, VertexBuffer } from "@babylonjs/core";
+import { type AbstractMesh, type Mesh, NullEngine, Scene, VertexBuffer } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { FLAT_NODE_SHAPES, NodeShapes, type NodeStyleConfig } from "../../src/config/NodeStyle";
@@ -653,7 +653,7 @@ describe("node borders", () => {
             const fill = NodeMesh.create(cache, options, { shape }, scene);
             const ring = NodeMesh.createBorder(cache, options, { shape, border: { width } }, fill, scene);
             assert.isNotNull(ring);
-            const pointsOf = (mesh: Mesh): Point2[] => {
+            const pointsOf = (mesh: AbstractMesh): Point2[] => {
                 mesh.computeWorldMatrix(true);
                 const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
                 const world = mesh.getWorldMatrix().m;

@@ -327,6 +327,7 @@
         "Styles/Node::LabelFit",
         "Styles/Node::Opacity",
         "Styles/Node::PajekShapesAndMidLineArrows",
+        "Styles/Node::RelativeExtentsIn3D",
         "Styles/Node::Shape",
         "Styles/Node::ShapesIn2D",
         "Styles/Node::Size",

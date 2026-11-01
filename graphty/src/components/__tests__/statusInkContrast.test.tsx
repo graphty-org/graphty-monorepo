@@ -157,6 +157,7 @@ describe("status ink contrast", () => {
 
         it(`the error screen's warning glyph meets 3:1 in the ${scheme} scheme`, async () => {
             renderIn(scheme, <ErrorFallback error={new Error("x")} resetError={() => undefined} />);
+            await screen.findByRole("heading", { name: "Something went wrong" });
             const glyph = document.querySelector("svg.lucide-triangle-alert, svg.lucide-alert-triangle");
             assert.isNotNull(glyph);
             const ratio = glyphContrast(glyph);

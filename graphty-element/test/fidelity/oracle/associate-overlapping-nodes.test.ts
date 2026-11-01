@@ -106,7 +106,7 @@ describe("small nodes drawn almost on one another", () => {
         ];
         const rect = (id: string, x: number, y: number): PNode => ({
             ...node([id, x, y, 45.7]),
-            shape: "rectangle",
+            shape: "rect",
             h: 10.5,
         });
         const stacked: PScene = {

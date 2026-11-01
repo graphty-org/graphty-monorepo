@@ -441,6 +441,7 @@ describe("EdgeLineBatch", () => {
                 assert.strictEqual(instanced.mesh.forcedInstanceCount, pieces);
                 const [subMesh] = expanded.mesh.subMeshes;
                 assert.strictEqual(subMesh.indexCount, pieces * JOIN_TEMPLATE_INDICES.length, "draws only the pieces");
+                assert.isOk(subMesh.getBoundingInfo(), "and has a box the transparent pass can sort by");
 
                 const indices = expanded.mesh.getIndices() ?? [];
                 const positions = attribute(expanded, "position", pieces * VERTICES);

@@ -727,6 +727,9 @@ export class EdgeLineBatch {
             const [subMesh] = this.mesh.subMeshes;
             subMesh.indexCount = this.highWater * TEMPLATE_INDICES;
             subMesh.verticesCount = this.highWater * TEMPLATE_VERTICES;
+            // A part of a mesh keeps its own box, which the transparent pass sorts by; the mesh's
+            // own will do, since the batch is drawn whatever the camera sees.
+            subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
         } else if (this.matrices) {
             this.mesh.thinInstanceCount = this.highWater;
         } else {

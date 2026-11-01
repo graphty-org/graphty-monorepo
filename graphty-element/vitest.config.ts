@@ -61,7 +61,7 @@ const SHARD_CACHE_DIR = shardCacheDir();
 
 /**
  * The "minimum-work" project's files: the tests of "the picture is final" written for the issues
- * where work split across frames escaped it (#3287, #3361, #3372, #3527, #3528, #3531, #3533, #4218),
+ * where work split across frames escaped it (#3287, #3361, #3372, #3527, #3528, #3531, #3533, #4218, #5140),
  * and the frame reads of tests that once read a frame too early (#1473). Not layout-pace.test.ts: it
  * counts a slow frame's layout catch-up rounds, which this mode turns off by design.
  */
@@ -72,6 +72,7 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/stable-frame-rechecks-work-after-the-pass.test.ts",
     "test/browser/stable-frame-follows-camera-moves.test.ts",
     "test/browser/a-label-redraws-when-its-font-loads.test.ts",
+    "test/browser/a-glyph-and-an-annotation-redraw-when-their-font-loads.test.ts",
     "test/browser/an-image-annotation-is-in-the-stable-frame.test.ts",
     "test/browser/simulation-owed-pre-steps.test.ts",
     "test/browser/camera/owed-fit-reads-late-inputs.test.ts",

@@ -1290,21 +1290,36 @@ export class Node implements ModelUser {
      * @internal
      */
     refreshFonts(families: ReadonlySet<string>): boolean {
-        const texts = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels];
-        if (this.disposed || !texts.some((text) => text?.usesFont(families) === true)) {
+        if (this.disposed) {
             return false;
         }
 
-        // Forget what they were drawn from, so the repaint builds them again and fits the node anew.
-        this.drawnLabelStyle = undefined;
-        this.drawnShapeTexts = undefined;
-        this.drawnXlabel = undefined;
-        this.fittedFor = null;
-        const tooltipShown = this.tooltip !== undefined;
-        this.updateStyle();
-        if (tooltipShown) {
-            this.hideTooltip();
-            this.showTooltip();
+        const texts = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels];
+        const textsUse = texts.some((text) => text?.usesFont(families) === true);
+        // A glyph drawn in the family was forgotten by the mesh cache (`forgetGlyphs`), its instance with it.
+        const glyphGone = this.decorations.some((mesh) => mesh.isDisposed());
+        if (!textsUse && !glyphGone) {
+            return false;
+        }
+
+        if (textsUse) {
+            // Forget what they were drawn from, so the repaint builds them again and fits the node anew.
+            this.drawnLabelStyle = undefined;
+            this.drawnShapeTexts = undefined;
+            this.drawnXlabel = undefined;
+            this.fittedFor = null;
+            const tooltipShown = this.tooltip !== undefined;
+            this.updateStyle();
+            if (tooltipShown) {
+                this.hideTooltip();
+                this.showTooltip();
+            }
+        }
+
+        // A repaint that kept the mesh kept its decorations: build the glyph again in the loaded face.
+        if (this.drawnStyle !== null && this.decorations.some((mesh) => mesh.isDisposed())) {
+            const fit = this.fitToLabel(this.meshKey, this.drawnStyle);
+            this.syncDecorations(fit.meshKey, fit.style);
         }
 
         return true;

@@ -559,22 +559,26 @@ describe('lengths: "spacing" (issues #3168, #3103)', () => {
      * The drawn extent of node a, loaded with these style options.
      * @param data - The document.
      * @param styleOptions - The style options of the load.
+     * @param type - The format of the document.
+     * @param id - The node measured.
      * @returns Scene units.
      */
     async function extent(
         data: string,
         styleOptions?: { readonly lengths: "median" | "file" | "spacing" },
+        type = "json",
+        id: NodeId = "a",
     ): Promise<number> {
         const session = createGraphSession();
         await session.data.import(
-            { type: "json", config: { data } },
+            { type, config: { data } },
             { styles: "file", layout: "recommended", ...(styleOptions === undefined ? {} : { styleOptions }) },
         );
         await vi.waitFor(() => {
             assert.lengthOf(session.history.pending, 0);
         });
         assert.strictEqual(session.layout.id, "force");
-        const size = number(session, { node: "a" }, "node.size") * 1.5;
+        const size = number(session, { node: id }, "node.size") * 1.5;
         session.dispose();
         return size;
     }
@@ -588,6 +592,27 @@ describe('lengths: "spacing" (issues #3168, #3103)', () => {
 
     it("leaves the default unchanged: the median node is the element's node size", async () => {
         assert.approximately(await extent(doc), 1.5, 1e-6);
+    });
+
+    it("leaves the default unchanged for a Cytoscape desktop file with no positions (#5508)", async () => {
+        // Cytoscape desktop states a 50 px spacing; only lengths: "spacing" reads it, so the default load of a file
+        // such as cx-radiation-bibliography still draws its median node at the element's node size
+        const cx2 = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { nodes: [{ id: 0 }, { id: 1 }, { id: 2 }] },
+            {
+                edges: [
+                    { id: 3, s: 0, t: 1 },
+                    { id: 4, s: 1, t: 2 },
+                ],
+            },
+            { visualProperties: [{ default: { node: { NODE_WIDTH: 60, NODE_HEIGHT: 60 } } }] },
+            { status: [{ success: true }] },
+        ]);
+        assert.approximately(await extent(cx2, undefined, "cx2", "0"), 1.5, 1e-6);
+        const inFile = await extent(cx2, { lengths: "file" }, "cx2", "0");
+        const spaced = await extent(cx2, { lengths: "spacing" }, "cx2", "0");
+        assert.approximately(spaced / NGRAPH_SPRING_LENGTH, inFile / 1.5 / 50, 1e-6);
     });
 
     it("scales as the median does for a program that states no spacing", async () => {

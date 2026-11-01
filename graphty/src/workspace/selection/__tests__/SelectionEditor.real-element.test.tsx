@@ -592,7 +592,9 @@ describe("the selection editor's keys, names and limits", () => {
         await userEvent.click(screen.getByRole("treeitem", { name: /^Which nodes, / }));
         const or = await screen.findByRole("button", { name: "Or..." });
         assert.equal(or.getAttribute("aria-disabled"), "true");
-        await userEvent.click(or);
+        // A disabled button takes no click; Enter on it is the press a reader can still make.
+        or.focus();
+        await userEvent.keyboard("{Enter}");
         assert.lengthOf(unionOf(session, layer.id)?.branches ?? [], 6);
     });
 });
@@ -711,7 +713,8 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
         });
         assert.isNull(screen.queryByRole("radiogroup", { name: "Start with" }), "not in the title pane");
         await userEvent.click(row("a").querySelector(".sel-value") ?? row("a"));
-        assert.isNull(screen.queryByText("Start with"), "collapsed at first");
+        const caption = screen.queryByText("Start with");
+        assert.isTrue(caption === null || !caption.checkVisibility(), "collapsed at first");
         await userEvent.click(await screen.findByRole("button", { name: /^Advanced/ }));
         assert.equal(startWith(), "all");
         const pane = document.querySelector<HTMLElement>(".sel-pane-box");

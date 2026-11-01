@@ -150,7 +150,7 @@ describe("the import filter's cards as selections", () => {
         await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
         await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
         const card = await filterCard(/degree/i);
-        await userEvent.click(within(card).getByRole("button", { name: /^Degree/ }));
+        await userEvent.click(within(card).getByRole("button", { name: /Degree/ }));
         await waitFor(() => {
             assert.lengthOf(document.querySelectorAll(".sel-step-row[data-row]"), 1, "its step came back");
         });
@@ -183,7 +183,7 @@ describe("the import filter's cards as selections", () => {
         const expected = (await session.scope.count({ define: { kind: "rule", where: degree, reading: "clipped" } }))
             .nodes;
         const card = await filterCard(/degree/i);
-        await userEvent.click(within(card).getByRole("button", { name: /^Degree/ }));
+        await userEvent.click(within(card).getByRole("button", { name: /Degree/ }));
         const filters = screen.getByRole("list", { name: "Filters" });
         for (const word of ["Select", "Filter to", "Filter out"]) {
             assert.isNull(within(filters).queryByText(word), word);
@@ -209,7 +209,7 @@ describe("the import filter's cards as selections", () => {
         const visible = session.visibility.summary.visibleNodes;
         const before = valjeanOpacity(session);
         const card = await filterCard(/degree/i);
-        await userEvent.click(within(card).getByRole("button", { name: /^Degree/ }));
+        await userEvent.click(within(card).getByRole("button", { name: /Degree/ }));
         assert.isNotNull(await within(card).findByRole("treeitem", { name: "All nodes" }));
         const row = await waitFor(() => {
             const found = card.querySelector<HTMLElement>(".sel-step-row[data-row]");

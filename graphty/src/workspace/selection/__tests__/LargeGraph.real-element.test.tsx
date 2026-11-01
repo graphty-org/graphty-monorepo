@@ -144,14 +144,11 @@ describe("the selection editor on 50,000 nodes", () => {
             assert.match(nodes ?? "", /^Nodes 8 of [\d,]+$/);
         });
         assert.isAtMost(listed().options.length, 4 + 8);
-        // Found by what a node is called (its id or name), never by another column's value.
+        // A graph with no label column is searched in every column (spec 4.3), so the node whose id
+        // is exactly what was typed comes first.
         const live = ["Pick on canvas", "Hovered or selected", "So far"];
         const nodes = listed().options.filter((each) => !live.includes(each) && !each.startsWith("Selected"));
-        assert.isNotEmpty(nodes);
-        assert.isTrue(
-            nodes.every((each) => each.includes("12")),
-            nodes.join(", "),
-        );
+        assert.strictEqual(nodes[0], "12", nodes.join(", "));
         await userEvent.keyboard("{Escape}");
     });
 

@@ -634,7 +634,7 @@ function readLine(
     }
     // an arrowhead is 6 x `s` long and 5 x `s` wide; `s` 1, Pajek's normal size, is 6 long (the pajek tool arrowhead)
     readNumber(get("s"), "arrowSize", put, at);
-    readArrowPosition(get("ap"), put, at, run);
+    readArrowPosition(get("ap"), put, at, run, get("s"));
     // a loop is drawn as the Bezier route of a line PAJEK_POINTS_PER_UNIT long to the right, its two ends on the node
     const line = loop === null ? get : loopParam(get);
     const controls = loop === null ? null : readLoop(line, put, loop);
@@ -1057,33 +1057,48 @@ function numberOrNull(raw: unknown): number | null {
     return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
 }
 
+/** How far ahead of the point `ap` names, toward the target, Pajek 6.02 draws a part-way arrowhead's tip, per `s`. */
+const PAJEK_AP_TIP_AHEAD = 5;
+
+/** The least share a part-way arrowhead is placed at: above 0, which is graphty's arrowhead at the end. */
+const PAJEK_AP_LEAST = 1e-6;
+
 /**
  * Where a line's arrowhead sits, Pajek's `ap` (manual p. 90): a fraction of the line from its end up to 1 (0.5 is the
- * middle); a value above 1 is a distance from the end in px, the arrowhead's back that far from the target's center
- * (`pajek-synth-lines` arc `3 4 ... ap 20`), read as its share of a placed line and noted on an unplaced one.
+ * middle); a value above 1 is a distance from the target's center in px (`pajek-synth-lines` arc `3 4 ... ap 20`),
+ * read as its share of a placed line and noted on an unplaced one. Pajek 6.02's SVG export draws the head from 1 `s`
+ * behind that point to its tip 5 `s` ahead of it, toward the target (`pajek-specimen-arrows` arc 27 28 `ap 0.5`: the
+ * point at the middle, x 432, the tip at 437), while graphty's `arrowPosition` places the tip; so a placed line gets
+ * its tip's share. An unplaced line keeps the fraction: its length is graphty's layout's.
  * @param raw - the parameter's value, or null
  * @param put - receives the value
  * @param at - the sites
  * @param run - the line from its source's center to its target's, in drawn units, or null when unplaced
+ * @param size - the arrowhead's size `s`, or null for Pajek's 1
  */
-function readArrowPosition(raw: unknown, put: Put, at: At, run: Run | null = null): void {
+function readArrowPosition(raw: unknown, put: Put, at: At, run: Run | null = null, size: unknown = null): void {
     if (raw === null) {
         return;
     }
     const ap = canonNumber(raw, at("arrowPosition"));
+    // 0 is Pajek's own place for the arrow, at the line's end, which a line restates after one that moved it
+    if (ap === null || ap === 0) {
+        return;
+    }
     const length = run === null ? 0 : Math.hypot(run[0], run[1]);
-    if (ap !== null && ap > 1) {
-        if (length > 0) {
-            put("arrowPosition", Number(Math.min(1, ap / length).toPrecision(6)));
-        } else {
+    if (length === 0) {
+        if (ap > 1) {
             noteAt(at("arrowPosition"), STYLE_ISSUE.NOT_CARRIED, `ap ${String(ap)}`);
+        } else {
+            put("arrowPosition", ap);
         }
         return;
     }
-    // 0 is Pajek's own place for the arrow, at the line's end, which a line restates after one that moved it
-    if (ap !== 0) {
-        put("arrowPosition", ap);
-    }
+    const tip = (ap > 1 ? ap : ap * length) - PAJEK_AP_TIP_AHEAD * (numberOrNull(size) ?? 1);
+    // a tip past the target's center is drawn at the node, the line still running on under it as Pajek's does. ponytail:
+    // the share is of the line between the centers, graphty's of the line between the outlines: off by up to a node's
+    // radius, and Lines finished at Vertex Border (`pajek-specimen-arrows-p3`) is not read
+    put("arrowPosition", Number(Math.min(1, Math.max(PAJEK_AP_LEAST, tip / length)).toPrecision(6)));
 }
 
 /**

@@ -22,6 +22,10 @@ interface DynamicTextureFields {
 export class LabelTexture extends DynamicTexture {
     /** The canvas the label is drawn on. Babylon's own `_canvas` is what is uploaded: this, or a smaller copy. */
     private readonly drawing: ICanvas;
+    /** The smaller copy uploaded instead of the drawing, once it is shown smaller; null until then. */
+    private copy: ICanvas | null = null;
+    /** Whether the copy changed size since it was last made the uploaded canvas. */
+    private resized = false;
 
     /**
      * Make the texture over the canvas the label is drawn on, uploaded whole until {@link showAt}.
@@ -50,57 +54,56 @@ export class LabelTexture extends DynamicTexture {
      * @returns Whether the uploaded size changed.
      */
     showAt(size: ISize | null): boolean {
-        const engine = this._getEngine();
         const fields = this.fields();
         const own = size === null || (size.width >= this.drawing.width && size.height >= this.drawing.height);
-        if (own) {
-            if (fields._canvas === this.drawing) {
-                return false;
-            }
-
-            fields._canvas = this.drawing;
-        } else {
-            let width = Math.max(1, Math.ceil(size.width));
-            let height = Math.max(1, Math.ceil(size.height));
-            // A device without non-power-of-two mipmaps (WebGL 1) is given the next power of two up.
-            if (engine?.needPOTTextures === true) {
-                width = 2 ** Math.ceil(Math.log2(width));
-                height = 2 ** Math.ceil(Math.log2(height));
-            }
-
-            const current = fields._canvas;
-            if (current !== null && current !== this.drawing && current.width === width && current.height === height) {
-                return false;
-            }
-
-            if (current !== null && current !== this.drawing) {
-                fields._canvas = current;
-            } else {
-                const copy = engine?.createCanvas(1, 1) ?? null;
-                if (copy === null) {
-                    return false;
-                }
-
-                // On the CPU, as the drawing is (see RichTextLabel's _createTexture): a GPU canvas's
-                // smoothing can differ by a level at scattered pixels from one page load to the next. A canvas
-                // has one context for life, so `update` gets this one.
-                copy.getContext("2d", { willReadFrequently: true });
-                fields._canvas = copy;
-            }
-
-            fields._canvas.width = width;
-            fields._canvas.height = height;
+        const target = own ? this.drawing : this.copyAt(size);
+        if (target === null || (target === fields._canvas && !this.resized)) {
+            return false;
         }
 
+        fields._canvas = target;
+        this.resized = false;
         this.releaseInternalTexture();
         this._texture =
-            engine?.createDynamicTexture(
-                fields._canvas.width,
-                fields._canvas.height,
+            this._getEngine()?.createDynamicTexture(
+                target.width,
+                target.height,
                 fields._generateMipMaps,
                 this.samplingMode,
             ) ?? null;
         return true;
+    }
+
+    /**
+     * The smaller copy, sized to `size` (to the next power of two up on a device without non-power-of-two
+     * mipmaps, WebGL 1); made on first use.
+     * @param size - The size.
+     * @returns The copy, or null when the engine can make no canvas.
+     */
+    private copyAt(size: ISize): ICanvas | null {
+        let width = Math.max(1, Math.ceil(size.width));
+        let height = Math.max(1, Math.ceil(size.height));
+        const engine = this._getEngine();
+        if (engine?.needPOTTextures === true) {
+            width = 2 ** Math.ceil(Math.log2(width));
+            height = 2 ** Math.ceil(Math.log2(height));
+        }
+
+        if (this.copy === null) {
+            this.copy = engine?.createCanvas(1, 1) ?? null;
+            // On the CPU, as the drawing is (see RichTextLabel's _createTexture): a GPU canvas's smoothing can
+            // differ by a level at scattered pixels from one page load to the next. A canvas has one context for
+            // life, so `update` gets this one.
+            this.copy?.getContext("2d", { willReadFrequently: true });
+        }
+
+        if (this.copy !== null && (this.copy.width !== width || this.copy.height !== height)) {
+            this.copy.width = width;
+            this.copy.height = height;
+            this.resized = true;
+        }
+
+        return this.copy;
     }
 
     /**
@@ -124,9 +127,9 @@ export class LabelTexture extends DynamicTexture {
 
     /** Dispose the texture, and empty the smaller copy it uploads; the drawing is the label's. */
     override dispose(): void {
-        const shown = this.fields()._canvas;
+        const shown = this.copy;
         super.dispose();
-        if (shown !== null && shown !== this.drawing) {
+        if (shown !== null) {
             shown.width = 0;
             shown.height = 0;
         }

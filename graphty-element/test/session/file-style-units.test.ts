@@ -14,7 +14,7 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession, type NodeId } from "../../session";
-import { NGRAPH_SPRING_LENGTH } from "../../src/constants/layoutConstants";
+import { NGRAPH_SETTLED_SPACING } from "../../src/constants/layoutConstants";
 import { dispatcherOf } from "../../src/session/GraphSession";
 
 /** A Cytoscape.js document: nodes 40 across with a border 2 wide and labels 20 high, edges 2 wide, nodes 400 apart. */
@@ -545,7 +545,7 @@ describe("a file whose nodes are sized by their labels alone", () => {
 });
 
 describe('lengths: "spacing" (issues #3168, #3103)', () => {
-    // vis-network, no positions: 40 px dots, which vis-network lays out with springs 95 px long
+    // vis-network, no positions: 40 px dots, which vis-network's layout leaves 87 px apart once it settles
     const doc = JSON.stringify({
         nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
         edges: [
@@ -579,11 +579,11 @@ describe('lengths: "spacing" (issues #3168, #3103)', () => {
         return size;
     }
 
-    it("draws a node as large beside the force layout's spring as the program draws it beside its own", async () => {
+    it("draws a node as large beside the force layout's settled spacing as the program draws it beside its own", async () => {
         const inFile = await extent(doc, { lengths: "file" });
         const spaced = await extent(doc, { lengths: "spacing" });
-        // one file unit is one scene unit with lengths: "file", so the file's node over vis-network's spring length
-        assert.approximately(spaced / NGRAPH_SPRING_LENGTH, inFile / 1.5 / 95, 1e-6);
+        // one file unit is one scene unit with lengths: "file", so the file's node over vis-network's settled spacing
+        assert.approximately(spaced / NGRAPH_SETTLED_SPACING, inFile / 1.5 / 87, 1e-6);
     });
 
     it("leaves the default unchanged: the median node is the element's node size", async () => {

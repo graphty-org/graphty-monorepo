@@ -40,7 +40,7 @@ import {
 } from "@graphty/graph-io/styles";
 
 import type { Binding, BindingStop, Channel, LayerKind, LayerSpec, Path, Selector } from "../../../catalog/types";
-import { NGRAPH_SPRING_LENGTH } from "../../../constants/layoutConstants";
+import { NGRAPH_SETTLED_SPACING } from "../../../constants/layoutConstants";
 import { EDGE_CONSTANTS } from "../../../constants/meshConstants";
 import type { CodedFactParam } from "../../shared";
 import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle, toColorValue } from "../channels";
@@ -82,9 +82,9 @@ export interface FileStyleOptions {
      * file's median node size (by its larger side) is the element's default node size and node sizes, borders, edge
      * widths, label sizes and the stored positions a recommended layout keeps all keep the file's
      * proportions; `"file"` keeps the file's numbers as they are; `"spacing"` scales every length by one factor too,
-     * chosen so the spacing the writing program's own layout leaves between connected nodes (graph-io's
-     * `layoutSpacing`) is the element's force-layout spring length, so a file that stores no positions is laid out
-     * with its nodes as large beside the gaps as the program draws them. A program with no stated spacing is scaled
+     * chosen so the spacing the writing program's own layout leaves between nodes once it settles (graph-io's
+     * `layoutSpacing`) is drawn at the spacing the element's force layout settles at, so a file that stores no
+     * positions is laid out with its nodes as large beside the gaps as the program draws them. A program with no stated spacing is scaled
      * as `"median"` is.
      */
     readonly lengths?: "median" | "file" | "spacing";
@@ -1689,7 +1689,7 @@ function lengthFactors(input: TranslateInput): LengthFactors {
     let scene: number;
     const spacing = input.options.lengths === "spacing" ? programSpacing(extracted.styles.source.tool) : null;
     if (spacing !== null) {
-        scene = NGRAPH_SPRING_LENGTH / spacing;
+        scene = NGRAPH_SETTLED_SPACING / spacing;
     } else if (nodeMedian !== null) {
         scene = (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
     } else if (labelMedian !== null && sides.includes(0)) {
@@ -1714,7 +1714,7 @@ function lengthFactors(input: TranslateInput): LengthFactors {
 }
 
 /**
- * How far apart the program that wrote a file lays out two connected nodes, in the file's units.
+ * How far apart the program that wrote a file leaves the nodes of its layout once it settles, in the file's units.
  * @param tool - The program.
  * @returns The spacing, or null when the program states none.
  */

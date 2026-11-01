@@ -613,16 +613,15 @@ function dotCharset(head: string): string | null {
         let token = lexer.next();
         while (token.kind !== "eof") {
             if (isPunct(token, "[")) {
-                list = previous !== null && isKeyword(previous, "graph") ? "graph" : "other";
+                list = listOwner(previous);
             } else if (isPunct(token, "]")) {
                 list = null;
             } else if (list !== "other" && isKeyword(token, "charset")) {
-                const equals = lexer.next();
-                const value = isPunct(equals, "=") ? lexer.next() : equals;
-                if (value !== equals && value.kind === "id") {
-                    return value.text.replace(/^(latin|big)-/i, "$1");
+                const read = charsetValue(lexer);
+                if (read.label !== null) {
+                    return read.label;
                 }
-                token = value;
+                token = read.next;
             }
             previous = token;
             token = lexer.next();
@@ -634,6 +633,30 @@ function dotCharset(head: string): string | null {
         }
     }
     return null;
+}
+
+/**
+ * Whose attribute list a `[` opens: the graph's after the keyword `graph`, else a node's or an edge's.
+ * @param previous - the token before the `[`
+ * @returns "graph" or "other"
+ */
+function listOwner(previous: DotToken | null): "graph" | "other" {
+    return previous !== null && isKeyword(previous, "graph") ? "graph" : "other";
+}
+
+/**
+ * Read the value of a `charset` attribute whose name was just read.
+ * @param lexer - the tokenizer, after the name
+ * @returns the label (Graphviz's `latin-1` and `big-5` mapped to the WHATWG labels), or null when
+ * no `= id` follows; and the last token read, where the scan continues
+ */
+function charsetValue(lexer: DotTokenizer): { readonly label: string | null; readonly next: DotToken } {
+    const equals = lexer.next();
+    const value = isPunct(equals, "=") ? lexer.next() : equals;
+    if (value !== equals && value.kind === "id") {
+        return { label: value.text.replace(/^(latin|big)-/i, "$1"), next: value };
+    }
+    return { label: null, next: value };
 }
 
 /**
@@ -1683,21 +1706,15 @@ class DotParser {
         const element = `${String(source.id)} ${kind === "directed" ? "->" : "--"} ${String(target.id)}`;
         const where: EdgeWhere = { line, element };
         const { weightFrom } = this.options;
-        let weight: number | undefined;
-        const weightText = weightFrom === null ? undefined : effective.get(weightFrom);
-        if (weightText !== undefined) {
-            try {
-                weight = parseWeightText(weightText, this.report);
-            } catch (err) {
-                this.report.recordError(err, where);
-                this.report.counts.skippedEdges++;
-                return;
-            }
+        const read = this.edgeWeight(effective, where);
+        if (read === null) {
+            return;
         }
+        const { weight } = read;
         const key = effective.get(KEY_ATTRIBUTE);
         const dedupeKey = this.dedupeKey(source.index, target.index, kind, key);
         if (dedupeKey !== null) {
-            const existing = (this.strict ? this.strictEdges : this.keyedEdges).get(dedupeKey);
+            const existing = this.dedupeEdges.get(dedupeKey);
             if (existing !== undefined) {
                 this.mergeEdge(existing, weight, effective, where, key);
                 this.setPorts(existing, source, target, where);
@@ -1716,7 +1733,7 @@ class DotParser {
         }
         this.report.counts.edges += sink.edgeCount - before;
         if (dedupeKey !== null) {
-            (this.strict ? this.strictEdges : this.keyedEdges).set(dedupeKey, e);
+            this.dedupeEdges.set(dedupeKey, e);
         }
         for (const [name, value] of effective) {
             if (name !== weightFrom) {
@@ -1724,6 +1741,39 @@ class DotParser {
             }
         }
         this.setPorts(e, source, target, where);
+    }
+
+    /**
+     * The weight of an edge from its effective attributes, under the weightFrom option.
+     * @param effective - the edge's effective attributes
+     * @param where - the line and element
+     * @returns the weight (undefined when the edge has none); null when it does not parse (reported,
+     * the edge counted skipped)
+     */
+    private edgeWeight(
+        effective: ReadonlyMap<string, string>,
+        where: EdgeWhere,
+    ): { readonly weight: number | undefined } | null {
+        const { weightFrom } = this.options;
+        const weightText = weightFrom === null ? undefined : effective.get(weightFrom);
+        if (weightText === undefined) {
+            return { weight: undefined };
+        }
+        try {
+            return { weight: parseWeightText(weightText, this.report) };
+        } catch (err) {
+            this.report.recordError(err, where);
+            this.report.counts.skippedEdges++;
+            return null;
+        }
+    }
+
+    /**
+     * The edges later edges merge into: by endpoints in a strict graph, else by key.
+     * @returns dedupe key -> edge index
+     */
+    private get dedupeEdges(): Map<string, number> {
+        return this.strict ? this.strictEdges : this.keyedEdges;
     }
 
     /**

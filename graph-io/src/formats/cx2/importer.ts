@@ -923,6 +923,35 @@ class DeclarationTable {
     }
 }
 
+/**
+ * What the values of the attributes no declaration types hold, by attribute name.
+ * @param table - the declarations of the domain
+ * @param elements - the domain's elements
+ * @returns attribute name -> what its values were seen to hold, in first-seen order
+ */
+function observeUntyped(table: DeclarationTable, elements: readonly Held[]): Map<string, Seen> {
+    const seen = new Map<string, Seen>();
+    for (const { value } of elements) {
+        if (!isRecord(value) || !isRecord(value.v)) {
+            continue;
+        }
+        for (const [key, raw] of Object.entries(value.v)) {
+            const resolved = table.resolve(key);
+            if (key === "" || (resolved !== null && resolved.decl.type !== null) || raw === null || raw === undefined) {
+                continue;
+            }
+            const name = resolved?.decl.name ?? key;
+            let state = seen.get(name);
+            if (state === undefined) {
+                state = { kind: undefined, list: undefined };
+                seen.set(name, state);
+            }
+            observe(state, raw);
+        }
+    }
+    return seen;
+}
+
 /** The three declaration tables of CX2 and what the declarations element holds besides. */
 interface Declarations {
     readonly node: DeclarationTable;
@@ -1131,30 +1160,7 @@ class Cx2Reader {
      */
     private inferUndeclared(domain: "node" | "edge", elements: readonly Held[]): void {
         const table = this.decls[domain];
-        const seen = new Map<string, Seen>();
-        for (const { value } of elements) {
-            if (!isRecord(value) || !isRecord(value.v)) {
-                continue;
-            }
-            for (const [key, raw] of Object.entries(value.v)) {
-                const resolved = table.resolve(key);
-                if (
-                    key === "" ||
-                    (resolved !== null && resolved.decl.type !== null) ||
-                    raw === null ||
-                    raw === undefined
-                ) {
-                    continue;
-                }
-                const name = resolved?.decl.name ?? key;
-                let state = seen.get(name);
-                if (state === undefined) {
-                    state = { kind: undefined, list: undefined };
-                    seen.set(name, state);
-                }
-                observe(state, raw);
-            }
-        }
+        const seen = observeUntyped(table, elements);
         for (const [name, state] of seen) {
             const type = inferredType(state);
             const decl = table.byName.get(name);
@@ -1512,7 +1518,7 @@ class Cx2Reader {
      */
     private readNode(held: Held): void {
         this.checkAbort();
-        const { report, sink } = this;
+        const { report } = this;
         const { value, line } = held;
         if (!isRecord(value)) {
             report.error("parse-error", BAD_ASPECT_BLOCK_CODE, `a nodes element is ${shown(value)}, not an object`, {
@@ -1550,35 +1556,59 @@ class Cx2Reader {
                 { line, element },
             );
         } else {
-            let original = this.originalIdOf(attrs, element, line);
-            if (original !== null && this.restored.has(original)) {
-                report.warning(
-                    "merged",
-                    DUPLICATE_NODE_CODE,
-                    `${element}: its original id ${shown(original)} is already another node's; it keeps its CX id`,
-                    { line, element },
-                );
-                original = null;
-            }
-            if (original !== null) {
-                this.restored.add(original);
-            }
-            this.idTypeOf(original ?? cx);
-            try {
-                row = sink.addNode(original ?? cx);
-            } catch (err) {
-                report.recordError(err, { line, element });
-                report.counts.skippedNodes++;
+            row = this.addNodeRow(cx, attrs, element, line);
+            if (row === undefined) {
                 return;
             }
-            this.nodeRows.set(cx, row);
-            this.sinkIds.set(cx, original ?? cx);
-            report.counts.nodes++;
         }
         this.readCoordinates(value, row, element, line);
         if (attrs !== null) {
             this.writeAttributes("node", row, attrs, element, line);
         }
+    }
+
+    /**
+     * Add the row of a node seen for the first time, under its restored original id when it has one
+     * no other node took.
+     * @param cx - the node's CX id
+     * @param attrs - the node's v
+     * @param element - the element name for issues
+     * @param line - its line
+     * @returns the row; undefined when the sink refused the node (reported, counted skipped)
+     */
+    private addNodeRow(
+        cx: NodeId,
+        attrs: Record<string, unknown> | null,
+        element: string,
+        line: number,
+    ): number | undefined {
+        const { report } = this;
+        let original = this.originalIdOf(attrs, element, line);
+        if (original !== null && this.restored.has(original)) {
+            report.warning(
+                "merged",
+                DUPLICATE_NODE_CODE,
+                `${element}: its original id ${shown(original)} is already another node's; it keeps its CX id`,
+                { line, element },
+            );
+            original = null;
+        }
+        if (original !== null) {
+            this.restored.add(original);
+        }
+        this.idTypeOf(original ?? cx);
+        let row: number;
+        try {
+            row = this.sink.addNode(original ?? cx);
+        } catch (err) {
+            report.recordError(err, { line, element });
+            report.counts.skippedNodes++;
+            return undefined;
+        }
+        this.nodeRows.set(cx, row);
+        this.sinkIds.set(cx, original ?? cx);
+        report.counts.nodes++;
+        return row;
     }
 
     /**
@@ -1763,14 +1793,25 @@ class Cx2Reader {
                 );
             }
             seen.add(row);
-            const z = typeof entry.z === "number" ? entry.z : null;
-            this.setPosition(row, entry.x, entry.y, z);
-            if (z !== null && this.zAs === "column") {
-                if (this.zHandle === INVALID_INDEX) {
-                    this.zHandle = declareResolved(this.sink, "node", zDecl(CX2_FORMAT), this.report).handle;
-                }
-                this.sink.setNodeValue(this.zHandle, row, z);
+            this.placeLegacy(row, entry.x, entry.y, entry.z);
+        }
+    }
+
+    /**
+     * Set a node's position from a CX1 cartesianLayout entry, and its z column when z goes there.
+     * @param row - the node row
+     * @param x - the entry's x
+     * @param y - the entry's y
+     * @param rawZ - the entry's z as written
+     */
+    private placeLegacy(row: number, x: number, y: number, rawZ: unknown): void {
+        const z = typeof rawZ === "number" ? rawZ : null;
+        this.setPosition(row, x, y, z);
+        if (z !== null && this.zAs === "column") {
+            if (this.zHandle === INVALID_INDEX) {
+                this.zHandle = declareResolved(this.sink, "node", zDecl(CX2_FORMAT), this.report).handle;
             }
+            this.sink.setNodeValue(this.zHandle, row, z);
         }
     }
 
@@ -1959,29 +2000,11 @@ class Cx2Reader {
                 return;
             }
         }
-        const id = this.idOf(value.id, (held.inexact & 1) !== 0, element, line, true);
-        const s = id === null ? null : this.idOf(value.s, (held.inexact & 2) !== 0, element, line);
-        const t = s === null ? null : this.idOf(value.t, (held.inexact & 4) !== 0, element, line);
-        if (id === null || s === null || t === null) {
-            report.counts.skippedEdges++;
+        const ends = this.edgeEnds(value, held.inexact, element, line);
+        if (ends === null) {
             return;
         }
-        if (this.edgeRows.has(id)) {
-            report.error(
-                "validation-error",
-                DUPLICATE_EDGE_ID_CODE,
-                `${element} is declared more than once; the later edge is skipped`,
-                { line, element },
-            );
-            report.counts.skippedEdges++;
-            return;
-        }
-        const source = this.endpoint(s, element, line);
-        const target = source === null ? null : this.endpoint(t, element, line);
-        if (source === null || target === null) {
-            report.counts.skippedEdges++;
-            return;
-        }
+        const { id, source, target } = ends;
         const attrs = isRecord(value.v) ? value.v : null;
         if (value.v !== undefined && value.v !== null && attrs === null) {
             report.error("validation-error", BAD_VALUE_CODE, `${element}: v is ${shown(value.v)}, not an object`, {
@@ -2016,6 +2039,47 @@ class Cx2Reader {
         if (attrs !== null) {
             this.writeAttributes("edge", edge, attrs, element, line);
         }
+    }
+
+    /**
+     * The id and the sink endpoints of an edge element whose id, s and t are present.
+     * @param value - the element
+     * @param inexact - which of id, s and t were written as non-integer literals (bits 1, 2, 4)
+     * @param element - the edge name
+     * @param line - its line
+     * @returns the edge id and its endpoints; null when the edge is skipped (reported, counted skipped)
+     */
+    private edgeEnds(
+        value: Record<string, unknown>,
+        inexact: number,
+        element: string,
+        line: number,
+    ): { readonly id: NodeId; readonly source: NodeId; readonly target: NodeId } | null {
+        const { report } = this;
+        const id = this.idOf(value.id, (inexact & 1) !== 0, element, line, true);
+        const s = id === null ? null : this.idOf(value.s, (inexact & 2) !== 0, element, line);
+        const t = s === null ? null : this.idOf(value.t, (inexact & 4) !== 0, element, line);
+        if (id === null || s === null || t === null) {
+            report.counts.skippedEdges++;
+            return null;
+        }
+        if (this.edgeRows.has(id)) {
+            report.error(
+                "validation-error",
+                DUPLICATE_EDGE_ID_CODE,
+                `${element} is declared more than once; the later edge is skipped`,
+                { line, element },
+            );
+            report.counts.skippedEdges++;
+            return null;
+        }
+        const source = this.endpoint(s, element, line);
+        const target = source === null ? null : this.endpoint(t, element, line);
+        if (source === null || target === null) {
+            report.counts.skippedEdges++;
+            return null;
+        }
+        return { id, source, target };
     }
 
     /**

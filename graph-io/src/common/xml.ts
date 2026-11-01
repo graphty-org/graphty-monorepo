@@ -559,27 +559,11 @@ export async function tokenizeXml(
     repairs?: XmlRepairs,
 ): Promise<void> {
     const tokenizer = new XmlTokenizer(handler, repairs);
-    // XML 1.0 section 2.8: nothing may precede the XML declaration, not even whitespace (template
-    // output often adds a line break, and the declared encoding would then go unread)
-    let skipped = 0;
-    let lines = 1;
-    let leading = true;
+    const leading: LeadingBlank = { skipped: 0, lines: 1, done: false };
     try {
         for await (const chunk of chunks) {
-            if (leading) {
-                const start = chunk.search(/\S/);
-                const blank = start < 0 ? chunk : chunk.slice(0, start);
-                skipped += blank.length;
-                lines += blank.split("\n").length - 1;
-                if (start >= 0) {
-                    leading = false;
-                    if (skipped > 0 && /^<\?xml\s/.test(chunk.slice(start, start + 6))) {
-                        throw new XmlSyntaxError(
-                            "the XML declaration must be at the very start of the document; whitespace precedes it",
-                            lines,
-                        );
-                    }
-                }
+            if (!leading.done) {
+                scanLeadingBlank(chunk, leading);
             }
             tokenizer.push(chunk);
         }
@@ -593,6 +577,60 @@ export async function tokenizeXml(
         }
         throw err;
     }
+}
+
+/** The whitespace seen before the first other character of a document. */
+interface LeadingBlank {
+    /** The number of whitespace characters so far. */
+    skipped: number;
+    /** The line the first other character is on. */
+    lines: number;
+    /** Whether a character other than whitespace was reached. */
+    done: boolean;
+}
+
+/**
+ * Count the whitespace that starts a chunk, while the document has had nothing else. XML 1.0
+ * section 2.8: nothing may precede the XML declaration, not even whitespace (template output often
+ * adds a line break, and the declared encoding would then go unread).
+ * @param chunk - the next chunk
+ * @param state - the whitespace seen so far, updated in place
+ */
+function scanLeadingBlank(chunk: string, state: LeadingBlank): void {
+    const start = chunk.search(/\S/);
+    const blank = start < 0 ? chunk : chunk.slice(0, start);
+    state.skipped += blank.length;
+    state.lines += blank.split("\n").length - 1;
+    if (start < 0) {
+        return;
+    }
+    state.done = true;
+    if (state.skipped > 0 && /^<\?xml\s/.test(chunk.slice(start, start + 6))) {
+        throw new XmlSyntaxError(
+            "the XML declaration must be at the very start of the document; whitespace precedes it",
+            state.lines,
+        );
+    }
+}
+
+/**
+ * The length of the XML Name character at `j` (an ASCII table for the common case, the code point
+ * classes beyond it).
+ * @param buffer - the text
+ * @param j - the index of the character
+ * @param first - whether it is the name's first character
+ * @returns 1 or 2 (a surrogate pair) when it belongs to the name; 0 when it does not
+ */
+function nameCharLength(buffer: string, j: number, first: boolean): number {
+    const c = buffer.charCodeAt(j);
+    if (c < 0x80) {
+        return (first ? ASCII_NAME_START[c] : ASCII_NAME_CHAR[c]) === 0 ? 0 : 1;
+    }
+    const cp = buffer.codePointAt(j);
+    if (cp === undefined || (first ? !isNameStart(cp) : !isNameChar(cp))) {
+        return 0;
+    }
+    return cp > 0xffff ? 2 : 1;
 }
 
 /** The result of parsing one start tag out of the buffer. */
@@ -1424,19 +1462,11 @@ export class XmlTokenizer {
         const { length } = buffer;
         let j = i;
         while (j < length) {
-            const c = buffer.charCodeAt(j);
-            if (c < 0x80) {
-                if ((j === i ? ASCII_NAME_START[c] : ASCII_NAME_CHAR[c]) === 0) {
-                    break;
-                }
-                j++;
-                continue;
-            }
-            const cp = buffer.codePointAt(j);
-            if (cp === undefined || (j === i ? !isNameStart(cp) : !isNameChar(cp))) {
+            const step = nameCharLength(buffer, j, j === i);
+            if (step === 0) {
                 break;
             }
-            j += cp > 0xffff ? 2 : 1;
+            j += step;
         }
         return j >= length && !this.final ? -1 : j;
     }

@@ -185,15 +185,7 @@ export class AnnotationMeshes {
 
         this.scale = read.scale;
         for (const a of read.annotations) {
-            if (a.kind === "text") {
-                // A web font still loading draws in its fallback: load it, and the text is drawn again when it lands.
-                noteLabelFont(
-                    this.scene,
-                    `${a.italic ? "italic" : "normal"} ${a.bold ? "bold" : "normal"}`,
-                    a.fontFamily,
-                );
-            }
-
+            noteTextFont(this.scene, a);
             if (a.kind === "arrow" && a.toNode === true) {
                 this.nodeArrows.push({ arrow: leaveText(a, read.annotations), mesh: null, reach: null });
                 continue;
@@ -467,6 +459,18 @@ function padOf(a: DrawnAnnotation): number {
             );
         default:
             return 1;
+    }
+}
+
+/**
+ * Note the font a text annotation is drawn in: a web font still loading draws in its fallback, so
+ * it is loaded and the annotations are drawn again when it lands (`AnnotationMeshes.refreshFonts`).
+ * @param scene - The scene it is drawn in.
+ * @param a - The annotation; anything but a text has no font.
+ */
+function noteTextFont(scene: Scene, a: DrawnAnnotation): void {
+    if (a.kind === "text") {
+        noteLabelFont(scene, `${a.italic ? "italic" : "normal"} ${a.bold ? "bold" : "normal"}`, a.fontFamily);
     }
 }
 

@@ -373,13 +373,17 @@ function mergeCommand(
         return facts;
     };
 
-    const fresh = (rows.nodes as Record<string, unknown>[]).filter((row) => host.node(row.id as NodeId) === undefined);
+    const freshCount = (rows.nodes as Record<string, unknown>[]).filter(
+        (row) => host.node(row.id as NodeId) === undefined,
+    ).length;
+    // Each new node's slot on the ring, counted in row order (an indexOf per row was quadratic).
+    let slot = 0;
     for (const row of rows.nodes as Record<string, unknown>[]) {
         const incoming = Object.fromEntries(Object.entries(row).filter(([name]) => !isSourceFactKey(name)));
         const held = host.node(row.id as NodeId);
         if (held === undefined) {
             const id = row.id as NodeId;
-            const position = startNear(host, seeds[0], key, fresh.indexOf(row), fresh.length);
+            const position = startNear(host, seeds[0], key, slot++, freshCount);
             const record = {
                 ...incoming,
                 ...(position === undefined ? {} : { position }),

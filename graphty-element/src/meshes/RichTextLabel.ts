@@ -1011,7 +1011,7 @@ export class RichTextLabel {
 
         // Pixels of the drawn frame: the canvas's CSS pixels times the element's pixel ratio.
         const onScreen = this.screenFontPx(camera);
-        if (!(onScreen > 0)) {
+        if (onScreen <= 0) {
             return false;
         }
 

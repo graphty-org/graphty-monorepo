@@ -100,7 +100,8 @@ class Sweep {
      * @returns The label, or undefined when there are none.
      */
     private next(): ScreenFittedTexture | undefined {
-        let next = (this.walk ??= this.labels.values()).next();
+        this.walk ??= this.labels.values();
+        let next = this.walk.next();
         if (next.done === true) {
             this.walk = this.labels.values();
             next = this.walk.next();

@@ -31,3 +31,27 @@ export function useSteps(session: GraphSession, rule: UnionLeaf): StepsReading {
     peek.end();
     return peek.current;
 }
+
+/**
+ * The selection open in an editor, read live from graphty-element (`scope.watchSteps`), for the
+ * table's Group column and Matches only, and the canvas key's preview (design/ui/selection-groups/spec.md, section 8).
+ * @param session - the element's session.
+ * @param rule - the open selection, or null.
+ * @returns the reading, or null while none is open.
+ */
+export function useEditedSelection(session: GraphSession | null, rule: UnionLeaf | null): StepsReading | null {
+    const key = rule === null ? null : JSON.stringify(rule);
+    const [reading, setReading] = useState<StepsReading | null>(null);
+    useEffect(() => {
+        if (session === null || key === null) {
+            setReading(null);
+            return undefined;
+        }
+        const watch = session.scope.watchSteps(JSON.parse(key) as UnionLeaf, setReading);
+        setReading(watch.current);
+        return () => {
+            watch.end();
+        };
+    }, [session, key]);
+    return key === null ? null : reading;
+}

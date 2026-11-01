@@ -15,6 +15,7 @@ import type {
     LoadDraft,
     NoteTargetInput,
     SourceKey,
+    UnionLeaf,
 } from "@graphty/graphty-element/session";
 import { type ReactNode, useSyncExternalStore } from "react";
 
@@ -94,6 +95,17 @@ export interface WorkspaceState {
      * list's Show rows outside the table and cleared by the dock; null when none is asked for.
      */
     readonly dockIssue: string | null;
+    /**
+     * The selection open in an editor (a style layer's Which nodes / Which edges, or a filter
+     * card), as graphty-element holds it, and the group a filter's count chip narrowed the table
+     * to; null while none is open. The table draws its Group column and Matches only while one is.
+     */
+    readonly editingSelection: {
+        readonly rule: UnionLeaf;
+        readonly branch: string | null;
+        /** What the canvas key's preview is titled by: "Which nodes", or a filter card's name. */
+        readonly title: string;
+    } | null;
     /**
      * A new filter card to open once the Filters section shows it: on a field
      * (`<node|edge>:<path>`, an attribute's Filter to...), or "+" for its add list (the toolbar's
@@ -263,6 +275,7 @@ const INITIAL: WorkspaceState = {
     dockTab: "nodes",
     dockColumn: null,
     dockIssue: null,
+    editingSelection: null,
     filterDraft: null,
     fieldsEntry: null,
     dockMaximized: false,

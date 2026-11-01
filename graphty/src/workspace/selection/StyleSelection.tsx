@@ -69,12 +69,13 @@ export function StyleSelection({
             }}
             onBlur={(event) => {
                 // A click outside the editor ends it (spec 9); a move into one of its own lists
-                // (drawn in a portal) comes back before the frame ends.
+                // (drawn in a portal) comes back before the frame ends, and the table the editor
+                // opened (its Group column, Matches only) is part of picking.
                 const to = event.relatedTarget;
                 if (
                     !(to instanceof HTMLElement) ||
                     to.closest(
-                        "[data-portal], [role=listbox], [role=menu], .mantine-Popover-dropdown, .mantine-Combobox-dropdown",
+                        "[data-portal], [role=listbox], [role=menu], .mantine-Popover-dropdown, .mantine-Combobox-dropdown, .ws-table",
                     ) !== null
                 ) {
                     return;

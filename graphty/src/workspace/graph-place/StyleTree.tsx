@@ -14,7 +14,7 @@ import { StylePanel } from "../style/StylePanel";
 import { colorName, hexOf } from "../style/words";
 import { unitOf } from "../time/timeActions";
 import { openers } from "../toolbar/popover";
-import { ADD_ROW_LABEL, addFolderOf, addLayer, moveRows, orNotice } from "./actions";
+import { ADD_ROW_LABEL, addFolderOf, addHoverHighlight, addLayer, moveRows, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
 import { KindGlyph } from "./KindGlyph";
 import { RowMenuItems } from "./RowMenu";
@@ -600,6 +600,14 @@ function AddMenu({
                     }}
                 >
                     Folder
+                </Menu.Item>
+                <Menu.Item
+                    leftSection={<GLYPHS.pick size={14} aria-hidden />}
+                    onClick={() => {
+                        void orNotice(store, "add Hover highlight", addHoverHighlight(session, store));
+                    }}
+                >
+                    Hover highlight
                 </Menu.Item>
                 {analyze !== null && (
                     <CommandMenuItem

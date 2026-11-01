@@ -7,7 +7,15 @@ import {
     SegmentedControl,
     UiGlyph,
 } from "@graphty/compact-mantine";
-import type { DataIssue, GraphSession, IssueId, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
+import type {
+    DataIssue,
+    EdgeId,
+    GraphSession,
+    IssueId,
+    NodeId,
+    ScopeInput,
+    SummaryGroup,
+} from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Chip, Menu, Pill, Tabs, Text, Tooltip } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import React, { useEffect, useRef, useState } from "react";
@@ -16,6 +24,8 @@ import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape, isTypingTarget } from "../keys/keys";
 import { runName } from "../runWords";
+import { useEditedSelection } from "../selection/useSteps";
+import { letterOf } from "../selection/words";
 import { formatCount, useNumberFormats } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -102,9 +112,16 @@ interface Arrangement {
     readonly views: Readonly<Record<RecordKind, View>>;
     readonly members: Members | null;
     readonly all: boolean;
+    /** While a selection is edited: only the rows it matches (spec 8), on until the reader turns it off. */
+    readonly matchesOnly: boolean;
 }
 
-const FIRST_ARRANGEMENT: Arrangement = { views: { node: EMPTY_VIEW, edge: EMPTY_VIEW }, members: null, all: false };
+const FIRST_ARRANGEMENT: Arrangement = {
+    views: { node: EMPTY_VIEW, edge: EMPTY_VIEW },
+    members: null,
+    all: false,
+    matchesOnly: true,
+};
 
 /**
  * The arrangement per workspace, kept while the dock is closed: the Frame unmounts the dock, and
@@ -576,7 +593,9 @@ export function TableDock(): React.JSX.Element {
     useEffect(() => {
         ARRANGEMENTS.set(store, arrangement);
     }, [store, arrangement]);
-    const { views, members, all } = arrangement;
+    const { views, members, all, matchesOnly } = arrangement;
+    const edited = useWorkspaceState((state) => state.editingSelection);
+    const editedReading = useEditedSelection(session, edited?.rule ?? null);
 
     // Show in table: bring the asked-for column into view, checking it first if the reader
     // unchecked it, then forget the ask.
@@ -665,7 +684,25 @@ export function TableDock(): React.JSX.Element {
     const shownCount = kind === "node" ? summary.visibleNodes : summary.visibleEdges;
     const filtered = shownCount < (kind === "node" ? summary.totalNodes : summary.totalEdges);
     const narrowed: ScopeInput = filtered && !all ? "visible" : "graph";
-    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
+    // While a selection is edited on this side: its Group column, and only its matches unless asked.
+    const picked = editedReading !== null && editedReading.rule.side === `${kind}s` ? editedReading : null;
+    const pickedScope =
+        picked === null || !matchesOnly
+            ? null
+            : (picked.branches.find((branch) => branch.id === edited?.branch)?.members ?? picked.result);
+    const groupOf =
+        picked === null
+            ? undefined
+            : (id: NodeId | EdgeId): { name: string; color: string } | null => {
+                  const branchId = picked.branchOf(id);
+                  const at = picked.rule.branches.findIndex((branch) => branch.id === branchId);
+                  const branch = picked.rule.branches[at];
+                  return branch === undefined ? null : { name: branch.name ?? letterOf(at), color: branch.color ?? "" };
+              };
+    let scope: ScopeInput = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
+    if (pickedScope !== null) {
+        scope = pickedScope;
+    }
     const tableHeight = Math.max(MIN_TABLE_HEIGHT, bodyHeight);
     const issues = issuesByColumn(session, kind, choices);
     const issueColumns = new Map([...issues].map(([column, list]) => [column, list.map((issue) => issue.id)]));
@@ -784,6 +821,17 @@ export function TableDock(): React.JSX.Element {
                         }}
                     />
                 ) : null}
+                {groupRun === undefined && picked !== null ? (
+                    <Chip
+                        size="xs"
+                        checked={matchesOnly}
+                        onChange={(checked) => {
+                            arrange({ matchesOnly: checked });
+                        }}
+                    >
+                        Matches only
+                    </Chip>
+                ) : null}
                 {groupRun === undefined && (withIssues > 0 || view.issue !== null) ? (
                     <Chip
                         size="xs"
@@ -822,8 +870,9 @@ export function TableDock(): React.JSX.Element {
             <Tabs.Panel value={active} className="ws-table-body" ref={bodyRef}>
                 {groupRun === undefined ? (
                     <RecordTable
-                        key={tableKey(kind, shownMembers, scope === "visible" ? shownCount : null, view.issue)}
+                        key={`${tableKey(kind, shownMembers, scope === "visible" ? shownCount : null, view.issue)}${pickedScope === null ? "" : `:${JSON.stringify(pickedScope)}`}`}
                         session={session}
+                        groupOf={groupOf}
                         kind={kind}
                         columns={visible}
                         scope={scope}

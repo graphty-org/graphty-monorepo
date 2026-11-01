@@ -25,7 +25,9 @@ export const registration = defineRegistration({
             run: ({ workspace }) => {
                 const opening = !workspace.get().dockOpen;
                 workspace.set({ dockOpen: opening });
-                if (opening) {
+                // While a selection is being edited, the table opens beside it and focus stays there
+                // (design/ui/selection-groups/spec.md, 8a).
+                if (opening && workspace.get().editingSelection === null) {
                     // A command that opens a region puts focus in it: the table's own Tab stop,
                     // once the dock is drawn.
                     requestAnimationFrame(() => {

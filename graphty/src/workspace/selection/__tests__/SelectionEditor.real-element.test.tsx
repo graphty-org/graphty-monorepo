@@ -6,7 +6,10 @@
  * tier 4 rule opens as one group starting All, Mod+] and a drag reorder steps without changing
  * Start with, a Relative to step takes its reference from the picker, and opening a step card
  * draws the element's picking view until Escape; in a filter card the same editor writes the
- * condition, Hovered or selected is not offered, and the verb menu changes a step's verb.
+ * condition, Hovered or selected is not offered, and the verb menu changes a step's verb. The
+ * header's Table opens the table on Matches only with a Group column and keeps focus; a style
+ * group's count chip selects its members, a filter's opens the table on them; the style tree's
+ * Hover highlight makes the start page's four hover layers from selections.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -173,6 +176,29 @@ describe("the selection editor in a style layer", () => {
         assert.equal(session.styles.counts(layer.id).matched, expected);
     });
 
+    it("a saved tier 4 rule of several cards opens as Keep and Except steps with the same count", async () => {
+        const session = await openSample();
+        const saved: RuleTree = {
+            kind: "all",
+            of: [DEGREE_6_TO_10, { kind: "not", of: { kind: "text", reads: "id", mode: "substring", text: "Val" } }],
+        };
+        const expected = await counted(session, saved);
+        const layer = await openLayer(session, "Saved", { match: "rule", where: saved });
+        assert.equal(startWith(), "all");
+        await waitFor(() => {
+            const rows = stepRows();
+            assert.lengthOf(rows, 2);
+            assert.match(rows[0] ?? "", /^Keep, Degree 6 to 10/);
+            assert.match(rows[1] ?? "", new RegExp(`^Except, .*${String(expected)} of 77 nodes so far$`));
+        });
+        assert.equal(session.styles.counts(layer.id).matched, expected);
+        assert.deepEqual(
+            session.styles.get(layer.id)?.selector,
+            { match: "rule", where: saved },
+            "opening writes nothing",
+        );
+    });
+
     it("Mod+] and a drag reorder steps; Start with never changes", async () => {
         const session = await openSample();
         const rule: UnionLeaf = {
@@ -260,6 +286,9 @@ describe("the selection editor in a style layer", () => {
         await waitFor(() => {
             assert.isTrue(session.styles.showingBranches);
         });
+        // The key says the styles are suspended, with the group and what matches none.
+        const preview = await screen.findByRole("region", { name: "Preview: Which nodes" });
+        assert.isNotNull(within(preview).queryByText("No match"));
         // The view is not a layer: the key never lists it.
         const keyed = session.styles.legend().map((block) => block.layerId);
         assert.isFalse(
@@ -271,6 +300,7 @@ describe("the selection editor in a style layer", () => {
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isFalse(session.styles.showingBranches);
+            assert.isNull(screen.queryByRole("region", { name: "Preview: Which nodes" }));
         });
         assert.equal(session.styles.list().length, layers, "the layer list is unchanged");
     });
@@ -300,5 +330,124 @@ describe("the selection editor in a filter card", () => {
         const options = (await screen.findAllByRole("option")).map((each) => each.textContent ?? "");
         assert.notInclude(options, "Hovered or selected");
         assert.include(options, "So far");
+    });
+});
+
+/** Two groups: A, degree 6 to 10 from All; B, Valjean alone. */
+const TWO_GROUPS: UnionLeaf = {
+    kind: "union",
+    side: "nodes",
+    within: "visible",
+    branches: [
+        { id: "a", start: "all", steps: [{ id: "deg", op: "keep", rule: DEGREE_6_TO_10 }] },
+        {
+            id: "b",
+            start: "none",
+            steps: [{ id: "val", op: "add", rule: { kind: "hops", of: { nodes: ["Valjean"] }, max: 0 } }],
+        },
+    ],
+};
+
+/**
+ * How many rows the open table's Nodes grid lists, its header row left out. Read afresh each time:
+ * a new scope draws a new grid.
+ * @returns the count, or -1 while no grid is drawn.
+ */
+function nodeRows(): number {
+    const grid = screen.queryByRole("grid", { name: "Nodes" });
+    return grid === null ? -1 : Number(grid.getAttribute("aria-rowcount")) - 1;
+}
+
+describe("the selection editor and the table", () => {
+    it("the header's Table opens the table on Matches only with the Group column, focus kept in the editor", async () => {
+        const session = await openSample();
+        await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        const total = session.scope.watchSteps(TWO_GROUPS, () => undefined);
+        const expected = total.current.total.count;
+        total.end();
+        const editor = document.querySelector<HTMLElement>(".sel-editor");
+        if (editor === null) {
+            throw new Error("the editor is open");
+        }
+        await userEvent.click(within(editor).getByRole("button", { name: "Table" }));
+        await waitFor(() => {
+            assert.equal(nodeRows(), expected, "only the rows the selection matches");
+        });
+        assert.isNotNull(screen.queryByRole("columnheader", { name: /^Group/ }));
+        const matches = screen.getByRole("checkbox", { name: "Matches only" });
+        assert.isTrue((matches as HTMLInputElement).checked);
+        assert.isTrue(editor.contains(document.activeElement), "focus stays in the editor");
+        // Every node again, with the reader's one click.
+        // The chip's box is drawn by its label, which the pointer clicks.
+        await userEvent.click(screen.getByText("Matches only"));
+        await waitFor(() => {
+            assert.equal(nodeRows(), 77);
+        });
+        assert.isTrue(editor.isConnected, "the table is part of picking: the editor stays open");
+        assert.isNotNull(screen.queryByRole("columnheader", { name: /^Group/ }));
+    });
+
+    it("a style group's count chip selects exactly its members", async () => {
+        const session = await openSample();
+        await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        const expected = await counted(session, DEGREE_6_TO_10);
+        const chip = await screen.findByRole("button", { name: `Select ${String(expected)} of 77 nodes` });
+        await userEvent.click(chip);
+        await waitFor(() => {
+            assert.equal(session.selection.nodes.length, expected);
+        });
+    });
+
+    it("a filter's count chip opens the table on its rows and never selects", async () => {
+        const session = await openSample("data");
+        await session.visibility.addCondition({ id: "deg", effect: "keep", rule: DEGREE_6_TO_10 });
+        const expected = await counted(session, DEGREE_6_TO_10);
+        const card = await screen.findByRole("group", { name: /, Filter to$/ });
+        await userEvent.click(within(card).getByRole("button", { name: "Degree" }));
+        await userEvent.click(
+            await within(card).findByRole("button", { name: `Show ${String(expected)} of 77 nodes in the table` }),
+        );
+        await waitFor(() => {
+            assert.equal(nodeRows(), expected, "only the rows it counts");
+        });
+        assert.deepEqual(session.selection.nodes, []);
+    });
+});
+
+describe("the hover highlight template", () => {
+    it("adds four layers built from selections that match nothing until a node is in focus", async () => {
+        const session = await openSample();
+        const before = session.styles.list().length;
+        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Hover highlight" }));
+        await waitFor(() => {
+            assert.equal(session.styles.list().length, before + 4);
+        });
+        const names = ["Fade nodes", "Fade edges", "Its edges", "Halo"];
+        // Bottom first, in the recipe's order.
+        const made = session.styles.list().filter((layer) => names.includes(layer.name));
+        assert.deepEqual(
+            made.map((layer) => layer.name),
+            names,
+        );
+        for (const layer of made) {
+            assert.equal(layer.selector.match === "rule" ? layer.selector.where.kind : "", "union", layer.name);
+        }
+        await session.styles.settled();
+        assert.deepEqual(
+            made.map((layer) => session.styles.counts(layer.id).matched),
+            [0, 0, 0, 0],
+            "nothing hovered or selected",
+        );
+        const valjean = session.data.nodes().find((each) => session.data.name(each.id) === "Valjean")?.id;
+        if (valjean === undefined) {
+            throw new Error("Valjean is in the sample");
+        }
+        await session.selection.apply({ nodes: [valjean] });
+        const near = await counted(session, { kind: "neighborhood", seeds: [valjean], depth: 1 });
+        await waitFor(() => {
+            assert.equal(session.styles.counts(made[3].id).matched, 1, "the halo rings Valjean");
+            assert.equal(session.styles.counts(made[0].id).matched, 77 - near, "the rest fade");
+        });
     });
 });

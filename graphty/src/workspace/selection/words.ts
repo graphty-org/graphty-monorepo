@@ -181,6 +181,11 @@ export function stepWords(
     reading?: StepReading,
 ): { value: string; test: string } {
     const { rule } = step;
+    if (rule.kind === "nonempty") {
+        // "While Hovered or selected has nodes": the reference sits inside the preset's words.
+        const of = referenceOf(rule);
+        return { value: "While", test: of === undefined ? "" : `${referenceWords(session, of)} has nodes` };
+    }
     if (isRelative(rule)) {
         return { value: relativeName(rule), test: referenceWords(session, referenceOf(rule)) };
     }

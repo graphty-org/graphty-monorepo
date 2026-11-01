@@ -1,5 +1,6 @@
 import type { GraphSession, LayerId, RowSpec, StyleRow, StyleRowPlace } from "@graphty/graphty-element/session";
 
+import { hoverRecipe } from "../selection/hoverRecipe";
 import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
 import { findTreeRow, paintingParts } from "./rows";
 
@@ -119,6 +120,28 @@ export async function addLayer(session: GraphSession, store: WorkspaceStore, aft
             ?.focus();
         store.set({ renamingRow: id });
     }, afterMenu);
+    return id;
+}
+
+/**
+ * Hover highlight: the start page's hover look as a folder of four layers built with the selection
+ * editor (`hoverRecipe`), one undo step, where Layer would put a new layer; it opens in the inspector.
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ * @returns the folder's id.
+ */
+export async function addHoverHighlight(session: GraphSession, store: WorkspaceStore): Promise<string> {
+    const place = newLayerPlace(session, store.get().inspected);
+    const id = await session.transaction("adding Hover highlight", async (tx) => {
+        const folder = await tx.styles.addFolder("Hover highlight", place);
+        for (const spec of hoverRecipe()) {
+            const row = await tx.styles.addRow(spec);
+            // Each on top of the last: the recipe is bottom first.
+            await tx.styles.moveRow(row.id, { parent: folder.id });
+        }
+        return folder.id;
+    });
+    store.set({ page: "panels", place: "graph", inspected: { kind: "folder-row", id } });
     return id;
 }
 

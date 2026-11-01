@@ -149,6 +149,19 @@ describe("a branches view and the key", () => {
             red,
         );
     });
+
+    it("which layer decides a value is read from the stack, not the view", async () => {
+        const { session, red } = await painted();
+        const row = red;
+        const before = session.styles.agreement("graph", "node.color", { over: row });
+        const view = session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint" });
+        await session.styles.settled();
+        const during = session.styles.agreement("graph", "node.color", { over: row });
+        const beneath = session.styles.agreement("graph", "node.color", { below: row, over: row });
+        view.end();
+        assert.deepEqual(during.channels, before.channels, "the picked view never covers a layer");
+        assert.notInclude(JSON.stringify(beneath.channels), "graphty-branches");
+    });
 });
 
 describe("the cost of a branches view", () => {

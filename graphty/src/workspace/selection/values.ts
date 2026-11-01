@@ -27,7 +27,7 @@ import type { ExtraItem } from "../style/WhichPicker";
 export type Host = "selector" | "filter";
 
 /** A section of the value picker past the field groups. */
-interface PickSection {
+export interface PickSection {
     readonly group: string;
     readonly items: readonly ExtraItem[];
 }

@@ -6,6 +6,7 @@ import {
     PANEL_GRID,
 } from "@graphty/compact-mantine";
 import type {
+    EdgeId,
     EdgeRecord,
     GraphSession,
     IssueId,
@@ -74,6 +75,8 @@ interface RecordTableProps {
     onMoveColumn?: (id: string, by: -1 | 1) => void;
     /** A column's header parts: its icons, summary, warning and menu. */
     header?: (column: TableColumnChoice) => Partial<DataTableColumn<object>>;
+    /** While a selection is edited: the group a record is in, for a Group column drawn first. */
+    groupOf?: (id: NodeId | EdgeId) => { name: string; color: string } | null;
 }
 
 /**
@@ -144,6 +147,7 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
  * @param props.height - The table's height in pixels
  * @param props.onMoveColumn - Moves a column one place
  * @param props.header - A column's header parts
+ * @param props.groupOf - The group a record is in, while a selection is edited
  * @returns The table
  */
 export function RecordTable({
@@ -158,6 +162,7 @@ export function RecordTable({
     height,
     onMoveColumn,
     header,
+    groupOf,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const numberFormats = useNumberFormats();
@@ -231,6 +236,26 @@ export function RecordTable({
                     : (row) => cellValue(session, kind, column, row.record),
         };
     });
+
+    if (groupOf !== undefined) {
+        // A chit and the group's name, never a row tint: lime means selected (spec 8).
+        tableColumns.unshift({
+            id: "sel:group",
+            header: "Group",
+            sortable: false,
+            hideable: false,
+            value: (row) => groupOf(row.record.id)?.name,
+            cell: (row) => {
+                const group = groupOf(row.record.id);
+                return group === null ? null : (
+                    <span className="ws-table-group">
+                        <span className="sel-chit" style={{ borderColor: group.color, background: group.color }} />
+                        {group.name}
+                    </span>
+                );
+            },
+        });
+    }
 
     // One selection, the element's: the rows draw it and a click on a row changes it.
     const selected = kind === "node" ? session.selection.nodes : session.selection.edges;

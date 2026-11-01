@@ -155,3 +155,10 @@
     gap: 4px;
     margin-inline-start: auto;
 }
+
+/* The Group column while a selection is edited: a chit and the group's name. */
+.ws-table-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}

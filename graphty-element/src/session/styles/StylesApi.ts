@@ -2822,7 +2822,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
         walk(rows);
 
-        const painted = painting(current());
+        // The stack's own layers: a branches view drawn for picking is not what a row lies on.
+        const painted = basePainting(current());
         const cut = painted.findIndex((entry) => !entry.layer.locked && !beneath.has(rowKeyOf(entry)));
 
         return cut === -1 ? painted : painted.slice(0, cut);
@@ -5212,7 +5213,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         agreement(scope: Scope, channel?: Channel, options: AgreementOptions = {}): StyleAgreement {
             const { below, over } = options;
-            const read = below === undefined ? explainSources : { ...explainSources, stack: () => stackBelow(below) };
+            // Read through the stack's own layers, never a branches view's: which layer decides a
+            // value does not change while a selection is being picked.
+            const read = below === undefined ? countSources() : { ...explainSources, stack: () => stackBelow(below) };
             if (over === undefined) {
                 return styleAgreement(elementsOf(scope), read, channel);
             }

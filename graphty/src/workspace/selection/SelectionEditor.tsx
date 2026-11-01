@@ -10,7 +10,14 @@
 
 import "./selection.css";
 
-import { focusWithRing, MenuShortcut, SegmentedControl, SplitButton, ToggleIconButton } from "@graphty/compact-mantine";
+import {
+    focusWithRing,
+    MenuShortcut,
+    SegmentedControl,
+    SplitButton,
+    ToggleIconButton,
+    TooltipShortcut,
+} from "@graphty/compact-mantine";
 import type {
     GraphSession,
     RuleTree,
@@ -24,7 +31,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { formatKey, isTypingTarget, matchesKey } from "../keys/keys";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddCondition } from "../style/WhichPicker";
 import {
     addBranch,
@@ -43,7 +50,7 @@ import {
 } from "./model";
 import { StepCard, VerbMenu } from "./StepCard";
 import { useSteps } from "./useSteps";
-import { type Host, pickerFields, pickSections, ruleOfField, sideOf } from "./values";
+import { type Host, pickerFields, type PickSection, pickSections, ruleOfField, sideOf } from "./values";
 import { countWords, letterOf, NOUNS, reasonWords, stepWords, VERB_WORDS } from "./words";
 
 /** Whether a host's preview shows group colors while picking, for the session (spec 9). */
@@ -61,6 +68,14 @@ interface SelectionEditorProps {
     readonly onDone?: () => void;
     /** Opens the first step's card on arrival, focused (a filter card's first value just written). */
     readonly openFirst?: boolean;
+    /** A filter condition being edited: what it would remove stays drawn, faint, while picking (spec 9). */
+    readonly hold?: string;
+    /** What the canvas key's preview is titled by: a filter card's name; "Which nodes" when absent. */
+    readonly title?: string;
+    /** Opens the value picker on the first group at once (a new filter card). */
+    readonly openPicker?: boolean;
+    /** The host's own picker entries, listed after Results (the import filter's Time window). */
+    readonly hostPicks?: readonly PickSection[];
 }
 
 /** A row the arrow keys walk: a group's row or a step's. */
@@ -75,6 +90,10 @@ const ROW = "[data-row]";
  * @param props.onChange - takes the next rule, which the host writes
  * @param props.onDone - ends editing
  * @param props.openFirst - opens the first step's card on arrival
+ * @param props.hold - the filter condition being edited
+ * @param props.title - what the canvas key's preview is titled by
+ * @param props.openPicker - opens the value picker on the first group at once
+ * @param props.hostPicks - the host's own picker entries
  * @returns The editor
  */
 export function SelectionEditor({
@@ -84,6 +103,10 @@ export function SelectionEditor({
     onChange,
     onDone,
     openFirst = false,
+    hold,
+    title,
+    openPicker = false,
+    hostPicks = [],
 }: SelectionEditorProps): React.JSX.Element {
     const { store } = useWorkspace();
     const reading = useSteps(session, given);
@@ -92,7 +115,10 @@ export function SelectionEditor({
     const side = sideOf(rule);
     const initialStep = openFirst ? rule.branches[0]?.steps[0]?.id : undefined;
     const [openStep, setOpenStep] = useState<string | null>(initialStep ?? null);
-    const [adding, setAdding] = useState<{ branch: string; op: Verb } | null>(null);
+    const [adding, setAdding] = useState<{ branch: string; op: Verb } | null>(() => {
+        const first = rule.branches[0];
+        return openPicker && first?.id !== undefined ? { branch: first.id, op: defaultVerb(first) } : null;
+    });
     const [active, setActive] = useState<string | null>(null);
     const [renaming, setRenaming] = useState<string | null>(null);
     const [colors, setColors] = useState(groupColors[host]);
@@ -116,17 +142,39 @@ export function SelectionEditor({
     const viewKey = JSON.stringify(reading.rule);
     useEffect(() => {
         if (picking && colors) {
-            view.current = session.styles.showBranches({ rule: JSON.parse(viewKey) as UnionLeaf, rest: "faint" });
+            view.current = session.styles.showBranches({
+                rule: JSON.parse(viewKey) as UnionLeaf,
+                rest: "faint",
+                ...(hold === undefined ? {} : { hold }),
+            });
         } else {
             view.current?.end();
             view.current = null;
         }
-    }, [picking, colors, viewKey, session]);
+    }, [picking, colors, viewKey, session, hold]);
     useEffect(
         () => () => {
             view.current?.end();
         },
         [],
+    );
+
+    // The table's Group column and Matches only read the open selection (spec 8).
+    useEffect(() => {
+        const was = store.get().editingSelection;
+        store.set({
+            editingSelection: {
+                rule: JSON.parse(viewKey) as UnionLeaf,
+                branch: was?.branch ?? null,
+                title: title ?? `Which ${NOUNS[side].many}`,
+            },
+        });
+    }, [viewKey, store, title, side]);
+    useEffect(
+        () => () => {
+            store.set({ editingSelection: null });
+        },
+        [store],
     );
 
     // A row asked for focus (after a move, an add, a remove) gets it once it is drawn.
@@ -324,18 +372,16 @@ export function SelectionEditor({
             }}
         >
             <Group gap={4} wrap="nowrap" className="sel-head">
-                <Tooltip
-                    label={`${countWords(reading.total.count, of, side)}${reading.pending.length > 0 ? `; ${String(reading.pending.length)} waiting` : ""}`}
-                >
-                    <Text
-                        size="xs"
-                        c="dimmed"
-                        className="sel-total"
-                        aria-label={countWords(reading.total.count, of, side)}
-                    >
-                        {`${String(reading.total.count)} of ${String(of)}`}
-                    </Text>
-                </Tooltip>
+                <CountChip
+                    session={session}
+                    host={host}
+                    count={reading.total.count}
+                    of={of}
+                    side={side}
+                    members={reading.result}
+                    branch={null}
+                    tip={reading.pending.length > 0 ? `${String(reading.pending.length)} waiting` : undefined}
+                />
                 <ToggleIconButton
                     label="Group colors"
                     tooltip="Group colors while picking"
@@ -347,6 +393,7 @@ export function SelectionEditor({
                     }}
                     style={{ marginLeft: "auto" }}
                 />
+                <TableButton side={side} />
             </Group>
             {rule.branches.map((branch, at) => {
                 const branchRead = branchReading(branch.id);
@@ -422,6 +469,7 @@ export function SelectionEditor({
                                     of={of}
                                     side={side}
                                     members={branchRead?.members}
+                                    branch={branch.id ?? null}
                                 />
                                 <Tooltip label={`Use ${name}`}>
                                     <Checkbox
@@ -599,6 +647,7 @@ export function SelectionEditor({
                             rule={rule}
                             branch={branch}
                             adding={adding !== null && adding.branch === branch.id ? adding.op : null}
+                            hostPicks={hostPicks}
                             onAdd={(op) => {
                                 startAdding(branch, op);
                             }}
@@ -647,6 +696,7 @@ export function SelectionEditor({
  * @param props.rule - the selection
  * @param props.branch - the group
  * @param props.adding - the verb of the step waiting for its value, or null
+ * @param props.hostPicks - the host's own picker entries, after Results
  * @param props.onAdd - starts a new step with a verb
  * @param props.onPick - takes the new step's value as its rule
  * @param props.onCancel - takes the new step back (its picker closed with nothing chosen)
@@ -657,6 +707,7 @@ function StepPlus({
     rule,
     branch,
     adding,
+    hostPicks,
     onAdd,
     onPick,
     onCancel,
@@ -665,6 +716,7 @@ function StepPlus({
     rule: UnionLeaf;
     branch: UnionBranch;
     adding: Verb | null;
+    hostPicks: readonly PickSection[];
     onAdd: (op: Verb) => void;
     onPick: (op: Verb, stepRule: RuleTree) => void;
     onCancel: () => void;
@@ -687,7 +739,7 @@ function StepPlus({
                     return path === undefined ? [] : [`${sideOf(rule)}:${path}`];
                 })}
                 placeholder="Find attributes, results"
-                sections={pickSections(session, rule, choose)}
+                sections={[...hostPicks, ...pickSections(session, rule, choose)]}
                 opened
                 onAdd={(field) => {
                     choose(ruleOfField(session, field));
@@ -817,15 +869,55 @@ function GroupMenu({
 }
 
 /**
- * A group's count chip, "24 of 77": in a style layer a click selects what it counts; in a filter
- * it only says it (the table's Matches only is not in this build).
+ * The selection header's Table button: the toolbar's Table (same glyph and key), opening the table
+ * on this side's rows, Matches only, with the Group column; focus stays in the editor (spec 8a).
+ * @param props - Component props
+ * @param props.side - nodes or edges
+ * @returns The button
+ */
+function TableButton({ side }: Readonly<{ side: "node" | "edge" }>): React.JSX.Element | null {
+    const { store } = useWorkspace();
+    const door = useCommand("table.toggle");
+    const open = useWorkspaceState((state) => state.dockOpen);
+    if (door === null) {
+        return null;
+    }
+    const key = door.command.keys?.[0];
+    const tip = key === undefined ? door.tip : <TooltipShortcut label={door.tip} shortcut={formatKey(key)} />;
+    return (
+        <Tooltip label={door.disabledReason ?? tip}>
+            <ActionIcon
+                variant="subtle"
+                size="sm"
+                aria-label={door.tip}
+                aria-pressed={open}
+                aria-disabled={door.disabledReason !== null}
+                data-disabled={door.disabledReason === null ? undefined : true}
+                onClick={() => {
+                    if (door.disabledReason === null) {
+                        store.set(open ? { dockOpen: false } : { dockOpen: true, dockTab: `${side}s` });
+                    }
+                }}
+            >
+                <GLYPHS.table size={14} aria-hidden />
+            </ActionIcon>
+        </Tooltip>
+    );
+}
+
+/**
+ * A count chip, "24 of 77": in a style layer a click selects what it counts; in a filter it opens
+ * the table on those rows, Matches only, and never selects (spec 2: a selection change would switch
+ * every Select card off).
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.host - where the selection is edited
- * @param props.count - the group's count
+ * @param props.count - the count
  * @param props.of - the base's size
  * @param props.side - nodes or edges
- * @param props.members - the group's members, as a scope the selection takes
+ * @param props.members - what it counts, as a scope the selection takes
+ * @param props.branch - the group it counts, or null for the whole selection
+ * @param props.tip - more words for its tooltip
  * @returns The chip
  */
 function CountChip({
@@ -835,6 +927,8 @@ function CountChip({
     of,
     side,
     members,
+    branch,
+    tip,
 }: Readonly<{
     session: GraphSession;
     host: Host;
@@ -842,27 +936,38 @@ function CountChip({
     of: number;
     side: "node" | "edge";
     members: StepsReading["result"] | undefined;
+    branch: string | null;
+    tip?: string;
 }>): React.JSX.Element | null {
+    const { store } = useWorkspace();
     if (count === undefined) {
         return null;
     }
     const words = countWords(count, of, side);
-    if (host !== "selector" || members === undefined) {
-        return (
-            <Text size="xs" c="dimmed" aria-label={words}>
-                {`${String(count)} of ${String(of)}`}
-            </Text>
-        );
-    }
+    const label = host === "selector" ? `Select ${words}` : `Show ${words} in the table`;
     return (
-        <Tooltip label={`Select ${words}`}>
+        <Tooltip label={tip === undefined ? label : `${label}; ${tip}`}>
             <Button
                 size="compact-xs"
                 variant="subtle"
                 tabIndex={-1}
-                aria-label={`Select ${words}`}
+                className="sel-count"
+                aria-label={label}
+                disabled={members === undefined}
                 onClick={() => {
-                    void session.selection.apply({ scope: members });
+                    if (members === undefined) {
+                        return;
+                    }
+                    if (host === "selector") {
+                        void session.selection.apply({ scope: members });
+                        return;
+                    }
+                    const held = store.get().editingSelection;
+                    store.set({
+                        dockOpen: true,
+                        dockTab: `${side}s`,
+                        ...(held === null ? {} : { editingSelection: { ...held, branch } }),
+                    });
                 }}
             >
                 {`${String(count)} of ${String(of)}`}

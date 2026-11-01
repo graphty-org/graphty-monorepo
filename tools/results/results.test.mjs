@@ -1018,6 +1018,37 @@ describe("fileIssues", () => {
             calls.filter((c) => c[1] === "reopen").map((c) => c[2]),
             ["41", "12"],
         );
+        // #3311: a repeat quarantine raises the earlier issue to priority:critical, dropping any lower priority
+        const edits = calls.filter((c) => c[1] === "edit");
+        assert.deepEqual(
+            edits.map((c) => c[2]),
+            ["41", "12"],
+        );
+        for (const e of edits) {
+            assert.equal(e[e.indexOf("--add-label") + 1], "priority:critical");
+            const removed = e.flatMap((a, i) => (e[i - 1] === "--remove-label" ? [a] : []));
+            assert.deepEqual(removed, ["priority:high", "priority:medium", "priority:low"]);
+        }
+    });
+
+    it("keeps the comment when raising the earlier issue's priority fails", async () => {
+        const { gh: base, calls } = ghFake();
+        const gh = (args) => {
+            if (args[1] === "edit") throw new Error("HTTP 422");
+            return base(args);
+        };
+        const out = await fileIssues(
+            null,
+            [rec("passed", [])],
+            [{ ok: true, data: { flaky: [{ ...flaky, had: 12 }] } }],
+            [],
+            gh,
+        );
+        assert.deepEqual(
+            out.map((i) => i.number),
+            [12],
+        );
+        assert.equal(calls.filter((c) => c[1] === "comment").length, 1);
     });
 
     it("looks for an earlier issue by its own kind's marker", async () => {

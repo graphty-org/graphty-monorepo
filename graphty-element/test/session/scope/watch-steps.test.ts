@@ -348,6 +348,32 @@ describe("measure steps and runs", () => {
         assert.deepEqual(executions.sizes, [IDS.length]);
     });
 
+    it("a measure with no test yet stays inert but starts its run, so a picker can show its values", async () => {
+        const executions: Executions = { sizes: [], hold: false };
+        const session = await lesMis(executions);
+        const untested: RuleTree = { kind: "measure", algorithm: "degree", field: "value" };
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [{ start: "all", steps: [{ op: "keep", rule: untested }] }],
+        };
+        const ran = await new Promise<StepsReading>((resolve) => {
+            const each = session.scope.watchSteps(rule, (reading) => {
+                if (reading.branches[0].steps[0].run !== null) {
+                    each.end();
+                    resolve(reading);
+                }
+            });
+        });
+        const [step] = ran.branches[0].steps;
+        assert.strictEqual(step.state, "inert");
+        assert.strictEqual(step.reason?.code, "test-unset");
+        assert.strictEqual(ran.total.count, IDS.length, "an inert step changes nothing");
+        assert.strictEqual(session.runs.list().length, 1);
+        assert.deepEqual(executions.sizes, [IDS.length]);
+    });
+
     it("a measure computed on So far is the step's own computation: no session run", async () => {
         const executions: Executions = { sizes: [], hold: false };
         const session = await lesMis(executions);

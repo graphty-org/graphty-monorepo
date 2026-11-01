@@ -279,6 +279,74 @@ describe("a graph background the format has no place for", () => {
     });
 });
 
+describe("a node or edge value the format has no place for", () => {
+    /**
+     * The W_STYLE_NOT_WRITTEN count of one property when the hand-made styles, with one more rule setting it on every
+     * element of its target, are written as a format.
+     * @param format - the format
+     * @param target - nodes or edges
+     * @param property - the property
+     * @param value - its value
+     * @returns the note's count, or null when there is no note
+     */
+    function lostCount(
+        format: string,
+        target: "node" | "edge",
+        property: string,
+        value: string | boolean,
+    ): number | null {
+        const { loaded, ex } = handMade();
+        const rule = {
+            id: `${target}.extra`,
+            target,
+            role: "group",
+            origin: "declared",
+            where: { all: true },
+        } as const;
+        const rules = [...ex.styles.rules, { ...rule, set: { [property]: value } }];
+        const styles = { ...ex, styles: { ...ex.styles, rules } };
+        const writer = writerFor(format, loaded.snapshot);
+        const note = createRegistry()
+            .checkExport(loaded.snapshot, format, { ...writer?.options, styles })
+            .find(
+                (n) => n.code === "W_STYLE_NOT_WRITTEN" && n.style?.target === target && n.style.property === property,
+            );
+        return note?.count ?? null;
+    }
+
+    // per format: a property it does not write, the value the program it is written for draws anyway, and another
+    const cases: readonly (readonly [string, "node" | "edge", string, string | boolean, string | boolean])[] = [
+        ["graphml", "node", "borderPosition", "center", "outside"],
+        ["gml", "edge", "fanned", false, true],
+        ["gexf", "edge", "curved", true, false],
+        ["gexf", "node", "labelPosition", "center", "top"],
+        ["dot", "node", "borderPosition", "center", "inside"],
+        ["pajek", "node", "labelWeight", "bold", "normal"],
+        ["xgmml", "edge", "fanned", true, false],
+        ["cx2", "edge", "fanned", true, false],
+        ["cx", "edge", "fanned", true, false],
+        ["cys", "edge", "fanned", true, false],
+    ];
+
+    it.each(cases)("is not reported lost as %s when %s %s is what that program draws", (f, t, p, drawn) => {
+        expect(lostCount(f, t, p, drawn)).toBeNull();
+    });
+
+    it.each(cases)("is reported lost as %s when %s %s is another value", (f, t, p, _drawn, other) => {
+        expect(lostCount(f, t, p, other)).toBe(24);
+    });
+
+    // JSON is drawn by several programs
+    it("is reported lost as json even when it is a program's default", () => {
+        expect(lostCount("json", "node", "labelWeight", "bold")).toBe(24);
+    });
+
+    // Gephi draws an arrow on a directed edge whatever its constant default of none says
+    it("is reported lost as gexf when it is a constant default a rule of that program overrides", () => {
+        expect(lostCount("gexf", "edge", "targetArrow", "none")).toBe(24);
+    });
+});
+
 describe.each(unstyled.map((f) => [f] as const))("hand-made styles written as %s", (format) => {
     it("lose every property with W_STYLE_NOT_WRITTEN and its count", () => {
         const { loaded, ex } = handMade();

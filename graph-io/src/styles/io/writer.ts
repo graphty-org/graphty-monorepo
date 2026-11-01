@@ -11,6 +11,7 @@ import type { GraphExporter, LossNote } from "../../types.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { toolDefaults } from "../defaults.js";
 import { styleFingerprint } from "../plan/features.js";
+import { drawnAnyway } from "../plan/plan.js";
 import { canonicalFor, dataCell, degreeValues, plainCell, resolveStyles } from "../plan/resolve.js";
 import type {
     ExtractedStyles,
@@ -490,6 +491,7 @@ function lossNotes(
     const kept = keepsStyleBlock(exporter);
     for (const target of TARGETS) {
         const written = new Set<string>(caps?.[target] ?? []);
+        const drawn = drawnAnyway(caps?.tool, target, extracted.styles.units.length);
         for (const property of ruleProperties(extracted.styles.rules, target)) {
             // a property only graphty draws is written into the block alone: lost only when the block is
             if (written.has(property) || (kept && property.startsWith("graphty:"))) {
@@ -498,7 +500,7 @@ function lossNotes(
                 }
             } else {
                 // a rule whose property no element ends up carrying loses nothing
-                const note = notWrittenNote(target, property, exporter, picture);
+                const note = notWrittenNote(target, property, exporter, picture, drawn[property]);
                 if (note.count !== 0) {
                     notes.push(note);
                 }
@@ -566,11 +568,13 @@ function ruleProperties(rules: readonly StyleRule[], target: StyleTarget): Set<s
 }
 
 /**
- * W_STYLE_NOT_WRITTEN for a property the format has no place for.
+ * W_STYLE_NOT_WRITTEN for a property the format has no place for, counting the elements whose value the program the
+ * format is written for would not draw anyway.
  * @param target - nodes or edges
  * @param property - the property
  * @param exporter - the exporter
  * @param picture - each element's value of a property
+ * @param drawn - the value that program draws when the file leaves the property unset, if it has a constant one
  * @returns the note
  */
 function notWrittenNote(
@@ -578,8 +582,9 @@ function notWrittenNote(
     property: string,
     exporter: GraphExporter,
     picture: (target: StyleTarget, property: StyleProperty) => readonly (StyleValue | null)[],
+    drawn: StyleValue | undefined,
 ): LossNote {
-    const count = picture(target, property as StyleProperty).filter((v) => v !== null).length;
+    const count = picture(target, property as StyleProperty).filter((v) => v !== null && v !== drawn).length;
     return Object.freeze({
         code: STYLE_ISSUE.NOT_WRITTEN,
         message: `${target} ${property} is not written: the ${exporter.format} format has no place for it (${String(count)} ${target}${plural(count)} ${agree(count, "has", "have")} a value)`,

@@ -654,8 +654,8 @@ if (styles) {
 
 ```text
 csv { W_STYLE_NOT_WRITTEN: 28, W_STYLE_RULES_NOT_KEPT: 1 }
-gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 18 }
-graphml { W_STYLE_NOT_WRITTEN: 6 }
+gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 17 }
+graphml { W_STYLE_NOT_WRITTEN: 5 }
 { format: 'graphml', dialect: 'graphty', tool: 'graphty' }
 true
 [ 'E_STYLES_MISMATCH' ]
@@ -665,7 +665,10 @@ true
 
 The style notes are `LossNote`s like any other. A note about one property also has
 `style: { target, property }`, and `count` is the number of nodes or edges that have a value for
-it:
+it. A value the program the format is written for draws anyway, where the file leaves the property
+unset (yEd for GraphML and GML, Gephi for GEXF, Pajek, Graphviz for DOT, Cytoscape for XGMML, CX
+and CX2), is not counted, since nothing is lost; a length is still counted when that program
+measures lengths in other units than the styles (Gephi's relative sizes against pixels):
 
 | Code                                                            | What is lost                                                                                                                                      |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |

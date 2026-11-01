@@ -86,7 +86,10 @@ describe("A yes-or-no column", () => {
         await waitFor(() => {
             assert.equal(session.visibility.conditions.length, 1);
         });
-        assert.deepEqual(session.visibility.conditions[0].rule, {
+        // A new card is a selection (design/ui/selection-groups/spec.md): one step, "is Yes".
+        const { rule } = session.visibility.conditions[0];
+        assert.equal(rule.kind, "union");
+        assert.deepEqual(rule.kind === "union" ? rule.branches[0]?.steps[0]?.rule : undefined, {
             kind: "text",
             reads: "data.trained",
             mode: "exact",
@@ -94,7 +97,8 @@ describe("A yes-or-no column", () => {
             caseSensitive: true,
         });
         assert.equal(session.visibility.summary.visibleNodes, 3);
-        await screen.findByRole("group", { name: /^trained is Yes, Filter to/ });
+        // Named as its row says it.
+        await screen.findByRole("group", { name: /^trained yes, Filter to/ });
     });
 
     it("reads Yes and No in a node's values, the selection's summary and Find's value rows", async () => {

@@ -301,7 +301,8 @@ describe("a group with no stored position follows its members", () => {
             const framed = (z: number): number => {
                 camera.position.z = z;
                 group.update();
-                return group.framingHalf("x");
+                const box = group.framingBounds();
+                return (box.max.x - box.min.x) / 2;
             };
             const near = framed(-10);
             const far = framed(-1000);

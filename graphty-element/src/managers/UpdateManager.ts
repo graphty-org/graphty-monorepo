@@ -85,25 +85,19 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
             continue;
         }
 
-        // WHERE THE NODE IS NOW, not where it was drawn last time. Babylon only refreshes a world
-        // position while it renders, and this runs BEFORE that render, so `getAbsolutePosition()`
-        // alone would hand back the previous frame's value. Computed rather than read off
-        // `mesh.position`, because a node mesh is parented to the "graph-root" transform an XR
-        // gesture moves, rotates and scales.
-        node.mesh.computeWorldMatrix(true);
-
-        const pos = node.mesh.getAbsolutePosition();
+        // WHERE THE NODE IS NOW, not where it was drawn last time: `framingBounds` computes the
+        // world matrix first, because Babylon only refreshes world bounds while it renders and this
+        // runs BEFORE that render. In world space, because a node mesh is parented to the
+        // "graph-root" transform an XR gesture moves, rotates and scales.
+        const box = node.framingBounds();
         // A spot is as wide as the node's widest half, so the turning fit keeps all of it in view.
-        spots.push({ pos, half: Math.max(node.framingHalf("x"), node.framingHalf("y"), node.framingHalf("z")) });
+        const half = box.max.subtract(box.min).scaleInPlace(0.5);
+        spots.push({ pos: box.min.add(half), half: Math.max(half.x, half.y, half.z) });
 
-        min ??= pos.clone().setAll(Infinity);
-        max ??= pos.clone().setAll(-Infinity);
-
-        for (const axis of ["x", "y", "z"] as const) {
-            const half = node.framingHalf(axis);
-            min[axis] = Math.min(min[axis], pos[axis] - half);
-            max[axis] = Math.max(max[axis], pos[axis] + half);
-        }
+        min ??= box.min.clone().setAll(Infinity);
+        max ??= box.max.clone().setAll(-Infinity);
+        min.minimizeInPlace(box.min);
+        max.maximizeInPlace(box.max);
     }
 
     return min && max ? { min, max, spots } : undefined;

@@ -693,9 +693,10 @@ function FilterCard({
                                     // A new card with a step but no test yet stays, folded, for
                                     // the reader to come back to; its X takes it away.
                                     onOpen(false);
-                                    const back = draft ? ".dp-filter-name" : ON_BOX;
+                                    // The card's own disclosure, now collapsed, as the style host's
+                                    // folded row takes focus back.
                                     requestAnimationFrame(() => {
-                                        box.current?.querySelector<HTMLElement>(back)?.focus();
+                                        box.current?.querySelector<HTMLElement>(".dp-filter-name")?.focus();
                                     });
                                 }}
                             />
@@ -1041,6 +1042,10 @@ export function FilterChip(): React.JSX.Element | null {
             const now = session.visibility.conditions;
             if (now !== conditions) {
                 conditions = now;
+                // A card being edited says its own count; the filter's line waits for Done.
+                if (store.get().editingSelection !== null) {
+                    return;
+                }
                 store.set({
                     announcement: statusWords(
                         now.some((c) => c.on && hides(c)),

@@ -13,6 +13,7 @@ import "./selection.css";
 import {
     focusWithRing,
     InlineRename,
+    MenuCheckItem,
     SegmentedControl,
     SplitButton,
     TargetTooltip,
@@ -28,11 +29,13 @@ import type {
     UnionLeaf,
 } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Checkbox, CloseButton, Group, Menu, Stack, Text, Tooltip } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { focusInspectorTitle, focusIsLost } from "../frame/focus";
+import { focusInspectorTitle, focusIsLost, focusRowOf } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { formatKey, isTypingTarget, matchesKey } from "../keys/keys";
+import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddCondition } from "../style/WhichPicker";
 import { colorName } from "../style/words";
@@ -98,6 +101,9 @@ const hasTest = (stepRule: RuleTree): boolean =>
 /** A row the arrow keys walk: a group's row or a step's. */
 const ROW = "[data-row]";
 
+/** How long typing pauses before a count is said. */
+const SPEAK_AFTER_MS = 500;
+
 /**
  * The selection editor.
  * @param props - Component props
@@ -151,13 +157,29 @@ export function SelectionEditor({
     const focusAfter = useRef<string | readonly string[] | null>(
         initialStep === undefined ? arrival : cardFocus(initialStep),
     );
-    const picking = openStep !== null || adding !== null;
+    // Picking starts on adding a step, opening a card or a verb menu, and ends only on spec 9's
+    // events (Done, Escape, a click outside, leaving: each closes the editor), never because a
+    // value with no test applied as picked and opened no card.
+    const [started, setStarted] = useState(false);
+    const picking = started || openStep !== null || adding !== null;
+    useEffect(() => {
+        if (openStep !== null || adding !== null) {
+            setStarted(true);
+        }
+    }, [openStep, adding]);
     const multi = rule.branches.length > 1;
     const { of } = reading.total;
     const say = (words: string): void => {
         store.set({ announcement: words });
     };
     const stepName = (step: UnionBranch["steps"][number]): string => stepWords(session, step, side, undefined).value;
+    // The import filter says its own count once typing pauses, as a style layer's card does; the
+    // table's and the selection's lines stay quiet while an editor is open.
+    const [heardCount] = useDebouncedValue(
+        reading.pending.length > 0 ? null : countWords(reading.total.count, of, side),
+        SPEAK_AFTER_MS,
+    );
+    useAnnounceChange(host === "filter" ? heardCount : null);
 
     // The picking view (spec 9): every layer suspended, members in their group's color, the rest
     // faint; graphty-element draws it. A changed rule replaces the view in place.
@@ -225,6 +247,7 @@ export function SelectionEditor({
         if (picking && now !== null && now !== owner) {
             setOpenStep(null);
             setAdding(null);
+            setStarted(false);
         }
     }, [holder, owner, picking, store]);
 
@@ -273,7 +296,7 @@ export function SelectionEditor({
         setAdding(null);
         if (fresh) {
             onChange(removeBranch(rule, branch.id ?? ""));
-            say("No group added");
+            say(`${branch.name ?? letterOf(rule.branches.indexOf(branch))} not added`);
             focusAfter.current = "[data-or]";
             return;
         }
@@ -392,7 +415,8 @@ export function SelectionEditor({
             go(rows.length - 1);
         } else if (matchesKey(event.nativeEvent, "Mod+]") || matchesKey(event.nativeEvent, "Mod+[")) {
             event.preventDefault();
-            const by = event.key === "]" ? 1 : -1;
+            // Figma: Ctrl+] brings forward (up the list), Ctrl+[ sends backward.
+            const by = event.key === "]" ? -1 : 1;
             if (stepId === undefined) {
                 moveBranchBy(id, by);
             } else {
@@ -678,7 +702,6 @@ export function SelectionEditor({
                             </div>
                         )}
                         <SegmentedControl
-                            size="xs"
                             label={`${name} starts with`}
                             data={[
                                 { value: "none", label: `No ${NOUNS[side].many}` },
@@ -712,9 +735,11 @@ export function SelectionEditor({
                                         className="sel-row sel-step-row"
                                         aria-expanded={open}
                                         aria-keyshortcuts="Enter Space Delete Control+D Meta+D Control+] Control+["
+                                        // Chromium drops aria-expanded on a group: its card's state is in its name.
                                         aria-label={[
                                             `${verb.word}, ${[words.value, summary].filter((each) => each !== "").join(" ")}${soFar}`,
                                             ...(step.on === false ? ["off"] : []),
+                                            ...(open ? ["open"] : []),
                                         ].join(", ")}
                                         onKeyDown={(event) => {
                                             rowKeys(event, branch, id);
@@ -732,6 +757,9 @@ export function SelectionEditor({
                                         <VerbMenu
                                             verb={step.op}
                                             tabbable={false}
+                                            onOpen={() => {
+                                                setStarted(true);
+                                            }}
                                             onVerb={(op) => {
                                                 onChange(editStep(rule, branch.id ?? "", id, { op }));
                                             }}
@@ -746,7 +774,6 @@ export function SelectionEditor({
                                             ]
                                                 .filter((each) => each !== "")
                                                 .join(", ")}
-                                            openDelay={500}
                                         >
                                             <span className="sel-words">
                                                 <Text size="sm" truncate className="sel-value">
@@ -763,10 +790,25 @@ export function SelectionEditor({
                                             </Tooltip>
                                         )}
                                         {/* The open card's header says the count and holds the remove. */}
-                                        {!open && read !== undefined && !read.waiting && (
+                                        {/* A filter's table shows a group's members, never a step's: there the count is text. */}
+                                        {!open && read !== undefined && !read.waiting && host === "filter" && (
                                             <Text size="sm" c="dimmed" className="sel-count">
                                                 {read.count}
                                             </Text>
+                                        )}
+                                        {!open && read !== undefined && !read.waiting && host === "selector" && (
+                                            <CountChip
+                                                count={read.count}
+                                                of={of}
+                                                side={side}
+                                                host={host}
+                                                disabled={false}
+                                                tabbable={false}
+                                                tip="so far, after this step"
+                                                onClick={() => {
+                                                    showMembers(read.members, branch.id ?? null);
+                                                }}
+                                            />
                                         )}
                                         <Tooltip
                                             label={<TooltipShortcut label={`Use ${words.value}`} shortcut="Space" />}
@@ -791,7 +833,6 @@ export function SelectionEditor({
                                                 }
                                             >
                                                 <CloseButton
-                                                    size="xs"
                                                     tabIndex={-1}
                                                     className="sel-remove"
                                                     aria-label={`Remove ${words.value}`}
@@ -974,30 +1015,35 @@ function StepPlus({
         <span data-plus={branch.id} className="sel-plus">
             <SplitButton
                 size="sm"
-                icon={<VerbGlyph size={14} aria-hidden />}
+                icon={<GLYPHS.add size={14} aria-hidden />}
                 label={`Add a step: ${VERB_WORDS[verb].word}`}
                 menuLabel="Add a step with a verb"
+                menuProps={{ position: "bottom-start" }}
                 onClick={() => {
                     onAdd(verb);
                 }}
             >
                 {VERBS.map((each) => {
                     const item = VERB_WORDS[each];
+                    // As the row's verb menu draws them; nothing is checked, no step exists yet.
                     return (
-                        <Menu.Item
+                        <MenuCheckItem
                             key={each}
-                            leftSection={<item.glyph size={14} aria-hidden />}
+                            radio
+                            checked={false}
                             aria-label={`${item.word} (${item.figma})`}
                             onClick={() => {
                                 onAdd(each);
                             }}
                         >
+                            <item.glyph size={14} aria-hidden className="sel-menu-glyph" />
                             {item.word}
-                        </Menu.Item>
+                        </MenuCheckItem>
                     );
                 })}
             </SplitButton>
             <Text span size="sm" c="dimmed" aria-hidden className="sel-plus-word">
+                <VerbGlyph size={12} aria-hidden className="sel-menu-glyph" />
                 {VERB_WORDS[verb].word}
             </Text>
         </span>
@@ -1046,11 +1092,19 @@ function GroupMenu({
     onMove: (by: -1 | 1) => void;
     onDelete: () => void;
 }>): React.JSX.Element {
+    const target = useRef<HTMLButtonElement>(null);
     return (
-        <Menu position="bottom-end" withinPortal>
+        <Menu
+            position="bottom-end"
+            withinPortal
+            returnFocus={false}
+            onClose={() => {
+                focusRowOf(target.current);
+            }}
+        >
             <Menu.Target>
                 <TargetTooltip label="More">
-                    <ActionIcon variant="subtle" size="sm" tabIndex={-1} aria-label={`More for ${name}`}>
+                    <ActionIcon ref={target} variant="subtle" size="sm" tabIndex={-1} aria-label={`More for ${name}`}>
                         <GLYPHS.more size={14} aria-hidden />
                     </ActionIcon>
                 </TargetTooltip>
@@ -1072,7 +1126,7 @@ function GroupMenu({
                             label: "Move up",
                             icon: "moveUp",
                             group: "edit",
-                            key: "Mod+[",
+                            key: "Mod+]",
                             reason: first ? "Already at the top" : null,
                             onRun: () => {
                                 onMove(-1);
@@ -1083,7 +1137,7 @@ function GroupMenu({
                             label: "Move down",
                             icon: "moveDown",
                             group: "edit",
-                            key: "Mod+]",
+                            key: "Mod+[",
                             reason: last ? "Already at the bottom" : null,
                             onRun: () => {
                                 onMove(1);

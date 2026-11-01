@@ -19,7 +19,7 @@ import type {
 import { costLine, wordsFor } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 import { cardWords, type Side } from "../style/cards";
-import type { Verb } from "./model";
+import { letterOf, type Verb } from "./model";
 import { isRelative, referenceOf, stepCard } from "./values";
 
 /** A verb's word, Figma's name for it, the words a search finds it by, and its glyph. */
@@ -47,17 +47,7 @@ export const NOUNS: Readonly<Record<Side, { one: string; many: string }>> = {
 export const countWords = (count: number, of: number, side: Side): string =>
     `${String(count)} of ${String(of)} ${of === 1 ? NOUNS[side].one : NOUNS[side].many}`;
 
-/**
- * A group's letter: A, B, ... Z, then AA.
- * @param at - its place.
- * @returns the letter.
- */
-export function letterOf(at: number): string {
-    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    return at < letters.length
-        ? letters[at]
-        : `${letterOf(Math.floor(at / letters.length) - 1)}${letters[at % letters.length]}`;
-}
+export { letterOf };
 
 /** A reason's short word on a step's row, and its whole words in the row's tooltip. */
 const REASONS: Readonly<Record<StepReasonCode, { short: string; long: string }>> = {
@@ -182,6 +172,27 @@ export function stepWords(
     side: Side,
     reading?: StepReading,
 ): { value: string; test: string } {
+    const words = ruleStepWords(session, step, side, reading);
+    // An edge step reading a node value says when either end is enough; both ends goes unsaid.
+    return step.ends === "either"
+        ? { ...words, test: [words.test, "either end"].filter((each) => each !== "").join(" ") }
+        : words;
+}
+
+/**
+ * {@link stepWords} before the ends are said.
+ * @param session - the element's session.
+ * @param step - the step.
+ * @param side - the selection's side.
+ * @param reading - the step's reading.
+ * @returns the value and the test.
+ */
+function ruleStepWords(
+    session: GraphSession,
+    step: UnionStep,
+    side: Side,
+    reading?: StepReading,
+): { value: string; test: string } {
     const { rule } = step;
     if (rule.kind === "nonempty") {
         // "While Hovered or selected has nodes": the reference sits inside the preset's words.
@@ -231,7 +242,8 @@ function testWords(words: string, name: string): string {
 /**
  * A selection folded to one line of chips, the same in both hosts: per step its verb's glyph (none
  * for a None group's first Add, which only says what the group holds), its value and its short
- * test, the group's letter first when there are several; each chip's tooltip says it in full.
+ * test, the group's letter first when there are several; each chip's tooltip says it in full. An off
+ * step (or a step of an off group) says "off" and is drawn as its row is.
  * @param session - the element's session.
  * @param side - nodes or edges.
  * @param reading - the element's reading of the selection.
@@ -241,7 +253,7 @@ export function summaryChips(
     session: GraphSession,
     side: Side,
     reading: StepsReading,
-): { key: string; spoken: string; letter: string; glyph: Verb | null; text: string }[] {
+): { key: string; spoken: string; letter: string; glyph: Verb | null; text: string; off: boolean }[] {
     // The element's canonical rule: every step has its id.
     const { rule } = reading;
     const multi = rule.branches.length > 1;
@@ -254,12 +266,15 @@ export function summaryChips(
             const letter = multi ? `${branch.name ?? letterOf(at)}: ` : "";
             const plain = index === 0 && step.op === "add" && branch.start === "none";
             const text = `${words.value}${state === "" ? "" : ` ${state}`}`;
+            // An off step, or a step of an off group, is drawn and said as its row is.
+            const off = step.on === false || branch.on === false;
             return {
                 key: step.id ?? "",
-                spoken: `${letter}${VERB_WORDS[step.op].word} ${text}`,
+                spoken: `${letter}${VERB_WORDS[step.op].word} ${text}${off ? ", off" : ""}`,
                 letter,
                 glyph: plain ? null : step.op,
                 text,
+                off,
             };
         }),
     );

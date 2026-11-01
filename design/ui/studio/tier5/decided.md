@@ -297,6 +297,80 @@ Carried, each with its reason:
   measured chip), the While and Within words in the card head, the legend's and a new layer's row
   denominators.
 
+## Polish round 3 fixes, 2026-11-01 (studio engineer)
+
+Fixed from the polish round 3 reviews (Figma, ease, correctness, accessibility, architecture):
+
+- **Figma's keys**: Mod+] moves a row up (Bring forward), Mod+[ down (Send backward), in the style
+  tree, the selection's rows, both "..." menus and `aria-keyshortcuts`; spec check 30 corrected.
+- **"+" draws a plus**; the verb it adds sits beside it as its glyph and word, so the button no
+  longer looks like the waiting placeholder or an inert step. Its caret menu opens below its start
+  and is drawn as the row's verb menu (check column, nothing checked).
+- **The value picker** (shared with the approved Add filter picker) cuts a long name with an
+  ellipsis (the whole name in its tooltip and accessible name), keeps the fact's width, scrolls
+  only up and down in the themed overlay scrollbar (ScrollArea, as every Select), marks a value
+  already used with a dimmed check (the words stay in its name) and lights the first unused match.
+- **Sizes**: Start with and Ends are default 11/16 segments; a step's remove is the default 24 px
+  CloseButton; the step words and folded chips use the 1000 ms tooltip delay; inside a filter card
+  the step card draws no second border.
+- **Focus**: closing a row's verb or "..." menu hands focus back to the row, so the arrows keep
+  walking; Done or Escape on a filter card returns focus to the card's own disclosure.
+- **A step's count is a chip in the style host** (it selects what it counts, "so far" in its
+  tooltip); in the import filter it stays text, because the table lists a group's members, never a
+  step's.
+- **Picking stays on until spec 9's events**: a value with no test (Largest component, Isolated)
+  applies as picked and the preview stays; closing a card with Escape keeps it (Escape again, with
+  nothing smaller open, ends it); the row's verb menu also starts it. "Removed ..." and "No step
+  added" are no longer talked over by "Preview ended".
+- **The mark draws on top**: pointing at a group draws its members in its color at full strength
+  even where an earlier group shares them (graphty-element draws the marked branch last).
+- **So far steps** (graphty-element): a step's own values are part of what `watchSteps` reports as
+  changed, so an untested So far step's card shows its two boxes; two groups with the same So far
+  step each read their own computation; a live layer repainted outside a command (a run, a filter's
+  base or a step's computation landing) publishes `project:derived`, so the key's count follows a
+  filter change for a layer with a So far step.
+- **A new filter card is written with its first step**, so it outlives a switch of place.
+  graphty-element now reads a keep or exclude condition whose selection has no step with a test
+  (every step untested, off, or no step) as removing nothing; a select one already selected nothing.
+- **Groups keep their names**: once there are several, each group holds its letter, written when it
+  is made, moved or copied, so a move never renames one; a copy takes the next free letter and
+  color; a lone group goes back to the selection's title.
+- **Words**: an edge step on Either end says "either end" on its row and folded chip; an off step or
+  group says "off" in the folded summary and is drawn dimmed; an open card's row says "open" in its
+  name (Chromium drops `aria-expanded` on a group); "Or" then Escape says "B not added".
+- **The import filter speaks its own count** once typing pauses; the selection's and the filter's
+  status lines stay quiet while an editor is open.
+- **The table's Shown | All** presses All and waits, its reason in the tooltip, while Matches only
+  lists a selection over the whole graph (a filter's): Shown could not narrow those rows.
+- **The range thumbs** use compact-mantine's RangeSlider, which puts the caller's value text on each
+  thumb: a Closeness thumb is spoken as its box shows it.
+- **Lists**: the text card's suggestions close when Enter commits; a reference list section the
+  search empties goes with its heading; the reference list is capped at 240 px on the list itself
+  (compact-mantine's lists ignore `maxDropdownHeight`: `../owner-decisions.md`, 2026-11-01).
+- **A number card's "no value" sentence** is a "Not measured: N" chip, its meaning in the tooltip.
+
+Carried, each with its reason:
+
+- The include-not-measured toggle and By value | By position on the number card, and Has a value /
+  Has no value leaving the match select: the card model has no include flag yet (the element's
+  range leaf already takes `missing: "include"`); a rebuild of the card, not a fix.
+- The Pick on canvas target: an armed canvas click that fills the reference and changes neither the
+  selection nor the preview is a canvas control, so graphty-element needs a one-shot pick mode first.
+- A Select card's effect is still written while its editor is open (the select-condition undo
+  pairing, as before).
+- `watchSteps` still starts runs and the render-time peeks remain; the import filter's picker still
+  lists filtered-graph runs un-greyed; `checkStep`'s typed codes and details, the rank and
+  percentile role on `FieldDescriptor`, and a `stepValuePath` helper: one graphty-element change to
+  how a step names the run it reads, not a polish fix.
+- After reopening a project a never-ready So far group still counts as nothing until it computes:
+  the key now re-reads when the painter repaints, but restoring step-owned computations with the
+  project is still to do. The count reason code for an inert filter condition is not added.
+- Rows as treegrid rows with level and expanded (the "open" word stands in), group names in every
+  control's name, the open card repeating its row, the table's row-count line while picking, focus
+  on the first box after a run finishes, and Escape from a count chip's selection back to its layer.
+- Disabled menu items skipped by the arrow keys are compact-mantine's (`../owner-decisions.md`,
+  2026-11-01); the step's on box stays 12 px until the eye toggle replaces it.
+
 ## Waiting for the owner
 
 - Retagging bfs `level`, k-core `value` and dfs `value` as ordinal changes what `fieldMeasurement`

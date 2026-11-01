@@ -14,6 +14,7 @@ import type { AttributeLeafNodes, FilterCondition, FilterEffect, FilterStep, Rul
 import { GraphtyError } from "../../errors";
 import type { CodedFact } from "../shared";
 import type { HistoryCode } from "../types";
+import { inertReason } from "./union";
 
 /** No conditions. */
 export const NO_CONDITIONS: readonly FilterCondition[] = Object.freeze([]);
@@ -159,6 +160,25 @@ export function effectiveRule(condition: Pick<FilterCondition, "effect" | "rule"
     return condition.effect === "keep" ? withReading(condition.rule, (nodes) => nodes ?? "ends") : condition.rule;
 }
 
+/**
+ * Whether a rule is a selection none of whose steps can apply yet: every group off or empty, and
+ * every step off or not yet a test (no bound, no value picked, no reference). A keep or exclude
+ * condition holding one removes nothing, so a card can be written the moment its first step is
+ * added and still change nothing until that step has a test.
+ * @param rule - The condition's rule.
+ * @returns True for such a selection.
+ */
+export function inertSelection(rule: RuleTree): boolean {
+    return (
+        rule.kind === "union" &&
+        rule.branches.every(
+            (branch) =>
+                branch.on === false ||
+                branch.steps.every((step) => step.on === false || inertReason(step.rule) !== null),
+        )
+    );
+}
+
 /** The rule last combined from each conditions list, with the filter it was combined with. */
 const combined = new WeakMap<readonly FilterCondition[], { filter: RuleTree | null; rule: RuleTree | null }>();
 
@@ -180,7 +200,7 @@ export function combinedRule(filter: RuleTree | null, conditions: readonly Filte
 
     const rules: RuleTree[] = filter === null ? [] : [filter];
     for (const condition of conditions) {
-        if (!condition.on) {
+        if (!condition.on || inertSelection(condition.rule)) {
             continue;
         }
 

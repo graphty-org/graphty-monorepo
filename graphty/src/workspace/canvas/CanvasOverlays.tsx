@@ -77,7 +77,8 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
             ...REDRAW_EVENTS.map((event) => session.on(event, read)),
             session.on("selection:changed", () => {
                 const { nodes, edges } = session.selection;
-                if (nodes.length + edges.length > 0) {
+                // While a selection editor is open its own count is what is said, never this one.
+                if (nodes.length + edges.length > 0 && store.get().editingSelection === null) {
                     // "Selection cleared" would contradict the new selection beside it.
                     const ended = store.get().notice?.endsWithSelection === true;
                     store.set({ announcement: selectedNameWords(session), ...(ended ? { notice: null } : {}) });

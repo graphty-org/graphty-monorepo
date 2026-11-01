@@ -118,7 +118,8 @@ function moveCommand(by: 1 | -1): RowCommand {
         label: up ? "Move up" : "Move down",
         icon: up ? "moveUp" : "moveDown",
         group: "edit",
-        rowKeys: [up ? "Mod+[" : "Mod+]"],
+        // Figma: Bring forward Ctrl+], Send backward Ctrl+[.
+        rowKeys: [up ? "Mod+]" : "Mod+["],
         applies: () => true,
         disabled: (row, session) => {
             const { siblings, at } = place(session, row);

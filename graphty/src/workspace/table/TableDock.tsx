@@ -703,6 +703,8 @@ export function TableDock(): React.JSX.Element {
                       ? null
                       : { name: branch.name ?? single ?? letterOf(at), color: branch.color ?? "" };
               };
+    // Matches only over the whole graph (a filter's selection) lists rows the filter removed.
+    const wholeMatches = pickedScope !== null && picked?.rule.within === "graph";
     let scope: ScopeInput = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
     if (pickedScope !== null) {
         scope = pickedScope;
@@ -812,18 +814,26 @@ export function TableDock(): React.JSX.Element {
                     />
                 ) : null}
                 {filtered && groupRun === undefined && (kind === "edge" || shownMembers === null) ? (
-                    <SegmentedControl
-                        size="xs"
-                        aria-label="Records"
-                        value={all ? "all" : "shown"}
-                        data={[
-                            { value: "shown", label: "Shown" },
-                            { value: "all", label: "All" },
-                        ]}
-                        onChange={(value) => {
-                            arrange({ all: value === "all" });
-                        }}
-                    />
+                    // A selection over the whole graph (a filter's) lists its matches shown or not:
+                    // Shown cannot narrow it, so All is pressed and the segment waits, its reason in
+                    // the tooltip.
+                    <Tooltip label="Matches only lists every match, shown or not" disabled={!wholeMatches}>
+                        <div>
+                            <SegmentedControl
+                                size="xs"
+                                aria-label="Records"
+                                value={all || wholeMatches ? "all" : "shown"}
+                                disabled={wholeMatches}
+                                data={[
+                                    { value: "shown", label: "Shown" },
+                                    { value: "all", label: "All" },
+                                ]}
+                                onChange={(value) => {
+                                    arrange({ all: value === "all" });
+                                }}
+                            />
+                        </div>
+                    </Tooltip>
                 ) : null}
                 {groupRun === undefined && picked !== null ? (
                     // compact-mantine's segment, as "Shown | All" beside it: Mantine's bare Chip

@@ -15,9 +15,22 @@ import type {
     UnionLeaf,
     UnionStep,
 } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, CloseButton, Group, Menu, NumberInput, Select, Text, Tooltip } from "@mantine/core";
-import React, { useState } from "react";
+import {
+    ActionIcon,
+    Button,
+    CloseButton,
+    type ComboboxParsedItem,
+    Group,
+    Menu,
+    NumberInput,
+    type OptionsFilter,
+    Select,
+    Text,
+    Tooltip,
+} from "@mantine/core";
+import React, { useRef, useState } from "react";
 
+import { focusRowOf } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { isTypingTarget, matchesKey } from "../keys/keys";
 import type { Card, Side } from "../style/cards";
@@ -42,19 +55,34 @@ interface StepActions {
  * @param props.verb - the step's verb
  * @param props.onVerb - takes the new verb
  * @param props.tabbable - in the Tab order (the open card's), or reached by pointer only (a row's)
+ * @param props.onOpen - told when the menu opens
  * @returns The menu button
  */
 export function VerbMenu({
     verb,
     onVerb,
     tabbable = true,
-}: Readonly<{ verb: Verb; onVerb: (verb: Verb) => void; tabbable?: boolean }>): React.JSX.Element {
+    onOpen,
+}: Readonly<{ verb: Verb; onVerb: (verb: Verb) => void; tabbable?: boolean; onOpen?: () => void }>): React.JSX.Element {
     const words = VERB_WORDS[verb];
+    const target = useRef<HTMLButtonElement>(null);
+    // A row's menu hands focus back to its row, so the arrow keys keep walking the list.
     return (
-        <Menu position="bottom-start" withinPortal>
+        <Menu
+            position="bottom-start"
+            withinPortal
+            returnFocus={tabbable}
+            onOpen={onOpen}
+            onClose={() => {
+                if (!tabbable) {
+                    focusRowOf(target.current);
+                }
+            }}
+        >
             <Menu.Target>
                 <TargetTooltip label={`${words.word} (${words.figma})`}>
                     <ActionIcon
+                        ref={target}
                         variant="subtle"
                         size="sm"
                         aria-label={`Verb: ${words.word}`}
@@ -121,6 +149,32 @@ function referenceOptions(
         { group: "Nodes", items: nodes },
     ].filter((each) => each.items.length > 0);
 }
+
+/**
+ * The reference list's search: the items whose name holds the typed text, each section kept only
+ * while it holds one.
+ * @param input - Mantine's filter input.
+ * @param input.options - the sections.
+ * @param input.search - the typed text.
+ * @returns the sections left.
+ */
+const referenceFilter: OptionsFilter = ({ options, search }) => {
+    const typed = search.trim().toLowerCase();
+    const kept: ComboboxParsedItem[] = [];
+    for (const option of options) {
+        if (!("group" in option)) {
+            if (option.label.toLowerCase().includes(typed)) {
+                kept.push(option);
+            }
+            continue;
+        }
+        const items = option.items.filter((item) => item.label.toLowerCase().includes(typed));
+        if (items.length > 0) {
+            kept.push({ ...option, items });
+        }
+    }
+    return kept;
+};
 
 /**
  * A reference as the picker's value.
@@ -206,6 +260,12 @@ function RelativeBody({
                 selectFirstOptionOnChange
                 // The shared listbox height: the list never covers the card it fills.
                 maxDropdownHeight={240}
+                // TEMPORARY: compact-mantine's lists scroll with no ScrollArea, and Mantine applies
+                // maxDropdownHeight only inside one, so the cap is set on the list itself here
+                // (design/ui/studio/owner-decisions.md, 2026-11-01, list fields ignore the cap).
+                styles={{ dropdown: { maxHeight: 240 } }}
+                // A section the search empties goes with its heading and divider.
+                filter={referenceFilter}
                 onFocus={(event) => {
                     event.currentTarget.select();
                 }}
@@ -236,7 +296,6 @@ function RelativeBody({
             )}
             {rule.kind === "touching" && (
                 <SegmentedControl
-                    size="xs"
                     label="Ends"
                     data={[
                         { value: "either", label: "Either" },
@@ -450,8 +509,9 @@ export function StepCard({
                 const native = event.nativeEvent;
                 if (matchesKey(native, "Mod+[") || matchesKey(native, "Mod+]")) {
                     event.preventDefault();
-                    if (!(event.key === "[" ? first : last)) {
-                        onMove(event.key === "[" ? -1 : 1);
+                    // Figma: Ctrl+] brings forward (up), Ctrl+[ sends backward (down).
+                    if (!(event.key === "]" ? first : last)) {
+                        onMove(event.key === "]" ? -1 : 1);
                     }
                 } else if (matchesKey(native, "Mod+D")) {
                     event.preventDefault();
@@ -542,7 +602,7 @@ export function StepCard({
                                     label: "Move up",
                                     icon: "moveUp",
                                     group: "edit",
-                                    key: "Mod+[",
+                                    key: "Mod+]",
                                     reason: first ? "Already the first step" : null,
                                     onRun: () => {
                                         onMove(-1);
@@ -553,7 +613,7 @@ export function StepCard({
                                     label: "Move down",
                                     icon: "moveDown",
                                     group: "edit",
-                                    key: "Mod+]",
+                                    key: "Mod+[",
                                     reason: last ? "Already the last step" : null,
                                     onRun: () => {
                                         onMove(1);
@@ -619,7 +679,6 @@ export function StepCard({
                     )}
                     {readsEnds && (
                         <SegmentedControl
-                            size="xs"
                             label="Ends"
                             data={[
                                 { value: "both", label: "Both ends" },

@@ -202,7 +202,7 @@ describe("the selection editor in a style layer", () => {
         );
     });
 
-    it("Mod+] and a drag reorder steps; Start with never changes", async () => {
+    it("Mod+[ and a drag reorder steps; Start with never changes", async () => {
         const session = await openSample();
         const rule: UnionLeaf = {
             kind: "union",
@@ -222,7 +222,8 @@ describe("the selection editor in a style layer", () => {
         const first = document.querySelector<HTMLElement>('[data-row="deg"]');
         assert.isNotNull(first);
         first?.focus();
-        await userEvent.keyboard("{Control>}]{/Control}");
+        // Figma's Send backward: Ctrl+[ moves the first step down the list.
+        await userEvent.keyboard("{Control>}[[{/Control}");
         await waitFor(() => {
             assert.deepEqual(
                 unionOf(session, layer.id)?.branches[0]?.steps.map((step) => step.id),
@@ -276,7 +277,7 @@ describe("the selection editor in a style layer", () => {
         assert.isAbove(expected, 1);
     });
 
-    it("opening a step card draws the picking view; Escape ends it", async () => {
+    it("opening a step card draws the picking view; Escape closes the card, then the editor and the view", async () => {
         const session = await openSample();
         await openLayer(session, "Picked", { match: "rule", where: DEGREE_6_TO_10 });
         assert.isFalse(session.styles.showingBranches);
@@ -303,6 +304,13 @@ describe("the selection editor in a style layer", () => {
         );
         const layers = session.styles.list().length;
         row.focus();
+        // Escape closes the card; the preview stays while the editor is open (spec 9). Escape
+        // again, with nothing smaller open, closes the editor and ends it.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector("[data-step-card]"));
+        });
+        assert.isTrue(session.styles.showingBranches, "the preview stays while the editor is open");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isFalse(session.styles.showingBranches);
@@ -525,7 +533,7 @@ describe("the selection editor's keys, names and limits", () => {
         });
     });
 
-    it("Escape in a step card's box closes the card and ends the preview", async () => {
+    it("Escape in a step card's box closes the card; the preview stays while the editor is open", async () => {
         const session = await openSample();
         await openLayer(session, "Picked", { match: "rule", where: DEGREE_6_TO_10 });
         const row = document.querySelector<HTMLElement>(".sel-step-row[data-row]");
@@ -538,8 +546,9 @@ describe("the selection editor's keys, names and limits", () => {
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(document.querySelector("[data-step-card]"), "the card closed");
-            assert.isFalse(session.styles.showingBranches, "the preview ended");
         });
+        // Spec 9: the preview ends on Done, Escape with nothing smaller open, or leaving.
+        assert.isTrue(session.styles.showingBranches, "the preview stays");
         assert.isNotNull(document.querySelector(".sel-editor"), "the editor stays open");
     });
 

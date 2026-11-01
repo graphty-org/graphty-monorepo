@@ -122,8 +122,8 @@ export function SelectionSummary({
             {summaryChips(session, side, reading).map((each) => {
                 const Glyph = each.glyph === null ? null : VERB_WORDS[each.glyph].glyph;
                 return (
-                    <Tooltip key={each.key} label={each.spoken} openDelay={500}>
-                        <span className="ws-chip">
+                    <Tooltip key={each.key} label={each.spoken}>
+                        <span className="ws-chip" data-off={each.off ? "" : undefined}>
                             {each.letter}
                             {Glyph !== null && <Glyph size={12} aria-hidden />}
                             {each.text}

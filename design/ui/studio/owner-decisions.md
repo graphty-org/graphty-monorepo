@@ -3663,3 +3663,25 @@ optional text label; (b) keep both as built.
 
 **Why.** Contrast below 3:1 fails WCAG 1.4.3 for every checked chip; a word on the split button is
 what the ease walk asked for.
+
+## 2026-11-01 -- For the owner: list fields ignore a caller's height cap, and disabled menu items
+
+**What is open.** Two compact-mantine behaviors that reach every screen, so the selection editor did
+not change them on its own:
+
+- compact-mantine's list fields (Select, Autocomplete, MultiSelect, TagsInput) scroll their list
+  with no ScrollArea (`withScrollArea: false`), and Mantine applies `maxDropdownHeight` only inside
+  its ScrollArea, so a caller's cap is ignored and a long list covers the whole panel. A theme
+  cannot read the prop (Mantine hands it only to the ScrollArea), so honoring it means a wrapper or
+  a different default. The selection editor's reference list caps itself at 240 px meanwhile, with
+  a comment naming this.
+- A menu item compact-mantine draws as disabled (`data-disabled`, the Move up / Move down items
+  with their "Already at the top" reasons) is skipped by the arrow keys, as Mantine skips it, so a
+  keyboard reader never hears why it is unavailable. Figma's menus also skip disabled items; a
+  focusable disabled item (`aria-disabled`) would let the reason be heard.
+
+**Choices.** (a) compact-mantine honors `maxDropdownHeight` and keeps disabled items reachable with
+`aria-disabled`; (b) keep both, and each screen caps its own lists.
+
+**Why.** A list over the card it fills hides the controls it was opened for (the Hops box), and a
+reason no keyboard reader can reach does not help them.

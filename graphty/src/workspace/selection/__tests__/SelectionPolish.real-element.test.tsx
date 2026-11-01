@@ -366,13 +366,184 @@ describe("the style tree's reorder keys", () => {
         assert.deepEqual(order(), ["Low", "High"], "bottom first");
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Low, / }));
-        await userEvent.keyboard("{Control>}[[{/Control}");
+        // Figma: Ctrl+] brings forward (up the drawn list), Ctrl+[ sends backward.
+        await userEvent.keyboard("{Control>}]{/Control}");
         await waitFor(() => {
             assert.deepEqual(order(), ["High", "Low"], "Low moved up the drawn list");
         });
-        await userEvent.keyboard("{Control>}]{/Control}");
+        await userEvent.keyboard("{Control>}[[{/Control}");
         await waitFor(() => {
             assert.deepEqual(order(), ["Low", "High"], "and back down");
+        });
+    });
+});
+
+/** Three people with a fractional score, as a centrality reads. */
+const SCORED_GRAPHML = `<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <key id="score" for="node" attr.name="score" attr.type="double"/>
+  <graph id="G" edgedefault="undirected">
+    <node id="a"><data key="score">0.0033783784601837397</data></node>
+    <node id="b"><data key="score">0.5</data></node>
+    <node id="c"><data key="score">0.9123456789</data></node>
+    <node id="d"/>
+    <edge source="a" target="b"/>
+    <edge source="b" target="c"/>
+  </graph>
+</graphml>`;
+
+describe("polish round 3", () => {
+    it("a So far step with no test yet shows its two boxes once its own values land", async () => {
+        const session = await lesMis();
+        const layer = await openLayer(session, "Between", { match: "everything" });
+        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
+        await pickValue("Degree");
+        const card = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-step-card]");
+            assert.isNotNull(found);
+            return found;
+        });
+        if (card === null) {
+            return;
+        }
+        // A second step, so So far is offered: it reads the first step's members.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
+        await pickValue("Betweenness");
+        const second = await waitFor(() => {
+            const steps = unionOf(session, layer.id)?.branches[0]?.steps ?? [];
+            assert.lengthOf(steps, 2);
+            const found = document.querySelector<HTMLElement>(`[data-step-card="${steps[1]?.id ?? ""}"]`);
+            assert.isNotNull(found);
+            return found;
+        });
+        if (second === null) {
+            return;
+        }
+        await userEvent.click(within(second).getByRole("button", { name: /^More for / }));
+        await userEvent.click(await screen.findByRole("menuitemradio", { name: "So far" }));
+        await waitFor(() => {
+            assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[1]?.computedOn, "so-far");
+        });
+        const opened = await waitFor(() => {
+            const id = unionOf(session, layer.id)?.branches[0]?.steps[1]?.id ?? "";
+            const found = document.querySelector<HTMLElement>(`[data-step-card="${id}"]`);
+            assert.isNotNull(found);
+            return found;
+        });
+        if (opened !== null) {
+            await within(opened).findByRole("textbox", { name: /from, number$/ });
+        }
+    });
+
+    it("picking a value with no test keeps the preview on in the style host", async () => {
+        const session = await lesMis();
+        await openLayer(session, "Lone", { match: "everything" });
+        await userEvent.click(screen.getByRole("button", { name: "Add a step: Keep" }));
+        await pickValue("Isolated");
+        await waitFor(() => {
+            assert.isNotNull(document.activeElement?.closest(".sel-step-row"), "focus is on its row");
+        });
+        assert.isNotNull(session.styles.shownBranches, "the group colors stay drawn while the editor is open");
+    });
+
+    it("picking a value with no test keeps the preview on in the import filter", async () => {
+        const session = await lesMis("data");
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await pickValue("Isolated");
+        await waitFor(() => {
+            assert.isNotNull(document.querySelector(".sel-editor"), "the editor stays open");
+            assert.isNotNull(session.styles.shownBranches, "and its preview stays drawn");
+        });
+    });
+
+    it("a range card's thumbs speak the value its boxes show, never a raw float", async () => {
+        await open("data", (session) =>
+            session.data.import({ type: "graphml", name: "scored.graphml", config: { data: SCORED_GRAPHML } }),
+        );
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await pickValue("score");
+        const start = await screen.findByRole("slider", { name: "score range start" });
+        const text = start.getAttribute("aria-valuetext");
+        assert.isNotNull(text, "the thumb has a value text");
+        assert.notInclude(text ?? "", "0.0033783784601837397");
+    });
+
+    it("a number card says how many have no value as a chip, never a sentence", async () => {
+        await open("data", (session) =>
+            session.data.import({ type: "graphml", name: "scored.graphml", config: { data: SCORED_GRAPHML } }),
+        );
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await pickValue("score");
+        const card = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-step-card]");
+            assert.isNotNull(found);
+            return found;
+        });
+        await within(card ?? document.body).findByText("Not measured: 1");
+        assert.notInclude(card?.textContent ?? "", "left out");
+    });
+
+    it("an off step says so on the folded row", async () => {
+        const session = await lesMis();
+        await session.styles.add({
+            name: "Offstep",
+            target: "node",
+            selector: {
+                match: "rule",
+                where: {
+                    kind: "union",
+                    side: "nodes",
+                    within: "visible",
+                    branches: [
+                        { id: "a", start: "all", steps: [{ id: "deg", op: "keep", rule: DEGREE_6_TO_10, on: false }] },
+                    ],
+                },
+            },
+            set: { "node.color": "#d55e00" },
+        });
+        await session.styles.settled();
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Offstep, / }));
+        const folded = await screen.findByRole("button", { name: /^Which nodes, / });
+        assert.match(folded.getAttribute("aria-label") ?? "", /, off$/);
+    });
+
+    it("moving a group keeps its name", async () => {
+        const session = await lesMis();
+        const layer = await openLayer(session, "Two", {
+            match: "rule",
+            where: {
+                kind: "union",
+                side: "nodes",
+                within: "visible",
+                branches: [
+                    { id: "a", start: "none", steps: [{ id: "deg", op: "add", rule: DEGREE_6_TO_10 }] },
+                    {
+                        id: "b",
+                        start: "none",
+                        steps: [{ id: "val", op: "add", rule: { kind: "hops", of: { nodes: ["Valjean"] }, max: 0 } }],
+                    },
+                ],
+            },
+        });
+        const second = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>('[data-row="b"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        second?.focus();
+        // Figma's Bring forward: Ctrl+] moves the group up.
+        await userEvent.keyboard("{Control>}]{/Control}");
+        await waitFor(() => {
+            const branches = unionOf(session, layer.id)?.branches ?? [];
+            assert.deepEqual(
+                branches.map((branch) => [branch.id, branch.name]),
+                [
+                    ["b", "B"],
+                    ["a", "A"],
+                ],
+            );
         });
     });
 });

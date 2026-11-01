@@ -413,3 +413,18 @@ export function installFocusGuard(): () => void {
         document.removeEventListener("keydown", onKeyDown);
     };
 }
+
+/**
+ * After a row's menu closes: its row takes focus, unless something the menu opened (a rename box)
+ * took it first.
+ * @param from - an element inside the row
+ */
+export function focusRowOf(from: HTMLElement | null): void {
+    const row = from?.closest<HTMLElement>("[data-row]");
+    requestAnimationFrame(() => {
+        const now = document.activeElement;
+        if (row?.isConnected === true && (now === null || now === document.body || now === from)) {
+            row.focus();
+        }
+    });
+}

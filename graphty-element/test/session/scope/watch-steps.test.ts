@@ -611,6 +611,26 @@ describe("measure steps and runs", () => {
         }
     });
 
+    it("a keep or exclude condition whose steps have no test yet removes nothing", async () => {
+        const session = await lesMis();
+        const untested: RuleTree = { kind: "range", attribute: "graphty.degree" };
+        for (const start of ["none", "all"] as const) {
+            for (const effect of ["keep", "exclude"] as const) {
+                const { id } = await session.visibility.addCondition({
+                    effect,
+                    rule: {
+                        kind: "union",
+                        side: "nodes",
+                        within: "graph",
+                        branches: [{ start, steps: [{ op: start === "none" ? "add" : "keep", rule: untested }] }],
+                    },
+                });
+                assert.strictEqual(session.visibility.nodes.size, IDS.length, `${effect} from ${start} hides nothing`);
+                await session.visibility.removeCondition(id);
+            }
+        }
+    });
+
     it("above the ask limit a step waits for allowRun; Cancel leaves it waiting", async () => {
         const executions: Executions = { sizes: [], hold: true };
         const session = await lesMis(executions);

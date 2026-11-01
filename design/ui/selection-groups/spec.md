@@ -12,8 +12,10 @@ Binding decisions: `../studio/tier5/decided.md`.
 
 - A **selection** is on one side (nodes or edges) and is an ordered list of **groups**; the result is
   everything in ANY group that is on.
-- A group has a color, a name, an on box, a **Start with** (All or None) and ordered **steps**. A
-  step is a verb plus one **condition card**:
+- A group has a color, a name, an on box, a **Start with** (All or None) and ordered **steps**. Once
+  there are several groups each holds its letter as its name, written when it is made, as its color
+  is, so moving or copying a group never renames one (a copy takes the next free letter and color);
+  a lone group goes by the selection's title. A step is a verb plus one **condition card**:
     - **Add** (Figma's Union): the group so far plus what the card matches;
     - **Except** (Subtract): the group so far minus it;
     - **Keep** (Intersect): only what both hold.
@@ -26,7 +28,8 @@ Binding decisions: `../studio/tier5/decided.md`.
   node (one group of All, no step: what it paints). Moving steps never changes it.
 - **Sides.** Start with speaks the selection's side. A node selection reads an edge value as "nodes
   touching a passing edge"; an edge selection reads a node value as "both ends pass" (default) or
-  "either end passes", a chip on the row. A step still silent on the side changes nothing.
+  "either end passes", said on the row and the folded chip ("either end"; both ends goes unsaid). A
+  step still silent on the side changes nothing.
 - **Step states.**
     - _Applied_, including _passes none_ (neutral ink). A chosen reference that is empty now matches
       nothing; a Keep or Except step, or one on So far, whose input is empty passes none.
@@ -45,7 +48,9 @@ Binding decisions: `../studio/tier5/decided.md`.
   base Keep and Except steps, or of base Add steps, is order-free.
 - **Counts.** Group rows and the selection header carry the existing chip, "24 of 77": the result,
   out of the base. A step's chip counts the group so far after it, and its tooltip and name say so
-  ("Keep, degree 6 to 10, 24 of 77 nodes so far"). A change fades "24 -> 18".
+  ("Keep, degree 6 to 10, 24 of 77 nodes so far"). A change fades "24 -> 18". In the style host a
+  step's chip selects what it counts, as a group's does; in the import filter it is plain text,
+  because the table lists a group's members, never one step's.
 - **Simple case.** One group draws no header: a step is today's card plus a verb icon.
 
 ## 2. The two hosts
@@ -78,12 +83,19 @@ glyphs are lucide icons the app already ships.
 - **The chit is hollow at rest, filled while the preview shows group colors**: at rest a filled
   swatch beside a layer would read as its paint, as a Figma fill swatch does.
 - **Step row** (Figma Fill row), one line: verb icon (a menu button), value, short test ("6 to 10")
-  or the inert word, order icon, count chip, on box, remove X on hover and focus; full words in its
-  tooltip and name. Reorders like groups.
+  or the inert word, order icon, count chip, on box, remove X (the default 24 px CloseButton); full
+  words in its tooltip and name, and "open" in its name while its card is open (a group role carries
+  no expanded state). Reorders like groups. Closing a row's verb or "..." menu hands focus back to
+  the row, so the arrow keys keep walking. Start with and Ends are default-size segments (11/16).
+  In the import filter the open card draws no border of its own inside the filter card's.
+- **"+" draws a plus**, as every add in graphty and Figma does; the verb it will add is drawn
+  beside it as its glyph and word. The bare verb glyph is only the waiting placeholder row's. Its
+  caret opens the verb menu below its start, drawn as the row's verb menu (check column, none
+  checked).
 - **The card opens inline under its row, one at a time** (tier 4 R4), keeping the approved card's
   anatomy (field name, count chip, remove, the range and its two boxes), adding the test segment and
   the histogram. The field name is 11/16 semibold.
-- **Card "..."**: Computed on, Settings, include not measured, Move up / down, Duplicate, Delete;
+- **Card "..."**: Computed on, Settings, include not measured, Move up (Mod+]) / down (Mod+[), Duplicate, Delete;
   every item with a key shows it (MenuShortcut), as `Groups.tsx` does.
 - **The only color in the editor is the chit. No sentences at rest** ("Nodes that pass every
   condition", "All 77 nodes: add a condition to narrow" go).
@@ -352,7 +364,8 @@ graphty-element, app checks in `*.real-element.test.tsx` and story play function
 28. A node step reading an edge value counts only the edges the filter left (neighbors.csv,
     Desmond filtered out: kind = coworkers holds Gwen, Ian, Kurt, Lila, Nils).
 29. A So far step's card draws its test from the values its own computation gave, never "Computing".
-30. The style tree's rows move with Mod+[ (up) and Mod+] (down), as a selection's rows.
+30. The style tree's rows move with Mod+] (up, Figma's bring forward) and Mod+[ (down, send backward),
+    as a selection's rows.
 31. A screenshot audit of both hosts: no removed sentence, no filled chit at rest.
 
 **Dry run and study re-tests**: "the most connected people who are also staff"; "color the people

@@ -97,7 +97,47 @@ export const editBranch = (rule: UnionLeaf, id: string, patch: Partial<UnionBran
  * @param id - the group.
  * @returns the selection.
  */
-export const removeBranch = (rule: UnionLeaf, id: string): UnionLeaf => withBranch(rule, id, () => null);
+export const removeBranch = (rule: UnionLeaf, id: string): UnionLeaf => {
+    const left = withBranch(rule, id, () => null);
+    // One group left goes by the selection's title again, never by the letter it was given.
+    const [only] = left.branches;
+    if (left.branches.length === 1 && only.name !== undefined && /^[A-Z]{1,2}$/.test(only.name)) {
+        const { name: _name, ...rest } = only;
+        return { ...left, branches: [rest] };
+    }
+    return left;
+};
+
+/**
+ * A group's letter by its place: A to Z, then AA, AB and on.
+ * @param at - its place, from 0.
+ * @returns the letter.
+ */
+export function letterOf(at: number): string {
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    return at < letters.length
+        ? letters[at]
+        : `${letterOf(Math.floor(at / letters.length) - 1)}${letters[at % letters.length]}`;
+}
+
+/**
+ * Every group named once there are several: an unnamed group takes the letter of its place, or the
+ * first letter no group holds, so a move or a copy never renames one (its color is kept the same way).
+ * @param branches - the groups.
+ * @returns the groups, each named.
+ */
+function lettered(branches: readonly UnionBranch[]): UnionBranch[] {
+    const used = new Set(branches.flatMap((branch) => (branch.name === undefined ? [] : [branch.name])));
+    const take = (wanted: string): string => {
+        let name = wanted;
+        for (let at = 0; used.has(name); at++) {
+            name = letterOf(at);
+        }
+        used.add(name);
+        return name;
+    };
+    return branches.map((branch, at) => (branch.name === undefined ? { ...branch, name: take(letterOf(at)) } : branch));
+}
 
 /**
  * Adds a group under the last ("+ Or"): starting with nothing, no color of its own (the element
@@ -107,7 +147,7 @@ export const removeBranch = (rule: UnionLeaf, id: string): UnionLeaf => withBran
  */
 export function addBranch(rule: UnionLeaf): { rule: UnionLeaf; id: string } {
     const id = newId("b");
-    return { rule: { ...rule, branches: [...rule.branches, { id, start: "none", steps: [] }] }, id };
+    return { rule: { ...rule, branches: lettered([...rule.branches, { id, start: "none", steps: [] }]) }, id };
 }
 
 /**
@@ -119,7 +159,7 @@ export function addBranch(rule: UnionLeaf): { rule: UnionLeaf; id: string } {
  */
 export function moveBranch(rule: UnionLeaf, id: string, to: number): UnionLeaf {
     const from = rule.branches.findIndex((branch) => branch.id === id);
-    return { ...rule, branches: moveItem(rule.branches, from, to) };
+    return { ...rule, branches: moveItem(lettered(rule.branches), from, to) };
 }
 
 /**
@@ -134,15 +174,16 @@ export function duplicateBranch(rule: UnionLeaf, id: string): { rule: UnionLeaf;
     if (source === undefined) {
         return { rule, id };
     }
-    const { color: _color, ...rest } = source;
+    // A copy takes a new name and color: two groups never read alike.
+    const { color: _color, name: _name, ...rest } = source;
     const copy: UnionBranch = {
         ...rest,
         id: newId("b"),
         steps: source.steps.map((step) => ({ ...step, id: newId("s") })),
     };
-    const branches = [...rule.branches];
+    const branches = lettered(rule.branches);
     branches.splice(at + 1, 0, copy);
-    return { rule: { ...rule, branches }, id: copy.id ?? "" };
+    return { rule: { ...rule, branches: lettered(branches) }, id: copy.id ?? "" };
 }
 
 /**

@@ -1,4 +1,4 @@
-import { focusWithRing, LISTBOX_CLASS_NAMES, useNumberParser } from "@graphty/compact-mantine";
+import { focusWithRing, LISTBOX_CLASS_NAMES, RangeSlider, useNumberParser } from "@graphty/compact-mantine";
 import type { GraphSession, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -9,7 +9,7 @@ import {
     CloseButton,
     Combobox,
     Group,
-    RangeSlider,
+    ScrollArea,
     Select,
     Stack,
     Text,
@@ -1323,7 +1323,7 @@ export function AddCondition({
                   combobox.closeDropdown();
                   onElsewhere(other);
               };
-    const { dropdownOpened, selectFirstOption, resetSelectedOption } = combobox;
+    const { dropdownOpened, selectFirstOption, selectOption, resetSelectedOption } = combobox;
     // "Nothing found" sits in the list, which a screen reader does not read while focus is in the
     // search: the status line says it each time typing empties the list.
     const { store } = useWorkspace();
@@ -1354,8 +1354,19 @@ export function AddCondition({
             setActive(null);
             return;
         }
-        setActive(selectFirstOption());
-    }, [typed, dropdownOpened, selectFirstOption, resetSelectedOption]);
+        // The first match not already a condition is lit, so Enter adds something new.
+        const first = selectFirstOption();
+        const options = [
+            ...(document.getElementById(listId)?.querySelectorAll<HTMLElement>("[data-combobox-option]") ?? []),
+        ];
+        const unused = options.findIndex((option) => !option.hasAttribute("data-used"));
+        if (unused > 0) {
+            selectOption(unused);
+            setActive(options[unused].id === "" ? first : options[unused].id);
+            return;
+        }
+        setActive(first);
+    }, [typed, dropdownOpened, selectFirstOption, selectOption, resetSelectedOption, listId]);
     const keys = (event: React.KeyboardEvent<HTMLInputElement>): void => {
         if (event.nativeEvent.isComposing) {
             return;
@@ -1486,98 +1497,92 @@ export function AddCondition({
                     id={listId}
                     // The list is reached from the search with the arrows, never by Tab.
                     tabIndex={-1}
-                    mah={240}
-                    style={{ overflowY: "auto" }}
                     aria-label="Attributes"
                 >
-                    {count === 0 ? (
-                        <Combobox.Empty>
-                            {nothingWords}
-                            {goElsewhere !== undefined && other !== undefined && (
-                                <Button
-                                    size="compact-xs"
-                                    variant="subtle"
-                                    mt={4}
-                                    // A long attribute name wraps inside the list's width, never
-                                    // scrolling the list sideways.
-                                    h="auto"
-                                    maw="100%"
-                                    styles={{ label: { whiteSpace: "normal", textAlign: "start" } }}
-                                    // A press in the list must not take focus from the search first.
-                                    onMouseDown={(event) => {
-                                        event.preventDefault();
-                                    }}
-                                    onClick={goElsewhere}
-                                >
-                                    Add {other.name} on the {otherTab} tab
-                                </Button>
-                            )}
-                        </Combobox.Empty>
-                    ) : (
-                        <>
-                            {groups.map(({ group, items }) => (
-                                <Combobox.Group key={group} label={group} role="group" aria-label={group}>
-                                    {items.map((field) => {
-                                        const key = keyOf(field);
-                                        const inUse = used.includes(key);
-                                        // The icon the Vary by list draws for the same value; the node id reads as text.
-                                        const Glyph = glyphOf(field.kind);
-                                        return (
+                    {/* compact-mantine's overlay scrollbar, as every Select's list; never sideways. */}
+                    <ScrollArea.Autosize mah={240} type="scroll" scrollbars="y">
+                        {count === 0 ? (
+                            <Combobox.Empty>
+                                {nothingWords}
+                                {goElsewhere !== undefined && other !== undefined && (
+                                    <Button
+                                        size="compact-xs"
+                                        variant="subtle"
+                                        mt={4}
+                                        // A long attribute name wraps inside the list's width, never
+                                        // scrolling the list sideways.
+                                        h="auto"
+                                        maw="100%"
+                                        styles={{ label: { whiteSpace: "normal", textAlign: "start" } }}
+                                        // A press in the list must not take focus from the search first.
+                                        onMouseDown={(event) => {
+                                            event.preventDefault();
+                                        }}
+                                        onClick={goElsewhere}
+                                    >
+                                        Add {other.name} on the {otherTab} tab
+                                    </Button>
+                                )}
+                            </Combobox.Empty>
+                        ) : (
+                            <>
+                                {groups.map(({ group, items }) => (
+                                    <Combobox.Group key={group} label={group} role="group" aria-label={group}>
+                                        {items.map((field) => {
+                                            const key = keyOf(field);
+                                            const inUse = used.includes(key);
+                                            // The icon the Vary by list draws for the same value; the node id reads as text.
+                                            const Glyph = glyphOf(field.kind);
+                                            return (
+                                                <Combobox.Option
+                                                    key={key}
+                                                    value={key}
+                                                    data-used={inUse || undefined}
+                                                    // Its fact and whether it is a condition already are part of
+                                                    // what it is: "Degree, 1 to 36", as in the Vary by list.
+                                                    aria-label={[
+                                                        field.name,
+                                                        ...(field.fact === undefined ? [] : [field.fact]),
+                                                        ...(inUse ? ["already a condition"] : []),
+                                                    ].join(", ")}
+                                                >
+                                                    <OptionLine
+                                                        glyph={Glyph}
+                                                        name={field.name}
+                                                        fact={field.fact}
+                                                        used={inUse}
+                                                    />
+                                                </Combobox.Option>
+                                            );
+                                        })}
+                                    </Combobox.Group>
+                                ))}
+                                {moreShown.map(({ group, items }) => (
+                                    <Combobox.Group key={group} label={group} role="group" aria-label={group}>
+                                        {items.map((each) => (
+                                            <ExtraOption key={each.key} item={each} />
+                                        ))}
+                                    </Combobox.Group>
+                                ))}
+                                {extras.length > 0 && (
+                                    <Combobox.Group label="Structure" role="group" aria-label="Structure">
+                                        {extras.map((each) => (
                                             <Combobox.Option
-                                                key={key}
-                                                value={key}
-                                                // Its fact and whether it is a condition already are part of
-                                                // what it is: "Degree, 1 to 36", as in the Vary by list.
-                                                aria-label={[
-                                                    field.name,
-                                                    ...(field.fact === undefined ? [] : [field.fact]),
-                                                    ...(inUse ? ["already a condition"] : []),
-                                                ].join(", ")}
+                                                key={each.key}
+                                                value={`${EXTRA}${each.key}`}
+                                                aria-label={each.name}
                                             >
-                                                <Group gap={8} wrap="nowrap" justify="space-between">
-                                                    <Group gap={8} wrap="nowrap">
-                                                        <Glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
-                                                        <span>
-                                                            {field.name}
-                                                            {inUse ? " (already a condition)" : ""}
-                                                        </span>
-                                                    </Group>
-                                                    {field.fact !== undefined && (
-                                                        <Text size="xs" c="dimmed" span>
-                                                            {field.fact}
-                                                        </Text>
-                                                    )}
+                                                <Group gap={8} wrap="nowrap">
+                                                    <each.glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
+                                                    <span>{each.name}</span>
                                                 </Group>
                                             </Combobox.Option>
-                                        );
-                                    })}
-                                </Combobox.Group>
-                            ))}
-                            {moreShown.map(({ group, items }) => (
-                                <Combobox.Group key={group} label={group} role="group" aria-label={group}>
-                                    {items.map((each) => (
-                                        <ExtraOption key={each.key} item={each} />
-                                    ))}
-                                </Combobox.Group>
-                            ))}
-                            {extras.length > 0 && (
-                                <Combobox.Group label="Structure" role="group" aria-label="Structure">
-                                    {extras.map((each) => (
-                                        <Combobox.Option
-                                            key={each.key}
-                                            value={`${EXTRA}${each.key}`}
-                                            aria-label={each.name}
-                                        >
-                                            <Group gap={8} wrap="nowrap">
-                                                <each.glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
-                                                <span>{each.name}</span>
-                                            </Group>
-                                        </Combobox.Option>
-                                    ))}
-                                </Combobox.Group>
-                            )}
-                        </>
-                    )}
+                                        ))}
+                                    </Combobox.Group>
+                                )}
+                            </>
+                        )}
+                    </ScrollArea.Autosize>
                 </Combobox.Options>
             </Combobox.Dropdown>
         </Combobox>
@@ -1598,17 +1603,7 @@ function ExtraOption({ item }: Readonly<{ item: ExtraItem }>): React.JSX.Element
             disabled={item.unusable !== undefined}
             aria-label={[item.name, item.fact, item.unusable].filter((each) => each !== undefined).join(", ")}
         >
-            <Group gap={8} wrap="nowrap" justify="space-between">
-                <Group gap={8} wrap="nowrap">
-                    <item.glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
-                    <span>{item.name}</span>
-                </Group>
-                {item.fact !== undefined && (
-                    <Text size="xs" c="dimmed" span>
-                        {item.fact}
-                    </Text>
-                )}
-            </Group>
+            <OptionLine glyph={item.glyph} name={item.name} fact={item.fact} />
         </Combobox.Option>
     );
     return item.unusable === undefined ? (
@@ -1617,6 +1612,51 @@ function ExtraOption({ item }: Readonly<{ item: ExtraItem }>): React.JSX.Element
         <Tooltip label={item.unusable} position="right">
             <div>{option}</div>
         </Tooltip>
+    );
+}
+
+/**
+ * One row of the add list: its icon, its name cut short with an ellipsis (whole in its tooltip),
+ * and its fact, which keeps its width; a value that is already a condition has a dimmed check.
+ * @param props - Component props
+ * @param props.glyph - the row's icon
+ * @param props.name - its name
+ * @param props.fact - its fact, if any
+ * @param props.used - whether it is already a condition
+ * @returns The row's content
+ */
+function OptionLine({
+    glyph: Glyph,
+    name,
+    fact,
+    used = false,
+}: Readonly<{
+    glyph: ReturnType<typeof glyphOf> | ExtraItem["glyph"];
+    name: string;
+    fact?: string | undefined;
+    used?: boolean;
+}>): React.JSX.Element {
+    return (
+        <Group gap={8} wrap="nowrap" justify="space-between">
+            <Group gap={8} wrap="nowrap" style={{ minWidth: 0, flex: "1 1 auto" }}>
+                <Glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
+                <Tooltip label={name}>
+                    <Text span inherit truncate="end" c={used ? "dimmed" : undefined} style={{ minWidth: 0 }}>
+                        {name}
+                    </Text>
+                </Tooltip>
+                {used && (
+                    <Text span c="dimmed" style={{ display: "inline-flex", flex: "none" }}>
+                        <GLYPHS.check size={12} aria-hidden />
+                    </Text>
+                )}
+            </Group>
+            {fact !== undefined && (
+                <Text size="xs" c="dimmed" span style={{ flex: "none" }}>
+                    {fact}
+                </Text>
+            )}
+        </Group>
     );
 }
 
@@ -2298,10 +2338,14 @@ function NumberCard({
                 </Text>
             )}
             {card.match !== "absent" && card.match !== "present" && missing > 0 && (
-                <Text size="xs" c="dimmed">
-                    {many(missing, side)} {missing === 1 ? "has" : "have"} no value and {missing === 1 ? "is" : "are"}{" "}
-                    left out.
-                </Text>
+                // A fact, not a sentence: the chip, with what it means in its tooltip.
+                <Tooltip
+                    label={`${many(missing, side)} ${missing === 1 ? "has" : "have"} no value and ${missing === 1 ? "is" : "are"} left out`}
+                >
+                    <Text span className="ws-chip" style={{ alignSelf: "flex-start" }}>
+                        Not measured: {missing}
+                    </Text>
+                </Tooltip>
             )}
         </Stack>
     );
@@ -2797,6 +2841,12 @@ function TextCard({
                             // open list's Escape closes the list only, and an empty box's goes on.
                             onKeyDownCapture={(event) => {
                                 const shut = !("expanded" in event.currentTarget.dataset);
+                                // Enter commits the text (or takes the lit suggestion): the list goes
+                                // with it, never left over the rows below.
+                                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                                    setOpened(false);
+                                    return;
+                                }
                                 if (
                                     (event.key === "ArrowDown" && !opened) ||
                                     (event.key === "Escape" && shut && card.text !== "")

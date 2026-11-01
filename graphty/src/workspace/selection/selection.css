@@ -91,3 +91,13 @@
 .sel-plus-word {
     margin-inline-start: 4px;
 }
+
+/* Inside a filter card the step card is one frame with it: its own border would sit 6 px inside. */
+.sel-editor[data-host="filter"] .sel-card {
+    border-color: transparent;
+}
+
+/* An off step's chip reads as its row does: dimmed. */
+.ws-which-chips .ws-chip[data-off] {
+    color: var(--mantine-color-dimmed);
+}

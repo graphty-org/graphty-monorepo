@@ -1,8 +1,8 @@
 /**
  * The selection editor as the Data place's import filter (design/ui/selection-groups/spec.md,
  * sections 2 and 9) on the REAL graphty-element and Les Miserables, driven by real clicks and keys:
- * "Add filter" opens a new card with the value picker at once, a step with no test writes nothing,
- * its first test writes the card as a selection; Escape twice takes a new card back; the card's
+ * "Add filter" opens a new card with the value picker at once, its first step writes the card,
+ * which removes and selects nothing until the step has a test, and outlives a switch of place; Escape twice takes a new card back; the card's
  * Nodes | Edges switch starts it again on edges, its "+" then picking an edge value; a tier 4 condition opens as one group starting
  * All; and while a Filter out card's step is open, what it removes stays drawn faint and still
  * hidden, until Escape.
@@ -61,7 +61,7 @@ function valjeanOpacity(session: GraphSession): unknown {
 }
 
 describe("the import filter's cards as selections", () => {
-    it("Add filter opens the value picker at once; the first test writes the card", async () => {
+    it("Add filter opens the value picker at once; the first step writes the card, inert until its test", async () => {
         const session = await openData();
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
         const search = await screen.findByRole("combobox", { name: "Find attributes, results" });
@@ -71,7 +71,11 @@ describe("the import filter's cards as selections", () => {
         await userEvent.keyboard("Degree");
         await userEvent.keyboard("{Enter}");
         const from = await screen.findByRole("textbox", { name: "Degree from, number" });
-        assert.lengthOf(session.visibility.conditions, 0, "a step with no test writes nothing");
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 1, "the first step writes the card");
+        });
+        assert.strictEqual(session.visibility.nodes.size, 77, "a step with no test removes nothing");
+        assert.deepEqual(session.selection.nodes, [], "and selects nothing");
         assert.notInclude(
             document.querySelector(".sel-editor")?.textContent ?? "",
             "no value",
@@ -108,7 +112,7 @@ describe("the import filter's cards as selections", () => {
         assert.lengthOf(session.visibility.conditions, 0);
     });
 
-    it("Done on a new card whose step has no test yet keeps the card, folded, with its step", async () => {
+    it("Done on a new card whose step has no test yet keeps the card, folded, across a switch of place", async () => {
         const session = await openData();
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
@@ -119,8 +123,11 @@ describe("the import filter's cards as selections", () => {
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-editor"), "the card folded");
         });
-        const card = screen.getByRole("group", { name: "New filter" });
-        assert.lengthOf(session.visibility.conditions, 0, "still nothing written");
+        assert.lengthOf(session.visibility.conditions, 1, "the element holds it");
+        assert.strictEqual(session.visibility.nodes.size, 77, "and it removes nothing");
+        await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
+        const card = await screen.findByRole("group", { name: /^Degree/ });
         await userEvent.click(within(card).getByRole("button", { name: "Degree" }));
         await waitFor(() => {
             assert.lengthOf(document.querySelectorAll(".sel-step-row[data-row]"), 1, "its step came back");
@@ -175,6 +182,13 @@ describe("the import filter's cards as selections", () => {
         assert.strictEqual(session.visibility.summary.visibleNodes, visible, "and is still filtered out");
         assert.equal(session.visibility.conditions[0]?.rule.kind, "range", "opening it writes nothing");
         row.focus();
+        // Escape closes the card, the preview staying while the editor is open (spec 9); Escape
+        // again closes the editor and ends it.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(card.querySelector("[data-step-card]"));
+        });
+        assert.isTrue(session.styles.showingBranches, "the preview stays while the editor is open");
         await userEvent.keyboard("{Escape}");
         await waitFor(async () => {
             assert.isFalse(session.styles.showingBranches);

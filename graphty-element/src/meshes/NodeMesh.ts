@@ -915,8 +915,7 @@ export class NodeMesh {
             shape.cornerRadius,
             shape.points,
             shape.stretchPoints !== false,
-            shape.exactCornerRadius === true,
-            shape.cornerFraction,
+            { exact: shape.exactCornerRadius === true, fraction: shape.cornerFraction },
         ).map(([x, y]): Point2 => [x * perSize, y * perSize]);
         if (shape.sizeMode !== "diameter" || this.hasExplicitExtent(shape) || outline.length === 0) {
             return outline;

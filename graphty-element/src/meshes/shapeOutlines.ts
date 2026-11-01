@@ -637,10 +637,11 @@ function polygonOutline(points: string | undefined, halfWidth: number, halfHeigh
  *   usable ones is drawn as a rectangle.
  * @param stretch - Whether a polygon's corners are stretched to reach the box's sides (`shape.stretchPoints`), or
  *   drawn where they say.
- * @param exact - Whether `cornerRadius` is drawn as given (`shape.exactCornerRadius`), up to half the shorter side,
- *   rather than capped at a quarter of it (round-rectangle) or a tenth (round-* polygons).
- * @param fraction - The share of the shorter side a round-rectangle's corners are rounded by when not `exact`
- *   (`shape.cornerFraction`), a quarter by default.
+ * @param corners - How the corners are rounded.
+ * @param corners.exact - Whether `cornerRadius` is drawn as given (`shape.exactCornerRadius`), up to half the
+ *   shorter side, rather than capped at a quarter of it (round-rectangle) or a tenth (round-* polygons).
+ * @param corners.fraction - The share of the shorter side a round-rectangle's corners are rounded by when not
+ *   `exact` (`shape.cornerFraction`), a quarter by default.
  * @returns The outline, counter-clockwise, or an empty list for a shape that is not flat.
  */
 export function flatShapeOutline(
@@ -650,8 +651,7 @@ export function flatShapeOutline(
     cornerRadius?: number,
     points?: string,
     stretch = true,
-    exact = false,
-    fraction?: number,
+    { exact = false, fraction }: { readonly exact?: boolean; readonly fraction?: number } = {},
 ): Point2[] {
     const halfWidth = width / 2;
     const halfHeight = height / 2;

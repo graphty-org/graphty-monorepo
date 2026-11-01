@@ -287,7 +287,7 @@ describe("flat shape outlines", () => {
         const topEnd = (outline: Point2[], halfHeight: number): number =>
             Math.max(...outline.filter(([, y]) => Math.abs(y - halfHeight) < 1e-9).map(([x]) => x));
         const exact = (shape: string, w: number, h: number, r: number): Point2[] =>
-            flatShapeOutline(shape, w, h, r, undefined, true, true);
+            flatShapeOutline(shape, w, h, r, undefined, true, { exact: true });
 
         // Cytoscape.js's corner-radius 14 on a 30 px box: 14 across each corner, not the quarter's 7.5
         assert.approximately(topEnd(exact("round-rectangle", 30, 30, 14), 15), 15 - 14, 1e-9);

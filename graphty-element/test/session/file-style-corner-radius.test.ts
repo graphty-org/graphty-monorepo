@@ -72,8 +72,10 @@ function drawnRadius(session: GraphSession, node: string, fileWidth: number): nu
         drawn(session, node, "node.cornerRadius") as number | undefined,
         undefined,
         true,
-        drawn(session, node, "node.exactCornerRadius") === true,
-        drawn(session, node, "node.cornerFraction") as number | undefined,
+        {
+            exact: drawn(session, node, "node.exactCornerRadius") === true,
+            fraction: drawn(session, node, "node.cornerFraction") as number | undefined,
+        },
     );
     // the top side's straight run ends where its corner's arc starts, one radius in from the side
     const top = Math.max(...outline.map(([, y]) => y));

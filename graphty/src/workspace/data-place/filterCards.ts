@@ -32,7 +32,9 @@ function namerOf(session: GraphSession): Namer {
         attribute: (path) =>
             path === "id"
                 ? "Node id"
-                : (attributes.find((a) => a.path === path)?.plainName ?? path.replace(/^data\./, "")),
+                : (attributes.find((a) => a.path === path)?.plainName ??
+                  session.data.structureValues().find((value) => value.path === path)?.plainName ??
+                  path.replace(/^data\./, "")),
         // A node is named by its id until graphty-element publishes its name (#895).
         node: String,
         value: (path, value) => valueWord(value, attributes.find((a) => a.path === path)?.type),

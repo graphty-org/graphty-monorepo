@@ -57,9 +57,17 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
         }
         case "union": {
             // A selection built from steps: each group's steps in order, the groups joined by "or".
+            // A group starting with nothing reads its first Add as the rule itself ("degree 6 to 10").
             const verbs = { add: "add", keep: "keep", except: "except" } as const;
             const groups = rule.branches.map((branch) =>
-                branch.steps.map((step) => `${verbs[step.op]} ${ruleWords(step.rule, names)}`).join(", "),
+                branch.steps
+                    .map((step, at) => {
+                        const words = ruleWords(step.rule, names);
+                        return at === 0 && branch.start !== "all" && step.op === "add"
+                            ? words
+                            : `${verbs[step.op]} ${words}`;
+                    })
+                    .join(", "),
             );
             return groups.filter((each) => each !== "").join(" or ") || "a selection";
         }

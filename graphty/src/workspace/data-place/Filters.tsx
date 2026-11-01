@@ -7,7 +7,13 @@
  */
 
 import { ControlSection, EntityChip, SegmentedControl } from "@graphty/compact-mantine";
-import type { FilterCondition, FilterConditionCount, GraphSession, RuleTree } from "@graphty/graphty-element/session";
+import type {
+    FilterCondition,
+    FilterConditionCount,
+    GraphSession,
+    RuleTree,
+    UnionLeaf,
+} from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Button,
@@ -27,14 +33,15 @@ import React, { useEffect, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { isPanelEscape, isTypingTarget } from "../keys/keys";
-import { FilterSelection } from "../selection/FilterSelection";
-import { filterSelection } from "../selection/values";
+import { FilterSelection, type StartEffect } from "../selection/FilterSelection";
+import { addStep, newSelection } from "../selection/model";
+import { filterSelection, type PickSection, ruleOfField, sideOf } from "../selection/values";
 import { stepWords } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { type Card, type CardField, cardFields, newCard, type Side, SOURCE_PATH } from "../style/cards";
-import { AddCondition, CardBody, type ExtraItem } from "../style/WhichPicker";
+import { type Card, type CardField, cardFields, newCard, type Side } from "../style/cards";
+import { AddCondition, CardBody } from "../style/WhichPicker";
 import { reportTimeError, unitOf } from "../time/timeActions";
 import { windowWords } from "../time/timeWords";
 import {
@@ -80,32 +87,35 @@ function focusCard(target: string, onBox = false): boolean {
     return control !== null;
 }
 
-/** A card not yet written: the id it is written with, the field it opened on, and its effect. */
-interface Draft {
-    readonly id: string;
-    readonly field: CardField;
-    readonly effect: StartEffect;
-}
-
 /**
- * The effect a new card is written with. A card from "+" starts on Select, which takes nothing out
- * of the picture (tier 4 round 1: 5 of 5 participants who made a card to mark lost part of the
+ * A card not yet written: the id it is written with, its side, the field it opened on (an
+ * attribute's Filter to...), and its effect. A card from "+" starts on Select, which takes nothing
+ * out of the picture (tier 4 round 1: 5 of 5 participants who made a card to mark lost part of the
  * picture first); an attribute's "Filter to..." starts on Filter to, as its words say.
  */
-type StartEffect = { readonly effect: "select"; readonly within: "picture" } | { readonly effect: "keep" };
+interface Draft {
+    readonly id: string;
+    readonly side: Side;
+    readonly field?: CardField;
+    readonly effect: StartEffect;
+}
 
 /** The effect that removes nothing. */
 const SELECT: StartEffect = { effect: "select", within: "picture" };
 
 /**
- * The fields a card can test on one kind. The Data source speaks of nodes and edges at once, so it
- * is offered once, apart.
+ * A new card's selection over the full graph: one group starting None, with an Add step on a
+ * field when the card opened on one (an attribute's Filter to...).
  * @param session - the element's session.
  * @param side - nodes or edges.
- * @returns the fields.
+ * @param field - the field, if any.
+ * @returns the selection.
  */
-const valueFields = (session: GraphSession, side: Side): CardField[] =>
-    cardFields(session, side).filter((field) => field.kind !== "source");
+function newFilterSelection(session: GraphSession, side: Side, field?: CardField): UnionLeaf {
+    const made = newSelection(side === "node" ? "nodes" : "edges", "graph");
+    const branch = made.branches[0].id ?? "";
+    return field === undefined ? made : addStep(made, branch, "add", ruleOfField(session, field)).rule;
+}
 
 /**
  * Whether a condition hides anything when it is on: keep and exclude do, select does not.
@@ -132,7 +142,6 @@ export function FiltersSection(): React.JSX.Element {
     const version = useVisibilityVersion(session);
     const asked = useWorkspaceState((state) => state.filterDraft);
     const [drafts, setDrafts] = useState<readonly Draft[]>([]);
-    const [adding, setAdding] = useState(false);
     const [openId, setOpenId] = useState<string | null>(null);
     const conditions = session?.visibility.conditions ?? [];
     // Once written, a draft is one of the element's conditions, drawn by the same card, and is let
@@ -154,12 +163,13 @@ export function FiltersSection(): React.JSX.Element {
         }
     }, [version]);
 
-    const open = (field: CardField, effect: StartEffect = SELECT): void => {
+    // A new card: its value picker opens at once, or on a field, that field's step card.
+    const open = (side: Side, effect: StartEffect = SELECT, field?: CardField): void => {
         const id = newConditionId(
             session?.visibility.conditions ?? [],
             drafts.map((each) => each.id),
         );
-        setDrafts((now) => [...now, { id, field, effect }]);
+        setDrafts((now) => [...now, { id, side, effect, ...(field === undefined ? {} : { field }) }]);
         setOpenId(id);
     };
     const openRef = useRef(open);
@@ -171,7 +181,7 @@ export function FiltersSection(): React.JSX.Element {
         }
         store.set({ filterDraft: null });
         if (asked === PLUS) {
-            setAdding(true);
+            openRef.current("node");
             return;
         }
         const at = asked.indexOf(":");
@@ -180,7 +190,7 @@ export function FiltersSection(): React.JSX.Element {
         if (side === "node" || side === "edge") {
             const field = cardFields(session, side).find((each) => each.path === path);
             if (field !== undefined) {
-                openRef.current(field, { effect: "keep" });
+                openRef.current(side, { effect: "keep" }, field);
             }
         }
     }, [asked, session, store]);
@@ -191,30 +201,48 @@ export function FiltersSection(): React.JSX.Element {
     const plus =
         session === null ? null : (
             <span data-filters-plus="">
-                <AddCondition
-                    fields={[...valueFields(session, "node"), ...valueFields(session, "edge")]}
-                    used={[]}
-                    bySide
-                    plus="Add filter"
-                    opened={adding}
-                    onOpened={setAdding}
-                    onAdd={open}
-                    extra={structureItems(
-                        session,
-                        store,
-                        open,
-                        (id) => {
-                            setOpenId(id);
-                        },
-                        drafts.map((each) => each.id),
-                        timed,
-                    )}
-                />
+                <Tooltip label="Add filter">
+                    <ActionIcon
+                        variant="subtle"
+                        data-add
+                        aria-label="Add filter"
+                        onClick={() => {
+                            open("node");
+                        }}
+                    >
+                        <GLYPHS.add size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
             </span>
         );
+    // The filter's own picker entry: the Time window, while a time field has no Time window card.
+    const timePick = (onPicked: () => void): readonly PickSection[] =>
+        session === null || session.time.field === null || timed
+            ? []
+            : [
+                  {
+                      group: "Time",
+                      items: [
+                          {
+                              key: "time",
+                              name: TIME_WINDOW,
+                              glyph: GLYPHS.time,
+                              onPick: () => {
+                                  onPicked();
+                                  pendingFocus = { target: TIME_ROW };
+                                  store.set({ timeWindowCard: true });
+                                  session.time.pause();
+                                  session.time.window({}).then(() => {
+                                      openTimeCard(store);
+                                  }, reportTimeError(store));
+                              },
+                          },
+                      ],
+                  },
+              ];
     const cards = [
-        ...conditions.map((condition) => ({ id: condition.id, condition, field: undefined, effect: SELECT })),
-        ...waiting.map((each) => ({ id: each.id, condition: undefined, field: each.field, effect: each.effect })),
+        ...conditions.map((condition) => ({ id: condition.id, condition, draft: undefined })),
+        ...waiting.map((each) => ({ id: each.id, condition: undefined, draft: each })),
     ];
     const empty = cards.length === 0 && !timed;
 
@@ -231,8 +259,8 @@ export function FiltersSection(): React.JSX.Element {
                             id={each.id}
                             condition={each.condition}
                             count={counts.find((c) => c.id === each.id)}
-                            field={each.field}
-                            startEffect={each.effect}
+                            draft={each.draft}
+                            timePick={timePick}
                             open={openId === each.id}
                             onOpen={(next) => {
                                 setOpenId(next ? each.id : null);
@@ -252,87 +280,6 @@ export function FiltersSection(): React.JSX.Element {
             )}
         </ControlSection>
     );
-}
-
-/**
- * The "+" list's Structure rows: the cards that are not a field's (Data source with two or more
- * loads, Largest component, Neighbors of selection with nodes selected, Time window with a time
- * field and no Time window card yet).
- * @param session - the element's session.
- * @param store - the chrome store.
- * @param onField - opens a new card on a field (the Data source).
- * @param onWritten - opens the card a row wrote.
- * @param taken - the drafts' ids, which a new card must not take.
- * @param timeShown - whether the Time window card is already in the list.
- * @returns the rows.
- */
-function structureItems(
-    session: GraphSession,
-    store: WorkspaceStore,
-    onField: (field: CardField) => void,
-    onWritten: (id: string) => void,
-    taken: readonly string[],
-    timeShown: boolean,
-): ExtraItem[] {
-    const add = (rule: FilterCondition["rule"]): void => {
-        const id = newConditionId(session.visibility.conditions, taken);
-        pendingFocus = { target: id };
-        onWritten(id);
-        void writeCondition(store, () => session.visibility.addCondition({ id, ...SELECT, rule }));
-    };
-    const selected = session.selection.nodes;
-    const source = cardFields(session, "node").find((field) => field.path === SOURCE_PATH);
-    return [
-        ...(source === undefined
-            ? []
-            : [
-                  {
-                      key: "source",
-                      name: "Data source",
-                      glyph: GLYPHS.file,
-                      onPick: () => {
-                          onField(source);
-                      },
-                  },
-              ]),
-        {
-            key: "largest",
-            name: "Largest component",
-            glyph: GLYPHS.graph,
-            onPick: () => {
-                add({ kind: "member", of: "largest-component" });
-            },
-        },
-        ...(selected.length === 0
-            ? []
-            : [
-                  {
-                      key: "neighbors",
-                      name: "Neighbors of selection",
-                      glyph: GLYPHS.neighborhood,
-                      onPick: () => {
-                          add({ kind: "neighborhood", seeds: selected, depth: 1 });
-                      },
-                  },
-              ]),
-        ...(session.time.field !== null && !timeShown
-            ? [
-                  {
-                      key: "time",
-                      name: TIME_WINDOW,
-                      glyph: GLYPHS.time,
-                      onPick: () => {
-                          pendingFocus = { target: TIME_ROW };
-                          store.set({ timeWindowCard: true });
-                          session.time.pause();
-                          session.time.window({}).then(() => {
-                              openTimeCard(store);
-                          }, reportTimeError(store));
-                      },
-                  },
-              ]
-            : []),
-    ];
 }
 
 /**
@@ -419,18 +366,18 @@ function usePreviewCount(session: GraphSession, rule: RuleTree | null, side: Sid
 /**
  * One filter card (design/data/filter-cards.md section 5, tier 4 R3 and R4): a header row with
  * its field, its count and its remove button; a row with Select / Filter to / Filter out and its on box; then its
- * body while it is open, else its summary. A card not yet written (`condition` undefined) is
- * written by its first value. Typed text is written when it is committed (Enter, Tab or a click
- * out, Escape), its count following each key meanwhile without a write. Only Escape takes a card
- * back, and only one with no value.
+ * body while it is open, else its summary. Its body is a selection (design/ui/selection-groups/spec.md):
+ * a card not yet written (`condition` undefined) tops it with a Nodes | Edges switch and is written
+ * by its first step that applies. A rule the editor does not edit keeps its own body. Only Escape
+ * or Done takes a card back, and only one not yet written.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.store - the chrome store
  * @param props.id - the condition's id (a draft's is the id it is written with)
  * @param props.condition - the condition, or undefined for a draft
  * @param props.count - the element's count of it
- * @param props.field - a draft's field
- * @param props.startEffect - the effect a draft is written with
+ * @param props.draft - a card not yet written: its side, field and effect
+ * @param props.timePick - the filter's own picker entries, given what to do once one is picked
  * @param props.open - whether its body is shown
  * @param props.onOpen - opens or closes it
  * @param props.onDiscard - drops a draft
@@ -443,8 +390,8 @@ function FilterCard({
     id,
     condition,
     count,
-    field,
-    startEffect,
+    draft: fresh,
+    timePick,
     open,
     onOpen,
     onDiscard,
@@ -455,21 +402,21 @@ function FilterCard({
     id: string;
     condition: FilterCondition | undefined;
     count: FilterConditionCount | undefined;
-    field: CardField | undefined;
-    startEffect: StartEffect;
+    draft: Draft | undefined;
+    timePick: (onPicked: () => void) => readonly PickSection[];
     open: boolean;
     onOpen: (open: boolean) => void;
     onDiscard: () => void;
     onRemoved: () => void;
 }>): React.JSX.Element {
     const box = useRef<HTMLDivElement>(null);
+    const field = fresh?.field;
+    const startEffect = fresh?.effect ?? SELECT;
+    // A new card's selection: one group starting None, and a step on its field when it has one.
+    const [draftRule, setDraftRule] = useState(() => newFilterSelection(session, fresh?.side ?? "node", field));
     const shape =
         condition === undefined
-            ? ({
-                  kind: "fields",
-                  side: field?.on ?? "node",
-                  cards: field === undefined ? [] : [newCard(field)],
-              } as const)
+            ? ({ kind: "fields", side: sideOf(draftRule), cards: [] } as const)
             : shapeOf(session, condition);
     const ruleKey = condition === undefined ? "" : JSON.stringify(condition.rule);
     const [cards, setCards] = useState<readonly Card[]>(shape.kind === "fields" ? shape.cards : []);
@@ -492,21 +439,11 @@ function FilterCard({
     if (condition?.rule.kind === "union") {
         side = condition.rule.side === "nodes" ? "node" : "edge";
     }
-    // A written condition is edited as a selection (design/ui/selection-groups/spec.md).
-    const selection = condition === undefined ? null : filterSelection(session, condition.rule, side);
-    // A draft's first value just wrote it: its step's card opens, focused, in the selection.
-    const justWritten = useRef(false);
-
-    // A new card puts focus on its first value.
-    useEffect(() => {
-        if (draft) {
-            const root = box.current;
-            const target =
-                root?.querySelector<HTMLElement>(`.dp-filter-body input:not([type=hidden]):not([readonly])`) ??
-                root?.querySelector<HTMLElement>(".dp-filter-body :is(input:not([type=hidden]), button)");
-            target?.focus();
-        }
-    }, [draft]);
+    // A condition is edited as a selection (design/ui/selection-groups/spec.md), a new card too.
+    const selection = condition === undefined ? draftRule : filterSelection(session, condition.rule, side);
+    const stepless = draftRule.branches.every((branch) => branch.steps.length === 0);
+    // The picker opens by itself only on arrival: after a side switch the reader presses "+".
+    const [switched, setSwitched] = useState(false);
 
     // While text is typed, the count is the rule's as typed, read without writing it; spoken once
     // typing pauses. A new card shows none until the reader gives it a value.
@@ -527,12 +464,11 @@ function FilterCard({
         if (made === null) {
             return;
         }
-        const rule = condition === undefined ? made : keepReadings(made, condition.rule);
         if (condition === undefined) {
-            written.current = JSON.stringify(rule);
-            justWritten.current = true;
-            void writeCondition(store, () => session.visibility.addCondition({ id, ...startEffect, rule }));
-        } else if (!sameRule(rule, condition.rule)) {
+            return;
+        }
+        const rule = keepReadings(made, condition.rule);
+        if (!sameRule(rule, condition.rule)) {
             written.current = JSON.stringify(rule);
             void writeCondition(store, () => session.visibility.updateCondition(id, { rule }));
         }
@@ -713,14 +649,45 @@ function FilterCard({
                 )}
                 {open ? (
                     <div className="dp-filter-body">
+                        {draft && (
+                            // A new card's side; switching starts its selection again on the other side.
+                            <SegmentedControl
+                                size="xs"
+                                label="Filter on"
+                                data={[
+                                    { value: "node", label: "Nodes" },
+                                    { value: "edge", label: "Edges" },
+                                ]}
+                                value={side}
+                                onChange={(value) => {
+                                    setSwitched(true);
+                                    setDraftRule(newFilterSelection(session, value === "edge" ? "edge" : "node"));
+                                }}
+                            />
+                        )}
                         {selection !== null ? (
                             <FilterSelection
+                                // A new card's side switch starts a new editor; writing it keeps this one.
+                                key={side}
                                 session={session}
                                 store={store}
                                 id={id}
                                 rule={selection}
-                                openFirst={justWritten.current}
+                                written={!draft}
+                                startEffect={startEffect}
+                                title={title}
+                                openFirst={draft && !stepless}
+                                openPicker={draft && stepless && !switched}
+                                hostPicks={timePick(() => {
+                                    if (draft) {
+                                        onDiscard();
+                                    }
+                                })}
                                 onDone={() => {
+                                    if (draft) {
+                                        onDiscard();
+                                        return;
+                                    }
                                     onOpen(false);
                                     box.current?.querySelector<HTMLElement>(ON_BOX)?.focus();
                                 }}
@@ -860,7 +827,7 @@ function CardContent({
                     ))}
                     {condition !== undefined && (
                         <AddCondition
-                            fields={valueFields(session, shape.side)}
+                            fields={cardFields(session, shape.side).filter((each) => each.kind !== "source")}
                             used={cards.map((card) => card.key)}
                             onAdd={(added) => {
                                 if (!cards.some((card) => card.key === `${added.on}:${added.path}`)) {

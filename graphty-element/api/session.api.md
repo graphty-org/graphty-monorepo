@@ -4137,6 +4137,7 @@ export interface RecordPageOptions {
     readonly matching?: {
         readonly text: string;
         readonly mode?: SelectionTextMode;
+        readonly names?: boolean;
     };
     readonly offset?: number;
     readonly scope?: ScopeInput;
@@ -4792,6 +4793,8 @@ export interface RunResult {
     edge(id: EdgeId): Readonly<Record<string, unknown>> | undefined;
     readonly fields: readonly FieldDescriptor[];
     readonly graph: Readonly<Record<string, unknown>>;
+    // @beta
+    groupRanks(): ReadonlyMap<string, number> | undefined;
     groupSizes(options?: HistogramOptions): Histogram;
     histogram(field: string, options?: HistogramOptions): Histogram;
     readonly measured: {

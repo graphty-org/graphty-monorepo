@@ -35,6 +35,8 @@ import type { PickSection } from "./values";
  * @param props.onEmptyCancel - the value picker closed with nothing chosen on a card with no step
  * @param props.onDraft - takes a new card's selection while it has no step yet, so the host keeps it
  * @param props.onDone - Escape with no row selected
+ * @param props.onTitleToggle - Space on the title row: switches the card's on box
+ * @param props.titleOff - the card's on box is off
  * @returns The editor
  */
 export function FilterSelection({
@@ -53,6 +55,8 @@ export function FilterSelection({
     onDraft,
     onEmptyCancel,
     onDone,
+    onTitleToggle,
+    titleOff,
 }: Readonly<{
     session: GraphSession;
     store: WorkspaceStore;
@@ -69,6 +73,8 @@ export function FilterSelection({
     onDraft?: (rule: UnionLeaf) => void;
     onEmptyCancel?: () => void;
     onDone: () => void;
+    onTitleToggle?: () => void;
+    titleOff?: boolean;
 }>): React.JSX.Element {
     // The rule as last edited, until the element holds it.
     const [local, setLocal] = useState<UnionLeaf | null>(null);
@@ -92,6 +98,8 @@ export function FilterSelection({
             titleExtra={titleExtra}
             onDone={onDone}
             onEmptyCancel={onEmptyCancel}
+            onTitleToggle={onTitleToggle}
+            titleOff={titleOff}
             onChange={(next) => {
                 setLocal(next);
                 if (effect === undefined && next.branches.every((branch) => branch.steps.length === 0)) {

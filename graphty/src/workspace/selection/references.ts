@@ -10,6 +10,9 @@ import type { GraphSession, NodeRecord } from "@graphty/graphty-element/session"
 import { formatNumber } from "../inspector/words";
 import type { Host } from "./values";
 
+/** The list's first option: the next node clicked on the canvas becomes the reference. */
+export const PICK_ON_CANVAS = "pick";
+
 /** How many sets or nodes the list draws at most. */
 export const SHOWN_REFERENCES = 8;
 
@@ -36,11 +39,11 @@ export interface ReferenceSection {
 export function findNodes(session: GraphSession, typed: string): { nodes: readonly NodeRecord[]; total: number } {
     const sort = { key: "graphty.degree", descending: true } as const;
     const starts = session.data.nodePage({
-        matching: { text: typed, mode: "starts-with" },
+        matching: { text: typed, mode: "starts-with", names: true },
         sort,
         limit: SHOWN_REFERENCES,
     }).records;
-    const holds = session.data.nodePage({ matching: { text: typed }, sort, limit: SHOWN_REFERENCES * 2 });
+    const holds = session.data.nodePage({ matching: { text: typed, names: true }, sort, limit: SHOWN_REFERENCES * 2 });
     const seen = new Set(starts.map((each) => String(each.id)));
     const rest = holds.records.filter((each) => !seen.has(String(each.id)));
     return { nodes: [...starts, ...rest].slice(0, SHOWN_REFERENCES), total: Math.max(holds.total, starts.length) };
@@ -81,8 +84,9 @@ export function referenceSections(
     }));
     const counted = (name: string, shown: number, total: number): string =>
         total > shown ? `${name} ${formatNumber(shown)} of ${formatNumber(total)}` : name;
+    const pick = has("Pick on canvas") ? [{ value: PICK_ON_CANVAS, label: "Pick on canvas" }] : [];
     return [
-        { heading: host === "selector" ? "Live" : "Selection", items: live },
+        { heading: host === "selector" ? "Live" : "Selection", items: [...pick, ...live] },
         {
             heading: counted("Sets", Math.min(sets.length, SHOWN_REFERENCES), sets.length),
             items: sets.slice(0, SHOWN_REFERENCES),

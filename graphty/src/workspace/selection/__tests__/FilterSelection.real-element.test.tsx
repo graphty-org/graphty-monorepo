@@ -138,7 +138,7 @@ describe("the import filter's cards as selections", () => {
         await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
         await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
         const card = await filterCard(/degree/i);
-        await userEvent.click(within(card).getByRole("button", { name: "Degree" }));
+        await userEvent.click(within(card).getByRole("button", { name: /^Degree/ }));
         await waitFor(() => {
             assert.lengthOf(document.querySelectorAll(".sel-step-row[data-row]"), 1, "its step came back");
         });
@@ -153,7 +153,7 @@ describe("the import filter's cards as selections", () => {
         await userEvent.click(within(card).getByRole("treeitem", { name: /^New filter, / }));
         // The segment's radio is visually hidden: a reader clicks its label.
         await userEvent.click(await within(card).findByText("Edges"));
-        await userEvent.click(await within(card).findByRole("button", { name: "Keep..." }));
+        await userEvent.click(await within(card).findByRole("treeitem", { name: "Step..." }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Self-loops");
         await userEvent.keyboard("{Enter}");
@@ -171,12 +171,12 @@ describe("the import filter's cards as selections", () => {
         const expected = (await session.scope.count({ define: { kind: "rule", where: degree, reading: "clipped" } }))
             .nodes;
         const card = await filterCard(/degree/i);
-        await userEvent.click(within(card).getByRole("button", { name: "Degree" }));
+        await userEvent.click(within(card).getByRole("button", { name: /^Degree/ }));
         const filters = screen.getByRole("list", { name: "Filters" });
         for (const word of ["Select", "Filter to", "Filter out"]) {
             assert.isNull(within(filters).queryByText(word), word);
         }
-        await userEvent.click(within(card).getByRole("treeitem", { name: /^Degree, / }));
+        await userEvent.click(within(card).getByRole("treeitem", { name: /^Degree min 10, / }));
         await userEvent.click(await within(card).findByRole("button", { name: /^More for / }));
         const items = await screen.findAllByRole("menuitem");
         assert.equal(items[0]?.textContent?.trim().startsWith(`Select ${String(expected)}`), true);
@@ -197,7 +197,7 @@ describe("the import filter's cards as selections", () => {
         const visible = session.visibility.summary.visibleNodes;
         const before = valjeanOpacity(session);
         const card = await filterCard(/degree/i);
-        await userEvent.click(within(card).getByRole("button", { name: "Degree" }));
+        await userEvent.click(within(card).getByRole("button", { name: /^Degree/ }));
         assert.isNotNull(await within(card).findByRole("treeitem", { name: "All nodes" }));
         const row = await waitFor(() => {
             const found = card.querySelector<HTMLElement>(".sel-step-row[data-row]");

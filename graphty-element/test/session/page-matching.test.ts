@@ -51,6 +51,17 @@ describe("a page narrowed by matching text", () => {
         session.dispose();
     });
 
+    it("names: true looks only at the id and the label column, never the other columns", async () => {
+        const session = await cast();
+        await session.config.set({ data: { knownFields: { nodeLabelPath: "role" } } });
+        // "52" is two ages: by name it matches nothing.
+        assert.strictEqual(session.data.nodePage({ matching: { text: "52", names: true } }).total, 0);
+        assert.strictEqual(session.data.nodePage({ matching: { text: "52" } }).total, 2);
+        assert.deepStrictEqual(ids(session.data.nodePage({ matching: { text: "may", names: true } })), ["Valjean"]);
+        assert.deepStrictEqual(ids(session.data.nodePage({ matching: { text: "jav", names: true } })), ["Javert"]);
+        session.dispose();
+    });
+
     it("takes the text modes selection.apply({ text }) takes, as a mode or a prefix", async () => {
         const session = await cast();
         assert.deepStrictEqual(ids(session.data.nodePage({ matching: { text: "52", mode: "exact" } })), [

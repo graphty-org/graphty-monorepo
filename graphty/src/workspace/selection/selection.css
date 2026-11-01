@@ -18,8 +18,9 @@
 }
 
 .sel-row:focus-visible {
-    outline: 2px solid var(--mantine-primary-color-filled);
-    outline-offset: -2px;
+    /* Figma's one focus ring (figma-spec 2.7), as the style layer tree draws it. */
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: -1px;
 }
 
 .sel-row[aria-selected="true"] {
@@ -39,9 +40,13 @@
     width: 40px;
 }
 
-/* The value is named in full; only the test is cut short, at its tail. */
+/* The value is cut short only once the test has no room left, so the tags and the state word
+   always fit; the row's tooltip names it in full. */
 .sel-value {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .sel-test {
@@ -62,6 +67,7 @@
 }
 
 .sel-state,
+.sel-more,
 .sel-count {
     flex: none;
     font-variant-numeric: tabular-nums;
@@ -99,14 +105,14 @@
     flex: 1 1 0;
 }
 
-/* The Add row's verbs and Or... sit in the value column, as words. */
+/* "Step..." sits in the value column, after an empty verb column; "Or..." at the chit's x. */
 .sel-add-row,
 .sel-or-row {
-    gap: 2px;
+    cursor: pointer;
 }
 
-.sel-or-row {
-    padding-inline-start: 4px;
+.sel-or-row[aria-disabled="true"] {
+    cursor: default;
 }
 
 /* The property pane, under the outline. */
@@ -120,4 +126,13 @@
     align-items: center;
     gap: 6px;
     height: 24px;
+}
+
+/* A list of values cut short keeps its "and N more" right after the names. */
+.sel-test:has(+ .sel-more) {
+    flex: 0 1 auto;
+}
+
+.sel-more {
+    margin-inline-end: auto;
 }

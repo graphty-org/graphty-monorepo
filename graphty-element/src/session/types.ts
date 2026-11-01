@@ -262,7 +262,21 @@ export interface RecordPageOptions {
      * session.data.nodePage({ matching: { text: "jav" }, limit: 30 }); // Javert, ...
      * ```
      */
-    readonly matching?: { readonly text: string; readonly mode?: SelectionTextMode };
+    readonly matching?: {
+        readonly text: string;
+        readonly mode?: SelectionTextMode;
+        /**
+         * Look only at what a record is called: a node's id and its name ({@link SessionDataApi.name}'s
+         * label column), an edge's id and its endpoints' ids, never the other columns. What a
+         * picker of nodes by name wants on a graph whose columns hold numbers and codes.
+         *
+         * ```ts
+         * session.data.nodePage({ matching: { text: "1", names: true }, limit: 8 }); // n1, n10, ...
+         * ```
+         * @beta
+         */
+        readonly names?: boolean;
+    };
     /**
      * Only the records an open issue is on: one issue's id, or the word `"any"` for every open
      * issue (no issue id is `"any"`).

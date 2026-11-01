@@ -216,7 +216,7 @@ describe("focus after a command that moves the reader", () => {
         await openRow("Groups");
         const group = cardFields(session, "node").find((field) => field.path.endsWith(".group"));
         const name = group?.name ?? "";
-        await userEvent.click(await screen.findByRole("button", { name: "Keep..." }));
+        await userEvent.click(await screen.findByRole("treeitem", { name: "Step..." }));
         await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
         const values = await screen.findByRole("group", { name: new RegExp(`values$`) });
         const [first] = within(values).getAllByRole<HTMLInputElement>("checkbox");

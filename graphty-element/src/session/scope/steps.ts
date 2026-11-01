@@ -472,6 +472,11 @@ export function asUnion(
     if (options.effect === "exclude") {
         return leftBy(rule, { side, within }, isLeaf);
     }
+    // A keep condition's edge value leaf with no reading also keeps only the nodes at the ends of
+    // the edges it keeps; an edges union keeps every node, so it has no union form that means the same.
+    if (options.effect === "keep" && side === "edges" && keepsEnds(rule)) {
+        return null;
+    }
     switch (rule.kind) {
         case "union":
             return rule;
@@ -509,6 +514,27 @@ export function asUnion(
                 : null;
         default:
             return { kind: "union", side, within, branches: [{ start: "all", steps: [{ op: "keep", rule }] }] };
+    }
+}
+
+/**
+ * Whether a keep condition's rule hides nodes by its edge values: a value leaf with no `nodes`
+ * reading, under `all` and `any` only, reads the nodes at the ends of the edges it keeps.
+ * @param rule - The rule.
+ * @returns True when it does.
+ */
+function keepsEnds(rule: RuleTree): boolean {
+    switch (rule.kind) {
+        case "range":
+        case "categories":
+            return rule.nodes === undefined;
+        case "text":
+            return rule.reads !== "id" && rule.nodes === undefined;
+        case "all":
+        case "any":
+            return rule.of.some(keepsEnds);
+        default:
+            return false;
     }
 }
 

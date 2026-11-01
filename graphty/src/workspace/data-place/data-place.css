@@ -186,6 +186,17 @@
     text-align: start;
 }
 
+/* Focus on a resting card's name rings the whole row, as a tree row is ringed: a ring round the
+   name alone reads as a rename box. */
+.dp-filter-row .dp-filter-name:focus-visible {
+    outline: none;
+}
+
+.dp-filter-row:has(.dp-filter-name:focus-visible) {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: -1px;
+}
+
 /* A resting card's summary line, under its switches. */
 .dp-filter-summary {
     display: block;

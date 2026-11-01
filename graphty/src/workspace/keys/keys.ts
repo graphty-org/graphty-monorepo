@@ -154,9 +154,12 @@ export function formatKey(combo: string): string {
     const mod = isMac() ? "Cmd" : "Ctrl";
     return combo
         .split("+")
-        .map((part) => (part === "Mod" ? mod : part))
+        .map((part) => DRAWN_KEYS[part] ?? (part === "Mod" ? mod : part))
         .join("+");
 }
+
+/** Keys drawn shorter than their names, so a menu's "Delete" never reads "Delete Delete". */
+const DRAWN_KEYS: Readonly<Record<string, string>> = { Delete: "Del" };
 
 /**
  * The key string in ARIA's spelling, for `aria-keyshortcuts`: "Mod" becomes "Meta" or "Control".

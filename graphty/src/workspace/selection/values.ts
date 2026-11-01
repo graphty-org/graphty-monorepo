@@ -25,6 +25,9 @@ import { GLYPHS } from "../glyphs";
 import { type Card, type CardField, cardFields, cardOf, leafOf, type Side, SOURCE_PATH } from "../style/cards";
 import type { ExtraItem } from "../style/WhichPicker";
 
+/** The While preset's name until it has a reference: the reference goes where the dots are. */
+export const WHILE = "While ... has nodes";
+
 /** The hosts a selection is edited in: a style layer's selector, or an import filter card. */
 export type Host = "selector" | "filter";
 
@@ -256,13 +259,13 @@ export function pickSections(
                             item("upstream", "Upstream of", GLYPHS.neighborhood, { kind: "hops", direction: "in" }),
                         ]
                       : []),
-                  item("while", "While has nodes", GLYPHS.selection, { kind: "nonempty" }),
+                  item("while", WHILE, GLYPHS.selection, { kind: "nonempty" }),
               ]
             : [
                   item("touching", "Edges touching", GLYPHS.edge, { kind: "touching", ends: "either" }),
                   item("within-edges", "Edges within", GLYPHS.edge, { kind: "touching", ends: "both" }),
                   item("leaving", "Edges leaving", GLYPHS.edge, { kind: "touching", ends: "one" }),
-                  item("while", "While has nodes", GLYPHS.selection, { kind: "nonempty" }),
+                  item("while", WHILE, GLYPHS.selection, { kind: "nonempty" }),
               ];
     const sections: PickSection[] = [
         ...analyze.map((each) => ({ group: each.heading, items: each.items })),

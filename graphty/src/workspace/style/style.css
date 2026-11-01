@@ -493,3 +493,8 @@
 .ws-field-sub {
     padding-inline-start: var(--ws-label, 80px);
 }
+
+/* The value picker's list: rows stay inside it, cut short at their tail (WhichPicker.tsx). */
+.mantine-ScrollArea-content.ws-list-content {
+    display: block;
+}

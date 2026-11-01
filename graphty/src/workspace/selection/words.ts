@@ -20,7 +20,7 @@ import { formatNumber } from "../inspector/words";
 import { type Card, cardWords, type Side } from "../style/cards";
 import { NATURAL, valueName } from "../style/words";
 import type { Verb } from "./model";
-import { isRelative, referenceOf, stepCard } from "./values";
+import { isRelative, referenceOf, stepCard, WHILE } from "./values";
 
 /** A verb's word, Figma's name for it, and the words a search finds it by. Verbs are words everywhere. */
 export const VERB_WORDS: Readonly<Record<Verb, { word: string; figma: string; aliases: readonly string[] }>> = {
@@ -148,7 +148,7 @@ function relativeName(rule: RuleTree): string {
         case "touching":
             return { either: "Edges touching", both: "Edges within", one: "Edges leaving" }[rule.ends];
         case "nonempty":
-            return "While has nodes";
+            return WHILE;
         default:
             return "Shares a value with";
     }
@@ -201,7 +201,9 @@ function ruleStepWords(
     if (rule.kind === "nonempty") {
         // "While Hovered or selected has nodes": the reference sits inside the preset's words.
         const of = referenceOf(rule);
-        return { value: "While", test: of === undefined ? "" : `${referenceWords(session, of)} has nodes` };
+        return of === undefined
+            ? { value: WHILE, test: "" }
+            : { value: "While", test: `${referenceWords(session, of)} has nodes` };
     }
     if (isRelative(rule)) {
         return { value: relativeName(rule), test: referenceWords(session, referenceOf(rule)) };
@@ -223,6 +225,10 @@ function ruleStepWords(
                 : method;
         const { card } = stepCard(session, step, reading, side);
         return { value: named, test: card === null ? "" : testWords(cardWords(session, card), "") };
+    }
+    if (rule.kind === "degree") {
+        // A tier 4 degree leaf, read as the Degree value it is (a converted card is named by it).
+        return { value: "Degree", test: boundsWords(rule.min, rule.max) };
     }
     const { card, field } = stepCard(session, step, undefined, side);
     if (card === null) {
@@ -247,7 +253,7 @@ export function rowWords(
     step: UnionStep,
     side: Side,
     reading?: StepReading,
-): { value: string; test: string; tags: string[] } {
+): { value: string; test: string; tags: string[]; more?: string } {
     const words = ruleStepWords(session, step, side, reading);
     const tags = [
         ...(step.computedOn === "so-far" ? ["So far"] : []),
@@ -258,7 +264,17 @@ export function rowWords(
     }
     const { card } = stepCard(session, step, reading, side);
     const short = card === null ? undefined : shortTest(session, card);
-    return { value: words.value, test: short ?? words.test, tags };
+    // An untouched test (text, a date) says nothing in the row: its state word already says No test.
+    const untouched =
+        reading?.reason?.code === "test-unset" ||
+        (card?.type === "text" && card.match !== "list" && card.text.trim() === "");
+    // A long list of values is drawn as its first names and "and N more", which is never cut short.
+    const many =
+        card?.type === "category" && card.match === "values" ? valuesParts(categoryNames(session, card)) : null;
+    if (many !== null && many.more > 0) {
+        return { value: words.value, test: many.listed, more: `and ${formatNumber(many.more)} more`, tags };
+    }
+    return { value: words.value, test: short ?? (untouched ? "" : words.test), tags };
 }
 
 /**
@@ -272,23 +288,52 @@ export function shortTest(session: GraphSession, card: Card): string | undefined
         return card.top === undefined ? "" : `top ${formatNumber(card.top)}`;
     }
     if (card.type === "number" && card.match === "range") {
-        const { min, max } = card;
-        if (min !== undefined && max !== undefined) {
-            return `${formatNumber(min)} to ${formatNumber(max)}`;
-        }
-        if (min !== undefined) {
-            return `min ${formatNumber(min)}`;
-        }
-        return max === undefined ? "" : `max ${formatNumber(max)}`;
+        return boundsWords(card.min, card.max);
     }
     if (card.type === "category" && card.match === "values") {
-        const names = [
-            ...card.values.map((value) => valueName(session, card.field.path, value)).sort(NATURAL.compare),
-            ...(card.gaps ? ["(no value)"] : []),
-        ];
-        return valuesWords(names);
+        return valuesWords(categoryNames(session, card));
     }
     return undefined;
+}
+
+/**
+ * Two bounds in the Min and Max boxes' words: "3 to 7", "min 3", "max 7", or "".
+ * @param min - the lower bound.
+ * @param max - the upper bound.
+ * @returns the words.
+ */
+function boundsWords(min: number | undefined, max: number | undefined): string {
+    if (min !== undefined && max !== undefined) {
+        return `${formatNumber(min)} to ${formatNumber(max)}`;
+    }
+    if (min !== undefined) {
+        return `min ${formatNumber(min)}`;
+    }
+    return max === undefined ? "" : `max ${formatNumber(max)}`;
+}
+
+/**
+ * A category test's values by name, in natural order, "(no value)" last.
+ * @param session - the element's session.
+ * @param card - the category card.
+ * @returns the names.
+ */
+function categoryNames(session: GraphSession, card: Extract<Card, { type: "category" }>): string[] {
+    return [
+        ...card.values.map((value) => valueName(session, card.field.path, value)).sort(NATURAL.compare),
+        ...(card.gaps ? ["(no value)"] : []),
+    ];
+}
+
+/**
+ * {@link valuesWords} in two parts: the names listed and how many more.
+ * @param names - the values' names, in order.
+ * @returns the listed names and the count left out.
+ */
+function valuesParts(names: readonly string[]): { listed: string; more: number } {
+    return names.length <= 3
+        ? { listed: names.join(", "), more: 0 }
+        : { listed: names.slice(0, 2).join(", "), more: names.length - 2 };
 }
 
 /**

@@ -550,7 +550,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             name: "Filters",
         });
         const cardWords = `within 2 hops of ${name}`;
-        await userEvent.click(within(filters).getByRole("checkbox", { name: `Apply ${cardWords}` }));
+        await userEvent.click(within(filters).getByRole("checkbox", { name: /^Use / }));
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, 34);
             assert.deepEqual(
@@ -558,7 +558,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 [false],
             );
         });
-        assert.isNotNull(within(filters).getByRole("group", { name: new RegExp(`^${cardWords}`) }));
+        assert.isNotNull(within(filters).getByRole("group", { name: new RegExp(`^${cardWords}`, "i") }));
         // With the card off, the command is enabled again.
         await waitFor(() => {
             assert.isNull(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"));

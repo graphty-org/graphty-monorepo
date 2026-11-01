@@ -117,7 +117,7 @@ describe("Filter cards on the real element", () => {
         const { session, store } = await openWithGraph();
         await addValueCard(session);
         const valueCard = await card(/value/);
-        await userEvent.click(valueCard.getByRole("checkbox", { name: /^Apply / }));
+        await userEvent.click(valueCard.getByRole("checkbox", { name: /^Use / }));
         await waitFor(() => {
             assert.isFalse(session.visibility.conditions[0]?.on);
         });
@@ -161,21 +161,21 @@ describe("Filter cards on the real element", () => {
             rule: { kind: "text", reads: "data.label", mode: "substring", text: "e" },
         });
         const label = await card(/label/);
-        await userEvent.click(label.getByRole("button", { name: "label" }));
+        await userEvent.click(label.getByRole("button", { name: /^label/ }));
         await waitFor(() => {
             assert.lengthOf(document.querySelectorAll(".sel-editor"), 1);
         });
         const resting = await card(/value/);
-        assert.equal(resting.getByRole("button", { name: "value" }).getAttribute("aria-expanded"), "false");
+        assert.equal(resting.getByRole("button", { name: /^value/ }).getAttribute("aria-expanded"), "false");
         assert.isNotNull(resting.getByText("4 of 9"));
-        assert.isNotNull(resting.getByRole("checkbox", { name: /^Apply / }));
+        assert.isNotNull(resting.getByRole("checkbox", { name: /^Use / }));
     });
 
     it("Delete in the card's menu takes it out; Undo puts it back", async () => {
         const { session } = await openWithGraph();
         await addValueCard(session);
         const valueCard = await card(/value/);
-        await userEvent.click(valueCard.getByRole("treeitem", { name: /^value, / }));
+        await userEvent.click(valueCard.getByRole("treeitem", { name: /^value / }));
         await userEvent.click(await valueCard.findByRole("button", { name: /^More for / }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete/ }));
         await waitFor(() => {
@@ -189,7 +189,7 @@ describe("Filter cards on the real element", () => {
         const { session } = await openWithGraph();
         await addValueCard(session);
         const valueCard = await card(/value/);
-        await userEvent.click(valueCard.getByRole("treeitem", { name: /^value, / }));
+        await userEvent.click(valueCard.getByRole("treeitem", { name: /^value / }));
         await userEvent.click(await valueCard.findByRole("button", { name: /^More for / }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Duplicate/ }));
         await waitFor(() => {
@@ -208,7 +208,7 @@ describe("Filter cards on the real element", () => {
             assert.equal(session.visibility.summary.visibleEdges, 5);
         });
         const excluded = await card(/value/);
-        await userEvent.click(excluded.getByRole("button", { name: "value" }));
+        await userEvent.click(excluded.getByRole("button", { name: "value min 9" }));
         const row = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-step-row[data-row]");
             assert.isNotNull(found);
@@ -238,9 +238,79 @@ describe("Filter cards on the real element", () => {
         ]);
         const old = await card(/label/);
         assert.equal(session.visibility.summary.visibleNodes, 7);
-        await userEvent.click(old.getByRole("checkbox", { name: /^Apply / }));
+        await userEvent.click(old.getByRole("checkbox", { name: /^Use / }));
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, 8);
+        });
+    });
+
+    it("an open card is named by its first step; Space on its title row switches it, its box no Tab stop", async () => {
+        const { session } = await openWithGraph();
+        await addValueCard(session);
+        const title = await waitFor(() => {
+            const found = filters().querySelector<HTMLElement>('[data-row="title"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.match(title?.getAttribute("aria-label") ?? "", /^value min 9, /);
+        const box = within(filters()).getByRole("checkbox", { name: /^Use value min 9/ });
+        assert.equal(box.getAttribute("tabindex"), "-1");
+        title?.focus();
+        await userEvent.keyboard(" ");
+        await waitFor(() => {
+            assert.isFalse(session.visibility.conditions[0]?.on);
+        });
+        await waitFor(() => {
+            assert.match(title?.getAttribute("aria-label") ?? "", /, off$/);
+        });
+        // The Filters header says what the cards leave together, only while one hides.
+        assert.isNull(document.querySelector("[data-filters-count]"));
+    });
+
+    it("a saved keep card on an edge value stays read-only, so no edit brings back the nodes it hid", async () => {
+        const { session } = await openWithGraph();
+        await session.visibility.addCondition({
+            id: "heavy",
+            effect: "keep",
+            rule: { kind: "range", attribute: "data.value", min: 9 },
+        });
+        await waitFor(() => {
+            assert.equal(session.visibility.summary.visibleNodes, 5);
+        });
+        const kept = await card(/value/);
+        await userEvent.click(kept.getAllByRole("button")[0] ?? document.body);
+        await waitFor(() => {
+            assert.isNotNull(within(filters()).queryByRole("button", { name: "Delete" }), "its read-only body");
+        });
+        assert.isNull(filters().querySelector(".sel-editor"), "no editor that would write it as an edges selection");
+        assert.equal(session.visibility.summary.visibleNodes, 5);
+    });
+
+    it("a saved Select card that is on reads on; a removing card no editor reads counts what stays", async () => {
+        const { session } = await openWithGraph();
+        await session.visibility.addCondition({
+            id: "busy",
+            effect: "select",
+            rule: { kind: "degree", min: 3 },
+        });
+        await session.visibility.addCondition({
+            id: "out",
+            effect: "exclude",
+            rule: {
+                kind: "union",
+                side: "nodes",
+                within: "graph",
+                branches: [{ start: "none", steps: [{ op: "add", rule: { kind: "degree", min: 3 } }] }],
+            },
+        });
+        const selects = await card(/^Degree min 3/);
+        assert.isTrue((selects.getByRole("checkbox", { name: /^Use / }) as HTMLInputElement).checked);
+        const matched = session.visibility.conditionCounts().find((each) => each.id === "out")?.nodes?.matched ?? 0;
+        const total = session.data.statistics().nodeCount;
+        assert.isAbove(matched, 0);
+        const removes = [...filters().querySelectorAll<HTMLElement>(":scope > li > [role=group]")][1];
+        await waitFor(() => {
+            assert.include(removes?.textContent ?? "", `${String(total - matched)} of ${String(total)}`);
         });
     });
 

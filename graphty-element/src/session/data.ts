@@ -280,7 +280,12 @@ interface PageSources {
      * @param target - Nodes or edges
      * @returns The test
      */
-    textTest(text: string, mode: SelectionTextMode, target: "node" | "edge"): (index: number) => boolean;
+    textTest(
+        text: string,
+        mode: SelectionTextMode,
+        target: "node" | "edge",
+        only?: readonly Path[],
+    ): (index: number) => boolean;
     /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
@@ -2131,6 +2136,12 @@ export class SessionData implements SessionDataApi {
         const touching = target === "edge" ? options.touching : undefined;
         const { sort } = options;
         const matching = matchingOf(options.matching);
+        // By name only: the id, and for a node the label column data.name reads.
+        const labelPath = this.readConfig().knownFields.nodeLabelPath;
+        let names: readonly Path[] | undefined;
+        if (options.matching?.names === true) {
+            names = target === "node" && labelPath !== null ? [labelPath] : [];
+        }
         const { issue } = options;
         if (
             scope === undefined &&
@@ -2150,7 +2161,7 @@ export class SessionData implements SessionDataApi {
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching, matching, issueKey]);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching, issueKey, names]);
         return this.orders.get(key, () => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -2166,7 +2177,8 @@ export class SessionData implements SessionDataApi {
                                         )
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
-            const text = matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target);
+            const text =
+                matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target, names);
             const flagged = issue === undefined ? null : this.issueRows(snapshot, target, issue);
             const matches =
                 flagged === null ? text : (index: number): boolean => flagged(index) && (text === null || text(index));

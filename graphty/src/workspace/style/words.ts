@@ -722,7 +722,8 @@ export function readableName(session: GraphSession, value: ReadableValue): { nam
  */
 export function groupRank(session: GraphSession, path: string, value: unknown): number | undefined {
     const run = session.runs.list().find((each) => session.results.path(each.id) === path);
-    return run?.result?.summary().groups?.find((g) => String(g.group) === String(value))?.rank;
+    // Every group's rank, not only the ten a summary lists, so a value is named one way.
+    return run?.result?.groupRanks()?.get(String(value));
 }
 
 /**

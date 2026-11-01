@@ -19,6 +19,8 @@ export interface SelectionMenuItem {
     readonly group: "edit" | "view" | "remove";
     readonly key?: string;
     readonly reason?: string | null;
+    /** Whether the reason is drawn under the label; false greys the item and only says why to a screen reader. */
+    readonly reasonDrawn?: boolean;
     readonly onRun: () => void;
 }
 
@@ -47,6 +49,7 @@ export function SelectionMenuItems({ items }: Readonly<{ items: readonly Selecti
                                 icon={<Glyph size={14} aria-hidden />}
                                 shortcut={item.key}
                                 reason={item.reason ?? null}
+                                reasonDrawn={item.reasonDrawn ?? true}
                                 onRun={item.onRun}
                             />
                         );

@@ -28,9 +28,9 @@ import type {
     UnionBranch,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Menu, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { focusInspectorTitle, focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
@@ -49,13 +49,13 @@ import {
     editStep,
     moveBranch,
     moveStep,
+    newVerb,
     removeBranch,
     removeStep,
     type Verb,
-    verbsFor,
 } from "./model";
 import { type SelectionMenuItem, SelectionMenuItems } from "./SelectionMenu";
-import { StepPane } from "./StepPane";
+import { CaptionedRow, StepPane } from "./StepPane";
 import { useSteps } from "./useSteps";
 import { type Host, pickerFields, type PickSection, pickSections, ruleOfField, sideOf, usedPaths } from "./values";
 import { countWords, letterOf, NOUNS, reasonWords, rowWords, stepWords, VERB_WORDS } from "./words";
@@ -96,6 +96,10 @@ interface SelectionEditorProps {
     readonly titleExtra?: React.ReactNode;
     /** The value picker closed with nothing chosen on a selection with no step (a new card goes). */
     readonly onEmptyCancel?: () => void;
+    /** Space on the title row: switches the host's on box (a filter card's), which takes no Tab stop. */
+    readonly onTitleToggle?: () => void;
+    /** The host's on box is off: said with the title row's name. */
+    readonly titleOff?: boolean;
 }
 
 /** The rule kinds a step takes with no test: picking one applies it, and the pane shows no test. */
@@ -137,6 +141,8 @@ const INSIDE =
  * @param props.titleMenu - the title pane's "..." items
  * @param props.titleExtra - drawn first in the title pane
  * @param props.onEmptyCancel - the value picker closed with nothing chosen on a selection with no step
+ * @param props.onTitleToggle - Space on the title row
+ * @param props.titleOff - the host's on box is off
  * @returns The editor
  */
 export function SelectionEditor({
@@ -155,6 +161,8 @@ export function SelectionEditor({
     titleMenu,
     titleExtra,
     onEmptyCancel,
+    onTitleToggle,
+    titleOff = false,
 }: SelectionEditorProps): React.JSX.Element {
     const { store } = useWorkspace();
     const reading = useSteps(session, given);
@@ -175,12 +183,8 @@ export function SelectionEditor({
     // `fresh`: the group was made by "Or..." for this step, and goes again with it.
     const [adding, setAdding] = useState<{ branch: string; op: Verb; fresh?: boolean } | null>(() => {
         const first = rule.branches[0];
-        return openPicker && first?.id !== undefined ? { branch: first.id, op: verbsFor(first)[0] } : null;
+        return openPicker && first?.id !== undefined ? { branch: first.id, op: newVerb(first) } : null;
     });
-    // Where the pointer or focus is: the Add row is drawn under that group.
-    const [hovered, setHovered] = useState<string | null>(null);
-    const [focused, setFocused] = useState<string | null>(null);
-    const [inside, setInside] = useState(false);
     const [active, setActive] = useState<string | null>(null);
     const [renaming, setRenaming] = useState<string | null>(null);
     const [colors, setColors] = useState(groupColors[host]);
@@ -282,7 +286,13 @@ export function SelectionEditor({
         const down = (event: PointerEvent): void => {
             escaped.current = false;
             const { target } = event;
-            if (!(target instanceof Element) || box.current?.contains(target) || target.closest(INSIDE) !== null) {
+            if (
+                !(target instanceof Element) ||
+                box.current?.contains(target) ||
+                target.closest(INSIDE) !== null ||
+                // A reference being picked on the canvas: the click is the pick, not a click away.
+                document.body.dataset.pickingNode !== undefined
+            ) {
                 return;
             }
             setSelected(null);
@@ -317,6 +327,32 @@ export function SelectionEditor({
             ? undefined
             : rule.branches.find((branch) => branch.id === id || branch.steps.some((step) => step.id === id));
 
+    const focusPane = (): boolean => {
+        const target = PANE_FOCUS.map((each) => box.current?.querySelector<HTMLElement>(each)).find(
+            (each) => each !== null && each !== undefined,
+        );
+        if (target === undefined) {
+            return false;
+        }
+        focusAfter.current = null;
+        focusWithRing(target);
+        return true;
+    };
+    // Done: picking ends in one click, focus back on the row that was selected.
+    const endPicking = (): void => {
+        const back = selected;
+        setSelected(null);
+        setAdding(null);
+        focusAfter.current = [
+            ...(back === null ? [] : [`[data-row="${CSS.escape(back)}"]`, `[data-selects="${CSS.escape(back)}"]`]),
+            `[data-row="${TITLE}"]`,
+        ];
+    };
+    const done = (
+        <Button size="compact-xs" variant="subtle" className="sel-done" onClick={endPicking}>
+            Done
+        </Button>
+    );
     const select = (id: string | null, intoPane = false): void => {
         setSelected(id);
         if (id !== null) {
@@ -335,6 +371,15 @@ export function SelectionEditor({
         if (!hasTest(stepRule)) {
             focusAfter.current = `[data-row="${CSS.escape(made.id)}"]`;
         }
+    };
+    const addOr = (): void => {
+        if (reading.branchesLeft === 0) {
+            return;
+        }
+        const made = addBranch(rule);
+        onChange(made.rule);
+        setSelected(null);
+        setAdding({ branch: made.id, op: "add", fresh: true });
     };
     const startAdding = (branch: UnionBranch, op: Verb): void => {
         setAdding({ branch: branch.id ?? "", op });
@@ -472,7 +517,13 @@ export function SelectionEditor({
         const id = stepId ?? branch?.id ?? TITLE;
         if (event.key === "Enter") {
             event.preventDefault();
-            select(event.currentTarget.dataset.selects ?? id, true);
+            const to = event.currentTarget.dataset.selects ?? id;
+            // The row is selected already (arrowing onto it selects it): nothing would draw again,
+            // so focus goes into its pane now rather than on some later render.
+            if (to === selected && focusPane()) {
+                return;
+            }
+            select(to, true);
             return;
         }
         if (event.key === "Escape" && selected !== null) {
@@ -482,6 +533,7 @@ export function SelectionEditor({
             return;
         }
         if (branch === null) {
+            titleKeys(event);
             return;
         }
         if (matchesKey(event.nativeEvent, "Mod+]") || matchesKey(event.nativeEvent, "Mod+[")) {
@@ -509,6 +561,23 @@ export function SelectionEditor({
         } else if (event.key === " " || matchesKey(event.nativeEvent, "Shift+Mod+H")) {
             event.preventDefault();
             toggle(branch, stepId);
+        }
+    };
+
+    // The title row: Space switches the host's on box; a "..." item's key runs it (Ctrl+D, Delete).
+    const titleKeys = (event: React.KeyboardEvent<HTMLElement>): void => {
+        if (event.key === " " && onTitleToggle !== undefined) {
+            event.preventDefault();
+            onTitleToggle();
+            return;
+        }
+        const item = titleMenu?.find(
+            (each) =>
+                each.key !== undefined && (each.reason ?? null) === null && matchesKey(event.nativeEvent, each.key),
+        );
+        if (item !== undefined) {
+            event.preventDefault();
+            item.onRun();
         }
     };
 
@@ -546,17 +615,34 @@ export function SelectionEditor({
     });
 
     const empty = rule.branches.every((branch) => branch.steps.length === 0);
-    const lit = branchOfRow(selected)?.id ?? adding?.branch ?? focused ?? hovered;
+    // Each step's row words, read once per reading rather than on every hover or key.
+    const outlineWords = useMemo(
+        () =>
+            new Map(
+                rule.branches.flatMap((branch) =>
+                    branch.steps.map((step) => {
+                        const read = reading.branches.flatMap((each) => each.steps).find((each) => each.id === step.id);
+                        return [step.id ?? "", rowWords(session, step, side, read)] as const;
+                    }),
+                ),
+            ),
+        [session, rule, reading, side],
+    );
+    // The Add row and Or... are drawn for the selected row's group only: pointing or focus never
+    // adds or removes a row, so nothing under the pointer moves (the owner's review, repolish 1).
+    const lit = branchOfRow(selected)?.id ?? (selected === TITLE && !multi ? rule.branches[0]?.id : undefined);
     const showAdd = (branch: UnionBranch): boolean =>
-        adding?.branch !== branch.id && (empty || (lit !== null && lit === branch.id));
-    const showOr = !empty && (inside || picking) && adding === null;
+        adding?.branch !== branch.id && (empty || (lit !== undefined && lit === branch.id));
+    const showOr = !empty && selected !== null && adding === null;
     const rowIds = [
         TITLE,
         ...rule.branches.flatMap((branch) => [
             ...(multi ? [branch.id ?? ""] : []),
             ...(!multi && branch.start === "all" ? [`all:${branch.id ?? ""}`] : []),
             ...branch.steps.map((step) => step.id ?? ""),
+            ...(showAdd(branch) ? [`add:${branch.id ?? ""}`] : []),
         ]),
+        ...(showOr ? ["or"] : []),
     ];
     const tabbed = active !== null && rowIds.includes(active) ? active : TITLE;
     const selectedBranch = rule.branches.find((branch) => branch.id === selected);
@@ -593,23 +679,6 @@ export function SelectionEditor({
             gap={0}
             className="sel-editor"
             data-host={host}
-            onPointerEnter={() => {
-                setInside(true);
-            }}
-            onPointerLeave={() => {
-                setInside(false);
-                setHovered(null);
-            }}
-            onFocus={() => {
-                setInside(true);
-            }}
-            onBlur={(event) => {
-                const to = event.relatedTarget;
-                if (!(to instanceof Node) || !event.currentTarget.contains(to)) {
-                    setFocused(null);
-                    setInside(false);
-                }
-            }}
             onPointerDownCapture={() => {
                 escaped.current = false;
             }}
@@ -662,11 +731,16 @@ export function SelectionEditor({
         >
             <div role="tree" aria-label={name} className="sel-outline">
                 <div
-                    {...rowProps(TITLE, TITLE, `${name}, ${countWords(reading.total.count, of, side)}`, null)}
+                    {...rowProps(
+                        TITLE,
+                        TITLE,
+                        [name, countWords(reading.total.count, of, side), ...(titleOff ? ["off"] : [])].join(", "),
+                        null,
+                    )}
                     className="sel-row sel-title-row"
                 >
                     {lead}
-                    <Text size="xs" fw={600} className="sel-title">
+                    <Text size="sm" fw={600} className="sel-title">
                         {name}
                     </Text>
                     <Tooltip
@@ -676,7 +750,7 @@ export function SelectionEditor({
                                 : `of ${formatNumber(of)} in the ${host === "filter" ? "full" : "filtered"} graph`
                         }
                     >
-                        <Text size="xs" fw={600} c="dimmed" className="sel-count" ml="auto">
+                        <Text size="sm" className="sel-count" ml="auto">
                             {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
                         </Text>
                     </Tooltip>
@@ -687,7 +761,7 @@ export function SelectionEditor({
                     const letter = branch.name ?? letterOf(at);
                     const stepIds = branch.steps.map((step) => step.id ?? "");
                     const branchId = branch.id ?? "";
-                    const newOp = adding?.op ?? "add";
+                    const newOp = adding?.op ?? newVerb(branch);
                     return (
                         <div
                             key={branch.id}
@@ -695,12 +769,6 @@ export function SelectionEditor({
                             className="sel-group"
                             data-branch={branch.id}
                             data-multi={multi ? "" : undefined}
-                            onPointerEnter={() => {
-                                setHovered(branchId);
-                            }}
-                            onFocus={() => {
-                                setFocused(branchId);
-                            }}
                         >
                             {multi && (
                                 <div
@@ -756,12 +824,12 @@ export function SelectionEditor({
                                             }}
                                         />
                                     ) : (
-                                        <Text size="xs" fw={600} className="sel-value">
+                                        <Text size="sm" className="sel-value">
                                             {letter}
                                         </Text>
                                     )}
                                     {branch.on === false && (
-                                        <Text size="xs" c="dimmed" className="sel-state">
+                                        <Text size="sm" c="dimmed" className="sel-state">
                                             Off
                                         </Text>
                                     )}
@@ -779,7 +847,7 @@ export function SelectionEditor({
                                             toggle(branch);
                                         }}
                                     />
-                                    <Text size="xs" c="dimmed" className="sel-count">
+                                    <Text size="sm" className="sel-count">
                                         {branchRead?.state === "pending"
                                             ? "Waits"
                                             : formatNumber(branchRead?.count ?? 0)}
@@ -804,7 +872,7 @@ export function SelectionEditor({
                                     }}
                                 >
                                     <span className="sel-verb" />
-                                    <Text size="xs" c="dimmed">
+                                    <Text size="sm" c="dimmed">
                                         {`All ${NOUNS[side].many}`}
                                     </Text>
                                 </div>
@@ -812,7 +880,7 @@ export function SelectionEditor({
                             {branch.steps.map((step, index) => {
                                 const id = step.id ?? "";
                                 const read = readingOf(id);
-                                const words = rowWords(session, step, side, read);
+                                const words = outlineWords.get(id) ?? rowWords(session, step, side, read);
                                 const reason = reasonWords(read?.reason ?? null, stepIds);
                                 const verb = VERB_WORDS[step.op];
                                 const state = stateWord(step, read, reason.short, index, branch, reading, of);
@@ -820,7 +888,8 @@ export function SelectionEditor({
                                     read === undefined || read.waiting
                                         ? ""
                                         : `, ${formatNumber(read.count)} of ${formatNumber(of)} ${NOUNS[side].many} so far`;
-                                const said = [words.value, words.test].filter((each) => each !== "").join(" ");
+                                const test = words.more === undefined ? words.test : `${words.test} ${words.more}`;
+                                const said = [words.value, test].filter((each) => each !== "").join(" ");
                                 const full = [`${verb.word} (${verb.figma})`, said, ...words.tags, reason.long]
                                     .filter((each) => each !== "")
                                     .join(", ");
@@ -835,22 +904,27 @@ export function SelectionEditor({
                                             data-state={step.on === false ? "off" : read?.state}
                                             className="sel-row sel-step-row"
                                         >
-                                            <Text size="xs" c="dimmed" className="sel-verb">
+                                            <Text size="sm" className="sel-verb">
                                                 {verb.word}
                                             </Text>
-                                            <Text size="xs" className="sel-value">
+                                            <Text size="sm" className="sel-value">
                                                 {words.value}
                                             </Text>
-                                            <Text size="xs" c="dimmed" className="sel-test">
+                                            <Text size="sm" className="sel-test">
                                                 {words.test}
                                             </Text>
+                                            {words.more !== undefined && (
+                                                <Text size="sm" className="sel-more">
+                                                    {words.more}
+                                                </Text>
+                                            )}
                                             {words.tags.map((tag) => (
                                                 <span key={tag} className="sel-tag">
                                                     {tag}
                                                 </span>
                                             ))}
                                             {state !== "" && (
-                                                <Text size="xs" c="dimmed" className="sel-state">
+                                                <Text size="sm" c="dimmed" className="sel-state">
                                                     {state}
                                                 </Text>
                                             )}
@@ -874,70 +948,55 @@ export function SelectionEditor({
                                 />
                             )}
                             {showAdd(branch) && (
-                                <div className="sel-row sel-add-row">
-                                    {verbsFor(branch).map((op) => (
-                                        <Tooltip
-                                            key={op}
-                                            label={`${VERB_WORDS[op].word} a step (${VERB_WORDS[op].figma})`}
-                                        >
-                                            <Button
-                                                size="compact-xs"
-                                                variant="subtle"
-                                                color="gray"
-                                                data-row={`add:${branchId}:${op}`}
-                                                data-add={op === verbsFor(branch)[0] ? branchId : undefined}
-                                                tabIndex={-1}
-                                                onKeyDown={(event) => {
-                                                    walk(event);
-                                                }}
-                                                onClick={() => {
-                                                    startAdding(branch, op);
-                                                }}
-                                            >
-                                                {`${VERB_WORDS[op].word}...`}
-                                            </Button>
-                                        </Tooltip>
-                                    ))}
-                                </div>
+                                <AddRow
+                                    id={`add:${branchId}`}
+                                    branchId={branchId}
+                                    op={newVerb(branch)}
+                                    tabbed={tabbed}
+                                    onWalk={walk}
+                                    onFocus={setActive}
+                                    onRun={() => {
+                                        startAdding(branch, newVerb(branch));
+                                    }}
+                                />
                             )}
                         </div>
                     );
                 })}
                 {showOr && (
-                    <div className="sel-row sel-or-row">
-                        <Tooltip
-                            label={
-                                reading.branchesLeft === 0
-                                    ? `No more: ${String(rule.branches.length)} is the most`
-                                    : "Or: match another way"
-                            }
+                    <Tooltip
+                        label={
+                            reading.branchesLeft === 0
+                                ? `No more: ${String(rule.branches.length)} is the most`
+                                : "Or: match another way"
+                        }
+                    >
+                        <div
+                            role="treeitem"
+                            className="sel-row sel-or-row"
+                            data-or=""
+                            data-row="or"
+                            tabIndex={tabbed === "or" ? 0 : -1}
+                            aria-disabled={reading.branchesLeft === 0}
+                            onFocus={() => {
+                                setActive("or");
+                            }}
+                            onKeyDown={(event) => {
+                                if (walk(event)) {
+                                    return;
+                                }
+                                if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    addOr();
+                                }
+                            }}
+                            onClick={addOr}
                         >
-                            <Button
-                                size="compact-xs"
-                                variant="subtle"
-                                color="gray"
-                                data-or=""
-                                data-row="or"
-                                tabIndex={-1}
-                                aria-disabled={reading.branchesLeft === 0}
-                                data-disabled={reading.branchesLeft === 0 ? true : undefined}
-                                onKeyDown={(event) => {
-                                    walk(event);
-                                }}
-                                onClick={() => {
-                                    if (reading.branchesLeft === 0) {
-                                        return;
-                                    }
-                                    const made = addBranch(rule);
-                                    onChange(made.rule);
-                                    setSelected(null);
-                                    setAdding({ branch: made.id, op: "add", fresh: true });
-                                }}
-                            >
+                            <Text size="sm" c={reading.branchesLeft === 0 ? "dimmed" : undefined}>
                                 Or...
-                            </Button>
-                        </Tooltip>
-                    </div>
+                            </Text>
+                        </div>
+                    </Tooltip>
                 )}
             </div>
             {selected !== null && (
@@ -951,6 +1010,7 @@ export function SelectionEditor({
                             colors={colors}
                             extra={titleExtra}
                             menu={titleMenu}
+                            done={done}
                             onColors={(next) => {
                                 groupColors[host] = next;
                                 setColors(next);
@@ -972,6 +1032,7 @@ export function SelectionEditor({
                             host={host}
                             of={of}
                             multi={multi}
+                            done={done}
                             first={rule.branches[0] === selectedBranch}
                             last={rule.branches.at(-1) === selectedBranch}
                             onStart={(start) => {
@@ -979,6 +1040,16 @@ export function SelectionEditor({
                             }}
                             onRename={() => {
                                 setRenaming(selectedBranch.id ?? null);
+                            }}
+                            onName={(typed) => {
+                                const text = typed.trim();
+                                if (text !== branchName(selectedBranch)) {
+                                    onChange(
+                                        editBranch(rule, selectedBranch.id ?? "", {
+                                            name: text === "" ? undefined : text,
+                                        }),
+                                    );
+                                }
                             }}
                             onToggle={() => {
                                 toggle(selectedBranch);
@@ -1015,6 +1086,7 @@ export function SelectionEditor({
                                     first={index === 0}
                                     last={index === branch.steps.length - 1}
                                     hostPicks={hostPicks}
+                                    done={done}
                                     onStep={(patch) => {
                                         onChange(editStep(rule, branch.id ?? "", id, patch));
                                     }}
@@ -1145,12 +1217,71 @@ function NewStep({
             }}
             anchor={
                 <div className="sel-row sel-step-row" data-new-step="">
-                    <Text size="xs" c="dimmed" className="sel-verb">
+                    <Text size="sm" className="sel-verb">
                         {VERB_WORDS[op].word}
                     </Text>
                 </div>
             }
         />
+    );
+}
+
+/**
+ * The Add row: "Step...", in the value column, a tree item of the outline's walk; it opens the
+ * value picker for a step with the group's default verb (the pane's segment changes it).
+ * @param props - Component props
+ * @param props.id - its row id
+ * @param props.branchId - its group's id
+ * @param props.op - the new step's verb
+ * @param props.tabbed - the row that holds the outline's Tab stop
+ * @param props.onWalk - the outline's arrow walk
+ * @param props.onFocus - takes its row id as it takes focus
+ * @param props.onRun - opens the value picker
+ * @returns The row
+ */
+function AddRow({
+    id,
+    branchId,
+    op,
+    tabbed,
+    onWalk,
+    onFocus,
+    onRun,
+}: Readonly<{
+    id: string;
+    branchId: string;
+    op: Verb;
+    tabbed: string;
+    onWalk: (event: React.KeyboardEvent<HTMLElement>) => boolean;
+    onFocus: (id: string) => void;
+    onRun: () => void;
+}>): React.JSX.Element {
+    return (
+        <Tooltip label={`${VERB_WORDS[op].word} a step (${VERB_WORDS[op].figma})`} openDelay={500}>
+            <div
+                role="treeitem"
+                className="sel-row sel-add-row"
+                data-row={id}
+                data-add={branchId}
+                tabIndex={tabbed === id ? 0 : -1}
+                onFocus={() => {
+                    onFocus(id);
+                }}
+                onKeyDown={(event) => {
+                    if (onWalk(event)) {
+                        return;
+                    }
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onRun();
+                    }
+                }}
+                onClick={onRun}
+            >
+                <span className="sel-verb" />
+                <Text size="sm">Step...</Text>
+            </div>
+        </Tooltip>
     );
 }
 
@@ -1172,17 +1303,21 @@ function StartWith({
     onStart: (start: UnionBranch["start"]) => void;
 }>): React.JSX.Element {
     return (
-        <SegmentedControl
-            label="Start with"
-            data={[
-                { value: "none", label: `No ${NOUNS[side].many}` },
-                { value: "all", label: `All ${NOUNS[side].many}` },
-            ]}
-            value={start}
-            onChange={(next) => {
-                onStart(next === "all" ? "all" : "none");
-            }}
-        />
+        <CaptionedRow>
+            <SegmentedControl
+                label="Start with"
+                size="xs"
+                fullWidth
+                data={[
+                    { value: "none", label: `No ${NOUNS[side].many}` },
+                    { value: "all", label: `All ${NOUNS[side].many}` },
+                ]}
+                value={start}
+                onChange={(next) => {
+                    onStart(next === "all" ? "all" : "none");
+                }}
+            />
+        </CaptionedRow>
     );
 }
 
@@ -1224,6 +1359,7 @@ function PaneMenu({ name, items }: Readonly<{ name: string; items: readonly Sele
  * @param props.onColors - takes the preview toggle
  * @param props.onStart - takes the lone group's start
  * @param props.onShow - shows what the selection holds
+ * @param props.done - the Done button
  * @returns The pane
  */
 function TitlePane({
@@ -1234,6 +1370,7 @@ function TitlePane({
     colors,
     extra,
     menu,
+    done,
     onColors,
     onStart,
     onShow,
@@ -1245,6 +1382,7 @@ function TitlePane({
     colors: boolean;
     extra?: React.ReactNode;
     menu?: readonly SelectionMenuItem[];
+    done: React.ReactNode;
     onColors: (next: boolean) => void;
     onStart: (start: UnionBranch["start"]) => void;
     onShow: () => void;
@@ -1254,7 +1392,19 @@ function TitlePane({
     return (
         <Stack gap={6} className="sel-pane" role="group" aria-label={name}>
             <Group gap={4} wrap="nowrap">
-                <CountChip count={reading.total.count} of={reading.total.of} side={side} host={host} onClick={onShow} />
+                {host === "selector" && (
+                    // The count is on the title row; here only what it does (a filter's Table shows its rows).
+                    <Tooltip label={`Select ${countWords(reading.total.count, reading.total.of, side)}`}>
+                        <Button
+                            size="compact-xs"
+                            variant="subtle"
+                            aria-label={`Select ${countWords(reading.total.count, reading.total.of, side)}`}
+                            onClick={onShow}
+                        >
+                            Select
+                        </Button>
+                    </Tooltip>
+                )}
                 <ToggleIconButton
                     label="Group colors"
                     tooltip="Group colors while picking"
@@ -1265,6 +1415,7 @@ function TitlePane({
                 />
                 <TableButton side={side} />
                 {menu !== undefined && <PaneMenu name={name} items={menu} />}
+                {done}
             </Group>
             {extra}
             {rule.branches.length === 1 && only !== undefined && (
@@ -1293,10 +1444,14 @@ function TitlePane({
  * @param props.onDuplicate - copies it
  * @param props.onMove - moves it up or down
  * @param props.onDelete - removes it
+ * @param props.done - the Done button
+ * @param props.onName - takes the name typed in its name box
  * @returns The pane
  */
 function GroupPane({
     branch,
+    done,
+    onName,
     reading,
     name,
     side,
@@ -1329,14 +1484,19 @@ function GroupPane({
     onDuplicate: () => void;
     onMove: (by: -1 | 1) => void;
     onDelete: () => void;
+    done: React.ReactNode;
+    onName: (name: string) => void;
 }>): React.JSX.Element {
     const on = branch.on !== false;
     return (
         <Stack gap={6} className="sel-pane" role="group" aria-label={name}>
             <Group gap={4} wrap="nowrap">
-                <Text size="xs" fw={600}>
-                    {multi ? name : `All ${NOUNS[side].many}`}
-                </Text>
+                {multi ? (
+                    // The group's name, edited in place: Enter or leaving the box keeps it.
+                    <NameBox key={name} name={name} onName={onName} />
+                ) : (
+                    <Text size="sm">{`All ${NOUNS[side].many}`}</Text>
+                )}
                 <span style={{ marginLeft: "auto" }} />
                 {reading !== undefined && (
                     <CountChip count={reading.count} of={of} side={side} host={host} onClick={onShow} />
@@ -1376,6 +1536,7 @@ function GroupPane({
                                 group: "edit",
                                 key: "Mod+]",
                                 reason: first ? "Already at the top" : null,
+                                reasonDrawn: false,
                                 onRun: () => {
                                     onMove(-1);
                                 },
@@ -1387,6 +1548,7 @@ function GroupPane({
                                 group: "edit",
                                 key: "Mod+[",
                                 reason: last ? "Already at the bottom" : null,
+                                reasonDrawn: false,
                                 onRun: () => {
                                     onMove(1);
                                 },
@@ -1402,9 +1564,40 @@ function GroupPane({
                         ]}
                     />
                 )}
+                {done}
             </Group>
             <StartWith side={side} start={branch.start} onStart={onStart} />
         </Stack>
+    );
+}
+
+/**
+ * A group's name box in its pane: the name as typed, kept on Enter or on leaving the box.
+ * @param props - Component props
+ * @param props.name - the group's name
+ * @param props.onName - takes the name typed
+ * @returns The box
+ */
+function NameBox({ name, onName }: Readonly<{ name: string; onName: (name: string) => void }>): React.JSX.Element {
+    const [text, setText] = useState(name);
+    return (
+        <TextInput
+            size="xs"
+            aria-label="Name"
+            value={text}
+            style={{ flex: 1, minWidth: 0 }}
+            onChange={(event) => {
+                setText(event.currentTarget.value);
+            }}
+            onBlur={() => {
+                onName(text);
+            }}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    onName(text);
+                }
+            }}
+        />
     );
 }
 

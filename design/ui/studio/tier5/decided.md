@@ -443,6 +443,54 @@ stand. Each entry reverses or narrows an entry above; those stay as the record.
   the selection alone), the group pane's Color, Settings in Advanced, and the HistogramRow brush
   (the number test keeps the approved range card).
 
+### Repolish 1 fixes (2026-11-01, studio engineer)
+
+- **Pointing never adds a row.** The Add row and Or... are drawn only for the selected row's group
+  while a row is selected (and on an empty selection); hover changes the background, the eye and
+  the canvas marking. Opening a "..." menu no longer moves the pane. Why: a hovered group grew two
+  rows and moved everything under the pointer.
+- **One way to add a step: "Step..."**, a tree item in the value column, with the group's default
+  verb (Keep in an All group, Add in a None group). The pane's verb segment is the only verb chooser
+  and offers only the verbs that change the group at that step. Or... is a tree item at the chit's
+  x. Why: "Add" meant three things within 70 px, and buttons inside the tree failed axe.
+- **11/16 type everywhere in the outline and panes**, verb, value and test in normal ink; dimmed only
+  for state words and All nodes; 600 only on the title. Focus ring: Figma's 1 px
+  `--cm-border-selected`.
+- **Captions** on Start with, Computed on and Edge ends (compact-mantine's FieldRow under
+  PanelLabelsProvider). **Done** ends picking in one click from any pane's first row.
+- **Counts:** the title pane draws no second count (a style layer's pane has Select, its count in
+  the tooltip; a filter card's has the Table button only); a step pane reads "77 so far"; counts
+  outside the editor (filter chip, layer rows, the Which row) carry thousands separators.
+- **Filter cards** are named by their first step as its row says it ("Degree min 10") and follow
+  edits; the Filters header shows what the cards leave together or "Passes none"; the open card's on
+  box takes no Tab stop (Space on the title row, "Use <name>"); its Duplicate shows and takes Mod+D.
+  A resting card's focus ring goes round the row, never the name alone.
+- **Words:** "While ... has nodes" until a reference is chosen; an untouched test (text, a date)
+  leaves the test column empty; a long list keeps "and N more" and cuts the names before it; a long
+  value cuts before its tags and state word; a tier 4 degree leaf reads "Degree min 5"; menu keys
+  draw Delete as "Del"; Move up and Move down at an end are greyed with no second line.
+- **Large graphs:** the reference search matches a node's id and name only
+  (`data.nodePage({ matching: { names: true } })`, graphty-element, additive, @beta); "Pick on
+  canvas" is the list's first item and a 24 px target beside the field (the next node clicked);
+  every community value is named by its rank (`RunResult.groupRanks()`, additive, @beta); the step
+  pane and the outline read their words once per reading; the value picker's lists are read only
+  while it is open; a checklist keeps the two largest unchecked values in its 8 rows.
+- **Number test:** a step's test is a By value | By position segment and compact-mantine's
+  HistogramRow with its brush over the Min and Max boxes, bins from `scope.histogram` over the
+  step's base.
+- **Runs:** a measure step with no test reads Computing or Run while its values are not there
+  (graphty-element now says so in its reason); a run with no cost estimate on a scope of more than
+  10,000 nodes and edges waits for Run while `askAboveMs` is set.
+- **Saved cards:** a tier 4 Filter to card on an edge value stays read-only (graphty-element's
+  `asUnion` has no union form for it: an edges selection would keep every node); a removing card
+  no editor reads counts what stays; a saved Select card's box reads on while it still selects.
+- **Not done here:** the preview's paint on 50,000 nodes (each node is repainted one by one; drawing
+  the preview as a per-instance color write is renderer work), a Hovered-or-selected hops step
+  pausing while the pointer moves, the filter commit's element-side cost, the layer row's count
+  after reopening a project, the algorithm's Settings under Advanced, the group's Color row, a fixed
+  8-row checklist height, log bar heights on a skewed histogram. Three element changes that alter
+  existing results wait for the owner (`../owner-decisions.md`, 2026-11-01).
+
 ## Waiting for the owner
 
 - Retagging bfs `level`, k-core `value` and dfs `value` as ordinal changes what `fieldMeasurement`

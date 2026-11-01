@@ -5,6 +5,8 @@
 
 import type { HistoryCode, NodeId, RuleTree } from "@graphty/graphty-element/session";
 
+import { formatCount } from "../settings/numberFormat";
+
 /** What the words read from the session: an attribute's name and a node's name. */
 export interface Namer {
     readonly attribute: (path: string) => string;
@@ -145,8 +147,8 @@ interface Showing {
  * @returns the words.
  */
 export function chipWords(showing: Showing, edges = false): string {
-    const nodes = `${String(showing.visibleNodes)} of ${String(showing.totalNodes)} nodes`;
-    return edges ? `${nodes}, ${String(showing.visibleEdges)} of ${String(showing.totalEdges)} edges` : nodes;
+    const nodes = `${formatCount(showing.visibleNodes)} of ${formatCount(showing.totalNodes)} nodes`;
+    return edges ? `${nodes}, ${formatCount(showing.visibleEdges)} of ${formatCount(showing.totalEdges)} edges` : nodes;
 }
 
 /**
@@ -157,7 +159,7 @@ export function chipWords(showing: Showing, edges = false): string {
  * @returns the words.
  */
 export function statusWords(on: boolean, showing: Showing): string {
-    return on ? `Filter on: ${chipWords(showing)}, ${String(showing.visibleEdges)} edges` : "Filter off";
+    return on ? `Filter on: ${chipWords(showing)}, ${formatCount(showing.visibleEdges)} edges` : "Filter off";
 }
 
 /** What each filter history code did, as Undo and Redo name it. */

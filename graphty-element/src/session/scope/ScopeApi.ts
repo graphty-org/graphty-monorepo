@@ -361,6 +361,9 @@ export interface ScopeApi {
      * With `effect: "exclude"` the leaf holds what the rule leaves (a filter condition that
      * removes, read as what stays): a leaf `r` is all except `r`, an `any` of leaves is all except
      * each, and an `all` of leaves and `not`s is one branch per member. A `union` has no such form.
+     * With `effect: "keep"` and `side: "edges"`, a rule whose edge value leaves read no `nodes`
+     * (so the condition also keeps only the nodes at the ends of the edges it keeps) has no union
+     * form either: an edges union keeps every node.
      * @param rule - The rule.
      * @param options - The side and base.
      * @param options.side - The side.

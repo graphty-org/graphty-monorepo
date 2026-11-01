@@ -20,8 +20,15 @@ describe("bounded lists", () => {
         const checked = new Set(VALUES.slice(100, 2184).map((each) => each.value));
         const rest = checklistRows(VALUES, checked, "");
         assert.lengthOf(rest.rows, 8);
-        assert.isTrue(rest.rows.every((each) => checked.has(each.value)));
-        assert.equal(rest.moreChecked, 2084 - 8);
+        // Six checked, and the two largest unchecked stay reachable without a search.
+        assert.equal(rest.rows.filter((each) => checked.has(each.value)).length, 6);
+        assert.deepEqual(
+            rest.rows.slice(6).map((each) => each.value),
+            ["0", "1"],
+        );
+        assert.equal(rest.moreChecked, 2084 - 6);
+        const every = checklistRows(VALUES.slice(0, 20), new Set(VALUES.slice(0, 20).map((each) => each.value)), "");
+        assert.lengthOf(every.rows, 8, "with nothing left unchecked, all 8 rows are checked ones");
         const few = checklistRows(VALUES, new Set(["7"]), "");
         assert.deepEqual(
             few.rows.map((each) => each.value),

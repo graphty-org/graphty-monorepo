@@ -108,6 +108,7 @@ describe("workspace keys", () => {
     it("shows Mod as the platform's key", () => {
         assert.match(formatKey("Shift+Mod+Z"), /^Shift\+(Ctrl|Cmd)\+Z$/);
         assert.equal(formatKey("?"), "?");
+        assert.equal(formatKey("Delete"), "Del", "a menu's Delete item never reads Delete Delete");
     });
 });
 

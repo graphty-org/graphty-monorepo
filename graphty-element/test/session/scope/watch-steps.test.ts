@@ -222,6 +222,20 @@ describe("watchSteps", () => {
         );
     });
 
+    it("a keep condition's edge value leaf has no union form: it also hides the nodes off its edges", async () => {
+        const session = await lesMis();
+        const heavy: RuleTree = { kind: "range", attribute: "value", min: 5 };
+        assert.isNull(session.scope.asUnion(heavy, { side: "edges", within: "graph", effect: "keep" }));
+        assert.isNull(
+            session.scope.asUnion({ kind: "all", of: [heavy] }, { side: "edges", within: "graph", effect: "keep" }),
+        );
+        // With its reading written, or outside a keep condition, it converts as before.
+        assert.isNotNull(
+            session.scope.asUnion({ ...heavy, nodes: "none" }, { side: "edges", within: "graph", effect: "keep" }),
+        );
+        assert.isNotNull(session.scope.asUnion(heavy, { side: "edges", within: "graph" }));
+    });
+
     it("converts a removing card into what it leaves: all except the rule", async () => {
         const session = await lesMis();
         const count = async (where: RuleTree): Promise<number> =>
@@ -459,7 +473,9 @@ describe("measure steps and runs", () => {
         };
         const ran = await new Promise<StepsReading>((resolve) => {
             const each = session.scope.watchSteps(rule, (reading) => {
-                if (reading.branches[0].steps[0].run !== null) {
+                // While its run computes it says so; once the values are there, it waits for a test.
+                const [first] = reading.branches[0].steps;
+                if (first.run !== null && first.reason?.code !== "computing") {
                     each.end();
                     resolve(reading);
                 }
@@ -692,6 +708,30 @@ describe("measure steps and runs", () => {
             session.scope.cancelRun(rule, step.id);
         });
         assert.strictEqual(cancelled.branches[0].steps[0].reason?.code, "run-needed");
+        executions.release?.();
+    });
+
+    it("a measure with no test says Run or Computing while its values are not there, never No test", async () => {
+        const executions: Executions = { sizes: [], hold: true };
+        const session = await lesMis(executions);
+        session.scope.setOptions({ askAboveMs: 0 });
+        const untested: RuleTree = { kind: "measure", algorithm: "degree", field: "value" };
+        const { rule } = session.scope.watchSteps(
+            {
+                kind: "union",
+                side: "nodes",
+                within: "graph",
+                branches: [{ start: "all", steps: [{ op: "keep", rule: untested }] }],
+            },
+            () => undefined,
+        ).current;
+        const [step] = session.scope.watchSteps(rule, () => undefined).current.branches[0].steps;
+        assert.strictEqual(step.state, "inert", "it changes nothing yet");
+        assert.strictEqual(step.reason?.code, "run-needed");
+        const computing = await nextReading(session, rule, () => {
+            session.scope.allowRun(rule, step.id);
+        });
+        assert.strictEqual(computing.branches[0].steps[0].reason?.code, "computing");
         executions.release?.();
     });
 });

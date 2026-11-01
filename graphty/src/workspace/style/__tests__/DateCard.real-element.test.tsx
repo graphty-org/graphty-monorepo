@@ -114,7 +114,7 @@ describe("the date condition card", () => {
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Old, / }));
-        await userEvent.click(await screen.findByRole("button", { name: "Keep..." }));
+        await userEvent.click(await screen.findByRole("treeitem", { name: "Step..." }));
         const option = await screen.findByRole("option", { name: /^installed(,|$)/ });
         assert.isNotNull(option.querySelector("svg.lucide-calendar"), "listed with the calendar glyph");
         await userEvent.click(option);

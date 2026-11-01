@@ -1219,8 +1219,9 @@ export function checklistRows(
         return { rows: matches.slice(0, SHOWN_VALUES), moreChecked: 0, matches, unchecked: 0 };
     }
     const ticked = named.filter((each) => checked.has(each.value));
-    const pinned = ticked.slice(0, SHOWN_VALUES);
     const rest = named.filter((each) => !checked.has(each.value));
+    // The checked never fill the list: the two largest unchecked stay reachable without a search.
+    const pinned = ticked.slice(0, SHOWN_VALUES - Math.min(2, rest.length));
     return {
         rows: [...pinned, ...rest.slice(0, SHOWN_VALUES - pinned.length)],
         moreChecked: ticked.length - pinned.length,

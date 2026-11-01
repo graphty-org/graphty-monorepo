@@ -2,7 +2,7 @@
  * The selection editor's polish rounds (design/ui/studio/tier5/decided.md) on the REAL
  * graphty-element, driven by real clicks, keys and hovers: a yes-or-no value picked removes and
  * selects nothing until Yes or No, a data column named rank is listed, a text step takes the
- * reader's typing, "Keep..." adds a Keep step after a group's first, a value with no test shows no
+ * reader's typing, "Step..." adds a step with the group's verb after a group's first, a value with no test shows no
  * test in its pane, an edge step reading a node value can take either end (in Advanced), a So far
  * step's pane draws its test, a filter card is named as its rows say it, "Or..." then Escape leaves
  * no group, the key names a single group by the selection's title, hovering a group row marks it,
@@ -154,7 +154,7 @@ describe("the value picker and the cards a value opens", () => {
     it("a text card puts focus in its text box, so typing fills it", async () => {
         const session = await lesMis();
         await openLayer(session, "Named", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
+        await userEvent.click(screen.getByRole("treeitem", { name: "Step..." }));
         await pickValue("name");
         await waitFor(() => {
             const active = document.activeElement;
@@ -167,7 +167,7 @@ describe("the value picker and the cards a value opens", () => {
     it("Largest component applies as picked: its pane shows no test", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Largest", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
+        await userEvent.click(screen.getByRole("treeitem", { name: "Step..." }));
         await pickValue("Largest component");
         await waitFor(() => {
             assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[0]?.rule.kind, "member");
@@ -182,7 +182,7 @@ describe("the value picker and the cards a value opens", () => {
     it("an edge step reading a node value can be set to either end", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Ends", { match: "everything" }, "edge");
-        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
+        await userEvent.click(screen.getByRole("treeitem", { name: "Step..." }));
         await pickValue("name");
         await userEvent.click(await screen.findByRole("button", { name: /^Advanced/ }));
         const ends = await screen.findByRole("radiogroup", { name: "Edge ends" });
@@ -237,7 +237,7 @@ describe("the value picker and the cards a value opens", () => {
 });
 
 describe("the editor's verbs, groups and words", () => {
-    it("after a group's first step, Keep... adds a Keep step", async () => {
+    it("after a group's first step, Step... adds a step with the group's verb, and the segment changes it", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Refine", {
             match: "rule",
@@ -250,8 +250,13 @@ describe("the editor's verbs, groups and words", () => {
         });
         // The Add row is drawn under the group a row of which is selected.
         await userEvent.click(document.querySelector('[data-row="deg"] .sel-value') ?? document.body);
-        await userEvent.click(await screen.findByRole("button", { name: "Keep..." }));
+        await userEvent.click(await screen.findByRole("treeitem", { name: "Step..." }));
         await pickValue("Isolated");
+        await waitFor(() => {
+            assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[1]?.op, "add", "a group of none adds");
+        });
+        const verb = await screen.findByRole("radiogroup", { name: "Verb" });
+        await userEvent.click(within(verb).getByText("Keep"));
         await waitFor(() => {
             assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[1]?.op, "keep");
         });
@@ -261,7 +266,7 @@ describe("the editor's verbs, groups and words", () => {
         const session = await lesMis();
         const layer = await openLayer(session, "One", { match: "rule", where: DEGREE_6_TO_10 });
         await userEvent.click(screen.getByRole("treeitem", { name: /^Which nodes, / }));
-        await userEvent.click(await screen.findByRole("button", { name: "Or..." }));
+        await userEvent.click(await screen.findByRole("treeitem", { name: "Or..." }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -390,12 +395,12 @@ describe("polish round 3", () => {
     it("a So far step with no test yet shows its two boxes once its own values land", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Between", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
+        await userEvent.click(screen.getByRole("treeitem", { name: "Step..." }));
         await pickValue("Degree");
         await screen.findByRole("textbox", { name: "Degree from, number" });
-        // A second step, so So far is offered: it reads the first step's members.
-        await userEvent.keyboard("{Escape}");
-        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
+        // A second step, so So far is offered: it reads the first step's members. The first is
+        // selected, so its group's Add row is drawn.
+        await userEvent.click(screen.getByRole("treeitem", { name: "Step..." }));
         await pickValue("Betweenness");
         const second = await waitFor(() => {
             const steps = unionOf(session, layer.id)?.branches[0]?.steps ?? [];
@@ -427,7 +432,7 @@ describe("polish round 3", () => {
     it("picking a value with no test keeps the preview on in the style host", async () => {
         const session = await lesMis();
         await openLayer(session, "Lone", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
+        await userEvent.click(screen.getByRole("treeitem", { name: "Step..." }));
         await pickValue("Isolated");
         await waitFor(() => {
             assert.isNotNull(document.activeElement?.closest(".sel-step-row"), "focus is on its row");

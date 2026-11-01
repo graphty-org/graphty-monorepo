@@ -81,7 +81,7 @@ type GroupEntry = string | number | undefined;
  */
 function groupNames(session: GraphSession, path: string, groups: readonly ValueGroup[]): Map<string, string> {
     const run = session.runs.list().find((each) => session.results.path(each.id) === path);
-    const ranks = new Map((run?.result?.summary().groups ?? []).map((g) => [String(g.group), g.rank]));
+    const ranks = run?.result?.groupRanks() ?? new Map<string, number>();
     return new Map(
         groups.map((group) => {
             const key = String(group.value);

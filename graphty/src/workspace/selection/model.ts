@@ -52,6 +52,25 @@ export function verbsFor(branch: UnionBranch): readonly Verb[] {
 }
 
 /**
+ * The verbs that can change a group at one of its steps: the verbs of the group cut short there.
+ * @param branch - the group.
+ * @param index - the step's place.
+ * @returns the verbs.
+ */
+export function verbsAt(branch: UnionBranch, index: number): readonly Verb[] {
+    return verbsFor({ ...branch, steps: branch.steps.slice(0, index) });
+}
+
+/**
+ * A new step's verb: Keep in a group that starts with All, Add in one that starts with none.
+ * @param branch - the group.
+ * @returns the verb.
+ */
+export function newVerb(branch: UnionBranch): Verb {
+    return branch.start === "all" ? "keep" : "add";
+}
+
+/**
  * A list with one item moved.
  * @param list - the list.
  * @param from - the item's place.

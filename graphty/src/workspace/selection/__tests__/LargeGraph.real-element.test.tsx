@@ -133,7 +133,8 @@ describe("the selection editor on 50,000 nodes", () => {
         });
         assert.isTrue(
             listed().options.every(
-                (each) => ["Hovered or selected", "So far"].includes(each) || each.startsWith("Selected"),
+                (each) =>
+                    ["Pick on canvas", "Hovered or selected", "So far"].includes(each) || each.startsWith("Selected"),
             ),
             listed().options.join(", "),
         );
@@ -142,7 +143,15 @@ describe("the selection editor on 50,000 nodes", () => {
             const nodes = listed().headings.find((each) => each.startsWith("Nodes"));
             assert.match(nodes ?? "", /^Nodes 8 of [\d,]+$/);
         });
-        assert.isAtMost(listed().options.length, 3 + 8);
+        assert.isAtMost(listed().options.length, 4 + 8);
+        // Found by what a node is called (its id or name), never by another column's value.
+        const live = ["Pick on canvas", "Hovered or selected", "So far"];
+        const nodes = listed().options.filter((each) => !live.includes(each) && !each.startsWith("Selected"));
+        assert.isNotEmpty(nodes);
+        assert.isTrue(
+            nodes.every((each) => each.includes("12")),
+            nodes.join(", "),
+        );
         await userEvent.keyboard("{Escape}");
     });
 
@@ -187,7 +196,7 @@ describe("the selection editor on 50,000 nodes", () => {
         });
         await userEvent.clear(search);
         await waitFor(() => {
-            assert.isNotNull(screen.queryByText(`${(matches - 8).toLocaleString("en-US")} more checked`));
+            assert.isNotNull(screen.queryByText(`${(matches - 6).toLocaleString("en-US")} more checked`));
         });
         assert.isAtMost(within(values).getAllByRole("checkbox").length, 9);
         assert.match(

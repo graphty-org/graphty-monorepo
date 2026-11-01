@@ -1,4 +1,11 @@
-import { focusWithRing, LISTBOX_CLASS_NAMES, RangeSlider, useNumberParser } from "@graphty/compact-mantine";
+import {
+    focusWithRing,
+    HistogramRow,
+    LISTBOX_CLASS_NAMES,
+    RangeSlider,
+    SegmentedControl,
+    useNumberParser,
+} from "@graphty/compact-mantine";
 import type { GraphSession, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -30,6 +37,7 @@ import { formatNumber } from "../inspector/words";
 import { isPanelEscape } from "../keys/keys";
 import { StyleSelection } from "../selection/StyleSelection";
 import { layerSelection } from "../selection/values";
+import { formatCount } from "../settings/numberFormat";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace } from "../state/WorkspaceContext";
 import {
@@ -327,10 +335,10 @@ function useHead(session: GraphSession, rows: readonly PickRow[], side: Side, he
         // No one rule says what several Ends cards keep together (each reads its own layer's
         // nodes), so the union is left unsaid rather than drawn as "of 254 edges".
         // How many layers is the panel's header's to say; a total it cannot count is left unsaid.
-        return matched === undefined ? "" : `${String(matched)} of ${String(total)} ${NOUN[side].many}`;
+        return matched === undefined ? "" : `${formatCount(matched)} of ${formatCount(total)} ${NOUN[side].many}`;
     }
-    const of = `of ${String(total)} ${NOUN[side].many}`;
-    return matched === undefined ? of : `${String(matched)} ${of}`;
+    const of = `of ${formatCount(total)} ${NOUN[side].many}`;
+    return matched === undefined ? of : `${formatCount(matched)} ${of}`;
 }
 
 /** How long typing pauses before the count it changed is spoken. */
@@ -1481,7 +1489,14 @@ export function AddCondition({
                     aria-label="Attributes"
                 >
                     {/* compact-mantine's overlay scrollbar, as every Select's list; never sideways. */}
-                    <ScrollArea.Autosize mah={240} type="scroll" scrollbars="y">
+                    <ScrollArea.Autosize
+                        mah={240}
+                        type="scroll"
+                        scrollbars="y"
+                        // Mantine lays the content out as a table, which widens to its longest row:
+                        // a block keeps every row inside the list, cut short at its tail.
+                        classNames={{ content: "ws-list-content" }}
+                    >
                         {count === 0 ? (
                             <Combobox.Empty>
                                 {nothingWords}
@@ -1553,10 +1568,7 @@ export function AddCondition({
                                                 value={`${EXTRA}${each.key}`}
                                                 aria-label={each.name}
                                             >
-                                                <Group gap={8} wrap="nowrap">
-                                                    <each.glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
-                                                    <span>{each.name}</span>
-                                                </Group>
+                                                <OptionLine glyph={each.glyph} name={each.name} />
                                             </Combobox.Option>
                                         ))}
                                     </Combobox.Group>
@@ -1597,6 +1609,85 @@ function ExtraOption({ item }: Readonly<{ item: ExtraItem }>): React.JSX.Element
 }
 
 /**
+ * A step's number test drawn over its values (selection spec 5): the bars of how the values are
+ * spread (graphty-element's `scope.histogram`, over the step's base) and a brush on their scale,
+ * which writes the Min and Max boxes when a gesture ends.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.path - the value's path
+ * @param props.within - the base the values are counted over, if any
+ * @param props.name - the value's name
+ * @param props.low - the values' lowest
+ * @param props.high - the values' highest
+ * @param props.step - how far a thumb moves
+ * @param props.value - the test's bounds, clamped to the values
+ * @param props.onChangeEnd - takes the bounds a gesture ended on
+ * @returns The row, or nothing while the values are not numbers
+ */
+function ValueBrush({
+    session,
+    path,
+    within,
+    name,
+    low,
+    high,
+    step,
+    value,
+    onChangeEnd,
+}: Readonly<{
+    session: GraphSession;
+    path: string;
+    within: CardField["within"];
+    name: string;
+    low: number;
+    high: number;
+    step: number;
+    value: [number, number];
+    onChangeEnd: (value: [number, number]) => void;
+}>): React.JSX.Element | null {
+    const spread = useMemo(
+        () => session.scope.histogram(path, within === undefined ? {} : { within }),
+        [session, path, within],
+    );
+    const [moving, setMoving] = useState<[number, number] | null>(null);
+    if (spread.kind !== "numeric" || spread.bins.length === 0 || high <= low) {
+        return null;
+    }
+    const shown = moving ?? value;
+    return (
+        <HistogramRow
+            label={name}
+            bins={spread.bins.map((bin) => ({
+                label: `${formatNumber(bin.from)} to ${formatNumber(bin.to)}: ${formatCount(bin.count)}`,
+                count: bin.count,
+                from: bin.from,
+                to: bin.to,
+                highlighted: bin.to > shown[0] && bin.from <= shown[1],
+            }))}
+            minLabel={formatNumber(low)}
+            maxLabel={formatNumber(high)}
+            valueTable={false}
+            brush={{
+                min: low,
+                max: high,
+                step,
+                value: shown,
+                startLabel: `${name} range start`,
+                endLabel: `${name} range end`,
+                bodyLabel: `${name} range`,
+                valueText: (each) => formatNumber(each),
+                rangeText: ([from, to]) => `${formatNumber(from)} to ${formatNumber(to)}`,
+                onChange: setMoving,
+                onChangeEnd: (next) => {
+                    setMoving(null);
+                    onChangeEnd(next);
+                },
+            }}
+        />
+    );
+}
+
+/**
  * One row of the add list: its icon, its name cut short with an ellipsis (whole in its tooltip),
  * and its fact, which keeps its width; a value that is already a condition has a dimmed check.
  * @param props - Component props
@@ -1618,7 +1709,7 @@ function OptionLine({
     used?: boolean;
 }>): React.JSX.Element {
     return (
-        <Group gap={8} wrap="nowrap" justify="space-between">
+        <Group gap={8} wrap="nowrap" justify="space-between" style={{ minWidth: 0 }}>
             <Group gap={8} wrap="nowrap" style={{ minWidth: 0, flex: "1 1 auto" }}>
                 <Glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
                 <Tooltip label={name}>
@@ -2266,54 +2357,86 @@ function NumberCard({
             onCommit={commit}
         />
     );
+    const pickMatch = (match: string): void => {
+        clear();
+        onChange({
+            ...card,
+            match: match as typeof card.match,
+            ...(match === "top" && card.top === undefined ? { top: Math.max(1, Math.min(10, total)) } : {}),
+            ...(match === "range" && card.min === undefined && card.max === undefined ? { min: low, max: high } : {}),
+        });
+    };
+    const value: [number, number] = [Math.max(low, card.min ?? low), Math.min(high, card.max ?? high)];
     return (
         <Stack gap={4} data-card-body>
-            <MatchSelect
-                name={name}
-                value={card.match}
-                data={[
-                    { value: "range", label: "Between" },
-                    { value: "top", label: "Highest" },
-                    ...(variant === "step" ? [] : PRESENCE),
-                ]}
-                onChange={(match) => {
-                    clear();
-                    onChange({
-                        ...card,
-                        match: match as typeof card.match,
-                        ...(match === "top" && card.top === undefined ? { top: Math.max(1, Math.min(10, total)) } : {}),
-                        ...(match === "range" && card.min === undefined && card.max === undefined
-                            ? { min: low, max: high }
-                            : {}),
-                    });
-                }}
-            />
+            {variant === "step" ? (
+                // A step's test (selection spec 5): By value, a brush over the values' bars; By
+                // position, the highest N.
+                <SegmentedControl
+                    label={`${name} test`}
+                    size="xs"
+                    fullWidth
+                    data={[
+                        { value: "range", label: "By value" },
+                        { value: "top", label: "By position" },
+                    ]}
+                    value={card.match === "top" ? "top" : "range"}
+                    onChange={pickMatch}
+                />
+            ) : (
+                <MatchSelect
+                    name={name}
+                    value={card.match}
+                    data={[{ value: "range", label: "Between" }, { value: "top", label: "Highest" }, ...PRESENCE]}
+                    onChange={pickMatch}
+                />
+            )}
+            {card.match === "range" && variant === "step" && (
+                <ValueBrush
+                    session={session}
+                    path={path}
+                    within={within}
+                    name={name}
+                    low={low}
+                    high={high}
+                    step={step}
+                    value={value}
+                    onChangeEnd={([min, max]) => {
+                        clear();
+                        onChange({ ...card, min, max });
+                    }}
+                />
+            )}
             {card.match === "range" && (
                 <>
-                    <RangeSlider
-                        size="xs"
-                        min={low}
-                        max={high}
-                        step={step}
-                        minRange={0}
-                        label={null}
-                        thumbFromLabel={`${name} range start`}
-                        thumbToLabel={`${name} range end`}
-                        // Spoken as the boxes show it, never as a raw float.
-                        thumbProps={(index) => ({
-                            "aria-valuetext": shortNumber(
-                                String(index === 0 ? Math.max(low, card.min ?? low) : Math.min(high, card.max ?? high)),
-                            ),
-                        })}
-                        value={[Math.max(low, card.min ?? low), Math.min(high, card.max ?? high)]}
-                        onChangeEnd={([min, max]) => {
-                            clear();
-                            onChange({ ...card, min, max });
-                        }}
-                    />
+                    {variant !== "step" && (
+                        <RangeSlider
+                            size="xs"
+                            min={low}
+                            max={high}
+                            step={step}
+                            minRange={0}
+                            label={null}
+                            thumbFromLabel={`${name} range start`}
+                            thumbToLabel={`${name} range end`}
+                            // Spoken as the boxes show it, never as a raw float.
+                            thumbProps={(index) => ({
+                                "aria-valuetext": shortNumber(
+                                    String(
+                                        index === 0 ? Math.max(low, card.min ?? low) : Math.min(high, card.max ?? high),
+                                    ),
+                                ),
+                            })}
+                            value={value}
+                            onChangeEnd={([min, max]) => {
+                                clear();
+                                onChange({ ...card, min, max });
+                            }}
+                        />
+                    )}
                     <Group gap={4} wrap="nowrap">
                         {box("min", `${name} from, number`, low)}
-                        <Text size="xs">to</Text>
+                        <Text size={variant === "step" ? "sm" : "xs"}>to</Text>
                         {box("max", `${name} to, number`, high)}
                     </Group>
                 </>

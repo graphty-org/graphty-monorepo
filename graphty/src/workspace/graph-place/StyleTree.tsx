@@ -8,6 +8,7 @@ import { GLYPHS } from "../glyphs";
 import { resolveInspected } from "../inspector/inspected";
 import { staleWords } from "../inspector/words";
 import { isPanelEscape, matchesKey } from "../keys/keys";
+import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
@@ -117,11 +118,11 @@ function rowStates(row: StyleRow): string[] {
  * @returns The count
  */
 function RowCount({ paints }: Readonly<{ paints: Paints }>): React.JSX.Element {
+    const shown =
+        paints.nodes === undefined || (paints.nodes === 0 && paints.edges !== undefined) ? paints.edges : paints.nodes;
     return (
         <span className="ws-row-count" aria-hidden>
-            {paints.nodes === undefined || (paints.nodes === 0 && paints.edges !== undefined)
-                ? (paints.edges ?? "")
-                : paints.nodes}
+            {shown === undefined ? "" : formatCount(shown)}
         </span>
     );
 }

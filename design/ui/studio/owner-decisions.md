@@ -3685,3 +3685,27 @@ not change them on its own:
 
 **Why.** A list over the card it fills hides the controls it was opened for (the Hops box), and a
 reason no keyboard reader can reach does not help them.
+
+## 2026-11-01 -- For the owner: three changes to what graphty-element already returns
+
+The selection editor's repolish review asked for three element changes that would change what an
+existing API returns, so they wait for you (each is a breaking change under the repository's rule).
+
+- **A node's name on a graph file with no `label` column.** `data.name` returns the `label` column,
+  else the id. A GraphML file whose nodes carry `name` (the 50,000-node test file) is named by id
+  everywhere: the reference picker, its token and the step row read "n17" for "Person 00017". The
+  element already names a sample's nodes by the first of label, name or title it holds. Choices:
+  (a) a graph file's load does the same (its drawn labels change too); (b) keep ids.
+- **A text column whose values repeat.** A string column is listed as text, so a 5,000-value
+  `team` column gets only Contains, never the counted checklist. Choices: (a) list a string column
+  as a category when its values repeat (at most half as many distinct values as records), which
+  changes `data.readableValues()` and the cards every app draws for such columns; (b) keep it.
+- **A saved Select card.** The review asked the element to rewrite a saved select condition as keep,
+  turned off, when it reads the project. `effect: "select"` is a public condition; rewriting it on
+  load changes what third parties' saved projects do. The app now draws a Select card's box as the
+  element holds it (on, while it still selects) and writes it as keep, off, on its first edit.
+  Choices: (a) rewrite on load; (b) keep the app's truthful box.
+
+The number test's 10 px slider thumbs (the 2026-11-01 entry above) no longer appear in a step's
+pane: a step's number test is now compact-mantine's HistogramRow brush. The filter card and the
+style layer cards keep the RangeSlider.

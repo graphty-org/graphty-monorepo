@@ -30,7 +30,7 @@ import { addStep, editBranch, newSelection } from "../selection/model";
 import type { SelectionMenuItem } from "../selection/SelectionMenu";
 import { useSteps } from "../selection/useSteps";
 import { filterSelection, type PickSection, ruleOfField, sideOf } from "../selection/values";
-import { stepWords } from "../selection/words";
+import { rowWords, stepWords } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, cardFields, type Side } from "../style/cards";
@@ -223,9 +223,28 @@ export function FiltersSection(): React.JSX.Element {
         ...waiting.map((each) => ({ id: each.id, condition: undefined, draft: each })),
     ];
     const empty = cards.length === 0 && !timed;
+    // What the cards together leave, on the header: "Passes none" when they empty the picture.
+    const { summary } = session?.visibility ?? { summary: null };
+    const together =
+        summary === null || !conditions.some((c) => c.on && hides(c)) ? null : (
+            <Text size="sm" className="dp-filters-count" data-filters-count="">
+                {summary.visibleNodes === 0
+                    ? "Passes none"
+                    : `${formatNumber(summary.visibleNodes)} of ${formatNumber(summary.totalNodes)}`}
+            </Text>
+        );
 
     return (
-        <ControlSection label="Filters" actions={plus} empty={empty}>
+        <ControlSection
+            label="Filters"
+            actions={
+                <Group gap={4} wrap="nowrap">
+                    {together}
+                    {plus}
+                </Group>
+            }
+            empty={empty}
+        >
             {empty || session === null ? null : (
                 <Stack component="ul" role="list" aria-label="Filters" gap={6} className="dp-filters">
                     {cards.map((each) => (
@@ -268,9 +287,13 @@ export function FiltersSection(): React.JSX.Element {
  * or the hidden-column mark when its rule reads a column that is not there.
  * @param props - Component props
  * @param props.count - the element's count, or undefined for a card not yet written
+ * @param props.removes - the card removes what it matches: a card's count says what stays
  * @returns the chips
  */
-function CountChips({ count }: Readonly<{ count: FilterConditionCount | undefined }>): React.JSX.Element | null {
+function CountChips({
+    count,
+    removes = false,
+}: Readonly<{ count: FilterConditionCount | undefined; removes?: boolean }>): React.JSX.Element | null {
     if (count === undefined) {
         return null;
     }
@@ -293,7 +316,7 @@ function CountChips({ count }: Readonly<{ count: FilterConditionCount | undefine
             {halves.map(([kind, half]) =>
                 half === null ? null : (
                     <EntityChip key={kind} kind={kind}>
-                        {`${formatNumber(half.matched)} of ${formatNumber(half.total)}`}
+                        {`${formatNumber(removes ? half.total - half.matched : half.matched)} of ${formatNumber(half.total)}`}
                     </EntityChip>
                 ),
             )}
@@ -382,9 +405,11 @@ function FilterCard({
     };
     // Drawn: the values the card reads; said: the card's rule in words, as the filter chip says it.
     const title = cardName(session, condition, selection, side, fresh?.field?.name);
-    const name = condition === undefined ? title : conditionWords(session, condition.rule);
-    // A Select card never took anything out of the picture: its box reads off until it does.
-    const on = condition === undefined ? true : condition.on && condition.effect !== "select";
+    // A selection is said as its title says it; a rule no editor reads, in its own words.
+    const name = condition === undefined || selection !== null ? title : conditionWords(session, condition.rule);
+    // The box says what the element holds: a saved Select card that is on still selects, so it
+    // reads on until the reader turns it off (its first edit writes it as a card that stays, off).
+    const on = condition === undefined ? true : condition.on;
     const setOn = (next: boolean): void => {
         if (condition === undefined) {
             return;
@@ -395,19 +420,23 @@ function FilterCard({
                 : { ...keepChange(selection, condition.effect), on: next };
         void writeCondition(store, () => session.visibility.updateCondition(id, change));
     };
-    const onBox = draft ? null : (
-        <Tooltip label={`Apply ${name}`}>
-            <Checkbox
-                size="xs"
-                className="dp-filter-on"
-                aria-label={`Apply ${name}`}
-                checked={on}
-                onChange={(event) => {
-                    setOn(event.currentTarget.checked);
-                }}
-            />
-        </Tooltip>
-    );
+    // The on box, named as the group eye is ("Use A"). In the open card it takes no Tab stop of its
+    // own: Space on the title row switches it, and the title row says when it is off.
+    const onBox = (inEditor: boolean): React.ReactNode =>
+        draft ? null : (
+            <Tooltip label={inEditor ? `Use ${title} (Space)` : `Use ${title}`}>
+                <Checkbox
+                    size="xs"
+                    className="dp-filter-on"
+                    aria-label={`Use ${title}`}
+                    tabIndex={inEditor ? -1 : undefined}
+                    checked={on}
+                    onChange={(event) => {
+                        setOn(event.currentTarget.checked);
+                    }}
+                />
+            </Tooltip>
+        );
     const things = side === "node" ? "nodes" : "edges";
     const matched = reading.total.count;
     const menu: SelectionMenuItem[] = [
@@ -431,6 +460,7 @@ function FilterCard({
                       label: "Duplicate",
                       icon: "duplicate" as const,
                       group: "edit" as const,
+                      key: "Mod+D",
                       onRun: () => {
                           const copy = newConditionId(session.visibility.conditions);
                           const { id: _id, ...rest } = condition;
@@ -467,7 +497,15 @@ function FilterCard({
                         rule={selection}
                         effect={condition?.effect}
                         title={title}
-                        lead={onBox}
+                        lead={onBox(true)}
+                        onTitleToggle={
+                            draft
+                                ? undefined
+                                : () => {
+                                      setOn(!on);
+                                  }
+                        }
+                        titleOff={!on}
                         titleMenu={menu}
                         titleExtra={
                             draft ? (
@@ -509,7 +547,7 @@ function FilterCard({
                     />
                 ) : (
                     <div className="sel-row dp-filter-row">
-                        {onBox}
+                        {onBox(false)}
                         <UnstyledButton
                             className="dp-filter-name"
                             aria-expanded={open}
@@ -523,7 +561,7 @@ function FilterCard({
                         </UnstyledButton>
                         <span className="sel-spacer" />
                         {total === undefined ? (
-                            <CountChips count={count} />
+                            <CountChips count={count} removes={condition?.effect === "exclude"} />
                         ) : (
                             <Text size="xs" c="dimmed" className="sel-count">
                                 {total}
@@ -548,7 +586,8 @@ function FilterCard({
 }
 
 /**
- * A card's name: the values its steps read ("Community, Degree"), else its field, else its words.
+ * A card's name: its first step as the step's row says it ("Degree min 10"), following its edits;
+ * else its field, else its words.
  * @param session - the element's session.
  * @param condition - the condition, or undefined for a draft.
  * @param selection - its selection, or null.
@@ -563,10 +602,12 @@ function cardName(
     side: Side,
     field: string | undefined,
 ): string {
-    const values =
-        selection?.branches.flatMap((branch) => branch.steps.map((step) => stepWords(session, step, side).value)) ?? [];
-    if (values.length > 0) {
-        return [...new Set(values)].join(", ");
+    const first = selection?.branches.flatMap((branch) => branch.steps)[0];
+    // A step no value names ("Rule": a tier 4 neighborhood, say) leaves the name to the rule's words.
+    if (first !== undefined && (condition === undefined || stepWords(session, first, side).value !== "Rule")) {
+        const words = rowWords(session, first, side);
+        const test = words.more === undefined ? words.test : `${words.test} ${words.more}`;
+        return [words.value, test].filter((each) => each !== "").join(" ");
     }
     if (condition === undefined) {
         return field ?? "New filter";

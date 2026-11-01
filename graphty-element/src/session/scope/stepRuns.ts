@@ -31,6 +31,12 @@ import type { ScopeStepOptions } from "./steps";
 
 type MeasureLeaf = Extract<RuleTree, { kind: "measure" }>;
 
+/**
+ * Past this many nodes and edges in its scope, a run with no cost estimate waits for `allowRun`
+ * while `askAboveMs` is set, as a run estimated above it does.
+ */
+const UNKNOWN_COST_ASK_SIZE = 10_000;
+
 /** What the step runs read from the session. */
 export interface StepRunsSources {
     readonly runs: RunsApi;
@@ -223,7 +229,12 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
 
         const estimateMs = sources.estimateMs(leaf.algorithm, params, scope);
         if (estimateMs === undefined) {
-            return null;
+            // No estimate: on a large graph it could take minutes, so it asks first as a slow one would.
+            const { nodeCount, edgeCount } = sources.resolveScope(scope);
+            const large = nodeCount + edgeCount > UNKNOWN_COST_ASK_SIZE;
+            return askAboveMs !== undefined && large && !consent.has(definitionKey(step, within))
+                ? { code: stale ? "stale" : "run-needed", params: {} }
+                : null;
         }
 
         if (live && liveMs !== undefined && estimateMs > liveMs && sources.hovering()) {

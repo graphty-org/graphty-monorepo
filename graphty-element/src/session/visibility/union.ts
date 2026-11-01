@@ -457,9 +457,13 @@ function readBranch(
         const inert = inertReason(step.rule);
         if (inert !== null) {
             // A measure with no test yet still asks for its run (under the run limits), so a
-            // picker can show the values its test will be set from. It stays inert either way.
+            // picker can show the values its test will be set from. It stays inert either way,
+            // and says why its values are not there yet while the run computes or waits for Run.
             if (step.rule.kind === "measure" && step.rule.test === undefined) {
-                fold.env.gate?.(step, frameOf(step, input, fold));
+                const gate = fold.env.gate?.(step, frameOf(step, input, fold)) ?? null;
+                if (gate?.state === "pending") {
+                    return { ...idle, state: "inert", reason: gate.reason };
+                }
             }
 
             return { ...idle, state: "inert", reason: inert };

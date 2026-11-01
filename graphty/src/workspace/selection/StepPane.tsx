@@ -6,7 +6,7 @@
  * graphty-element; every edit goes to the host as a new rule.
  */
 
-import { SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
+import { FieldRow, PanelLabelsProvider, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
 import type {
     GraphSession,
     RuleTree,
@@ -28,14 +28,16 @@ import {
     Tooltip,
     UnstyledButton,
 } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
+import { optionWords } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { isTypingTarget } from "../keys/keys";
+import { OptionsForm } from "../options/OptionsForm";
 import type { Card, Side } from "../style/cards";
 import { AddCondition, CardBody } from "../style/WhichPicker";
-import { type Verb, VERBS } from "./model";
+import { type Verb, VERBS, verbsAt } from "./model";
 import { ReferencePicker } from "./ReferencePicker";
 import { SelectionMenuItems } from "./SelectionMenu";
 import {
@@ -64,21 +66,45 @@ export interface StepActions {
     readonly onRemove: () => void;
 }
 
+/**
+ * A pane's row whose control is named by a caption over it (Start with, Computed on), as the Time
+ * card draws its rows.
+ * @param props - Component props
+ * @param props.children - the control, with its `label`
+ * @returns The row
+ */
+export function CaptionedRow({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
+    return (
+        <PanelLabelsProvider showLabels>
+            <FieldRow>{children}</FieldRow>
+        </PanelLabelsProvider>
+    );
+}
+
 /** The verbs in the segment's order: Figma's Union, Intersect, Subtract. */
 const SEGMENT_VERBS: readonly Verb[] = ["add", "keep", "except"];
 
 /**
- * The verb segment: Add, Keep, Except, Figma's name in each tooltip.
+ * The verb segment: the verbs that can change the group at this step (Add, Keep, Except), Figma's
+ * name in each tooltip. The step's own verb is always offered.
  * @param props - Component props
  * @param props.verb - the step's verb
+ * @param props.verbs - the verbs that can change the group here
  * @param props.onVerb - takes the new verb
  * @returns The segment
  */
-function VerbSegment({ verb, onVerb }: Readonly<{ verb: Verb; onVerb: (verb: Verb) => void }>): React.JSX.Element {
+function VerbSegment({
+    verb,
+    verbs,
+    onVerb,
+}: Readonly<{ verb: Verb; verbs: readonly Verb[]; onVerb: (verb: Verb) => void }>): React.JSX.Element {
     return (
         <SegmentedControl
             label="Verb"
-            data={SEGMENT_VERBS.map((each) => ({
+            size="xs"
+            fullWidth
+            style={{ flex: 1, minWidth: 0 }}
+            data={SEGMENT_VERBS.filter((each) => each === verb || verbs.includes(each)).map((each) => ({
                 value: each,
                 label: (
                     <Tooltip label={VERB_WORDS[each].figma}>
@@ -276,10 +302,11 @@ function ValueField({
     };
     return (
         <AddCondition
-            fields={pickerFields(session, sideOf(rule), rule.within)}
+            // The lists are read only while the picker is open: on a large graph they are not free.
+            fields={open ? pickerFields(session, sideOf(rule), rule.within) : []}
             used={usedPaths(rule, branch)}
             placeholder="Find attributes, results"
-            sections={[...hostPicks, ...pickSections(session, rule, choose)]}
+            sections={open ? [...hostPicks, ...pickSections(session, rule, choose)] : []}
             opened={open}
             onAdd={(field) => {
                 choose(ruleOfField(session, field));
@@ -321,6 +348,8 @@ interface StepPaneProps extends StepActions {
     readonly first: boolean;
     readonly last: boolean;
     readonly hostPicks: readonly PickSection[];
+    /** The Done button, drawn last in the first row. */
+    readonly done?: React.ReactNode;
 }
 
 /**
@@ -336,6 +365,7 @@ interface StepPaneProps extends StepActions {
  * @param props.first - it is its group's first step
  * @param props.last - it is its group's last step
  * @param props.hostPicks - the host's own value picker entries
+ * @param props.done - the Done button
  * @param props.onStep - takes a change to the step
  * @param props.onToggle - switches the step on or off
  * @param props.onMove - moves it up or down its group
@@ -354,18 +384,35 @@ export function StepPane({
     first,
     last,
     hostPicks,
+    done,
     onStep,
     onToggle,
     onMove,
     onDuplicate,
     onRemove,
 }: StepPaneProps): React.JSX.Element {
+    // After a value is picked, focus goes to its test's first control, never back onto the segment.
+    const testBox = useRef<HTMLDivElement>(null);
+    const toTest = useRef(false);
+    useEffect(() => {
+        if (!toTest.current) {
+            return;
+        }
+        toTest.current = false;
+        testBox.current
+            ?.querySelector<HTMLElement>("input:not([type=hidden]):not([readonly]), button, [tabindex='0']")
+            ?.focus();
+    });
     const side: Side = sideOf(rule);
     const { value } = rowWords(session, step, side, reading);
     // Typing in a box is held and written when committed (Enter, leaving the box): one undo step.
     const [draft, setDraft] = useState<Card | null>(null);
     const [advanced, setAdvanced] = useState(false);
-    const read = stepCard(session, step, reading, side, rule.within);
+    // Read once per reading, never per render: it reads the step's values and their spread.
+    const read = useMemo(
+        () => stepCard(session, step, reading, side, rule.within),
+        [session, step, reading, side, rule.within],
+    );
     const card = draft ?? read.card;
     const commit = (next: Card | null = draft): void => {
         setDraft(null);
@@ -389,11 +436,13 @@ export function StepPane({
     // A step that waits on a run shows no count: the number would be what comes into it.
     const count = reading === undefined || reading.waiting ? undefined : reading.count;
     const missing = missingOf(step.rule);
-    const canSoFar =
-        step.op !== "add" &&
-        step.rule.kind === "measure" &&
-        session.catalog.algorithms().find((each) => each.key === (step.rule as { algorithm: string }).algorithm)
-            ?.scopeInput === "subgraph";
+    const algorithm =
+        step.rule.kind === "measure"
+            ? session.catalog.algorithms().find((each) => each.key === (step.rule as { algorithm: string }).algorithm)
+            : undefined;
+    const canSoFar = step.op !== "add" && algorithm?.scopeInput === "subgraph";
+    // The algorithm's own settings, as Analyze draws them (spec 3.2), past the ones a step binds.
+    const settings = algorithm?.options.filter((o) => o.internal !== true && o.type !== "node-id") ?? [];
     const pending = reading?.state === "pending";
     // An edge step reading a node value says whether both ends must pass, or either.
     const readsEnds = side === "edge" && card !== null && "field" in card && card.field.on === "node";
@@ -402,12 +451,18 @@ export function StepPane({
         ...(step.ends === "either" ? ["Either end"] : []),
         ...(missing === true ? ["Not measured"] : []),
     ];
-    const hasAdvanced = canSoFar || readsEnds || missing !== undefined || step.rule.kind === "touching";
+    const hasAdvanced =
+        canSoFar || readsEnds || missing !== undefined || step.rule.kind === "touching" || settings.length > 0;
     const base = host === "filter" ? "Full graph" : "Filtered graph";
     return (
         <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
             role="group"
-            aria-label={`${VERB_WORDS[step.op].word}, ${value}`}
+            aria-label={[
+                `${VERB_WORDS[step.op].word}, ${value}`,
+                ...(count === undefined
+                    ? []
+                    : [`${formatNumber(count)} of ${formatNumber(of)} ${NOUNS[side].many} so far`]),
+            ].join(", ")}
             className="sel-pane"
             data-step-pane={step.id}
             data-pending={pending ? "" : undefined}
@@ -433,17 +488,11 @@ export function StepPane({
                 <Group gap={4} wrap="nowrap">
                     <VerbSegment
                         verb={step.op}
+                        verbs={verbsAt(branch, branch.steps.indexOf(step))}
                         onVerb={(op) => {
                             onStep({ op });
                         }}
                     />
-                    {count !== undefined && (
-                        <Tooltip label={`${formatNumber(count)} of ${formatNumber(of)} ${NOUNS[side].many} so far`}>
-                            <Text size="xs" c="dimmed" className="sel-count" ml="auto">
-                                {formatNumber(count)}
-                            </Text>
-                        </Tooltip>
-                    )}
                     <StepMenu
                         name={value}
                         on={step.on !== false}
@@ -454,6 +503,7 @@ export function StepPane({
                         onDuplicate={onDuplicate}
                         onRemove={onRemove}
                     />
+                    {done}
                 </Group>
                 <ValueField
                     session={session}
@@ -463,33 +513,36 @@ export function StepPane({
                     hostPicks={hostPicks}
                     onRule={(stepRule) => {
                         setDraft(null);
+                        toTest.current = true;
                         onStep({ rule: stepRule });
                     }}
                 />
-                {isRelative(step.rule) ? (
-                    <RelativeBody
-                        session={session}
-                        rule={step.rule}
-                        host={host}
-                        firstStep={first}
-                        onRule={(next) => {
-                            onStep({ rule: next });
-                        }}
-                    />
-                ) : (
-                    <>
-                        {pending && <RunButton session={session} rule={rule} step={step} reading={reading} />}
-                        {card !== null && (
-                            <CardBody
-                                session={session}
-                                card={card}
-                                side={"field" in card ? card.field.on : side}
-                                onChange={onCard}
-                                variant="step"
-                            />
-                        )}
-                    </>
-                )}
+                <div ref={testBox} className="sel-test-box">
+                    {isRelative(step.rule) ? (
+                        <RelativeBody
+                            session={session}
+                            rule={step.rule}
+                            host={host}
+                            firstStep={first}
+                            onRule={(next) => {
+                                onStep({ rule: next });
+                            }}
+                        />
+                    ) : (
+                        <>
+                            <RunButton session={session} rule={rule} step={step} reading={reading} />
+                            {card !== null && (
+                                <CardBody
+                                    session={session}
+                                    card={card}
+                                    side={"field" in card ? card.field.on : side}
+                                    onChange={onCard}
+                                    variant="step"
+                                />
+                            )}
+                        </>
+                    )}
+                </div>
                 {hasAdvanced && (
                     <>
                         <UnstyledButton
@@ -504,11 +557,11 @@ export function StepPane({
                                 aria-hidden
                                 style={{ transform: advanced ? undefined : "rotate(-90deg)" }}
                             />
-                            <Text size="xs" span>
+                            <Text size="sm" span>
                                 Advanced
                             </Text>
                             {changed.length > 0 && (
-                                <Text size="xs" c="dimmed" span ml="auto">
+                                <Text size="sm" c="dimmed" span ml="auto">
                                     {changed.join(", ")}
                                 </Text>
                             )}
@@ -516,43 +569,71 @@ export function StepPane({
                         <Collapse in={advanced}>
                             <Stack gap={6}>
                                 {canSoFar && (
-                                    <SegmentedControl
-                                        label="Computed on"
-                                        data={[
-                                            { value: "base", label: base },
-                                            { value: "so-far", label: "So far" },
-                                        ]}
-                                        value={step.computedOn === "so-far" ? "so-far" : "base"}
-                                        onChange={(next) => {
-                                            onStep({ computedOn: next === "so-far" ? "so-far" : "base" });
-                                        }}
-                                    />
+                                    <CaptionedRow>
+                                        <SegmentedControl
+                                            label="Computed on"
+                                            size="xs"
+                                            fullWidth
+                                            data={[
+                                                { value: "base", label: base },
+                                                { value: "so-far", label: "So far" },
+                                            ]}
+                                            value={step.computedOn === "so-far" ? "so-far" : "base"}
+                                            onChange={(next) => {
+                                                onStep({ computedOn: next === "so-far" ? "so-far" : "base" });
+                                            }}
+                                        />
+                                    </CaptionedRow>
                                 )}
                                 {readsEnds && (
-                                    <SegmentedControl
-                                        label="Edge ends"
-                                        data={[
-                                            { value: "both", label: "Both" },
-                                            { value: "either", label: "Either" },
-                                        ]}
-                                        value={step.ends ?? "both"}
-                                        onChange={(next) => {
-                                            onStep({ ends: next === "either" ? "either" : "both" });
-                                        }}
-                                    />
+                                    <CaptionedRow>
+                                        <SegmentedControl
+                                            label="Edge ends"
+                                            size="xs"
+                                            fullWidth
+                                            data={[
+                                                { value: "both", label: "Both" },
+                                                { value: "either", label: "Either" },
+                                            ]}
+                                            value={step.ends ?? "both"}
+                                            onChange={(next) => {
+                                                onStep({ ends: next === "either" ? "either" : "both" });
+                                            }}
+                                        />
+                                    </CaptionedRow>
                                 )}
                                 {step.rule.kind === "touching" && (
-                                    <SegmentedControl
-                                        label="Edge ends"
-                                        data={[
-                                            { value: "either", label: "Either" },
-                                            { value: "both", label: "Both" },
-                                            { value: "one", label: "One" },
-                                        ]}
-                                        value={step.rule.ends}
-                                        onChange={(next) => {
+                                    <CaptionedRow>
+                                        <SegmentedControl
+                                            label="Edge ends"
+                                            size="xs"
+                                            fullWidth
+                                            data={[
+                                                { value: "either", label: "Either" },
+                                                { value: "both", label: "Both" },
+                                                { value: "one", label: "One" },
+                                            ]}
+                                            value={step.rule.ends}
+                                            onChange={(next) => {
+                                                onStep({
+                                                    rule: { ...step.rule, ends: next } as RuleTree,
+                                                });
+                                            }}
+                                        />
+                                    </CaptionedRow>
+                                )}
+                                {algorithm !== undefined && settings.length > 0 && step.rule.kind === "measure" && (
+                                    <OptionsForm
+                                        session={session}
+                                        options={settings}
+                                        values={step.rule.params ?? {}}
+                                        words={(option) => optionWords(algorithm.key, option)}
+                                        weightReads={algorithm.weightMeaning ?? null}
+                                        algorithm={algorithm.key}
+                                        onChange={(name, next) => {
+                                            const measure = step.rule as Extract<RuleTree, { kind: "measure" }>;
                                             onStep({
-                                                rule: { ...step.rule, ends: next } as RuleTree,
+                                                rule: { ...measure, params: { ...measure.params, [name]: next } },
                                             });
                                         }}
                                     />
@@ -643,6 +724,7 @@ function StepMenu({
                             group: "edit",
                             key: "Mod+]",
                             reason: first ? "Already the first step" : null,
+                            reasonDrawn: false,
                             onRun: () => {
                                 onMove(-1);
                             },
@@ -654,6 +736,7 @@ function StepMenu({
                             group: "edit",
                             key: "Mod+[",
                             reason: last ? "Already the last step" : null,
+                            reasonDrawn: false,
                             onRun: () => {
                                 onMove(1);
                             },

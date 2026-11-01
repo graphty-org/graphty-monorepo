@@ -1,7 +1,7 @@
 /**
  * The selection editor (design/ui/selection-groups/spec.md, section 3) on the REAL graphty-element
  * and Les Miserables, driven by real clicks and keys. In a style layer's Which nodes: the outline
- * is drawn at rest, one line per row, with no control in it; "Keep..." adds a step and opens the
+ * is drawn at rest, one line per row, with no control in it; "Step..." adds a step and opens the
  * value picker at once; a value with no test is kept and reads "No test"; Escape on a step with no
  * value takes it back; a number written in the pane's box narrows the layer; a flat tier 4 rule
  * opens as All nodes and a Keep step; Mod+[ and a drag reorder steps; a Relative to step takes its
@@ -138,14 +138,13 @@ async function filterCard(name: RegExp): Promise<HTMLElement> {
 }
 
 describe("the selection editor in a style layer", () => {
-    it("a fresh layer: Keep... adds a step and opens its picker; a value with no test is kept and reads No test", async () => {
+    it("a fresh layer: Step... adds a Keep step and opens its picker; a value with no test is kept and reads No test", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Busy", { match: "everything" });
         // A layer of every node reads as what it paints: All nodes, and only the verbs that narrow.
         assert.isNotNull(screen.queryByRole("treeitem", { name: "Which nodes, 77 of 77 nodes" }));
         assert.isNotNull(screen.queryByRole("treeitem", { name: "All nodes" }));
-        assert.isNull(screen.queryByRole("button", { name: "Add..." }), "Add widens nothing on All");
-        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
+        await userEvent.click(screen.getByRole("treeitem", { name: "Step..." }));
         const search = await screen.findByRole("combobox", { name: "Find attributes, results" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, search, "the value picker opens with its search focused");
@@ -175,10 +174,10 @@ describe("the selection editor in a style layer", () => {
         assert.isAbove(expected, 0);
     });
 
-    it("Keep... then Escape leaves no step, and focus goes back to the Add row", async () => {
+    it("Step... then Escape leaves no step, and focus goes back to the Add row", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Nothing", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
+        await userEvent.click(screen.getByRole("treeitem", { name: "Step..." }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -189,7 +188,7 @@ describe("the selection editor in a style layer", () => {
         assert.deepEqual(session.styles.get(layer.id)?.selector, { match: "everything" });
     });
 
-    it("an empty None group offers only Add...; afterwards all three verbs", async () => {
+    it("an empty None group's Step... adds an Add step; the segment offers only the verbs that change the group", async () => {
         const session = await openSample();
         const empty: UnionLeaf = {
             kind: "union",
@@ -198,21 +197,29 @@ describe("the selection editor in a style layer", () => {
             branches: [{ start: "none", steps: [] }],
         };
         await openLayer(session, "Empty", { match: "rule", where: empty });
-        const add = within(document.querySelector<HTMLElement>(".sel-add-row") ?? document.body);
-        assert.deepEqual(
-            add.getAllByRole("button").map((each) => each.textContent),
-            ["Add..."],
-        );
-        await userEvent.click(add.getByRole("button", { name: "Add..." }));
+        const verbs = (): (string | null)[] =>
+            within(screen.getByRole("radiogroup", { name: "Verb" }))
+                .getAllByRole("radio")
+                .map((each) => each.getAttribute("value"));
+        await userEvent.click(screen.getByRole("treeitem", { name: "Step..." }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Isolated{Enter}");
         await waitFor(() => {
             assert.match(stepRows()[0] ?? "", /^Add, Isolated/);
         });
-        const verbs = within(document.querySelector<HTMLElement>(".sel-add-row") ?? document.body)
-            .getAllByRole("button")
-            .map((each) => each.textContent);
-        assert.deepEqual(verbs, ["Add...", "Keep...", "Except..."]);
+        // Keep or Except on nothing changes nothing: the first step of a group of none can only add.
+        await waitFor(() => {
+            assert.deepEqual(verbs(), ["add"]);
+        });
+        await userEvent.click(screen.getByRole("treeitem", { name: "Step..." }));
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await userEvent.keyboard("Degree{Enter}");
+        await waitFor(() => {
+            assert.match(stepRows()[1] ?? "", /^Add, Degree/);
+        });
+        await waitFor(() => {
+            assert.deepEqual(verbs(), ["add", "keep", "except"]);
+        });
     });
 
     it("a tier 4 rule opens as All nodes and a Keep step, with the same count", async () => {
@@ -294,7 +301,7 @@ describe("the selection editor in a style layer", () => {
     it("a Relative to step takes its reference from the picker, as one token", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Near Valjean", { match: "everything" });
-        await userEvent.click(screen.getByRole("button", { name: "Keep..." }));
+        await userEvent.click(screen.getByRole("treeitem", { name: "Step..." }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Within hops");
         await userEvent.keyboard("{Enter}");
@@ -356,7 +363,7 @@ describe("the selection editor in a filter card", () => {
         const session = await openSample("data");
         await session.visibility.addCondition({ id: "deg", effect: "keep", rule: DEGREE_6_TO_10 });
         const card = await filterCard(/degree/i);
-        await userEvent.click(within(card).getByRole("button", { name: "Degree" }));
+        await userEvent.click(within(card).getByRole("button", { name: /^Degree/ }));
         const step = await waitFor(() => {
             const found = card.querySelector<HTMLElement>(".sel-step-row[data-row]");
             assert.isNotNull(found);
@@ -373,7 +380,7 @@ describe("the selection editor in a filter card", () => {
             assert.equal((rule as UnionLeaf).branches[0]?.steps[0]?.op, "except");
         });
 
-        await userEvent.click(within(card).getByRole("button", { name: "Keep..." }));
+        await userEvent.click(within(card).getByRole("treeitem", { name: "Step..." }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Within hops");
         await userEvent.keyboard("{Enter}");
@@ -571,7 +578,7 @@ describe("the selection editor's keys, names and limits", () => {
         const session = await openSample();
         const layer = await openLayer(session, "Six", { match: "rule", where: SIX_GROUPS });
         await userEvent.click(screen.getByRole("treeitem", { name: /^Which nodes, / }));
-        const or = await screen.findByRole("button", { name: "Or..." });
+        const or = await screen.findByRole("treeitem", { name: "Or..." });
         assert.equal(or.getAttribute("aria-disabled"), "true");
         or.focus();
         await userEvent.keyboard("{Enter}");
@@ -607,5 +614,87 @@ describe("the outline at rest (the owner's review of 2026-11-01)", () => {
         assert.lengthOf(new Set(x), 1, "every value name starts at the same x");
         // No "+" inside a selection: "+" adds only in a section header.
         assert.notInclude(editor.textContent ?? "", "+");
+    });
+});
+
+describe("the outline under the pointer (the owner's review, repolish 1)", () => {
+    it("pointing at a group or a step adds no row and moves nothing; the editor keeps its height", async () => {
+        const session = await openSample();
+        await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await userEvent.hover(screen.getByRole("tree", { name: "Style layers" }));
+        const editor = document.querySelector<HTMLElement>(".sel-editor");
+        if (editor === null) {
+            throw new Error("the editor is drawn");
+        }
+        const boxes = (): string[] =>
+            [...editor.querySelectorAll<HTMLElement>("[data-row]")].map((each) => {
+                const box = each.getBoundingClientRect();
+                return `${each.dataset.row ?? ""}@${String(Math.round(box.top))}`;
+            });
+        const before = boxes();
+        const { height } = editor.getBoundingClientRect();
+        for (const id of ["a", "deg", "b"]) {
+            await userEvent.hover(row(id));
+            assert.deepEqual(boxes(), before, `pointing at ${id}`);
+            assert.equal(editor.getBoundingClientRect().height, height, `pointing at ${id}`);
+        }
+        assert.isNull(screen.queryByRole("treeitem", { name: "Step..." }), "no Add row on hover");
+        assert.isNull(screen.queryByRole("treeitem", { name: "Or..." }), "no Or... on hover");
+    });
+
+    it("Enter on a selected step puts focus in its pane; the outline's arrows then stay in the outline", async () => {
+        const session = await openSample();
+        await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        row("a").focus();
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement?.getAttribute("data-row"), "deg");
+            assert.isNotNull(document.querySelector('[data-step-pane="deg"]'), "arrowing onto it selects it");
+        });
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isNotNull(document.activeElement?.closest(".sel-pane-box"), "focus is in the pane");
+        });
+        row("deg").focus();
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            assert.isNotNull(document.activeElement?.closest(".sel-outline"), "focus stays in the outline");
+        });
+    });
+
+    it("every control in the outline is inside a tree item, and Done ends picking in one click", async () => {
+        const session = await openSample();
+        await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await userEvent.click(row("deg").querySelector(".sel-value") ?? row("deg"));
+        await waitFor(() => {
+            assert.isTrue(session.styles.showingBranches);
+        });
+        const tree = document.querySelector<HTMLElement>(".sel-outline");
+        const loose = [...(tree?.querySelectorAll<HTMLElement>("button, input") ?? [])].filter(
+            (each) => each.closest("[role=treeitem]") === null,
+        );
+        assert.deepEqual(
+            loose.map((each) => each.textContent),
+            [],
+        );
+        assert.isNotNull(
+            screen.queryByRole("treeitem", { name: "Step..." }),
+            "the selected step's group has its Add row",
+        );
+        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isFalse(session.styles.showingBranches, "the preview ended");
+            assert.isNull(document.querySelector("[data-step-pane]"), "the pane closed");
+        });
+    });
+
+    it("Start with is drawn with its caption", async () => {
+        const session = await openSample();
+        await openLayer(session, "Degree card", { match: "rule", where: DEGREE_6_TO_10 });
+        await userEvent.click(screen.getByRole("treeitem", { name: /^Which nodes, / }));
+        const pane = document.querySelector<HTMLElement>(".sel-pane-box");
+        await waitFor(() => {
+            assert.isNotNull(pane === null ? null : within(pane).queryByText("Start with"));
+        });
     });
 });

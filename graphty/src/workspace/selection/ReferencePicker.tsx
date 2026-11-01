@@ -4,12 +4,13 @@
  * (`references.ts`).
  */
 
-import { LISTBOX_CLASS_NAMES } from "@graphty/compact-mantine";
+import { LISTBOX_CLASS_NAMES, TargetTooltip } from "@graphty/compact-mantine";
 import type { GraphSession, StepReference } from "@graphty/graphty-element/session";
-import { Combobox, Input, InputBase, ScrollArea, useCombobox } from "@mantine/core";
-import React, { useId, useState } from "react";
+import { ActionIcon, Combobox, Group, Input, InputBase, ScrollArea, useCombobox } from "@mantine/core";
+import React, { useEffect, useId, useRef, useState } from "react";
 
-import { referenceSections } from "./references";
+import { GLYPHS } from "../glyphs";
+import { PICK_ON_CANVAS, referenceSections } from "./references";
 import type { Host } from "./values";
 import { referenceWords } from "./words";
 
@@ -84,6 +85,34 @@ export function ReferencePicker({
             combobox.focusSearchInput();
         },
     });
+    // Pick on canvas: armed, the next node clicked on the canvas is the reference; Escape disarms.
+    const [arming, setArming] = useState(false);
+    const take = useRef(onReference);
+    take.current = onReference;
+    useEffect(() => {
+        if (!arming) {
+            return undefined;
+        }
+        document.body.dataset.pickingNode = "";
+        const stop = session.on("canvas:element-click", (event) => {
+            if ("node" in event) {
+                setArming(false);
+                take.current({ nodes: [event.node] });
+            }
+        });
+        const escape = (event: KeyboardEvent): void => {
+            if (event.key === "Escape") {
+                event.stopPropagation();
+                setArming(false);
+            }
+        };
+        document.addEventListener("keydown", escape, true);
+        return () => {
+            delete document.body.dataset.pickingNode;
+            stop();
+            document.removeEventListener("keydown", escape, true);
+        };
+    }, [arming, session]);
     const typed = search.trim();
     const sections = combobox.dropdownOpened ? referenceSections(session, host, firstStep, typed) : [];
     const chosen = referenceValue(reference);
@@ -96,29 +125,48 @@ export function ReferencePicker({
             classNames={LISTBOX_CLASS_NAMES}
             onOptionSubmit={(value) => {
                 combobox.closeDropdown();
+                if (value === PICK_ON_CANVAS) {
+                    setArming(true);
+                    return;
+                }
                 onReference(referenceOfValue(value));
             }}
         >
-            <Combobox.Target withAriaAttributes={false}>
-                <InputBase
-                    component="button"
-                    type="button"
-                    size="xs"
-                    pointer
-                    data-first-focus
-                    aria-label={token === "" ? "Reference" : `Reference: ${token}`}
-                    aria-haspopup="listbox"
-                    aria-expanded={combobox.dropdownOpened}
-                    rightSection={<Combobox.Chevron />}
-                    rightSectionPointerEvents="none"
-                    style={{ flex: 1, minWidth: 0 }}
-                    onClick={() => {
-                        combobox.toggleDropdown();
-                    }}
-                >
-                    {token === "" ? <Input.Placeholder>Choose a reference</Input.Placeholder> : token}
-                </InputBase>
-            </Combobox.Target>
+            <Group gap={4} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+                <Combobox.Target withAriaAttributes={false}>
+                    <InputBase
+                        component="button"
+                        type="button"
+                        size="xs"
+                        pointer
+                        data-first-focus
+                        aria-label={token === "" ? "Reference" : `Reference: ${token}`}
+                        aria-haspopup="listbox"
+                        aria-expanded={combobox.dropdownOpened}
+                        rightSection={<Combobox.Chevron />}
+                        rightSectionPointerEvents="none"
+                        style={{ flex: 1, minWidth: 0 }}
+                        onClick={() => {
+                            combobox.toggleDropdown();
+                        }}
+                    >
+                        {token === "" ? <Input.Placeholder>Choose a reference</Input.Placeholder> : token}
+                    </InputBase>
+                </Combobox.Target>
+                <TargetTooltip label="Pick on canvas">
+                    <ActionIcon
+                        variant={arming ? "light" : "subtle"}
+                        size="sm"
+                        aria-label="Pick on canvas"
+                        aria-pressed={arming}
+                        onClick={() => {
+                            setArming(!arming);
+                        }}
+                    >
+                        <GLYPHS.pick size={14} aria-hidden />
+                    </ActionIcon>
+                </TargetTooltip>
+            </Group>
             <Combobox.Dropdown data-portal="">
                 <Combobox.Search
                     value={search}

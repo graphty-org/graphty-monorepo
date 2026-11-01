@@ -148,10 +148,16 @@ export interface QueryEngine {
      * @param text - What was typed, its mode prefix already read.
      * @param mode - How to match it.
      * @param target - Nodes or edges.
+     * @param only - The value paths to look in besides the ids, in place of every searchable path.
      * @returns The test.
      * @throws A `GraphtyError` coded `E_BAD_COMMAND` for a regular expression that does not parse.
      */
-    textTest(text: string, mode: SelectionTextMode, target: SelectorTarget): (index: number) => boolean;
+    textTest(
+        text: string,
+        mode: SelectionTextMode,
+        target: SelectorTarget,
+        only?: readonly Path[],
+    ): (index: number) => boolean;
     /**
      * What a find box lists: nodes and edges whose id or values contain the text, ranked, and the
      * matched values with their counts. Reads only; selects nothing.
@@ -203,9 +209,14 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         return Object.freeze([...new Set(paths)].filter((path) => !answers(path, "node") && !answers(path, "edge")));
     };
 
-    const textTest = (text: string, mode: SelectionTextMode, target: SelectorTarget): ((index: number) => boolean) => {
+    const textTest = (
+        text: string,
+        mode: SelectionTextMode,
+        target: SelectorTarget,
+        only?: readonly Path[],
+    ): ((index: number) => boolean) => {
         const graph = parts.snapshot();
-        const searched = target === "node" ? parts.searchPaths() : (parts.edgeSearchPaths?.() ?? []);
+        const searched = only ?? (target === "node" ? parts.searchPaths() : (parts.edgeSearchPaths?.() ?? []));
         let accepts: (value: string) => boolean;
         let paths: readonly Path[] = searched;
         let readsId = true;

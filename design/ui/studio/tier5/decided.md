@@ -371,6 +371,64 @@ Carried, each with its reason:
 - Disabled menu items skipped by the arrow keys are compact-mantine's (`../owner-decisions.md`,
   2026-11-01); the step's on box stays 12 px until the eye toggle replaces it.
 
+## Owner feedback 2026-11-01 (Design Director)
+
+The owner reviewed the built cards (`owner-feedback-2026-11-01.md`): cramped, disorganized, no
+progressive disclosure, "Select", "Filter to" and "Filter out" not understood, two "+" that look
+alike, "While has nodes" listing every node, "they make me want to walk away from using graphty".
+Three concepts were mocked from first principles (main checkout `tmp/selection-redesign/`: sentence,
+outline, wizard-light) and judged by four lenses (owner's eyes, personas, Figma consistency, 50,000
+nodes). **The outline won** (8, 4, 8 and 7 of 10; the personas' 4 was for verbs drawn as glyphs,
+fixed below), grafted with the sentence's search-first pickers, "Check N" and one-token references,
+and wizard-light's result-first rest state. The model and every decided behavior not named here
+stand. Each entry reverses or narrows an entry above; those stay as the record.
+
+- **Reversal of "the card opens inline, one at a time" (tier 4 R4, panel entry "Rows follow
+  Figma").** The outline shows the recipe; ONE property pane under it holds the selected row's
+  controls. Why: inline cards moved and wrapped the rows under them and left gaps, which is the
+  owner's "row breaks, empty spaces"; Figma's Layers panel over its Design panel, and graphty's own
+  Style tab, are the precedent. The 240 px popover objection to the Interaction Designer's proposal
+  does not apply: the pane is in the panel, not over it.
+- **Reversal of the step row's anatomy** (verb icon menu, on box, count chip, remove X, order icon).
+  At rest a step row is a verb WORD in a 40 px column, the value, the test and tags for non-default
+  settings; no control, count or icon. The count is in the pane and the tooltip; turn off, duplicate,
+  move and delete are in the pane's "..." (and Delete, Mod+D, Mod+] / Mod+[); "So far" is a tag on
+  the row instead of the order icon. Why: "very hard to find and focus on what actually matters";
+  the personas read glyph-only verbs as "both apply" (`judge-personas.md`). The decided.md polish
+  note "the step's on box stays 12 px until the eye toggle replaces it" is superseded: steps have no
+  on control at rest.
+- **Reversal of "the filter card header stays as approved (Select / Filter to / Filter out)".** A
+  filter card has no effect word: its selection is what stays (All nodes, then Keep and Except).
+  Select becomes the one-time command "Select N" in the card's "..."; Filter to and Filter out stay
+  commands on a selection, row, legend entry or band that create a card. Saved tier 4 cards convert:
+  Filter to -> All + Keep, Filter out -> All + Except, Select -> All + Keep, turned off. Why: the
+  owner does not understand the three words; with the effect gone, "Filter out ... Except" (the
+  double negative the spec sent to the dry run) cannot occur. The conversion is a two-way door:
+  tier 5 cards are unreleased and tier 4 cards hold one condition each. The glossary's "filter step"
+  loses its outcome (`../../framework/glossary.md`).
+- **Reversal of "+" at a group's foot (split button) and "+ Or".** "+" appears only in section
+  headers and adds an item to that list (a style layer, a filter card). Inside a selection, a step is
+  added by its verb word ("Add...", "Keep...", "Except...", only those that can change the group),
+  a group by "Or...". These rows appear on hover or selection, never at rest. Why: the owner could
+  not tell the card "+" from the filter "+"; now each "+" has one meaning.
+- **Narrowing of "Card '...'" and the visible test segment.** Advanced, collapsed in the step pane
+  on every selection and naming non-defaults on its right, holds Computed on, Edge ends, Not
+  measured and Settings. Start with moves to the group (or title) pane. Why: progressive disclosure;
+  none of tasks 1 to 3 needs Advanced.
+- **New: every list is bounded** (spec 4.3). The reference picker lists no node until typed, then at
+  most 8 by prefix and degree; sets are capped at 8; checklists draw 8 rows in all, checked first,
+  with "Check N" for a search's matches; rows summarize values ("1, 3 and 2,083 more"); a reference
+  is one token. Why: "While has nodes" listed every node; the scale judge found uncapped ticked lists
+  in two concepts.
+- **New: "Passes none" is drawn at rest** on the step that empties its group (neutral ink). Why: the
+  scale judge reached "0 of 50,000" with no signal.
+- **Kept against judges' suggestions.** Group letters A, B (the personas disliked them; decided
+  above, and the owner did not object). The verbs Add, Keep, Except (the personas proposed "and /
+  but not / or"; that reads as a sentence, which the owner's data UI rules forbid). New style layers
+  start None (already decided). Hops default 2.
+- **compact-mantine is unchanged.** Every control is an existing one; no Figma look change is
+  needed, so nothing goes to `../owner-decisions.md`.
+
 ## Waiting for the owner
 
 - Retagging bfs `level`, k-core `value` and dfs `value` as ordinal changes what `fieldMeasurement`

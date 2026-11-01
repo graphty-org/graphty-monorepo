@@ -288,8 +288,24 @@ the joined line, the same at both sizes, while H draws the same triangles six ti
 SwiftShader pays a fixed cost per instance of an instanced draw; the vertex shader's length barely
 matters. A real GPU shows nothing of the kind (0.87 ms for 150,000 instanced pieces). It matters
 only for software rendering -- CI, and a reader with no GPU -- and is the same for the batch before
-and after this change. It is left as an issue rather than worked around: the remedy, expanding
-pieces into a plain mesh, would move the per-move work back onto the CPU on every machine.
+and after this change.
+
+The cause is SwiftShader's Vulkan driver, which runs an instanced draw as one draw per instance
+(`CmdDrawBase::draw` loops over the instances), so each piece pays a draw's setup. Fewer attributes
+do not help: the widened line (eleven attributes a piece) costs the same as the plain one (six).
+So since issue #3095 `EdgeLineBatch` draws a joined line as one plain mesh when the WebGL renderer
+is a software one (`drawsExpandedLines`: SwiftShader, llvmpipe, Microsoft's Basic Render Driver):
+the template repeated once per slot, each slot's floats repeated into its fourteen vertices, read
+by the same shader, so the picture is the same; `test/edge-line-batch.test.ts` holds every vertex's
+inputs against the instance it stands for. A GPU keeps the instances, where expanding is slower.
+
+| 10,000 three-piece edges, one batch | instanced still | instanced moving | expanded still | expanded moving |
+| ----------------------------------- | --------------: | ---------------: | -------------: | --------------: |
+| SwiftShader                         |          171 ms |           163 ms |        14.9 ms |         27.4 ms |
+| NVIDIA RTX 4070 SUPER               |          1.5 ms |           3.3 ms |        10.9 ms |         21.5 ms |
+
+`test/browser/instanced-lines.bench.test.ts` measures it (`--project=browser-bench`; set
+`GRAPHTY_BROWSER_GPU=nvidia` for the card).
 
 ## Known limits
 

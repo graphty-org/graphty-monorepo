@@ -773,8 +773,17 @@ const config = defineConfig({
                         // the steps before it made due. Its header has the numbers.
                         // `--enable-precise-memory-info` makes performance.memory exact rather than
                         // bucketed, for the restore memory peak in autosave-write.bench.test.ts.
+                        // GRAPHTY_BROWSER_GPU picks the renderer as it does for "browser" (unset: the
+                        // software one CI draws with), so a benchmark can be timed on both.
                         provider: playwright({
-                            launchOptions: { args: ["--js-flags=--expose-gc", "--enable-precise-memory-info"] },
+                            launchOptions: {
+                                args: [
+                                    ...(BROWSER_GPU_FLAGS[browserGpu] ?? []),
+                                    "--js-flags=--expose-gc",
+                                    "--enable-precise-memory-info",
+                                ],
+                                env: browserLaunchEnv(),
+                            },
                         }),
                         instances: [{ browser: "chromium" }],
                     },

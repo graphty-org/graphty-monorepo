@@ -2,7 +2,8 @@ import { ArcRotateCamera, Buffer, Matrix, Mesh, NullEngine, Scene, Vector3 } fro
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { CustomLineRenderer } from "../src/meshes/CustomLineRenderer";
-import { EdgeLineBatch, segmentMatrixToRef } from "../src/meshes/EdgeLineBatch";
+import { JOIN_TEMPLATE_INDICES, JOIN_TEMPLATE_POSITIONS } from "../src/meshes/edgeJoinShader";
+import { drawsExpandedLines, EdgeLineBatch, forceExpandedLines, segmentMatrixToRef } from "../src/meshes/EdgeLineBatch";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
 import { assertScalesLinearly } from "./helpers/cost";
 
@@ -375,6 +376,136 @@ describe("EdgeLineBatch", () => {
         });
 
         function joined(): EdgeLineBatch {
+            return new EdgeLineBatch(
+                CustomLineRenderer.createJoinedLineMesh({ width: 0.2, color: "#336699", worldWidth: true }, scene),
+                scene,
+            );
+        }
+    });
+
+    /**
+     * ON A SOFTWARE RENDERER A JOINED LINE IS ONE PLAIN MESH (issue #3095): the template repeated
+     * per piece, each piece's floats repeated per vertex. The shader is the same, so the picture
+     * is the same exactly when every vertex reads what the instance it stands for would have read.
+     */
+    describe("expanded lines (a software renderer)", () => {
+        afterEach(() => {
+            forceExpandedLines(null);
+            vi.restoreAllMocks();
+        });
+
+        const VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
+
+        function build(expanded: boolean, widened: boolean): EdgeLineBatch {
+            forceExpandedLines(expanded);
+            const mesh = CustomLineRenderer.createJoinedLineMesh(
+                {
+                    width: 0.2,
+                    color: "#336699",
+                    worldWidth: true,
+                    widened,
+                    pattern: { kind: "dash", elementLength: 0.3 },
+                },
+                scene,
+            );
+            const drawn = new EdgeLineBatch(mesh, scene);
+            // Past the first 32 slots, so the expanded batch grows too, and a released slot inside.
+            for (let i = 0; i < 40; i++) {
+                const run = [drawn.acquire(), drawn.acquire(), drawn.acquire()];
+                drawn.placeRun(run, [i, 0, 0, i + 1, 0, 0, i + 1, 1, 0, i + 2, 1, i]);
+                drawn.writeStatic(
+                    run[1],
+                    Array.from({ length: 20 }, (_, k) => i * 100 + k),
+                );
+            }
+
+            drawn.release(7);
+            scene.render();
+            return drawn;
+        }
+
+        function attribute(drawn: EdgeLineBatch, kind: string, count: number): number[] {
+            const buffer = drawn.mesh.getVertexBuffer(kind);
+            assert.isNotNull(buffer, kind);
+            return [...(buffer.getFloatData(count) ?? [])];
+        }
+
+        for (const widened of [false, true]) {
+            test(`every vertex reads its piece's values, as an instance would${widened ? " (widened)" : ""}`, () => {
+                const instanced = build(false, widened);
+                const expanded = build(true, widened);
+                const pieces = instanced.drawnCount;
+
+                assert.strictEqual(expanded.drawnCount, pieces);
+                assert.strictEqual(expanded.mesh.forcedInstanceCount, 0, "no instances");
+                assert.strictEqual(instanced.mesh.forcedInstanceCount, pieces);
+                const [subMesh] = expanded.mesh.subMeshes;
+                assert.strictEqual(subMesh.indexCount, pieces * JOIN_TEMPLATE_INDICES.length, "draws only the pieces");
+                assert.isOk(subMesh.getBoundingInfo(), "and has a box the transparent pass can sort by");
+
+                const indices = expanded.mesh.getIndices() ?? [];
+                const positions = attribute(expanded, "position", pieces * VERTICES);
+                for (let piece = 0; piece < pieces; piece++) {
+                    JOIN_TEMPLATE_INDICES.forEach((index, i) => {
+                        assert.strictEqual(indices[piece * JOIN_TEMPLATE_INDICES.length + i], index + piece * VERTICES);
+                    });
+                    assert.deepEqual(positions.slice(piece * VERTICES * 3, (piece + 1) * VERTICES * 3), [
+                        ...JOIN_TEMPLATE_POSITIONS,
+                    ]);
+                }
+
+                const kinds = ["pPrev", "pA", "pB", "pNext", "run"];
+                if (widened) {
+                    kinds.push("runTotal", "edgeColorA", "edgeColorB", "edgeParams", "edgeMeta", "edgeTimes");
+                }
+
+                for (const kind of kinds) {
+                    const perPiece = attribute(instanced, kind, pieces);
+                    const perVertex = attribute(expanded, kind, pieces * VERTICES);
+                    const size = perPiece.length / pieces;
+                    assert.isTrue(
+                        perPiece.some((v) => v !== 0),
+                        `${kind} holds something to compare`,
+                    );
+                    for (let v = 0; v < pieces * VERTICES; v++) {
+                        const piece = Math.floor(v / VERTICES);
+                        assert.deepEqual(
+                            perVertex.slice(v * size, (v + 1) * size),
+                            perPiece.slice(piece * size, (piece + 1) * size),
+                            `${kind} at vertex ${String(v)}`,
+                        );
+                    }
+                }
+            });
+        }
+
+        test("upload once for a frame however many pieces moved", () => {
+            forceExpandedLines(true);
+            const drawn = joinedLine();
+            const update = vi.spyOn(Buffer.prototype, "update");
+            for (let i = 0; i < 10; i++) {
+                drawn.placeRun([drawn.acquire(), drawn.acquire()], [0, 0, 0, i, 0, 0, i, 1, 0]);
+            }
+
+            scene.render();
+            assert.strictEqual(update.mock.calls.length, 1, "the frame uploads once");
+            scene.render();
+            assert.strictEqual(update.mock.calls.length, 1, "and a frame that moved nothing uploads nothing");
+        });
+
+        test("a software renderer draws expanded, a GPU and a test engine draw instances", () => {
+            const engine = scene.getEngine() as unknown as { _glRenderer: string };
+            assert.isFalse(drawsExpandedLines(scene.getEngine()), "the null engine");
+            engine._glRenderer =
+                "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)";
+            assert.isTrue(drawsExpandedLines(scene.getEngine()));
+            engine._glRenderer = "llvmpipe (LLVM 15.0.7, 256 bits)";
+            assert.isTrue(drawsExpandedLines(scene.getEngine()));
+            engine._glRenderer = "ANGLE (NVIDIA, Vulkan 1.3.277 (NVIDIA GeForce RTX 4090 (0x00002684)), NVIDIA)";
+            assert.isFalse(drawsExpandedLines(scene.getEngine()));
+        });
+
+        function joinedLine(): EdgeLineBatch {
             return new EdgeLineBatch(
                 CustomLineRenderer.createJoinedLineMesh({ width: 0.2, color: "#336699", worldWidth: true }, scene),
                 scene,

@@ -4,6 +4,8 @@
 //   ... pnpm run backfill -- --days 28 --restart
 // To re-read only some days' runs of some workflows (days an earlier backfill lost), whatever the cursors say:
 //   ... pnpm run backfill -- --repair-days 2026-10-09,2026-10-11 --repair-workflows release.yml,bisect.yml
+// To load every issue, whatever its update time, and nothing else (the Issues page's history):
+//   ... pnpm run backfill -- --all-issues
 
 import { dynamoStore } from "../dynamo.js";
 import { ssmGetParams } from "./aws.js";
@@ -38,6 +40,7 @@ async function main(): Promise<void> {
         now: Date.now(),
         ...(days.length ? { repair: { days, workflows: list("repair-workflows") } } : {}),
         ...(process.argv.includes("--restart") ? { restart: true } : {}),
+        ...(process.argv.includes("--all-issues") ? { issues: "all" as const } : {}),
         log: (l) => {
             process.stdout.write(`${l}\n`);
         },

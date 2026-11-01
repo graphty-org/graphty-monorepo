@@ -966,7 +966,7 @@ function readHolds(c: Cycle, held: (GqlIssue | null)[], nightly: (GqlHoldIssue |
 }
 
 /**
- * Issues updated since the cursor, the open "Release held" issues (their age is a hold's age), the nightly hold.
+ * Issues updated since the cursor, GitHub's count of open issues, the open "Release held" issues (their age is a hold's age), the nightly hold.
  * @param c - the cycle
  * @param gh - the GitHub client
  * @returns epoch ms of the oldest open "Release held" issue, or 0
@@ -979,7 +979,7 @@ async function issues(c: Cycle, gh: GitHub): Promise<number> {
     for (let page = 0; page < 20; page++) {
         type Page = { nodes: GqlIssue[]; pageInfo: { hasNextPage: boolean; endCursor: string } };
         const data: {
-            repository: { recent: Page };
+            repository: { recent: Page; openTotal?: { totalCount: number } };
             held: { nodes: (GqlIssue | null)[] };
             nightly?: { nodes: (GqlHoldIssue | null)[] };
         } = await gh.graphql(ISSUE_QUERY, {
@@ -991,6 +991,9 @@ async function issues(c: Cycle, gh: GitHub): Promise<number> {
         });
         if (page === 0) {
             heldSince = readHolds(c, data.held.nodes, data.nightly?.nodes ?? []);
+            if (data.repository.openTotal) {
+                c.o("issues.open_github", data.repository.openTotal.totalCount);
+            }
         }
         const { recent } = data.repository;
         const newer = recent.nodes.filter((i) => Date.parse(i.updatedAt) >= since - 5 * MIN);

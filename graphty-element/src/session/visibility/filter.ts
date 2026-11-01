@@ -1259,6 +1259,10 @@ function baseOf(context: CompileContext): { readonly node: Bytes; readonly edge:
     }
 
     const { step } = context;
+    if (step?.links !== undefined) {
+        return { node: step.base.node, edge: step.links };
+    }
+
     return step === undefined || step.within === "graph" ? undefined : step.base;
 }
 

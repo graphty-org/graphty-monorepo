@@ -1087,10 +1087,21 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                 (leaf.edges === null
                     ? maskTest(leaf.nodes, src[index]) && maskTest(leaf.nodes, dst[index])
                     : maskTest(leaf.edges, index));
-            const scopeEdges =
-                leaf === undefined
+            // A step's links narrow the edges a structure value is counted over.
+            const links =
+                options.links === undefined
                     ? undefined
-                    : Uint8Array.from({ length: graph.edgeCount }, (_, at) => (edgeIn(at) ? 1 : 0));
+                    : scopeLeafIn(
+                          scopeOf({ define: { kind: "rule", where: options.links, reading: "listed" } }),
+                          active,
+                      ).edges;
+            const linkIn = (index: number): boolean => links === undefined || links === null || maskTest(links, index);
+            const scopeEdges =
+                leaf === undefined && links === undefined
+                    ? undefined
+                    : Uint8Array.from({ length: graph.edgeCount }, (_, at) =>
+                          (leaf === undefined || edgeIn(at)) && linkIn(at) ? 1 : 0,
+                      );
             // A structure value (degree) is counted over the scope's own edges, as a step reads it.
             const readers = readersOf(graph, path, sourcesNow, scopeEdges);
             const onNodes = readers.node !== null || readers.edge === null;

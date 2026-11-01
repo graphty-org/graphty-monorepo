@@ -5129,8 +5129,8 @@ export const NodeStyle: z.ZodObject<{
             uniform: "uniform";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
-            full: "full";
             low: "low";
+            full: "full";
         }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";

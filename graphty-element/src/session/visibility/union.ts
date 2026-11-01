@@ -50,6 +50,11 @@ export interface StepFrame {
      * only its nodes and edges, so a filtered-out node is never stepped through or counted.
      */
     readonly base: { readonly node: Bytes; readonly edge: Bytes };
+    /**
+     * The base's edges that pass the step's `links` rule: what its walks, degree and computation
+     * read in place of the base's edges. Absent when the step has no `links`.
+     */
+    readonly links?: Bytes;
 }
 
 /** What {@link readUnion} needs from the session. */
@@ -522,6 +527,33 @@ function readBranch(
  * @returns The frame.
  */
 function frameOf(step: UnionStep, input: Bytes, fold: FoldContext): StepFrame {
+    const frame = plainFrameOf(step, input, fold);
+    if (step.links === undefined) {
+        return frame;
+    }
+
+    // ponytail: the links rule is recompiled per fold; cache by rule and base if a large graph feels it.
+    const passes = fold.env.compile(step.links, frame).edge;
+    const links = frame.base.edge.slice();
+    if (passes !== null) {
+        for (let edge = 0; edge < links.length; edge++) {
+            if (links[edge] === 1 && !passes(edge)) {
+                links[edge] = 0;
+            }
+        }
+    }
+
+    return { ...frame, links };
+}
+
+/**
+ * A step's frame before its `links`: what `"so-far"` names and what its populations are.
+ * @param step - The step.
+ * @param input - Its input.
+ * @param fold - What the fold reads.
+ * @returns The frame.
+ */
+function plainFrameOf(step: UnionStep, input: Bytes, fold: FoldContext): StepFrame {
     const nodesSide = fold.leaf.side === "nodes";
     const soFar = nodesSide ? input : endsOf(fold.env.graph, input);
     const { within } = fold.leaf;

@@ -172,7 +172,12 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
 
     const measureOf = (step: UnionStep): MeasureLeaf | null => (step.rule.kind === "measure" ? step.rule : null);
     const definitionKey = (step: UnionStep, within: string): string =>
-        JSON.stringify([step.rule, step.computedOn ?? "base", within]);
+        JSON.stringify([
+            step.rule,
+            step.computedOn ?? "base",
+            within,
+            ...(step.links === undefined ? [] : [step.links]),
+        ]);
 
     /**
      * A measure's params with its references bound to node ids, or the gate that stops it.
@@ -205,10 +210,29 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         typeof value === "object" && value !== null && "state" in value && "reason" in value;
     const isLive = (leaf: MeasureLeaf, step: UnionStep): boolean =>
         step.computedOn === "so-far" ||
+        step.links !== undefined ||
         Object.values(leaf.bind ?? {}).some(
             (reference: StepReference) => reference === "hovered-or-selected" || reference === "selection",
         );
     const baseScope = (frame: StepFrame): Scope => (frame.within === "graph" ? "graph" : "visible");
+    /**
+     * What a step's own computation reads: its input (So far) or its base, and with `links` only
+     * the edges that pass them (a rule set read `clipped`: those nodes, and the passing edges
+     * between them).
+     * @param step - The step.
+     * @param frame - Its frame.
+     * @returns The scope.
+     */
+    const localScope = (step: UnionStep, frame: StepFrame): Scope => {
+        const nodes: Scope = step.computedOn === "so-far" ? { nodes: sources.idsOf(frame.soFar) } : baseScope(frame);
+        if (step.links === undefined) {
+            return nodes;
+        }
+
+        const where: RuleTree =
+            nodes === "graph" ? step.links : { kind: "all", of: [{ kind: "member", of: nodes }, step.links] };
+        return { define: { kind: "rule", where, reading: "clipped" } };
+    };
 
     /**
      * Whether the limits hold a run back, and why.
@@ -327,7 +351,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         params: Readonly<Record<string, unknown>>,
         frame: StepFrame,
     ): { gate: StepGate | null; result?: FilterRunResult } => {
-        const scope: Scope = step.computedOn === "so-far" ? { nodes: sources.idsOf(frame.soFar) } : baseScope(frame);
+        const scope = localScope(step, frame);
         const key = JSON.stringify([leaf.algorithm, params, scope]);
         const definition = definitionKey(step, frame.within);
         localKeys.set(definition, key);

@@ -2283,6 +2283,15 @@ export interface UnionStep {
     readonly rule: RuleTree;
     /** What its populations are: the base (default) or the branch before this step. */
     readonly computedOn?: "base" | "so-far";
+    /**
+     * An edge-side rule: the step's computation (a `measure`, a degree path, `hops`, `touching`)
+     * reads only the edges that pass it, within the step's input -- "ignore links with weight
+     * under 2" for one step, where the visibility filter would hide those links for every reader.
+     * Like So far, such a computation belongs to the step: cached by definition, never a
+     * `session.runs` entry. A rule holding a `union` or a node-only leaf is refused
+     * (`E_BAD_COMMAND`, reason `links-not-edges`). Absent: every edge of the input.
+     */
+    readonly links?: RuleTree;
     /** On an edge branch, how a node leaf is read: both ends pass (default), or either. */
     readonly ends?: "both" | "either";
     /** Written by the element when it froze a live reference on a write that cannot follow one. */

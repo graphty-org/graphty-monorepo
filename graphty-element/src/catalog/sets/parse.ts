@@ -633,7 +633,50 @@ function checkMeasure(value: Loose, walker: Walker): void {
 
 /** The fields a union branch and a union step define. */
 const BRANCH_FIELDS = ["id", "name", "color", "on", "start", "steps"];
-const STEP_FIELDS = ["id", "op", "on", "rule", "computedOn", "ends", "frozenFrom"];
+const STEP_FIELDS = ["id", "op", "on", "rule", "computedOn", "links", "ends", "frozenFrom"];
+
+/** The leaf kinds that speak only nodes, or hold a selection: a step's `links` refuses them. */
+const NOT_EDGE_KINDS = new Set([
+    "union",
+    "hops",
+    "nonempty",
+    "same-value",
+    "by-size",
+    "isolated",
+    "degree",
+    "neighborhood",
+    "component",
+]);
+
+/**
+ * Check a step's `links`: an edge-side rule, so no union and no node-only leaf anywhere in it.
+ * @param links - The rule.
+ * @param walker - The pass.
+ */
+function checkLinks(links: unknown, walker: Walker): void {
+    const refuse = (node: unknown): void => {
+        if (!isObject(node)) {
+            return;
+        }
+
+        if (typeof node.kind === "string" && NOT_EDGE_KINDS.has(node.kind)) {
+            throw bad(`A union step's links is an edge-side rule; "${node.kind}" does not speak edges.`, {
+                reason: "links-not-edges",
+                kind: node.kind,
+            });
+        }
+
+        if (node.kind === "all" || node.kind === "any") {
+            for (const member of Array.isArray(node.of) ? (node.of as readonly unknown[]) : []) {
+                refuse(member);
+            }
+        } else if (node.kind === "not") {
+            refuse(node.of);
+        }
+    };
+    refuse(links);
+    checkTree(links, walker);
+}
 
 /**
  * Check a `union` leaf: its side, its base, and each branch and step; a union inside a step is
@@ -700,6 +743,9 @@ function checkUnion(value: Loose, walker: Walker): void {
             walker.inStep++;
             try {
                 checkTree(step.rule, walker);
+                if (step.links !== undefined) {
+                    checkLinks(step.links, walker);
+                }
             } finally {
                 walker.inStep--;
             }

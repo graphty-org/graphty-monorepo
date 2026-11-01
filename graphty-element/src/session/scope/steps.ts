@@ -242,6 +242,11 @@ export interface ValueHistogramOptions extends HistogramOptions {
     readonly within?: Scope;
     /** Count the values as categories, or bin them as numbers. Absent: numbers when every value is one. */
     readonly as?: "numeric" | "categorical";
+    /**
+     * An edge-side rule, as a step's `links`: a structure value (degree) is counted over only the
+     * edges that pass it. Absent: every edge in `within`.
+     */
+    readonly links?: RuleTree;
 }
 
 /**
@@ -922,7 +927,7 @@ export function createScopeSteps(sources: ScopeStepsSources): ScopeStepsApi {
                     const measure = step.rule;
                     if (
                         measure.kind !== "measure" ||
-                        step.computedOn !== "so-far" ||
+                        (step.computedOn !== "so-far" && step.links === undefined) ||
                         sources.histogramOf === undefined
                     ) {
                         return null;

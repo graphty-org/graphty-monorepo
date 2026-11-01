@@ -124,3 +124,62 @@ export function resolveRunWeight(
         }),
     };
 }
+
+/** What a layout's warning about its weight says: a code and its parameters, never a sentence. */
+export interface LayoutWeightWarning {
+    readonly code: "W_WEIGHT_MEANING_ASSUMED" | "W_WEIGHT_MEANING_MISMATCH";
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+/** What a layout that reads edge weights reads them as. */
+export interface LayoutWeightReading {
+    /**
+     * `"strength"`: a larger weight is a stronger connection, drawn shorter. `"distance"`: a larger
+     * weight is a longer edge. null: the weight is left unread and every edge counts the same.
+     */
+    readonly meaning: "strength" | "distance" | null;
+    /** Present when the meaning was assumed or the weight was left unread. */
+    readonly warning?: LayoutWeightWarning;
+}
+
+/**
+ * How a layout reads the weight the graph was loaded with.
+ *
+ * The same rule as {@link resolveRunWeight}, run for a layout that can read either a strength or a
+ * distance: a distance is read as a distance, a strength as a strength, a weight whose meaning
+ * nobody stated as a strength (and the layout says so), and any other meaning -- a capacity -- is
+ * left unread (and the layout says so).
+ * @param loaded - The weight the graph was loaded with, or null.
+ * @returns What the layout reads.
+ */
+export function resolveLayoutWeight(loaded: LoadedWeightFact | null): LayoutWeightReading {
+    const reading = resolveRunWeight(loaded?.meaning === "distance" ? "distance" : "strength", undefined, loaded);
+    if (reading.skipped !== undefined) {
+        const { attribute, meaning } = reading.skipped.params;
+        return { meaning: null, warning: { code: "W_WEIGHT_MEANING_MISMATCH", params: { attribute, meaning } } };
+    }
+
+    const { weight } = reading;
+    return {
+        meaning: weight?.meaning === "distance" ? "distance" : "strength",
+        ...(weight?.assumed === true
+            ? {
+                  warning: {
+                      code: "W_WEIGHT_MEANING_ASSUMED",
+                      params: { attribute: weight.attribute, meaning: "strength" },
+                  },
+              }
+            : {}),
+    };
+}
+
+/**
+ * A stored weight as the attraction a layout pulls with: a strength as it is, a distance inverted
+ * (zero and below clamped, so a zero distance is the strongest pull a float holds).
+ * @param weight - The stored weight.
+ * @param meaning - What it means.
+ * @returns The strength.
+ */
+export function asStrength(weight: number, meaning: "strength" | "distance"): number {
+    return meaning === "distance" ? 1 / Math.max(weight, 1e-6) : weight;
+}

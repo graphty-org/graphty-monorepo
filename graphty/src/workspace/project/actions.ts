@@ -23,6 +23,7 @@ import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
+import { notReadWords } from "./words";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
 export const SAVE_AS_DIALOG = "save-as";
@@ -99,8 +100,8 @@ function fileState(store: WorkspaceStore): ProjectFileState {
 }
 
 /**
- * The sentence for a project file that did not save or open. graphty-element hands back a code;
- * the words are the app's.
+ * The sentence for a project file that did not open. graphty-element hands back a code; the words
+ * are the app's.
  * @param fileName - the file's name.
  * @param error - what the element threw.
  * @returns the sentence.
@@ -116,29 +117,9 @@ export function problemSentence(fileName: string, error: unknown): string {
             return `${fileName} was saved by a newer graphty. Update graphty to open it.`;
         case "E_UNSUPPORTED":
             return `${fileName} needs a part this graphty cannot read yet.`;
-        case "E_TOO_LARGE":
-            return `${fileName} is too large to open.`;
         default:
-            return `${fileName} could not be opened.`;
+            return notReadWords(fileName, error, "opened");
     }
-}
-
-/**
- * Why a file did not open or add, in the app's words. graphty-element refuses a file it could not
- * read whole with `E_PARSE_FAILED` and the line it broke at; nothing of it is kept.
- * @param fileName - the file's name.
- * @param error - what the element threw.
- * @param verb - "opened" or "added".
- * @returns the notice's sentence.
- */
-export function notReadSentence(fileName: string, error: unknown, verb: "opened" | "added"): string {
-    if (isGraphtyError(error) && error.code === "E_PARSE_FAILED") {
-        const line = error.details?.line;
-        const where = typeof line === "number" ? ` near line ${String(line)}` : "";
-        return `${fileName} could not be ${verb}: the file is incomplete or damaged${where}, so nothing was read. Ask for the file again.`;
-    }
-    const reason = error instanceof Error ? error.message : String(error);
-    return `${fileName} could not be ${verb}. ${reason}`;
 }
 
 /**
@@ -474,7 +455,7 @@ function openFailed(ctx: CommandContext, session: GraphSession, pending: Pending
     const verb = fresh ? "opened" : "added";
     const message =
         isGraphtyError(error) && error.code === "E_PARSE_FAILED"
-            ? notReadSentence(withoutExtension(file.name), error, verb)
+            ? notReadWords(withoutExtension(file.name), error, verb)
             : problemSentence(file.name, error);
     workspace.set({ notice: { message, error: true } });
     return false;

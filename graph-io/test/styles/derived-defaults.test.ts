@@ -150,3 +150,22 @@ describe("every rule-default of a program is stated by its readers", () => {
         }
     }
 });
+
+describe("Graphviz's GML (gv2gml) node label", () => {
+    // a Graphviz layout (neato -n2 -Tdot) writes every node's label, its \N default included, so gv2gml writes a
+    // laid-out node's `label` unless the label is empty: Graphviz then draws none (#5572)
+    it("labels a laid-out node gv2gml wrote with no label key with nothing, and one with a label by its label", async () => {
+        const text =
+            'graph [ version 2 directed 1 bb "0,0,100,100" layout "neato"\n' +
+            'node [ id 0 name "0" graphics [ x 10 y 10 w 12 H 12 type "ellipse" ] ]\n' +
+            'node [ id 1 name "1" label "1" graphics [ x 50 y 50 w 12 H 12 type "ellipse" ] ] ]\n';
+        const { snapshot, styles } = await importGraph(text, { format: "gml", styles: true });
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        expect(styles.styles.source.tool).toBe("graphviz");
+        const label = resolveStyles(styles, "node", "label", snapshot);
+        expect(label[0] ?? null).toBeNull();
+        expect(label[1]).toBe("1");
+    });
+});

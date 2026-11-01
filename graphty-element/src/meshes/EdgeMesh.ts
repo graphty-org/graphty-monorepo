@@ -28,6 +28,7 @@ import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
+import { MaterialHelper } from "./MaterialHelper";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
@@ -612,11 +613,9 @@ void main() {
             "tee",
             "half-open",
             "crow",
-            "open-normal",
-            "open-diamond",
-            "open-dot",
             "sphere-dot",
             ...Object.keys(FilledArrowRenderer.POLYGON_ARROWS),
+            ...Object.keys(FilledArrowRenderer.OPEN_OUTLINES),
         ];
 
         // A CAP IS A SLOT, NOT A MESH. The note that used to stand here said thin instances had
@@ -633,18 +632,36 @@ void main() {
             throw new Error(`Unsupported arrow type: ${options.type}`);
         }
 
+        // AN OPEN CAP'S FRAME IS AS THICK AS ITS LINE (#4253), as Graphviz and Cytoscape.js stroke one with the edge's
+        // own pen: the line's width in scene units (`width / 40`, see createPatternedLine) over the cap's length, which
+        // a batch's one geometry holds, so it is part of the key. The outline is widened before it is framed, so the
+        // frame stays as thick on every side.
+        const stroke =
+            arrowType in FilledArrowRenderer.OPEN_OUTLINES
+                ? Math.round((options.width / 40 / length) * 1000) / 1000
+                : undefined;
+        const openKey = stroke === undefined ? widthKey : `${widthKey}|s${String(stroke)}`;
+        const open = (): Mesh | null =>
+            stroke === undefined ? null : FilledArrowRenderer.createOpenOutline(arrowType, scene, stroke, breadth);
+
         if (is2D) {
             // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
             // so they are part of the batch key; the size and the turn are the slot's matrix.
             return FilledArrowRenderer.capOf(
                 scene,
-                `2d|${arrowType}|${options.color}|${String(opacity)}${widthKey}`,
+                `2d|${arrowType}|${options.color}|${String(opacity)}${openKey}`,
                 () => {
+                    const outline = open();
+                    if (outline !== null) {
+                        outline.name = `arrow-2d-${arrowType}`;
+                        MaterialHelper.apply2DMaterial(outline, options.color, opacity, scene);
+                    }
                     const source = sided(
-                        widened(
-                            FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene),
-                            breadth,
-                        ),
+                        outline ??
+                            widened(
+                                FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene),
+                                breadth,
+                            ),
                         side,
                     );
                     source.visibility = opacity;
@@ -660,8 +677,8 @@ void main() {
 
         // 3D mode: shader-based billboard arrows; size and colour are per instance.
         return FilledArrowRenderer.createArrowCap(
-            `${arrowType}${widthKey}`,
-            () => sided(widened(this.createArrowShape(arrowType, scene), breadth), side),
+            `${arrowType}${openKey}`,
+            () => sided(open() ?? widened(this.createArrowShape(arrowType, scene), breadth), side),
             {
                 size: length, // World-space length (e.g., 0.5 units)
                 color: options.color,
@@ -783,12 +800,6 @@ void main() {
                 return FilledArrowRenderer.createHalfOpen(scene);
             case "crow":
                 return FilledArrowRenderer.createCrow(scene);
-            case "open-normal":
-                return FilledArrowRenderer.createOpenNormal(scene);
-            case "open-diamond":
-                return FilledArrowRenderer.createOpenDiamond(scene);
-            case "open-dot":
-                return FilledArrowRenderer.createOpenCircle(scene);
             default:
                 if (type in FilledArrowRenderer.POLYGON_ARROWS) {
                     return FilledArrowRenderer.createPolygonArrow(type, scene);

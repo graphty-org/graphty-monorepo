@@ -689,7 +689,9 @@ export function cytoscapeStyleFromCx2(
 
 /**
  * CX2 has no `NODE_SIZE`: a locked node size follows `NODE_WIDTH` (its default, mapping and bypasses) unless the
- * file writes `NODE_SIZE` anyway.
+ * file writes `NODE_SIZE` anyway. So a node with only a `NODE_WIDTH` bypass is drawn that wide and that tall, and one
+ * with only a `NODE_HEIGHT` bypass keeps the locked width: Cytoscape 3.10.5 draws specimen-node-sizes-opacity-p2.cx2's
+ * width-80-locked node 80 x 80 and its height-80-locked node 36 x 80.
  * @param node - the node section, changed in place
  */
 function lockedSizeFromWidth(node: CytoscapeStyle["node"]): void {

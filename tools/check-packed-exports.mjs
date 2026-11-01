@@ -9,6 +9,10 @@
  *      (an `exports` pattern with `*` must match at least one packed file);
  *   2. an entry of `files` (not a `!` exclusion) that matches no packed file.
  *
+ * One exception: a `files` entry naming a README, LICENSE or LICENCE file (any case, with or without an
+ * extension) that matches nothing is printed as a warning and does not fail. npm packs those files
+ * whenever they exist and ignores a missing one, so such an entry breaks nobody (issue #5325).
+ *
  * Why this exists: @graphty/cytoscape-extensions was published without dist/ (issue #3275) because the
  * release's build download did not include its build; the tarball held only src/, every export pointed
  * at nothing, and nothing failed. release.yml runs this after it puts the builds in their packages and
@@ -57,13 +61,17 @@ export function entryTargets(manifest) {
     return out;
 }
 
+/** README, LICENSE and LICENCE, which npm packs when present and skips when absent. */
+const NPM_ALWAYS_PACKED = /^(readme|license|licence)(\.[^/]*)?$/i;
+
 /**
  * The problems with a manifest against the list of files its pack holds.
  * @param manifest - a package.json
  * @param packed - the paths in its pack
+ * @param warnings - collects one line per unmatched README or LICENSE files entry, which is not a problem
  * @returns one line per missing target or unmatched files entry
  */
-export function missingFromPack(manifest, packed) {
+export function missingFromPack(manifest, packed, warnings = []) {
     const files = new Set(packed.map(clean));
     const has = (target) => {
         const t = clean(target);
@@ -79,8 +87,10 @@ export function missingFromPack(manifest, packed) {
         if (entry.startsWith("!")) continue;
         const e = clean(entry);
         const re = e.includes("*") ? globToRegExp(e) : null;
-        if (![...files].some((f) => (re ? re.test(f) : f === e || f.startsWith(`${e}/`))))
-            problems.push(`files lists ${entry}, which matches nothing in the pack`);
+        if ([...files].some((f) => (re ? re.test(f) : f === e || f.startsWith(`${e}/`)))) continue;
+        const line = `files lists ${entry}, which matches nothing in the pack`;
+        if (NPM_ALWAYS_PACKED.test(e)) warnings.push(line);
+        else problems.push(line);
     }
     return problems;
 }
@@ -108,10 +118,12 @@ export function checkPackages(dirs) {
     let failed = 0;
     for (const dir of dirs) {
         const manifest = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
-        const problems = missingFromPack(manifest, packedFiles(dir));
+        const warnings = [];
+        const problems = missingFromPack(manifest, packedFiles(dir), warnings);
         failed += problems.length;
         console.log(`${problems.length ? "FAIL" : "ok  "}  ${manifest.name}`);
         for (const p of problems) console.log(`        ${p}`);
+        for (const w of warnings) console.log(`warn  ${manifest.name}: ${w}`);
     }
     return failed;
 }

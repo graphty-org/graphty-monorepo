@@ -546,52 +546,7 @@ export class Arrangement {
         const ops = this.ops.splice(0);
         const { source } = this;
         if (source !== null && ops.length > 0) {
-            const snapshot = source.snapshot();
-            const lane = source.positions.view(snapshot.nodeCount);
-            // A capture restores every row it holds, so what came before it is overwritten.
-            let from = ops.length - 1;
-            while (from > 0 && !("capture" in ops[from])) {
-                from--;
-            }
-
-            let exact: ArrangementCapture | null = null;
-            // The rows a capture that is not whole, and the patches after it, write. Every other
-            // row was unplaced in the arrangement restored: it arrived after the capture and
-            // nothing the history holds placed it (a rest point seals a placement into the step
-            // that added the row or a later one), so it goes back to unplaced.
-            let covered: Uint8Array | null = null;
-            for (const op of ops.slice(from)) {
-                if ("capture" in op) {
-                    const whole =
-                        op.capture.token === this.state.graph.token && op.capture.ids.length === snapshot.nodeCount;
-                    covered = whole ? null : new Uint8Array(snapshot.nodeCount);
-                    writeCapture(op.capture, snapshot, lane, this.state.graph.token, covered);
-                    (this.state as { arrangement: ArrangementCapture | null }).arrangement = op.capture;
-                    exact = whole ? op.capture : null;
-                } else {
-                    writePatch(op.patch, op.forward, snapshot, lane, covered);
-                    exact = null;
-                }
-            }
-
-            if (covered !== null) {
-                covered.forEach((written, row) => {
-                    if (written === 0) {
-                        lane.fill(Number.NaN, POSITION_COMPONENTS * row, POSITION_COMPONENTS * row + 3);
-                    }
-                });
-            }
-
-            // A 2D position puts every node on the Z = 0 plane, whatever Z the history holds for it:
-            // the orthographic camera hides a Z, but a node's edges are drawn through it. The
-            // history keeps the Z, so returning to a 3D position brings it back.
-            if (this.flat && onPlane(lane)) {
-                exact = null;
-            }
-
-            source.positions.moved();
-            this.captured = source.positions.changes;
-            this.exact = exact;
+            this.writeOps(source, ops);
         }
 
         // The engine taking the lane may write it back unchanged; that is not a move. A layout
@@ -603,6 +558,54 @@ export class Arrangement {
         if (atRest) {
             this.captured = source?.positions.changes ?? 0;
         }
+    }
+
+    /**
+     * Write queued ops into the lane: from the last capture on, then every unwritten row of a
+     * partial capture back to unplaced.
+     * @param source - The lane's source.
+     * @param ops - The ops, in the order queued; not empty.
+     */
+    private writeOps(source: LaneSource, ops: readonly ArrangementOp[]): void {
+        const snapshot = source.snapshot();
+        const lane = source.positions.view(snapshot.nodeCount);
+        // A capture restores every row it holds, so what came before it is overwritten.
+        const from = lastCaptureAt(ops);
+
+        let exact: ArrangementCapture | null = null;
+        // The rows a capture that is not whole, and the patches after it, write. Every other
+        // row was unplaced in the arrangement restored: it arrived after the capture and
+        // nothing the history holds placed it (a rest point seals a placement into the step
+        // that added the row or a later one), so it goes back to unplaced.
+        let covered: Uint8Array | null = null;
+        for (const op of ops.slice(from)) {
+            if ("capture" in op) {
+                const whole =
+                    op.capture.token === this.state.graph.token && op.capture.ids.length === snapshot.nodeCount;
+                covered = whole ? null : new Uint8Array(snapshot.nodeCount);
+                writeCapture(op.capture, snapshot, lane, this.state.graph.token, covered);
+                (this.state as { arrangement: ArrangementCapture | null }).arrangement = op.capture;
+                exact = whole ? op.capture : null;
+            } else {
+                writePatch(op.patch, op.forward, snapshot, lane, covered);
+                exact = null;
+            }
+        }
+
+        if (covered !== null) {
+            unplaceUncovered(covered, lane);
+        }
+
+        // A 2D position puts every node on the Z = 0 plane, whatever Z the history holds for it:
+        // the orthographic camera hides a Z, but a node's edges are drawn through it. The
+        // history keeps the Z, so returning to a 3D position brings it back.
+        if (this.flat && onPlane(lane)) {
+            exact = null;
+        }
+
+        source.positions.moved();
+        this.captured = source.positions.changes;
+        this.exact = exact;
     }
 
     /**
@@ -707,6 +710,33 @@ function writeCapture(
                 capture.coords.subarray(POSITION_COMPONENTS * from, POSITION_COMPONENTS * from + 3),
                 POSITION_COMPONENTS * row,
             );
+        }
+    });
+}
+
+/**
+ * Where the last capture among queued ops is, or 0 when there is none after the first op.
+ * @param ops - The ops, in the order queued; not empty.
+ * @returns The index to write from.
+ */
+function lastCaptureAt(ops: readonly ArrangementOp[]): number {
+    let from = ops.length - 1;
+    while (from > 0 && !("capture" in ops[from])) {
+        from--;
+    }
+
+    return from;
+}
+
+/**
+ * Put every row a partial capture and the patches after it did not write back to unplaced.
+ * @param covered - One byte per row: nonzero for a row written.
+ * @param lane - The position lane.
+ */
+function unplaceUncovered(covered: Uint8Array, lane: Float32Array): void {
+    covered.forEach((written, row) => {
+        if (written === 0) {
+            lane.fill(Number.NaN, POSITION_COMPONENTS * row, POSITION_COMPONENTS * row + 3);
         }
     });
 }

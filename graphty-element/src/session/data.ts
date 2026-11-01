@@ -415,6 +415,69 @@ function isAbsent(value: unknown): boolean {
 }
 
 /**
+ * Whether an edge has the node at either end.
+ * @param snapshot - the current snapshot
+ * @param index - the edge's row
+ * @param end - the node's row, or INVALID_INDEX when the graph does not hold it
+ * @returns true when one end is the node
+ */
+function edgeTouches(snapshot: GraphSnapshot, index: number, end: number): boolean {
+    return end !== INVALID_INDEX && (snapshot.edgeSource(index) === end || snapshot.edgeTarget(index) === end);
+}
+
+/**
+ * Whether a row is in a scope.
+ * @param snapshot - the current snapshot
+ * @param space - the snapshot's edge id space
+ * @param members - the scope's nodes and edges
+ * @param target - nodes or edges
+ * @param index - the row
+ * @returns true when the row's element is in the scope
+ */
+function rowInScope(
+    snapshot: GraphSnapshot,
+    space: ReturnType<typeof edgeSpaceOf>,
+    members: ResolvedScope,
+    target: "node" | "edge",
+    index: number,
+): boolean {
+    return target === "node" ? members.nodes.has(snapshot.ids.idOf(index)) : members.edges.has(space.idOf(index));
+}
+
+/**
+ * Sort rows by a value, absent values last, keeping graph order among equals.
+ * @param rows - the rows, in graph order
+ * @param sort - the direction and what a row sorts by
+ * @param sort.descending - true to sort largest first
+ * @param sort.value - what a row sorts by
+ * @returns the sorted rows
+ */
+function sortRows(
+    rows: readonly number[],
+    sort: { readonly descending: boolean; value(index: number): unknown },
+): Uint32Array {
+    const values = rows.map((index) => sort.value(index));
+    const direction = sort.descending ? -1 : 1;
+    const positions = rows.map((_row, position) => position);
+    positions.sort((x, y) => {
+        const a = values[x];
+        const b = values[y];
+        const absentA = isAbsent(a);
+        const absentB = isAbsent(b);
+        if (absentA !== absentB) {
+            return absentA ? 1 : -1;
+        }
+
+        if (absentA) {
+            return x - y;
+        }
+
+        return direction * compareSortValues(a, b) || x - y;
+    });
+    return Uint32Array.from(positions, (position) => rows[position] ?? 0);
+}
+
+/**
  * Check a page's window.
  * @param options - what the caller asked for
  * @param verb - the verb, for the message
@@ -2165,10 +2228,7 @@ export class SessionData implements SessionDataApi {
         // ponytail: `touching` scans every edge once per revision; read the undirected CSR if a
         // host pages the edges of many nodes per revision.
         for (let index = 0; index < count; index++) {
-            if (
-                touching !== undefined &&
-                (end === INVALID_INDEX || (snapshot.edgeSource(index) !== end && snapshot.edgeTarget(index) !== end))
-            ) {
+            if (touching !== undefined && !edgeTouches(snapshot, index, end)) {
                 continue;
             }
 
@@ -2176,42 +2236,14 @@ export class SessionData implements SessionDataApi {
                 continue;
             }
 
-            if (members !== null) {
-                const inScope =
-                    target === "node"
-                        ? members.nodes.has(snapshot.ids.idOf(index))
-                        : members.edges.has(space.idOf(index));
-                if (!inScope) {
-                    continue;
-                }
+            if (members !== null && !rowInScope(snapshot, space, members, target, index)) {
+                continue;
             }
 
             rows.push(index);
         }
 
-        if (sort !== undefined) {
-            const values = rows.map((index) => sort.value(index));
-            const direction = sort.descending ? -1 : 1;
-            const positions = rows.map((_row, position) => position);
-            positions.sort((x, y) => {
-                const a = values[x];
-                const b = values[y];
-                const absentA = isAbsent(a);
-                const absentB = isAbsent(b);
-                if (absentA !== absentB) {
-                    return absentA ? 1 : -1;
-                }
-
-                if (absentA) {
-                    return x - y;
-                }
-
-                return direction * compareSortValues(a, b) || x - y;
-            });
-            return Uint32Array.from(positions, (position) => rows[position] ?? 0);
-        }
-
-        return Uint32Array.from(rows);
+        return sort === undefined ? Uint32Array.from(rows) : sortRows(rows, sort);
     }
 
     /**

@@ -183,25 +183,35 @@ function reachableBytes(roots: readonly unknown[]): number {
             continue;
         }
 
-        if (value instanceof Map) {
-            for (const [key, item] of value) {
-                stack.push(key, item);
-            }
-        } else if (value instanceof Set) {
-            for (const item of value) {
-                stack.push(item);
-            }
-        }
-
-        for (const key of Reflect.ownKeys(value)) {
-            const descriptor = Object.getOwnPropertyDescriptor(value, key);
-            if (descriptor !== undefined && "value" in descriptor) {
-                stack.push(descriptor.value);
-            }
-        }
+        pushChildren(value, stack);
     }
 
     return bytes;
+}
+
+/**
+ * Push what an object holds onto the walk's stack: a map's keys and values, a set's items, then
+ * every own data property. A getter is never called.
+ * @param value - The object to open.
+ * @param stack - The walk's stack.
+ */
+function pushChildren(value: object, stack: unknown[]): void {
+    if (value instanceof Map) {
+        for (const [key, item] of value) {
+            stack.push(key, item);
+        }
+    } else if (value instanceof Set) {
+        for (const item of value) {
+            stack.push(item);
+        }
+    }
+
+    for (const key of Reflect.ownKeys(value)) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (descriptor !== undefined && "value" in descriptor) {
+            stack.push(descriptor.value);
+        }
+    }
 }
 
 /**

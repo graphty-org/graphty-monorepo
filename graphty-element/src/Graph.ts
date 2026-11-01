@@ -6631,111 +6631,144 @@ export class Graph implements GraphContext {
         const controller = this.camera.getActiveController();
 
         if (controller && "pivot" in controller && "cameraDistance" in controller) {
-            // OrbitCameraController - work with pivot system
-            const orbitController = controller as unknown as {
-                pivot: {
-                    position: Vector3;
-                    rotation: Vector3;
-                    rotationQuaternion: Quaternion | null;
-                    computeWorldMatrix: (force: boolean) => void;
-                };
-                cameraDistance: number;
-                clampDistance: (distance: number) => number;
-                updateCameraPosition: () => void;
-            };
-
-            // Set pivot position (target)
-            if (state.target) {
-                orbitController.pivot.position.set(state.target.x, state.target.y, state.target.z);
-            }
-
-            // Set pivot rotation if provided (for exact state restoration)
-            // Must use rotationQuaternion because PivotController initializes with quaternion
-            // In Babylon.js, when rotationQuaternion is set (not null), it takes precedence over Euler rotation
-            if (state.pivotRotation) {
-                // Convert Euler angles to quaternion
-                const quat = Quaternion.RotationYawPitchRoll(
-                    state.pivotRotation.y, // yaw
-                    state.pivotRotation.x, // pitch
-                    state.pivotRotation.z, // roll
-                );
-                orbitController.pivot.rotationQuaternion = quat;
-            } else if (state.position && state.target) {
-                // Calculate pivot rotation from position and target
-                // Camera should look from position towards target
-                const direction = new Vector3(
-                    state.position.x - state.target.x,
-                    state.position.y - state.target.y,
-                    state.position.z - state.target.z,
-                );
-                const distance = direction.length();
-
-                // Calculate rotation angles to orient pivot so camera looks at target
-                // Add π to yaw because OrbitController's camera points in the opposite direction
-                const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
-                const pitch = Math.asin(direction.y / distance);
-
-                // Convert Euler angles to quaternion
-                const quat = Quaternion.RotationYawPitchRoll(yaw, pitch, 0);
-                orbitController.pivot.rotationQuaternion = quat;
-            }
-
-            // Set camera distance if provided, floored the way every orbit distance is
-            if (state.cameraDistance !== undefined) {
-                orbitController.cameraDistance = orbitController.clampDistance(state.cameraDistance);
-            } else if (state.position && state.target) {
-                // Calculate distance from position to target
-                const dx = state.position.x - state.target.x;
-                const dy = state.position.y - state.target.y;
-                const dz = state.position.z - state.target.z;
-                orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
-            }
-
-            // Update the pivot's world matrix and camera position
-            orbitController.pivot.computeWorldMatrix(true);
-            orbitController.updateCameraPosition();
+            this.applyOrbitCameraState(controller, state);
         } else if (controller && "velocity" in controller) {
-            // TwoDCameraController - handle zoom and pan
-            const twoDController = controller as unknown as {
-                camera: {
-                    position: Vector3;
-                    orthoLeft: number | null;
-                    orthoRight: number | null;
-                    orthoTop: number | null;
-                    orthoBottom: number | null;
-                };
-                config: {
-                    initialOrthoSize: number;
-                };
-                updateOrtho: (size: number) => void;
-            };
-
-            // Set zoom (ortho bounds)
-            if (state.zoom !== undefined) {
-                const initialSize = twoDController.config.initialOrthoSize;
-                const targetSize = initialSize / state.zoom;
-                twoDController.updateOrtho(targetSize); // Reuse controller method
-            }
-
-            if (controller instanceof TwoDCameraController) {
-                if (state.rotation !== undefined) {
-                    controller.rotation = state.rotation;
-                }
-
-                // Set pan (camera position): the view's center, in world units however the view is turned
-                if (state.pan) {
-                    controller.panTo(state.pan.x, state.pan.y);
-                }
-            }
+            this.applyTwoDCameraState(controller, state);
         } else {
-            // Fallback for other camera types
-            if (state.position && "position" in camera) {
-                camera.position.set(state.position.x, state.position.y, state.position.z);
+            this.applyFallbackCameraState(camera, state);
+        }
+    }
+
+    /**
+     * Apply a camera state to an orbit controller through its pivot: target, rotation, distance.
+     * @param controller - The active orbit camera controller
+     * @param state - Camera state to apply
+     */
+    private applyOrbitCameraState(
+        controller: CameraController,
+        state: import("./screenshot/types.js").CameraState,
+    ): void {
+        // OrbitCameraController - work with pivot system
+        const orbitController = controller as unknown as {
+            pivot: {
+                position: Vector3;
+                rotation: Vector3;
+                rotationQuaternion: Quaternion | null;
+                computeWorldMatrix: (force: boolean) => void;
+            };
+            cameraDistance: number;
+            clampDistance: (distance: number) => number;
+            updateCameraPosition: () => void;
+        };
+
+        // Set pivot position (target)
+        if (state.target) {
+            orbitController.pivot.position.set(state.target.x, state.target.y, state.target.z);
+        }
+
+        // Set pivot rotation if provided (for exact state restoration)
+        // Must use rotationQuaternion because PivotController initializes with quaternion
+        // In Babylon.js, when rotationQuaternion is set (not null), it takes precedence over Euler rotation
+        if (state.pivotRotation) {
+            // Convert Euler angles to quaternion
+            const quat = Quaternion.RotationYawPitchRoll(
+                state.pivotRotation.y, // yaw
+                state.pivotRotation.x, // pitch
+                state.pivotRotation.z, // roll
+            );
+            orbitController.pivot.rotationQuaternion = quat;
+        } else if (state.position && state.target) {
+            // Calculate pivot rotation from position and target
+            // Camera should look from position towards target
+            const direction = new Vector3(
+                state.position.x - state.target.x,
+                state.position.y - state.target.y,
+                state.position.z - state.target.z,
+            );
+            const distance = direction.length();
+
+            // Calculate rotation angles to orient pivot so camera looks at target
+            // Add π to yaw because OrbitController's camera points in the opposite direction
+            const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
+            const pitch = Math.asin(direction.y / distance);
+
+            // Convert Euler angles to quaternion
+            const quat = Quaternion.RotationYawPitchRoll(yaw, pitch, 0);
+            orbitController.pivot.rotationQuaternion = quat;
+        }
+
+        // Set camera distance if provided, floored the way every orbit distance is
+        if (state.cameraDistance !== undefined) {
+            orbitController.cameraDistance = orbitController.clampDistance(state.cameraDistance);
+        } else if (state.position && state.target) {
+            // Calculate distance from position to target
+            const dx = state.position.x - state.target.x;
+            const dy = state.position.y - state.target.y;
+            const dz = state.position.z - state.target.z;
+            orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
+        }
+
+        // Update the pivot's world matrix and camera position
+        orbitController.pivot.computeWorldMatrix(true);
+        orbitController.updateCameraPosition();
+    }
+
+    /**
+     * Apply a camera state to a 2D controller: zoom, then rotation and pan.
+     * @param controller - The active 2D camera controller
+     * @param state - Camera state to apply
+     */
+    private applyTwoDCameraState(
+        controller: CameraController,
+        state: import("./screenshot/types.js").CameraState,
+    ): void {
+        // TwoDCameraController - handle zoom and pan
+        const twoDController = controller as unknown as {
+            camera: {
+                position: Vector3;
+                orthoLeft: number | null;
+                orthoRight: number | null;
+                orthoTop: number | null;
+                orthoBottom: number | null;
+            };
+            config: {
+                initialOrthoSize: number;
+            };
+            updateOrtho: (size: number) => void;
+        };
+
+        // Set zoom (ortho bounds)
+        if (state.zoom !== undefined) {
+            const initialSize = twoDController.config.initialOrthoSize;
+            const targetSize = initialSize / state.zoom;
+            twoDController.updateOrtho(targetSize); // Reuse controller method
+        }
+
+        if (controller instanceof TwoDCameraController) {
+            if (state.rotation !== undefined) {
+                controller.rotation = state.rotation;
             }
 
-            if (state.target && "setTarget" in camera && typeof camera.setTarget === "function") {
-                camera.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
+            // Set pan (camera position): the view's center, in world units however the view is turned
+            if (state.pan) {
+                controller.panTo(state.pan.x, state.pan.y);
             }
+        }
+    }
+
+    /**
+     * Apply a camera state to a camera no known controller drives: position and target.
+     * @param camera - The scene's active camera
+     * @param state - Camera state to apply
+     */
+    private applyFallbackCameraState(camera: Camera, state: import("./screenshot/types.js").CameraState): void {
+        // Fallback for other camera types
+        if (state.position && "position" in camera) {
+            camera.position.set(state.position.x, state.position.y, state.position.z);
+        }
+
+        if (state.target && "setTarget" in camera && typeof camera.setTarget === "function") {
+            camera.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
         }
     }
 

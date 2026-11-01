@@ -756,6 +756,57 @@ function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: 
     return bounds;
 }
 
+/** What one column's values look like, counted. */
+interface TimeTally {
+    total: number;
+    parsed: number;
+    numbers: number;
+    epochMs: number;
+    epochS: number;
+    years: number;
+}
+
+/**
+ * Count one value into a column's tally.
+ * @param tally - The tally so far.
+ * @param value - The value.
+ */
+function tallyValue(tally: TimeTally, value: unknown): void {
+    if (value === undefined || value === null || value === "") {
+        return;
+    }
+
+    tally.total++;
+    if (typeof value === "number") {
+        tally.numbers++;
+        tally.epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
+        tally.epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
+        tally.years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
+    } else if (typeof value === "string" && !isNumericText(value)) {
+        const reading = readInstant(value, "ms");
+        tally.parsed += reading.how === "strict" || (reading.how === "loose" && HAS_YEAR.test(value)) ? 1 : 0;
+    }
+}
+
+/**
+ * The unit a column of numbers reads in. Numbers read as time only when every one of them looks
+ * like an epoch or a year and the column is named for time: a weight of 1 to 10 is no timeline.
+ * @param tally - The column's tally.
+ * @param name - The column's name.
+ * @returns The unit, or undefined when the numbers are not time.
+ */
+function numberUnit(tally: TimeTally, name: string): TimeUnit | undefined {
+    if (tally.epochMs === tally.numbers) {
+        return "ms";
+    }
+
+    if (tally.epochS === tally.numbers) {
+        return "s";
+    }
+
+    return tally.years === tally.numbers && /year|date|time|when|period/i.test(name) ? "year" : undefined;
+}
+
 /**
  * The columns whose values read as time, best first: walks every value of each column.
  * @param sources - What `session.time` reads.
@@ -771,47 +822,23 @@ function timeCandidates(
     for (const { kind, name } of columns) {
         const attribute = `${ATTRIBUTE_PREFIX}${name}`;
         const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
-        let total = 0;
-        let parsed = 0;
-        let numbers = 0;
-        let epochMs = 0;
-        let epochS = 0;
-        let years = 0;
+        const tally: TimeTally = { total: 0, parsed: 0, numbers: 0, epochMs: 0, epochS: 0, years: 0 };
         for (let row = 0; row < count; row++) {
-            const value =
-                kind === "node" ? sources.values.nodeValue(row, attribute) : sources.values.edgeValue(row, attribute);
-            if (value === undefined || value === null || value === "") {
-                continue;
-            }
-
-            total++;
-            if (typeof value === "number") {
-                numbers++;
-                epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
-                epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
-                years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
-            } else if (typeof value === "string" && !isNumericText(value)) {
-                const reading = readInstant(value, "ms");
-                parsed += reading.how === "strict" || (reading.how === "loose" && HAS_YEAR.test(value)) ? 1 : 0;
-            }
+            tallyValue(
+                tally,
+                kind === "node" ? sources.values.nodeValue(row, attribute) : sources.values.edgeValue(row, attribute),
+            );
         }
 
-        // Numbers read as time only when every one of them looks like an epoch or a year
-        // and the column is named for time: a weight of 1 to 10 is no timeline.
         let unit: TimeUnit | undefined;
-        if (numbers > 0 && numbers === total) {
-            if (epochMs === numbers) {
-                unit = "ms";
-            } else if (epochS === numbers) {
-                unit = "s";
-            } else if (years === numbers && /year|date|time|when|period/i.test(name)) {
-                unit = "year";
-            }
-
-            parsed = unit === undefined ? 0 : numbers;
+        let { parsed } = tally;
+        if (tally.numbers > 0 && tally.numbers === tally.total) {
+            unit = numberUnit(tally, name);
+            parsed = unit === undefined ? 0 : tally.numbers;
         }
 
         if (parsed > 0) {
+            const { total } = tally;
             found.push(Object.freeze({ kind, column: name, parsed, total, ...(unit === undefined ? {} : { unit }) }));
         }
     }

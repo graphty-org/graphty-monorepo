@@ -909,6 +909,33 @@ export function locationColumns(context: PlanningContext): LocationColumns {
 const locationCaches = new WeakMap<PlanningContext, RevisionCache<LocationColumns>>();
 
 /**
+ * The location kinds the graph carries, the one used and the ones left unused.
+ * @param designation - The designated location, if any.
+ * @param answer - What the resolver found.
+ * @param places - The gazetteer as loaded now.
+ * @returns The listing part of {@link LocationColumns}.
+ */
+function listedLocation(
+    designation: LocationDesignation | undefined,
+    answer: Parameters<typeof listLocation>[1],
+    places: Gazetteer,
+): Pick<LocationColumns, "kinds" | "using" | "unused"> {
+    const listing = listLocation(designation, answer, (source) =>
+        source.role === "auto" ? (bestRole(source.values, places) ?? "city") : source.role,
+    );
+    const { using } = listing;
+    return {
+        kinds: listing.kinds,
+        using,
+        unused: Object.freeze(
+            using === null
+                ? []
+                : listing.unused.map((kind) => ({ code: "location.unused" as const, params: { kind, using } })),
+        ),
+    };
+}
+
+/**
  * {@link locationColumns}, uncached: reads every node column's values.
  * @param context - What planning reads.
  * @param places - The gazetteer as loaded now.
@@ -920,19 +947,7 @@ function locationColumnsNow(context: PlanningContext, places: Gazetteer): Locati
     const choice = chosenLocation(none, designation);
     const designated = choice.location !== null || choice.latitude !== null || choice.longitude !== null;
     const answer = resolveLocation(choice, nodeColumns(context), (path) => context.nodeValues?.(path) ?? null, places);
-    const listing = listLocation(designation, answer, (source) =>
-        source.role === "auto" ? (bestRole(source.values, places) ?? "city") : source.role,
-    );
-    const { using } = listing;
-    const listed = {
-        kinds: listing.kinds,
-        using,
-        unused: Object.freeze(
-            using === null
-                ? []
-                : listing.unused.map((kind) => ({ code: "location.unused" as const, params: { kind, using } })),
-        ),
-    };
+    const listed = listedLocation(designation, answer, places);
     if (isLocationRefusal(answer)) {
         const { location, latitude, longitude } = choice;
         return Object.freeze({

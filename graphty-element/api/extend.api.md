@@ -2739,6 +2739,7 @@ export interface SnapshotLayoutInput {
     readonly signal: AbortSignal;
     readonly stored: GraphSnapshot;
     warn(warning: SnapshotLayoutWarning): void;
+    weightMeaning?(): "strength" | "distance" | null;
 }
 
 // @public

@@ -216,8 +216,11 @@ export interface RunDefinition<T = RunResult> {
     readonly sample: number | null;
     /** How long it may take before it publishes what it has, or null when it is not boxed. */
     readonly timeBoxMs: number | null;
-    /** What the element may paint on first completion; false for nothing. */
-    readonly style: RunStyle;
+    /**
+     * What the element may paint on first completion; false for nothing. Set again only when a
+     * removed run is started anew under its id ({@link ManagedRun.restyle}).
+     */
+    style: RunStyle;
     /** The shape of the result, which fixes its field names. */
     readonly shape: ResultShape;
     /** The fields the algorithm declares, until the run says which it actually filled. */
@@ -1000,6 +1003,17 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                 next.reject(error);
             },
         );
+    }
+
+    /**
+     * Take the styling choice of a new start of this run after it was removed: a removed run has
+     * no first completion behind it, so what it paints when it next completes is what the new
+     * start asked for, never what the start before the removal did.
+     * @param style - The new start's `style`.
+     * @internal
+     */
+    restyle(style: RunStyle): void {
+        this.style = style;
     }
 
     /**

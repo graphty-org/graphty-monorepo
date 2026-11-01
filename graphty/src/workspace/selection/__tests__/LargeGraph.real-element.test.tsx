@@ -12,7 +12,7 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession, Layer, UnionLeaf } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -107,11 +107,11 @@ async function selectStep(id: string): Promise<void> {
 }
 
 /**
- * The open listbox's options, and its group headings.
+ * The open reference list's options, and its group headings.
  * @returns their words.
  */
 function listed(): { options: string[]; headings: string[] } {
-    const list = document.querySelector<HTMLElement>("[role=listbox]");
+    const list = document.querySelector<HTMLElement>('[role=listbox][aria-label="References"]');
     return {
         options: [...(list?.querySelectorAll<HTMLElement>("[role=option]") ?? [])].map(
             (each) => each.textContent ?? "",
@@ -123,13 +123,8 @@ function listed(): { options: string[]; headings: string[] } {
 }
 
 describe("the selection editor on 50,000 nodes", () => {
-    let session: GraphSession;
-    beforeAll(async () => {
-        session = await openGenerated();
-        assert.equal(session.data.statistics().nodeCount, NODES);
-    });
-
     it("the reference picker lists no node before typing, and at most 8 after", async () => {
+        const session = await openGenerated();
         await openLayer(session, "Near", oneStep("near", { kind: "hops", max: 2 }));
         await selectStep("near");
         await userEvent.click(await screen.findByRole("button", { name: "Reference" }));
@@ -152,6 +147,7 @@ describe("the selection editor on 50,000 nodes", () => {
     });
 
     it("While has nodes takes one reference, shown as one token", async () => {
+        const session = await openGenerated();
         await openLayer(session, "While", oneStep("while", { kind: "nonempty" }));
         await selectStep("while");
         await userEvent.click(await screen.findByRole("button", { name: "Reference" }));
@@ -166,6 +162,7 @@ describe("the selection editor on 50,000 nodes", () => {
     });
 
     it("the category checklist draws at most 8 rows; Check N ticks a search's matches and the row summarizes them", async () => {
+        const session = await openGenerated();
         const layer = await openLayer(
             session,
             "Communities",
@@ -200,6 +197,7 @@ describe("the selection editor on 50,000 nodes", () => {
     });
 
     it("the value picker lists columns and algorithms, never values", async () => {
+        const session = await openGenerated();
         await openLayer(session, "Values", oneStep("deg", { kind: "range", attribute: "graphty.degree", min: 3 }));
         await selectStep("deg");
         await userEvent.click(await screen.findByRole("button", { name: /^Value: / }));

@@ -1039,16 +1039,19 @@ Rules:
 
 **Rolling out a change to this flow.** Sessions read `CLAUDE.md`, the skills and `.claude/settings.json` from
 the main checkout at their start, and `worktree-new.sh` runs from the live copy `.worktrees/land-live`. So after
-such a change merges: `tools/live.sh land master`; bring the main checkout to master
-(`git -C <main> switch master`, then `git merge --ff-only origin/master`); restart the pull request status
-broker (servherd `pr-status-broker`) and every running Claude session, `/loop` included.
+such a change is committed, put it live at once without waiting for its pull request:
+`tools/live.sh workspace <commit>` merges it into the main checkout (the tool `workspace`), and
+`tools/live.sh land <commit>` into the land copy; then restart every running Claude session, `/loop` included.
+The rounds keep the main checkout following master by merging `origin/master` into it (never only a
+fast-forward, since a live change puts a merge there first).
 
 ## Where a change takes effect
 
 Before shipping a change, ask where it takes effect, because that decides how it ships:
 
-- **On this machine** -- the visual-review server, `worktree-new.sh`, design studio builds, the XR sandbox,
-  dev servers and local watchers. Put it into the running copy at once with
+- **On this machine** -- everything that runs here: the visual-review server, `worktree-new.sh`, design studio
+  builds, the XR sandbox, dev servers, local watchers, and the workspace files every session reads from the
+  main checkout (CLAUDE.md, the skills, `.claude/settings.json`; tool `workspace`). Put it into the running copy at once with
   `tools/live.sh <tool> <branch-or-commit>`, and open the branch's pull request in parallel as the record.
   live.sh merges the branch (never rebases) into the tool's live worktree, runs the tool's tests on the merge
   first, and only when they pass moves the live copy and restarts its servherd servers; a conflict or a failed

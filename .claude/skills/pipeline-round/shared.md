@@ -50,9 +50,10 @@ From the main checkout, `/home/apowers/Projects/graphty-monorepo`:
 
 ```bash
 git fetch -q --prune --no-tags origin
-# Keep the main checkout on master, so new sessions read master's CLAUDE.md, skills and settings.
+# Keep the main checkout on master, so new sessions read master's CLAUDE.md, skills and settings. A merge, not a
+# fast-forward: `tools/live.sh workspace <commit>` puts a branch's change there before its pull request lands.
 [ "$(git symbolic-ref -q --short HEAD)" = master ] && [ -z "$(git status --porcelain -uno)" ] &&
-  git merge -q --ff-only origin/master || echo "main checkout NOT following master: $(git symbolic-ref -q --short HEAD)"
+  git merge -q --no-edit origin/master || echo "main checkout NOT following master: $(git symbolic-ref -q --short HEAD)"
 jq -r '"broker \(.fetchedAt) error=\(.error)", (.pullRequests[] | "#\(.number) \(.head) -> \(.base) draft=\(.draft) \(.state) \(.labels|join(","))")' tmp/pr-status/status.json
 d=tmp/${ROUND:-pipeline-round}; mkdir -p "$d"
 gh api graphql -f query='{
@@ -136,12 +137,13 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > graphty-element's styling, layout or rendering), whose change reaches the graphty app also runs
 > `pnpm run check:quick --with-dry-run` (the app's dry run on the NVIDIA card; or `pnpm exec nx run graphty:build`
 > then `node graphty/acceptance/run.mjs`, faster when the quick check runs whole test shards) and fixes every failed
-> route before opening its pull request. A change that takes effect on this machine (a tool `tools/live.sh --list`
-> names: visual-review's server, worktree-new.sh and the land tools, the gate, worktree cleanup, the local health
-> collector, the SonarQube baseline) goes live at once, without waiting for CI: right after its commit, run
-> `tools/live.sh <tool> "$(git rev-parse HEAD)"` (the commit, not the branch name, which live.sh would
-> read from GitHub before the push lands) and open the pull request in parallel as the record (owner, 2026-11-01; CLAUDE.md
-> "Where a change takes effect"); say in the Proof that it is live. Run long commands through `tools/low-priority.sh`;
+> route before opening its pull request. Everything that runs on this machine goes live at once, never after CI
+> (owner, 2026-10-11, 2026-10-22, 2026-11-01; CLAUDE.md "Where a change takes effect"): a tool
+> `tools/live.sh --list` names, and the workspace files every session reads from the main checkout (CLAUDE.md, the
+> skills, `.claude/settings.json`; tool `workspace`). Right after the commit, run
+> `tools/live.sh <tool> "$(git rev-parse HEAD)"` (the commit, not the branch name, which live.sh would read from
+> GitHub before the push lands), open the pull request in parallel as the record, and say in the Proof what is
+> live. Run long commands through `tools/low-priority.sh`;
 > start each long run once and end your turn; do not re-check it again and again. When you stop, done or not, write
 > where the work stands on the branch's issue:
 > `node tools/branch-note.mjs update --done "<what is done>" --left "<what is left>" --next "<the next step>"`.

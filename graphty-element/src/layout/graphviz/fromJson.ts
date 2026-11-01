@@ -222,26 +222,36 @@ export function edgeLabelsLeftOut(json: string): Map<number, EdgeLabelPart[]> {
     const out = new Map<number, EdgeLabelPart[]>();
     for (const edge of parsed.edges ?? []) {
         const k = typeof edge.id === "string" && /^e\d+$/.test(edge.id) ? Number(edge.id.slice(1)) : -1;
-        const has = (text: unknown): boolean => typeof text === "string" && text !== "";
-        const gone: EdgeLabelPart[] = [];
-        if (has(edge.xlabel) && edge.xlp === undefined) {
-            gone.push(...(has(edge.label) ? (["xlabel"] as const) : (["label", "xlabel"] as const)));
-        }
-        if (has(edge.label) && !labelDrawn(edge)) {
-            gone.push("label");
-        }
-        if (has(edge.headlabel) && textPoints(edge._hldraw_).length === 0) {
-            gone.push("headLabel");
-        }
-        if (has(edge.taillabel) && textPoints(edge._tldraw_).length === 0) {
-            gone.push("tailLabel");
-        }
+        const gone = leftOutOf(edge);
         if (k >= 0 && gone.length > 0) {
             out.set(k, gone);
         }
     }
 
     return out;
+}
+
+/**
+ * The labels Graphviz left out of one edge, as {@link edgeLabelsLeftOut} reads them.
+ * @param edge - the edge's `-Tjson` object
+ * @returns the labels left out
+ */
+function leftOutOf(edge: JsonObject): EdgeLabelPart[] {
+    const has = (text: unknown): boolean => typeof text === "string" && text !== "";
+    const gone: EdgeLabelPart[] = [];
+    if (has(edge.xlabel) && edge.xlp === undefined) {
+        gone.push(...(has(edge.label) ? (["xlabel"] as const) : (["label", "xlabel"] as const)));
+    }
+    if (has(edge.label) && !labelDrawn(edge)) {
+        gone.push("label");
+    }
+    if (has(edge.headlabel) && textPoints(edge._hldraw_).length === 0) {
+        gone.push("headLabel");
+    }
+    if (has(edge.taillabel) && textPoints(edge._tldraw_).length === 0) {
+        gone.push("tailLabel");
+    }
+    return gone;
 }
 
 /** The parts of {@link EdgePosition} an edge's labels are placed by. */

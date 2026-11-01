@@ -18,6 +18,7 @@ interface JsonObject {
     readonly pos?: unknown;
     readonly lp?: unknown;
     readonly xlp?: unknown;
+    readonly xlabel?: unknown;
     readonly head_lp?: unknown;
     readonly tail_lp?: unknown;
 }
@@ -158,19 +159,22 @@ export function edgeLabelPlaces(
 
 /**
  * Read where Graphviz put each node's external label (its `xlp`, the label's center) out of its json output, as an
- * offset from the node's center in Graphviz's points, right and down.
+ * offset from the node's center in Graphviz's points, right and down; null for an external label Graphviz left out
+ * (with the graph's `forcelabels=false` it drops one that would cover another node, and gives it no `xlp`).
  * @param json - the `-Tjson` text
- * @returns each placed external label's offset, by row
+ * @returns each external label's offset, or null when it was left out, by row
  */
-export function nodeXlabelPlaces(json: string): Map<number, readonly [right: number, down: number]> {
+export function nodeXlabelPlaces(json: string): Map<number, readonly [right: number, down: number] | null> {
     const parsed = JSON.parse(json) as JsonGraph;
-    const out = new Map<number, readonly [number, number]>();
-    for (const { name, pos, xlp } of parsed.objects ?? []) {
+    const out = new Map<number, readonly [number, number] | null>();
+    for (const { name, pos, xlp, xlabel } of parsed.objects ?? []) {
         const row = typeof name === "string" && /^n\d+$/.test(name) ? Number(name.slice(1)) : -1;
         const [px, py] = typeof pos === "string" ? pos.split(",").map(Number) : [];
         const [lx, ly] = typeof xlp === "string" ? xlp.split(",").map(Number) : [];
         if (row >= 0 && [px, py, lx, ly].every(Number.isFinite)) {
             out.set(row, [lx - px, py - ly]);
+        } else if (row >= 0 && xlp === undefined && typeof xlabel === "string" && xlabel !== "") {
+            out.set(row, null);
         }
     }
 

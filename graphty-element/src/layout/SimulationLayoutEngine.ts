@@ -459,6 +459,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
     /** Batches submitted and not yet landed or rejected. See `#syncWork`. */
     #inFlight = 0;
 
+    /** Frame batches that have landed, and how many of them the last publish included. */
+    #landed = 0;
+    #landedPublished = 0;
+
     /** Set by `LayoutManager` while it is not stepping this layout. See {@link paused}. */
     #paused = false;
     #iterations = 1;
@@ -559,6 +563,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     get iterationsDone(): number {
         return this.#iterationsDone;
+    }
+
+    /**
+     * How many of the batches `step()` submitted had landed when the positions were last
+     * published. An accelerated batch lands frames after the one that submitted it, so the
+     * published positions move only when this does: a move measured across a frame in which it
+     * did not is no move at all, not a settled layout (issue #4437).
+     * @returns The count; it only grows.
+     */
+    get landedBatchesPublished(): number {
+        return this.#landedPublished;
     }
 
     /**
@@ -773,6 +788,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 () => {
                     // The batch has landed, so the simulation knows by now whether it settled.
                     this.#inFlight -= 1;
+                    this.#landed += 1;
                     this.#syncWork();
                     // Submitted before a restore, it read back coordinates the restore replaced:
                     // take the element's array again, which still holds the restored ones.
@@ -1087,6 +1103,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const store = this.#dataManager[WRITABLE_LANE];
+        this.#landedPublished = this.#landed;
         this.#fitEnvelope(snapshot, simPositions);
 
         const scale = this.#envelopeScale;

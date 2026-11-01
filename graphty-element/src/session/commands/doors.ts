@@ -3391,6 +3391,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getNodePosition: READ,
             getEdgePosition: READ,
             getNodeXlabelOffset: READ,
+            isNodeXlabelLeftOut: READ,
             step: TRANSPORT,
             nodes: READ,
             edges: READ,

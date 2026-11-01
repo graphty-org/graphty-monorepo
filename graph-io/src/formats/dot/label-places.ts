@@ -13,6 +13,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { type BendPoint, flattenCubic } from "../../styles/canon/bends.js";
 import { num6 } from "../../styles/canon/number.js";
 import type { StyleValue } from "../../styles/types.js";
+import { textWidth } from "./record.js";
 
 /** Graphviz's `PORT_LABEL_DISTANCE`, in points. */
 const PORT_LABEL_DISTANCE = 10;
@@ -238,4 +239,95 @@ function boundary(cx: LabelPlaceContext, n: number, center: BendPoint, toward: B
     }
     const r = 1 / Math.hypot(dx / len / rx, dy / len / ry);
     return [center[0] + (dx / len) * r, center[1] + (dy / len) * r];
+}
+
+/** Graphviz's default font size, in points. */
+const DEFAULT_FONT_SIZE = 14;
+
+/** Graphviz's line height as a multiple of the font size. */
+const LINE_SPACING = 1.2;
+
+/**
+ * The nodes whose external label (`xlabel`) Graphviz leaves out: with the graph's `forcelabels=false` it drops an
+ * xlabel that would cover another node (lib/label/xlabels.c), and leaves that node's `xlp` out of its output. A file
+ * Graphviz laid out with its xlabels (some node stores an `xlp`) says so by that absence. A file that places every node
+ * but stores no `xlp` (drawn as it is, by graphty) is measured as graphty draws it: the label's box against the node's
+ * top left corner, outside it, must cover no other node's box. Elsewhere the layout decides (a Graphviz layout leaves
+ * out an `xlp` the same way), so nothing is left out here.
+ * @param forcelabels - the graph's `forcelabels`, null when unset (true)
+ * @param count - how many nodes the graph has
+ * @param cx - the graph's label place context
+ * @param cluster - whether a node is a cluster's container (never a node that is drawn)
+ * @returns the nodes whose xlabel is left out
+ */
+export function leftOutXlabels(
+    forcelabels: string | null,
+    count: number,
+    cx: LabelPlaceContext,
+    cluster: (n: number) => boolean,
+): ReadonlySet<number> {
+    const out = new Set<number>();
+    if (!/^(false|no|0+)$/i.test((forcelabels ?? "").trim())) {
+        return out;
+    }
+    const nodes = Array.from({ length: count }, (_, n) => n).filter((n) => !cluster(n));
+    const unplaced = nodes.filter((n) => cx.node(n, "xlabel") !== null && cx.node(n, "xlp") === null);
+    if (unplaced.length === 0) {
+        return out;
+    }
+    if (nodes.some((n) => cx.node(n, "xlp") !== null)) {
+        // Graphviz placed the xlabels it had room for
+        return new Set(unplaced);
+    }
+    const boxes = nodes.map((n) => [n, nodeBox(cx, n)] as const);
+    if (boxes.some(([, b]) => b === null)) {
+        return out;
+    }
+    const at = new Map(boxes);
+    // ponytail: every unplaced xlabel against every node, O(labels x nodes); a grid when a large file needs it
+    for (const n of unplaced) {
+        const [x0, , , y1] = at.get(n) ?? [0, 0, 0, 0];
+        const size = Number(cx.node(n, "fontsize") ?? Number.NaN);
+        const font = Number.isFinite(size) && size > 0 ? size : DEFAULT_FONT_SIZE;
+        const lines = (cx.node(n, "xlabel") ?? "").split(/\\[nlr]|\n/);
+        const w = Math.max(...lines.map((l) => textWidth(l, font)));
+        const label: Box = [x0 - w, y1, x0, y1 + lines.length * LINE_SPACING * font];
+        if (boxes.some(([m, b]) => m !== n && b !== null && overlaps(label, b))) {
+            out.add(n);
+        }
+    }
+    return out;
+}
+
+/** A box in points, y up: low x, low y, high x, high y. */
+type Box = readonly [number, number, number, number];
+
+/**
+ * A node's box from its stored center and its `width` and `height`.
+ * @param cx - the label place context
+ * @param n - the node
+ * @returns the box, or null when the node has no stored position
+ */
+function nodeBox(cx: LabelPlaceContext, n: number): Box | null {
+    // ponytail: a node Graphviz grows to fit its label is taken at its least size (`width`, `height`)
+    const c = cx.center(n);
+    if (c === null) {
+        return null;
+    }
+    const inch = (name: "width" | "height", fallback: number): number => {
+        const v = Number(cx.node(n, name) ?? Number.NaN);
+        return (Number.isFinite(v) && v >= 0 ? v : fallback) * 72;
+    };
+    const [hw, hh] = [inch("width", DEFAULT_SIZE.w) / 2, inch("height", DEFAULT_SIZE.h) / 2];
+    return [c[0] - hw, c[1] - hh, c[0] + hw, c[1] + hh];
+}
+
+/**
+ * Whether two boxes share some area (touching edges do not).
+ * @param a - one box
+ * @param b - the other
+ * @returns true when they overlap
+ */
+function overlaps(a: Box, b: Box): boolean {
+    return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 }

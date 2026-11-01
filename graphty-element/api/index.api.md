@@ -4223,7 +4223,8 @@ export type GraphtyWarningCode =
 /**
 * A layout was given options it does not take, and ran without them. Emitted as a
 * `layout-warning` event by the layouts that do not refuse an unknown option with
-* `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
+* `E_UNKNOWN_OPTION` (`ngraph`, `forceatlas2`, `spring` and `spring-electrical`), and by every
+* other layout for a `seed` when it takes none: one that takes no seed draws the same every time.
 * `params.options` lists the names it ignored and `params.available` the names it takes.
 */
 | "W_UNKNOWN_OPTION"
@@ -4589,6 +4590,7 @@ export abstract class LayoutEngine {
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
+    isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
     loadArrangement(): void;

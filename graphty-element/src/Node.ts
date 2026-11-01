@@ -9,6 +9,7 @@ import {
     MeshBuilder,
     type Scene,
     StandardMaterial,
+    TransformNode,
     Vector3,
 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
@@ -781,34 +782,43 @@ export class Node implements ModelUser {
     }
 
     /**
-     * How far this node reaches along one axis, for framing the graph: its drawn half-extent and
-     * its border, in the units of `node.size` (half the size for a node of one size, as before).
-     *
-     * ponytail: in node-size units rather than world units, so every graph without a border or a
-     * width is framed exactly as it always was; framing by the true drawn extent would re-frame
-     * every graph a little looser.
-     * @param axis - The axis.
-     * @returns The half-extent.
+     * The box this node takes up in the world, for framing the graph: its drawn mesh's world
+     * bounding box, grown by its border. Measured from the box itself rather than as its centre
+     * plus or minus one half-size, because a tetrahedron, a cone or a polygon is not centred on
+     * its position: framed as centred, the point of a tetrahedron above its centre fell outside
+     * the view (issue #3087). In world units, so an XR gesture's scale of the graph root counts.
+     * @returns The box's lowest and highest corners.
      * @internal
      */
-    framingHalf(axis: "x" | "y" | "z"): number {
-        if (this.mesh.isDisposed() || !NodeMesh.isFitted(this.drawnStyle?.shape)) {
-            return this.size / 2;
+    framingBounds(): { min: Vector3; max: Vector3 } {
+        if (this.mesh.isDisposed()) {
+            const pos = this.mesh.getAbsolutePosition();
+            const half = new Vector3(this.size / 2, this.size / 2, this.size / 2);
+            return { min: pos.subtract(half), max: pos.add(half) };
         }
 
+        this.mesh.computeWorldMatrix(true);
+        const box = this.mesh.getBoundingInfo().boundingBox;
+        // The half-size from the mesh's own extent and scaling, not from the world box Babylon keeps in
+        // single precision: the same node measured twice frames the same. A node mesh is not turned,
+        // so only the graph root's scale (an XR gesture) stands between the two.
+        const root = this.mesh.parent instanceof TransformNode ? this.mesh.parent.absoluteScaling : null;
+        const scale = this.mesh.scaling;
         // A group's face is grown for the camera it was drawn under (see `drawAsGroup`): counted
         // grown, the framing depended on where the camera stood before it, and the same file was
         // framed at two zooms (issue #4088). Its box is measured without that growth.
-        const far = this.drawnAsGroup && axis !== "z" ? this.groupFar : 1;
-        const extent =
-            (this.mesh.getBoundingInfo().boundingBox.extendSize[axis] * Math.abs(this.mesh.scaling[axis])) / far;
+        const far = this.drawnAsGroup ? this.groupFar : 1;
         // A border in screen pixels (`border.screenWidth`) is not counted: its reach in the scene
         // depends on the zoom, so counting it made the box depend on the camera that frames it.
         // The first framing measured the ring built for the camera before it, the ring was then
         // rebuilt for the new zoom, and whether a second framing came along to measure that one
         // decided the zoom: the same file drew two pictures. The cameras' fit padding covers the
         // few pixels.
-        return (extent + this.sceneBorderReach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
+        const reach = this.sceneBorderReach;
+        const along = (axis: "x" | "y" | "z", grown: number): number =>
+            ((box.extendSize[axis] * Math.abs(scale[axis])) / grown + reach) * Math.abs(root?.[axis] ?? 1);
+        const half = new Vector3(along("x", far), along("y", far), along("z", 1));
+        return { min: box.centerWorld.subtract(half), max: box.centerWorld.add(half) };
     }
 
     /**

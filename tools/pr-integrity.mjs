@@ -98,15 +98,28 @@ export function isBreaking(message) {
 
 /**
  * Whether a pull request description has a non-empty `## Proof` section (HTML comments, such as the
- * template's hints, do not count).
+ * template's hints, do not count). The section ends at `PROOF_END` when the description has one, else at the
+ * next `## ` heading.
  * @param body the description
  * @returns boolean
  */
 export function hasProof(body = "") {
-    const text = body.replaceAll(/<!--[\s\S]*?-->/gu, "");
-    const m = /^##[ \t]+Proof[ \t]*$([\s\S]*?)(?=^##[ \t]|(?![\s\S]))/imu.exec(text);
-    return Boolean(m && m[1].trim());
+    // Strip comments until none is left: one pass leaves `<!--` behind in `<!<!-- -->-- -->` (CodeQL js/incomplete-multi-character-sanitization).
+    let text = body ?? "";
+    for (let prev = ""; prev !== text;) {
+        prev = text;
+        text = prev.replaceAll(/<!--[\s\S]*?-->/gu, (c) => (c === PROOF_END ? c : ""));
+    }
+    const m = /^##[ \t]+Proof[ \t]*\r?$/imu.exec(text);
+    if (!m) return false;
+    const rest = text.slice(m.index + m[0].length);
+    const end = rest.indexOf(PROOF_END);
+    const section = end >= 0 ? rest.slice(0, end) : rest.split(/^##[ \t]/mu)[0];
+    return Boolean(section.trim());
 }
+
+/** The line tools/pr-open.sh writes after the Proof it pastes: the Proof section ends there, whatever headings it holds. */
+export const PROOF_END = "<!-- /proof -->";
 
 /**
  * A test-integrity finding only a code owner clears: screenshot capture settings are his (owner, 2026-10-29: he

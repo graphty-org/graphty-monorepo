@@ -85,6 +85,14 @@ describe("pure rules", () => {
         assert.ok(!hasProof("## Proof\n"));
         assert.ok(!hasProof("Proof: none"));
         assert.ok(!hasProof(undefined));
+        assert.ok(hasProof("## Proof\r\n\r\nran it\r\n"), "a description edited on GitHub has CRLF line ends");
+        assert.ok(!hasProof("<!--\n## Proof\nhint\n-->"), "a commented-out heading is no Proof");
+        assert.ok(!hasProof("## Proof\n<!<!-- a -->-- b -->\n## Notes\nx"), "a nested comment is stripped whole");
+    });
+    it("hasProof reads up to pr-open's end marker, whatever headings the Proof holds", () => {
+        assert.ok(hasProof("## Proof\n\n## Tests\nran it\n<!-- /proof -->\n## Notes\n"));
+        assert.ok(!hasProof("## Proof\n\n<!-- /proof -->\n## Notes\nnot proof"));
+        assert.ok(!hasProof("## Proof\n\n## Tests\nran it\n"), "without the marker, the next heading ends it");
     });
     it("ownerApproved needs the owner's latest deciding review to approve the head", () => {
         const owners = new Set(["owner"]);

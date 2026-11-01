@@ -533,6 +533,9 @@ export class Ingest<K extends KnownEdge> {
     /** The highest load key number handed out, so a key is never handed out twice. */
     private sourceSerial = 0;
 
+    /** Settles once the load running now, and every load waiting behind it, has; null when none runs. */
+    private loading: Promise<void> | null = null;
+
     /**
      * Start with no records seen and no report.
      * @param host - what draws the graph, and knows which edges it already holds
@@ -545,6 +548,32 @@ export class Ingest<K extends KnownEdge> {
      */
     get isLoading(): boolean {
         return this.loadTally !== null;
+    }
+
+    /**
+     * Run one load at a time: this ingest keeps one load's state in its own fields (what it
+     * supplied, its tally, its left-out rows), so a load started while another runs -- two members
+     * of a batch started together, or one dispatched inline into a running group -- waits for it
+     * (issues #3535, #4439). Started at once when none runs, as a synchronous door expects. Every
+     * caller that starts a load (`importSource`, `addDataFromSource`) goes through here, with any
+     * per-load state of its own set inside `run`. Never start another load from inside `run`: the
+     * inner one waits behind the outer, and the two wait on each other forever.
+     * @param run - Starts the load.
+     * @returns What `run` returns, once it settles.
+     */
+    oneAtATime<T>(run: () => Promise<T>): Promise<T> {
+        const result = this.loading === null ? run() : this.loading.then(run);
+        const settled = result.then(
+            () => undefined,
+            () => undefined,
+        );
+        this.loading = settled;
+        void settled.then(() => {
+            if (this.loading === settled) {
+                this.loading = null;
+            }
+        });
+        return result;
     }
 
     /** Forget everything about the graph that was: called when the host discards its store. */

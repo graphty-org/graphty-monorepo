@@ -1,0 +1,46 @@
+# The river project as the colleague left it (gauges-clean.txt), then a filter card that keeps in the
+# picture the gauges that send their readings by themselves (7 of 11), and a style layer named Oldest
+# that colors the gauges put in before 2000 among them (2)
+--click Open a file
+--upload gauges.csv
+--click Data
+--click Add source
+--click File...
+--upload flows.csv
+--click role=button:Join
+--click Issues in depth_cm
+--click Make blank
+--rclick installed
+--click Type
+--click date
+--click 1 issue in flows.csv
+--click Remove nodes and edges
+--key Escape
+--click Expand gauges.csv
+--click Add to node attributes
+--click Label
+--click role=option:station
+--click role=button:Graph
+--click role=button:Data
+--click Add filter
+--click role=option:telemetry
+--click role=checkbox:yes, 7 nodes
+--click Done
+--click role=radio:Filter to
+--click role=button:Graph
+--click Add a layer or a folder
+--click Layer
+--click Add a step: Keep
+--click role=option:installed
+--click installed before, a date or a year
+--type 2000
+--key Enter
+--click Done
+--click Add to node fill
+--key Control+a
+--type E4572E
+--key Enter
+--dblclick Layer 1
+--key Control+a
+--type Oldest
+--key Enter

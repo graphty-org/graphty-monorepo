@@ -1,0 +1,32 @@
+# The volunteer list as a colleague set it up for the thank-you event: a filter card that keeps in
+# the picture the trained people who gave 10 hours or longer (14 of 24), and a style layer named
+# Staff that colors the staff among them (4)
+--click Open a file
+--upload volunteers.graphml
+--click Data
+--click Add filter
+--click role=option:trained
+--click trained is
+--click role=option:Yes
+--click Add a step: Keep
+--click role=option:hours
+--click hours from, number
+--type 10
+--key Enter
+--click Done
+--click role=radio:Filter to
+--click role=button:Graph
+--click Add a layer or a folder
+--click Layer
+--click Add a step: Keep
+--click role=option:role
+--click role=checkbox:staff, 4 nodes
+--click Done
+--click Add to node fill
+--key Control+a
+--type E4572E
+--key Enter
+--dblclick Layer 1
+--key Control+a
+--type Staff
+--key Enter

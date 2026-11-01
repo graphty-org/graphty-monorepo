@@ -52,6 +52,8 @@ class Sweep {
         }
 
         if (!camera) {
+            // Nothing is drawn, so nothing is owed.
+            this.owed = 0;
             return;
         }
 

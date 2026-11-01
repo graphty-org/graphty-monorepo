@@ -73,10 +73,19 @@ export class LabelTexture extends DynamicTexture {
                 return false;
             }
 
-            fields._canvas =
-                current !== null && current !== this.drawing ? current : (engine?.createCanvas(1, 1) ?? null);
-            if (fields._canvas === null) {
-                return false;
+            if (current !== null && current !== this.drawing) {
+                fields._canvas = current;
+            } else {
+                const copy = engine?.createCanvas(1, 1) ?? null;
+                if (copy === null) {
+                    return false;
+                }
+
+                // On the CPU, as the drawing is (see RichTextLabel's _createTexture): a GPU canvas's
+                // smoothing can differ by a level at scattered pixels from one page load to the next. A canvas
+                // has one context for life, so `update` gets this one.
+                copy.getContext("2d", { willReadFrequently: true });
+                fields._canvas = copy;
             }
 
             fields._canvas.width = width;

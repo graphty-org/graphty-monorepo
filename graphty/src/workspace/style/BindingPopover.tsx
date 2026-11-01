@@ -1076,7 +1076,11 @@ function ValueRow({
             target === "edge" && (where.kind === "range" || where.kind === "categories")
                 ? { ...where, nodes: "ends" }
                 : where;
-        void session.selection.apply({ scope: { define: { kind: "rule", where: rule, reading: "clipped" } } });
+        void session.selection.apply(
+            { scope: { define: { kind: "rule", where: rule, reading: "clipped" } } },
+            "replace",
+            { cause: "user" },
+        );
     };
     return (
         // One line: the chip, the name, the count with its unit, then fixed 24 px columns (eye,

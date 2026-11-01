@@ -19,6 +19,7 @@ export {
     DEFAULT_SELECTION_CAP,
     type RuleCheck,
     type SelectionApi,
+    type SelectionApplyOptions,
     type SelectionAttributeStatistics,
     type SelectionCause,
     type SelectionDelta,

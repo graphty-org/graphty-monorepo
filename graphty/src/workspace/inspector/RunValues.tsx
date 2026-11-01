@@ -587,7 +587,7 @@ export function GroupValues({
                         name="Size"
                         value={size}
                         onClick={() => {
-                            void session.selection.apply({ scope });
+                            void session.selection.apply({ scope }, "replace", { cause: "user" });
                         }}
                     />
                 )}

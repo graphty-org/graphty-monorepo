@@ -92,6 +92,8 @@ export interface UnionStep {
     readonly on?: boolean; // default true
     readonly rule: RuleTree;
     readonly computedOn?: "base" | "so-far"; // default "base"
+    /** Only the edges passing this edge-side rule are read by the step's computation (spec 3.5). */
+    readonly links?: RuleTree;
     /** An edge-side step reading a node value: both ends pass (default), or either. */
     readonly ends?: "both" | "either";
     /** Written by the element when it froze a live reference (section 7). */
@@ -165,6 +167,12 @@ changes, not a `session.runs` entry, no undo step, rebuilt on load rather than s
   all); absent, today's behavior.
 - `graphty.degree`, `graphty.inDegree` and `graphty.outDegree` are accepted as paths by `threshold`,
   `range` and `histogram`, so degree needs no run.
+- `UnionStep.links` (added 2026-11-01): an edge-side rule. The step's computation -- a `measure`, a
+  degree path, `hops`, `touching`, `same-value` over a run -- reads only the edges that pass it, within
+  the step's input. Like So far, such a computation belongs to the step (cached by definition,
+  shared by identical steps, not a `session.runs` entry, rebuilt on load). `watchSteps` reports the
+  step's `links` count, and `histogram(path, { within, links })` draws the scoped values. A `links`
+  rule holding a `union` or a node-side leaf is refused (`E_BAD_COMMAND`, `links-not-edges`).
 
 ## 5. Reading a selection: `session.scope.watchSteps`
 

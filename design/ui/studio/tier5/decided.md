@@ -559,6 +559,62 @@ stand. Each entry reverses or narrows an entry above; those stay as the record.
       heights, the tie chip, and naming community values
       "Community N" (the name is shared by the key, table and legend).
 
+## Placement 2026-11-01 (Design Director)
+
+Evidence: the placement study (`placement-study.md`: nine simulated participants, three
+placements, five tasks; no measurable difference in success, overwhelm or ease between the sidebar
+outline, a bottom drawer and a near full-screen workspace; every session hit the same editor
+problems) and the designer panel (main checkout `tmp/selection-redesign/study/panel.md`: the
+calm the owner saw in the workspace comes from width, not modality; recommends a hybrid). The owner
+prefers the workspace; with the data tied, his preference and the panel's reasons decide. Two-way
+door: the tier 5 editor is unreleased. Full behavior: spec 3.0 and 3.5; checks 39 to 47. Each entry
+narrows or reverses an entry above; those stay as the record.
+
+- **The sidebar shows a read-only outline at rest.** One line per step, no pane, no control but the
+  title row's Edit (and a filter card's on box). Edit, a click or Enter on any row opens the
+  workspace on that row. Narrows "Owner feedback 2026-11-01": the property pane moves out of the
+  sidebar; the outline's rows, words and caps are unchanged.
+- **One non-modal workspace edits every rule**: a style layer's Which nodes and Which edges and every
+  Data filter card, titled with its owner ("Which nodes -- Style layer 1", "Strong core --
+  Filters"). It covers the canvas column; the right sidebar stays visible and usable; no scrim, no
+  focus trap. Its center is the main canvas, drawing the preview; it is an overlay, so the main
+  drawing is never re-framed (Fit frames on request). Layout: outline column sized to content (200
+  to 280 px), preview with a matches table strip under it (columns sized to content), properties
+  column 320 px. Header: title, count, Group colors | Styled, Table, Clear, Cancel, Done. Why: the
+  panel; NN/g on modals for decisions that need other sources; the owner's "the canvas is the frame".
+- **Esc is Done; Cancel restores.** Escape closes the innermost open thing first and, on the
+  workspace, keeps every edit. Cancel restores the selection as it was at open, as one undo step.
+  Why: 5 of 9 lost their place to an Escape that closed the editor.
+- **The drawer is dropped.** It costs half the canvas, re-frames it on every move and takes the
+  table's bottom edge. Its one advantage, being non-modal, is kept by the workspace.
+- **A preview's table is the workspace's strip.** Narrows 8a: the main table still never opens by
+  itself; the strip under the preview is shown by default, hidden by the workspace's Table button.
+- **The study's editor fixes** (spec 3.5):
+    1. A step computed from links has **Links** in Advanced ("All links" or "Links where ..."): the
+       step reads only the links that pass, the row carries "Links: weight min 2". graphty-element
+       adds `UnionStep.links` (additive, @beta, `../../selection-groups/element-api.md` section 4).
+       Why: 9 of 9 looked for "ignore weak links" in the editor; 3 never found the Data filter.
+    2. A checklist never re-sorts under the cursor: its order is set on open and on search only.
+       Why: 6 of 9 ticked the wrong value.
+    3. Clear in the workspace header, with undo; after a delete no row is selected and the outline
+       keeps its shape under the pointer. Why: 4 of 9 deleted the wrong row.
+    4. Escape closes the innermost thing first and never discards work (above).
+    5. Tooltips and search aliases for Degree ("links at a node"), Core number and "While ... has
+       nodes"; no sentence drawn. Why: 3 of 9 guessed at them.
+    6. The number and time test's mode is a Select showing its current mode, not a segment beside
+       the histogram; By position starts untouched. Why: an accidental click switched a step to
+       "top 10". Narrows section 5's "Segment" for number and time.
+- **Accessibility of the non-modal workspace**: a named region landmark, F6 / Shift+F6 cycling with
+  the sidebar, open and close announced once, Cancel, Clear and Done in the header's Tab order,
+  focus returned to what opened it.
+- **compact-mantine is unchanged**: Select, Button and the existing controls; no Figma look change,
+  so nothing goes to `../owner-decisions.md`.
+- **To check before the study** (from the panel): a first-click test that readers find Edit from the
+  sidebar outline, and task 4 at 1280 x 800.
+- **The build follows.** The in-sidebar pane built and polished on 2026-11-01 (including the
+  unverified round in 4a3ed7cf1e) is superseded by the workspace; its rows, pickers, caps and pane
+  contents carry over into the workspace's columns.
+
 ## Waiting for the owner
 
 - Retagging bfs `level`, k-core `value` and dfs `value` as ordinal changes what `fieldMeasurement`

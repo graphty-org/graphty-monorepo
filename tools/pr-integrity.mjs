@@ -104,7 +104,12 @@ export function isBreaking(message) {
  * @returns boolean
  */
 export function hasProof(body = "") {
-    const text = (body ?? "").replaceAll(/<!--[\s\S]*?-->/gu, (c) => (c === PROOF_END ? c : ""));
+    // Strip comments until none is left: one pass leaves `<!--` behind in `<!<!-- -->-- -->` (CodeQL js/incomplete-multi-character-sanitization).
+    let text = body ?? "";
+    for (let prev = ""; prev !== text;) {
+        prev = text;
+        text = prev.replaceAll(/<!--[\s\S]*?-->/gu, (c) => (c === PROOF_END ? c : ""));
+    }
     const m = /^##[ \t]+Proof[ \t]*\r?$/imu.exec(text);
     if (!m) return false;
     const rest = text.slice(m.index + m[0].length);

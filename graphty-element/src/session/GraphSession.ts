@@ -1574,6 +1574,9 @@ function configOf(
         get viewRotation() {
             return read().viewRotation;
         },
+        get framing() {
+            return read().framing;
+        },
         // Read from the controller, not from a value frozen at construction: the policy and the
         // threshold are changed at runtime through the session's accessors and the element's
         // attributes.

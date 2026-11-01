@@ -1,13 +1,15 @@
-import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+
+import { describe, expect, it } from "vitest";
+
 import {
     blockedPrs,
     flakyMembers,
+    type FlakySeen,
+    type IssueText,
     namesTest,
     netChange,
     testKey,
-    type FlakySeen,
-    type IssueText,
 } from "../../src/collector/flaky.js";
 import { GitHub } from "../../src/collector/github.js";
 import type { GqlPr } from "../../src/collector/parse.js";
@@ -49,45 +51,44 @@ const testItem = (inv: string, file: string, name: string, outcome: TestItem["ou
 });
 
 /** An open, ready pull request whose head has these failing check runs (run id in the details URL). */
-const pr = (number: number, checks: { name: string; run: number }[]): GqlPr =>
-    ({
-        number,
-        title: "t",
-        state: "OPEN",
-        isDraft: false,
-        reviewDecision: null,
-        baseRefName: "master",
-        createdAt: "2026-10-26T00:00:00Z",
-        updatedAt: "2026-10-26T00:00:00Z",
-        mergedAt: null,
-        closedAt: null,
-        autoMergeRequest: null,
-        labels: { nodes: [] },
-        readyEvents: { nodes: [] },
-        commits: {
-            nodes: [
-                {
-                    commit: {
-                        statusCheckRollup: {
-                            state: "FAILURE",
-                            contexts: {
-                                nodes: [
-                                    ...checks.map((c) => ({
-                                        __typename: "CheckRun",
-                                        name: c.name,
-                                        conclusion: "FAILURE",
-                                        startedAt: "2026-10-26T19:00:00Z",
-                                        detailsUrl: `https://github.com/${REPO}/actions/runs/${c.run}/job/1`,
-                                    })),
-                                    { __typename: "CheckRun", name: "All Checks Pass", conclusion: "FAILURE" },
-                                ],
-                            },
+const pr = (number: number, checks: { name: string; run: number }[]): GqlPr => ({
+    number,
+    title: "t",
+    state: "OPEN",
+    isDraft: false,
+    reviewDecision: null,
+    baseRefName: "master",
+    createdAt: "2026-10-26T00:00:00Z",
+    updatedAt: "2026-10-26T00:00:00Z",
+    mergedAt: null,
+    closedAt: null,
+    autoMergeRequest: null,
+    labels: { nodes: [] },
+    readyEvents: { nodes: [] },
+    commits: {
+        nodes: [
+            {
+                commit: {
+                    statusCheckRollup: {
+                        state: "FAILURE",
+                        contexts: {
+                            nodes: [
+                                ...checks.map((c) => ({
+                                    __typename: "CheckRun",
+                                    name: c.name,
+                                    conclusion: "FAILURE",
+                                    startedAt: "2026-10-26T19:00:00Z",
+                                    detailsUrl: `https://github.com/${REPO}/actions/runs/${c.run}/job/1`,
+                                })),
+                                { __typename: "CheckRun", name: "All Checks Pass", conclusion: "FAILURE" },
+                            ],
                         },
                     },
                 },
-            ],
-        },
-    }) as GqlPr;
+            },
+        ],
+    },
+});
 
 /** An issue whose title names a test the way the quarantine files them: "Flaky test: <file> > <name>". */
 const filed = (file: string, name: string, closedAt?: string): IssueText => ({
@@ -102,18 +103,20 @@ const filed = (file: string, name: string, closedAt?: string): IssueText => ({
  */
 function searchGitHub(open: IssueText[], closed: IssueText[] = []) {
     const asked: string[] = [];
-    const fetch = async (_url: string, init?: RequestInit) => {
-        const { variables } = JSON.parse(String(init?.body)) as { variables: { q: string; after: string | null } };
+    const fetch = (_url: string, init?: RequestInit) => {
+        const { variables } = JSON.parse(init?.body as string) as { variables: { q: string; after: string | null } };
         const from = Number(variables.after ?? 0);
-        if (!from) asked.push(variables.q);
+        if (!from) {
+            asked.push(variables.q);
+        }
         const all = variables.q.includes("is:open") ? open : closed;
         const s = {
             nodes: all.slice(from, from + 100),
             pageInfo: { hasNextPage: from + 100 < all.length, endCursor: String(from + 100) },
         };
-        return new Response(JSON.stringify({ data: { s } }), { status: 200 });
+        return Promise.resolve(new Response(JSON.stringify({ data: { s } }), { status: 200 }));
     };
-    return { gh: new GitHub(async () => "ghs_test", fetch), asked };
+    return { gh: new GitHub(() => Promise.resolve("ghs_test"), fetch), asked };
 }
 
 describe("flaky in CI with no open issue", () => {
@@ -197,8 +200,11 @@ describe("the six flaky issues of 2026-10-26", () => {
     ];
 
     it("each names its own test and no other", () => {
-        for (const [n, file, name] of tests)
-            for (const [m] of tests) expect(namesTest(issue(m), { file, name }), `#${m} names ${name}`).toBe(m === n);
+        for (const [n, file, name] of tests) {
+            for (const [m] of tests) {
+                expect(namesTest(issue(m), { file, name }), `#${m} names ${name}`).toBe(m === n);
+            }
+        }
     });
 
     it("counts none of them as having no issue: three are open, three were closed as fixed after their last detection", async () => {

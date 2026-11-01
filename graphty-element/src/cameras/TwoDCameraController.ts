@@ -1,6 +1,6 @@
 import { Camera, Engine, FreeCamera, Scene, Vector3, WebGPUEngine } from "@babylonjs/core";
 
-import { freeArea } from "../camera/insets";
+import { freeArea, paddedArea } from "../camera/insets";
 import type { ViewInsets } from "../camera/types";
 import type { FitInsets } from "../config/GraphBehavior";
 import { glideTowards } from "./CameraManager";
@@ -42,6 +42,8 @@ export class TwoDCameraController {
     public onReaderMove?: () => void;
     /** Room framing leaves clear at each edge, in CSS pixels; see `camera.fitInsets`. */
     public fitInsets: FitInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+    /** CSS pixels a fit keeps clear at each end of the free area's shorter side, in place of its margin. */
+    public fitPadding: number | undefined = undefined;
 
     /**
      * Creates a new TwoDCameraController instance.
@@ -263,12 +265,16 @@ export class TwoDCameraController {
         // The half-width that fits the box into the part of the canvas the view and fit insets
         // leave free (`free.width` and `free.height` are its shares of the canvas), whichever side binds.
         const viewportAspect = this.engine.getRenderHeight() / this.engine.getRenderWidth();
-        const free = freeArea(
-            framingInsets(this.viewInsets, this.fitInsets),
-            this.canvas.clientWidth,
-            this.canvas.clientHeight,
+        const { clientWidth, clientHeight } = this.canvas;
+        const free = paddedArea(
+            freeArea(framingInsets(this.viewInsets, this.fitInsets), clientWidth, clientHeight),
+            this.fitPadding,
+            clientWidth,
+            clientHeight,
         );
-        const orthoSize = Math.max(sizeX / (2 * free.width), sizeY / (2 * viewportAspect * free.height)) * 1.1; // Small padding for visual comfort
+        // A small margin for visual comfort, unless a padding stands in for it
+        const margin = this.fitPadding === undefined ? 1.1 : 1;
+        const orthoSize = Math.max(sizeX / (2 * free.width), sizeY / (2 * viewportAspect * free.height)) * margin;
 
         // Center the box on the free area rather than on the canvas.
         const [offsetX, offsetY] = this.toWorld(free.x * orthoSize, free.y * orthoSize * viewportAspect);

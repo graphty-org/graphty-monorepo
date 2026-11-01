@@ -5,11 +5,11 @@ import rates from "../../config/rates.json" with { type: "json" };
 import slas from "../../config/slas.json" with { type: "json" };
 import sliceConfig from "../../config/slices.json" with { type: "json" };
 import { codeBuildDeploy, costExplorerDaily, ssmGetParams } from "../collector/aws.js";
-import { backfill, backfillRepos, type BackfillReport } from "../collector/backfill.js";
+import { backfill, type BackfillReport, backfillRepos } from "../collector/backfill.js";
 import { collect, type CycleReport } from "../collector/collect.js";
 import { DISPATCH_APP_PARAMS, GitHub, installationToken, readAppConfig } from "../collector/github.js";
 import type { Rates } from "../collector/parse.js";
-import { quarantineReader, SLICE_STORE_PARAMS, type SliceConfig, sliceDeps } from "../collector/slices.js";
+import { quarantineReader, SLICE_STORE_PARAMS, sliceDeps } from "../collector/slices.js";
 import { dynamoStore } from "../dynamo.js";
 import { recompute } from "../model/rollup.js";
 import { recomputeAll } from "../recompute.js";
@@ -23,6 +23,7 @@ const deploy = process.env.DEPLOY_PROJECT ? codeBuildDeploy(process.env.DEPLOY_P
  * Runs every 5 minutes (EventBridge Scheduler). Records that it ran (the /v1/health heartbeat), runs one collector
  * cycle (design sections 10.4 and 4), then recomputes the rollups and page items. Without the GitHub App's
  * parameters in SSM it collects nothing from GitHub, and the GitHub sources stay "not set up" on Data sources.
+ * @param event - the scheduler's empty payload
  * @returns the time of this run and what the cycle did
  */
 export function handler(event?: Record<string, never>): Promise<{ lastRun: string } & CycleReport>;
@@ -30,11 +31,20 @@ export function handler(
     event: BackfillEvent,
     context?: { getRemainingTimeInMillis(): number },
 ): Promise<BackfillResult>;
+/**
+ * Runs a backfill slice when the event asks for one, else one scheduled collector cycle.
+ * @param event - the invocation payload
+ * @param context - the Lambda context
+ * @param context.getRemainingTimeInMillis - the time left before the timeout, in ms
+ * @returns the cycle's report, or the backfill slice's result
+ */
 export async function handler(
     event?: Partial<BackfillEvent>,
     context?: { getRemainingTimeInMillis(): number },
 ): Promise<({ lastRun: string } & CycleReport) | BackfillResult> {
-    if (event?.mode === "backfill") return runBackfill(event as BackfillEvent, context);
+    if (event?.mode === "backfill") {
+        return runBackfill(event as BackfillEvent, context);
+    }
     const now = Date.now();
     const lastRun = new Date(now).toISOString();
     await doc.send(
@@ -60,7 +70,7 @@ export async function handler(
         deploy,
         readQuarantine: quarantineReader(storeParams, fetch),
         slices: sliceDeps(
-            sliceConfig as SliceConfig,
+            sliceConfig,
             storeParams,
             await readAppConfig(getParams, DISPATCH_APP_PARAMS),
             fetch,
@@ -68,7 +78,7 @@ export async function handler(
         ),
     });
     const rolled = await recomputeAll(store, Date.now());
-    console.log(JSON.stringify({ lastRun, ...report, ...rolled }));
+    console.warn(JSON.stringify({ lastRun, ...report, ...rolled }));
     return { lastRun, ...report };
 }
 
@@ -90,6 +100,10 @@ export type BackfillResult =
 /**
  * One slice of the backfill: loads from its cursor until 90 s before the timeout, then recomputes dirty buckets
  * until 30 s before it. Invoke again while `done` is false; the scheduled collector drains what is left dirty.
+ * @param event - the backfill payload
+ * @param context - the Lambda context
+ * @param context.getRemainingTimeInMillis - the time left before the timeout, in ms
+ * @returns what the slice loaded and recomputed, or why it could not run
  */
 async function runBackfill(
     event: BackfillEvent,
@@ -98,7 +112,9 @@ async function runBackfill(
     const start = Date.now();
     const end = start + (context?.getRemainingTimeInMillis() ?? 60_000);
     const app = await readAppConfig(getParams);
-    if (!app) return { mode: "backfill", error: "github_app_not_set_up" };
+    if (!app) {
+        return { mode: "backfill", error: "github_app_not_set_up" };
+    }
     const gh = new GitHub(() => installationToken(app, fetch, Date.now()));
     const store = dynamoStore(process.env.TABLE_NAME ?? "graphty-health");
     const repo = "graphty-org/graphty-monorepo";
@@ -130,6 +146,6 @@ async function runBackfill(
         }
     }
     const out: BackfillResult = { mode: "backfill", ...report, recomputed, dirtyLeft };
-    console.log(JSON.stringify(out));
+    console.warn(JSON.stringify(out));
     return out;
 }

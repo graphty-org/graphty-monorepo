@@ -195,6 +195,16 @@ export async function applyFileStyles(
         sceneScale = replacing ? applied.sceneScale : null;
     }
 
+    // The program fits the stored positions' centers into its canvas (sigma.js): framed the same, the drawing fills
+    // the canvas as the program's does. A file whose program states no fit returns to the element's own framing.
+    if (options.framing === "file" && replacing) {
+        const fit = read?.positionFit;
+        await ctx.inline({
+            op: "config.set",
+            values: { framing: fit === undefined ? undefined : { extent: "centers", padding: fit.padding } },
+        });
+    }
+
     const report: LoadReport = Object.freeze({
         ...outcome.report,
         styles: Object.freeze({ layers: Object.freeze(layers), notes: Object.freeze(notes) }),

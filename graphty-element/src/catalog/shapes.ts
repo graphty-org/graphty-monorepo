@@ -234,6 +234,9 @@ export const EDGE_ARROW_DESCRIPTORS: readonly GlyphDescriptor<EdgeArrowKind>[] =
     ["cross-delta", "Cross and triangle", `<path d="M2 12h12 M9 7l-3 10"/><path d="M14 7l8 5-8 5z" ${FILL}/>`],
     ["open-cross-delta", "Cross and open triangle", '<path d="M2 12h12 M9 7l-3 10 M14 7l8 5-8 5z"/>'],
     ["open-inverted", "Open inverted triangle", '<path d="M2 12h12"/><path d="M22 7l-8 5 8 5z"/>'],
+    ["half-barb", "Half barb", '<path d="M2 12h20 M21 12l-8-6"/>'],
+    ["half-barb-flipped", "Half barb, flipped", '<path d="M2 12h20 M21 12l-8 6"/>'],
+    ["inverted-vee", "Inverted vee", `<path d="M2 12h12"/><path d="M22 7l-8 5 8 5-3-5z" ${FILL}/>`],
 ]);
 
 /**

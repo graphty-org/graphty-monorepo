@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BENCH_KEEP, BENCH_KEEP_ALL, trend, withPoint, type BenchPoint } from "../../src/model/benchmarks.js";
+import { BENCH_KEEP, BENCH_KEEP_ALL, type BenchPoint, trend, withPoint } from "../../src/model/benchmarks.js";
 
 const pts = (vs: number[]): BenchPoint[] => vs.map((v, i) => ({ at: i, v, run: 100 + i }));
 
@@ -61,7 +61,9 @@ describe("benchmark regressions", () => {
 
     it("keeps the newest results, one per run", () => {
         let item = withPoint(undefined, "b", "ms", { at: 0, v: 1, run: 1 }, 0);
-        for (let i = 1; i <= BENCH_KEEP + 5; i++) item = withPoint(item, "b", "ms", { at: i, v: i, run: i + 1 }, i);
+        for (let i = 1; i <= BENCH_KEEP + 5; i++) {
+            item = withPoint(item, "b", "ms", { at: i, v: i, run: i + 1 }, i);
+        }
         expect(item.points).toHaveLength(BENCH_KEEP);
         expect(item.points.at(-1)).toEqual({ at: BENCH_KEEP + 5, v: BENCH_KEEP + 5, run: BENCH_KEEP + 6 });
         item = withPoint(item, "b", "ms", { at: 99, v: 7, run: BENCH_KEEP + 6 }, 99);

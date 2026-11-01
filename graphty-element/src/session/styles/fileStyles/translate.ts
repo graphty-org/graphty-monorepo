@@ -40,7 +40,7 @@ import {
 } from "@graphty/graph-io/styles";
 
 import type { Binding, BindingStop, Channel, LayerKind, LayerSpec, Path, Selector } from "../../../catalog/types";
-import { NGRAPH_SPRING_LENGTH } from "../../../constants/layoutConstants";
+import { NGRAPH_SETTLED_SPACING } from "../../../constants/layoutConstants";
 import { EDGE_CONSTANTS } from "../../../constants/meshConstants";
 import type { CodedFactParam } from "../../shared";
 import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle, toColorValue } from "../channels";
@@ -52,6 +52,7 @@ import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from
 import {
     ARROW_SHAPES,
     ARROW_SHAPES_NEAREST,
+    arrowShapesOf,
     BORDER_STYLES,
     BORDER_STYLES_NEAREST,
     FILE_STYLE_SHAPES,
@@ -82,12 +83,18 @@ export interface FileStyleOptions {
      * file's median node size (by its larger side) is the element's default node size and node sizes, borders, edge
      * widths, label sizes and the stored positions a recommended layout keeps all keep the file's
      * proportions; `"file"` keeps the file's numbers as they are; `"spacing"` scales every length by one factor too,
-     * chosen so the spacing the writing program's own layout leaves between connected nodes (graph-io's
-     * `layoutSpacing`) is the element's force-layout spring length, so a file that stores no positions is laid out
-     * with its nodes as large beside the gaps as the program draws them. A program with no stated spacing is scaled
+     * chosen so the spacing the writing program's own layout leaves between nodes once it settles (graph-io's
+     * `layoutSpacing`) is drawn at the spacing the element's force layout settles at, so a file that stores no
+     * positions is laid out with its nodes as large beside the gaps as the program draws them. A program with no stated spacing is scaled
      * as `"median"` is.
      */
     readonly lengths?: "median" | "file" | "spacing";
+    /**
+     * How a load that replaces the graph frames it: `"element"` (the default) leaves the project setting `framing`
+     * as it is; `"file"` sets it to how the program that draws the file frames it, when graph-io states that (sigma.js
+     * fits node centers 30 px in from the canvas's shorter side), and back to the element's own framing when not.
+     */
+    readonly framing?: "element" | "file";
     /**
      * The element shape each 2D node shape of the file is drawn as; `FILE_STYLE_SHAPES` by default.
      * A shape the table leaves out is not drawn from the file, and the load notes it.
@@ -522,7 +529,7 @@ function closingQuote(where: string, from: number, quote: string): number {
  * @param kind - Nodes or edges.
  * @param factors - What the file's lengths are multiplied by.
  * @param shapes - The 2D-to-3D shape table.
- * @param graphty - Whether graphty wrote the file.
+ * @param tool - The program that wrote the file, or null.
  * @param arrowsSized - Whether arrow sizes are drawn in a pass of their own (`#arrowSizes`).
  * @param onScreen - Whether the writing program draws a node's border width, and its label sizes, in screen pixels.
  * @param onScreen.border - A node's border width.
@@ -534,11 +541,13 @@ function channelPlans(
     kind: StyleTarget,
     factors: LengthFactors,
     shapes: FileStyleShapeTable,
-    graphty: boolean,
+    tool: StyleTool | null,
     arrowsSized: boolean,
     onScreen: { readonly border: boolean; readonly label: boolean },
     imageBase?: string,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
+    const graphty = tool === "graphty";
+    const arrows = arrowShapesOf(tool);
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
     const picture = (channel: Channel): ChannelPlan => ({
         channel,
@@ -886,12 +895,12 @@ function channelPlans(
         // in the line's own width units, as its width is
         ["waveAmplitude", [length("edge.waveAmplitude")]],
         ["wavePeriod", [length("edge.wavePeriod")]],
-        ["targetArrow", [table("edge.arrowHead", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
-        ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
+        ["targetArrow", [table("edge.arrowHead", arrows, ARROW_SHAPES_NEAREST)]],
+        ["sourceArrow", [table("edge.arrowTail", arrows, ARROW_SHAPES_NEAREST)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
-        ["midTargetArrow", [table("edge.arrowMiddleHead", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
-        ["midSourceArrow", [table("edge.arrowMiddleTail", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
+        ["midTargetArrow", [table("edge.arrowMiddleHead", arrows, ARROW_SHAPES_NEAREST)]],
+        ["midSourceArrow", [table("edge.arrowMiddleTail", arrows, ARROW_SHAPES_NEAREST)]],
         ["midTargetArrowColor", [id("edge.arrowMiddleHeadColor")]],
         ["midSourceArrowColor", [id("edge.arrowMiddleTailColor")]],
         ["targetArrowImage", [id("edge.arrowHeadImage")]],
@@ -1689,7 +1698,7 @@ function lengthFactors(input: TranslateInput): LengthFactors {
     let scene: number;
     const spacing = input.options.lengths === "spacing" ? programSpacing(extracted.styles.source.tool) : null;
     if (spacing !== null) {
-        scene = NGRAPH_SPRING_LENGTH / spacing;
+        scene = NGRAPH_SETTLED_SPACING / spacing;
     } else if (nodeMedian !== null) {
         scene = (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
     } else if (labelMedian !== null && sides.includes(0)) {
@@ -1714,7 +1723,7 @@ function lengthFactors(input: TranslateInput): LengthFactors {
 }
 
 /**
- * How far apart the program that wrote a file lays out two connected nodes, in the file's units.
+ * How far apart the program that wrote a file leaves the nodes of its layout once it settles, in the file's units.
  * @param tool - The program.
  * @returns The spacing, or null when the program states none.
  */
@@ -1784,7 +1793,7 @@ class KindTranslation {
             kind,
             factors,
             input.options.shapes ?? FILE_STYLE_SHAPES,
-            tool === "graphty",
+            tool,
             this.#arrowhead !== null,
             {
                 border: tool !== null && toolDefaults(tool)?.nodeBorderOnScreen?.value === true,

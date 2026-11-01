@@ -896,6 +896,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "config.set", values: { viewRotation: 90 } },
     },
     {
+        name: "config.set framing",
+        variant: "framing",
+        tags: BOTH,
+        command: { op: "config.set", values: { framing: { extent: "centers", padding: 30 } } },
+    },
+    {
         name: "config.set author",
         variant: "author",
         tags: BOTH,

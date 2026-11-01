@@ -756,6 +756,34 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         );
         expect(drawn(styles, snapshot, "node", "xlabel")).toEqual(["a long external label", null, null]);
     });
+
+    it("leaves out an edge xlabel Graphviz left out under forcelabels=false: no xlp where Graphviz placed others", async () => {
+        const file = (force: string): string =>
+            `digraph { graph [forcelabels=${force}]; a [pos="0,0!"]; b [pos="100,0!"]; c [pos="200,0!"]; ` +
+            `a -> b [label="m", xlabel="kept", xlp="50,20"]; b -> c [label="n", xlabel="dropped"]; a -> c [xlabel="alone"] }`;
+        const crowded = await load(file("false"));
+        expect(drawn(crowded.styles, crowded.snapshot, "edge", "xlabel")).toEqual(["kept", null, null]);
+        // an xlabel with no label is drawn as the label: left out, there is none
+        expect(drawn(crowded.styles, crowded.snapshot, "edge", "label")).toEqual(["m", "n", null]);
+        const forced = await load(file("true"));
+        expect(drawn(forced.styles, forced.snapshot, "edge", "xlabel")).toEqual(["kept", "dropped", null]);
+        expect(drawn(forced.styles, forced.snapshot, "edge", "label")).toEqual(["m", "n", "alone"]);
+    });
+
+    it("leaves out, under forcelabels=false, the edge labels an xdot file draws no ops for", async () => {
+        // Graphviz writes an lp, head_lp and tail_lp even for a label it left out, at no place it drew
+        const file = (force: string): string =>
+            `digraph { graph [forcelabels=${force}]; a [pos="0,0!"]; b [pos="100,0!"]; ` +
+            'a -> b [_draw_="c 7 -#000000 B 4 0 0 30 0 70 0 100 0 ", label="m", lp="0,0", headlabel="h", head_lp="0,0", ' +
+            'taillabel="t", tail_lp="10,10", _tldraw_="F 14 11 -Times-Roman c 7 -#000000 T 10 6 0 4 1 -t "] }';
+        const crowded = await load(file("false"));
+        expect(drawn(crowded.styles, crowded.snapshot, "edge", "label")).toEqual([null]);
+        expect(drawn(crowded.styles, crowded.snapshot, "edge", "targetLabel")).toEqual([null]);
+        expect(drawn(crowded.styles, crowded.snapshot, "edge", "sourceLabel")).toEqual(["t"]);
+        const forced = await load(file("true"));
+        expect(drawn(forced.styles, forced.snapshot, "edge", "label")).toEqual(["m"]);
+        expect(drawn(forced.styles, forced.snapshot, "edge", "targetLabel")).toEqual(["h"]);
+    });
 });
 
 describe("DOT design rule 5: none and invis are transparent, a list is never its first color where Graphviz draws black", () => {

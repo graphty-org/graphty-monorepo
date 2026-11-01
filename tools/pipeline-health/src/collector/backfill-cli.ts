@@ -10,12 +10,12 @@ import { ssmGetParams } from "./aws.js";
 import { backfill, backfillRepos } from "./backfill.js";
 import { GitHub, installationToken, readAppConfig } from "./github.js";
 
-async function main() {
-    const arg = (name: string, d: number) => {
+async function main(): Promise<void> {
+    const arg = (name: string, d: number): number => {
         const i = process.argv.indexOf(`--${name}`);
         return i > 0 ? Number(process.argv[i + 1]) : d;
     };
-    const list = (name: string) => {
+    const list = (name: string): string[] => {
         const i = process.argv.indexOf(`--${name}`);
         return i > 0 ? process.argv[i + 1].split(",").filter(Boolean) : [];
     };
@@ -38,9 +38,11 @@ async function main() {
         now: Date.now(),
         ...(days.length ? { repair: { days, workflows: list("repair-workflows") } } : {}),
         ...(process.argv.includes("--restart") ? { restart: true } : {}),
-        log: (l) => console.log(l),
+        log: (l) => {
+            process.stdout.write(`${l}\n`);
+        },
     });
-    console.log(JSON.stringify(r));
+    process.stdout.write(`${JSON.stringify(r)}\n`);
 }
 
 await main();

@@ -14,6 +14,8 @@ import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { gradientPieceColors } from "../../src/meshes/edgeGradient";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import { readDrawn } from "../fidelity/drawn-scene";
+import { strokedBarb } from "../fidelity/oracle/primitives";
 import { asData, edgeBetween, styleEveryEdge, styleEveryNode } from "../helpers/testSetup";
 
 let container: HTMLElement | undefined;
@@ -253,6 +255,83 @@ describe("the half arrow's other side and the open box", () => {
         const edge = await oneEdge({ "edge.arrowHead": "half-open-flipped", "edge.arrowTail": "open-box" });
         assert.include(edge.arrowCap?.name ?? "", "half-open-flipped");
         assert.include(edge.arrowTailCap?.name ?? "", "open-box");
+    });
+});
+
+/**
+ * The one edge's head as drawn on screen: its outline, where the line itself stops, and each measured along the line
+ * toward the head (0 at the source) and across it.
+ * @returns the head's outline, the line's stop and the head's tip along the line, and its length
+ */
+function drawnHead(): { outline: [number, number][]; along: number[]; across: number[]; stop: number; tip: number } {
+    assert(graph);
+    const drawn = [...readDrawn(graph).edges.values()][0];
+    const outline = drawn?.caps.find((c) => c.end === "arrowHead")?.outline;
+    assert(drawn?.lineEnds && outline, "a flat head and the line's own end are read from the scene");
+    const [from, to] = [drawn.points[0], drawn.points.at(-1) ?? drawn.points[0]];
+    const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+    const [ux, uy] = [(to[0] - from[0]) / length, (to[1] - from[1]) / length];
+    const along = outline.map(([x, y]) => (x - from[0]) * ux + (y - from[1]) * uy);
+    const across = outline.map(([x, y]) => -(x - from[0]) * uy + (y - from[1]) * ux);
+    const [lx, ly] = drawn.lineEnds[1];
+    return { outline, along, across, stop: (lx - from[0]) * ux + (ly - from[1]) * uy, tip: Math.max(...along) };
+}
+
+/**
+ * How far back from the head's tip the head first meets its line: the farthest back of its corners on the line.
+ * @param head - the drawn head
+ * @returns the distance in pixels
+ */
+function meetsLineFrom(head: ReturnType<typeof drawnHead>): number {
+    const onLine = head.along.filter((_, i) => Math.abs(head.across[i]) < 0.5);
+    return head.tip - Math.min(...onLine);
+}
+
+describe("a half arrow's line and barb (#5490)", () => {
+    test.each(["half-open", "half-open-flipped", "half-barb", "half-barb-flipped"])(
+        "%s: the line runs on to where the arm meets it, leaving no break",
+        async (type) => {
+            await oneEdge({ "edge.arrowHead": type, "edge.arrowHeadSize": 3 });
+            const head = drawnHead();
+            const length = head.tip - Math.min(...head.along);
+            assert.isAbove(length, 10, "the head is drawn large enough to measure");
+            // the line stops no farther back than where the arm first meets it
+            assert.isAtLeast(head.stop, head.tip - meetsLineFrom(head) - 1);
+            // and not past the tip
+            assert.isAtMost(head.stop, head.tip + 1);
+        },
+    );
+
+    test("half-barb is one thin stroke where half-open is a filled wedge", async () => {
+        await oneEdge({ "edge.arrowHead": "half-barb", "edge.arrowHeadSize": 3 });
+        assert.isTrue(strokedBarb(drawnHead().outline));
+        graph?.dispose();
+        container?.remove();
+        await oneEdge({ "edge.arrowHead": "half-open", "edge.arrowHeadSize": 3 });
+        assert.isFalse(strokedBarb(drawnHead().outline));
+    });
+});
+
+describe("a vee turned round, vis-network's crow (#5491)", () => {
+    test("inverted-vee has its point back on the line and no tine reaching toward the node, where crow has one", async () => {
+        await oneEdge({ "edge.arrowHead": "inverted-vee", "edge.arrowHeadSize": 3 });
+        const vee = drawnHead();
+        const veeLength = vee.tip - Math.min(...vee.along);
+        // its point on the line at its back, its notch a quarter of its length back from its corners
+        const onLine = vee.along.filter((_, i) => Math.abs(vee.across[i]) < 0.5);
+        assert.closeTo(Math.min(...onLine), vee.tip - veeLength, 1);
+        assert.closeTo(Math.max(...onLine), vee.tip - veeLength / 4, 1);
+        // its corners at the tip, either side of the line
+        assert.isBelow(Math.min(...vee.across), -1);
+        assert.isAbove(Math.max(...vee.across), 1);
+
+        graph?.dispose();
+        container?.remove();
+        await oneEdge({ "edge.arrowHead": "crow", "edge.arrowHeadSize": 3 });
+        const crow = drawnHead();
+        const crowOnLine = crow.along.filter((_, i) => Math.abs(crow.across[i]) < 0.5);
+        // the crow's foot has a tine along the line reaching to its front
+        assert.closeTo(Math.max(...crowOnLine), crow.tip, 1);
     });
 });
 

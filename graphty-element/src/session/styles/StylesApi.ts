@@ -98,6 +98,7 @@ import type {
     Scope,
     StaticStyle,
     StyleDocument,
+    UnionLeaf,
 } from "../../catalog/types";
 import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
@@ -436,7 +437,39 @@ export interface UpdateManyResult {
  * Everything on this surface addresses a layer by its id. Nothing on it takes an index, and
  * nothing on it returns one.
  */
+/**
+ * What `styles.showBranches` draws: a selection built from branches, the rest drawn faint or as
+ * the element's base look.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface BranchesView {
+    /** The selection, a `union` leaf. Its branches' colors are filled when absent. */
+    readonly rule: UnionLeaf;
+    /** How what no branch holds is drawn: faint, or at the base look (default `"plain"`). */
+    readonly rest?: "faint" | "plain";
+}
+
 export interface StylesApi {
+    /**
+     * Draw a selection built from branches while a reader picks: every layer of the stack is
+     * suspended (kept, listed, and not an undo step), each branch's members are drawn in its color
+     * at the base look (the first branch wins), and the rest is drawn faint or plain. The
+     * selection ring and the hover mark stay. One view at a time: a second call replaces the
+     * first, whose `end()` then does nothing. Not a layer, not saved.
+     * Experimental: may change or be removed in a minor release.
+     * @param view - What to draw.
+     * @returns Ends the view, the stack's picture back in the same repaint.
+     * @throws `E_BAD_COMMAND` for a rule that is not a valid union leaf.
+     * @beta
+     */
+    showBranches(view: BranchesView): { end(): void };
+    /**
+     * Whether a branches view is drawn now; `style:branches-shown-changed` tells each change.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly showingBranches: boolean;
     /**
      * Every layer in the stack, BOTTOM FIRST.
      *
@@ -1384,6 +1417,8 @@ export interface StylesSources {
     readonly elements: SelectorSource;
     /** See {@link LayerCheckOptions.admitScope}. */
     readonly admitScope?: LayerCheckOptions["admitScope"];
+    /** See {@link LayerCheckOptions.admitRule}. */
+    readonly admitRule?: LayerCheckOptions["admitRule"];
     /**
      * The element's own layers, seeded at the bottom of the stack in the order given.
      *
@@ -1518,6 +1553,11 @@ export interface StylesSources {
      * @param batch - The edits that pass told.
      */
     readonly onBatch?: (batch: StyleBatchChange) => void;
+    /**
+     * Called when a branches view starts or ends.
+     * @param shown - Whether one is drawn now.
+     */
+    readonly onBranchesShown?: (shown: boolean) => void;
     /**
      * A number that moves whenever the data or the run results change, which is half of what
      * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
@@ -2429,6 +2469,118 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns The stack the repaint and every reading of it use.
      */
     const painting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
+        const painted = basePainting(stack);
+        return branchesShown === null ? painted : previewStack(painted, branchesShown.layers);
+    };
+
+    /** The branches view drawn now, and the layers it draws. */
+    let branchesShown: { readonly layers: readonly CompiledLayer[] } | null = null;
+    /** One suspended stand-in per layer, so a repaint sees the same object each time. */
+    const suspended = new WeakMap<CompiledLayer, CompiledLayer>();
+
+    /**
+     * The stack a branches view paints: the element's base layers as they are, every other layer
+     * suspended in its place, and the view's layers on top.
+     * @param stack - The stack as it paints without the view.
+     * @param layers - The view's layers.
+     * @returns The stack.
+     */
+    const previewStack = (
+        stack: readonly CompiledLayer[],
+        layers: readonly CompiledLayer[],
+    ): readonly CompiledLayer[] => [
+        ...stack.map((entry) => {
+            if (entry.layer.kind === "base" || !entry.layer.enabled) {
+                return entry;
+            }
+
+            let standIn = suspended.get(entry);
+            if (standIn === undefined) {
+                standIn = Object.freeze({ ...entry, layer: Object.freeze({ ...entry.layer, enabled: false }) });
+                suspended.set(entry, standIn);
+            }
+
+            return standIn;
+        }),
+        ...layers,
+    ];
+
+    /**
+     * Repaint from one picture of the stack to another, outside any edit.
+     * @param before - What is drawn.
+     * @param after - What to draw.
+     */
+    const repaintBetween = (before: readonly CompiledLayer[], after: readonly CompiledLayer[]): void => {
+        const request = stackChange(before, after);
+        const { repaint } = sources;
+        if (repaint === undefined || request.edits.length === 0) {
+            return;
+        }
+
+        // In order, so an end never lands before the view it ends; `settled()` waits on the chain.
+        viewPasses = viewPasses
+            .then(() => repaint(request, PASS_CONTEXT))
+            .then(
+                () => undefined,
+                (error: unknown) => {
+                    console.error("[graphty] Could not repaint a branches view.", error);
+                },
+            );
+    };
+    /** The branches view's repaints, chained. */
+    let viewPasses: Promise<void> = Promise.resolve();
+
+    /**
+     * The layers a branches view draws, bottom first: the rest faint, then each branch from the
+     * last to the first, so the first branch wins.
+     * @param view - The view.
+     * @returns The layers.
+     */
+    const branchLayers = (view: BranchesView): CompiledLayer[] => {
+        const rule = (sources.admitRule?.(view.rule) ?? view.rule) as UnionLeaf;
+        if (typeof rule !== "object" || (rule as { kind?: unknown }).kind !== "union") {
+            throw badCommand("showBranches draws a union leaf.", { rule: view.rule });
+        }
+
+        const target: SelectorTarget = rule.side === "nodes" ? "node" : "edge";
+        const specs: LayerSpec[] = [];
+        if (view.rest === "faint") {
+            specs.push(
+                { name: "Rest", target: "node", selector: { match: "everything" }, set: { "node.opacity": 0.2 } },
+                { name: "Rest", target: "edge", selector: { match: "everything" }, set: { "edge.opacity": 0.15 } },
+            );
+        }
+
+        for (const branch of [...rule.branches].reverse()) {
+            if (branch.on === false || branch.color === undefined) {
+                continue;
+            }
+
+            specs.push({
+                name: branch.name ?? branch.id ?? "Branch",
+                target,
+                selector: { match: "rule", where: { ...rule, branches: [branch] } },
+                set: { [`${target}.color`]: branch.color, [`${target}.opacity`]: 1 },
+            });
+        }
+
+        return specs.map((spec, at) => {
+            const checked = check(spec, `graphty-branches-${String(at)}`);
+            if (checked.layer === null) {
+                throw badCommand("showBranches could not draw this selection.", { errors: checked.result.errors });
+            }
+
+            return checked.layer;
+        });
+    };
+
+    /**
+     * The stack as it paints without a branches view: a hidden row's layers read as disabled, and
+     * so do the element's own base layers while the Everything row holds the base look.
+     * @param stack - The stack.
+     * @returns The stack.
+     */
+    const basePainting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
         const painted = paintedStack(stack);
         if (!editableBase() || !painted.some((entry) => entry.layer.kind === "base" && entry.layer.enabled)) {
             return painted;
@@ -2507,7 +2659,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns Its prepared bindings, fixed values first and rules second.
      */
     const encodingOf: EncodingLookup = (layerId) => {
-        const entry = byId().get(layerId);
+        // A branches view's layers are drawn and explained, though the stack does not hold them.
+        const entry = byId().get(layerId) ?? branchesShown?.layers.find((each) => each.layer.id === layerId);
 
         return entry === undefined || sources.encoding === undefined ? NO_BINDINGS : sources.encoding(entry);
     };
@@ -2802,6 +2955,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // A document's layer may name a set of the session it was saved in: kept, and reported
             // detached, rather than refused.
             ...(sources.admitScope === undefined || !admit ? {} : { admitScope: sources.admitScope }),
+            ...(sources.admitRule === undefined || !admit ? {} : { admitRule: sources.admitRule }),
             // A document's layer may name a shader this page has not registered: kept, and
             // reported as drawing nothing (`styles.counts`), rather than refused.
             ...(admit ? {} : { shaders: "report" as const }),
@@ -4425,6 +4579,35 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return listLayers();
         },
 
+        showBranches(view: BranchesView): { end(): void } {
+            const layers = branchLayers(view);
+            const before = painting(current());
+            const shown = { layers };
+            const was = branchesShown !== null;
+            branchesShown = shown;
+            repaintBetween(before, painting(current()));
+            if (!was) {
+                sources.onBranchesShown?.(true);
+            }
+
+            return {
+                end(): void {
+                    if (branchesShown !== shown) {
+                        return;
+                    }
+
+                    const drawn = painting(current());
+                    branchesShown = null;
+                    repaintBetween(drawn, painting(current()));
+                    sources.onBranchesShown?.(false);
+                },
+            };
+        },
+
+        get showingBranches(): boolean {
+            return branchesShown !== null;
+        },
+
         compiled(): readonly CompiledLayer[] {
             // As it paints: a hidden row's layers read as disabled.
             return painting(current());
@@ -4986,6 +5169,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             await sources.queue?.settled();
             await dispatcher.lane.settled();
             await passes;
+            await viewPasses;
             await sources.idle?.();
         },
 

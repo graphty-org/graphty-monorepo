@@ -2928,6 +2928,12 @@ export interface SessionEventMap {
      */
     "style:batch-changed": StyleBatchChange;
     /**
+     * A branches view (`styles.showBranches`) started or ended.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    "style:branches-shown-changed": { readonly shown: boolean };
+    /**
      * The element tried to paint something of its own and was refused.
      *
      * THE ONLY STYLE FAILURE A CONSUMER CANNOT OTHERWISE SEE. A style edit a consumer asks for

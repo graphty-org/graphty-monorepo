@@ -2,8 +2,8 @@
 // hash of everything its result can depend on, so two runs with equal keys are the same experiment and
 // disagreeing results on them mean a flaky test.
 //
-// ponytail: the browser revision and a story test's baseline blob are not in the key yet; the step that runs
-// story tests through run-group.mjs adds them (as `extra`).
+// A screenshot run (ci.yml's story-tests job) adds the Chromium revision and its project's baseline tree as `extra`
+// (run-group.mjs shotsInputs()).
 
 import { createHash } from "node:crypto";
 import { availableParallelism } from "node:os";

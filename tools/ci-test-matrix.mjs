@@ -407,19 +407,23 @@ export const FEATURES_ON_SHARDS = [
 export const SHARDS = FEATURES_DECLARED ? [...OFF_SHARDS, ...FEATURES_ON_SHARDS] : OFF_SHARDS;
 
 /**
- * The shards ci.yml's story-tests job runs with their screenshots (its matrix's `shard` values; a test checks the
- * two agree). Each one's screenshot run is a results family of its own, `<family>-shots`
- * (tools/results/run-group.mjs groupFamily()), whose quarantines only the results store holds.
+ * The shards ci.yml's story-tests job runs with their screenshots, each with its visual-review project (its
+ * matrix's `shard` and `project` values; a test checks the two agree). Each one's screenshot run is a results
+ * family of its own, `<family>-shots` (tools/results/run-group.mjs groupFamily()), whose quarantines only the
+ * results store holds, and its inputs key holds the project's `visual-baselines/<project>` tree.
  */
-export const STORY_SHARDS = [
-    "graphty-storybook",
-    "graphty-element-storybook-1",
-    "algorithms-browser",
-    "cytoscape-extensions",
-    "layout",
-    "compact-mantine",
-    "graph-io-browser",
-];
+export const STORY_PROJECTS = {
+    "graphty-storybook": "graphty",
+    "graphty-element-storybook-1": "graphty-element",
+    "algorithms-browser": "algorithms",
+    "cytoscape-extensions": "cytoscape-extensions",
+    layout: "layout",
+    "compact-mantine": "compact-mantine",
+    "graph-io-browser": "graph-io-fidelity",
+};
+
+/** The shards ci.yml's story-tests job runs with their screenshots (STORY_PROJECTS' keys). */
+export const STORY_SHARDS = Object.keys(STORY_PROJECTS);
 
 /**
  * Shards too short to be worth a runner of their own (one to four minutes each, most of it

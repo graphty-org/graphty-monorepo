@@ -8,8 +8,13 @@ const element = (path: string): string => fileURLToPath(new URL(`../../../grapht
 const config: StorybookConfig = {
     stories: ["../stories/**/*.stories.ts"],
     addons: [],
-    // the brand logo and favicon (manager.ts); the oracle pictures are imported by the stories
-    staticDirs: [{ from: "./brand", to: "/" }],
+    // the brand logo and favicon (manager.ts); the oracle pictures are imported by the stories. The specimen
+    // sheets that name pictures beside them (DOT, GML) are served with them by their own file names
+    // (stories/fidelity.ts, #5344).
+    staticDirs: [
+        { from: "./brand", to: "/" },
+        ...["dot", "gml"].map((f) => ({ from: `../../test/fidelity/specimens/${f}`, to: `/fidelity/specimens/${f}` })),
+    ],
     framework: {
         name: "@storybook/web-components-vite",
         options: {},

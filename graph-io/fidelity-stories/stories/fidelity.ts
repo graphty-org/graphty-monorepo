@@ -153,9 +153,10 @@ interface Figure {
  * @param sample - the sample
  * @param fileUrl - where the build serves the sample file
  * @param live - show the interactive canvas instead of its screenshot
+ * @param imageBase - what the pictures the file names by relative paths are beside, when not `fileUrl`
  * @returns the story root
  */
-function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLElement {
+function render(sample: FidelitySample, fileUrl: string, live: boolean, imageBase = fileUrl): HTMLElement {
     const root = document.createElement("div");
     root.dataset.fidelity = sample.id;
     root.innerHTML = `${STYLE}<h2>${esc(sample.id)}</h2><p>${esc(sample.file)} (${esc(sample.license)})</p>`;
@@ -246,7 +247,7 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
                     blobUrl,
                     oracleGraphName(meta),
                     oracleFormatOptions(meta, sample.format),
-                    new URL(fileUrl, document.baseURI).href,
+                    new URL(imageBase, document.baseURI).href,
                 );
                 const how = live ? "live canvas" : "its own screenshot";
                 middle.caption.textContent = `graphty-element, file styles (${how}); ${loaded.slice(loaded.indexOf("; ") + 2)}`;
@@ -313,9 +314,10 @@ const ALL: readonly FidelitySample[] = [...SAMPLES, ...CORPUS_SAMPLES, ...SPECIM
  * A story for one sample; its stories file names it, without the format its folder already says.
  * @param id - the sample's id
  * @param fileUrl - the sample file, imported with `?url`
+ * @param imageBase - where the file sits beside the pictures it names by relative paths, when not `fileUrl`
  * @returns the story
  */
-export function fidelityStory(id: string, fileUrl: string): StoryObj {
+export function fidelityStory(id: string, fileUrl: string, imageBase?: string): StoryObj {
     const sample = ALL.find((s) => s.id === id);
     if (sample === undefined) {
         throw new Error(`${id} is not a fidelity sample`);
@@ -328,7 +330,7 @@ export function fidelityStory(id: string, fileUrl: string): StoryObj {
                 description: "Show graphty-element's interactive canvas instead of its screenshot",
             },
         },
-        render: (args) => render(sample, fileUrl, args.live === true),
+        render: (args) => render(sample, fileUrl, args.live === true, imageBase),
     };
 }
 
@@ -364,11 +366,14 @@ export function specimenStory(format: SpecimenFormat, sheetId: string, files: Re
     const id = specimenSampleId(format.id, sheetId);
     const sheet = format.sheets.find((s) => s.id === sheetId);
     if (sheet !== undefined) {
-        const url = Object.entries(files).find(([path]) => path.endsWith(`/${sheet.file}`))?.[1];
-        if (url === undefined) {
+        const [path, url] = Object.entries(files).find(([p]) => p.endsWith(`/${sheet.file}`)) ?? [];
+        if (path === undefined || url === undefined) {
             throw new Error(`${id}: the build serves no file ${sheet.file}`);
         }
-        return fidelityStory(id, url);
+        // The pictures a sheet names (`img-quadrants.png`) through the static copy of the specimens folder
+        // (.storybook/main.ts): `?url` gives each file a hashed name, or inlines a small one as a `data:` URL,
+        // so beside the sheet's own `?url` there is no picture of that name in a built Storybook (#5344).
+        return fidelityStory(id, url, `fidelity/specimens/${path.split("/").slice(-2).join("/")}`);
     }
     const category = categoryOf(sheetId);
     const absent = category === undefined ? undefined : format.absent[category];

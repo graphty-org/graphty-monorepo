@@ -18,6 +18,7 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import type { EdgeId, MeasurementDeclaration, NodeId, Path, RunId, Scope } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { Dispatcher } from "../project/Dispatcher";
+import { RevisionCache } from "../revision";
 import type { Run } from "../runs";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
@@ -374,6 +375,11 @@ export interface TimeSources {
     readonly snapshot: () => GraphSnapshot;
     /** Moves on every write to the graph's rows or records. */
     readonly token: () => number;
+    /**
+     * The data's own revision: moves on a freeze or an attribute write, never on a mask. Keeps
+     * `candidates()` until a column, type or value changes; absent, it is recomputed per call.
+     */
+    readonly dataRevision?: () => unknown;
     readonly values: FilterValueSource;
     /** The designation, as `data.knownFields` holds it. */
     readonly knownFields: () => KnownTimeFields;
@@ -751,6 +757,70 @@ function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: 
 }
 
 /**
+ * The columns whose values read as time, best first: walks every value of each column.
+ * @param sources - What `session.time` reads.
+ * @param columns - The columns to look through.
+ * @returns The candidates.
+ */
+function timeCandidates(
+    sources: TimeSources,
+    columns: readonly { readonly kind: "node" | "edge"; readonly name: string }[],
+): readonly TimeCandidate[] {
+    const graph = sources.snapshot();
+    const found: TimeCandidate[] = [];
+    for (const { kind, name } of columns) {
+        const attribute = `${ATTRIBUTE_PREFIX}${name}`;
+        const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
+        let total = 0;
+        let parsed = 0;
+        let numbers = 0;
+        let epochMs = 0;
+        let epochS = 0;
+        let years = 0;
+        for (let row = 0; row < count; row++) {
+            const value =
+                kind === "node" ? sources.values.nodeValue(row, attribute) : sources.values.edgeValue(row, attribute);
+            if (value === undefined || value === null || value === "") {
+                continue;
+            }
+
+            total++;
+            if (typeof value === "number") {
+                numbers++;
+                epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
+                epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
+                years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
+            } else if (typeof value === "string" && !isNumericText(value)) {
+                const reading = readInstant(value, "ms");
+                parsed += reading.how === "strict" || (reading.how === "loose" && HAS_YEAR.test(value)) ? 1 : 0;
+            }
+        }
+
+        // Numbers read as time only when every one of them looks like an epoch or a year
+        // and the column is named for time: a weight of 1 to 10 is no timeline.
+        let unit: TimeUnit | undefined;
+        if (numbers > 0 && numbers === total) {
+            if (epochMs === numbers) {
+                unit = "ms";
+            } else if (epochS === numbers) {
+                unit = "s";
+            } else if (years === numbers && /year|date|time|when|period/i.test(name)) {
+                unit = "year";
+            }
+
+            parsed = unit === undefined ? 0 : numbers;
+        }
+
+        if (parsed > 0) {
+            found.push(Object.freeze({ kind, column: name, parsed, total, ...(unit === undefined ? {} : { unit }) }));
+        }
+    }
+
+    found.sort((a, b) => b.parsed / b.total - a.parsed / a.total || b.parsed - a.parsed);
+    return Object.freeze(found);
+}
+
+/**
  * Build the timeline over a session's parts.
  * @param sources - What it reads.
  * @returns The consumer surface and what the session reads back.
@@ -777,6 +847,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let reruns: Promise<unknown> = Promise.resolve();
     /** The unit the reader last gave each column, so designating it again keeps it. */
     const units = new Map<string, TimeUnit>();
+    /** `candidates()` for the data revision, by the columns it looked through. */
+    const candidateCache = new RevisionCache<readonly TimeCandidate[]>(() => sources.dataRevision?.(), 1);
 
     /**
      * The designation, from `data.knownFields`.
@@ -1731,62 +1803,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         candidates(): readonly TimeCandidate[] {
-            const graph = sources.snapshot();
-            const found: TimeCandidate[] = [];
-            for (const { kind, name } of sources.columns()) {
-                const attribute = `${ATTRIBUTE_PREFIX}${name}`;
-                const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
-                let total = 0;
-                let parsed = 0;
-                let numbers = 0;
-                let epochMs = 0;
-                let epochS = 0;
-                let years = 0;
-                for (let row = 0; row < count; row++) {
-                    const value =
-                        kind === "node"
-                            ? sources.values.nodeValue(row, attribute)
-                            : sources.values.edgeValue(row, attribute);
-                    if (value === undefined || value === null || value === "") {
-                        continue;
-                    }
-
-                    total++;
-                    if (typeof value === "number") {
-                        numbers++;
-                        epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
-                        epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
-                        years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
-                    } else if (typeof value === "string" && !isNumericText(value)) {
-                        const reading = readInstant(value, "ms");
-                        parsed += reading.how === "strict" || (reading.how === "loose" && HAS_YEAR.test(value)) ? 1 : 0;
-                    }
-                }
-
-                // Numbers read as time only when every one of them looks like an epoch or a year
-                // and the column is named for time: a weight of 1 to 10 is no timeline.
-                let unit: TimeUnit | undefined;
-                if (numbers > 0 && numbers === total) {
-                    if (epochMs === numbers) {
-                        unit = "ms";
-                    } else if (epochS === numbers) {
-                        unit = "s";
-                    } else if (years === numbers && /year|date|time|when|period/i.test(name)) {
-                        unit = "year";
-                    }
-
-                    parsed = unit === undefined ? 0 : numbers;
-                }
-
-                if (parsed > 0) {
-                    found.push(
-                        Object.freeze({ kind, column: name, parsed, total, ...(unit === undefined ? {} : { unit }) }),
-                    );
-                }
+            const columns = sources.columns();
+            if (sources.dataRevision === undefined) {
+                return timeCandidates(sources, columns);
             }
 
-            found.sort((a, b) => b.parsed / b.total - a.parsed / a.total || b.parsed - a.parsed);
-            return Object.freeze(found);
+            return candidateCache.get(JSON.stringify(columns), () => timeCandidates(sources, columns));
         },
 
         notices(): readonly CodedFact<TimeNoticeCode>[] {

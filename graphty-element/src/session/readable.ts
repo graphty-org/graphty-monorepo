@@ -71,7 +71,7 @@ const EDGE_KINDS = kindsOn("edge");
  * @param from - Where it comes from.
  * @param declaration - Its declaration, if any.
  * @param usedBy - What reads it now.
- * @param field
+ * @param field - The run field it is, when it is one, whose declared facts it carries.
  * @returns The entry.
  */
 function entryOf(

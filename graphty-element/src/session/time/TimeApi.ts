@@ -767,6 +767,18 @@ interface TimeTally {
 }
 
 /**
+ * Count one number into a column's tally: is it an epoch in milliseconds or seconds, or a year.
+ * @param tally - The tally so far.
+ * @param value - The number.
+ */
+function tallyNumber(tally: TimeTally, value: number): void {
+    tally.numbers++;
+    tally.epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
+    tally.epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
+    tally.years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
+}
+
+/**
  * Count one value into a column's tally.
  * @param tally - The tally so far.
  * @param value - The value.
@@ -778,10 +790,7 @@ function tallyValue(tally: TimeTally, value: unknown): void {
 
     tally.total++;
     if (typeof value === "number") {
-        tally.numbers++;
-        tally.epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
-        tally.epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
-        tally.years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
+        tallyNumber(tally, value);
     } else if (typeof value === "string" && !isNumericText(value)) {
         const reading = readInstant(value, "ms");
         tally.parsed += reading.how === "strict" || (reading.how === "loose" && HAS_YEAR.test(value)) ? 1 : 0;
@@ -808,6 +817,42 @@ function numberUnit(tally: TimeTally, name: string): TimeUnit | undefined {
 }
 
 /**
+ * One column as a time candidate: walks every value of it.
+ * @param sources - What `session.time` reads.
+ * @param graph - The graph now.
+ * @param kind - Which records carry the column.
+ * @param name - The column.
+ * @returns The candidate, or undefined when no value reads as time.
+ */
+function timeCandidate(
+    sources: TimeSources,
+    graph: GraphSnapshot,
+    kind: "node" | "edge",
+    name: string,
+): TimeCandidate | undefined {
+    const attribute = `${ATTRIBUTE_PREFIX}${name}`;
+    const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
+    const { values } = sources;
+    const tally: TimeTally = { total: 0, parsed: 0, numbers: 0, epochMs: 0, epochS: 0, years: 0 };
+    for (let row = 0; row < count; row++) {
+        tallyValue(tally, kind === "node" ? values.nodeValue(row, attribute) : values.edgeValue(row, attribute));
+    }
+
+    const { total, numbers } = tally;
+    const allNumbers = numbers > 0 && numbers === total;
+    const unit = allNumbers ? numberUnit(tally, name) : undefined;
+    // A column of numbers counts only when they read in a unit.
+    let { parsed } = tally;
+    if (allNumbers) {
+        parsed = unit === undefined ? 0 : numbers;
+    }
+
+    return parsed > 0
+        ? Object.freeze({ kind, column: name, parsed, total, ...(unit === undefined ? {} : { unit }) })
+        : undefined;
+}
+
+/**
  * The columns whose values read as time, best first: walks every value of each column.
  * @param sources - What `session.time` reads.
  * @param columns - The columns to look through.
@@ -820,26 +865,9 @@ function timeCandidates(
     const graph = sources.snapshot();
     const found: TimeCandidate[] = [];
     for (const { kind, name } of columns) {
-        const attribute = `${ATTRIBUTE_PREFIX}${name}`;
-        const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
-        const tally: TimeTally = { total: 0, parsed: 0, numbers: 0, epochMs: 0, epochS: 0, years: 0 };
-        for (let row = 0; row < count; row++) {
-            tallyValue(
-                tally,
-                kind === "node" ? sources.values.nodeValue(row, attribute) : sources.values.edgeValue(row, attribute),
-            );
-        }
-
-        let unit: TimeUnit | undefined;
-        let { parsed } = tally;
-        if (tally.numbers > 0 && tally.numbers === tally.total) {
-            unit = numberUnit(tally, name);
-            parsed = unit === undefined ? 0 : tally.numbers;
-        }
-
-        if (parsed > 0) {
-            const { total } = tally;
-            found.push(Object.freeze({ kind, column: name, parsed, total, ...(unit === undefined ? {} : { unit }) }));
+        const candidate = timeCandidate(sources, graph, kind, name);
+        if (candidate !== undefined) {
+            found.push(candidate);
         }
     }
 

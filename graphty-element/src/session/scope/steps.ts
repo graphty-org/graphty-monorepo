@@ -88,11 +88,13 @@ export interface StepReading {
     readonly id: string;
     readonly state: StepState;
     readonly reason: CodedFact<StepReasonCode> | null;
+    /** How many elements the branch holds after this step (while it waits, the count before it). */
+    readonly count: number;
     /**
-     * How many elements the branch holds after this step; null while the step waits on a run
-     * (`"pending"`, its own or an earlier step's), since what it will hold is not known yet.
+     * Whether the step waits on a run (`"pending"`, its own or an earlier step's): what it will
+     * hold is not known yet, so `count` is not its result.
      */
-    readonly count: number | null;
+    readonly waiting: boolean;
     /** The branch before this step. */
     readonly input: Scope;
     /** The branch after this step. */
@@ -581,7 +583,8 @@ export function stepsReadingOf(
                 id: given.id ?? "",
                 state: step.state,
                 reason: step.reason as CodedFact<StepReasonCode> | null,
-                count: step.state === "pending" ? null : ones(step.members),
+                count: ones(step.members),
+                waiting: step.state === "pending",
                 get input(): Scope {
                     return input();
                 },

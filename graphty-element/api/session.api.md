@@ -6121,7 +6121,7 @@ export interface StepCounts {
 
 // @beta
 export interface StepReading {
-    readonly count: number | null;
+    readonly count: number;
     readonly frozen: boolean;
     // (undocumented)
     readonly id: string;
@@ -6133,6 +6133,7 @@ export interface StepReading {
     readonly run: RunId | null;
     // (undocumented)
     readonly state: StepState;
+    readonly waiting: boolean;
 }
 
 // @beta

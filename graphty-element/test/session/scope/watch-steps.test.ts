@@ -159,12 +159,12 @@ describe("watchSteps", () => {
         assert.strictEqual(keep.state, "applied");
         assert.isFalse(keep.orderMatters);
         assert.isTrue(add.orderMatters, "an Add below a Keep depends on its place");
-        assert.isAbove(add.count ?? 0, keep.count ?? 0);
+        assert.isAbove(add.count, keep.count);
         const resolved = await session.scope.resolve(current.result);
         assert.strictEqual(resolved.nodes.size, current.total.count);
         assert.strictEqual(
             current.branchOf("Valjean"),
-            (current.branches[0].steps[1].count ?? 0) > 0 ? current.branchOf("Valjean") : null,
+            current.branches[0].steps[1].count > 0 ? current.branchOf("Valjean") : null,
         );
         assert.isNotNull(current.branchOf("Valjean"));
     });
@@ -375,7 +375,7 @@ describe("measure steps and runs", () => {
         off.end();
     });
 
-    it("a step that waits on its run reads no count, and nor does a step after it", async () => {
+    it("a step that waits on its run says so, and so does a step after it", async () => {
         const session = await lesMis();
         const rule: UnionLeaf = {
             kind: "union",
@@ -395,9 +395,9 @@ describe("measure steps and runs", () => {
         const [waiting, after] = watch.current.branches[0].steps;
         watch.end();
         assert.strictEqual(waiting.state, "pending");
-        assert.isNull(waiting.count);
+        assert.isTrue(waiting.waiting);
         assert.strictEqual(after.reason?.code, "waits-for");
-        assert.isNull(after.count);
+        assert.isTrue(after.waiting);
         assert.strictEqual(watch.current.branchesLeft, 5, "the default palette takes six branches");
     });
 

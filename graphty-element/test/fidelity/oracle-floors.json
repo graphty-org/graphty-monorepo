@@ -26155,7 +26155,7 @@
         "gml-specimen-node-shapes-p7@matched": {
             "node.present": 1,
             "node.extra": 1,
-            "node.position": 0.743,
+            "node.position": 1,
             "node.width": 1,
             "node.height": 1,
             "node.sizeToSpacing": 1,
@@ -30147,7 +30147,7 @@
         "pajek-specimen-node-shapes-p2@matched": {
             "node.present": 1,
             "node.extra": 1,
-            "node.position": 0.974,
+            "node.position": 1,
             "node.width": 0.947,
             "node.height": 0.947,
             "node.sizeToSpacing": 1,
@@ -30168,7 +30168,7 @@
         "pajek-specimen-node-shapes@matched": {
             "node.present": 1,
             "node.extra": 1,
-            "node.position": 0.974,
+            "node.position": 1,
             "node.width": 0.947,
             "node.height": 0.947,
             "node.sizeToSpacing": 1,
@@ -30523,7 +30523,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.929,
+            "edge.route": 0.955,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -31292,7 +31292,7 @@
         "vis-network-specimen-images-charts@matched": {
             "node.present": 1,
             "node.extra": 1,
-            "node.position": 0.966,
+            "node.position": 1,
             "node.width": 0.966,
             "node.height": 1,
             "node.sizeToSpacing": 1,
@@ -53207,12 +53207,6 @@
             "label.align": {
                 "floor": 1,
                 "to": 0.5,
-                "reason": "the same elements fail, fewer are judged: label.align judges n_html3 alone among 2 nodes now (6 before #5246 and #5308, 2 after #5314), already a known failure (#4524, #5243); stray.extra's six annotation shapes failed before too and #5308 took off the one that passed (7 judged, 6 now); @matched edge.route rose from 0.611 to 0.741 over the same merges, past a 0.75 one state measured (#5282) (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.75,
-                "to": 0.741,
                 "reason": "the same elements fail, fewer are judged: label.align judges n_html3 alone among 2 nodes now (6 before #5246 and #5308, 2 after #5314), already a known failure (#4524, #5243); stray.extra's six annotation shapes failed before too and #5308 took off the one that passed (7 judged, 6 now); @matched edge.route rose from 0.611 to 0.741 over the same merges, past a 0.75 one state measured (#5282) (bisected in #5332)",
                 "date": "2026-11-01"
             },

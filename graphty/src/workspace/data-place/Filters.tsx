@@ -359,7 +359,8 @@ function FilterCard({
     const draft = condition === undefined;
     let side: Side = sideOf(draftRule);
     if (condition !== undefined) {
-        const shape = shapeOf(session, condition);
+        // The side its rule reads, whatever its effect: a Filter out card on an edge value is on edges.
+        const shape = shapeOf(session, { rule: condition.rule, effect: "keep" });
         side = shape.kind === "fields" ? shape.side : "node";
         if (condition.rule.kind === "union") {
             side = sideOf(condition.rule);

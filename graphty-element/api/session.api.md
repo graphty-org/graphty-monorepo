@@ -4918,6 +4918,7 @@ export interface ScopeApi {
     asUnion(rule: RuleTree, options: {
         readonly side: UnionLeaf["side"];
         readonly within: UnionLeaf["within"];
+        readonly effect?: "keep" | "exclude";
     }): UnionLeaf | null;
     // @beta
     cancelRun(rule: UnionLeaf, stepId: string): void;

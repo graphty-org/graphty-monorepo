@@ -222,6 +222,37 @@ describe("watchSteps", () => {
         );
     });
 
+    it("converts a removing card into what it leaves: all except the rule", async () => {
+        const session = await lesMis();
+        const count = async (where: RuleTree): Promise<number> =>
+            (await session.scope.count({ define: { kind: "rule", where, reading: "clipped" } })).nodes;
+        const total = session.data.statistics().nodeCount;
+        const flats: RuleTree[] = [
+            STAFF,
+            { kind: "any", of: [STAFF, DEGREE_6_TO_10] },
+            { kind: "all", of: [DEGREE_6_TO_10, { kind: "not", of: STAFF }] },
+            { kind: "not", of: STAFF },
+        ];
+        for (const flat of flats) {
+            const leaf = session.scope.asUnion(flat, { side: "nodes", within: "graph", effect: "exclude" });
+            assert.isNotNull(leaf, flat.kind);
+            const left = session.scope.watchSteps(leaf, () => undefined).current.total.count;
+            assert.strictEqual(left, total - (await count(flat)), flat.kind);
+        }
+        assert.deepEqual(
+            session.scope
+                .asUnion(STAFF, { side: "nodes", within: "graph", effect: "exclude" })
+                ?.branches.map((branch) => [branch.start, branch.steps.map((step) => step.op)]),
+            [["all", ["except"]]],
+        );
+        assert.isNull(
+            session.scope.asUnion(
+                { kind: "union", side: "nodes", within: "graph", branches: [] },
+                { side: "nodes", within: "graph", effect: "exclude" },
+            ),
+        );
+    });
+
     it("checkStep names the refusal a filter would give", async () => {
         const session = await lesMis();
         const step = { op: "keep" as const, rule: STAFF };

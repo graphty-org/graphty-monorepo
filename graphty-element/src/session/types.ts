@@ -153,7 +153,8 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export interface RecordSort {
     /**
      * The record key to sort by: a top-level attribute, or `id` (and `source` or `target` for an
-     * edge), read literally. Numbers (bigints among them) come before text, text sorts in natural
+     * edge), read literally; on nodes also a structure path (`graphty.degree`, and on a directed
+     * graph `graphty.inDegree` and `graphty.outDegree`). Numbers (bigints among them) come before text, text sorts in natural
      * order ("2" before "10"), and a record without the key comes last in either direction.
      */
     readonly key: string;

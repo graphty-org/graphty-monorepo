@@ -2267,7 +2267,11 @@ export class SessionData implements SessionDataApi {
     ): unknown {
         if (target === "node") {
             const id = snapshot.ids.idOf(index);
-            return key === "id" ? id : this.records?.nodeAttributes(index, id)?.[key];
+            if (key === "id") {
+                return id;
+            }
+            // A structure path (`graphty.degree`) sorts by the snapshot's own value.
+            return structureValuesOf(snapshot, key)?.[index] ?? this.records?.nodeAttributes(index, id)?.[key];
         }
 
         switch (key) {

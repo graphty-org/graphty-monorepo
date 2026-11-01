@@ -358,16 +358,24 @@ export interface ScopeApi {
     ): StepsWatch;
     /**
      * A flat rule as one union leaf (see {@link asUnion}). Writing it back is the caller's choice.
+     * With `effect: "exclude"` the leaf holds what the rule leaves (a filter condition that
+     * removes, read as what stays): a leaf `r` is all except `r`, an `any` of leaves is all except
+     * each, and an `all` of leaves and `not`s is one branch per member. A `union` has no such form.
      * @param rule - The rule.
      * @param options - The side and base.
      * @param options.side - The side.
      * @param options.within - The base.
+     * @param options.effect - `"exclude"` for what the rule leaves; absent or `"keep"`, what it holds.
      * @returns The leaf, or null when the rule has no single-union form.
      * @beta
      */
     asUnion(
         rule: RuleTree,
-        options: { readonly side: UnionLeaf["side"]; readonly within: UnionLeaf["within"] },
+        options: {
+            readonly side: UnionLeaf["side"];
+            readonly within: UnionLeaf["within"];
+            readonly effect?: "keep" | "exclude";
+        },
     ): UnionLeaf | null;
     /**
      * The refusal the element would give writing a step on a host, so a picker can grey a value

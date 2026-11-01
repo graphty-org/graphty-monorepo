@@ -89,4 +89,19 @@ describe("a page narrowed by matching text", () => {
         );
         session.dispose();
     });
+    it("sorts nodes by a structure path: the most connected first", async () => {
+        const session = await cast();
+        const page = session.data.nodePage({
+            matching: { text: "j", mode: "starts-with" },
+            sort: { key: "graphty.degree", descending: true },
+            limit: 8,
+        });
+        // Javert and Jondrette have one edge each; graph order keeps Javert first among equals.
+        assert.deepStrictEqual(ids(page), ["Javert", "Jondrette"]);
+        assert.deepStrictEqual(
+            ids(session.data.nodePage({ sort: { key: "graphty.degree", descending: true }, limit: 2 })),
+            ["Valjean", "Cosette"],
+        );
+        session.dispose();
+    });
 });

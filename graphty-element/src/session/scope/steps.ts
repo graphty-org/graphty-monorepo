@@ -456,14 +456,22 @@ function freezeRule(
  * @param options - The side and base the leaf reads.
  * @param options.side - The side.
  * @param options.within - The base.
+ * @param options.effect - `"exclude"` for what the rule leaves, read as what stays.
  * @returns The leaf, or null.
  */
 export function asUnion(
     rule: RuleTree,
-    options: { readonly side: UnionLeaf["side"]; readonly within: UnionLeaf["within"] },
+    options: {
+        readonly side: UnionLeaf["side"];
+        readonly within: UnionLeaf["within"];
+        readonly effect?: "keep" | "exclude";
+    },
 ): UnionLeaf | null {
     const { side, within } = options;
     const isLeaf = (tree: RuleTree): boolean => !["all", "any", "not", "union"].includes(tree.kind);
+    if (options.effect === "exclude") {
+        return leftBy(rule, { side, within }, isLeaf);
+    }
     switch (rule.kind) {
         case "union":
             return rule;
@@ -501,6 +509,52 @@ export function asUnion(
                 : null;
         default:
             return { kind: "union", side, within, branches: [{ start: "all", steps: [{ op: "keep", rule }] }] };
+    }
+}
+
+/**
+ * What a flat rule leaves, as one union leaf: the complement of a leaf is all except it; of an
+ * `any`, all except each member; of an `all`, one branch per member (all except a leaf, or the
+ * leaf a `not` held). Null for anything else.
+ * @param rule - The rule.
+ * @param options - The side and base.
+ * @param options.side - The side.
+ * @param options.within - The base.
+ * @param isLeaf - Whether a tree is a leaf.
+ * @returns The leaf, or null.
+ */
+function leftBy(
+    rule: RuleTree,
+    options: { readonly side: UnionLeaf["side"]; readonly within: UnionLeaf["within"] },
+    isLeaf: (tree: RuleTree) => boolean,
+): UnionLeaf | null {
+    const except = (leaf: RuleTree): UnionBranch => ({ start: "all", steps: [{ op: "except", rule: leaf }] });
+    const of = (branches: UnionBranch[]): UnionLeaf => ({ kind: "union", ...options, branches });
+    switch (rule.kind) {
+        case "union":
+            return null;
+        case "not":
+            return isLeaf(rule.of) ? of([{ start: "none", steps: [{ op: "add", rule: rule.of }] }]) : null;
+        case "any":
+            return rule.of.every(isLeaf)
+                ? of([{ start: "all", steps: rule.of.map((leaf): UnionStep => ({ op: "except", rule: leaf })) }])
+                : null;
+        case "all": {
+            const branches: UnionBranch[] = [];
+            for (const member of rule.of) {
+                if (member.kind === "not" && isLeaf(member.of)) {
+                    branches.push({ start: "none", steps: [{ op: "add", rule: member.of }] });
+                } else if (isLeaf(member)) {
+                    branches.push(except(member));
+                } else {
+                    return null;
+                }
+            }
+
+            return of(branches);
+        }
+        default:
+            return of([except(rule)]);
     }
 }
 

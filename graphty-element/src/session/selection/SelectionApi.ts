@@ -684,6 +684,29 @@ function accumulate(accumulator: AttributeAccumulator, value: unknown): void {
 }
 
 /**
+ * Fold every present value of one record's attribute bag into the accumulators, adding one for
+ * each attribute name seen first here.
+ * @param accumulators - The accumulators by attribute name.
+ * @param bag - The record's attributes.
+ */
+function accumulateBag(accumulators: Map<string, AttributeAccumulator>, bag: Readonly<Record<string, unknown>>): void {
+    for (const [key, value] of Object.entries(bag)) {
+        if (value === null || value === undefined) {
+            continue;
+        }
+
+        let accumulator = accumulators.get(key);
+
+        if (accumulator === undefined) {
+            accumulator = newAccumulator();
+            accumulators.set(key, accumulator);
+        }
+
+        accumulate(accumulator, value);
+    }
+}
+
+/**
  * A fresh accumulator.
  * @returns The accumulator.
  */
@@ -1405,20 +1428,7 @@ class Selection implements SelectionOwner {
                 continue;
             }
 
-            for (const [key, value] of Object.entries(bag)) {
-                if (value === null || value === undefined) {
-                    continue;
-                }
-
-                let accumulator = selected.get(key);
-
-                if (accumulator === undefined) {
-                    accumulator = newAccumulator();
-                    selected.set(key, accumulator);
-                }
-
-                accumulate(accumulator, value);
-            }
+            accumulateBag(selected, bag);
         }
 
         const numeric = new Set<string>();

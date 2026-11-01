@@ -674,6 +674,66 @@ export function reshapes(log: readonly OpLogEntry[]): boolean {
     );
 }
 
+/**
+ * Names the elements one graph step touched.
+ * @param op - The step.
+ * @param into - Collects the ids.
+ * @returns True when the step touched the whole dataset, so the walk stops.
+ */
+function touchOp(op: GraphOp, into: TouchedIds): boolean {
+    switch (op.kind) {
+        case "node":
+            into.node(op.id);
+            break;
+        case "edge":
+            into.edge(edgeIdOf(op.edgeId));
+            for (const id of op.created) {
+                into.node(id);
+            }
+
+            break;
+        case "weight":
+            into.edge(edgeIdOf(op.edgeId));
+            break;
+        case "record":
+            if (op.target === "node") {
+                into.node(op.id);
+            } else {
+                into.edge(String(op.id));
+            }
+
+            break;
+        case "remove":
+            for (const node of op.rows.nodes) {
+                into.node(node.id);
+            }
+
+            for (const edge of op.rows.edges) {
+                into.edge(edgeIdOf(edge.edgeId));
+            }
+
+            break;
+        case "replace":
+            into.all();
+            return true;
+        case "value":
+            // A step that rewrites the sources list or the column settings -- a load, a
+            // join, a replace with a newer copy, a type change -- is about the dataset,
+            // not elements: selecting the rows it rewrote would select a column's worth.
+            if (DATASET_VALUES.has(op.name)) {
+                into.all();
+                return true;
+            }
+
+            break;
+        default:
+            // "direction" names no element.
+            break;
+    }
+
+    return false;
+}
+
 /** The entry one recorded writer logs, growing as it writes. */
 class GraphEntry implements OpLogEntry {
     readonly slice = "graph";
@@ -719,54 +779,8 @@ class GraphEntry implements OpLogEntry {
 
     touched(into: TouchedIds): void {
         for (const op of this.ops) {
-            switch (op.kind) {
-                case "node":
-                    into.node(op.id);
-                    break;
-                case "edge":
-                    into.edge(edgeIdOf(op.edgeId));
-                    for (const id of op.created) {
-                        into.node(id);
-                    }
-
-                    break;
-                case "weight":
-                    into.edge(edgeIdOf(op.edgeId));
-                    break;
-                case "record":
-                    if (op.target === "node") {
-                        into.node(op.id);
-                    } else {
-                        into.edge(String(op.id));
-                    }
-
-                    break;
-                case "remove":
-                    for (const node of op.rows.nodes) {
-                        into.node(node.id);
-                    }
-
-                    for (const edge of op.rows.edges) {
-                        into.edge(edgeIdOf(edge.edgeId));
-                    }
-
-                    break;
-                case "replace":
-                    into.all();
-                    return;
-                case "value":
-                    // A step that rewrites the sources list or the column settings -- a load, a
-                    // join, a replace with a newer copy, a type change -- is about the dataset,
-                    // not elements: selecting the rows it rewrote would select a column's worth.
-                    if (DATASET_VALUES.has(op.name)) {
-                        into.all();
-                        return;
-                    }
-
-                    break;
-                default:
-                    // "direction" names no element.
-                    break;
+            if (touchOp(op, into)) {
+                return;
             }
         }
     }

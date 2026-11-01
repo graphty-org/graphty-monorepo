@@ -71,6 +71,7 @@ describe("styles.showBranches", () => {
         const view = session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint" });
         await session.styles.settled();
         assert.isTrue(session.styles.showingBranches);
+        assert.strictEqual(session.styles.shownBranches?.rule, NEAR_VALJEAN, "the view drawn is told");
         assert.strictEqual(colorOf(session, "Valjean").value, "#009E73");
         assert.notStrictEqual(colorOf(session, "Napoleon").layerId, red, "a suspended layer paints nothing");
         assert.strictEqual(session.styles.list(), layers, "the layer list is unchanged");
@@ -79,19 +80,74 @@ describe("styles.showBranches", () => {
         view.end();
         await session.styles.settled();
         assert.isFalse(session.styles.showingBranches);
+        assert.isNull(session.styles.shownBranches);
         assert.deepEqual(colorOf(session, "Valjean"), { value: "#FF0000", layerId: red });
         assert.deepEqual(shown, [true, false]);
+    });
+
+    it("keeps the selection ring and the hover mark drawn above the branches", async () => {
+        const { session } = await painted();
+        const { id: ring } = await session.styles.add({
+            name: "Selected",
+            target: "node",
+            selector: { match: "state", state: "selected" },
+            set: { "node.haloColor": "#FFAA00", "node.haloOpacity": 1 },
+        });
+        const { id: hover } = await session.styles.add({
+            name: "Hovered",
+            target: "node",
+            selector: { match: "state", state: "hovered" },
+            set: { "node.color": "#0000FF" },
+        });
+        await session.selection.apply({ nodes: ["Valjean"] });
+        session.selection.hover("Napoleon");
+        const view = session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint" });
+        await session.styles.settled();
+        const halo = session.styles
+            .explain({ node: "Valjean" })
+            .channels.find((each) => each.channel === "node.haloColor");
+        assert.strictEqual(halo?.layerId, ring, "the ring is still written while the view is drawn");
+        assert.strictEqual(colorOf(session, "Napoleon").layerId, hover, "the hover mark is drawn above the view");
+        view.end();
+    });
+
+    it("a marked branch keeps its members at full strength and draws the others faint", async () => {
+        const { session } = await painted();
+        const rule: UnionLeaf = {
+            ...NEAR_VALJEAN,
+            branches: [
+                { ...NEAR_VALJEAN.branches[0], id: "near" },
+                {
+                    id: "napoleon",
+                    start: "none",
+                    color: "#D55E00",
+                    steps: [{ op: "add", rule: { kind: "hops", of: { nodes: ["Napoleon"] }, max: 0 } }],
+                },
+            ],
+        };
+        const opacity = (node: string): unknown =>
+            (session.styles.explain({ node }).merged as Record<string, unknown>)["node.opacity"];
+        const view = session.styles.showBranches({ rule, rest: "faint", mark: "napoleon" });
+        await session.styles.settled();
+        assert.strictEqual(opacity("Napoleon"), 1, "the marked branch is at full strength");
+        assert.strictEqual(opacity("Valjean"), 0.2, "another branch is faint");
+        assert.strictEqual(colorOf(session, "Valjean").value, "#009E73", "and keeps its color");
+        view.end();
     });
 
     it("one view at a time: a second view replaces the first, whose end does nothing", async () => {
         const { session, red } = await painted();
         const first = session.styles.showBranches({ rule: NEAR_VALJEAN });
+        const told: boolean[] = [];
+        session.on("style:branches-shown-changed", ({ shown }) => told.push(shown));
         const second = session.styles.showBranches({
             rule: { ...NEAR_VALJEAN, branches: [{ ...NEAR_VALJEAN.branches[0], color: "#D55E00" }] },
         });
+        assert.deepEqual(told, [true], "a view that replaces another is told");
         first.end();
         await session.styles.settled();
         assert.isTrue(session.styles.showingBranches);
+        assert.strictEqual(session.styles.shownBranches?.rule.branches[0]?.color, "#D55E00");
         assert.strictEqual(colorOf(session, "Valjean").value, "#D55E00");
         second.end();
         await session.styles.settled();

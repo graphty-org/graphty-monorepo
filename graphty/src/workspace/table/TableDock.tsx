@@ -697,7 +697,11 @@ export function TableDock(): React.JSX.Element {
                   const branchId = picked.branchOf(id);
                   const at = picked.rule.branches.findIndex((branch) => branch.id === branchId);
                   const branch = picked.rule.branches[at];
-                  return branch === undefined ? null : { name: branch.name ?? letterOf(at), color: branch.color ?? "" };
+                  // One group is the selection itself, named by the selection's title as the key names it.
+                  const single = picked.rule.branches.length === 1 ? edited?.title : undefined;
+                  return branch === undefined
+                      ? null
+                      : { name: branch.name ?? single ?? letterOf(at), color: branch.color ?? "" };
               };
     let scope: ScopeInput = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
     if (pickedScope !== null) {
@@ -822,15 +826,20 @@ export function TableDock(): React.JSX.Element {
                     />
                 ) : null}
                 {groupRun === undefined && picked !== null ? (
-                    <Chip
+                    // compact-mantine's segment, as "Shown | All" beside it: Mantine's bare Chip
+                    // draws white on the brand color, under 3:1.
+                    <SegmentedControl
                         size="xs"
-                        checked={matchesOnly}
-                        onChange={(checked) => {
-                            arrange({ matchesOnly: checked });
+                        label="Rows"
+                        value={matchesOnly ? "matches" : "all"}
+                        data={[
+                            { value: "matches", label: "Matches only" },
+                            { value: "all", label: "All" },
+                        ]}
+                        onChange={(value) => {
+                            arrange({ matchesOnly: value === "matches" });
                         }}
-                    >
-                        Matches only
-                    </Chip>
+                    />
                 ) : null}
                 {groupRun === undefined && (withIssues > 0 || view.issue !== null) ? (
                     <Chip

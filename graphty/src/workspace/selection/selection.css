@@ -36,7 +36,6 @@
 .sel-step-row .sel-value {
     flex: 0 1 auto;
     min-width: 0;
-    max-width: 70%;
 }
 
 .sel-step-row .sel-test {
@@ -62,6 +61,8 @@
 }
 
 .sel-plus {
+    display: inline-flex;
+    align-items: center;
     align-self: flex-start;
 }
 
@@ -70,4 +71,23 @@
     display: inline-flex;
     gap: 2px;
     align-items: center;
+}
+
+/* A verb's glyph inside a check row of the verb menu, beside its word. */
+.sel-menu-glyph {
+    vertical-align: -2px;
+    margin-inline-end: 6px;
+}
+
+/* A step row's words: the value, then its test; the row's controls keep their own tooltips. */
+.sel-step-row .sel-words {
+    display: flex;
+    flex: 1 1 auto;
+    gap: 4px;
+    min-width: 0;
+}
+
+/* The verb "+" adds, said as a word beside it. */
+.sel-plus-word {
+    margin-inline-start: 4px;
 }

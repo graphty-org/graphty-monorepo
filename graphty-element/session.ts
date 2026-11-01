@@ -671,6 +671,7 @@ export type {
     AgreementOptions,
     BindingPreview,
     BindingPreviewBin,
+    BranchesView,
     ChannelAgreement,
     ChannelCovers,
     ChannelExplanation,

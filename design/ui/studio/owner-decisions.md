@@ -3645,3 +3645,21 @@ thumbs (10 x 10 px). Each is compact-mantine's Figma look, so changing it needs 
 The app's own number boxes moved to the default 24 px.
 
 **Why.** A small target is hard to hit by touch or with a tremor.
+
+## 2026-11-01 -- For the owner: compact-mantine's Chip, and a word on the split button
+
+**What is open.** Two looks only compact-mantine can change, and it is locked to Figma:
+
+- Mantine's bare Chip (the table's "With issues", the Data place's chips) draws white text on the
+  brand lime when checked: 1.98:1 in light, 1.3:1 in dark, under the 4.5:1 WCAG asks. compact-mantine
+  has no Chip theme. The table's "Matches only" moved to compact-mantine's segment ("Matches only |
+  All") meanwhile; "With issues" still uses the Chip.
+- The selection editor's step "+" is compact-mantine's SplitButton, which draws an icon only. The
+  studio wants the verb as a word on it ("+ Keep"); the build draws the verb's glyph on the button
+  and the word beside it.
+
+**Choices.** (a) A compact-mantine Chip theme in Figma's checked-row ink, and a SplitButton with an
+optional text label; (b) keep both as built.
+
+**Why.** Contrast below 3:1 fails WCAG 1.4.3 for every checked chip; a word on the split button is
+what the ease walk asked for.

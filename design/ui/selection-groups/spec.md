@@ -97,8 +97,10 @@ glyphs are lucide icons the app already ships.
 ## 4. Dropdowns and segments, in order
 
 - **"+" at a group's foot** (split button) adds a step and opens the value picker at once: Add on an
-  empty None group, Keep on an empty All group, else the last step's verb. Its caret opens the verb
-  menu first.
+  empty None group, else Keep (revised 2026-11-01: after a group's first step "+" refines, because
+  widening is what "Or" is for). The button draws the verb's glyph and says the verb as a word beside
+  it ("Keep"), so it never reads as "Or". Its caret opens the verb menu first, the step's own verb
+  checked on an existing step's menu.
 - **"+" Or** under the last group adds a group (None, the element's next free color) and opens its
   value picker; tooltip "Or: match another way"; disabled, reason in its tooltip, when the palette is
   used up.
@@ -258,14 +260,21 @@ shows a **preview**:
 - every style layer is suspended (not removed, no undo step, the layer list unchanged);
 - members draw in their group's color at the base look; the rest draws faint, never hidden, labels
   kept, so color is never the only signal; a pending group's last ready result is outlined;
-- the Selected ring and the hover mark stay on top;
+- the Selected ring and the hover mark stay on top: graphty-element keeps every layer of the state
+  selected or hovered (the Selected and Hovered rows, or a reader's own) drawing, above the group
+  colors;
+- pointing at or focusing a group's row marks it: its members stay at full strength, every other
+  group's are drawn faint (`BranchesView.mark`);
 - the canvas key's title reads "Preview: Which nodes" (a filter: the card's name), with a swatch, name
   and count per group and "No match 7", so nobody thinks their styles are gone;
 - in the import filter, the card being edited is held: what it would remove stays drawn faint.
 
 It ends, styling returning in the same frame, on Done, Escape (once nothing smaller is open), a click
 outside the editor (an armed target's click is picking, not outside), leaving the place or closing
-the panel; announced once, never saved. A **preview toggle** in the selection header ("Group colors",
+the panel; announced once, never saved. One preview at a time: an editor that starts picking ends
+the other editor's picking, and the key reads the view graphty-element draws
+(`styles.shownBranches`), never a store, so the key, the table and the canvas always describe one
+selection. A single group goes by the selection's title in the key and the table, never "A". A **preview toggle** in the selection header ("Group colors",
 pressed by default) shows the real styling instead, per session and host. **graphty-element draws
 it** (`styles.showBranches`), never the app hiding layers or touching meshes.
 
@@ -311,7 +320,8 @@ graphty-element, app checks in `*.real-element.test.tsx` and story play function
    with All, same count and picture.
 7. Both pickers list the same entries in the same order, except Time window; states may differ.
 8. "deg" finds Degree under Data with no run; arrowing onto betweenness starts no run; Enter does.
-9. "+" on an All group writes Keep; the caret's menu reads Add, Except, Keep.
+9. "+" on an All group writes Keep; the caret's menu reads Add, Except, Keep. After a None group's
+   first step, "+" writes Keep too.
 10. Betweenness picked in a style card is one filtered-graph run in Analyze, layer list unchanged; in
     a filter card that run is greyed and the pick starts a full-graph run.
 11. Ask limit forced low: "Run (about X)", pending until pressed; Cancel leaves it pending; at rest
@@ -335,8 +345,15 @@ graphty-element, app checks in `*.real-element.test.tsx` and story play function
 23. Group colors are 3:1 on both themes, differ from the ring and hover hues; deleting A keeps B's.
 24. Keyboard only: one Tab stop, arrows, Enter; Mod+] moves a step and announces it; "..." items show
     their keys.
-25. "+" then Escape leaves no step, focus on "+".
-26. A screenshot audit of both hosts: no removed sentence, no filled chit at rest.
+25. "+" then Escape leaves no step, focus on "+"; "Or" then Escape leaves no group.
+26. Picking a yes-or-no value writes nothing and selects nothing until Yes or No is picked; a data
+    column named rank is listed under Data.
+27. A value with no test (Largest component, Isolated) applies as picked and opens no card.
+28. A node step reading an edge value counts only the edges the filter left (neighbors.csv,
+    Desmond filtered out: kind = coworkers holds Gwen, Ian, Kurt, Lila, Nils).
+29. A So far step's card draws its test from the values its own computation gave, never "Computing".
+30. The style tree's rows move with Mod+[ (up) and Mod+] (down), as a selection's rows.
+31. A screenshot audit of both hosts: no removed sentence, no filled chit at rest.
 
 **Dry run and study re-tests**: "the most connected people who are also staff"; "color the people
 within two steps of Valjean" from a fresh layer; pick, switch place, return: styles are back; a Filter

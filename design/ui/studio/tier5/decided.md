@@ -220,6 +220,80 @@ value picker's shared listbox look (which also fixes its white-on-lime highlight
 Shares a value with and On a path between presets, the element reading `valueKind` and `checkStep`
 in the picker, and `watchSteps` starting no run until a write.
 
+## Polish round 2 fixes, 2026-11-01 (studio engineer)
+
+Fixed from the polish round 2 reviews (`polish-2-*.md`):
+
+- **The preview keeps the ring and the hover mark** (spec 9): graphty-element draws every layer of
+  the state selected or hovered above the group colors. Pointing at or focusing a group's row marks
+  it (`BranchesView.mark`, new, @beta): its members at full strength, the other groups faint.
+- **One preview, one description.** An editor that starts picking claims the editing slot, an editor
+  at rest keeps it only while nobody else holds it, and each clears only its own claim; another
+  editor that starts picking ends this one's picking. The key reads `styles.shownBranches` (new,
+  @beta), the view the element draws, and `style:branches-shown-changed` now also tells a view that
+  replaces another. The style editor takes focus on its first row when it opens from the folded row.
+- **Reversal of spec 4's "else the last step's verb"**: after a group's first step "+" writes Keep.
+  Refining narrows; widening is what Or is for (ease walk: Largest component then Degree 2 or more
+  grew 249 to 283). The split button draws the verb's glyph and says it as a word beside it; a word
+  on the button itself would change compact-mantine's SplitButton (Figma-locked), so it stays beside.
+- **A yes-or-no value picked writes nothing**: its untested form is an empty pick, which
+  graphty-element reads as inert on any value; its card shows no choice until Yes or No is picked.
+- **A data column named rank or percentile is listed**; only a run's rank and percentile companions
+  are left out of the picker.
+- **A value with no test (Largest component, Isolated, Self-loops, Repeated edges) applies as picked**;
+  no card opens to repeat its row, and focus goes to its row.
+- **Cards count over the selection's base**: a node step reading an edge value reads only the edges
+  the filter left (graphty-element), a category checklist counts and a number card's "no value"
+  count are taken over the base, and Degree's range is read over it.
+- **A So far step's card** draws its test from the values its own computation gave
+  (`StepReading.values`, new, @beta), and the run line says Computing only for a computing reason.
+- **An edge step reading a node value** takes Both ends | Either end in its card.
+- **Menus speak the style tree's grammar**: the group and step "..." menus are drawn as the tree's
+  row menu (icon, words, key, dividers between edit, view and remove), with Show / Hide on
+  Shift+Mod+H (Space stays an alias on a row). The card's menu no longer lists Space. The verb menu
+  checks the step's own verb. The style tree's rows gain Move up (Mod+[) and Move down (Mod+]).
+- **Words**: a filter card's name, remove, undo step and announcements say the selection as its
+  rows say it (`selectionWords`), so "a rule" is gone and one filter is spoken one way. In a filter
+  the reference list heads its first section "Selection" (nothing in a filter is live) and So far is
+  off on a group's first step; the list is capped at the shared 240 px. A single group goes by the
+  selection's title in the key and the table. The key's No match row has a faint swatch.
+- **Rows**: the step's on box and remove carry their own tooltips with their keys, the row's
+  tooltip is on its words only; a step that is off says so in its name; a value is cut short only
+  once its test is gone; the new-step placeholder and the run line are 11/16 body text; "Or" then
+  Escape takes the new group back; a pending group's chip says "Waits", its last count in the
+  tooltip.
+- **Focus and contrast**: a text card puts focus in its text box; a pending card keeps focus waiting
+  for its first box; a style count chip that selects hands focus to the inspector's heading and
+  says how many were selected; the "how to match" select is the 24 px Figma control; the table's
+  Matches only is compact-mantine's segment ("Matches only | All"); the value picker draws as
+  compact-mantine's listbox (its lit row keeps the menu ink), from `LISTBOX_CLASS_NAMES`, newly
+  exported by compact-mantine with no change to its look.
+- **Group colors** has its own glyph (Palette), no longer the plain circle the tree's group rows use.
+
+Carried, each with its reason:
+
+- A Select card's effect is still written while its editor is open. Holding the selection until Done
+  needs graphty-element's select conditions to defer under a held view and to come back as one undo
+  step; that touches the select-condition undo pairing and is a change of its own.
+- A new filter card kept on Done still lives in React state until a step applies. Writing it at once
+  needs graphty-element to read a condition whose union has no applied step as inert (removes and
+  selects nothing) -- a behavior change to a @beta leaf, to be designed with the counts' reason code.
+- `watchSteps` still starts session runs, and the render-time peeks remain; the import filter's
+  picker still lists filtered-graph runs un-greyed, and two runs of one algorithm are not yet told
+  apart by scope. These need graphty-element's `checkStep` to say which run a step reads.
+- After reopening a project, a layer with a So far step can count 7 while painting 8 until an undo:
+  graphty-element does not restore step-owned computations with the project.
+- The reference picker is still Mantine's Select: no option highlighted on open, no
+  `aria-activedescendant`; the fix is to build it from the value picker's searchable listbox.
+- Rows are still role group (not treeitem with level and expanded); rows now carry
+  `aria-keyshortcuts`, and the menus' items say their keys.
+- The range slider's spoken value, the "With issues" chip's contrast and a compact-mantine Chip theme
+  are compact-mantine changes (see `../owner-decisions.md`).
+- Minors not taken: the filter host header's two icons, duplicate control names across groups, a
+  match count while typing, Degree's summary in the picker, the text card's operators (Matches, Not
+  measured chip), the While and Within words in the card head, the legend's and a new layer's row
+  denominators.
+
 ## Waiting for the owner
 
 - Retagging bfs `level`, k-core `value` and dfs `value` as ordinal changes what `fieldMeasurement`

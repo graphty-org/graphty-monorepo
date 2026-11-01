@@ -96,6 +96,55 @@ function runOfFolder(session: GraphSession | null, row: StyleRow): string | unde
     return runs.size === 1 ? only : undefined;
 }
 
+/**
+ * A Move up or Move down command: one place up or down its list as the tree draws it (the tree is
+ * bottom first, drawn top first), the same keys as a selection's rows.
+ * @param by - +1 up the drawn list, -1 down it.
+ * @returns the command.
+ */
+function moveCommand(by: 1 | -1): RowCommand {
+    const up = by === 1;
+    const place = (
+        session: GraphSession | null,
+        row: StyleRow,
+    ): { parent: StyleRow | undefined; siblings: readonly StyleRow[]; at: number } => {
+        const found = session === null ? undefined : findTreeRow(session.styles.tree(), row.id);
+        const parent = found?.folders.at(-1);
+        const siblings = parent?.children ?? session?.styles.tree() ?? [];
+        return { parent, siblings, at: siblings.findIndex((each) => each.id === row.id) };
+    };
+    return {
+        id: up ? "row.move-up" : "row.move-down",
+        label: up ? "Move up" : "Move down",
+        icon: up ? "moveUp" : "moveDown",
+        group: "edit",
+        rowKeys: [up ? "Mod+[" : "Mod+]"],
+        applies: () => true,
+        disabled: (row, session) => {
+            const { siblings, at } = place(session, row);
+            const next = siblings[at + by];
+            if (isBaseRow(session, row.id) || (next !== undefined && isBaseRow(session, next.id))) {
+                return BASE_STAYS;
+            }
+            if (next === undefined) {
+                return up ? "Already at the top" : "Already at the bottom";
+            }
+            return null;
+        },
+        run: async ({ session, workspace }, row) => {
+            if (session === null) {
+                return;
+            }
+            const { parent, at } = place(session, row);
+            await orNotice(
+                workspace,
+                `move ${row.name}`,
+                session.styles.moveRow(row.id, { parent: parent?.id ?? null, index: at + by }),
+            );
+        },
+    };
+}
+
 /** The row commands, in menu order. */
 export const ROW_COMMANDS: readonly RowCommand[] = [
     {
@@ -137,6 +186,8 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
             }
         },
     },
+    moveCommand(1),
+    moveCommand(-1),
     {
         // A run's group folder: its settings and Rerun are on the run's own page.
         id: "row.open-run",

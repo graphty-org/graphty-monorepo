@@ -115,9 +115,10 @@ function fieldClassNames(fallback: "filled" | "outlined", extra = "") {
 
 /**
  * The listbox's classNames (spec 6.5). The dropdown is also a `cm-menu`: it scrolls itself
- * (no ScrollArea) and takes the menus' 24px scroll chevron rows (overlayBehavior.ts).
+ * (no ScrollArea) and takes the menus' 24px scroll chevron rows (overlayBehavior.ts). Exported for
+ * a list built on Mantine's `Combobox` directly, so it draws as every Select's does.
  */
-const LISTBOX_CLASS_NAMES = {
+export const LISTBOX_CLASS_NAMES = {
     dropdown: "cm-menu-surface cm-menu cm-listbox",
     options: "cm-listbox-options",
     option: "cm-menu-row cm-listbox-option",

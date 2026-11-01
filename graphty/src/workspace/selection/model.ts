@@ -39,17 +39,14 @@ export function newSelection(side: UnionLeaf["side"], within: UnionLeaf["within"
 }
 
 /**
- * The verb "+" writes at a group's foot: Add on an empty None group, Keep on an empty All group,
- * else the last step's verb.
+ * The verb "+" writes at a group's foot: Add on an empty None group (its first step says what it
+ * holds), else Keep. Refining narrows: widening is what "Or" is for, so a second step never makes
+ * a group bigger unasked.
  * @param branch - the group.
  * @returns the verb.
  */
 export function defaultVerb(branch: UnionBranch): Verb {
-    const last = branch.steps.at(-1);
-    if (last !== undefined) {
-        return last.op;
-    }
-    return branch.start === "none" ? "add" : "keep";
+    return branch.start === "none" && branch.steps.length === 0 ? "add" : "keep";
 }
 
 /**

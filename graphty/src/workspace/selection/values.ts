@@ -54,7 +54,8 @@ function untested(field: CardField): RuleTree {
         case "category":
             return { kind: "categories", attribute: field.path, values: [] };
         case "yes-no":
-            return { kind: "text", reads: field.path, mode: "exact", text: "true", caseSensitive: true };
+            // An empty pick is graphty-element's inert form on any value: never "is Yes" unasked.
+            return { kind: "categories", attribute: field.path, values: [] };
         case "source":
             return { kind: "source", sources: [] };
         default:
@@ -67,15 +68,16 @@ function untested(field: CardField): RuleTree {
  * structure values (Degree, and In and Out degree on a directed graph), read with no run.
  * @param session - the element's session.
  * @param side - nodes or edges.
+ * @param within - the selection's base, which a structure value's range is read over.
  * @returns the fields.
  */
-function stepFields(session: GraphSession, side: Side): CardField[] {
+function stepFields(session: GraphSession, side: Side, within?: UnionLeaf["within"]): CardField[] {
     const fields = cardFields(session, side);
     if (side !== "node") {
         return fields;
     }
     const structure = session.data.structureValues().map((value): CardField => {
-        const histogram = session.scope.histogram(value.path);
+        const histogram = session.scope.histogram(value.path, within === undefined ? {} : { within });
         const range =
             histogram.kind === "numeric" && histogram.min !== undefined && histogram.max !== undefined
                 ? { range: { min: histogram.min, max: histogram.max } }
@@ -90,11 +92,13 @@ function stepFields(session: GraphSession, side: Side): CardField[] {
  * then Results (a finished run's main values; no rank or percentile entries).
  * @param session - the element's session.
  * @param side - nodes or edges.
+ * @param within - the selection's base, which a structure value's range is read over.
  * @returns the fields, regrouped.
  */
-export function pickerFields(session: GraphSession, side: Side): CardField[] {
-    const fields = stepFields(session, side).filter(
-        (field) => !field.path.endsWith(".rank") && !field.path.endsWith(".percentile"),
+export function pickerFields(session: GraphSession, side: Side, within?: UnionLeaf["within"]): CardField[] {
+    // A run's rank and percentile companions are left out; a data column of that name is kept.
+    const fields = stepFields(session, side, within).filter(
+        (field) => field.group !== "Results" || (!field.path.endsWith(".rank") && !field.path.endsWith(".percentile")),
     );
     const data = fields
         .filter((field) => field.group !== "Results")
@@ -324,11 +328,14 @@ interface StepCardRead {
 
 /**
  * The card a step's test is edited with: the card a data column's leaf draws, or, for a
- * `measure`, the card of the run field it reads once that run is there.
+ * `measure`, the card of the run field it reads once that run is there, or of the values its own
+ * computation gave (computed on So far). Every count the card shows is taken over the selection's
+ * base.
  * @param session - the element's session.
  * @param step - the step.
  * @param reading - its reading.
  * @param side - the selection's side.
+ * @param within - the selection's base; absent, the whole graph.
  * @returns the card.
  */
 export function stepCard(
@@ -336,8 +343,12 @@ export function stepCard(
     step: UnionStep,
     reading: StepReading | undefined,
     side: Side,
+    within?: UnionLeaf["within"],
 ): StepCardRead {
-    const fields = [...stepFields(session, side), ...stepFields(session, side === "node" ? "edge" : "node")];
+    const fields = [
+        ...stepFields(session, side, within),
+        ...stepFields(session, side === "node" ? "edge" : "node", within),
+    ].map((field) => (within === undefined ? field : { ...field, within }));
     const { rule } = step;
     if (rule.kind !== "measure") {
         const card = cardOf(session, rule, fields, 0);
@@ -345,7 +356,7 @@ export function stepCard(
     }
     const run = reading?.run ?? null;
     if (run === null) {
-        return { card: null };
+        return ownCard(session, step, rule, reading, side);
     }
     const path = session.results.path(run, rule.field);
     const field = fields.find((each) => each.path === path);
@@ -358,6 +369,47 @@ export function stepCard(
             : cardOf(session, testLeaf(rule.test, path), fields, 0);
     return { card: card.type === "fixed" ? null : card, field };
 }
+
+/**
+ * The card of a step whose own computation gave its values (computed on So far): a number card
+ * over the range graphty-element reports for them, its test read from the step.
+ * @param session - the element's session.
+ * @param step - the step.
+ * @param rule - its measure.
+ * @param reading - its reading.
+ * @param side - the selection's side.
+ * @returns the card, or none while the values are not there yet.
+ */
+function ownCard(
+    session: GraphSession,
+    step: UnionStep,
+    rule: Extract<RuleTree, { kind: "measure" }>,
+    reading: StepReading | undefined,
+    side: Side,
+): StepCardRead {
+    const values = reading?.values ?? null;
+    if (values?.kind !== "numeric") {
+        return { card: null };
+    }
+    const descriptor = session.catalog.algorithms().find((each) => each.key === rule.algorithm);
+    const field: CardField = {
+        path: `${SO_FAR_PATH}${step.id ?? ""}`,
+        on: side,
+        kind: "number",
+        name: descriptor === undefined ? rule.algorithm : wordsFor(descriptor).name,
+        group: "Results",
+        missing: values.missing,
+        ...(values.min === undefined || values.max === undefined
+            ? {}
+            : { range: { min: values.min, max: values.max } }),
+    };
+    const leaf = rule.test === undefined ? untested(field) : testLeaf(rule.test, field.path);
+    const card = cardOf(session, leaf, [field], 0);
+    return { card: card.type === "fixed" ? null : card, field };
+}
+
+/** The path a So far step's own values go by in its card: no element path names them. */
+const SO_FAR_PATH = "so-far:";
 
 /**
  * A step's rule after its card was edited: the card's leaf (untested while it holds no test), or

@@ -16,6 +16,7 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import { valueWord } from "../inspector/words";
+import { selectionWords } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
 import { filterChangeWords, type Namer, ruleWords } from "./filterWords";
@@ -52,7 +53,8 @@ function namerOf(session: GraphSession): Namer {
  * @returns the words.
  */
 export function conditionWords(session: GraphSession, rule: RuleTree): string {
-    return ruleWords(rule, namerOf(session));
+    // A selection is said as its rows say it, so the card's name, remove and undo never differ.
+    return rule.kind === "union" ? selectionWords(session, rule) : ruleWords(rule, namerOf(session));
 }
 
 /** The Filters row, and the inspected id, of the time window. */

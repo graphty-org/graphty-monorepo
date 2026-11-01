@@ -1,4 +1,4 @@
-import { focusWithRing, useNumberParser } from "@graphty/compact-mantine";
+import { focusWithRing, LISTBOX_CLASS_NAMES, useNumberParser } from "@graphty/compact-mantine";
 import type { GraphSession, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -1402,6 +1402,9 @@ export function AddCondition({
             width={width}
             position="bottom-start"
             withinPortal
+            // compact-mantine's listbox look, as every Select's: its lit row keeps the menu's ink
+            // (Mantine's bare highlight is white on the brand color, under 3:1).
+            classNames={LISTBOX_CLASS_NAMES}
             onOptionSubmit={(value) => {
                 const field = fields.find((f) => keyOf(f) === value);
                 const other = extraRows.find((each) => `${EXTRA}${each.key}` === value);
@@ -1755,7 +1758,7 @@ export function CardBody({
                     // Its choices are the values themselves (Yes, No), so it is named for them.
                     label={`${card.field.name} is`}
                     name={card.field.name}
-                    value={blank ? null : card.match}
+                    value={blank || card.match === "unset" ? null : card.match}
                     data={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, ...PRESENCE]}
                     onChange={(match) => {
                         onChange({ ...card, match: match as typeof card.match });
@@ -1838,7 +1841,7 @@ function MatchSelect({
     return (
         <Select
             ref={input}
-            size="xs"
+            // The default size: Figma's 24 px control, as the number boxes beside it (xs was 18 px).
             // Named for what it chooses beside the card's column; the select says its own value.
             aria-label={label ?? `${name}: how to match`}
             allowDeselect={false}
@@ -2101,8 +2104,16 @@ function NumberCard({
     side: Side;
     onChange: OnCard;
 }>): React.JSX.Element {
-    const { name, path, range } = card.field;
-    const missing = useMemo(() => session.data.valueCounts(path, { kind: side }).missing, [session, path, side]);
+    const { name, path, range, within, missing: given } = card.field;
+    // Counted over the selection's base when the card has one, so a filtered-out node is not.
+    const missing = useMemo(
+        () =>
+            given ??
+            (within === undefined
+                ? session.data.valueCounts(path, { kind: side }).missing
+                : session.scope.histogram(path, { within }).missing),
+        [session, path, side, within, given],
+    );
     const stats = session.data.statistics();
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
     const parse = useNumberParser();
@@ -2546,8 +2557,18 @@ function CategoryCard({
     onChange: OnCard;
     variant?: "filter";
 }>): React.JSX.Element {
-    const { name, path } = card.field;
-    const counts = useMemo(() => session.data.valueCounts(path, { kind: side }), [session, path, side]);
+    const { name, path, within } = card.field;
+    const counts = useMemo(() => {
+        if (within === undefined) {
+            return session.data.valueCounts(path, { kind: side });
+        }
+        // Counted over the selection's base, so a value only filtered-out elements hold reads 0.
+        const histogram = session.scope.histogram(path, { within, as: "categorical" });
+        return {
+            values: histogram.kind === "categorical" ? histogram.values : [],
+            missing: histogram.missing,
+        };
+    }, [session, path, side, within]);
     const [search, setSearch] = useState("");
     const [all, setAll] = useState(false);
     const typed = search.trim().toLowerCase();

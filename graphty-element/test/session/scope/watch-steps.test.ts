@@ -473,6 +473,11 @@ describe("measure steps and runs", () => {
         assert.isAtMost(ready.total.count, 5);
         assert.strictEqual(session.runs.list().length, 0);
         assert.deepEqual(executions.sizes, [staff]);
+        // Its values are reported on the step, spread over its input, so a test can be set from them.
+        const { values } = ready.branches[0].steps[1];
+        assert.strictEqual(values?.kind, "numeric");
+        assert.strictEqual(values?.of, staff, "counted over the step's input");
+        assert.isNull(ready.branches[0].steps[0].values, "a step reading no own computation has none");
     });
 
     it("above the ask limit a step waits for allowRun; Cancel leaves it waiting", async () => {

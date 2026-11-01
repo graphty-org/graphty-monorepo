@@ -12,6 +12,7 @@ import type {
     StepReasonCode,
     StepReference,
     StepsReading,
+    UnionLeaf,
     UnionStep,
 } from "@graphty/graphty-element/session";
 
@@ -262,4 +263,28 @@ export function summaryChips(
             };
         }),
     );
+}
+
+/**
+ * A selection as one line, said as its rows say each step: "Degree 10 or more, keep Isolated or
+ * Within 1 hop of Valjean". A group starting with nothing reads its first Add as the step itself.
+ * One words function for a filter card's name, its remove, its undo step and its rows.
+ * @param session - the element's session.
+ * @param rule - the selection.
+ * @returns the words.
+ */
+export function selectionWords(session: GraphSession, rule: UnionLeaf): string {
+    const side: Side = rule.side === "nodes" ? "node" : "edge";
+    const groups = rule.branches.map((branch) =>
+        branch.steps
+            .map((step, at) => {
+                const { value, test } = stepWords(session, step, side);
+                const words = test === "" ? value : `${value} ${test}`;
+                return at === 0 && branch.start !== "all" && step.op === "add"
+                    ? words
+                    : `${VERB_WORDS[step.op].word.toLowerCase()} ${words}`;
+            })
+            .join(", "),
+    );
+    return groups.filter((each) => each !== "").join(" or ") || "a selection";
 }

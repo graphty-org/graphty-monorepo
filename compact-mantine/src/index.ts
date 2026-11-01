@@ -50,6 +50,7 @@ export { SplitButton, ToggleIconButton } from "./components/buttons";
 export { ComboInput, FileSource, pickFiles, SearchInput, useFileDrop, VariablePill } from "./components/inputs";
 export { focusWithRing, ListboxCheck } from "./components/inputs/listbox";
 export { type ScrubCallbacks, useScrub } from "./components/inputs/useScrub";
+export { LISTBOX_CLASS_NAMES } from "./theme/components/inputs";
 
 // Overlays: the context menu, the checkable menu row and a row's second line, the modal footer,
 // the toast, the tooltip's shortcut label (8.1-8.6), and the tooltip for a menu's button.

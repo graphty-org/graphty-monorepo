@@ -43,6 +43,10 @@ export interface CardField {
     readonly range?: { readonly min: number; readonly max: number };
     /** One fact that tells it from its neighbors in a list ("1 to 36", "6 values"), as the Vary by list says it. */
     readonly fact?: string;
+    /** The elements a card counts over (a selection's base); absent, the whole graph. */
+    readonly within?: "graph" | "visible";
+    /** How many of them have no value, when the card cannot read it by its path. */
+    readonly missing?: number;
 }
 
 /** How a text or a name card compares. */
@@ -100,7 +104,8 @@ export type Card =
           readonly type: "yes-no";
           readonly key: string;
           readonly field: CardField;
-          readonly match: "yes" | "no" | Presence;
+          /** `"unset"`: nothing picked yet, so the card makes no leaf. */
+          readonly match: "yes" | "no" | "unset" | Presence;
       }
     | {
           /** The loads an element came from (`data.sources()` keys), ticked ones being alternatives. */
@@ -357,6 +362,9 @@ export function leafOf(card: Card): RuleTree | null {
         case "category":
             return categoryLeaf(card, path);
         case "yes-no":
+            if (card.match === "unset") {
+                return null;
+            }
             return {
                 kind: "text",
                 reads: path,
@@ -593,6 +601,10 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
             return expressionCard(leaf, field, elsewhere);
         case "categories": {
             const f = field(leaf.attribute);
+            if (f?.kind === "yes-no" && leaf.values.length === 0) {
+                // A yes-or-no value with nothing picked yet: its card, showing no choice.
+                return { type: "yes-no", key: keyOf(f), field: f, match: "unset" };
+            }
             return f === undefined
                 ? elsewhere
                 : { type: "category", key: keyOf(f), field: f, match: "values", values: leaf.values, gaps: false };
@@ -914,7 +926,7 @@ export function cardWords(session: GraphSession, card: Card): string {
         case "category":
             return categoryWords(session, card, name, path);
         case "yes-no":
-            return `${name}: ${card.match}`;
+            return card.match === "unset" ? `${name}: pick yes or no` : `${name}: ${card.match}`;
         default: {
             if (card.match === "list") {
                 return pickedWords((card.ids ?? []).length, 0);

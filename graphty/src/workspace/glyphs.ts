@@ -7,11 +7,13 @@
 import type { ReadableValueKind } from "@graphty/graphty-element/catalog";
 import {
     Activity,
+    ArrowDown,
     ArrowDownToLine,
     ArrowDownUp,
     ArrowLeftToLine,
     ArrowRight,
     ArrowRightToLine,
+    ArrowUp,
     ArrowUpToLine,
     Blend,
     Boxes,
@@ -80,6 +82,7 @@ import {
     Network,
     Orbit,
     Paintbrush,
+    Palette,
     Pause,
     Pencil,
     Pin,
@@ -147,6 +150,8 @@ export const GLYPHS = {
     measure: ChartColumn,
     run: Shapes,
     group: Circle,
+    // Draw a selection's groups in their colors while picking.
+    groupColors: Palette,
     layer: Paintbrush,
     // A folder of style layers, and the marks a layer row carries.
     folder: Folder,
@@ -215,6 +220,9 @@ export const GLYPHS = {
     pinTop: ArrowUpToLine,
     pinBottom: ArrowDownToLine,
     unpin: PinOff,
+    // Move a row one place up or down its list (Mod+[ and Mod+]).
+    moveUp: ArrowUp,
+    moveDown: ArrowDown,
     ungroup: Ungroup,
     undo: Undo2,
     redo: Redo2,

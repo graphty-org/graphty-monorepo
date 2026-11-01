@@ -386,6 +386,14 @@ export interface BindingStop {
 }
 
 // @beta
+export interface BranchesView {
+    readonly hold?: string;
+    readonly mark?: string;
+    readonly rest?: "faint" | "plain";
+    readonly rule: UnionLeaf;
+}
+
+// @beta
 export interface BranchReading {
     // (undocumented)
     readonly color: string;
@@ -6133,6 +6141,7 @@ export interface StepReading {
     readonly run: RunId | null;
     // (undocumented)
     readonly state: StepState;
+    readonly values: ValueHistogram | null;
     readonly waiting: boolean;
 }
 
@@ -6374,6 +6383,8 @@ export interface StylesApi {
     };
     // @beta
     readonly showingBranches: boolean;
+    // @beta
+    readonly shownBranches: BranchesView | null;
     toDocument(): StyleDocument;
     toFile(): StyleFileDocument;
     tree(): readonly StyleRow[];

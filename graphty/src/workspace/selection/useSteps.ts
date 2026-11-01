@@ -2,7 +2,7 @@
  * A selection read live from graphty-element (`scope.watchSteps`).
  */
 
-import type { GraphSession, StepsReading, UnionLeaf } from "@graphty/graphty-element/session";
+import type { BranchesView, GraphSession, StepsReading, UnionLeaf } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
 /**
@@ -67,6 +67,22 @@ export function useShowingBranches(session: GraphSession): boolean {
         setShown(session.styles.showingBranches);
         return session.on("style:branches-shown-changed", (change) => {
             setShown(change.shown);
+        });
+    }, [session]);
+    return shown;
+}
+
+/**
+ * The branches view graphty-element draws now, whoever drew it: what the canvas key describes.
+ * @param session - the element's session.
+ * @returns the view, or null.
+ */
+export function useShownBranches(session: GraphSession): BranchesView | null {
+    const [shown, setShown] = useState(session.styles.shownBranches);
+    useEffect(() => {
+        setShown(session.styles.shownBranches);
+        return session.on("style:branches-shown-changed", () => {
+            setShown(session.styles.shownBranches);
         });
     }, [session]);
     return shown;

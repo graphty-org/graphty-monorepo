@@ -320,7 +320,10 @@ describe("the selection editor in a filter card", () => {
         await userEvent.click(within(card).getByRole("button", { name: "Degree" }));
         const verb = await within(card).findByRole("button", { name: "Verb: Keep" });
         await userEvent.click(verb);
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Except (Subtract)" }));
+        // The step's own verb is marked, as Figma's boolean menu marks it.
+        const current = await screen.findByRole("menuitemradio", { name: "Keep (Intersect)" });
+        assert.equal(current.getAttribute("aria-checked"), "true");
+        await userEvent.click(await screen.findByRole("menuitemradio", { name: "Except (Subtract)" }));
         await waitFor(() => {
             const rule = session.visibility.conditions[0]?.rule;
             assert.equal(rule?.kind, "union");
@@ -383,12 +386,12 @@ describe("the selection editor and the table", () => {
             assert.equal(nodeRows(), expected, "only the rows the selection matches");
         });
         assert.isNotNull(screen.queryByRole("columnheader", { name: /^Group/ }));
-        const matches = screen.getByRole("checkbox", { name: "Matches only" });
+        const matches = screen.getByRole("radio", { name: "Matches only" });
         assert.isTrue((matches as HTMLInputElement).checked);
         assert.isTrue(editor.contains(document.activeElement), "focus stays in the editor");
         // Every node again, with the reader's one click.
-        // The chip's box is drawn by its label, which the pointer clicks.
-        await userEvent.click(screen.getByText("Matches only"));
+        // The segment's radio is visually hidden: the pointer clicks its label.
+        await userEvent.click(within(screen.getByRole("radiogroup", { name: "Rows" })).getByText("All"));
         await waitFor(() => {
             assert.equal(nodeRows(), 77);
         });
@@ -404,6 +407,10 @@ describe("the selection editor and the table", () => {
         await userEvent.click(chip);
         await waitFor(() => {
             assert.equal(session.selection.nodes.length, expected);
+        });
+        // The inspector turns to the selection and the editor goes: focus follows to its heading.
+        await waitFor(() => {
+            assert.equal(document.activeElement?.id, "ws-inspector-title");
         });
     });
 
@@ -502,6 +509,11 @@ describe("the selection editor's keys, names and limits", () => {
         assert.isFalse(
             screen.getByRole<HTMLInputElement>("checkbox", { name: "Use Degree" }).checked,
             "the on box says it",
+        );
+        assert.match(
+            document.querySelector('[data-row="deg"]')?.getAttribute("aria-label") ?? "",
+            /, off$/,
+            "and so does the row's name",
         );
         document.querySelector<HTMLElement>('[data-row="b"]')?.focus();
         await userEvent.keyboard("{Enter}");

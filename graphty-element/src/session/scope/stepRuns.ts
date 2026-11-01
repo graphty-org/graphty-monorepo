@@ -100,6 +100,14 @@ export interface StepRuns extends UnionStepSource {
      * @returns The run id.
      */
     runOf(step: UnionStep, within: "graph" | "visible"): RunId | null;
+    /**
+     * The finished result of a step's own computation (computed on So far, or bound to a live
+     * reference), or undefined while it has none.
+     * @param step - The step.
+     * @param within - Its base.
+     * @returns The result.
+     */
+    ownResult(step: UnionStep, within: "graph" | "visible"): FilterRunResult | undefined;
 }
 
 /** A step's own computation. */
@@ -426,6 +434,11 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         runOf(step, within) {
             const known = started.get(definitionKey(step, within));
             return known === undefined || known === "" ? null : known;
+        },
+        ownResult(step, within) {
+            const key = localKeys.get(definitionKey(step, within));
+            const entry = key === undefined ? undefined : local.get(key);
+            return entry?.state === "ready" ? entry.result : undefined;
         },
     };
 }

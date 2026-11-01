@@ -13,7 +13,6 @@ import "./selection.css";
 import {
     focusWithRing,
     InlineRename,
-    MenuShortcut,
     SegmentedControl,
     SplitButton,
     TargetTooltip,
@@ -29,8 +28,9 @@ import type {
     UnionLeaf,
 } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Checkbox, CloseButton, Group, Menu, Stack, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
+import { focusInspectorTitle, focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { formatKey, isTypingTarget, matchesKey } from "../keys/keys";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -51,6 +51,7 @@ import {
     type Verb,
     VERBS,
 } from "./model";
+import { SelectionMenuItems } from "./SelectionMenu";
 import { StepCard, VerbMenu } from "./StepCard";
 import { useSteps } from "./useSteps";
 import { type Host, pickerFields, type PickSection, pickSections, ruleOfField, sideOf } from "./values";
@@ -79,7 +80,20 @@ interface SelectionEditorProps {
     readonly openPicker?: boolean;
     /** The host's own picker entries, listed after Results (the import filter's Time window). */
     readonly hostPicks?: readonly PickSection[];
+    /** Takes focus on arrival, on its first row or "+" (opened from a control that goes away). */
+    readonly autoFocus?: boolean;
 }
+
+/** The rule kinds a step takes with no test: picking one applies it, and no card opens. */
+const NO_TEST_KINDS = new Set<RuleTree["kind"]>(["isolated", "self-loop", "repeated-edge"]);
+
+/**
+ * Whether a picked value has a test to set: a structure value applies as it is picked.
+ * @param stepRule - the rule the pick wrote.
+ * @returns true when its card has controls.
+ */
+const hasTest = (stepRule: RuleTree): boolean =>
+    !NO_TEST_KINDS.has(stepRule.kind) && !(stepRule.kind === "member" && stepRule.of === "largest-component");
 
 /** A row the arrow keys walk: a group's row or a step's. */
 const ROW = "[data-row]";
@@ -97,6 +111,7 @@ const ROW = "[data-row]";
  * @param props.title - what the canvas key's preview is titled by
  * @param props.openPicker - opens the value picker on the first group at once
  * @param props.hostPicks - the host's own picker entries
+ * @param props.autoFocus - takes focus on arrival
  * @returns The editor
  */
 export function SelectionEditor({
@@ -110,6 +125,7 @@ export function SelectionEditor({
     title,
     openPicker = false,
     hostPicks = [],
+    autoFocus = false,
 }: SelectionEditorProps): React.JSX.Element {
     const { store } = useWorkspace();
     const reading = useSteps(session, given);
@@ -118,17 +134,22 @@ export function SelectionEditor({
     const side = sideOf(rule);
     const initialStep = openFirst ? rule.branches[0]?.steps[0]?.id : undefined;
     const [openStep, setOpenStep] = useState<string | null>(initialStep ?? null);
-    const [adding, setAdding] = useState<{ branch: string; op: Verb } | null>(() => {
+    // `fresh`: the group was made by "Or" for this step, and goes again with it.
+    const [adding, setAdding] = useState<{ branch: string; op: Verb; fresh?: boolean } | null>(() => {
         const first = rule.branches[0];
         return openPicker && first?.id !== undefined ? { branch: first.id, op: defaultVerb(first) } : null;
     });
     const [active, setActive] = useState<string | null>(null);
     const [renaming, setRenaming] = useState<string | null>(null);
     const [colors, setColors] = useState(groupColors[host]);
+    // The group the pointer or focus is on: graphty-element marks its members while picking.
+    const [marked, setMarked] = useState<string | null>(null);
     const box = useRef<HTMLDivElement>(null);
-    // The step card opened on arrival takes focus on its first control.
+    // The step card opened on arrival takes focus on its first control; an editor opened from a
+    // control that goes away takes it on its first row, else its "+".
+    const arrival = autoFocus && !openPicker ? [`${ROW}[tabindex="0"]`, "[data-plus] button"] : null;
     const focusAfter = useRef<string | readonly string[] | null>(
-        initialStep === undefined ? null : cardFocus(initialStep),
+        initialStep === undefined ? arrival : cardFocus(initialStep),
     );
     const picking = openStep !== null || adding !== null;
     const multi = rule.branches.length > 1;
@@ -149,12 +170,13 @@ export function SelectionEditor({
                 rule: JSON.parse(viewKey) as UnionLeaf,
                 rest: "faint",
                 ...(hold === undefined ? {} : { hold }),
+                ...(marked === null ? {} : { mark: marked }),
             });
         } else {
             view.current?.end();
             view.current = null;
         }
-    }, [previewing, viewKey, session, hold]);
+    }, [previewing, viewKey, session, hold, marked]);
     // The preview's start and end are said once each (spec 9), never on each redraw.
     const wasPreviewing = useRef(false);
     useEffect(() => {
@@ -170,23 +192,39 @@ export function SelectionEditor({
         [],
     );
 
-    // The table's Group column and Matches only read the open selection (spec 8).
+    // The table's Group column and Matches only, and the key's title, read the open selection
+    // (spec 8). One slot, two hosts: an editor that is picking claims it, one at rest keeps it only
+    // while no other editor holds it, and each clears only its own claim.
+    const owner = useId();
+    const holder = useWorkspaceState((state) => state.editingSelection?.owner ?? null);
     useEffect(() => {
         const was = store.get().editingSelection;
-        store.set({
-            editingSelection: {
-                rule: JSON.parse(viewKey) as UnionLeaf,
-                branch: was?.branch ?? null,
-                title: title ?? `Which ${NOUNS[side].many}`,
-            },
-        });
-    }, [viewKey, store, title, side]);
+        if (picking || was === null || was.owner === owner) {
+            store.set({
+                editingSelection: {
+                    owner,
+                    rule: JSON.parse(viewKey) as UnionLeaf,
+                    branch: was?.owner === owner ? was.branch : null,
+                    title: title ?? `Which ${NOUNS[side].many}`,
+                },
+            });
+        }
+    }, [viewKey, store, title, side, picking, owner, holder]);
     useEffect(
         () => () => {
-            store.set({ editingSelection: null });
+            if (store.get().editingSelection?.owner === owner) {
+                store.set({ editingSelection: null });
+            }
         },
-        [store],
+        [store, owner],
     );
+    // Another editor began picking: this one stops, so the canvas, the key and the table describe one.
+    useEffect(() => {
+        if (picking && holder !== null && holder !== owner) {
+            setOpenStep(null);
+            setAdding(null);
+        }
+    }, [holder, owner, picking]);
 
     // A row asked for focus (after a move, an add, a remove) gets it once it is drawn.
     useEffect(() => {
@@ -212,17 +250,31 @@ export function SelectionEditor({
         const made = addStep(rule, branch.id ?? "", op, stepRule);
         onChange(made.rule);
         setAdding(null);
-        setOpenStep(made.id);
         setActive(made.id);
-        focusAfter.current = cardFocus(made.id);
+        // A value with no test (Largest component, Isolated) applies as picked: no card repeats its row.
+        if (hasTest(stepRule)) {
+            setOpenStep(made.id);
+            focusAfter.current = cardFocus(made.id);
+        } else {
+            setOpenStep(null);
+            focusAfter.current = `[data-row="${CSS.escape(made.id)}"]`;
+        }
     };
     const startAdding = (branch: UnionBranch, op: Verb = defaultVerb(branch)): void => {
         setOpenStep(null);
         setAdding({ branch: branch.id ?? "", op });
     };
     const stopAdding = (branch: UnionBranch): void => {
-        // A step with no value is taken back when its picker closes with nothing chosen (spec 1).
+        // A step with no value is taken back when its picker closes with nothing chosen (spec 1),
+        // and so is the group "Or" made for it.
+        const fresh = adding?.fresh === true && branch.steps.length === 0 && branch.id !== undefined;
         setAdding(null);
+        if (fresh) {
+            onChange(removeBranch(rule, branch.id ?? ""));
+            say("No group added");
+            focusAfter.current = "[data-or]";
+            return;
+        }
         say("No step added");
         focusAfter.current = `[data-plus="${CSS.escape(branch.id ?? "")}"] button`;
     };
@@ -292,7 +344,16 @@ export function SelectionEditor({
             return;
         }
         if (host === "selector") {
-            void session.selection.apply({ scope: members });
+            // The inspector turns to the selection and this editor goes: focus follows to its
+            // heading, never to the page.
+            void session.selection.apply({ scope: members }).then((delta) => {
+                say(`Selected ${countWords(delta.nodes, of, side)}`);
+                requestAnimationFrame(() => {
+                    if (focusIsLost()) {
+                        focusInspectorTitle();
+                    }
+                });
+            });
             return;
         }
         const held = store.get().editingSelection;
@@ -348,8 +409,9 @@ export function SelectionEditor({
         } else if (event.key === "F2" && stepId === undefined) {
             event.preventDefault();
             setRenaming(id);
-        } else if (event.key === " ") {
-            // Space switches the row's group or step on and off (its eye), as a checkbox does.
+        } else if (event.key === " " || matchesKey(event.nativeEvent, "Shift+Mod+H")) {
+            // Shift+Mod+H (the style tree's Show/Hide) and Space switch the row's group or step on
+            // and off (its eye), as a checkbox does.
             event.preventDefault();
             toggle(branch, stepId);
         } else if (event.key === "Enter" && stepId !== undefined) {
@@ -474,7 +536,7 @@ export function SelectionEditor({
                 <ToggleIconButton
                     label="Group colors"
                     tooltip="Group colors while picking"
-                    icon={<GLYPHS.group size={14} aria-hidden />}
+                    icon={<GLYPHS.groupColors size={14} aria-hidden />}
                     checked={colors}
                     onChange={(next) => {
                         groupColors[host] = next;
@@ -496,6 +558,7 @@ export function SelectionEditor({
                                 role="group"
                                 tabIndex={tabbed === branch.id ? 0 : -1}
                                 data-row={branch.id}
+                                aria-keyshortcuts="Enter Space F2 Delete Control+D Meta+D Control+] Control+["
                                 className="sel-row sel-group-row"
                                 aria-label={[
                                     name,
@@ -510,6 +573,16 @@ export function SelectionEditor({
                                 }}
                                 onFocus={() => {
                                     setActive(branch.id ?? null);
+                                    setMarked(branch.id ?? null);
+                                }}
+                                onBlur={() => {
+                                    setMarked(null);
+                                }}
+                                onPointerEnter={() => {
+                                    setMarked(branch.id ?? null);
+                                }}
+                                onPointerLeave={() => {
+                                    setMarked(null);
                                 }}
                                 onDoubleClick={() => {
                                     setRenaming(branch.id ?? null);
@@ -552,6 +625,7 @@ export function SelectionEditor({
                                 )}
                                 {branchRead !== undefined && (
                                     <CountChip
+                                        pending={branchRead.state === "pending"}
                                         count={branchRead.count}
                                         of={of}
                                         side={side}
@@ -628,57 +702,70 @@ export function SelectionEditor({
                             const open = openStep === id;
                             return (
                                 <React.Fragment key={id}>
-                                    <Tooltip
-                                        label={[`${verb.word} (${verb.figma})`, words.value, words.test, reason.long]
-                                            .filter((each) => each !== "")
-                                            .join(", ")}
-                                        openDelay={500}
+                                    <div // NOSONAR(S6819): a Figma Fill row; its controls are reached by its keys, one Tab stop for the list
+                                        role="group"
+                                        tabIndex={tabbed === id ? 0 : -1}
+                                        data-row={id}
+                                        data-state={read?.state}
+                                        className="sel-row sel-step-row"
+                                        aria-expanded={open}
+                                        aria-keyshortcuts="Enter Space Delete Control+D Meta+D Control+] Control+["
+                                        aria-label={`${verb.word}, ${words.value}${summary === "" ? "" : ` ${summary}`}${soFar}${step.on === false ? ", off" : ""}`}
+                                        onKeyDown={(event) => {
+                                            rowKeys(event, branch, id);
+                                        }}
+                                        onFocus={() => {
+                                            setActive(id);
+                                        }}
+                                        onClick={(event) => {
+                                            if ((event.target as Element).closest("button, input") === null) {
+                                                setOpenStep(open ? null : id);
+                                            }
+                                        }}
+                                        {...dragProps(branch, id, true)}
                                     >
-                                        <div // NOSONAR(S6819): a Figma Fill row; its controls are reached by its keys, one Tab stop for the list
-                                            role="group"
-                                            tabIndex={tabbed === id ? 0 : -1}
-                                            data-row={id}
-                                            data-state={read?.state}
-                                            className="sel-row sel-step-row"
-                                            aria-expanded={open}
-                                            aria-label={`${verb.word}, ${words.value}${summary === "" ? "" : ` ${summary}`}${soFar}`}
-                                            onKeyDown={(event) => {
-                                                rowKeys(event, branch, id);
+                                        <VerbMenu
+                                            verb={step.op}
+                                            tabbable={false}
+                                            onVerb={(op) => {
+                                                onChange(editStep(rule, branch.id ?? "", id, { op }));
                                             }}
-                                            onFocus={() => {
-                                                setActive(id);
-                                            }}
-                                            onClick={(event) => {
-                                                if ((event.target as Element).closest("button, input") === null) {
-                                                    setOpenStep(open ? null : id);
-                                                }
-                                            }}
-                                            {...dragProps(branch, id, true)}
+                                        />
+                                        {/* The whole step in the tooltip of its words; each control has its own. */}
+                                        <Tooltip
+                                            label={[
+                                                `${verb.word} (${verb.figma})`,
+                                                words.value,
+                                                words.test,
+                                                reason.long,
+                                            ]
+                                                .filter((each) => each !== "")
+                                                .join(", ")}
+                                            openDelay={500}
                                         >
-                                            <VerbMenu
-                                                verb={step.op}
-                                                tabbable={false}
-                                                onVerb={(op) => {
-                                                    onChange(editStep(rule, branch.id ?? "", id, { op }));
-                                                }}
-                                            />
-                                            <Text size="sm" truncate className="sel-value">
-                                                {words.value}
-                                            </Text>
-                                            <Text size="sm" c="dimmed" truncate className="sel-test">
-                                                {summary}
-                                            </Text>
-                                            {read?.orderMatters === true && (
-                                                <Tooltip label="Order matters here">
-                                                    <GLYPHS.order size={12} aria-label="Order matters" />
-                                                </Tooltip>
-                                            )}
-                                            {/* The open card's header says the count and holds the remove. */}
-                                            {!open && read !== undefined && !read.waiting && (
-                                                <Text size="sm" c="dimmed" className="sel-count">
-                                                    {read.count}
+                                            <span className="sel-words">
+                                                <Text size="sm" truncate className="sel-value">
+                                                    {words.value}
                                                 </Text>
-                                            )}
+                                                <Text size="sm" c="dimmed" truncate className="sel-test">
+                                                    {summary}
+                                                </Text>
+                                            </span>
+                                        </Tooltip>
+                                        {read?.orderMatters === true && (
+                                            <Tooltip label="Order matters here">
+                                                <GLYPHS.order size={12} aria-label="Order matters" />
+                                            </Tooltip>
+                                        )}
+                                        {/* The open card's header says the count and holds the remove. */}
+                                        {!open && read !== undefined && !read.waiting && (
+                                            <Text size="sm" c="dimmed" className="sel-count">
+                                                {read.count}
+                                            </Text>
+                                        )}
+                                        <Tooltip
+                                            label={<TooltipShortcut label={`Use ${words.value}`} shortcut="Space" />}
+                                        >
                                             <Checkbox
                                                 size="xs"
                                                 tabIndex={-1}
@@ -688,7 +775,16 @@ export function SelectionEditor({
                                                     toggle(branch, id);
                                                 }}
                                             />
-                                            {!open && (
+                                        </Tooltip>
+                                        {!open && (
+                                            <Tooltip
+                                                label={
+                                                    <TooltipShortcut
+                                                        label={`Remove ${words.value}`}
+                                                        shortcut="Delete"
+                                                    />
+                                                }
+                                            >
                                                 <CloseButton
                                                     size="xs"
                                                     tabIndex={-1}
@@ -698,9 +794,9 @@ export function SelectionEditor({
                                                         removeStepAt(branch, id);
                                                     }}
                                                 />
-                                            )}
-                                        </div>
-                                    </Tooltip>
+                                            </Tooltip>
+                                        )}
+                                    </div>
                                     {open && (
                                         <StepCard
                                             session={session}
@@ -761,6 +857,7 @@ export function SelectionEditor({
                     <Button
                         size="compact-xs"
                         variant="subtle"
+                        data-or=""
                         leftSection={<GLYPHS.add size={12} aria-hidden />}
                         aria-disabled={reading.branchesLeft === 0}
                         data-disabled={reading.branchesLeft === 0 ? true : undefined}
@@ -771,7 +868,7 @@ export function SelectionEditor({
                             const made = addBranch(rule);
                             onChange(made.rule);
                             setOpenStep(null);
-                            setAdding({ branch: made.id, op: "add" });
+                            setAdding({ branch: made.id, op: "add", fresh: true });
                         }}
                     >
                         Or
@@ -831,7 +928,7 @@ function StepPlus({
         };
         return (
             <AddCondition
-                fields={pickerFields(session, sideOf(rule))}
+                fields={pickerFields(session, sideOf(rule), rule.within)}
                 used={branch.steps.flatMap((step) => {
                     const path =
                         (step.rule as { attribute?: string; reads?: string }).attribute ??
@@ -858,7 +955,7 @@ function StepPlus({
                 anchor={
                     <div className="sel-row sel-step-row" data-new-step="">
                         <words.glyph size={14} aria-hidden />
-                        <Text size="xs" c="dimmed">
+                        <Text size="sm" c="dimmed">
                             {words.word}
                         </Text>
                     </div>
@@ -866,11 +963,13 @@ function StepPlus({
             />
         );
     }
+    const VerbGlyph = VERB_WORDS[verb].glyph;
+    // The verb it adds is drawn as its glyph and said as a word, so it never reads as "Or".
     return (
         <span data-plus={branch.id} className="sel-plus">
             <SplitButton
                 size="sm"
-                icon={<GLYPHS.add size={14} aria-hidden />}
+                icon={<VerbGlyph size={14} aria-hidden />}
                 label={`Add a step: ${VERB_WORDS[verb].word}`}
                 menuLabel="Add a step with a verb"
                 onClick={() => {
@@ -893,13 +992,16 @@ function StepPlus({
                     );
                 })}
             </SplitButton>
+            <Text span size="sm" c="dimmed" aria-hidden className="sel-plus-word">
+                {VERB_WORDS[verb].word}
+            </Text>
         </span>
     );
 }
 
 /**
- * A group's "..." menu: Rename, its on and off, its members, Duplicate, Move up, Move down,
- * Delete, each with its key.
+ * A group's "..." menu: Rename, Duplicate, Move up, Move down | Show or Hide, its members |
+ * Delete, each with its icon and key, as the style tree's row menu.
  * @param props - Component props
  * @param props.name - the group's name
  * @param props.first - it is the first group
@@ -949,39 +1051,65 @@ function GroupMenu({
                 </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown data-portal="">
-                <Menu.Item rightSection={<MenuShortcut>F2</MenuShortcut>} onClick={onRename}>
-                    Rename
-                </Menu.Item>
-                <Menu.Item rightSection={<MenuShortcut>Space</MenuShortcut>} onClick={onToggle}>
-                    {on ? "Turn off" : "Turn on"}
-                </Menu.Item>
-                <Menu.Item rightSection={<MenuShortcut>Enter</MenuShortcut>} onClick={onShow}>
-                    {showLabel}
-                </Menu.Item>
-                <Menu.Item rightSection={<MenuShortcut>{formatKey("Mod+D")}</MenuShortcut>} onClick={onDuplicate}>
-                    Duplicate
-                </Menu.Item>
-                <Menu.Item
-                    disabled={first}
-                    rightSection={<MenuShortcut>{formatKey("Mod+[")}</MenuShortcut>}
-                    onClick={() => {
-                        onMove(-1);
-                    }}
-                >
-                    Move up
-                </Menu.Item>
-                <Menu.Item
-                    disabled={last}
-                    rightSection={<MenuShortcut>{formatKey("Mod+]")}</MenuShortcut>}
-                    onClick={() => {
-                        onMove(1);
-                    }}
-                >
-                    Move down
-                </Menu.Item>
-                <Menu.Item rightSection={<MenuShortcut>Delete</MenuShortcut>} onClick={onDelete}>
-                    Delete
-                </Menu.Item>
+                <SelectionMenuItems
+                    items={[
+                        { id: "rename", label: "Rename", icon: "rename", group: "edit", key: "F2", onRun: onRename },
+                        {
+                            id: "duplicate",
+                            label: "Duplicate",
+                            icon: "duplicate",
+                            group: "edit",
+                            key: "Mod+D",
+                            onRun: onDuplicate,
+                        },
+                        {
+                            id: "up",
+                            label: "Move up",
+                            icon: "moveUp",
+                            group: "edit",
+                            key: "Mod+[",
+                            reason: first ? "Already at the top" : null,
+                            onRun: () => {
+                                onMove(-1);
+                            },
+                        },
+                        {
+                            id: "down",
+                            label: "Move down",
+                            icon: "moveDown",
+                            group: "edit",
+                            key: "Mod+]",
+                            reason: last ? "Already at the bottom" : null,
+                            onRun: () => {
+                                onMove(1);
+                            },
+                        },
+                        {
+                            id: "hide",
+                            label: on ? "Hide" : "Show",
+                            icon: on ? "hide" : "show",
+                            group: "view",
+                            key: "Shift+Mod+H",
+                            onRun: onToggle,
+                        },
+                        {
+                            id: "members",
+                            label: showLabel,
+                            icon: "selection",
+                            group: "view",
+                            key: "Enter",
+                            onRun: onShow,
+                        },
+                        {
+                            id: "delete",
+                            label: "Delete",
+                            icon: "delete",
+                            group: "remove",
+                            key: "Delete",
+                            onRun: onDelete,
+                        },
+                    ]}
+                />
             </Menu.Dropdown>
         </Menu>
     );
@@ -1036,6 +1164,7 @@ function TableButton({ side }: Readonly<{ side: "node" | "edge" }>): React.JSX.E
  * @param props.disabled - whether it has nothing to show yet
  * @param props.tabbable - whether it is a Tab stop
  * @param props.tip - more words for its tooltip
+ * @param props.pending - the group waits on a run
  * @param props.onClick - shows what it counts
  * @returns The chip
  */
@@ -1047,8 +1176,10 @@ function CountChip({
     disabled,
     tabbable,
     tip,
+    pending = false,
     onClick,
 }: Readonly<{
+    pending?: boolean;
     count: number;
     of: number;
     side: "node" | "edge";
@@ -1060,6 +1191,16 @@ function CountChip({
 }>): React.JSX.Element {
     const words = countWords(count, of, side);
     const label = host === "selector" ? `Select ${words}` : `Show ${words} in the table`;
+    // A group waiting on a run shows no confident number: its short word, the last count in the tooltip.
+    if (pending) {
+        return (
+            <Tooltip label={`Waiting; last ${words}`}>
+                <Text size="sm" c="dimmed" className="sel-count" aria-label={`Waiting, last ${words}`}>
+                    Waits
+                </Text>
+            </Tooltip>
+        );
+    }
     return (
         <Tooltip label={tip === undefined ? label : `${label}; ${tip}`}>
             <Button
@@ -1086,11 +1227,13 @@ function CountChip({
  */
 function cardFocus(id: string): readonly string[] {
     const card = `[data-step-card="${CSS.escape(id)}"]`;
+    // A read-only input is a select (the operator); a typed box (a text card's autocomplete is a
+    // combobox too) comes first. A pending card's buttons are not its body: focus waits for a box.
     return [
         `${card} input[data-first-focus]`,
-        `${card} input:not([type=hidden], [type=checkbox], [type=radio], [role=combobox])`,
+        `${card} input:not([type=hidden], [type=checkbox], [type=radio], [readonly])`,
         `${card} input:not([type=hidden])`,
-        `${card} button`,
+        `${card}:not([data-pending]) button`,
     ];
 }
 

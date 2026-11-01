@@ -24,6 +24,7 @@ import { GraphtyError } from "../../errors";
 import type { NumericColumnSource } from "../results/statistics";
 import type { Histogram, HistogramOptions } from "../results/types";
 import type { CodedFact } from "../shared";
+import type { FilterRunResult } from "../visibility/filter";
 import type { Bytes, UnionRead } from "../visibility/union";
 import type { ScopeApi } from "./ScopeApi";
 
@@ -105,6 +106,14 @@ export interface StepReading {
     readonly run: RunId | null;
     /** Whether the element froze a live reference in it. */
     readonly frozen: boolean;
+    /**
+     * How the values a step's own computation (a `measure` computed on So far) gave are spread over
+     * its input, once it has finished; null for any other step, and while it computes. A step
+     * reading a session run has `run` instead, whose values `scope.histogram` reads.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly values: ValueHistogram | null;
 }
 
 /**
@@ -521,6 +530,13 @@ export interface ReadingSources {
      * @returns The run's id.
      */
     runOf(step: UnionStep): RunId | null;
+    /**
+     * How a step's own computation's values are spread over its input; absent: never known.
+     * @param step - The step.
+     * @param input - Its input.
+     * @returns The histogram, or null.
+     */
+    valuesOf?(step: UnionStep, input: Bytes): ValueHistogram | null;
 }
 
 /**
@@ -579,6 +595,9 @@ export function stepsReadingOf(
             const given = spec.steps[index];
             const input = lazy(() => sources.scopeOf(side, step.input));
             const after = lazy(() => sources.scopeOf(side, step.members));
+            let held: { value: ValueHistogram | null } | undefined;
+            const values = (): ValueHistogram | null =>
+                (held ??= { value: sources.valuesOf?.(given, step.input) ?? null }).value;
             return {
                 id: given.id ?? "",
                 state: step.state,
@@ -594,6 +613,9 @@ export function stepsReadingOf(
                 orderMatters: step.orderMatters,
                 run: sources.runOf(given),
                 frozen: given.frozenFrom !== undefined,
+                get values(): ValueHistogram | null {
+                    return values();
+                },
             };
         });
 
@@ -685,6 +707,14 @@ export interface ScopeStepsSources {
      * @returns Its scope, or undefined.
      */
     readonly runScopeOf?: (run: RunId) => Scope | undefined;
+    /**
+     * How some values are spread over the elements some bytes hold, as `scope.histogram` bins them.
+     * @param side - The half.
+     * @param read - One element's value, by its dense index.
+     * @param within - The elements counted.
+     * @returns The histogram.
+     */
+    readonly histogramOf?: (side: UnionLeaf["side"], read: (index: number) => unknown, within: Bytes) => ValueHistogram;
 }
 
 /** The part of the step runs the surface reaches. */
@@ -692,6 +722,7 @@ export interface StepRunsLike {
     allow(step: UnionStep, within: UnionLeaf["within"]): void;
     cancel(step: UnionStep, within: UnionLeaf["within"]): void;
     runOf(step: UnionStep, within: UnionLeaf["within"]): RunId | null;
+    ownResult?(step: UnionStep, within: UnionLeaf["within"]): FilterRunResult | undefined;
 }
 
 /**
@@ -805,6 +836,27 @@ export function createScopeSteps(sources: ScopeStepsSources): ScopeStepsApi {
             {
                 ...sources.reading,
                 runOf: (step) => sources.stepRuns?.()?.runOf(step, leaf.within) ?? null,
+                valuesOf: (step, input) => {
+                    const measure = step.rule;
+                    if (
+                        measure.kind !== "measure" ||
+                        step.computedOn !== "so-far" ||
+                        sources.histogramOf === undefined
+                    ) {
+                        return null;
+                    }
+
+                    const result = sources.stepRuns?.()?.ownResult?.(step, leaf.within);
+                    if (result === undefined) {
+                        return null;
+                    }
+
+                    const read =
+                        leaf.side === "nodes"
+                            ? (index: number): unknown => result.nodeValue(index, measure.field)
+                            : (index: number): unknown => result.edgeValue(index, measure.field);
+                    return sources.histogramOf(leaf.side, read, input);
+                },
             },
             options.branchPalette ?? DEFAULT_BRANCH_PALETTE,
         );

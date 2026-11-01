@@ -447,6 +447,14 @@ export interface BranchesView {
      * while the view is shown (it still decides what is visible). Absent, nothing is held.
      */
     readonly hold?: string;
+    /**
+     * A branch to mark, by id: its members stay in its color at full strength and every other
+     * branch's are drawn faint, so a reader pointing at a branch sees which elements it holds.
+     * Absent, or naming no branch, nothing is marked.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly mark?: string;
 }
 
 /**
@@ -475,6 +483,14 @@ export interface StylesApi {
      * @beta
      */
     readonly showingBranches: boolean;
+    /**
+     * The branches view drawn now, as it was given, or null: what a key or a table beside the
+     * canvas describes, whichever caller drew it. `style:branches-shown-changed` tells each change,
+     * a view that replaces another included.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly shownBranches: BranchesView | null;
     /**
      * Every layer in the stack, BOTTOM FIRST.
      *
@@ -2481,13 +2497,25 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /** The branches view drawn now, and the layers it draws. */
-    let branchesShown: { readonly layers: readonly CompiledLayer[] } | null = null;
+    let branchesShown: { readonly layers: readonly CompiledLayer[]; readonly view: BranchesView } | null = null;
     /** One suspended stand-in per layer, so a repaint sees the same object each time. */
     const suspended = new WeakMap<CompiledLayer, CompiledLayer>();
 
     /**
+     * Whether a layer draws the selection ring or the hover mark: a layer of the state
+     * `"selected"` or `"hovered"` (the Selected and Hovered rows, or a reader's own).
+     * @param entry - A layer in the stack.
+     * @returns True for one.
+     */
+    const isStateMark = (entry: CompiledLayer): boolean => {
+        const { selector } = entry.layer;
+        return selector.match === "state" && (selector.state === "selected" || selector.state === "hovered");
+    };
+
+    /**
      * The stack a branches view paints: the element's base layers as they are, every other layer
-     * suspended in its place, and the view's layers on top.
+     * suspended in its place, the view's layers on top, and the selection ring and hover mark
+     * above them, so a reader still sees what is selected and what the pointer is on.
      * @param stack - The stack as it paints without the view.
      * @param layers - The view's layers.
      * @returns The stack.
@@ -2495,22 +2523,26 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const previewStack = (
         stack: readonly CompiledLayer[],
         layers: readonly CompiledLayer[],
-    ): readonly CompiledLayer[] => [
-        ...stack.map((entry) => {
-            if (entry.layer.kind === "base" || !entry.layer.enabled) {
-                return entry;
-            }
+    ): readonly CompiledLayer[] => {
+        const marks = stack.filter((entry) => entry.layer.kind !== "base" && entry.layer.enabled && isStateMark(entry));
+        const rest = stack
+            .filter((entry) => !marks.includes(entry))
+            .map((entry) => {
+                if (entry.layer.kind === "base" || !entry.layer.enabled) {
+                    return entry;
+                }
 
-            let standIn = suspended.get(entry);
-            if (standIn === undefined) {
-                standIn = Object.freeze({ ...entry, layer: Object.freeze({ ...entry.layer, enabled: false }) });
-                suspended.set(entry, standIn);
-            }
+                let standIn = suspended.get(entry);
+                if (standIn === undefined) {
+                    standIn = Object.freeze({ ...entry, layer: Object.freeze({ ...entry.layer, enabled: false }) });
+                    suspended.set(entry, standIn);
+                }
 
-            return standIn;
-        }),
-        ...layers,
-    ];
+                return standIn;
+            });
+
+        return [...rest, ...layers, ...marks];
+    };
 
     /**
      * Repaint from one picture of the stack to another, outside any edit.
@@ -2563,11 +2595,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 continue;
             }
 
+            // A marked view draws every branch but the marked one faint.
+            const marked = view.mark !== undefined && rule.branches.some((each) => each.id === view.mark);
+            const faint = marked && branch.id !== view.mark;
+            const faintOpacity = target === "node" ? 0.2 : 0.15;
             specs.push({
                 name: branch.name ?? branch.id ?? "Branch",
                 target,
                 selector: { match: "rule", where: { ...rule, branches: [branch] } },
-                set: { [`${target}.color`]: branch.color, [`${target}.opacity`]: 1 },
+                set: {
+                    [`${target}.color`]: branch.color,
+                    [`${target}.opacity`]: faint ? faintOpacity : 1,
+                },
             });
         }
 
@@ -4619,14 +4658,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         showBranches(view: BranchesView): { end(): void } {
             const layers = branchLayers(view);
             const before = painting(current());
-            const shown = { layers };
-            const was = branchesShown !== null;
+            const shown = { layers, view: Object.freeze({ ...view }) };
             branchesShown = shown;
             sources.holdCondition?.(view.hold ?? null);
             repaintBetween(before, painting(current()));
-            if (!was) {
-                sources.onBranchesShown?.(true);
-            }
+            // A view that replaces another is a change too: a reader of `shownBranches` hears it.
+            sources.onBranchesShown?.(true);
 
             return {
                 end(): void {
@@ -4645,6 +4682,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         get showingBranches(): boolean {
             return branchesShown !== null;
+        },
+
+        get shownBranches(): BranchesView | null {
+            return branchesShown?.view ?? null;
         },
 
         compiled(): readonly CompiledLayer[] {

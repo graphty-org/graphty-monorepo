@@ -443,4 +443,48 @@ describe("the doors", () => {
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(id).matched, withNeighbors(hub).filter(staff).length);
     });
+
+    it("a node step reading an edge value takes only the edges the filter left", async () => {
+        // Bruno's only coworker edge goes to Desmond: with Desmond filtered out, Bruno is not a
+        // coworker in the filtered graph.
+        const rows: [string, string, string][] = [
+            ["Agnes", "Bruno", "family"],
+            ["Bruno", "Desmond", "coworkers"],
+            ["Bruno", "Hugo", "family"],
+            ["Desmond", "Gwen", "coworkers"],
+            ["Desmond", "Ian", "coworkers"],
+            ["Gwen", "Kurt", "coworkers"],
+            ["Ian", "Lila", "coworkers"],
+            ["Kurt", "Nils", "coworkers"],
+            ["Lila", "Nils", "neighbors"],
+        ];
+        const session = createGraphSession();
+        const names = [...new Set(rows.flatMap(([a, b]) => [a, b]))];
+        await session.data.addNodes(names.map((id) => ({ id })));
+        await session.data.addEdges(rows.map(([source, target, kind]) => ({ source, target, kind })));
+        await session.visibility.addCondition({
+            effect: "exclude",
+            rule: { kind: "neighborhood", seeds: ["Desmond"], depth: 0 },
+        });
+        const leaf: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "visible",
+            branches: [
+                {
+                    start: "none",
+                    steps: [{ op: "add", rule: { kind: "categories", attribute: "data.kind", values: ["coworkers"] } }],
+                },
+            ],
+        };
+        const { id } = await session.styles.add({
+            name: "Coworkers",
+            target: "node",
+            selector: { match: "rule", where: leaf },
+            set: { "node.color": "#d33" },
+        });
+        await session.styles.settled();
+        assert.isFalse([...session.visibility.nodes].map(String).includes("Desmond"));
+        assert.strictEqual(session.styles.counts(id).matched, 5);
+    });
 });

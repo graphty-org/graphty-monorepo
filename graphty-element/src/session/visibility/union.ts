@@ -200,15 +200,29 @@ export function endsOf(graph: GraphSnapshot, edges: Bytes): Bytes {
  * @param side - The side.
  * @param ends - How an edge side reads a node test.
  * @param graph - The snapshot.
+ * @param baseEdges - The base's edges: a node side reads only the ends of an edge in the base, so
+ * an edge the filter removed never carries its far end in.
  * @returns The bytes, or null.
  */
-function onSide(halves: Halves, side: UnionLeaf["side"], ends: UnionStep["ends"], graph: GraphSnapshot): Bytes | null {
+function onSide(
+    halves: Halves,
+    side: UnionLeaf["side"],
+    ends: UnionStep["ends"],
+    graph: GraphSnapshot,
+    baseEdges: Bytes,
+): Bytes | null {
     if (side === "nodes") {
         if (halves.node !== null) {
             return bytesOf(halves.node, graph.nodeCount);
         }
 
-        return halves.edge === null ? null : endsOf(graph, bytesOf(halves.edge, graph.edgeCount));
+        const edgeTest = halves.edge;
+        return edgeTest === null
+            ? null
+            : endsOf(
+                  graph,
+                  bytesOf((edge) => baseEdges[edge] === 1 && edgeTest(edge), graph.edgeCount),
+              );
     }
 
     if (halves.edge !== null) {
@@ -468,7 +482,13 @@ function readBranch(
         seen[family] = true;
         const matches =
             gate === null
-                ? onSide(fold.env.compile(step.rule, frame), fold.leaf.side, step.ends, fold.env.graph)
+                ? onSide(
+                      fold.env.compile(step.rule, frame),
+                      fold.leaf.side,
+                      step.ends,
+                      fold.env.graph,
+                      fold.halves.edge,
+                  )
                 : new Uint8Array(input.length);
         current = apply(step.op, input, matches, fold.base);
 

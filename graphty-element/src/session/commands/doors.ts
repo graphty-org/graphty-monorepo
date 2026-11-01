@@ -1122,6 +1122,7 @@ const SHADERS_API: Readonly<Record<string, Door>> = {
 const STYLES_API: Readonly<Record<string, Door>> = {
     showBranches: exempt("a picking view: it suspends the stack's picture while a reader picks, never the stack"),
     showingBranches: READ,
+    shownBranches: READ,
     list: READ,
     get: READ,
     validate: READ,

@@ -89,6 +89,8 @@ export function StyleSelection({
                 session={session}
                 rule={rule}
                 host="selector"
+                // Opened from the folded row's button, which goes: focus moves in with it.
+                autoFocus
                 onDone={onDone}
                 onChange={(next) => {
                     setLocal(next);

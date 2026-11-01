@@ -101,6 +101,8 @@ export interface WorkspaceState {
      * to; null while none is open. The table draws its Group column and Matches only while one is.
      */
     readonly editingSelection: {
+        /** The editor that holds the slot: only it replaces or clears it. */
+        readonly owner: string;
         readonly rule: UnionLeaf;
         readonly branch: string | null;
         /** What the canvas key's preview is titled by: "Which nodes", or a filter card's name. */

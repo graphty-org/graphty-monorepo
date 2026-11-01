@@ -10,7 +10,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
 import React from "react";
 
-import { useEditedSelection, useShowingBranches } from "../selection/useSteps";
+import { useEditedSelection, useShownBranches } from "../selection/useSteps";
 import { letterOf } from "../selection/words";
 import { useWorkspaceState } from "../state/WorkspaceContext";
 import { colorName } from "../style/words";
@@ -26,12 +26,15 @@ export function PreviewKey({
     session,
     children,
 }: Readonly<{ session: GraphSession; children: React.ReactNode }>): React.ReactNode {
-    const shown = useShowingBranches(session);
+    // The view the element draws, never the store's: the key says what the canvas shows.
+    const shown = useShownBranches(session);
     const edited = useWorkspaceState((state) => state.editingSelection);
-    const reading = useEditedSelection(session, shown ? (edited?.rule ?? null) : null);
-    if (!shown || edited === null || reading === null) {
+    const reading = useEditedSelection(session, shown?.rule ?? null);
+    if (shown === null || reading === null) {
         return children;
     }
+    const title = edited?.title ?? `Which ${reading.rule.side}`;
+    const single = reading.rule.branches.length === 1;
     // Each row counts what is drawn in its color (a member of an earlier group is drawn in that
     // group's), so the rows and No match add up to the base; a group that is off draws nothing.
     const rows = reading.rule.branches.flatMap((branch, at) => {
@@ -41,7 +44,8 @@ export function PreviewKey({
             : [
                   {
                       id: branch.id ?? String(at),
-                      name: branch.name ?? letterOf(at),
+                      // One group is the selection itself: it goes by the selection's title.
+                      name: branch.name ?? (single ? title : letterOf(at)),
                       color: branch.color ?? "",
                       count: read.drawn,
                   },
@@ -50,7 +54,7 @@ export function PreviewKey({
     return (
         <Paper
             component="section"
-            aria-label={`Preview: ${edited.title}`}
+            aria-label={`Preview: ${title}`}
             className="ws-legend-card"
             withBorder
             shadow="xs"
@@ -58,7 +62,7 @@ export function PreviewKey({
         >
             <Stack gap={4}>
                 <Text size="xs" fw={500} aria-hidden="true">
-                    {`Preview: ${edited.title}`}
+                    {`Preview: ${title}`}
                 </Text>
                 {rows.map((row) => (
                     <DataRow
@@ -76,7 +80,20 @@ export function PreviewKey({
                         }
                     />
                 ))}
-                <DataRow name="No match" value={reading.total.of - reading.total.count} />
+                <DataRow
+                    name="No match"
+                    value={reading.total.of - reading.total.count}
+                    // The faint rest, as the canvas draws it, so the row lines up with the groups'.
+                    icon={
+                        <ColorSwatch
+                            className="ws-legend-chit"
+                            color="var(--mantine-color-dimmed)"
+                            size={12}
+                            opacity={0.35}
+                            aria-hidden
+                        />
+                    }
+                />
             </Stack>
         </Paper>
     );

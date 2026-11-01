@@ -55,6 +55,9 @@ import { DAY, MIN } from "../../src/model/items.js";
 import type { ReleaseSeen } from "../../src/model/snapshots.js";
 import { fixture, masterRuns, NOW } from "./fake-github.js";
 
+/** A GitHub Actions expression, `${{ body }}`, as a workflow file spells it. */
+const ghExpr = (body: string): string => ["$", "{{ ", body, " }}"].join("");
+
 const R = rates as unknown as Rates;
 const REPO = "graphty-org/graphty-monorepo";
 const jobs = (name: string) => (fixture(name) as { jobs: GhJob[] }).jobs;
@@ -135,7 +138,7 @@ describe("runs and jobs", () => {
         expect(family("Test (graphty-element-browser-3)")).toBe("graphty-element-browser");
         expect(family("CI / Test (graphty-4)")).toBe("graphty");
         expect(family("Test (small-node)")).toBe("small-node");
-        expect(family(`Test (\${{ matrix.shard }})`)).toBeUndefined();
+        expect(family(`Test (${ghExpr("matrix.shard")})`)).toBeUndefined();
         expect(family("Lint")).toBeUndefined();
         expect(pool(["ubuntu-24.04"])).toBe("linux_windows");
         expect(pool(["windows-2025"])).toBe("linux_windows");

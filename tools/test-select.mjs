@@ -75,8 +75,8 @@ export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.te
 /**
  * The rules file, with nx.json's sharedGlobals added to "everything".
  * @param root the checkout
- * @returns `{ everything, smoke, storySetup, noBuild, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser,
- *   stories }`
+ * @returns `{ everything, smoke, storySetup, noBuild, noTests, standalone, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel,
+ *   fileLevelBrowser, stories }`
  */
 export function loadRules(root) {
     const raw = JSON.parse(readFileSync(RULES, "utf8"));
@@ -94,6 +94,7 @@ export function loadRules(root) {
         storySetup: { patterns: (raw.storySetup?.patterns ?? []).map(toRe), shards: raw.storySetup?.shards ?? [] },
         noBuild: new Set(raw.noBuild?.packages ?? []),
         noTests: raw.noTests.patterns.map(toRe),
+        standalone: (raw.standaloneTools?.patterns ?? []).map(toRe),
         wholePackage: raw.wholePackage.patterns.map(toRe),
         alsoRun: raw.alsoRun.entries.map((e) => ({ re: toRe(e.pattern), packages: e.packages, why: e.why })),
         opaque: toRe(raw.opaqueTest.pattern),
@@ -520,9 +521,10 @@ export function withImporters(files, rootImporters) {
  * Root files (outside every package). One a test imports selects the tests that reach it; one that a
  * test-side file or a test config of a package names (tests that read it at run time) runs that package
  * whole; a package whose graph is missing is searched in all its files. Both are asked before the noTests
- * rule, so a design file a test reads is never thrown away. What is left: a noTests path runs nothing, a
- * code file under tools/ is listed as unexplained and runs nothing, and anything else is unknown, which
- * runs everything (the fail safe of design/ci/minimal-tests.md section 2.4).
+ * rule, so a design file a test reads is never thrown away. What is left: a noTests path or a file of a
+ * standalone tool (rules.standalone: its own tests, run by its own workflow) runs nothing, a code file under
+ * tools/ is listed as unexplained and runs nothing, and anything else is unknown, which runs everything (the
+ * fail safe of design/ci/minimal-tests.md section 2.4).
  * @param files changed root files (and the root files that import them)
  * @param ctx `{ rules, dirs, graphs, out, whole }`
  * @param ctx.rules loadRules()
@@ -537,8 +539,11 @@ function rootFiles(files, { rules, dirs, graphs, out, whole }) {
     const unexplained = [];
     let unknown = null;
     for (const f of files) {
-        const used = dirs.map((dir) => readBy(f, dir, { graphs, out, whole })).some(Boolean);
-        if (used || rules.noTests.some((re) => re.test(f)) || rules.alsoRun.some((e) => e.re.test(f))) {
+        const standalone = (rules.standalone ?? []).some((re) => re.test(f));
+        // a standalone tool's file is named only by its path: its file name (text.ts) means nothing outside it
+        const byName = f.startsWith("tools/") && !standalone;
+        const used = dirs.map((dir) => readBy(f, dir, { graphs, out, whole, byName })).some(Boolean);
+        if (used || standalone || rules.noTests.some((re) => re.test(f)) || rules.alsoRun.some((e) => e.re.test(f))) {
             continue;
         }
         if (f.startsWith("tools/") && CODE.test(f)) {
@@ -555,20 +560,21 @@ function rootFiles(files, { rules, dirs, graphs, out, whole }) {
  * are selected, and a package whose other test-side files or configs name it runs whole.
  * @param f a root file
  * @param dir the package
- * @param ctx `{ graphs, out, whole }` as rootFiles has them
+ * @param ctx `{ graphs, out, whole, byName }` as rootFiles has them
  * @param ctx.graphs Map of package directory to its import graphs
  * @param ctx.out each package's selection
  * @param ctx.whole marks a package to run whole
+ * @param ctx.byName whether a literal holding only the file's name names it (namedBy)
  * @returns boolean
  */
-function readBy(f, dir, { graphs, out, whole }) {
+function readBy(f, dir, { graphs, out, whole, byName }) {
     const gs = graphs.get(dir) ?? [];
     const known = gs.length > 0 && !gs.includes(null);
     if (known && gs.some((g) => g.imports[f])) {
         gs.forEach((g) => selectInGraph(g, [f]).specs.forEach((why, spec) => addSpec(out.get(dir), spec, why)));
         return true;
     }
-    const by = namedBy(f, dir, known ? gs : null);
+    const by = namedBy(f, dir, known ? gs : null, byName);
     if (by.size === 0) {
         return false;
     }
@@ -598,15 +604,16 @@ export function useNamesRoot(root) {
 /**
  * Whether a package's tests name a root file: a string literal in the test-side files of its import graphs
  * or its test and lint configs (in any of its files when it has no graph) holds the file's path, a folder
- * above it, or its file name for files under tools/. Leading `../` and `./` are dropped, so
+ * above it, or its file name when byName is set (files under tools/ outside a standalone tool). Leading `../` and `./` are dropped, so
  * `"../../design/documents/notes.schema.json"` names `design/documents/notes.schema.json`; a path in a
  * comment names nothing.
  * @param file a root file
  * @param dir the package
  * @param graphs its graphs, or null
+ * @param byName whether a literal holding only the file's name names it
  * @returns Set of the files that name it (empty when none does)
  */
-function namedBy(file, dir, graphs) {
+function namedBy(file, dir, graphs, byName) {
     // keyed by the graphs themselves (a package without them by its directory): each selection has its own
     const key = graphs ?? dir;
     const cache = typeof key === "string" ? namesCache : namesByGraphs;
@@ -615,7 +622,7 @@ function namedBy(file, dir, graphs) {
     }
     const { paths, bases } = cache.get(key);
     const by = new Set();
-    if (file.startsWith("tools/")) {
+    if (byName) {
         bases.get(file.slice(file.lastIndexOf("/") + 1))?.forEach((f) => by.add(f));
     }
     const parts = file.split("/");

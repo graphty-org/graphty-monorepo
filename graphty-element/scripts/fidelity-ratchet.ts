@@ -4,7 +4,10 @@
  * - takes off the known failures every element that passes now (one that is not measurable any more stays listed);
  * - raises every recorded pass rate (the informational floors) to what the run measured, never lowering one;
  * - with `--add "<reason>"`, adds every element failing that the known failures do not list, and records the reason,
- *   the date and how many came from the drawing or from the comparator. Nothing is added without a reason.
+ *   the date and how many came from the drawing or from the comparator. Nothing is added without a reason;
+ * - for the oracle scorecard, takes off an accepted drop (`drops` in the floors file) whose rate is back at its floor,
+ *   and with `--add "<reason>"` accepts every rate below its floor at the rate measured, with the reason. The floor
+ *   itself stays: it is the best the property has measured.
  *
  * It reads the verdicts the last run wrote: `tmp/oracle-report/gate.json` (the oracle scorecard,
  * `test/fidelity/oracle-report.test.ts`) into `test/fidelity/oracle-known-failures.json` and
@@ -18,6 +21,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 import {
+    type AcceptedDrops,
     FLOOR_SECTIONS,
     type Floors,
     type FloorSection,
@@ -25,6 +29,7 @@ import {
     type KnownRecords,
     knownText,
     raiseFloors,
+    ratchetDrops,
     ratchetKnown,
 } from "../test/fidelity/oracle/floors";
 
@@ -95,12 +100,14 @@ if (suite === "all" || suite === "oracle") {
         const floors = JSON.parse(readFileSync(floorsPath, "utf8")) as Partial<Record<FloorSection, Floors>> & {
             about: string;
             lowered: Record<string, unknown>;
+            drops?: AcceptedDrops;
         };
         const sections = Object.fromEntries(FLOOR_SECTIONS.map((s) => [s, floors[s] ?? {}])) as Record<
             FloorSection,
             Floors
         >;
         const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add);
+        const drops = ratchetDrops(floors.drops ?? {}, gate.keys, add);
         let raised = 0;
         const sectionOf = new Map(gate.keys.map((g) => [g.key, g.section]));
         for (const g of gate.keys) {
@@ -129,12 +136,22 @@ if (suite === "all" || suite === "oracle") {
                     standInFloors: kept("standInFloors"),
                     specificationFloors: kept("specificationFloors"),
                     lowered: floors.lowered,
+                    drops: drops.drops,
                 },
                 null,
                 4,
             )}\n`,
         );
         report(knownPath, out, raised);
+        console.log(
+            `${floorsPath}: ${String(drops.removed)} accepted drops back at their floor taken off, ${String(drops.added)} accepted`,
+        );
+        if (drops.unaccepted > 0) {
+            console.log(
+                `${floorsPath}: ${String(drops.unaccepted)} rates are below their floor; fix them, or accept them with --add "<reason>" (see gate.txt)`,
+            );
+            process.exitCode = 1;
+        }
     }
 }
 

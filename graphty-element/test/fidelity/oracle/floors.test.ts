@@ -1,6 +1,7 @@
 /**
- * The style fidelity gate, on hand-made records: a sample fails only for an element failing that the known failures do
- * not list, never for a pass rate; a newly failing element is said to come from the drawing or the comparator when a
+ * The style fidelity gate, on hand-made records: a sample fails for an element failing that the known failures do not
+ * list, and on the oracle scorecard for an element-judged rate below its floor and any accepted drop, never for a raster
+ * region; a newly failing element is said to come from the drawing or the comparator when a
  * baseline was judged again; a known failure that is not measurable any more is reported, not failed; the raster
  * regions are reported past 0.02 only; and the ratchet takes off what passes, raises floors, never lowers one, and adds
  * only with a reason.
@@ -16,6 +17,7 @@ import {
     type KnownRecords,
     oracleFileSha256,
     raiseFloors,
+    ratchetDrops,
     ratchetKnown,
     recordableScores,
     sourceOf,
@@ -42,6 +44,44 @@ describe("style fidelity gate", () => {
             low.changes.map((c) => [c.property, c.kind]),
             [["node.fill", "drop"]],
         );
+    });
+
+    it("fails the oracle scorecard for a rate below its recorded floor, unless the drop is accepted at that rate", () => {
+        const known = { "node.position": ["a"] };
+        const accepted = {
+            "node.position": { floor: 0.9, to: 0.5, reason: "the oracle was redrawn", date: "2026-10-31" },
+        };
+        const at = (now: number, drops?: typeof accepted): string[] =>
+            gateMessages(
+                judgeKey(
+                    "s",
+                    run({ "node.position": ["a"] }, { "node.position": now, "raster.edge": 0.5 }),
+                    known,
+                    { "node.position": 0.9, "raster.edge": 0.97 },
+                    { gateFloors: true, ...(drops === undefined ? {} : { accepted: drops }) },
+                ),
+            );
+        // at its floor, and a raster region far under its own: the raster regions are never gated
+        assert.deepEqual(at(0.9), []);
+        assert.deepEqual(at(0.5), ["s node.position: 0.5 is below its recorded floor 0.9"]);
+        assert.deepEqual(at(0.5, accepted), []);
+        assert.deepEqual(at(0.4, accepted), [
+            "s node.position: 0.4 is below its recorded floor 0.9 and its accepted drop to 0.5",
+        ]);
+        const report = gateReportText(
+            [
+                judgeKey(
+                    "s",
+                    run({}, { "node.position": 0.5 }),
+                    undefined,
+                    { "node.position": 0.9 },
+                    { gateFloors: true },
+                ),
+            ],
+            "none",
+            null,
+        );
+        assert.include(report, "Failing keys: 1;");
     });
 
     it("fails an element failing a property with no record, as a new failure", () => {
@@ -145,6 +185,34 @@ describe("style fidelity gate", () => {
                 sources: { unclassified: 1 },
             },
         ]);
+    });
+
+    it("records a drop below a floor only with a reason, and forgets it once the rate is back at its floor", () => {
+        const low = judgeKey(
+            "s",
+            run({}, { "node.position": 0.5 }),
+            undefined,
+            { "node.position": 0.9 },
+            { gateFloors: true },
+        );
+        const none = ratchetDrops({}, [low]);
+        assert.deepEqual([none.drops, none.added, none.unaccepted], [{}, 0, 1]);
+        assert.throws(() => ratchetDrops({}, [low], { reason: "", date: "2026-10-31" }), /reason of 10 or more/);
+        const reason = "the oracle now measures the face Graphviz means";
+        const added = ratchetDrops({}, [low], { reason, date: "2026-10-31" });
+        assert.deepEqual(added.drops, { s: { "node.position": { floor: 0.9, to: 0.5, reason, date: "2026-10-31" } } });
+        const back = judgeKey(
+            "s",
+            run({}, { "node.position": 0.9 }),
+            undefined,
+            { "node.position": 0.9 },
+            {
+                gateFloors: true,
+                accepted: added.drops.s,
+            },
+        );
+        const kept = ratchetDrops(added.drops, [back]);
+        assert.deepEqual([kept.drops, kept.removed], [{}, 1]);
     });
 
     it("raises a floor and records a new one, and never lowers one", () => {

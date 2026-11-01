@@ -132,7 +132,10 @@ export class Graphty extends LitElement {
      * The host is a block that fills its parent's width. Its height is the parent's when the
      * parent has a definite height, the element's own when the page sets one, and otherwise half
      * its width: `aspect-ratio` only applies while the used height is `auto`, so a bare tag keeps
-     * the 2:1 canvas it always had. Every rule here can be overridden from the page.
+     * the 2:1 canvas it always had. `min-width: 0` keeps the ratio a preferred size and never a
+     * minimum: without it, the automatic minimum width of an aspect-ratio box is twice its height,
+     * so an auto grid column holding the element grew wider than the page (issue #3597). Every
+     * rule here can be overridden from the page.
      */
     static styles = css`
         :host {
@@ -141,6 +144,7 @@ export class Graphty extends LitElement {
             width: 100%;
             height: 100%;
             aspect-ratio: 2 / 1;
+            min-width: 0;
         }
 
         /* The browser's own focus ring, drawn just inside the canvas: outside it, the ring is cut

@@ -23,7 +23,8 @@
 #      again with --review-answered;
 #   4. scans the branch's changed files for secrets, uploads its Git LFS objects, and pushes the branch;
 #   5. opens the pull request (title: the branch's first commit header; body: the commit list, a line
-#      "Fixes #N", or "Refs #N" with --refs, and a "## Proof" section from the file), or reuses the open one, and
+#      "Fixes #N", or "Refs #N" with --refs, and a "## Proof" section from the file), or reuses the open one and
+#      refreshes the Proof section of its description, and
 #      posts the review's report as a COMMENT review (its `<!-- fresh-review <patch id> -->` line is what PR
 #      Integrity checks) unless one with that marker is already there;
 #   6. turns on auto-merge with a merge commit, and prints the pull request's URL. It leaves auto-merge off (and
@@ -133,10 +134,20 @@ agent="${PR_OPEN_AGENT_LOGIN:-graphty-agent}"
 existing=$(gh pr list --head "$branch" --base master --state open --json url,author --jq '.[0] // empty | "\(.url) \(.author.login)"')
 url=${existing%% *}
 author=${existing#* }
+body=$(mktemp) section=$(mktemp)
+trap 'rm -f "$body" "$section"' EXIT
+{
+    echo "## Proof"
+    echo
+    # A file's own leading "Proof" heading is dropped (the heading is above), and its other "#" and "##"
+    # headings become "###", so they stay inside the Proof section. The end marker is where PR Integrity's
+    # hasProof stops reading and what a re-run below replaces up to.
+    awk '!s && /^[ \t]*$/ { next } !s && /^##?[ \t]+Proof[ \t]*$/ { next } { s = 1; sub(/^##?[ \t]+/, "### "); print }' "$proof"
+    echo
+    echo "<!-- /proof -->"
+} >"$section"
 if [ -z "$url" ]; then
     author="$agent"
-    body=$(mktemp)
-    trap 'rm -f "$body"' EXIT
     {
         # GitHub refuses a description over 65,536 characters: list at most 50 commits.
         git log --reverse --no-merges --max-count=50 --format='- %s' "$base..HEAD"
@@ -145,14 +156,24 @@ if [ -z "$url" ]; then
         echo
         if [ "$refs" = 1 ]; then echo "Refs #$issue"; else echo "Fixes #$issue"; fi
         echo
-        echo "## Proof"
-        echo
-        # A file's own leading "Proof" heading is dropped (the heading is above), and its other "#" and "##"
-        # headings become "###", so they stay inside the Proof section (PR Integrity reads the section up to the
-        # next "##"; a file starting "## Proof" left it empty).
-        awk '!s && /^[ \t]*$/ { next } !s && /^##?[ \t]+Proof[ \t]*$/ { next } { s = 1; sub(/^##?[ \t]+/, "### "); print }' "$proof"
+        cat "$section"
     } >"$body"
     url=$(gh pr create --base master --head "$branch" --title "$title" --body-file "$body")
+else
+    # A re-run refreshes the Proof: the description's Proof section (up to its end marker, or, in one written
+    # before the marker, up to the next "##" heading) becomes the file's; a description without one gets it
+    # appended. Everything else in the description is kept.
+    old=$(gh pr view "$url" --json body --jq .body)
+    marked=0
+    grep -qE '^<!-- /proof -->'$'\r''?$' <<<"$old" && marked=1
+    awk -v sec="$section" -v marked="$marked" '
+        function put(  l) { while ((getline l < sec) > 0) print l }
+        !done && /^##[ \t]+Proof[ \t]*\r?$/ { put(); done = skip = 1; next }
+        skip && /^<!-- \/proof -->\r?$/ { skip = 0; next }
+        skip && !marked && /^##[ \t]/ { skip = 0; print "" }
+        !skip { print }
+        END { if (!done) { print ""; put() } }' <<<"$old" >"$body"
+    gh pr edit "$url" --body-file "$body" >/dev/null || die "the Proof could not be refreshed on $url"
 fi
 # The review goes on the pull request once per patch id: a re-run after a master merge does not post it again.
 # A report that answers test-integrity findings also names its head, so one for a new head is posted again.

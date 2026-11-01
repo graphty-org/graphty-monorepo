@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { after, beforeEach, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
-import { patchId } from "./pr-integrity.mjs";
+import { hasProof, patchId } from "./pr-integrity.mjs";
 
 const script = fileURLToPath(new URL("./pr-open.sh", import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), "pr-open-test-"));
@@ -28,7 +28,8 @@ writeFileSync(
 );
 mkdirSync(bin);
 // The fake gh: one JSON line per call (its arguments and the identity it ran as); `pr list` answers
-// with FAKE_EXISTING, `pr create` with a new URL and saves the body it was given.
+// with FAKE_EXISTING, `pr view --json body` with FAKE_BODY, `pr create` with a new URL; create and edit save the
+// body they were given.
 writeFileSync(
     join(bin, "gh"),
     `#!/usr/bin/env node
@@ -36,10 +37,10 @@ const fs = require("node:fs");
 const a = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ a, gh: process.env.GH_CONFIG_DIR, git: process.env.GIT_CONFIG_GLOBAL, count: process.env.GIT_CONFIG_COUNT ?? null }) + "\\n");
 if (a[0] === "pr" && a[1] === "list") process.stdout.write(process.env.FAKE_EXISTING ?? "");
-if (a[0] === "pr" && a[1] === "view") process.stdout.write(process.env.FAKE_REVIEWS ?? "");
-if (a[0] === "pr" && a[1] === "create") {
+if (a[0] === "pr" && a[1] === "view") process.stdout.write((a.includes("body") ? process.env.FAKE_BODY : process.env.FAKE_REVIEWS) ?? "");
+if (a[0] === "pr" && (a[1] === "create" || a[1] === "edit")) {
     fs.copyFileSync(a[a.indexOf("--body-file") + 1], ${JSON.stringify(join(dir, "body.md"))});
-    process.stdout.write("https://github.com/o/r/pull/42\\n");
+    if (a[1] === "create") process.stdout.write("https://github.com/o/r/pull/42\\n");
 }
 `,
 );
@@ -155,8 +156,9 @@ describe("pr-open.sh", () => {
         const r = run(["--proof", titled]);
         assert.equal(r.code, 0, r.out);
         const body = readFileSync(join(dir, "body.md"), "utf8");
-        assert.match(body, /^## Proof\n\n### Run\n\nnode tools\/x\.test\.mjs: 3 pass$/m);
+        assert.match(body, /^## Proof\n\n### Run\n\nnode tools\/x\.test\.mjs: 3 pass\n\n<!-- \/proof -->$/m);
         assert.equal(body.match(/^##[ \t]/gm).length, 1, "only pr-open's own Proof heading is level 2");
+        assert.ok(hasProof(body), "PR Integrity reads the Proof");
     });
 
     let moves = 0;
@@ -209,6 +211,37 @@ describe("pr-open.sh", () => {
                 .a.slice(2, 3),
             ["https://github.com/o/r/pull/7"],
         );
+    });
+
+    it("refreshes the Proof of an open pull request's description on a re-run, keeping the rest", () => {
+        branch("fix/1247-refresh");
+        const fresh = join(dir, "fresh.md");
+        writeFileSync(fresh, "# Proof\n\n## Tests\n\nnode tools/y.test.mjs: 5 pass\n");
+        const cases = [
+            ["marked", "- fix\n\nFixes #1247\n\n## Proof\n\nold run\n## Old\nold\n\n<!-- /proof -->\n\n## Notes\nkeep"],
+            ["unmarked", "- fix\n\nFixes #1247\n\n## Proof\n\nold run\n\n## Notes\nkeep"],
+            ["empty", "- fix\n\nFixes #1247\n\n## Proof\n\n## Notes\nkeep"],
+        ];
+        for (const [name, old] of cases) {
+            const r = run(["--proof", fresh], {
+                FAKE_EXISTING: "https://github.com/o/r/pull/7 graphty-agent",
+                FAKE_BODY: old,
+            });
+            assert.equal(r.code, 0, r.out);
+            const body = readFileSync(join(dir, "body.md"), "utf8");
+            assert.equal(
+                body,
+                "- fix\n\nFixes #1247\n\n## Proof\n\n### Tests\n\nnode tools/y.test.mjs: 5 pass\n\n<!-- /proof -->\n\n## Notes\nkeep\n",
+                name,
+            );
+            assert.ok(hasProof(body), name);
+        }
+        const r = run(["--proof", fresh], {
+            FAKE_EXISTING: "https://github.com/o/r/pull/7 graphty-agent",
+            FAKE_BODY: "hand written",
+        });
+        assert.equal(r.code, 0, r.out);
+        assert.match(readFileSync(join(dir, "body.md"), "utf8"), /^hand written\n\n## Proof\n\n### Tests\n/);
     });
 
     it("refuses, pushing and opening nothing: no Proof, no issue, uncommitted changes, master, nothing new", () => {

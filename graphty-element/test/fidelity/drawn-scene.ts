@@ -34,12 +34,13 @@ import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { readLabelTable } from "../../src/meshes/labelTable";
 import type { NodeDecorationPiece } from "../../src/meshes/NodeDecorationMesh";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
+import { projectedVertices } from "../../src/meshes/NodeShapeGeometry";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
 import { type LineOptions, measureLine } from "../../src/meshes/RichTextParser";
 import { pixelsPerUnit } from "../../src/meshes/screenSize";
-import { piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
+import { convexHull, isFlatShape, piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
 import type { Node } from "../../src/Node";
 import { spansAlongCenters } from "./pattern-spans";
 
@@ -798,7 +799,9 @@ function readTableOutline(node: Node, p: Projector): DrawnBorder | null {
 }
 
 /**
- * A node's border ring: its material's color, and its width as the node's border reach on screen.
+ * A node's border ring: its material's color, and its width as drawn on screen, not the width its style asked for, so
+ * a ring drawn wider than asked reads wider (issue #5364): its band against the fill's sides (`ringBandPx`), or a
+ * solid ring's thickness where that is more (`bandThicknessPx`).
  * @param node - the node
  * @param p - the projector
  * @returns the drawn border, or null when none is drawn
@@ -808,28 +811,301 @@ function readBorder(node: Node, p: Projector): DrawnBorder | null {
     if (border === null || border.isDisposed() || !border.isEnabled() || !border.isVisible) {
         return null;
     }
-    // How far the ring reaches past the outline, in screen pixels: the node's own border reach, measured along the
-    // screen. Not the ring's box against the fill's: a pointed outline's mitred corners push its box out further
-    // than its width (a triangle's apex by twice the width).
     const at = node.mesh.getAbsolutePosition();
-    const o = p.point(at);
-    const x = p.point(at.add(new Vector3(node.borderReach, 0, 0)));
-    const widthPx = Math.hypot(x.x - o.x, x.y - o.y);
     const source = border instanceof InstancedMesh ? border.sourceMesh : border;
+    const style = drawnStyle?.border?.style ?? "solid";
     // a zigzag or sine wave with a swing of its own is a line its width thick waving round the node: as thick as the
     // ring it drew, read as an outline drawn as a fill is (twice its area over its edges)
-    const waved =
-        NodeMesh.waveOf(drawnStyle?.border, 1) !== undefined &&
-        (drawnStyle?.border?.style === "zigzag" || drawnStyle?.border?.style === "sinewave");
+    const waved = NodeMesh.waveOf(drawnStyle?.border, 1) !== undefined && (style === "zigzag" || style === "sinewave");
+    const lineWidthPx = waved ? frontThickness(source) * Math.abs(border.absoluteScaling.x) * p.pxPerWorld(at) : null;
     const material = materialColor(source.material);
     return {
         color: material ? hex(material.rgb) : null,
-        widthPx: Math.max(0, widthPx),
-        lineWidthPx: waved ? frontThickness(source) * Math.abs(border.absoluteScaling.x) * p.pxPerWorld(at) : null,
-        style: drawnStyle?.border?.style ?? "solid",
+        widthPx: drawnWidthPx(node, border, waved || MARK_RINGS.has(style) ? "marks" : style, p),
+        lineWidthPx,
+        style,
         screen: drawnStyle?.border?.screenWidth !== undefined,
         opacity: (material?.alpha ?? 1) * border.visibility,
     };
+}
+
+/**
+ * How wide a node's border ring is drawn on screen.
+ * @param node - the node
+ * @param ring - its border ring
+ * @param style - its line style, or "marks" for a ring of marks swinging past their band
+ * @param p - the projector
+ * @returns the width in render pixels
+ */
+function drawnWidthPx(node: Node, ring: AbstractMesh, style: string, p: Projector): number {
+    if (style === "marks") {
+        return markRingPx(node, ring, p);
+    }
+    const shape = (node as unknown as NodeInternals).drawnStyle?.shape?.type ?? "";
+    const sided = ringBandPx(node.mesh, ring, isFlatShape(shape), p);
+    // a fill drawn in to a point (a centered border wider than its node) has no sides: the ring reaches from its middle
+    const span = (b: ScreenBox): number => Math.min(b.x1 - b.x0, b.y1 - b.y0);
+    const band = sided > 0 ? sided : Math.max(0, (span(p.box(ring)) - span(p.box(node.mesh))) / 2);
+    // a solid ring is also as thick as its area over its edges: what a fill too small to have sides to measure against
+    // leaves (a node of no size, all ring); a corner too sharp to mitre in full takes area from it, so the larger
+    return style === "solid" ? Math.max(band, bandThicknessPx(ring, p)) : band;
+}
+
+/** Border styles drawn as a chain of marks round the node (arrows), which reach past or fall short of their band. */
+const MARK_RINGS: ReadonlySet<string> = new Set(["contiguous-arrow", "separate-arrow"]);
+
+/**
+ * The width of a ring drawn as marks that swing past their band (a wave with a swing of its own, a chain of arrows),
+ * whose drawn band is not its width: the width it was built at, times how much larger it is drawn than its node.
+ * ponytail: reads the ring's own scale, not its marks; measure the marks' band when a gate needs it.
+ * @param node - the node
+ * @param ring - its border ring, drawn in the node's frame
+ * @param p - the projector
+ * @returns the width in render pixels
+ */
+function markRingPx(node: Node, ring: AbstractMesh, p: Projector): number {
+    const at = node.mesh.getAbsolutePosition();
+    const o = p.point(at);
+    const x = p.point(at.add(new Vector3(node.borderReach * Math.abs(ring.scaling.x), 0, 0)));
+    return Math.hypot(x.x - o.x, x.y - o.y);
+}
+
+type Xy = readonly [number, number];
+type Xyz = readonly [number, number, number];
+
+/** One side of a fill's outline on screen, and its outward unit normal. */
+interface ScreenSide {
+    a: Xy;
+    b: Xy;
+    n: Xy;
+}
+
+/**
+ * How wide a border ring is drawn, on screen, measured square to the sides of the fill it rings (issue #5364): points
+ * along the ring's inner and outer edges are each placed against the side of the fill they are nearest, as how far out
+ * of the fill they are (negative inside it), and a side's band runs from the innermost of its points to the outermost.
+ * The ring's width is the median band over the fill's length. Not along one direction, and not the ring's box against
+ * the fill's: a pointed outline's mitred corners reach further than the ring's width along their own direction, never
+ * square to a side, so a point beyond the ends of the sides near it is left out, and a spike one odd corner throws out
+ * is not the ring's width. A ring drawn over the fill, or clear of it, is as wide as its own band; one drawn wider
+ * than asked reads wider.
+ * @param fill - the node's own mesh
+ * @param ring - its border ring
+ * @param flat - whether the node is a flat shape (its outline is its fill's front face), not a solid (its outline is
+ *     the hull of its vertices seen along z, as `NodeMesh.solidOutline` rings it)
+ * @param p - the projector
+ * @returns the width in render pixels, 0 when the fill has no outline
+ */
+function ringBandPx(fill: AbstractMesh, ring: AbstractMesh, flat: boolean, p: Projector): number {
+    const sides = fillSides(fill, flat, p);
+    const bands = new Map<ScreenSide, { out: number; in: number }>();
+    for (const q of edgeSamples(ring, p)) {
+        const at = nearestSide(q, sides);
+        if (at !== null) {
+            const band = bands.get(at.side) ?? { out: -Infinity, in: Infinity };
+            band.out = Math.max(band.out, at.out);
+            band.in = Math.min(band.in, at.out);
+            bands.set(at.side, band);
+        }
+    }
+    // the median over the fill's length: a spike one odd corner throws out is not the ring's width
+    const widths = [...bands]
+        .map(([side, band]) => ({
+            width: band.out - band.in,
+            length: Math.hypot(side.b[0] - side.a[0], side.b[1] - side.a[1]),
+        }))
+        .sort((x, y) => x.width - y.width);
+    const half = widths.reduce((sum, w) => sum + w.length, 0) / 2;
+    let run = 0;
+    for (const w of widths) {
+        run += w.length;
+        if (run >= half) {
+            return w.width;
+        }
+    }
+    return 0;
+}
+
+/**
+ * Points along a slab's front-face outline on screen, a pixel or less apart: the inner and outer edges of a ring, so
+ * that a long straight side of the fill is measured along its length, not only at its corners.
+ * @param mesh - the slab
+ * @param p - the projector
+ * @returns the points
+ */
+function edgeSamples(mesh: AbstractMesh, p: Projector): Xy[] {
+    const { boundary } = frontFace(sourceOf(mesh));
+    const out: Xy[] = [];
+    for (const { a, b } of boundary) {
+        const [sa, sb] = onScreen(mesh, [a, b], p);
+        const steps = Math.min(4096, Math.max(1, Math.ceil(Math.hypot(sb[0] - sa[0], sb[1] - sa[1]))));
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            out.push([sa[0] + t * (sb[0] - sa[0]), sa[1] + t * (sb[1] - sa[1])]);
+        }
+    }
+    return out;
+}
+
+/**
+ * The side of a fill a point is nearest, and how far out of the fill it is, square to that side (negative inside it);
+ * null when it is nearest a corner, beyond the ends of every side near it (a mitre's point), or the fill has no sides.
+ * @param q - the point, on screen
+ * @param sides - the fill's sides, on screen
+ * @returns the side and the distance, or null
+ */
+function nearestSide(q: Xy, sides: readonly ScreenSide[]): { side: ScreenSide; out: number } | null {
+    let best = Infinity;
+    let found: { side: ScreenSide; out: number } | null = null;
+    for (const side of sides) {
+        const { a, b, n } = side;
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const along = ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy);
+        const t = Math.max(0, Math.min(1, along));
+        const far = Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy);
+        if (far < best) {
+            best = far;
+            found = along === t ? { side, out: (q[0] - a[0]) * n[0] + (q[1] - a[1]) * n[1] } : null;
+        }
+    }
+    return found;
+}
+
+/**
+ * A fill's outline on screen, side by side, each with its outward normal: a flat shape's front-face edges no other
+ * triangle of it shares, a solid's convex hull seen along z.
+ * @param fill - the node's own mesh
+ * @param flat - whether it is a flat shape
+ * @param p - the projector
+ * @returns the sides
+ */
+function fillSides(fill: AbstractMesh, flat: boolean, p: Projector): ScreenSide[] {
+    const source = sourceOf(fill);
+    let local: { a: Xyz; b: Xyz; inward: Xyz }[];
+    if (flat) {
+        local = frontFace(source).boundary;
+    } else {
+        const hull = convexHull(source instanceof Mesh ? projectedVertices(source) : []);
+        const mid: Xyz = [
+            hull.reduce((sum, h) => sum + h[0], 0) / Math.max(1, hull.length),
+            hull.reduce((sum, h) => sum + h[1], 0) / Math.max(1, hull.length),
+            0,
+        ];
+        local = hull.map((h, i) => {
+            const next = hull[(i + 1) % hull.length];
+            return { a: [h[0], h[1], 0], b: [next[0], next[1], 0], inward: mid };
+        });
+    }
+    return local.flatMap(({ a, b, inward }) => {
+        const [sa, sb, sc] = onScreen(fill, [a, b, inward], p);
+        const length = Math.hypot(sb[0] - sa[0], sb[1] - sa[1]);
+        if (length < 1e-9) {
+            return [];
+        }
+        const n: [number, number] = [-(sb[1] - sa[1]) / length, (sb[0] - sa[0]) / length];
+        const flip = (sc[0] - sa[0]) * n[0] + (sc[1] - sa[1]) * n[1] > 0 ? -1 : 1;
+        return [{ a: sa, b: sb, n: [n[0] * flip, n[1] * flip] as const }];
+    });
+}
+
+/**
+ * The mesh whose vertices an instance draws.
+ * @param mesh - a mesh or an instance
+ * @returns its source mesh
+ */
+function sourceOf(mesh: AbstractMesh): AbstractMesh {
+    return mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh;
+}
+
+/**
+ * Points in a mesh's own units through its world matrix onto the screen.
+ * @param mesh - the mesh (an instance places its source's vertices)
+ * @param points - the points
+ * @param p - the projector
+ * @returns the screen points, in render pixels
+ */
+function onScreen(mesh: AbstractMesh, points: readonly Xyz[], p: Projector): Xy[] {
+    const world = mesh.computeWorldMatrix(true);
+    return points.map((q) => {
+        const s = p.point(Vector3.TransformCoordinates(new Vector3(q[0], q[1], q[2]), world));
+        return [s.x, s.y] as const;
+    });
+}
+
+/**
+ * A slab's front face (its triangles at its nearest z, as `SlabBuilder` builds a flat shape or a ring): its area, its
+ * distinct vertices, and its outline, each edge no other front triangle shares with the triangle's third corner,
+ * which lies inside it.
+ * @param mesh - the slab
+ * @returns the face, empty for a mesh with no faces
+ */
+function frontFace(mesh: AbstractMesh): {
+    area: number;
+    points: Xyz[];
+    triangles: [Xyz, Xyz, Xyz][];
+    boundary: { a: Xyz; b: Xyz; inward: Xyz }[];
+} {
+    const positions = mesh.getVerticesData("position");
+    const indices = mesh.getIndices();
+    if (positions === null || indices === null || indices.length === 0) {
+        return { area: 0, points: [], triangles: [], boundary: [] };
+    }
+    const at = (i: number): Xyz => [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
+    let front = Infinity;
+    for (let i = 2; i < positions.length; i += 3) {
+        front = Math.min(front, positions[i]);
+    }
+    let area = 0;
+    const triangles: [Xyz, Xyz, Xyz][] = [];
+    const points = new Map<string, Xyz>();
+    const edges = new Map<string, { a: Xyz; b: Xyz; inward: Xyz; uses: number }>();
+    const keyOf = (q: Xyz): string => `${q[0].toFixed(5)},${q[1].toFixed(5)}`;
+    for (let t = 0; t + 2 < indices.length; t += 3) {
+        const tri = [at(indices[t]), at(indices[t + 1]), at(indices[t + 2])];
+        if (tri.some((q) => Math.abs(q[2] - front) > 1e-9)) {
+            continue;
+        }
+        const [a, b, c] = tri;
+        triangles.push([a, b, c]);
+        area += Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
+        for (const [u, v, w] of [
+            [a, b, c],
+            [b, c, a],
+            [c, a, b],
+        ]) {
+            points.set(keyOf(u), u);
+            const k = [keyOf(u), keyOf(v)].sort().join("|");
+            const e = edges.get(k) ?? { a: u, b: v, inward: w, uses: 0 };
+            e.uses++;
+            edges.set(k, e);
+        }
+    }
+    const boundary = [...edges.values()].filter((e) => e.uses === 1);
+    return { area, points: [...points.values()], triangles, boundary };
+}
+
+/**
+ * How thick the band a ring's front face draws is on screen: twice its area over the length of its edges, both measured
+ * on screen. A band of one width all round, the ring's own offset of the fill's outline, is exactly that width
+ * whatever the outline's shape (a mitred corner adds as much area as it adds edge), and wherever it lies against the
+ * fill: drawn over it, clear of it, or around a fill too small to have sides.
+ * @param mesh - a ring built by `ringSlab`
+ * @param p - the projector
+ * @returns the thickness in render pixels, or 0
+ */
+function bandThicknessPx(mesh: AbstractMesh, p: Projector): number {
+    const { triangles, boundary } = frontFace(sourceOf(mesh));
+    let area = 0;
+    for (const tri of triangles) {
+        const [a, b, c] = onScreen(mesh, tri, p);
+        area += Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
+    }
+    let outline = 0;
+    for (const e of boundary) {
+        const [a, b] = onScreen(mesh, [e.a, e.b], p);
+        outline += Math.hypot(b[0] - a[0], b[1] - a[1]);
+    }
+    return outline > 0 ? (2 * area) / outline : 0;
 }
 
 /**
@@ -839,42 +1115,8 @@ function readBorder(node: Node, p: Projector): DrawnBorder | null {
  * @returns the thickness, or 0
  */
 function frontThickness(mesh: AbstractMesh): number {
-    const positions = mesh.getVerticesData("position");
-    const indices = mesh.getIndices();
-    if (positions === null || indices === null || indices.length === 0) {
-        return 0;
-    }
-    const at = (i: number): [number, number, number] => [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
-    let front = Infinity;
-    for (let i = 2; i < positions.length; i += 3) {
-        front = Math.min(front, positions[i]);
-    }
-    let area = 0;
-    const edges = new Map<string, { length: number; uses: number }>();
-    const key = (a: number[], b: number[]): string =>
-        [a, b]
-            .map((q) => `${q[0].toFixed(5)},${q[1].toFixed(5)}`)
-            .sort()
-            .join("|");
-    for (let t = 0; t + 2 < indices.length; t += 3) {
-        const tri = [at(indices[t]), at(indices[t + 1]), at(indices[t + 2])];
-        if (tri.some((q) => Math.abs(q[2] - front) > 1e-9)) {
-            continue;
-        }
-        const [a, b, c] = tri;
-        area += Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
-        for (const [u, v] of [
-            [a, b],
-            [b, c],
-            [c, a],
-        ]) {
-            const k = key(u, v);
-            const e = edges.get(k) ?? { length: Math.hypot(v[0] - u[0], v[1] - u[1]), uses: 0 };
-            e.uses++;
-            edges.set(k, e);
-        }
-    }
-    const outline = [...edges.values()].filter((e) => e.uses === 1).reduce((sum, e) => sum + e.length, 0);
+    const { area, boundary } = frontFace(mesh);
+    const outline = boundary.reduce((sum, e) => sum + Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]), 0);
     return outline > 0 ? (2 * area) / outline : 0;
 }
 

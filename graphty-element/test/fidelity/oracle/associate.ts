@@ -314,6 +314,12 @@ const SLANTED: ReadonlySet<PShape> = new Set(["triangle", "diamond", "hexagon", 
 const slantedOutlines = new WeakMap<PNode, readonly Pt[]>();
 
 /**
+ * The rows of a table drawn as boxes stacked edge to edge (`stackedRows`) that each match of bodies (`matchBodies`)
+ * found, by node: part of the node's box (`nodeFrom`) in the match that is chosen, never in another.
+ */
+const tableRowsOf = new WeakMap<ReadonlyMap<string, Prim[]>, Map<string, ReadonlySet<Prim>>>();
+
+/**
  * How far a point is from a closed outline's sides.
  * @param p - the point
  * @param outline - the outline's points, in order
@@ -332,7 +338,12 @@ function toOutline(p: Pt, outline: readonly Pt[]): number {
 }
 
 /** A node built from the primitives that draw it. */
-function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): PNode {
+function nodeFrom(
+    id: string,
+    drawn: readonly Prim[],
+    texts: readonly PText[],
+    rows: ReadonlySet<Prim> = new Set(),
+): PNode {
     const under = underlaysOf(drawn);
     const ringPrim = outerRingOf(drawn.filter((p) => !under.has(p)));
     // a ring outside the border is neither the node's size nor its outline: judged on its own
@@ -348,8 +359,9 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
     // and an outline drawn as a fill of its own (`outlinePaintedAsFill`) says nothing of the shape: its body does
     const outline =
         sorted.find((s) => s.kind !== "image" && s.tag !== PAINTED_OUTLINE) ?? sorted.find((s) => s.kind !== "image");
+    // and a table's rows, however short each is: the table is their union (#5347)
     const box = body
-        ? union(sorted.filter((s) => area(s.box) >= 0.5 * area(body.box)).map((s) => s.box))
+        ? union(sorted.filter((s) => area(s.box) >= 0.5 * area(body.box) || rows.has(s)).map((s) => s.box))
         : union(texts.map((t) => t.box));
     // a fill over no area paints nothing: Cytoscape draws a 1 x 1 anchor node with a 1 px border as a
     // shape of size 0, its round-capped outline a dot and its fill nowhere
@@ -2295,7 +2307,7 @@ export function associate(
             const under = underlaysOf(drawn);
             const shapes = drawn.filter((p) => !under.has(p));
             shapes.forEach(take);
-            nodes.set(id, nodeFrom(id, shapes, []));
+            nodes.set(id, nodeFrom(id, shapes, [], tableRowsOf.get(chosen)?.get(id)));
         }
     }
 
@@ -3904,6 +3916,14 @@ function matchBodies(
     }
     const spots = spotsOf(guideNodes, predict);
     const spotOf = new Map([...spots].map(([n, at]): [string, Pt] => [n.id, [at.x, at.y]]));
+    // where each node lands, at its own width and height
+    const landing = new Map(
+        [...spots].map(([n, at]): [string, PBox] => {
+            const k = at.s / Math.max(n.w, n.h, 1e-9);
+            const [w, h] = [(k * n.w) / 2, (k * n.h) / 2];
+            return [n.id, { x0: at.x - w, y0: at.y - h, x1: at.x + w, y1: at.y + h }];
+        }),
+    );
     for (const [n, at] of spots) {
         const { x: px, y: py, s, reach } = at;
         for (const p of shapes) {
@@ -3933,6 +3953,8 @@ function matchBodies(
     }
     const bodyOf = new Map([...bestOf].map(([id, index]) => [index, id]));
     const out = new Map<string, Prim[]>();
+    const tableRows = new Map<string, ReadonlySet<Prim>>();
+    tableRowsOf.set(out, tableRows);
     const taken = new Set<number>();
     // the shapes a body hides on its spot: only a node that lands on one takes it, not one beside it
     const hidden = new Set<number>();
@@ -4003,8 +4025,30 @@ function matchBodies(
                       Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.5,
               )
             : [];
-        [...twins, ...fills].forEach((q) => taken.add(q.index));
-        out.set(c.id, [body, ...twins, ...fills]);
+        const landed = landing.get(c.id);
+        const rows =
+            landed === undefined || c.id.startsWith(GROUP_CLAIM)
+                ? []
+                : tableOf(
+                      [body, ...twins],
+                      stackedRows(
+                          [body, ...twins],
+                          shapes.filter(
+                              (q) =>
+                                  !taken.has(q.index) &&
+                                  !twins.includes(q) &&
+                                  (bodyOf.get(q.index) ?? c.id) === c.id &&
+                                  // where graphty lands it, give or take the fit's play
+                                  boxWithin(q.box, landed, 0.1 * Math.max(bw(landed), bh(landed))),
+                          ),
+                      ),
+                      landed,
+                  );
+        if (rows.length > 0) {
+            tableRows.set(c.id, new Set(rows));
+        }
+        [...twins, ...fills, ...rows].forEach((q) => taken.add(q.index));
+        out.set(c.id, [body, ...twins, ...fills, ...rows]);
     }
     for (const id of out.keys()) {
         if (id.startsWith(GROUP_CLAIM)) {
@@ -4055,6 +4099,65 @@ const wordsAt = (content: string, x: number, y: number): PText => ({
     color: "#000000",
     opacity: 1,
 });
+
+/**
+ * The rows that make a node's body a table: all of them, where the table they make with the body is the node's height
+ * where graphty lands it (within a tenth) and nearer it than the body alone; else none, so that a box drawn under or
+ * over a node (a label's, an annotation's) stays a box of its own.
+ * @param body - the node's body and its twins
+ * @param rows - the rows stacked on the body (`stackedRows`)
+ * @param landed - where graphty lands the node, in the oracle's frame
+ * @returns the rows, or none
+ */
+function tableOf(body: readonly Prim[], rows: readonly Prim[], landed: PBox): Prim[] {
+    if (rows.length === 0) {
+        return [];
+    }
+    const want = bh(landed);
+    const table = Math.abs(bh(union([...body, ...rows].map((p) => p.box))) - want);
+    const alone = Math.abs(bh(union(body.map((p) => p.box))) - want);
+    return table <= 0.1 * want && table < alone ? [...rows] : [];
+}
+
+/**
+ * The rows of a table drawn round a node's body: rectangles as wide as the body, each in line with it (its left and
+ * right edges within a pixel), touching it or a row already taken and reaching a pixel or more past them, up or down.
+ * yEd's table node is drawn as a header row over its rows, one box each, and the node is all of them (#5347:
+ * yed-graphml-specimen-groups-p2's table-lane-style-rows, drawn as a header and two rows, was read as one row). A shape
+ * drawn over the body on its spot reaches past it by no pixel, so it is no row: a twin, or another node's.
+ * @param body - the node's body and its twins
+ * @param free - the shapes free for the node, inside where it lands
+ * @returns the rows, in the order they were reached
+ */
+function stackedRows(body: readonly Prim[], free: readonly Prim[]): Prim[] {
+    const [first] = body;
+    if (first === undefined || first.kind !== "shape" || area(first.box) === 0 || shapeOf(first) !== "rect") {
+        return [];
+    }
+    const inLine = (q: Prim): boolean =>
+        q.kind === "shape" &&
+        area(q.box) > 0 &&
+        shapeOf(q) === "rect" &&
+        Math.abs(q.box.x0 - first.box.x0) <= 1 &&
+        Math.abs(q.box.x1 - first.box.x1) <= 1;
+    const rows: Prim[] = [];
+    let reach = union(body.map((p) => p.box));
+    let left = free.filter(inLine);
+    for (;;) {
+        const touching = left.filter(
+            (q) =>
+                q.box.y0 <= reach.y1 + 0.5 &&
+                q.box.y1 >= reach.y0 - 0.5 &&
+                (q.box.y0 < reach.y0 - 1 || q.box.y1 > reach.y1 + 1),
+        );
+        if (touching.length === 0) {
+            return rows;
+        }
+        rows.push(...touching);
+        reach = union([reach, ...touching.map((q) => q.box)]);
+        left = left.filter((q) => !touching.includes(q));
+    }
+}
 
 /**
  * The most common color among the pixels of a disk: a node's fill read off a raster, robust to an

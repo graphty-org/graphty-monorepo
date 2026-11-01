@@ -385,6 +385,25 @@ export interface BindingStop {
     value: string | number;
 }
 
+// @beta
+export interface BranchReading {
+    // (undocumented)
+    readonly color: string;
+    readonly count: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly members: Scope;
+    readonly reason: CodedFact<StepReasonCode> | null;
+    // (undocumented)
+    readonly state: BranchState;
+    // (undocumented)
+    readonly steps: readonly StepReading[];
+}
+
+// @beta
+export type BranchState = "ready" | "pending" | "off";
+
 // @public
 export interface BrowserProjects {
     get(id: string): Promise<File | undefined>;
@@ -404,6 +423,23 @@ export interface BrowserProjectSaveOptions {
 
 // @public
 export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply";
+
+// @beta
+export interface BySizeLeaf {
+    readonly from?: "high" | "low";
+    // (undocumented)
+    readonly kind: "by-size";
+    // (undocumented)
+    readonly max?: number;
+    // (undocumented)
+    readonly min?: number;
+    // (undocumented)
+    readonly path: Path;
+    // (undocumented)
+    readonly ties?: TopTies;
+    // (undocumented)
+    readonly top?: number;
+}
 
 // @public
 export interface Capabilities {
@@ -738,6 +774,9 @@ export interface DataSourceInput {
 }
 
 // @public
+export const DEFAULT_BRANCH_PALETTE: readonly string[];
+
+// @public
 export const DEFAULT_COST_GATE_LIMITS: Readonly<CostGateLimits>;
 
 // @public
@@ -988,24 +1027,37 @@ export interface FieldBand {
 // @public
 export interface FieldDescriptor {
     directedOnly?: boolean;
+    // @beta
+    domain?: {
+        readonly min: number;
+        readonly max: number;
+    };
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
     measurement?: Measurement;
+    // @beta
+    missing?: "unreached" | "unmeasured" | (string & {});
     // (undocumented)
     name: string;
     // (undocumented)
     normalization?: string;
+    // @beta
+    order?: readonly (string | number)[];
     // (undocumented)
     path: Path;
     // (undocumented)
     plainName: string;
+    // @beta
+    polarity?: "higher" | "lower";
     // (undocumented)
     technicalName: string;
     // (undocumented)
     type: "number" | "integer" | "boolean" | "string" | "table";
     // (undocumented)
     unit?: string;
+    // @beta
+    unstable?: true;
 }
 
 // @public
@@ -2520,6 +2572,17 @@ export type HistoryStepId = string & {
     readonly __brand: "HistoryStepId";
 };
 
+// @beta
+export interface HopsLeaf {
+    // (undocumented)
+    readonly direction?: SelectionDirection;
+    // (undocumented)
+    readonly kind: "hops";
+    // (undocumented)
+    readonly max?: number;
+    readonly of?: StepReference;
+}
+
 // @public
 export interface ImportOptions {
     readonly history?: "step" | "start";
@@ -3128,6 +3191,19 @@ export interface MarkSuggestion {
     readonly spec: MarkSpec;
 }
 
+// @beta
+export interface MeasureLeaf {
+    readonly algorithm: string;
+    // (undocumented)
+    readonly bind?: Readonly<Record<string, StepReference>>;
+    readonly field: string;
+    // (undocumented)
+    readonly kind: "measure";
+    // (undocumented)
+    readonly params?: Readonly<Record<string, unknown>>;
+    readonly test?: MeasureTest;
+}
+
 // @public
 export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {});
 
@@ -3142,6 +3218,17 @@ export type MeasurementDeclaration = {
 // @public
 export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {});
 
+// @beta
+export type MeasureTest = Omit<Extract<RuleTree, {
+    kind: "range";
+}>, "attribute" | "nodes"> | Omit<Extract<RuleTree, {
+    kind: "threshold";
+}>, "path"> | Omit<Extract<RuleTree, {
+    kind: "categories";
+}>, "attribute" | "nodes"> | Omit<Extract<RuleTree, {
+    kind: "text";
+}>, "reads" | "nodes"> | Omit<BySizeLeaf, "path"> | Omit<SameValueLeaf, "path">;
+
 // @public
 export interface Memberships {
     readonly items: readonly {
@@ -3151,6 +3238,9 @@ export interface Memberships {
     }[];
     readonly sets: readonly SetId[];
 }
+
+// @beta
+export type MissingValues = "include" | "exclude";
 
 // @public
 export interface ModelChange {
@@ -3308,6 +3398,13 @@ export interface NodeSource {
     readonly hiddenNeighbors: number | null;
     readonly loadKey: string;
     readonly source: SourceKey | null;
+}
+
+// @beta
+export interface NonemptyLeaf {
+    // (undocumented)
+    readonly kind: "nonempty";
+    readonly of?: StepReference;
 }
 
 // @public
@@ -3881,6 +3978,8 @@ export type ReadableChannelKind = "color" | "number" | "enum" | "text" | "boolea
 export interface ReadableValue {
     readonly completeness: number;
     readonly end?: "source" | "target";
+    // @beta
+    readonly facts?: Pick<FieldDescriptor, "domain" | "polarity" | "order" | "missing" | "unstable">;
     readonly fits: readonly ReadableChannelKind[];
     readonly from: "element" | "data" | "run";
     readonly holdsNodeIds?: true;
@@ -3897,6 +3996,8 @@ export interface ReadableValue {
     readonly tests: readonly RuleTestKind[];
     readonly usedBy?: readonly AttributeUse[];
     readonly valueCount?: number;
+    // @beta
+    readonly valueKind?: ValueKind;
     readonly valuesAreColors?: true;
 }
 
@@ -4392,11 +4493,14 @@ export type RuleTree = {
     readonly max?: number;
     readonly as?: "time";
     readonly nodes?: AttributeLeafNodes;
+    readonly missing?: MissingValues;
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
     readonly values: readonly string[];
     readonly nodes?: AttributeLeafNodes;
+    readonly missing?: MissingValues;
+    readonly match?: "any" | "all";
 } | {
     readonly kind: "degree";
     readonly min?: number;
@@ -4460,6 +4564,9 @@ export type RuleTree = {
     readonly top?: number;
     readonly ties?: TopTies;
     readonly above?: number;
+    readonly percentile?: number;
+    readonly from?: "high" | "low";
+    readonly missing?: MissingValues;
 }
 /**
 * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -4484,7 +4591,7 @@ export type RuleTree = {
     readonly kind: "source";
     readonly sources: readonly SourceKey[];
     readonly side?: RuleSide;
-} | {
+} | UnionLeaf | HopsLeaf | TouchingLeaf | NonemptyLeaf | SameValueLeaf | BySizeLeaf | MeasureLeaf | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];
 } | {
@@ -4760,6 +4867,14 @@ export interface RunWindow {
     readonly to: number;
 }
 
+// @beta
+export interface SameValueLeaf {
+    readonly as?: StepReference;
+    // (undocumented)
+    readonly kind: "same-value";
+    readonly path: Path;
+}
+
 // @public
 export interface SavedProject {
     // (undocumented)
@@ -4788,14 +4903,36 @@ export type Scope = "visible" | "graph" | "selection" | "largest-component" | {
 
 // @public
 export interface ScopeApi {
+    // @beta
+    allowRun(rule: UnionLeaf, stepId: string): void;
+    // @beta
+    asUnion(rule: RuleTree, options: {
+        readonly side: UnionLeaf["side"];
+        readonly within: UnionLeaf["within"];
+    }): UnionLeaf | null;
+    // @beta
+    cancelRun(rule: UnionLeaf, stepId: string): void;
+    // @beta
+    checkStep(step: UnionStep, options: StepCheckOptions): CodedFact | null;
     count(spec: ScopeInput, options?: ScopeCountOptions): Promise<ScopeCount>;
+    // @beta
+    histogram(path: Path, options?: ValueHistogramOptions): ValueHistogram;
     // @deprecated
     list(): readonly SavedScope[];
+    // @beta
+    readonly options: ScopeStepOptions;
     // @deprecated
     remove(id: ScopeId): void;
     resolve(spec: ScopeInput): Promise<ResolvedScope>;
     // @deprecated
     save(name: string, spec: Scope): ScopeId;
+    // @beta
+    setOptions(options: ScopeStepOptions): void;
+    // @beta
+    watchSteps(rule: RuleTree, onChange: (reading: StepsReading) => void, options?: {
+        readonly side?: UnionLeaf["side"];
+        readonly within?: UnionLeaf["within"];
+    }): StepsWatch;
 }
 
 // @public
@@ -4823,6 +4960,13 @@ export type ScopeInput = Exclude<Scope, {
 }> | {
     define: SetDefinitionInput;
 };
+
+// @beta
+export interface ScopeStepOptions {
+    readonly askAboveMs?: number;
+    readonly branchPalette?: readonly string[];
+    readonly liveMs?: number;
+}
 
 // @public
 export interface ScreenshotPreset {
@@ -5283,6 +5427,10 @@ export interface SessionEventMap {
     "source:expand-start": SourceExpandStart;
     "source:expanded": SourceExpanded;
     "style:batch-changed": StyleBatchChange;
+    // @beta
+    "style:branches-shown-changed": {
+        readonly shown: boolean;
+    };
     "style:changed": StyleChange;
     "style:problem": StyleProblem;
     "time:end": {
@@ -5951,6 +6099,15 @@ export interface StartOptions extends RunOptions {
 // @public
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
+// @beta
+export interface StepCheckOptions {
+    readonly host: "selector" | "filter";
+    // (undocumented)
+    readonly side: UnionLeaf["side"];
+    // (undocumented)
+    readonly within: UnionLeaf["within"];
+}
+
 // @public
 export interface StepCounts {
     // (undocumented)
@@ -5959,6 +6116,52 @@ export interface StepCounts {
     readonly steps: readonly (Counts & {
         readonly id: string;
     })[];
+}
+
+// @beta
+export interface StepReading {
+    readonly count: number;
+    readonly frozen: boolean;
+    // (undocumented)
+    readonly id: string;
+    readonly input: Scope;
+    readonly members: Scope;
+    readonly orderMatters: boolean;
+    // (undocumented)
+    readonly reason: CodedFact<StepReasonCode> | null;
+    readonly run: RunId | null;
+    // (undocumented)
+    readonly state: StepState;
+}
+
+// @beta
+export type StepReasonCode = "test-unset" | "no-reference" | "one-node-only" | "computing" | "run-needed" | "stale" | "run-paused" | "run-failed" | "waits-for" | "input-empty" | "reference-empty" | "frozen-from";
+
+// @beta
+export type StepReference = Scope | "hovered-or-selected" | "so-far";
+
+// @beta
+export interface StepsReading {
+    // (undocumented)
+    readonly branches: readonly BranchReading[];
+    branchOf(id: NodeId | EdgeId): string | null;
+    readonly pending: readonly string[];
+    readonly result: Scope;
+    readonly rule: UnionLeaf;
+    readonly total: {
+        readonly count: number;
+        readonly of: number;
+    };
+}
+
+// @beta
+export type StepState = "applied" | "inert" | "pending" | "off";
+
+// @beta
+export interface StepsWatch {
+    // (undocumented)
+    readonly current: StepsReading;
+    end(): void;
 }
 
 // @public
@@ -5975,6 +6178,8 @@ export interface StructureValue {
     readonly path: Path;
     readonly plainName: string;
     readonly technicalName: string;
+    // @beta
+    readonly valueKind?: ValueKind;
 }
 
 // @public
@@ -6102,7 +6307,7 @@ export interface StyleRowPlace {
     readonly parent?: StyleRowId | null;
 }
 
-// @public
+// @public (undocumented)
 export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
     addFolder(name: string, at?: StyleRowPlace, options?: RunOptions): Run<StyleRow>;
@@ -6160,6 +6365,12 @@ export interface StylesApi {
     setValueEntries(id: LayerId, by: Path, writes: readonly ValueEntryWrite[], options?: RunOptions): Run<Layer>;
     setValueEntry(id: LayerId, channel: Channel, value: string | number | boolean, entry: ChannelValue | undefined, options?: RunOptions): Run<Layer>;
     setValueHidden(id: LayerId, channel: Channel, value: string | number | boolean, hidden: boolean, options?: RunOptions): Run<Layer>;
+    // @beta
+    showBranches(view: BranchesView): {
+        end(): void;
+    };
+    // @beta
+    readonly showingBranches: boolean;
     toDocument(): StyleDocument;
     toFile(): StyleFileDocument;
     tree(): readonly StyleRow[];
@@ -6520,6 +6731,15 @@ export interface TopRanking {
 // @public
 export type TopTies = "fewer" | "all";
 
+// @beta
+export interface TouchingLeaf {
+    // (undocumented)
+    readonly ends: "either" | "both" | "one";
+    // (undocumented)
+    readonly kind: "touching";
+    readonly of?: StepReference;
+}
+
 // @public
 export interface TransactionOptions {
     readonly after?: HistoryStepId;
@@ -6553,6 +6773,36 @@ export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
 
 // @public
 export type UndrawnCode = "caption.noArrow" | "shader.unknown" | "shader.target-mismatch" | "shader.place-unsupported" | "shader.stack-cap" | "shader.group-cap" | "edge.lift-needs-flat-layout";
+
+// @beta
+export interface UnionBranch {
+    readonly color?: string;
+    readonly id?: string;
+    readonly name?: string;
+    readonly on?: boolean;
+    readonly start: "all" | "none";
+    readonly steps: readonly UnionStep[];
+}
+
+// @beta
+export interface UnionLeaf {
+    readonly branches: readonly UnionBranch[];
+    // (undocumented)
+    readonly kind: "union";
+    readonly side: "nodes" | "edges";
+    readonly within: "graph" | "visible";
+}
+
+// @beta
+export interface UnionStep {
+    readonly computedOn?: "base" | "so-far";
+    readonly ends?: "both" | "either";
+    readonly frozenFrom?: "selection" | "hovered-or-selected";
+    readonly id?: string;
+    readonly on?: boolean;
+    readonly op: "add" | "keep" | "except";
+    readonly rule: RuleTree;
+}
 
 // @public
 export interface UnknownRulePath {
@@ -6613,6 +6863,31 @@ export interface ValueGroup {
     readonly name?: string;
     readonly value: unknown;
 }
+
+// @beta
+export type ValueHistogram = (Histogram & {
+    readonly kind: "numeric";
+    readonly missing: number;
+    readonly of: number;
+}) | {
+    readonly kind: "categorical";
+    readonly values: readonly {
+        readonly value: string | number | boolean;
+        readonly count: number;
+        readonly member?: NodeId;
+    }[];
+    readonly missing: number;
+    readonly of: number;
+};
+
+// @beta
+export interface ValueHistogramOptions extends HistogramOptions {
+    readonly as?: "numeric" | "categorical";
+    readonly within?: Scope;
+}
+
+// @beta
+export type ValueKind = "number" | "time" | "ordered" | "category" | "tags" | "flag" | "text";
 
 // @public
 export type ValueType = "text" | "number" | "boolean" | "date" | "category";

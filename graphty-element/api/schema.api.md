@@ -3114,11 +3114,14 @@ export type RuleTree = {
     readonly max?: number;
     readonly as?: "time";
     readonly nodes?: AttributeLeafNodes;
+    readonly missing?: MissingValues;
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
     readonly values: readonly string[];
     readonly nodes?: AttributeLeafNodes;
+    readonly missing?: MissingValues;
+    readonly match?: "any" | "all";
 } | {
     readonly kind: "degree";
     readonly min?: number;
@@ -3182,6 +3185,9 @@ export type RuleTree = {
     readonly top?: number;
     readonly ties?: TopTies;
     readonly above?: number;
+    readonly percentile?: number;
+    readonly from?: "high" | "low";
+    readonly missing?: MissingValues;
 }
 /**
 * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -3206,7 +3212,7 @@ export type RuleTree = {
     readonly kind: "source";
     readonly sources: readonly SourceKey[];
     readonly side?: RuleSide;
-} | {
+} | UnionLeaf | HopsLeaf | TouchingLeaf | NonemptyLeaf | SameValueLeaf | BySizeLeaf | MeasureLeaf | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];
 } | {

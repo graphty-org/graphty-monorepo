@@ -262,6 +262,8 @@ export interface AlgorithmDescriptor {
     fields: readonly FieldDescriptor[];
     // (undocumented)
     key: AlgorithmKey;
+    // @beta
+    keywords?: readonly string[];
     // (undocumented)
     options: readonly OptionDescriptor[];
     // (undocumented)
@@ -954,24 +956,37 @@ export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 // @public
 export interface FieldDescriptor {
     directedOnly?: boolean;
+    // @beta
+    domain?: {
+        readonly min: number;
+        readonly max: number;
+    };
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
     measurement?: Measurement;
+    // @beta
+    missing?: "unreached" | "unmeasured" | (string & {});
     // (undocumented)
     name: string;
     // (undocumented)
     normalization?: string;
+    // @beta
+    order?: readonly (string | number)[];
     // (undocumented)
     path: Path;
     // (undocumented)
     plainName: string;
+    // @beta
+    polarity?: "higher" | "lower";
     // (undocumented)
     technicalName: string;
     // (undocumented)
     type: "number" | "integer" | "boolean" | "string" | "table";
     // (undocumented)
     unit?: string;
+    // @beta
+    unstable?: true;
 }
 
 // @public

@@ -10,7 +10,7 @@
 import type { Graphty } from "../../../index.js";
 import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../../src/layout/graphviz/engines";
 import { readDrawn } from "../drawn-scene";
-import { extractScene } from "../extract-scene";
+import { extractScene, groupsOf } from "../extract-scene";
 import {
     associate,
     type Association,
@@ -318,7 +318,18 @@ export async function compareWithOracle(
     // round a smaller one, Gephi's `label-overlap`, was read as a group and its oracle node as missing).
     const raster = meta.svgKind === "raster" && meta.drawn !== undefined;
     const groupless = raster || NO_GROUP_PROGRAMS.has(String(meta.program));
-    const unmutated = drawnPrimitives(scene, drawn, { groups: !groupless });
+    // A label under one render pixel is not shown here, as the oracle's is not (`compareOracle`); the scene shows it
+    // and leaves its size to `fontSize`, which the reference scenes judge in their own units.
+    const nodes = scene.nodes.map((n) => {
+        const d = drawn.nodes.get(n.id);
+        const fontPx = (d?.label ?? d?.tableLabel)?.fontPx ?? 0;
+        return n.label === null || fontPx >= 1 ? n : { ...n, label: { ...n.label, visible: false } };
+    });
+    // An SVG names no group, so a box graphty draws round others is read as one by its drawing alone, as the oracle's
+    // is, not only where the file nests nodes (the scene's groups, which the reference scenes are judged by)
+    const unmutated = drawnPrimitives({ ...scene, nodes, groups: groupsOf(nodes, drawn.nodes) }, drawn, {
+        groups: !groupless,
+    });
     // A specimen sheet whose format ids its nodes otherwise (Cytoscape desktop by SUID, GML by number) keeps `cap-*`
     // and `anchor-*` in an attribute (`name`, GML's `comment` or `template`): its captions and corner anchors are
     // named by that on both sides, so the comparison leaves the captions out and fixes the frame on the anchors

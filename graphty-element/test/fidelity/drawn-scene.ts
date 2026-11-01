@@ -37,6 +37,7 @@ import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
+import { type LineOptions, measureLine } from "../../src/meshes/RichTextParser";
 import { pixelsPerUnit } from "../../src/meshes/screenSize";
 import { piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
 import type { Node } from "../../src/Node";
@@ -327,6 +328,8 @@ interface LabelInternals {
         textOutline?: boolean;
         textOutlineColor?: string;
         textOutlineWidth?: number;
+        lineHeight?: number;
+        runAlign?: LineOptions["runAlign"];
     };
 }
 interface BlurInternals {
@@ -534,6 +537,32 @@ function nodeSizeRuleOf(label: RichTextLabel): Pick<DrawnLabel, "nodeSizeRule"> 
 }
 
 /**
+ * The leading a label's line height adds above its first line and below its last, in label units.
+ * @param label - the label
+ * @param opt - its options
+ * @returns the leading above and below
+ */
+function leadingOf(label: RichTextLabel, opt: LabelInternals["options"]): [number, number] {
+    const ctx = document.createElement("canvas").getContext("2d");
+    const lines = label.textRuns;
+    const lineHeight = opt.lineHeight ?? 1;
+    if (ctx === null || lines.length === 0 || !(lineHeight > 0)) {
+        return [0, 0];
+    }
+    // measured as the label measured them (RichTextLabel._calculateDimensions)
+    ctx.textRendering = "geometricPrecision";
+    const options: LineOptions = {
+        lineHeight,
+        textOutline: opt.textOutline === true,
+        textOutlineWidth: opt.textOutlineWidth ?? 0,
+        runAlign: opt.runAlign,
+    };
+    const half = (line: readonly TextSegment[]): number =>
+        (measureLine(ctx, [...line], options).lineBox * (1 - 1 / lineHeight)) / 2;
+    return [half(lines[0]), half(lines[lines.length - 1])];
+}
+
+/**
  * A label as drawn: its words, its plane on screen, the font height in pixels (the run's font
  * size in texture pixels times screen pixels per texture pixel of the plane) and its color.
  * @param label - the label
@@ -591,12 +620,16 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
     };
     const known = dims.width > 0 && dims.height > 0 && inner.contentArea !== undefined && inner.textSize !== undefined;
     const pad = opt.backgroundPadding ?? 0;
+    // the lines' font boxes, without the leading above the first and below the last: an SVG text's box (the oracle's)
+    // is its font's ascent plus descent, and a reader sees no line's leading (#5322: a DOT label read 1.2 times as
+    // tall as Graphviz's and reached into the glyph above it)
+    const [leadAbove, leadBelow] = known ? leadingOf(label, opt) : [0, 0];
     const textBox = known
         ? onScreen(
               inner.contentArea.x + (opt.marginLeft ?? 0) + pad,
-              inner.contentArea.y + (opt.marginTop ?? 0) + pad,
+              inner.contentArea.y + (opt.marginTop ?? 0) + pad + leadAbove,
               inner.textSize.width,
-              inner.textSize.height,
+              inner.textSize.height - leadAbove - leadBelow,
           )
         : null;
     // screen pixels per label unit, along the plane's height

@@ -99,6 +99,22 @@ describe("CLI", () => {
             expect(result.options.port).toBeUndefined();
         });
 
+        test("reads the port from PORT, as servherd sets it", () => {
+            expect(parseArgs([], { PORT: "9500" }).options.port).toBe(9500);
+        });
+
+        test("--port wins over PORT", () => {
+            expect(parseArgs(["--port", "9085"], { PORT: "9500" }).options.port).toBe(9085);
+        });
+
+        test("refuses a PORT that is not a port number", () => {
+            expect(parseArgs([], { PORT: "abc" }).error).toBe('PORT must be an integer from 1 to 65535, got "abc"');
+        });
+
+        test("leaves the port unset with no --port and no PORT", () => {
+            expect(parseArgs([], {}).options.port).toBeUndefined();
+        });
+
         test("refuses an out-of-range or missing --port", () => {
             expect(parseArgs(["--port", "0"]).error).toContain("--port");
             expect(parseArgs(["--port", "65536"]).error).toContain("--port");
@@ -306,6 +322,39 @@ describe("CLI", () => {
                 expect(sigintHandlers.length).toBe(1);
             } finally {
                 process.argv = originalArgv;
+                vi.doUnmock("../../src/server/dual-server.js");
+            }
+        });
+
+        test.each([
+            [["--port", "9500"], {}, 9500, 9500],
+            [[], { PORT: "9600" }, 9600, 9600],
+            [[], {}, 9080, undefined],
+        ])("main() binds only the port it is given (args %j, env %j)", async (args, env, httpPort, maxPortNumber) => {
+            const createDualServer = vi.fn().mockResolvedValue({
+                shutdown: vi.fn().mockResolvedValue(undefined),
+                httpPort,
+                storage: { getServerConfig: () => ({}) },
+            });
+            vi.doMock("../../src/server/dual-server.js", () => ({ createDualServer }));
+            const { main } = await import("../../src/server/log-server.js");
+
+            const originalArgv = process.argv;
+            const originalPort = process.env.PORT;
+            process.argv = ["node", "script.js", "--quiet", ...args];
+            delete process.env.PORT;
+            Object.assign(process.env, env);
+
+            try {
+                await main();
+                expect(createDualServer).toHaveBeenCalledWith(expect.objectContaining({ httpPort, maxPortNumber }));
+            } finally {
+                process.argv = originalArgv;
+                if (originalPort === undefined) {
+                    delete process.env.PORT;
+                } else {
+                    process.env.PORT = originalPort;
+                }
                 vi.doUnmock("../../src/server/dual-server.js");
             }
         });

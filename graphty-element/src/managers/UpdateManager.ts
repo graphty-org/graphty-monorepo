@@ -24,6 +24,7 @@ import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
+import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesLoading } from "../models/TextureCache";
@@ -85,25 +86,19 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
             continue;
         }
 
-        // WHERE THE NODE IS NOW, not where it was drawn last time. Babylon only refreshes a world
-        // position while it renders, and this runs BEFORE that render, so `getAbsolutePosition()`
-        // alone would hand back the previous frame's value. Computed rather than read off
-        // `mesh.position`, because a node mesh is parented to the "graph-root" transform an XR
-        // gesture moves, rotates and scales.
-        node.mesh.computeWorldMatrix(true);
-
-        const pos = node.mesh.getAbsolutePosition();
+        // WHERE THE NODE IS NOW, not where it was drawn last time: `framingBounds` computes the
+        // world matrix first, because Babylon only refreshes world bounds while it renders and this
+        // runs BEFORE that render. In world space, because a node mesh is parented to the
+        // "graph-root" transform an XR gesture moves, rotates and scales.
+        const box = node.framingBounds();
         // A spot is as wide as the node's widest half, so the turning fit keeps all of it in view.
-        spots.push({ pos, half: Math.max(node.framingHalf("x"), node.framingHalf("y"), node.framingHalf("z")) });
+        const half = box.max.subtract(box.min).scaleInPlace(0.5);
+        spots.push({ pos: box.min.add(half), half: Math.max(half.x, half.y, half.z) });
 
-        min ??= pos.clone().setAll(Infinity);
-        max ??= pos.clone().setAll(-Infinity);
-
-        for (const axis of ["x", "y", "z"] as const) {
-            const half = node.framingHalf(axis);
-            min[axis] = Math.min(min[axis], pos[axis] - half);
-            max[axis] = Math.max(max[axis], pos[axis] + half);
-        }
+        min ??= box.min.clone().setAll(Infinity);
+        max ??= box.max.clone().setAll(-Infinity);
+        min.minimizeInPlace(box.min);
+        max.maximizeInPlace(box.max);
     }
 
     return min && max ? { min, max, spots } : undefined;
@@ -137,6 +132,24 @@ function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void
         box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
         box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
     }
+}
+
+/**
+ * The most rounds a framing takes to size the labels sized on screen for its own camera. Each round
+ * shrinks the difference by about the share of the view a label takes, so a handful settle it; the
+ * cap only bounds a label as big as the view, which no framing can fit.
+ */
+const MAX_LABEL_FIT_ROUNDS = 32;
+
+/**
+ * Whether two framing boxes are the same, to a billionth of their size: closer than any pixel.
+ * @param a - One box.
+ * @param b - The other.
+ * @returns True when no corner moved by more than that.
+ */
+function sameBox(a: FramingBox, b: FramingBox): boolean {
+    const tolerance = Math.max(Vector3.Distance(a.min, a.max), Vector3.Distance(b.min, b.max)) * 1e-9;
+    return Vector3.Distance(a.min, b.min) <= tolerance && Vector3.Distance(a.max, b.max) <= tolerance;
 }
 
 /**
@@ -2811,7 +2824,7 @@ export class UpdateManager implements Manager {
         if (sphere !== null && active instanceof OrbitCameraController) {
             active.zoomToSphere(Vector3.Zero(), sphere * GLOBE_FRAMING);
         } else {
-            this.camera.zoomToBoundingBox(boundingBoxMin, boundingBoxMax, box.spots);
+            this.frameBox(box, frame);
         }
 
         this.hasZoomedToFit = true;
@@ -2831,6 +2844,40 @@ export class UpdateManager implements Manager {
             boundingBoxMin,
             boundingBoxMax,
         });
+    }
+
+    /**
+     * Frame the camera on a box, and again on the box remeasured while it changes: a label sized on
+     * screen (`sizeMode: "screen"`) takes room in the scene that depends on the camera, and the box
+     * measured it at the size the last frame's camera gave it -- its first, unfitted size, or the size
+     * for a camera since replaced -- so which frames had run decided the framing (issue #3106). Each
+     * round sizes those labels for the camera just framed and measures again; the room a label takes
+     * is a small share of the view, so the rounds close in on the one framing whose labels are sized
+     * for its own camera, wherever they started.
+     * @param box - The box measured this frame.
+     * @param frame - The map the layout draws on, or null.
+     */
+    private frameBox(box: FramingBox, frame: LocationMapFrame | null): void {
+        const fits = screenFitFrames.callbacksOf(this.graphContext.getScene());
+        let current = box;
+        for (let round = 0; ; round++) {
+            const { min, max } = frame === null ? current : this.frameMap(current, frame);
+            this.camera.zoomToBoundingBox(min, max, current.spots);
+            if (fits.size === 0 || round === MAX_LABEL_FIT_ROUNDS) {
+                return;
+            }
+
+            for (const fit of fits) {
+                fit();
+            }
+
+            const next = this.measure();
+            if (next === undefined || sameBox(next, current)) {
+                return;
+            }
+
+            current = next;
+        }
     }
 
     /**

@@ -610,6 +610,9 @@ export interface CameraStateChangedEvent {
     type: "camera-state-changed";
 }
 
+// @public
+export type CameraViewExtent = "centers" | "drawn";
+
 // @public (undocumented)
 export interface CameraWaypoint {
     duration?: number;
@@ -2589,6 +2592,7 @@ export class Graph implements GraphContext {
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
+        extent?: CameraViewExtent;
     } & CameraAnimationOptions): Promise<void>;
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     get basemapStatus(): BasemapStatus;
@@ -2748,6 +2752,7 @@ export class Graph implements GraphContext {
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
         params?: Readonly<Record<string, unknown>>;
+        extent?: CameraViewExtent;
     }): CameraState;
     retryLastAiCommand(): Promise<ExecutionResult>;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
@@ -2855,7 +2860,9 @@ export class Graph implements GraphContext {
     xrHelper: WebXRDefaultExperience | null;
     zoomStep(direction: "in" | "out", options?: CameraAnimationOptions): Promise<void>;
     zoomToFit(): void;
-    zoomToNodes(nodeIds: (string | number) | readonly (string | number)[], options?: CameraAnimationOptions): Promise<void>;
+    zoomToNodes(nodeIds: (string | number) | readonly (string | number)[], options?: {
+        extent?: CameraViewExtent;
+    } & CameraAnimationOptions): Promise<void>;
     zoomToSelection(options?: CameraAnimationOptions): Promise<void>;
 }
 
@@ -3044,6 +3051,7 @@ export class Graphty extends LitElement {
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
+        extent?: CameraViewExtent;
     } & CameraAnimationOptions): Promise<void>;
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     asyncFirstUpdated(): Promise<void>;
@@ -3270,6 +3278,7 @@ export class Graphty extends LitElement {
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
         params?: Readonly<Record<string, unknown>>;
+        extent?: CameraViewExtent;
     }): CameraState;
     retryLastAiCommand(): Promise<ExecutionResult>;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
@@ -3368,7 +3377,9 @@ export class Graphty extends LitElement {
     set xr(value: PartialXRConfig | undefined);
     zoomStep(direction: "in" | "out", options?: CameraAnimationOptions): Promise<void>;
     zoomToFit(): void;
-    zoomToNodes(nodeIds: (string | number) | readonly (string | number)[], options?: CameraAnimationOptions): Promise<void>;
+    zoomToNodes(nodeIds: (string | number) | readonly (string | number)[], options?: {
+        extent?: CameraViewExtent;
+    } & CameraAnimationOptions): Promise<void>;
     get zoomToPointer(): boolean;
     set zoomToPointer(value: boolean);
     zoomToSelection(options?: CameraAnimationOptions): Promise<void>;
@@ -4822,7 +4833,10 @@ class Node_2 implements ModelUser {
     }>;
     get drawnRadius(): number;
     // @internal
-    framingHalf(axis: "x" | "y" | "z"): number;
+    framingBounds(): {
+        min: Vector3;
+        max: Vector3;
+    };
     getPosition(): {
         x: number;
         y: number;
@@ -4891,6 +4905,8 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    get surfaceIsBox(): boolean;
     // @internal
     syncXlabelPlace(): void;
     tooltip?: RichTextLabel;

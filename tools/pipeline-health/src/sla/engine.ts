@@ -372,11 +372,16 @@ function engineValue(ctx: Ctx, name: Extract<Measure, { type: "engine" }>["name"
         case "sources_thin":
             return sourcesThin(ctx);
         case "collector_age": {
+            // A cycle counts once its pages are written too: one that reads GitHub and then fails to write them
+            // leaves the dashboard frozen while this age stays fresh.
             const meta = ctx.metas.get("collector");
-            const ok = meta?.lastOkAt;
-            const cause: Computed = meta?.error
-                ? { cause: { code: "error", params: { source: "collector", error: meta.error } } }
-                : {};
+            const views = ctx.metas.get("views");
+            const ok =
+                views === undefined || meta?.lastOkAt === undefined || views.lastOkAt === undefined
+                    ? meta?.lastOkAt
+                    : Math.min(meta.lastOkAt, views.lastOkAt);
+            const [source, error] = meta?.error ? ["collector", meta.error] : ["views", views?.error];
+            const cause: Computed = error ? { cause: { code: "error", params: { source, error } } } : {};
             return ok === undefined ? cause : { value: ctx.now - ok, since: ok, ...cause };
         }
         case "write_budget":

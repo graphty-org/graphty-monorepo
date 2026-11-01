@@ -331,7 +331,7 @@
 }
 
 .ws-shader-facts [data-cost="heavy"] {
-    color: var(--mantine-color-orange-text, var(--mantine-color-orange-6));
+    color: var(--cm-text-warning);
 }
 
 .ws-shader-control {

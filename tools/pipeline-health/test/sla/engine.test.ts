@@ -15,7 +15,7 @@ import { type MemberConfig, type SlaConfig, SLAS } from "../../src/sla/config.js
 import { evaluate, projectMonth } from "../../src/sla/engine.js";
 import { HOUR, job, MIN, obs, pr, run, T0 } from "../model/helpers.js";
 
-const LIVE = ["collector", "ci-results", "release", "npm", "billing", "coverage"];
+const LIVE = ["collector", "views", "ci-results", "release", "npm", "billing", "coverage"];
 
 /** A store whose sources have written for hours and just now, holding `items`, recomputed. */
 async function world(items: RawItem[], now = T0, fresh = LIVE) {
@@ -241,6 +241,19 @@ describe("data states", () => {
         });
         expect(e.members.find((m) => m.id === "data.collector")).toMatchObject({ state: "FAILING", value: 30 * MIN });
         expect(e.categories.find((c) => c.id === "ci")).toMatchObject({ state: "NO DATA", setBy: "ci.hangs" });
+    });
+
+    it("pages that stop being written age the collector though it still reads GitHub", async () => {
+        const store = new MemoryStore();
+        await recordSource(store, "collector", T0, { ok: true });
+        await recordSource(store, "views", T0 - 30 * MIN, { ok: true });
+        await recordSource(store, "views", T0 - 5 * MIN, { ok: false, error: "Error: view too big" });
+        const e = await evaluate(store, T0, only("data.collector"));
+        expect(e.members.find((m) => m.id === "data.collector")).toMatchObject({
+            state: "FAILING",
+            value: 30 * MIN,
+            cause: { code: "error", params: { source: "views", error: "Error: view too big" } },
+        });
     });
 
     it("a rejected token is NO DATA with its error once its last good write is past the age limit", async () => {

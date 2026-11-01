@@ -4,7 +4,9 @@
  * property, with the program's own SVG export of the same file (`graph-io/test/fidelity/oracles/`,
  * compared by `test/fidelity/oracle/`), region by region with its rasterized PNG, and again with graphty's nodes at the
  * program's own positions. A sample fails when an element fails a property that
- * `test/fidelity/oracle-known-failures.json` does not list for it; pass rates are never a gate here.
+ * `test/fidelity/oracle-known-failures.json` does not list for it, or when a rate judged element by element measures
+ * below its floor in `test/fidelity/oracle-floors.json` and below any drop accepted there; the raster regions are never
+ * a gate here.
  *
  * The set is the oracles whose comparison fits a browser shard's budget under SwiftShader; every
  * oracle, with the raster comparison and the report pages, is `test/fidelity/oracle-report.test.ts`
@@ -46,7 +48,7 @@ describe("style fidelity against the programs' own SVG drawings", () => {
         assert.deepEqual(
             gateRun(run, stored).flatMap(gateMessages),
             [],
-            `${id}: an element fails that oracle-known-failures.json does not list`,
+            `${id}: an element fails that oracle-known-failures.json does not list, or a rate is below its floor`,
         );
     });
 });

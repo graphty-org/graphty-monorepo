@@ -24,6 +24,7 @@ import {
 import { highlightEntry } from "../analyze/words";
 import { count, formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
+import { formatCount } from "../settings/numberFormat";
 import { sourceName } from "../style/row";
 import { channelWord } from "../style/words";
 import { unitOf } from "../time/timeActions";
@@ -471,7 +472,7 @@ export function scopeLine(block: LegendBlock, title: string, layer: string): str
         return null;
     }
     const noun = block.channel.startsWith("edge.") ? "edge" : "node";
-    const reach = `${block.scope.count.toLocaleString()} of ${count(block.scope.of, noun)}`;
+    const reach = `${formatCount(block.scope.count)} of ${count(block.scope.of, noun)}`;
     return block.runId !== undefined || title === layer || title.endsWith(`: ${layer}`) ? reach : `${layer}: ${reach}`;
 }
 

@@ -22,6 +22,7 @@ import type { Graphty } from "../../../index.js";
 import { GPU, mountSample, readJson } from "../mount";
 import type { OracleReport } from "./compare-oracle";
 import {
+    type AcceptedDrops,
     type Baseline,
     type Floors,
     type FloorSection,
@@ -311,6 +312,8 @@ export interface OracleStored {
     floors: Floors;
     standInFloors: Floors;
     specificationFloors: Floors;
+    /** Drops below a floor accepted with a reason (`ratchetDrops`). */
+    drops: AcceptedDrops;
 }
 
 /**
@@ -318,13 +321,14 @@ export interface OracleStored {
  * @returns them
  */
 export async function readOracleStored(): Promise<OracleStored> {
-    const f = (await readJson<Partial<Record<FloorSection, Floors>>>(ORACLE_FLOORS)) ?? {};
+    const f = (await readJson<Partial<Record<FloorSection, Floors>> & { drops?: AcceptedDrops }>(ORACLE_FLOORS)) ?? {};
     const k = (await readJson<Partial<KnownRecords>>(ORACLE_KNOWN_FAILURES)) ?? {};
     return {
         known: { about: k.about ?? "", known: k.known ?? {}, reasons: k.reasons ?? [] },
         floors: f.floors ?? {},
         standInFloors: f.standInFloors ?? {},
         specificationFloors: f.specificationFloors ?? {},
+        drops: f.drops ?? {},
     };
 }
 
@@ -349,7 +353,7 @@ export function gateRun(run: OracleRun, stored: OracleStored): KeyGate[] {
             judgementOf(scored),
             stored.known.known[key],
             stored[section][key] ?? stored.floors[key] ?? stored.standInFloors[key] ?? stored.specificationFloors[key],
-            { baseline: scored.baseline, section, gpu: GPU },
+            { baseline: scored.baseline, section, gpu: GPU, gateFloors: true, accepted: stored.drops[key] },
         ),
     );
 }

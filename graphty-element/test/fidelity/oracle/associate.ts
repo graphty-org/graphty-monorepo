@@ -1645,6 +1645,37 @@ const carryBox = (fit: Similarity, b: PBox): PBox =>
 /** How far from each of its two nodes a line under a third node may end and still be the edge between them. */
 const STUB_TOUCH = 3;
 
+/** How much nearer, in px, one node a line's end lands on may be than another and the two still be tied for it. */
+const END_TIE = 2;
+
+/**
+ * Whether a line came to its end through a node: a point back along it, half the node's size or the line's length
+ * from the end, is inside the node's box, and the end is not at its middle (a program that runs its lines to the
+ * centers ends them there).
+ * @param pts - the line, from the end
+ * @param b - the node's box
+ * @returns true when the line ran through the node to end on its far side
+ */
+export function cameThrough(pts: readonly Pt[], b: PBox): boolean {
+    const size = Math.min(bw(b), bh(b));
+    const end = pts[0];
+    if (pts.length < 2 || Math.hypot(end[0] - cx(b), end[1] - cy(b)) < size / 4) {
+        return false;
+    }
+    let left = size / 2;
+    let q = end;
+    for (const p of pts.slice(1)) {
+        const len = Math.hypot(p[0] - q[0], p[1] - q[1]);
+        if (len >= left) {
+            q = [q[0] + ((p[0] - q[0]) / len) * left, q[1] + ((p[1] - q[1]) / len) * left];
+            break;
+        }
+        left -= len;
+        q = p;
+    }
+    return inside(q, b);
+}
+
 /** How far a line's end may lie from where a node graphty draws nothing for sits (`undrawnEnds`). */
 const UNDRAWN_END_REACH = 4;
 
@@ -2321,12 +2352,25 @@ export function associate(
         color: string,
         { own = [[], []], slack = 0 }: EndsBy = {},
     ): [PNode, PNode] | null => {
-        const at = (end: "source" | "target", mine: readonly Prim[]): { n: PNode; d: number }[] => {
+        // of two nodes an end lands on about as near, the one the line ran through to get there is not its node: a line
+        // stops at its own node's near outline (xgmml-aracne-mycccnd1 -1->-151 runs through -165, which lies just
+        // short of -151, and ends where the two touch, about a pixel from each; it was read as a second -1->-165)
+        const fromEnd = (end: "source" | "target"): readonly Pt[] => (end === "source" ? path : reversedOf(path));
+        const landed = (end: "source" | "target", list: { n: PNode; d: number }[]): { n: PNode; d: number }[] =>
+            list.length >= 2 &&
+            list[1].d - list[0].d <= END_TIE &&
+            cameThrough(fromEnd(end), nodeBox(list[0].n)) &&
+            !cameThrough(fromEnd(end), nodeBox(list[1].n))
+                ? [list[1], list[0], ...list.slice(2)]
+                : list;
+        const at = (end: "source" | "target", mine: readonly Prim[]): { n: PNode; d: number }[] =>
+            withGroups(landed(end, onEnd(end, mine)));
+        const onEnd = (end: "source" | "target", mine: readonly Prim[]): { n: PNode; d: number }[] => {
             const q = end === "source" ? path[0] : (path.at(-1) ?? path[0]);
             const direct = nodesOn(q, slack);
             // an end on a node's outline is that node's, whatever arrowhead it touches
             if (mine.length === 0 || (direct[0]?.d ?? Infinity) <= 2) {
-                return withGroups(nodesAt(q, false, slack));
+                return nodesAt(q, false, slack);
             }
             // one short of it is also carried on to its arrowhead's tip, where the program points at its node: each node
             // either reaches, at the nearer of the two (a neighbor's box the end lies nearer than its own node, a big
@@ -2341,7 +2385,7 @@ export function associate(
                 nearest.set(x.n, Math.min(nearest.get(x.n) ?? Infinity, x.d));
             }
             const both = [...nearest].map(([n, d]) => ({ n, d })).sort((x, y) => x.d - y.d);
-            return withGroups(both.length > 0 ? both : nodesAt(q, false, slack));
+            return both.length > 0 ? both : nodesAt(q, false, slack);
         };
         const from = at("source", own[0]);
         const to = at("target", own[1]);
@@ -3513,6 +3557,12 @@ const through =
  * the node lands in the oracle's frame, plus the shapes drawn on the same spot at the same size
  * (a fill and its outline drawn as two primitives).
  */
+/**
+ * How much of a body a shape drawn on its spot covers to be its twin (`matchBodies`): a fill and its outline cover
+ * nearly all of each other, a drop shadow a few pixels off most; two boxes stacked one under the other hardly any.
+ */
+const TWIN_OVERLAP = 0.25;
+
 /** What a box drawn tight round a label adds to its cost as a node's body (`matchBodies`). */
 const LABEL_BACKGROUND_COST = 0.5;
 
@@ -3631,6 +3681,9 @@ function matchBodies(
                 !taken.has(q.index) &&
                 (c.id.startsWith(GROUP_CLAIM) || (bodyOf.get(q.index) ?? c.id) === c.id) &&
                 Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
+                // and over it, not beside it: two flat boxes stacked a little under their height apart are two nodes,
+                // however short that is of their width (cx2-wp1449-tlr: two 45.7 x 10.5 labels 9.6 px apart)
+                (dot(body) || around(q) || boxIoU(q.box, body.box) >= TWIN_OVERLAP) &&
                 ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)) &&
                 // a group's twin is drawn over its box, not a flat node inside it of about its width
                 (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6),

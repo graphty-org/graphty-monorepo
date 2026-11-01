@@ -296,7 +296,7 @@ function SampleTile({ entry, separable }: Readonly<{ entry: SampleEntry; separab
                 </Group>
             </UnstyledButton>
             {separable ? (
-                <Tooltip label="Open as a separate graph">
+                <Tooltip label={`Open ${entry.name} as a separate graph`}>
                     <ActionIcon
                         className="ws-samples-separate"
                         variant="default"

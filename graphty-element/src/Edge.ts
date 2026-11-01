@@ -2873,6 +2873,19 @@ export class Edge {
     }
 
     /**
+     * How far a line through a node's centre runs before it leaves the node's bounding box ({@link boxReach}), or its
+     * box when its surface is its box ({@link Node.surfaceIsBox}).
+     * @param node - The node.
+     * @param direction - The line's unit direction.
+     * @returns The distance.
+     */
+    private static boxReachOf(node: Node, direction: Vector3): number {
+        return node.surfaceIsBox
+            ? surfaceReach(direction, node.drawnHalfExtents, null)
+            : boxReach(node.mesh, direction);
+    }
+
+    /**
      * How far a node's surface and border are from its center in a direction.
      * @param node - The node.
      * @param dir - The unit direction.
@@ -3656,8 +3669,8 @@ export class Edge {
         // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
         // stopped well short of a box, a cylinder or a torus (#2643). Measured in the node's own
         // (graph-root) space, the space the centres above are in.
-        const dstNodeRadius = boxReach(this.dstNode.mesh, direction);
-        const srcNodeRadius = boxReach(this.srcNode.mesh, direction);
+        const dstNodeRadius = Edge.boxReachOf(this.dstNode, direction);
+        const srcNodeRadius = Edge.boxReachOf(this.srcNode, direction);
         this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
 
         // Calculate surface intersection points
@@ -3979,7 +3992,8 @@ export class Edge {
             const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
             // A node with no body (shape "none") has no face for the ray to meet: the line meets its box.
             const along = (hits: typeof srcHitInfo, node: Node, toward: Node): Vector3 | null => {
-                const hit = hits[0]?.pickedPoint;
+                // a node whose surface is its box (a glyph of pieces) is met at its box, not at a piece the ray crosses
+                const hit = node.surfaceIsBox ? null : hits[0]?.pickedPoint;
                 if (hit) {
                     return Vector3.Lerp(
                         srcMesh.position,
@@ -3988,7 +4002,7 @@ export class Edge {
                     );
                 }
 
-                return node.shapeType === "none"
+                return node.shapeType === "none" || node.surfaceIsBox
                     ? this.leaveNode(node, node.mesh.position, toward.mesh.position)
                     : null;
             };

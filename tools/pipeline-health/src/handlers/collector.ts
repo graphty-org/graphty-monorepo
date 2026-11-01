@@ -79,6 +79,8 @@ export interface BackfillEvent {
     perHour?: number;
     /** Re-read only these days' runs of these workflows (BackfillOptions.repair). */
     repair?: { days: string[]; workflows: string[] };
+    /** Drop the cursors and read the range again (BackfillOptions.restart); on the first call only. */
+    restart?: boolean;
 }
 
 export type BackfillResult =
@@ -110,6 +112,7 @@ async function runBackfill(
         now: start,
         deadline: end - 90_000,
         ...(event.repair ? { repair: event.repair } : {}),
+        ...(event.restart === true ? { restart: true } : {}),
     });
     let recomputed = 0;
     let dirtyLeft = true;

@@ -106,6 +106,13 @@ export interface ToolDefaults {
      * it says how every node's border width is read, so no rule carries it. Absent, a border width is a length.
      */
     readonly nodeBorderOnScreen?: ToolDefaultValue<boolean>;
+    /**
+     * Whether the program draws a label's `labelSize`, node and edge alike, in screen pixels, the same at every zoom,
+     * rather than as a length that grows and shrinks with the drawing: sigma keeps a label 12 px tall however far the
+     * view zooms. Not a label default: it says how every label size is read, so no rule carries it. Absent, a label
+     * size is a length.
+     */
+    readonly labelSizeOnScreen?: ToolDefaultValue<boolean>;
 }
 
 /**
@@ -312,6 +319,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelLineHeight: CYTOSCAPE_LABEL_LINE_HEIGHT,
                     // EDGE_CURVED is true there, but it only rounds an edge's bends: an edge without bends is straight
                     curved: v(false, `${CY} 422`),
+                    fanned: v(
+                        true,
+                        `${MEASURED}cys-import-and-save, cx-lianhe-affiliation), Cytoscape 3.10.5: the edges joining two nodes are spread apart`,
+                    ),
                     bendCurve: CYTOSCAPE_BEND_CURVE,
                 },
                 graph: { background: v("#ffffff", `${CY} 335`) },
@@ -442,6 +453,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     curved: v(false, `${CYJS} 18658`),
                     // control-point-step-size 40: a quadratic's middle is half as far out as its control point
                     fanSpacing: v(20, `${CYJS} 18647`),
+                    fanned: v(
+                        true,
+                        `${CYJS} 18647 (bezier edges joining the same two nodes are spread control-point-step-size apart)`,
+                    ),
                     labelColor: v("#000000", `${CYJS} 18474`),
                     labelSize: v(16, `${CYJS} 18496`),
                     labelFont: v("Helvetica Neue, Helvetica, sans-serif", `${CYJS} 18493`),
@@ -548,6 +563,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${YED_CORPUS} of y:EdgeLabel`),
                     labelFont: v("DejaVu Sans, sans-serif", `${YED_CORPUS} of y:EdgeLabel (Dialog's face)`),
                     labelSize: v(12, `${YED_CORPUS} of y:EdgeLabel`),
+                    fanned: v(
+                        false,
+                        `${YED_EDGE} (an edge is drawn along its own path and bends, whatever other edges join its nodes)`,
+                    ),
                 },
                 graph: {
                     background: v(
@@ -588,6 +607,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${Y3} LabelStyle textFill`),
                     labelFont: v("Arial", `${Y3} LabelStyle font`),
                     labelSize: v(12, `${Y3} LabelStyle font`),
+                    fanned: v(
+                        false,
+                        `${Y3} PolylineEdgeStyle (an edge is drawn along its own path and bends, whatever other edges join its nodes)`,
+                    ),
                 },
                 graph: {
                     background: v("#ffffff", `${Y3} GraphComponent (a transparent canvas over the page's white)`),
@@ -727,6 +750,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "sigma 4.0.1",
                 units: "relative",
                 roundedCornerRadius: cornerCap("sigma"),
+                labelSizeOnScreen: v(
+                    true,
+                    "sigma 4.0.1 dist/factory-668a8969.esm.js lines 3241 and 5936 (a node label's zoomToLabelSizeRatioFunction is 1, an edge label's fontSizeMode \"fixed\")",
+                ),
                 node: {
                     fill: v("#666666", `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (color "#666")`),
                     shape: v("ellipse", `${SIGMA}/settings.ts lines 119-126`),

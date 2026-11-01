@@ -88,14 +88,48 @@ describe("fitToGraph keepAngle", () => {
         }
     });
 
-    it("without the option, moves to the fixed diagonal exactly as before", () => {
-        const expected: CameraState = {
-            type: "arcRotate",
-            position: { x: 30.27353006497706, y: 31.27353006497706, z: 32.27353006497706 },
-            target: BOUNDS.center,
-        };
+    // The old distance, the longest side over the field of view times 0.65, stood too close for a
+    // box that is not a cube and cut a framed node off (#5349). Now every corner sits inside both
+    // fields of view, padded 10 percent, and the tightest one touches the padded frame.
+    it("without the option, frames every corner from the fixed diagonal", () => {
+        for (const aspect of [16 / 9, 1, 0.5]) {
+            const state = resolveCameraView("fitToGraph", context(undefined, aspect));
+            assert.deepEqual(resolveCameraView("fitToGraph", context({ keepAngle: false }, aspect)), state);
+            assert.isUndefined(state.pivotRotation, "the diagonal drops the reader's turn");
+            assert.exists(state.position);
+            assert.deepEqual(state.target, BOUNDS.center);
 
-        assert.deepEqual(resolveCameraView("fitToGraph", context()), expected);
-        assert.deepEqual(resolveCameraView("fitToGraph", context({ keepAngle: false })), expected);
+            const toViewer = unit(sub(state.position, BOUNDS.center));
+            for (const axis of [toViewer.x, toViewer.y, toViewer.z]) {
+                assert.closeTo(axis, 1 / Math.sqrt(3), 1e-9, "on the diagonal");
+            }
+
+            // Screen axes of a camera with no roll looking back along toViewer.
+            const level = Math.hypot(toViewer.x, toViewer.z);
+            const right = { x: toViewer.z / level, y: 0, z: -toViewer.x / level };
+            const up = {
+                x: toViewer.y * right.z,
+                y: toViewer.z * right.x - toViewer.x * right.z,
+                z: -toViewer.y * right.x,
+            };
+            const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
+            const tanY = Math.tan(FOV / 2);
+            const tanX = tanY * aspect;
+            const distance = Math.hypot(...Object.values(sub(state.position, BOUNDS.center)));
+
+            let tightest = 0;
+            for (const x of [BOUNDS.min.x, BOUNDS.max.x]) {
+                for (const y of [BOUNDS.min.y, BOUNDS.max.y]) {
+                    for (const z of [BOUNDS.min.z, BOUNDS.max.z]) {
+                        const corner = sub({ x, y, z }, BOUNDS.center);
+                        const depth = distance - dot(corner, toViewer);
+                        const across = Math.abs(dot(corner, right)) / (depth * tanX);
+                        const upDown = Math.abs(dot(corner, up)) / (depth * tanY);
+                        tightest = Math.max(tightest, across * 1.1, upDown * 1.1);
+                    }
+                }
+            }
+            assert.closeTo(tightest, 1, 1e-9, `aspect ${String(aspect)}: the tightest corner touches the padded frame`);
+        }
     });
 });

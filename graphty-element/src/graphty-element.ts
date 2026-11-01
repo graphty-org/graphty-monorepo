@@ -18,7 +18,7 @@ import type {
     AutosaveRestored,
     AutosaveStatus,
 } from "./autosave/types";
-import type { ViewInsets } from "./camera/types";
+import type { CameraViewExtent, ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type {
     AlgorithmKey,
@@ -132,7 +132,10 @@ export class Graphty extends LitElement {
      * The host is a block that fills its parent's width. Its height is the parent's when the
      * parent has a definite height, the element's own when the page sets one, and otherwise half
      * its width: `aspect-ratio` only applies while the used height is `auto`, so a bare tag keeps
-     * the 2:1 canvas it always had. Every rule here can be overridden from the page.
+     * the 2:1 canvas it always had. `min-width: 0` keeps the ratio a preferred size and never a
+     * minimum: without it, the automatic minimum width of an aspect-ratio box is twice its height,
+     * so an auto grid column holding the element grew wider than the page (issue #3597). Every
+     * rule here can be overridden from the page.
      */
     static styles = css`
         :host {
@@ -141,6 +144,7 @@ export class Graphty extends LitElement {
             width: 100%;
             height: 100%;
             aspect-ratio: 2 / 1;
+            min-width: 0;
         }
 
         /* The browser's own focus ring, drawn just inside the canvas: outside it, the ring is cut
@@ -4015,17 +4019,20 @@ export class Graphty extends LitElement {
      * Works the same in 2D and 3D. Ids that name no node are skipped; when none of them names a
      * node the camera does not move. The camera is view state, so this is not an undoable step.
      * @param nodeIds - One node id, or several.
-     * @param options - Optional animation configuration.
+     * @param options - Optional animation configuration, and the `extent` each node is measured by.
+     * @param options.extent - `"centers"` (the default) measures each node by its centre;
+     *   `"drawn"` by the box it is drawn in, so a big node is framed whole.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
      * @example
      * ```typescript
      * await element.zoomToNodes(["n1", "n2"], { animate: true });
+     * await element.zoomToNodes("hub", { extent: "drawn" });
      * ```
      */
     async zoomToNodes(
         nodeIds: (string | number) | readonly (string | number)[],
-        options?: import("./screenshot/types.js").CameraAnimationOptions,
+        options?: { extent?: CameraViewExtent } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         return this.#graph.zoomToNodes(nodeIds, options);
     }
@@ -5013,6 +5020,8 @@ export class Graphty extends LitElement {
      * @param options - What to frame and how to configure the view.
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
+     * @param options.extent - What each node counts as in the box: `"centers"` (the default) its
+     *   centre, `"drawn"` the box it is drawn in.
      * @returns The resolved camera state.
      * @since 1.5.0
      * @example
@@ -5023,7 +5032,11 @@ export class Graphty extends LitElement {
      */
     resolveCameraPreset(
         preset: string,
-        options?: { nodes?: Iterable<string | number>; params?: Readonly<Record<string, unknown>> },
+        options?: {
+            nodes?: Iterable<string | number>;
+            params?: Readonly<Record<string, unknown>>;
+            extent?: CameraViewExtent;
+        },
     ): import("./screenshot/types.js").CameraState {
         return this.#graph.resolveCameraPreset(preset, options);
     }
@@ -5038,6 +5051,8 @@ export class Graphty extends LitElement {
      * @param options.scope - What to frame. Absent frames the whole graph. `"selection"` frames the
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
+     * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
+     *   (the default) its centre, `"drawn"` the box it is drawn in.
      * @returns A promise that resolves once the camera has arrived.
      * @since 1.5.0
      * @example
@@ -5050,6 +5065,7 @@ export class Graphty extends LitElement {
         options?: {
             scope?: ScopeInput;
             params?: Readonly<Record<string, unknown>>;
+            extent?: CameraViewExtent;
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         return this.#graph.applyCameraView(id, options);

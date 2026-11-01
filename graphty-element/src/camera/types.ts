@@ -29,6 +29,12 @@ export interface Vec3 {
 /** Which way the element is drawing: flat, or in three dimensions. */
 export type DrawingMode = "2d" | "3d";
 
+/**
+ * What each node counts as in the box a camera view frames: `"centers"` its centre alone (the
+ * default), `"drawn"` the box it is drawn in, so a big node at the edge of the frame is not cut off.
+ */
+export type CameraViewExtent = "centers" | "drawn";
+
 /** An axis-aligned box around the elements a view is being asked to frame, in world units. */
 export interface GraphBounds {
     readonly min: Vec3;

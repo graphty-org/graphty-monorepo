@@ -320,6 +320,40 @@ describe("backfill", () => {
         expect(await store.get(homeKey(live[1]))).toMatchObject({ hang: true });
     });
 
+    it("restarted, re-reads the range and gives job rows stored without a run kind the one recorded now (#4480)", async () => {
+        // A CodeQL default-setup scan of a pull request (event dynamic on refs/pull/<n>/head), whose jobs were stored
+        // before #4125 recorded a run kind; the live store's runs cursor stood at {"day":"2026-10-10","page":41}.
+        const scan: GhRun = {
+            ...master,
+            id: 1500,
+            path: "dynamic/github-code-scanning/codeql",
+            event: "dynamic",
+            head_branch: "refs/pull/4100/head",
+            created_at: "2026-10-25T09:00:00Z",
+        };
+        const runs = [...history(), scan];
+        const old = masterJobs.map((j, k) =>
+            toJobItem({ ...j, id: scan.id * 100 + k, run_id: scan.id }, REPO, "codeql"),
+        );
+        const store = new MemoryStore();
+        await putRaw(store, old, NOW);
+        await setCursor(store, runsCursor(REPO), JSON.stringify({ day: "2026-10-10", page: 41 }), NOW);
+        await setCursor(store, FLAKY_CURSOR, "2026-10-09", NOW);
+        await setCursor(store, PRS_CURSOR, "done", NOW);
+        const stale = async () => (await store.get(homeKey(old[0]))) as { load?: string; offMaster?: boolean };
+
+        // Invoked again as it was, it reads nothing and the rows keep no run kind.
+        const f = fake({ runs });
+        expect(await backfill(options(store, f))).toMatchObject({ done: true, runs: 0 });
+        expect(listCalls(f.urls)).toEqual([]);
+        expect((await stale()).load).toBeUndefined();
+
+        const g = fake({ runs });
+        expect(await backfill({ ...options(store, g), restart: true })).toMatchObject({ done: true, runs: 8 });
+        expect(await stale()).toMatchObject({ load: "pr", offMaster: true });
+        expect(await getCursor(store, PRS_CURSOR)).toBe("done");
+    });
+
     it("moves the collector's history start back to its first day once done, also when re-run after finishing", async () => {
         const firstAt = async (s: MemoryStore) => ((await s.get(sourceKey("collector"))) as SourceItem).firstAt;
         const start = Math.floor((NOW - 2 * DAY) / DAY) * DAY;

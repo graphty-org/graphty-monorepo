@@ -479,7 +479,7 @@ export function LayoutForm({
                     <MapSourceFields value={values.map as BasemapConfig | null | undefined} onChange={pickMap} />
                 ) : null}
                 {error === null ? null : (
-                    <Text size="xs" c="red" role="alert">
+                    <Text size="xs" c="var(--cm-text-danger)" role="alert">
                         {error}
                     </Text>
                 )}

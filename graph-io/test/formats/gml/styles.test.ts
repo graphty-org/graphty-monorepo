@@ -56,6 +56,27 @@ const file = (name: string): Uint8Array => new Uint8Array(readFileSync(join(GENE
 const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
 const toolRules = (ex: ExtractedStyles): StyleRule[] => ex.styles.rules.filter((r) => r.origin === "tool");
 
+/** Every neutral node label position and yEd's GML anchor for it: the inside places, then the outside ones. */
+const LABEL_PLACES: readonly (readonly [string, string])[] = [
+    ["center", "c"],
+    ["inside-top", "t"],
+    ["inside-bottom", "b"],
+    ["inside-left", "l"],
+    ["inside-right", "r"],
+    ["inside-top-left", "tl"],
+    ["inside-top-right", "tr"],
+    ["inside-bottom-left", "bl"],
+    ["inside-bottom-right", "br"],
+    ["top", "n"],
+    ["bottom", "s"],
+    ["right", "e"],
+    ["left", "w"],
+    ["top-left", "nw"],
+    ["top-right", "ne"],
+    ["bottom-left", "sw"],
+    ["bottom-right", "se"],
+];
+
 describe("GML styles: who wrote the file", () => {
     it("reads yEd's keys with yEd's defaults: no fill, label color and weight, arrows by name, curves, extra labels", async () => {
         const { snapshot, styles } = await load(file("yed-labels-and-arrows.gml"));
@@ -411,6 +432,15 @@ describe("GML styles: who wrote the file", () => {
         expect(resolveStyles(yed.styles, "node", "labelPosition", yed.snapshot)).not.toEqual(["center"]);
     });
 
+    it("reads yEd's inside anchors (t, b, l, r, tl, ...) as inside places and n, s, e, w, nw, ... as outside", async () => {
+        const anchors = ["c", "t", "b", "l", "r", "tl", "tr", "bl", "br", "n", "s", "e", "w", "nw", "ne", "sw", "se"];
+        const nodes = anchors.map(
+            (a, i) => `node [ id ${String(i)} graphics [ w 50 h 30 ] LabelGraphics [ text "${a}" anchor "${a}" ] ]`,
+        );
+        const { snapshot, styles } = await load(`Creator "yFiles"\ngraph [ ${nodes.join(" ")} ]`);
+        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual(LABEL_PLACES.map(([p]) => p));
+    });
+
     it("gives igraph's file, which holds no graphics, no styles; a color attribute stays data", async () => {
         const result = await read(file("igraph-flat-attributes.gml"));
         expect(result.snapshot.meta.creator).toMatch(/^igraph/);
@@ -493,6 +523,36 @@ describe("GML styles: writing", () => {
         const back = await load(text);
         expect(resolveStyles(back.styles, "edge", "lineStyle", back.snapshot)).toEqual(
             resolveStyles(styles, "edge", "lineStyle", snapshot),
+        );
+    });
+
+    it("writes a node label's place as yEd's anchor, which yEd and a re-import without the block read back", async () => {
+        const b = new GraphBuilder({ directed: false });
+        LABEL_PLACES.forEach((_, i) => b.addNode(i));
+        const g = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: {
+                    values: {
+                        label: LABEL_PLACES.map(([p]) => p),
+                        labelPosition: LABEL_PLACES.map(([p]) => p),
+                    },
+                },
+                fingerprint: styleFingerprint(g),
+            },
+            { node: featuresOf(g, "node"), edge: [] },
+        );
+        const losses = registry.checkExport(g, "gml", { styles });
+        expect(losses.filter((l) => l.style?.property === "labelPosition")).toEqual([]);
+        const text = await registry.exportGraphToString(g, "gml", { styles });
+        expect([...text.matchAll(/anchor "(\w+)"/g)].map((m) => m[1])).toEqual(LABEL_PLACES.map(([, a]) => a));
+        // the graphics alone, as yEd reads the file
+        const bare = text.replace(new RegExp(`\\n\\s*${GML_STYLE_BLOCK_KEY.replaceAll(".", "\\.")} "[^"]*"`), "");
+        expect(bare).not.toContain(GML_STYLE_BLOCK_KEY);
+        const back = await load(`Creator "yFiles"\n${bare}`);
+        expect(resolveStyles(back.styles, "node", "labelPosition", back.snapshot)).toEqual(
+            LABEL_PLACES.map(([p]) => p),
         );
     });
 

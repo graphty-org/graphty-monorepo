@@ -146,8 +146,13 @@ describe("picking nodes by a condition card from the Data place", () => {
         assert.deepEqual(source?.sources, [people.key]);
         assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
         // The card is named for the load, not its key, and counts the nodes it keeps.
-        const card = await within(screen.getByRole("region", { name: "Data place" })).findByRole("group", {
-            name: /people\.json/,
+        // The card itself: the Data sources section names the load too.
+        const card = await waitFor(() => {
+            const found = [
+                ...document.querySelectorAll<HTMLElement>('[role=list][aria-label="Filters"] > li > [role=group]'),
+            ].find((each) => /people\.json/.test(each.getAttribute("aria-label") ?? ""));
+            assert.isDefined(found);
+            return found;
         });
         assert.lengthOf(within(card).getAllByText(/ of /), 1);
         // Its chip shows its whole "X of Y" at the panel's width: not cut to an ellipsis, and not
@@ -164,8 +169,14 @@ describe("picking nodes by a condition card from the Data place", () => {
         await waitFor(() => {
             assert.lengthOf(session.data.sources(), 1);
         });
-        await within(screen.getByRole("region", { name: "Data place" })).findByRole("group", {
-            name: /a removed source/,
+        await waitFor(() => {
+            const names = [
+                ...document.querySelectorAll<HTMLElement>('[role=list][aria-label="Filters"] > li > [role=group]'),
+            ].map((each) => each.getAttribute("aria-label") ?? "");
+            assert.isTrue(
+                names.some((each) => each.includes("a removed source")),
+                names.join(" | "),
+            );
         });
     });
 

@@ -118,7 +118,7 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > holds the commands you ran and what they showed; keep it in tmp/<name>/, because an untracked file in the worktree
 > is refused), write `pipeline-round: opened <branch> <url>` on the issue, and
 > stop -- never wait for CI, never merge, never push to master; never git stash, reset, restore, clean or check out
-> files; never cherry-pick or rebase (merge instead); never wait, sleep or poll inside a turn; at most a few gh calls,
+> files; never cherry-pick or rebase (merge instead); never amend a commit (the commit hook has already pushed it: make a new one); never wait, sleep or poll inside a turn; at most a few gh calls,
 > never one per pull request in a loop, and on a 403 rate limit stop and say so; act as graphty-agent only and never
 > read the owner's credentials; commits are signed and conventional with no attribution trailers; never touch
 > visual-baselines/, and never change parameters.chromatic, visual-review/trusted/, visual-review/passkeys.json or

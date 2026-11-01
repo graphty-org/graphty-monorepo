@@ -42,10 +42,16 @@ import type {
 const OUT = process.env.HEALTH_FIXTURES_OUT ?? dirname(fileURLToPath(import.meta.url));
 const GEN = "2026-10-25T23:30:00Z";
 
-/** A time on 2026-10-25 ("19:20"), or another day of October ("10-24 19:25"). */
+/**
+ * A time on 2026-10-25 ("19:20"), or another day of October ("10-24 19:25").
+ * @param s - The time, "HH:MM" or "MM-DD HH:MM".
+ * @returns The time as an ISO string in UTC.
+ */
 function t(s: string): string {
     const m = /^(?:(\d\d)-(\d\d) )?(\d\d):(\d\d)$/.exec(s);
-    if (!m) throw new Error(`bad time ${s}`);
+    if (!m) {
+        throw new Error(`bad time ${s}`);
+    }
     const [, mo = "10", d = "25", h, mi] = m;
     return `2026-${mo}-${d}T${h}:${mi}:00Z`;
 }
@@ -62,26 +68,40 @@ function ramp(a: number, b: number, n: number): number[] {
 const flat = (v: number, n: number): number[] => Array(n).fill(v);
 const nulls = (n: number): null[] => Array(n).fill(null);
 
-/** Green when the target holds, red when the red comparison holds, yellow between. */
+/**
+ * Green when the target holds, red when the red comparison holds, yellow between.
+ * @param v - The value to judge, or null when there is none.
+ * @param sla - The target and red comparisons to judge it against.
+ * @returns null when the target holds, "bad" when the red comparison holds, else "warn".
+ */
 function judge(v: number | null, sla: Sla): "warn" | "bad" | null {
-    if (v === null || !("op" in sla.target)) return null;
-    const holds = (c: Cmp) =>
-        c.op === "<="
-            ? v <= c.n
-            : c.op === "<"
-              ? v < c.n
-              : c.op === ">="
-                ? v >= c.n
-                : c.op === ">"
-                  ? v > c.n
-                  : v === c.n;
-    if (holds(sla.target)) return null;
+    if (v === null || !("op" in sla.target)) {
+        return null;
+    }
+    const holds = (c: Cmp): boolean => {
+        switch (c.op) {
+            case "<=":
+                return v <= c.n;
+            case "<":
+                return v < c.n;
+            case ">=":
+                return v >= c.n;
+            case ">":
+                return v > c.n;
+            default:
+                return v === c.n;
+        }
+    };
+    if (holds(sla.target)) {
+        return null;
+    }
     return sla.red && "op" in sla.red && holds(sla.red) ? "bad" : "warn";
 }
 
 function spark(ctx: (number | null)[], trend: (number | null)[], sla: Sla | null, target?: number): Spark {
-    if (ctx.length !== 18 || trend.length !== 24)
+    if (ctx.length !== 18 || trend.length !== 24) {
         throw new Error(`spark needs 18 + 24, got ${ctx.length} + ${trend.length}`);
+    }
     const tgt = target ?? (sla && "op" in sla.target ? sla.target.n : undefined);
     return {
         step: "15m",
@@ -98,7 +118,9 @@ type M = Omit<Member, "state" | "window" | "sla" | "link"> & Partial<Pick<Member
 function member(m: M): Member {
     const out: Member = { state: "ok", window: "now", sla: null, link: "/", ...m };
     // A 7- or 28-day member is judged like any other: its state is its value against its SLA.
-    if (out.state !== "slow") return out;
+    if (out.state !== "slow") {
+        return out;
+    }
     const v = out.value && "n" in out.value ? (out.value.n ?? null) : null;
     return { ...out, state: (out.sla && judge(v, out.sla)) || "ok" };
 }
@@ -744,7 +766,9 @@ const ref = (m: Member, fact?: Fact): MemberRef => ({
 });
 const byId = (list: Member[], id: Member["id"]): Member => {
     const m = list.find((x) => x.id === id);
-    if (!m) throw new Error(`no member ${id}`);
+    if (!m) {
+        throw new Error(`no member ${id}`);
+    }
     return m;
 };
 
@@ -928,11 +952,18 @@ const sources: SourceAge[] = [
 
 // ---------------------------------------------------------------- release channels
 
-/** Attempts from a string of outcomes, oldest first ("o" ok, "x" failed, "h" held, "c" cancelled), every `everyMin`. */
+/**
+ * Attempts from a string of outcomes, oldest first ("o" ok, "x" failed, "h" held, "c" cancelled), every `everyMin`.
+ * @param spec - The outcomes, one letter each, oldest first.
+ * @param last - The time of the newest attempt, as t() reads it.
+ * @param everyMin - The minutes between attempts.
+ * @param run - The run number of the oldest attempt; later ones count up.
+ * @returns The attempts, oldest first.
+ */
 function attempts(spec: string, last: string, everyMin: number, run: number): ChannelTile["attempts"] {
     const OUT: Record<string, ChannelOutcome> = { o: "ok", x: "bad", h: "held", c: "cancelled" };
     const end = Date.parse(t(last));
-    return [...spec].map((c, i) => ({
+    return Array.from(spec).map((c, i) => ({
         at: new Date(end - (spec.length - 1 - i) * everyMin * 60_000).toISOString(),
         outcome: OUT[c],
         run: run + i,
@@ -1181,8 +1212,8 @@ const prSections: Section[] = [
 
 function shardsSection(range: SlowRange, runKind: "full" | "pr-bins"): Section {
     const k = range === "28d" ? 1.03 : 1;
-    const s = (min: number) => Math.round(min * 60 * k);
-    if (runKind === "pr-bins")
+    const s = (min: number): number => Math.round(min * 60 * k);
+    if (runKind === "pr-bins") {
         return {
             kind: "shards",
             id: "shards",
@@ -1209,6 +1240,7 @@ function shardsSection(range: SlowRange, runKind: "full" | "pr-bins"): Section {
             ],
             more: { count: 9, allWithin: true },
         };
+    }
     return {
         kind: "shards",
         id: "shards",
@@ -1317,7 +1349,7 @@ const ciSections: Section[] = [
         rows: (
             [
                 ["Performance Benchmarks", 14, 10],
-                ["Story tests (${{ matrix.name || matrix.project }})", 212, 9],
+                [`Story tests (\${{ matrix.name || matrix.project }})`, 212, 9],
                 ["Visual report", 160, 0],
                 ["Flaky screenshots", 0, 0],
             ] as const
@@ -1978,8 +2010,8 @@ const page = (p: Omit<PageResponse, "generated" | "range"> & { range?: PageRespo
     range: "1h",
     ...p,
 });
-const cat = (id: CategoryStatus["id"]) => categories.find((c) => c.id === id) as CategoryStatus;
-const head = (id: CategoryStatus["id"]) => ({
+const cat = (id: CategoryStatus["id"]): CategoryStatus => categories.find((c) => c.id === id) as CategoryStatus;
+const head = (id: CategoryStatus["id"]): Pick<CategoryStatus, "state" | "setBy" | "others"> => ({
     state: cat(id).state,
     ...(cat(id).setBy ? { setBy: cat(id).setBy } : {}),
     others: cat(id).others,
@@ -2051,7 +2083,11 @@ const pages: PageResponse[] = [
 
 // ---------------------------------------------------------------- ranges
 
-/** The hourly mean of four 15-minute buckets. */
+/**
+ * The hourly mean of four 15-minute buckets.
+ * @param v - The 15-minute values; null where a bucket has none.
+ * @returns One value per hour, null when the hour has no values.
+ */
 function hourly(v: (number | null)[]): (number | null)[] {
     const out: (number | null)[] = [];
     for (let i = 0; i < v.length; i += 4) {
@@ -2064,12 +2100,20 @@ function worst(b: ("warn" | "bad" | null)[]): ("warn" | "bad" | null)[] {
     const out: ("warn" | "bad" | null)[] = [];
     for (let i = 0; i < b.length; i += 4) {
         const xs = b.slice(i, i + 4);
-        out.push(xs.includes("bad") ? "bad" : xs.includes("warn") ? "warn" : null);
+        if (xs.includes("bad")) {
+            out.push("bad");
+        } else if (xs.includes("warn")) {
+            out.push("warn");
+        } else {
+            out.push(null);
+        }
     }
     return out;
 }
 function sparkFor(s: Spark | undefined, range: Range): Spark | undefined {
-    if (!s || range !== "24h" || s.step !== "15m") return s;
+    if (!s || range !== "24h" || s.step !== "15m") {
+        return s;
+    }
     return {
         ...s,
         step: "1h",
@@ -2078,11 +2122,18 @@ function sparkFor(s: Spark | undefined, range: Range): Spark | undefined {
         breach: [...s.ctx.map(() => null), ...worst(s.breach)],
     };
 }
-/** A member at range 6 h or 24 h: a 1 h member shows its trend value (fixtures hold no 24 h values). */
+/**
+ * A member at range 6 h or 24 h: a 1 h member shows its trend value (fixtures hold no 24 h values).
+ * @param m - The member as the 1 h fixture holds it.
+ * @param range - The range to show it at.
+ * @returns The member as that range would show it.
+ */
 function memberFor(m: Member, range: Range): Member {
     const spark = sparkFor(m.spark, range);
     const out: Member = { ...m, ...(spark ? { spark } : {}) };
-    if (range === "1h" || (m.window !== "1h" && m.window !== "1h6h")) return out;
+    if (range === "1h" || (m.window !== "1h" && m.window !== "1h6h")) {
+        return out;
+    }
     const covered = m.covered6h;
     return {
         ...out,
@@ -2092,13 +2143,14 @@ function memberFor(m: Member, range: Range): Member {
     };
 }
 function sectionFor(s: Section, range: Range): Section {
-    if (s.kind === "strip" && range === "24h")
+    if (s.kind === "strip" && range === "24h") {
         return {
             ...s,
             from: "2026-10-24T23:30:00Z",
             spans: [{ start: "2026-10-24T23:30:00Z", end: s.spans[0].end, state: "green" }, ...s.spans.slice(1)],
         };
-    if (s.kind === "jobs" && range === "24h")
+    }
+    if (s.kind === "jobs" && range === "24h") {
         return {
             ...s,
             step: "1h",
@@ -2106,9 +2158,10 @@ function sectionFor(s: Section, range: Range): Section {
             running: [...flat(6, 9), 8, 14, 20, 26, 30, 32, 34, 36, 38, 44, 50, 54, 57, 57, 57, 57],
             queued: [...flat(0, 9), 1, 2, 4, 6, 8, 10, 12, 14, 18, 34, 69, 113, 165, 201, 235, 235],
         };
+    }
     if (s.widened && range !== "1h") {
         const { widened: _w, ...rest } = s;
-        return rest as Section;
+        return rest;
     }
     return s;
 }
@@ -2116,7 +2169,7 @@ function sectionFor(s: Section, range: Range): Section {
 function write(name: string, body: unknown): void {
     const file = join(OUT, `${name}.json`);
     mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, JSON.stringify(body, null, 1) + "\n");
+    writeFileSync(file, `${JSON.stringify(body, null, 1)}\n`);
 }
 
 const RANGES: Range[] = ["1h", "6h", "24h"];
@@ -2127,13 +2180,14 @@ for (const range of RANGES) {
         range,
         categories: categories.map((c) => ({ ...c, headline: memberFor(c.headline, range) })),
     } satisfies OverviewResponse);
-    for (const p of pages)
+    for (const p of pages) {
         write(`${p.page}.${range}`, {
             ...p,
             range,
             members: p.members.map((m) => memberFor(m, range)),
             sections: p.sections.map((s) => sectionFor(s, range)),
         } satisfies PageResponse);
+    }
 }
 // The 7 d runner history (runners/jobs): its last 3 hours here, a quiet night giving way to a merge burst.
 write("runners.jobs.7d", {
@@ -2167,13 +2221,14 @@ for (const range of ["7d", "28d"] as SlowRange[]) {
             sections: costSections(range),
         }),
     );
-    for (const runKind of ["full", "pr-bins"] as const)
+    for (const runKind of ["full", "pr-bins"] as const) {
         write(`ci.shards.${runKind}.${range}`, {
             page: "ci",
             range,
             generated: GEN,
             section: shardsSection(range, runKind),
         } satisfies SectionResponse);
+    }
     write(`flaky.hotspots.${range}`, {
         page: "flaky",
         range,
@@ -2259,14 +2314,19 @@ const grayPrs: CategoryStatus = {
 };
 const grayStatus = {
     generated: GEN,
-    categories: categories.map((c) => (c.id === "costs" ? grayCosts : c.id === "pull-requests" ? grayPrs : c)),
+    categories: categories.map((c) => {
+        if (c.id === "costs") {
+            return grayCosts;
+        }
+        return c.id === "pull-requests" ? grayPrs : c;
+    }),
     episodes,
     sources: sources.map((s) =>
         s.id === "billing" ? { ...s, lastWrite: "2026-10-24T06:30:00Z", state: "nodata" as const } : s,
     ),
 };
 write("gray/status", grayStatus);
-for (const range of RANGES)
+for (const range of RANGES) {
     write(`gray/overview.${range}`, {
         ...grayStatus,
         page: "overview",
@@ -2278,6 +2338,7 @@ for (const range of RANGES)
             channels[2],
         ],
     } satisfies OverviewResponse);
+}
 for (const range of ["7d", "28d"] as SlowRange[]) {
     const secs = costSections(range).map((s) =>
         s.kind === "table" && s.id === "money"
@@ -2329,19 +2390,21 @@ for (const range of RANGES) {
     write(`gray/data-sources.${range}`, {
         ...p,
         range,
-        members: p.members.map((m) =>
-            m.id === "data-sources.app_rate"
-                ? {
-                      ...m,
-                      state: "nodata",
-                      value: null,
-                      reason: f("nodata.token_rejected", { since: t("10-24 06:30") }),
-                  }
-                : m.id === "data-sources.thin"
-                  ? { ...m, state: "partial", value: null, covered: { h: 0.4, of: 1 } }
-                  : memberFor(m, range),
-        ),
+        members: p.members.map((m): Member => {
+            if (m.id === "data-sources.app_rate") {
+                return {
+                    ...m,
+                    state: "nodata",
+                    value: null,
+                    reason: f("nodata.token_rejected", { since: t("10-24 06:30") }),
+                };
+            }
+            if (m.id === "data-sources.thin") {
+                return { ...m, state: "partial", value: null, covered: { h: 0.4, of: 1 } };
+            }
+            return memberFor(m, range);
+        }),
     } satisfies PageResponse);
 }
 
-console.log("fixtures written to", OUT);
+process.stdout.write(`fixtures written to ${OUT}\n`);

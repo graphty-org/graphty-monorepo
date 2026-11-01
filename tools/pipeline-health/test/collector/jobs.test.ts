@@ -8,12 +8,12 @@ import {
     definedJobs,
     isJob,
     jobHistories,
+    type JobHistory,
     jobMembers,
     nonGatingJobs,
     titleOwnsJob,
-    type JobHistory,
 } from "../../src/collector/jobs.js";
-import { releaseAttempt, type GhJob, type GhRun } from "../../src/collector/parse.js";
+import { type GhJob, type GhRun, releaseAttempt } from "../../src/collector/parse.js";
 import { DAY, HOUR, type JobItem, type RawItem, type RunItem } from "../../src/model/items.js";
 import { jobFamily } from "../../src/model/metrics.js";
 import { putRaw, setCursor } from "../../src/model/raw.js";
@@ -81,13 +81,13 @@ async function stored(items: JobItem[]): Promise<MemoryStore> {
 /** A GitHub whose issue searches answer `issues`, and which keeps the search strings it was asked. */
 function searchGitHub(issues: { number: number; title: string; body: string }[]) {
     const asked: string[] = [];
-    const fetch = async (_url: string, init?: RequestInit) => {
-        const { variables } = JSON.parse(String(init?.body)) as { variables: Record<string, string> };
+    const fetch = (_url: string, init?: RequestInit) => {
+        const { variables } = JSON.parse(init?.body as string) as { variables: Record<string, string> };
         asked.push(...Object.values(variables));
         const data = Object.fromEntries(Object.keys(variables).map((k) => [`j${k.slice(1)}`, { nodes: issues }]));
-        return new Response(JSON.stringify({ data }), { status: 200 });
+        return Promise.resolve(new Response(JSON.stringify({ data }), { status: 200 }));
     };
-    return { gh: new GitHub(async () => "ghs_test", fetch), asked };
+    return { gh: new GitHub(() => Promise.resolve("ghs_test"), fetch), asked };
 }
 
 describe("chronically failing jobs", () => {
@@ -391,7 +391,7 @@ describe("non-gating jobs", () => {
         const jobs = nonGatingJobs(ci);
         expect(jobs).toContain("Performance Benchmarks");
         // gating since #4613 (the screenshot gate blocks again)
-        expect(jobs).not.toContain("Story tests (${{ matrix.name || matrix.project }})");
+        expect(jobs).not.toContain(`Story tests (\${{ matrix.name || matrix.project }})`);
         expect(jobs).not.toContain("Build");
         expect(jobs).not.toContain("Lint");
     });
@@ -401,7 +401,7 @@ describe("non-gating jobs", () => {
             "jobs:",
             "    lint:",
             "        name: Lint",
-            "        continue-on-error: ${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint') }}",
+            `        continue-on-error: \${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint') }}`,
             "        steps:",
             "            - run: x",
             "              continue-on-error: true",
@@ -421,7 +421,7 @@ describe("non-gating jobs", () => {
     });
 
     it("matches a matrix job's name and a called workflow's prefix", () => {
-        const story = "Story tests (${{ matrix.name || matrix.project }})";
+        const story = `Story tests (\${{ matrix.name || matrix.project }})`;
         expect(isJob(story, "CI / Story tests (graphty-element)")).toBe(true);
         expect(isJob(story, "Story tests merge (graphty)")).toBe(false);
         expect(isJob("Performance Benchmarks", "CI / Performance Benchmarks")).toBe(true);

@@ -75,7 +75,7 @@ import {
     isGraphvizBox,
 } from "./drawing.js";
 import { type LabelTable, readLabelTable } from "./html-table.js";
-import { type LabelPlaceContext, leftOutXlabels, readLabelPlaces } from "./label-places.js";
+import { type LabelPlaceContext, leftOutEdgeLabels, leftOutXlabels, readLabelPlaces } from "./label-places.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
 import { layoutRecord } from "./record.js";
 
@@ -2643,13 +2643,21 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         }
     }
     const edge = valueColumns(snapshot.edgeCount);
+    const leftOutOfEdges = leftOutEdgeLabels(
+        cellText(snapshot.graph, "forcelabels", 0),
+        snapshot.edgeCount,
+        (e, name) => cellText(snapshot.edges, name, e),
+        [snapshot.nodes, snapshot.edges].some((t) => t.has("xlp")),
+    );
     const loops = graphvizLoops(snapshot);
     // `splines=none` and `splines=""` draw no edges at all (https://graphviz.org/docs/attrs/splines/)
     const splines = cellText(snapshot.graph, "splines", 0)?.trim().toLowerCase();
     const noEdges = splines === "" || splines === "none";
     for (let e = 0; e < snapshot.edgeCount; e++) {
         context.budget.spend("edge", EDGE_ATTRIBUTES.length);
-        const get: Attr = (name) => cellText(snapshot.edges, name, e);
+        // a label Graphviz left out reads as unset: drawn nowhere, and its stored place read for nothing
+        const gone = leftOutOfEdges.get(e);
+        const get: Attr = (name) => (gone?.has(name) ? null : cellText(snapshot.edges, name, e));
         const at: At = (property) => ({ notes, target: "edge", property, element: e, budget: context.budget });
         readEdge(
             get,

@@ -2,7 +2,7 @@ import { Mesh, NullEngine, Scene, ShaderMaterial, StandardMaterial, SubMesh } fr
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { EDGE_CONSTANTS } from "../../src/constants/meshConstants";
-import { FilledArrowRenderer } from "../../src/meshes/FilledArrowRenderer";
+import { FilledArrowRenderer, HALF_BARB } from "../../src/meshes/FilledArrowRenderer";
 
 describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
     let scene: Scene;
@@ -689,6 +689,38 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
         assert.strictEqual(Math.sign(area(flipped)), Math.sign(area(half)));
         half.dispose();
         flipped.dispose();
+    });
+
+    test("half-barb, half-barb-flipped and inverted-vee are wound as half-open is", () => {
+        const area = (mesh: Mesh): number => {
+            const p = mesh.getVerticesData("position") ?? [];
+            const [a, b, c] = Array.from((mesh.getIndices() ?? []).slice(0, 3), (k) => [p[3 * k], p[3 * k + 2]]);
+            return (b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]);
+        };
+        const half = FilledArrowRenderer.createHalfOpen(scene);
+        for (const type of ["half-barb", "half-barb-flipped", "inverted-vee"]) {
+            const mesh = FilledArrowRenderer.createPolygonArrow(type, scene);
+            assert.strictEqual(Math.sign(area(mesh)), Math.sign(area(half)), type);
+            mesh.dispose();
+        }
+        half.dispose();
+    });
+
+    test("the half barb is a strip a ninth of its length along the line, its arm on half-open's side", () => {
+        const [strip] = FilledArrowRenderer.POLYGON_ARROWS["half-barb"]();
+        assert.deepEqual(
+            strip.filter(([, z]) => z === 0).map(([x]) => x),
+            [0, -HALF_BARB],
+        );
+        assert.isTrue(strip.every(([, z]) => z <= 0));
+        const [flipped] = FilledArrowRenderer.POLYGON_ARROWS["half-barb-flipped"]();
+        assert.isTrue(flipped.every(([, z]) => z >= 0));
+    });
+
+    test("the inverted vee has its point back on the line, its notch a quarter back and no tine", () => {
+        const points = FilledArrowRenderer.POLYGON_ARROWS["inverted-vee"]().flat();
+        const onLine = points.filter(([, z]) => z === 0).map(([x]) => x);
+        assert.sameMembers([...new Set(onLine)], [-1, -0.25]);
     });
 
     test("open-box is the box's square with its middle left open", () => {

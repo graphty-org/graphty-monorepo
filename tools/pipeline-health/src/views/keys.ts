@@ -15,7 +15,8 @@ export type ViewRoute =
 
 /**
  * The item key of one view, the same route union apiPath() takes (without the drill-downs, which read raw items).
- * @param r
+ * @param r - the view to key: status, a whole page, or one section of a page
+ * @returns the partition and sort key the view's item is stored under
  */
 export function viewKey(r: ViewRoute): Key {
     switch (r.kind) {
@@ -24,8 +25,10 @@ export function viewKey(r: ViewRoute): Key {
         case "page":
             return { pk: `PAGE#${r.page}#${r.range}`, sk: "-" };
         case "section": {
-            const kind = r.runKind ? "#" + r.runKind : "";
+            const kind = r.runKind ? `#${r.runKind}` : "";
             return { pk: `PAGE#${r.page}/${r.section}#${r.range}${kind}`, sk: "-" };
         }
+        default:
+            throw new Error(`unknown view route ${JSON.stringify(r satisfies never)}`);
     }
 }

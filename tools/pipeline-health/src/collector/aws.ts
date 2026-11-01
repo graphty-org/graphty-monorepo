@@ -4,8 +4,12 @@ import { BatchGetBuildsCommand, CodeBuildClient, StartBuildCommand } from "@aws-
 import { CostExplorerClient, GetCostAndUsageCommand } from "@aws-sdk/client-cost-explorer";
 import { GetParametersCommand, SSMClient } from "@aws-sdk/client-ssm";
 
-/** SecureString parameters by name; missing ones are absent from the result. */
-export function ssmGetParams(client = new SSMClient({})) {
+/**
+ * SecureString parameters by name; missing ones are absent from the result.
+ * @param client - the SSM client to read with
+ * @returns a reader that takes parameter names and resolves to a name-to-value record
+ */
+export function ssmGetParams(client = new SSMClient({})): (names: string[]) => Promise<Record<string, string>> {
     return async (names: string[]): Promise<Record<string, string>> => {
         const r = await client.send(new GetParametersCommand({ Names: names, WithDecryption: true }));
         return Object.fromEntries((r.Parameters ?? []).flatMap((p) => (p.Name && p.Value ? [[p.Name, p.Value]] : [])));
@@ -15,8 +19,12 @@ export function ssmGetParams(client = new SSMClient({})) {
 /**
  * Daily unblended cost of the account, credits and refunds left out, from `from` (inclusive) to `to` (exclusive), ISO
  * days. Cost Explorer lives in us-east-1.
+ * @param client - the Cost Explorer client to read with
+ * @returns a reader that takes the day range and resolves to one cost row per day
  */
-export function costExplorerDaily(client = new CostExplorerClient({ region: "us-east-1" })) {
+export function costExplorerDaily(
+    client = new CostExplorerClient({ region: "us-east-1" }),
+): (from: string, to: string) => Promise<{ day: string; usd: number }[]> {
     return async (from: string, to: string): Promise<{ day: string; usd: number }[]> => {
         const out: { day: string; usd: number }[] = [];
         let token: string | undefined;
@@ -31,9 +39,11 @@ export function costExplorerDaily(client = new CostExplorerClient({ region: "us-
                     NextPageToken: token,
                 }),
             );
-            for (const t of r.ResultsByTime ?? [])
-                if (t.TimePeriod?.Start)
+            for (const t of r.ResultsByTime ?? []) {
+                if (t.TimePeriod?.Start) {
                     out.push({ day: t.TimePeriod.Start, usd: Number(t.Total?.UnblendedCost?.Amount ?? 0) });
+                }
+            }
             token = r.NextPageToken;
         } while (token);
         return out;

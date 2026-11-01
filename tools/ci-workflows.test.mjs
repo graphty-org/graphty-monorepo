@@ -35,6 +35,7 @@ import {
     SHARDS,
     storiesPlan,
     STORY_PROJECTS,
+    STORY_RUNS,
     STORY_SHARDS,
 } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
@@ -1991,6 +1992,11 @@ describe("verification runs of ci.yml", () => {
         assert.deepEqual([...new Set(include.map((e) => e.shard))].sort(), [...STORY_SHARDS].sort());
         // and the screenshot run's inputs key holds the baselines of the project each shard captures
         for (const e of include) assert.equal(STORY_PROJECTS[e.shard], e.project, e.shard);
+        // and a base check of a `-shots` variant runs a story file as this job runs its shard (#5428)
+        for (const e of include) {
+            assert.equal(e.command.replace(/ --shard=\d+\/\d+$/, ""), STORY_RUNS[e.shard].command, e.shard);
+            assert.equal(e.lfs ?? "", STORY_RUNS[e.shard].lfs ?? "", e.shard);
+        }
     });
 
     it("runs the story tests' capture blocking, outside All Checks Pass", () => {

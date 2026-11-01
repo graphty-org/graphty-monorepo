@@ -13,22 +13,31 @@ import type {
     Member,
     MemberId,
     MemberState,
+    NumberValue,
     Param,
     Range,
     Sla,
     SlowRange,
     Unit,
-    NumberValue,
     Value,
 } from "./contract";
 
 export const REPO = "https://github.com/graphty-org/graphty-monorepo";
 
+/**
+ * HTML-escape a value: &, <, >, " and ' become numeric character references.
+ * @param s Any value; it is converted to a string first.
+ * @returns The text with every HTML special character escaped.
+ */
 export function esc(s: unknown): string {
     return String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
-/** HTML from esc-escaped text without its tags, for an attribute or a label read aloud. */
+/**
+ * HTML from esc-escaped text without its tags, for an attribute or a label read aloud.
+ * @param h HTML whose text is already escaped.
+ * @returns The text without its tags.
+ */
 export function stripTags(h: string): string {
     return h.replaceAll(/<[^<>]*>/g, "");
 }
@@ -40,9 +49,21 @@ export const clock = { now: (): number => Date.now(), generated: "" };
 
 // ---------------------------------------------------------------- numbers and times
 
+/**
+ * A number in en-US form: whole above 1,000, else up to 1, 2 or 3 decimals as it gets smaller.
+ * @param n The number to format.
+ * @returns The number in en-US form, with fewer decimals the bigger it is.
+ */
 export function fmtN(n: number): string {
     const abs = Math.abs(n);
-    const digits = Number.isInteger(n) || abs >= 1000 ? 0 : abs >= 10 ? 1 : abs >= 0.1 ? 2 : 3;
+    let digits = 3;
+    if (Number.isInteger(n) || abs >= 1000) {
+        digits = 0;
+    } else if (abs >= 10) {
+        digits = 1;
+    } else if (abs >= 0.1) {
+        digits = 2;
+    }
     const s = n.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
     return s;
 }
@@ -63,11 +84,23 @@ const UNIT: Record<Unit, string> = {
     per1000: " per 1,000 runs",
 };
 
+/**
+ * A number with its unit after it ("49%", "24 min", "3 jobs").
+ * @param n The number to format.
+ * @param unit Its unit, if any.
+ * @returns The number with its unit.
+ */
 export function fmtUnit(n: number, unit?: Unit): string {
-    if (unit === "jobs") return `${fmtN(n)} ${n === 1 ? "job" : "jobs"}`;
+    if (unit === "jobs") {
+        return `${fmtN(n)} ${n === 1 ? "job" : "jobs"}`;
+    }
     // Under a millisecond reads in microseconds, never "0 ms".
-    if (unit === "ms" && n > 0 && n < 1) return `${fmtN(Math.round(n * 1000))} us`;
-    if (unit === "x") return `${n.toFixed(1)}x`;
+    if (unit === "ms" && n > 0 && n < 1) {
+        return `${fmtN(Math.round(n * 1000))} us`;
+    }
+    if (unit === "x") {
+        return `${n.toFixed(1)}x`;
+    }
     return fmtN(n) + (unit ? UNIT[unit] : "");
 }
 
@@ -81,48 +114,89 @@ const WORD = {
     quiet: "found nothing 3 weeks running",
 } as const;
 
-/** An age in minutes under 90 s, which reads in seconds ("29 s ago", never "0.49 min ago"). */
+/**
+ * An age in minutes under 90 s, which reads in seconds ("29 s ago", never "0.49 min ago").
+ * @param v The value to test.
+ * @returns True when the age reads in seconds.
+ */
 const isSeconds = (v: NumberValue): boolean => v.ago === true && v.unit === "min" && v.n < 1.5;
 
-/** A value inline ("40%", "filed 0", "1 of 8", "--"). */
+/**
+ * A value inline ("40%", "filed 0", "1 of 8", "--").
+ * @param v The value to format; null reads as "--".
+ * @returns The value as escaped HTML.
+ */
 export function fmtValue(v: Value): string {
-    if (v === null) return "--";
-    if ("word" in v) return WORD[v.word] + (v.n === undefined ? "" : ` ${fmtN(v.n)}`);
-    if (isSeconds(v)) return esc(`${fmtDur(v.n * 60)} ago`);
+    if (v === null) {
+        return "--";
+    }
+    if ("word" in v) {
+        return WORD[v.word] + (v.n === undefined ? "" : ` ${fmtN(v.n)}`);
+    }
+    if (isSeconds(v)) {
+        return esc(`${fmtDur(v.n * 60)} ago`);
+    }
     const sign = v.signed && v.n > 0 ? "+" : "";
     let s = sign + fmtUnit(v.n, v.unit);
-    if (v.of !== undefined) s += ` of ${fmtN(v.of)}`;
-    if (v.ago) s += " ago";
+    if (v.of !== undefined) {
+        s += ` of ${fmtN(v.of)}`;
+    }
+    if (v.ago) {
+        s += " ago";
+    }
     return esc(s);
 }
 
-/** A value as a big number with its unit small after it (the mockup's `40<small> %</small>`). */
+/**
+ * A value as a big number with its unit small after it (the mockup's `40<small> %</small>`).
+ * @param v The value to format; null reads as "--".
+ * @returns The value as HTML.
+ */
 export function bigValue(v: Value): string {
-    if (v === null) return "--";
-    if ("word" in v) return wordValue(v);
-    if (isSeconds(v)) return `${Math.round(v.n * 60)}<small> s ago</small>`;
+    if (v === null) {
+        return "--";
+    }
+    if ("word" in v) {
+        return wordValue(v);
+    }
+    if (isSeconds(v)) {
+        return `${Math.round(v.n * 60)}<small> s ago</small>`;
+    }
     const sign = v.signed && v.n > 0 ? "+" : "";
     const n = v.unit === "x" ? v.n.toFixed(1) : fmtN(v.n);
-    const of = v.of === undefined ? "" : " of " + fmtN(v.of);
+    const of = v.of === undefined ? "" : ` of ${fmtN(v.of)}`;
     const rest = bigUnit(v.unit) + of + (v.ago ? " ago" : "");
-    return `${sign}${n}${rest ? "<small>" + esc(rest) + "</small>" : ""}`;
+    const small = rest ? `<small>${esc(rest)}</small>` : "";
+    return `${sign}${n}${small}`;
 }
 
 function wordValue(v: Extract<Value, { word: unknown }>): string {
-    const count = v.n === undefined ? "" : " " + fmtN(v.n);
+    const count = v.n === undefined ? "" : ` ${fmtN(v.n)}`;
     return `<span class="vw">${esc(WORD[v.word]) + count}</span>`;
 }
 
-/** The unit after a big number: " x", " %", or the unit's word; nothing for a plain count. */
+/**
+ * The unit after a big number: " x", " %", or the unit's word; nothing for a plain count.
+ * @param unit The value's unit, if any.
+ * @returns The unit's suffix, or an empty string.
+ */
 function bigUnit(unit: NumberValue["unit"]): string {
-    if (unit === "x") return " x";
-    if (unit === "pct") return " %";
+    if (unit === "x") {
+        return " x";
+    }
+    if (unit === "pct") {
+        return " %";
+    }
     return unit && unit !== "count" ? UNIT[unit] : "";
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
+const pad = (n: number): string => String(n).padStart(2, "0");
 
-/** "23:06", or "10-24 19:25" when not the same UTC day as the data. */
+/**
+ * "23:06", or "10-24 19:25" when not the same UTC day as the data.
+ * @param at The time to format.
+ * @returns The time as "HH:MM" or "MM-DD HH:MM".
+ */
 export function fmtTime(at: Iso): string {
     const d = new Date(at);
     const ref = new Date(clock.generated || clock.now());
@@ -132,7 +206,11 @@ export function fmtTime(at: Iso): string {
         : `${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${hm}`;
 }
 
-/** "10-29 14:40": a time with its date, always. */
+/**
+ * "10-29 14:40": a time with its date, always.
+ * @param at The time to format.
+ * @returns The time as "MM-DD HH:MM".
+ */
 function fmtDated(at: Iso): string {
     const d = new Date(at);
     return `${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
@@ -141,27 +219,48 @@ function fmtDated(at: Iso): string {
 /**
  * "14:30 - now", or both ends dated when either is not today ("10-29 22:10 - 10-30 01:05"). With `edge`, a start the
  * 24 h window cut (within 5 min of its edge) or one the engine could not tell reads "before 10-29 14:40 - now".
+ * @param start When the span began.
+ * @param end When it ended, or null while it is still going.
+ * @param o How to read the start.
+ * @param o.edge True to read a start at the 24 h window's edge as cut off.
+ * @param o.startUnknown True when the engine could not tell the start.
+ * @returns The span as HTML.
  */
 export function fmtSpan(start: Iso, end: Iso | null, o: { edge?: boolean; startUnknown?: boolean } = {}): string {
     const gen = Date.parse(clock.generated || new Date(clock.now()).toISOString());
-    const day = (at: Iso | number) => new Date(at).toISOString().slice(0, 10);
+    const day = (at: Iso | number): string => new Date(at).toISOString().slice(0, 10);
     const dated = day(start) !== day(gen) || (end !== null && day(end) !== day(gen));
-    const t = (at: Iso) => (dated ? fmtDated(at) : fmtTime(at));
+    const t = (at: Iso): string => (dated ? fmtDated(at) : fmtTime(at));
     const clipped = o.startUnknown || (o.edge && Math.abs(Date.parse(start) - (gen - 24 * 3_600_000)) <= 5 * 60_000);
     // Each end stays on one line (style.css .nw), so a narrow column breaks only between the two.
-    const nw = (x: string) => `<span class="nw">${x}</span>`;
+    const nw = (x: string): string => `<span class="nw">${x}</span>`;
     const from = clipped ? `before ${fmtDated(start)}` : t(start);
     return `${nw(from)} - ${nw(end ? t(end) : "now")}`;
 }
 
-/** "20 s", "44 min", "1.9 h", "8 d". */
+/**
+ * "20 s", "44 min", "1.9 h", "8 d".
+ * @param s A duration in seconds.
+ * @returns The duration in words.
+ */
 export function fmtDur(s: number): string {
-    if (s < 60) return `${Math.round(s)} s`;
-    if (s < 90 * 60) return `${Math.round(s / 60)} min`;
-    if (s < 48 * 3600) return `${fmtN(Math.round((s / 3600) * 10) / 10)} h`;
+    if (s < 60) {
+        return `${Math.round(s)} s`;
+    }
+    if (s < 90 * 60) {
+        return `${Math.round(s / 60)} min`;
+    }
+    if (s < 48 * 3600) {
+        return `${fmtN(Math.round((s / 3600) * 10) / 10)} h`;
+    }
     return `${fmtN(Math.round((s / 86400) * 10) / 10)} d`;
 }
 
+/**
+ * How long ago a time was: "44 min ago".
+ * @param at The time to measure from.
+ * @returns How long ago the time was, as "44 min ago".
+ */
 export function fmtAgo(at: Iso): string {
     return `${fmtDur(Math.max(0, (clock.now() - Date.parse(at)) / 1000))} ago`;
 }
@@ -170,14 +269,22 @@ export const rangeLabel = (r: Range | SlowRange): string => r.replace(/(\d+)/, "
 
 // ---------------------------------------------------------------- links
 
-export const prLink = (n: number) => `<a class="ln" href="${REPO}/pull/${n}">#${n}</a>`;
-export const issueLink = (n: number) => `<a class="ln" href="${REPO}/issues/${n}">#${n}</a>`;
-export const runLink = (id: number) => `<a class="ln" href="${REPO}/actions/runs/${id}">${id}</a>`;
-/** A commit: its first 9 characters, the full SHA in the link and its title. */
-export const shaLink = (sha: string) =>
+export const prLink = (n: number): string => `<a class="ln" href="${REPO}/pull/${n}">#${n}</a>`;
+export const issueLink = (n: number): string => `<a class="ln" href="${REPO}/issues/${n}">#${n}</a>`;
+export const runLink = (id: number): string => `<a class="ln" href="${REPO}/actions/runs/${id}">${id}</a>`;
+/**
+ * A commit: its first 9 characters, the full SHA in the link and its title.
+ * @param sha The full commit SHA.
+ * @returns The commit's link as HTML.
+ */
+export const shaLink = (sha: string): string =>
     `<a class="ln" href="${REPO}/commit/${esc(sha)}" title="${esc(sha)}">${esc(sha.slice(0, 9))}</a>`;
 
-/** "a", "a and b", "a, b and c". */
+/**
+ * "a", "a and b", "a, b and c".
+ * @param items The phrases to join.
+ * @returns The phrases joined in a sentence.
+ */
 export function and(items: string[]): string {
     return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
@@ -192,18 +299,37 @@ export const STATE_WORD: Record<"ok" | "warn" | "bad" | "nodata" | "idle", strin
     idle: "IDLE",
 };
 
-/** The CSS class of a state's fill. */
+/** The fill class of each state that has its own; every other state draws as idle. */
+const STATE_CLASS: Partial<Record<MemberState | "idle", string>> = {
+    ok: "ok",
+    warn: "warn",
+    bad: "bad",
+    nodata: "none",
+};
+
+/**
+ * The CSS class of a state's fill.
+ * @param s The state.
+ * @returns The class name.
+ */
 export function stateClass(s: MemberState | "idle"): string {
-    return s === "ok" ? "ok" : s === "warn" ? "warn" : s === "bad" ? "bad" : s === "nodata" ? "none" : "idle";
+    return STATE_CLASS[s] ?? "idle";
 }
 
-/** True when the member is out of the rollup and drawn muted. */
-export const isMuted = (s: MemberState) =>
+/**
+ * True when the member is out of the rollup and drawn muted.
+ * @param s The member's state.
+ * @returns True for a muted state.
+ */
+export const isMuted = (s: MemberState): boolean =>
     s === "few" || s === "partial" || s === "idle" || s === "slow" || s === "notsetup" || s === "info";
 
 /**
  * True when a "few" member shows its value at the picked range: a 1 h member's "few" is judged on the last 1 h,
  * while at 6 h and 24 h its value and n cover the picked range, so that value stands once n reaches minN.
+ * @param m The member's event count, threshold, window and value.
+ * @param range The range the reader picked.
+ * @returns True when the value for the range stands.
  */
 export function showsRangeValue(
     m: Pick<Member, "n" | "minN"> & Partial<Pick<Member, "window" | "value">>,
@@ -219,7 +345,12 @@ export function showsRangeValue(
     );
 }
 
-/** "not judged: 4 merged this hour, needs 5": a rate with too few events to judge. */
+/**
+ * "not judged: 4 merged this hour, needs 5": a rate with too few events to judge.
+ * @param m The member's event count, threshold, id and window.
+ * @param range The range the reader picked, if any.
+ * @returns The sentence as HTML.
+ */
 export function fewText(
     m: Pick<Member, "n" | "minN"> & Partial<Pick<Member, "id" | "window">>,
     range?: Range | SlowRange,
@@ -228,13 +359,20 @@ export function fewText(
     // A 7- or 28-day measure counts its own days, whatever the picker shows.
     const days = m.window === "7d" || m.window === "28d" ? m.window : undefined;
     let when = "this hour";
-    if (days) when = `in the last ${rangeLabel(days)}`;
-    else if (range !== undefined && range !== "1h") when = `in the last ${rangeLabel(range)}`;
+    if (days) {
+        when = `in the last ${rangeLabel(days)}`;
+    } else if (range !== undefined && range !== "1h") {
+        when = `in the last ${rangeLabel(range)}`;
+    }
     const what = nOf ? ` ${esc(nOf)}` : "";
     return `not judged: ${fmtN(m.n ?? 0)}${what} ${when}, needs ${fmtN(m.minN ?? 0)}`;
 }
 
-/** "only 3 h of 6 h recorded": a source that covers less than the window. */
+/**
+ * "only 3 h of 6 h recorded": a source that covers less than the window.
+ * @param c The hours the source covered of the window.
+ * @returns The sentence.
+ */
 export const partialText = (c: Member["covered"]): string =>
     `only ${fmtN(c?.h ?? 0)} h of ${fmtN(c?.of ?? 1)} h recorded`;
 
@@ -244,6 +382,9 @@ export const OK_CHIP = `<span class="sw okl">OK</span>`;
 /**
  * The state cell of a member row: a filled chip for a judged state not OK, an outlined OK, muted words for the gray
  * ones.
+ * @param m The member to draw the chip for.
+ * @param range The range the reader picked, if any.
+ * @returns The chip as HTML, or an empty string when the value stands for itself.
  */
 export function stateChip(
     m: Pick<Member, "state" | "n" | "minN" | "covered"> & Partial<Pick<Member, "id" | "window" | "value">>,
@@ -259,7 +400,9 @@ export function stateChip(
         case "nodata":
             return `<span class="sw ${stateClass(m.state)}">${STATE_WORD[m.state]}</span>`;
         case "few":
-            if (showsRangeValue(m, range)) return "";
+            if (showsRangeValue(m, range)) {
+                return "";
+            }
             return `<span class="sw low">${fewText(m, range)}</span>`;
         case "partial":
             return `<span class="sw low">${partialText(m.covered)}</span>`;
@@ -270,6 +413,8 @@ export function stateChip(
             return `<span class="sw low">${dayMeasure(m.window ?? "7d")}, not judged</span>`;
         case "notsetup":
             return `<span class="sw low">not set up</span>`;
+        default:
+            return "";
     }
 }
 
@@ -292,20 +437,39 @@ const OUTCOME: Record<Exclude<ChannelOutcome, "ok">, string> = {
     cancelled: "cancelled",
 };
 
-/** "deployed 42 min ago", or "no deploys recorded". */
+/**
+ * "deployed 42 min ago", or "no deploys recorded".
+ * @param id The release channel.
+ * @param at When it last deployed or promoted, or null.
+ * @returns The sentence.
+ */
 export const channelSince = (id: ChannelId, at: Iso | null): string =>
     at ? `${CHANNEL[id].ok} ${fmtAgo(at)}` : CHANNEL[id].none;
 
-/** One attempt's dot title: "finished 19:20: failed, 3f2a91c" (Train attempts lists the same runs by start time). */
+/**
+ * One attempt's dot title: "finished 19:20: failed, 3f2a91c" (Train attempts lists the same runs by start time).
+ * @param id The release channel.
+ * @param a The attempt.
+ * @param a.at When the attempt finished.
+ * @param a.outcome How the attempt ended.
+ * @param a.sha The commit it released, if known.
+ * @returns The title text.
+ */
 export function attemptText(id: ChannelId, a: { at: Iso; outcome: ChannelOutcome; sha?: string }): string {
     const word = a.outcome === "ok" ? CHANNEL[id].ok : OUTCOME[a.outcome];
-    const sha = a.sha ? ", " + esc(a.sha.slice(0, 7)) : "";
+    const sha = a.sha ? `, ${esc(a.sha.slice(0, 7))}` : "";
     return `finished ${fmtTime(a.at)}: ${word}${sha}`;
 }
 
-/** The dot row's label for a screen reader. */
+/**
+ * The dot row's label for a screen reader.
+ * @param n How many attempts the row shows.
+ * @returns The label.
+ */
 export function attemptsLabel(n: number): string {
-    if (!n) return "no release attempts recorded";
+    if (!n) {
+        return "no release attempts recorded";
+    }
     return `last ${n} release ${n === 1 ? "attempt" : "attempts"}, oldest first`;
 }
 
@@ -817,8 +981,10 @@ const LANE: Record<string, [string, string]> = {
     autosave_macos: ["autosave", "Work protection (macOS)"],
     llm: ["LLM", "LLM regression"],
 };
-const lane = (id: string, long = false) => esc(LANE[id]?.[long ? 1 : 0] ?? id);
-for (const [id, [, long]] of Object.entries(LANE)) LABEL[`lane.${id}`] = esc(long);
+const lane = (id: string, long = false): string => esc(LANE[id]?.[long ? 1 : 0] ?? id);
+for (const [id, [, long]] of Object.entries(LANE)) {
+    LABEL[`lane.${id}`] = esc(long);
+}
 
 /** A GitHub event as a reader says it. */
 export const EVENT: Record<string, string> = {
@@ -829,7 +995,7 @@ export const EVENT: Record<string, string> = {
     workflow_run: "after another workflow",
     merge_group: "merge queue",
 };
-const event = (e: string) => esc(EVENT[e] ?? e);
+const event = (e: string): string => esc(EVENT[e] ?? e);
 const SOURCE: Record<string, string> = {
     billing: "billing",
     collector: "the collector",
@@ -848,24 +1014,35 @@ const SOURCE: Record<string, string> = {
 const OP: Record<Cmp["op"], string> = { "<=": "&lt;=", "<": "&lt;", ">=": "&gt;=", ">": "&gt;", "==": "" };
 
 function cmpText(c: Cmp, withUnit: boolean): string {
-    const n =
-        c.unit === "x"
-            ? `${fmtN(c.n)}x`
-            : withUnit
-              ? fmtUnit(c.n, c.unit === "per1000" ? undefined : c.unit)
-              : fmtN(c.n);
+    let n = fmtN(c.n);
+    if (c.unit === "x") {
+        n = `${fmtN(c.n)}x`;
+    } else if (withUnit) {
+        n = fmtUnit(c.n, c.unit === "per1000" ? undefined : c.unit);
+    }
     return OP[c.op] ? `${OP[c.op]} ${esc(n)}` : esc(n);
 }
 
 const isCmp = (x: Cmp | Fact): x is Cmp => "op" in x;
 
-/** "good <= 5 min; red > 15 min", or what is good alone. */
+/**
+ * "good <= 5 min; red > 15 min", or what is good alone.
+ * @param sla The member's target and red line, or null when it has none.
+ * @param targetOnly True to say only what is good.
+ * @returns The target as HTML.
+ */
 export function slaText(sla: Sla | null, targetOnly = false): string {
-    if (!sla) return "no target (shown for information)";
+    if (!sla) {
+        return "no target (shown for information)";
+    }
     // A comparison follows its word ("good <= 5 min"); a phrase follows a colon ("good: passed and filed ...").
     const target = isCmp(sla.target) ? cmpText(sla.target, true) : `: ${sentence(sla.target)}`;
-    if (targetOnly) return `good ${target}`.replace(" :", ":");
-    if (!sla.red) return `good ${target}; no red line`.replace(" :", ":");
+    if (targetOnly) {
+        return `good ${target}`.replace(" :", ":");
+    }
+    if (!sla.red) {
+        return `good ${target}; no red line`.replace(" :", ":");
+    }
     const red = isCmp(sla.red) ? cmpText(sla.red, true) : `: ${sentence(sla.red)}`;
     return `good ${target}; red ${red}${sla.needs6h ? " (in the last hour and the last 6 h)" : ""}`.replaceAll(
         " :",
@@ -879,8 +1056,8 @@ type P = Record<string, Param>;
 const num = (p: P, k: string): number => Number(p[k] ?? 0);
 const str = (p: P, k: string): string => esc(p[k] ?? "");
 const arr = (p: P, k: string): (string | number)[] => (Array.isArray(p[k]) ? [...(p[k] as (string | number)[])] : []);
-const at = (p: P, k: string): string => (typeof p[k] === "string" ? fmtTime(p[k] as string) : "");
-const plural = (n: number, one: string, many = `${one}s`) => `${fmtN(n)} ${n === 1 ? one : many}`;
+const at = (p: P, k: string): string => (typeof p[k] === "string" ? fmtTime(p[k]) : "");
+const plural = (n: number, one: string, many = `${one}s`): string => `${fmtN(n)} ${n === 1 ? one : many}`;
 
 const S: Record<string, (p: P) => string> = {
     // short forms in a status block
@@ -909,22 +1086,23 @@ const S: Record<string, (p: P) => string> = {
     "sla.canary_age": (p) => `canary age &lt; ${fmtN(num(p, "h"))} h`,
 
     // episodes
-    "ep.shared_check": (p) =>
-        `${str(p, "check")}${p.step ? ` (${str(p, "step")})` : ""} is red in ${plural(num(p, "prs"), "open pull request")}` +
-        (arr(p, "suspects").length
-            ? `; suspects ${arr(p, "suspects")
-                  .map((n) => `#${n}`)
-                  .join(", ")}`
-            : ""),
+    "ep.shared_check": (p) => {
+        const step = p.step ? ` (${str(p, "step")})` : "";
+        const suspects = arr(p, "suspects").map((n) => `#${n}`);
+        const suspected = suspects.length ? `; suspects ${suspects.join(", ")}` : "";
+        return `${str(p, "check")}${step} is red in ${plural(num(p, "prs"), "open pull request")}${suspected}`;
+    },
     "ep.saturated": (p) =>
         `Runners saturated: ${fmtN(num(p, "running"))} of ${fmtN(num(p, "limit"))} jobs running, ${fmtN(num(p, "queued"))} queued, master builds queued ${fmtN(num(p, "master_queued_min"))} min`,
     "ep.flaky_held": (p) =>
         `${arr(p, "tests").length} flaky stories hold ${plural(num(p, "prs"), "pull request")}: ${and(arr(p, "tests").map(esc))}`,
     "ep.lanes_red": (p) =>
         `${and(arr(p, "lanes").map((l) => lane(String(l), true)))} red on candidate ${str(p, "sha")}${p.shadow ? "; shadow mode opened no hold" : ""}`,
-    "ep.workflow_failing": (p) =>
-        `${str(p, "workflow")} fails on every push to master, ${fmtN(num(p, "runs"))} runs` +
-        (p.fix ? `; fix #${num(p, "fix")}${p.fix_waits_owner ? " waits on the owner" : ""}` : ""),
+    "ep.workflow_failing": (p) => {
+        const waits = p.fix_waits_owner ? " waits on the owner" : "";
+        const fix = p.fix ? `; fix #${num(p, "fix")}${waits}` : "";
+        return `${str(p, "workflow")} fails on every push to master, ${fmtN(num(p, "runs"))} runs${fix}`;
+    },
     "ep.train_skipped": (p) => `The ${at(p, "attempt")} train skipped every lane on new master commit ${str(p, "sha")}`,
     "ep.stress_filing": (p) =>
         `The weekly stress run filed ${fmtN(num(p, "filed"))} issues: ${fmtN(num(p, "failures"))} failures, over its cap of ${fmtN(num(p, "cap"))}`,
@@ -983,7 +1161,7 @@ const S: Record<string, (p: P) => string> = {
         const share =
             p.ratio === undefined
                 ? "less data than usual"
-                : fmtN(Math.round(num(p, "ratio") * 100)) + "% of its usual data";
+                : `${fmtN(Math.round(num(p, "ratio") * 100))}% of its usual data`;
         return `${esc(SOURCE[String(p.source)] ?? p.source)} is sending ${share} for the work CI did`;
     },
     "reason.no_value": () => "no value in the window",
@@ -1000,8 +1178,9 @@ const S: Record<string, (p: P) => string> = {
     "data.all_set_up": () => "Every member has a writer.",
     // "out of target", not "past its threshold": several member names already say "past" (sources past their age limit).
     "ep.past_threshold": (p) =>
-        `${esc(MEMBER[String(p.member) as MemberId]?.short ?? p.member)} out of target` +
-        (p.peak === undefined ? "" : `, worst ${fmtUnit(num(p, "peak"), p.unit as Unit | undefined)}`),
+        `${esc(MEMBER[String(p.member) as MemberId]?.short ?? p.member)} out of target${
+            p.peak === undefined ? "" : `, worst ${fmtUnit(num(p, "peak"), p.unit as Unit | undefined)}`
+        }`,
 
     // page notes
     "master.note.queued": (p) =>
@@ -1032,17 +1211,21 @@ const S: Record<string, (p: P) => string> = {
     "master.builds.passed": (p) => `${str(p, "sha")} passed ${at(p, "at")}`,
     "master.builds.by_hand": (p) => `${fmtN(num(p, "n"))} cancelled by hand`,
     "cause.step_hang": (p) =>
-        `${str(p, "job")} hung in <i>${str(p, "step")}</i> in every build from ${at(p, "from")} to ${at(p, "to")}; ${fmtN(num(p, "timeouts"))} jobs ended at their ${fmtN(num(p, "timeout_min"))} min timeout (hangs). None was superseded or cancelled by hand, so all are red.` +
-        (p.guard_pr ? ` master-guard raised no alarm until ${prLink(num(p, "guard_pr"))} (${at(p, "guard_at")}).` : ""),
+        `${str(p, "job")} hung in <i>${str(p, "step")}</i> in every build from ${at(p, "from")} to ${at(p, "to")}; ${fmtN(num(p, "timeouts"))} jobs ended at their ${fmtN(num(p, "timeout_min"))} min timeout (hangs). None was superseded or cancelled by hand, so all are red.${
+            p.guard_pr
+                ? ` master-guard raised no alarm until ${prLink(num(p, "guard_pr"))} (${at(p, "guard_at")}).`
+                : ""
+        }`,
     "cause.cancelled_by_hand": (p) =>
         `cancelled together at ${at(p, "at")} to free runners; the run's cancel actor is a person`,
     "cause.signature": (p) => `"${str(p, "signature")}"`,
     "cause.unknown": () => "cause not recorded",
     "cause.workflow_error": (p) =>
-        `workflow error: ${str(p, "detail")}` +
-        (p.fix
-            ? `; fix ${prLink(num(p, "fix"))}${p.waits_owner_s ? ` waits on the owner (code owners), ${fmtDur(num(p, "waits_owner_s"))}` : ""}`
-            : ""),
+        `workflow error: ${str(p, "detail")}${
+            p.fix
+                ? `; fix ${prLink(num(p, "fix"))}${p.waits_owner_s ? ` waits on the owner (code owners), ${fmtDur(num(p, "waits_owner_s"))}` : ""}`
+                : ""
+        }`,
     "check.family": (p) => `family of ${fmtN(num(p, "bins"))} bins`,
     "check.failed_alone": () => "failed alone",
     suspect: (p) => `${prLink(num(p, "pr"))} ${str(p, "title")}`,
@@ -1060,7 +1243,7 @@ const S: Record<string, (p: P) => string> = {
     // CI and runners
     "runner_minutes.sub": (p) =>
         `7-day measure; ${plural(num(p, "day"), "merge")} in 24 h, ${plural(num(p, "week"), "merge")} in 7 d`,
-    "ci.causes.sub": (p) => `${plural(num(p, "suites"), "failed pull request suite")}`,
+    "ci.causes.sub": (p) => plural(num(p, "suites"), "failed pull request suite"),
     "runners.running_now": (p) => `Running now, ${plural(num(p, "jobs"), "job")}`,
     "runners.queued_now": (p) => `Queued now, ${plural(num(p, "jobs"), "job")}`,
     "runners.macos": (p) => `(${fmtN(num(p, "jobs"))} on macOS)`,
@@ -1148,55 +1331,104 @@ const S: Record<string, (p: P) => string> = {
     "notsetup.flaky_feed.what": () => "quarantine counts",
 };
 
-/** The words for a fact; an unknown code is drawn as its code and parameters, never dropped. */
+/**
+ * The words for a fact; an unknown code is drawn as its code and parameters, never dropped.
+ * @param f The fact to put in words.
+ * @returns The sentence as HTML.
+ */
 export function sentence(f: Fact): string {
     const fn = S[f.code];
     return fn ? fn(f.params ?? {}) : `${esc(f.code)} ${esc(JSON.stringify(f.params ?? {}))}`;
 }
 
-export const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+export const capital = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** The window label under a value ("1 h; 6 h 24 min", "now", "7 d"). */
+/**
+ * The window label under a value ("1 h; 6 h 24 min", "now", "7 d").
+ * @param m The member.
+ * @param range The range the reader picked.
+ * @returns The label as HTML.
+ */
 export function windowLabel(m: Member, range: Range | SlowRange): string {
-    if (m.window === "now") return "now";
-    if (m.window === "7d" || m.window === "28d")
+    if (m.window === "now") {
+        return "now";
+    }
+    if (m.window === "7d" || m.window === "28d") {
         return (
             rangeLabel(m.window) +
             (m.coveredDays ? `; data for ${fmtN(m.coveredDays.d)} of ${fmtN(m.coveredDays.of)} days` : "")
         );
-    if (range !== "1h") return rangeLabel(range);
+    }
+    if (range !== "1h") {
+        return rangeLabel(range);
+    }
     const v6 = m.value6h === undefined ? "" : `; 6 h ${fmtValue(m.value6h)}`;
     const cov = m.covered6h ? `, ${fmtN(m.covered6h.h)} h of ${fmtN(m.covered6h.of)}` : "";
     return `1 h${v6}${cov}`;
 }
 
-/** The definition under a member's name, then what is known about it now ("#1234, opened 60 h ago"). */
+/**
+ * The definition under a member's name, then what is known about it now ("#1234, opened 60 h ago").
+ * @param m The member.
+ * @returns The line as HTML.
+ */
 export function memberLine(m: Member): string {
     const t = MEMBER[m.id];
     const parts: string[] = [];
-    if (m.note && !m.note.code.endsWith(".def")) parts.push(sentence(m.note));
-    if (m.n !== undefined && (m.window === "1h" || m.window === "1h6h") && t.nOf && m.state !== "few")
+    if (m.note && !m.note.code.endsWith(".def")) {
+        parts.push(sentence(m.note));
+    }
+    if (m.n !== undefined && (m.window === "1h" || m.window === "1h6h") && t.nOf && m.state !== "few") {
         parts.push(`from ${fmtN(m.n)} ${esc(t.nOf)}`);
-    if (m.reason) parts.push(sentence(m.reason));
-    if (m.cleared) parts.push(`cleared ${fmtAgo(m.cleared)}`);
-    if (m.fixWaitsOwner) parts.push(`fix ${prLink(m.fixWaitsOwner)} waits on the owner`);
+    }
+    if (m.reason) {
+        parts.push(sentence(m.reason));
+    }
+    if (m.cleared) {
+        parts.push(`cleared ${fmtAgo(m.cleared)}`);
+    }
+    if (m.fixWaitsOwner) {
+        parts.push(`fix ${prLink(m.fixWaitsOwner)} waits on the owner`);
+    }
     return esc(t.def) + (parts.length ? ` ${capital(parts.join("; "))}.` : "");
 }
 
-/** "7-day measure" or "28-day measure": a member judged on days rather than the last hour. */
+/**
+ * "7-day measure" or "28-day measure": a member judged on days rather than the last hour.
+ * @param w The member's window.
+ * @returns The measure's name.
+ */
 export function dayMeasure(w: Member["window"]): string {
-    if (w === "now") return "measure shown for information";
+    if (w === "now") {
+        return "measure shown for information";
+    }
     return w === "28d" ? "28-day measure" : "7-day measure";
 }
 
-/** HTML without its links, for text inside a row that is itself a link (anchors cannot nest). */
+/**
+ * HTML without its links, for text inside a row that is itself a link (anchors cannot nest).
+ * @param html HTML that may hold links.
+ * @returns The HTML without its anchor tags.
+ */
 export const unlinked = (html: string): string => html.replace(/<a\b[^>]*>|<\/a>/g, "");
 
-/** A member in a sentence: "runner wait p90 31 min", or its short fact. */
+/**
+ * A member in a sentence: "runner wait p90 31 min", or its short fact.
+ * @param r The member reference.
+ * @param r.member The member's id.
+ * @param r.value The member's value, or null.
+ * @param r.fact A short fact that replaces the name and value, if any.
+ * @param brief True in a status block, where the value stands alone.
+ * @returns The member in words, as HTML.
+ */
 export function refText(r: { member: MemberId; value: Value; fact?: Fact }, brief = false): string {
-    if (r.fact) return sentence(r.fact);
+    if (r.fact) {
+        return sentence(r.fact);
+    }
     // No value (NO DATA, not set up): the state word says why, so the name stands alone, never "name --".
-    if (r.value === null || ("word" in r.value && r.value.word === "yes")) return esc(MEMBER[r.member].short);
+    if (r.value === null || ("word" in r.value && r.value.word === "yes")) {
+        return esc(MEMBER[r.member].short);
+    }
     // In a status block the value stands alone; the measure under the block says it is a projection.
     return `${esc(MEMBER[r.member].short)} ${fmtValue(r.value)}${brief ? "" : (MEMBER[r.member].when ?? "")}`;
 }

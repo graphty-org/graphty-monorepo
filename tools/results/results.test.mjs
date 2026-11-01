@@ -1360,6 +1360,84 @@ describe("cli", () => {
         assert.deepEqual(built, ["@graphty/remote-logger:build", "layout:build"]);
     });
 
+    it("runs a `-shots` variant's story with its screenshots, as the story-tests job runs its shard (#5428)", async () => {
+        const root = join(import.meta.dirname, "../..");
+        const cases = [
+            [
+                "graphty-element-storybook-shots",
+                "graphty-element/stories/AiControl.stories.ts",
+                "graphty-element-storybook-1",
+                "graphty-element",
+            ],
+            ["layout-shots", "layout/stories/2d/ARF.stories.ts", "layout", "layout"],
+            [
+                "graph-io-browser-shots",
+                "graph-io/fidelity-stories/stories/cx/Samples.stories.ts",
+                "graph-io-browser",
+                "graph-io-fidelity",
+            ],
+        ];
+        for (const [family, file, shard, project] of cases) {
+            const runs = [];
+            const execs = [];
+            const run = async (s, cmd, o) => {
+                runs.push({ s, cmd, env: o.env });
+                return 0;
+            };
+            const exec = (cmd, args) => execs.push([cmd, ...args].join(" "));
+            const variant = `${family}|flags=off|shots`;
+            assert.equal(
+                await baseCheck({ root, variant, file, repeat: 2, env: {}, build: true, run, exec }),
+                0,
+                family,
+            );
+            assert.equal(runs.length, 2);
+            for (const r of runs) {
+                // the shard's own name, so run-group.mjs records under `<family>-shots` with the project's baselines
+                assert.equal(r.s, shard);
+                assert.equal(r.env.RESULTS_VARIANT, variant);
+                assert.ok(r.env.VISUAL_REVIEW_STORY_OUT, "the screenshots are taken");
+                assert.equal(groupFamily(r.s, r.env), family);
+                assert.match(r.cmd, /vitest run (--project=storybook|--config=vitest\.storybook\.config\.ts) /);
+                assert.ok(r.cmd.endsWith(`'${file.slice(file.indexOf("/") + 1)}'`), r.cmd);
+                assert.doesNotMatch(r.cmd, /--shard|--coverage/);
+            }
+            assert.notEqual(runs[0].env.VISUAL_REVIEW_STORY_OUT, runs[1].env.VISUAL_REVIEW_STORY_OUT);
+            assert.match(
+                execs[0],
+                new RegExp(`^git lfs pull --include visual-baselines/${project}/\\*\\*,visual-fonts/`),
+            );
+            assert.equal(execs[0].includes("fidelity/oracles"), project === "graph-io-fidelity");
+            assert.match(execs[1], /^pnpm exec nx run \S+:build$/);
+            // graph-io's fidelity stories import graphty-element's source, which needs the other packages built
+            assert.equal(execs.includes("pnpm exec nx run graphty-element:build"), project !== "layout", project);
+        }
+        // a story file of another package is not the shard's
+        const run = async () => 0;
+        const other = {
+            root,
+            variant: "layout-shots|flags=off|shots",
+            file: "graphty/src/stories/App.stories.tsx",
+            env: {},
+            run,
+        };
+        assert.equal(await baseCheck(other), 2);
+    });
+
+    it("still runs a plain family on a base whose matrix predates the story runs", async () => {
+        const root = mkdtempSync(join(tmpdir(), "base-check-old-"));
+        mkdirSync(join(root, "tools"));
+        const shard = { shard: "layout", package: "layout", "test-command": "cd layout && pnpm exec vitest run" };
+        writeFileSync(join(root, "tools/ci-test-matrix.mjs"), `export const SHARDS = [${JSON.stringify(shard)}];\n`);
+        const cmds = [];
+        const run = async (s, cmd) => cmds.push(cmd) && 0;
+        const file = "layout/test/a.test.ts";
+        assert.equal(await baseCheck({ root, variant: "layout|flags=off|selected", file, env: {}, run }), 0);
+        assert.deepEqual(cmds, ["cd layout && pnpm exec vitest run 'test/a.test.ts'"]);
+        assert.equal(await baseCheck({ root, variant: "layout-shots|flags=off|shots", file, env: {}, run }), 2);
+        rmSync(root, { recursive: true, force: true });
+    });
+
     it("lets only the last repeat file Failing on master, and only when every repeat failed", async () => {
         const root = join(import.meta.dirname, "../..");
         const file = readdirSync(join(root, "layout/test")).find((n) => n.endsWith(".test.ts"));

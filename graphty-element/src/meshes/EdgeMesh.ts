@@ -26,7 +26,7 @@ import { parseArrowStack } from "./arrowStack";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
-import { FilledArrowRenderer, TEE_DEPTH } from "./FilledArrowRenderer";
+import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
@@ -1159,11 +1159,21 @@ void main() {
                     lineStop: EdgeMesh.veeLineStop(cap),
                 };
 
+            // A half arrow's line runs on under it to where its arm meets the line, so no break shows between them
+            // (Graphviz's halfopen meets its line at its back, Cytoscape's HALF_TOP near its tip): half-open's arm
+            // meets it 0.4 of the cap back from the tip, the half barb's stroke its own length back
+            case "half-open":
+            case "half-open-flipped":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: HALF_OPEN_MEETS };
+            case "half-barb":
+            case "half-barb-flipped":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: HALF_BARB };
+
             // Filled arrows using FilledArrowRenderer (billboard shaders, no rotation)
             // These arrows have tip/front edge at origin
             case "normal":
             case "tee":
-            case "half-open":
+            case "inverted-vee":
             case "crow":
             case "open-normal":
             case "open-diamond":
@@ -1175,7 +1185,6 @@ void main() {
             case "triangle-tee":
             case "triangle-cross":
             case "circle-triangle":
-            case "half-open-flipped":
             case "open-box":
             case "open-inverted":
             case "image":

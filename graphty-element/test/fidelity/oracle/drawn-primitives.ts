@@ -158,6 +158,8 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     box: "box",
     tee: "tee",
     "half-open": "half",
+    // half-open's arm as one thin stroke (Cytoscape's HALF_TOP and HALF_BOTTOM)
+    "half-barb": "half",
     "half-circle": "half-circle",
     "open-half-circle": "half-circle",
     // the round side of a half circle alone, bulging toward the node (vis-network's curve), drawn as a stroke
@@ -297,8 +299,8 @@ export function capPlaceMiss(
 /** The caps whose name says "open" though they are drawn filled: graphty's half-open is one filled barb (a half vee). */
 const FILLED_OPEN_NAMES: readonly string[] = ["half-open"];
 
-/** Cap names drawn as a stroke, hollow whatever their name says (vis-network's curve, an arc). */
-const STROKED_NAMES: readonly string[] = ["curve"];
+/** Cap names drawn as a stroke, hollow whatever their name says (vis-network's curve, an arc; the half barb). */
+const STROKED_NAMES: readonly string[] = ["curve", "half-barb"];
 
 /**
  * A path whose end at an open half circle is moved back to the arc's back, where the line meets the stroke.

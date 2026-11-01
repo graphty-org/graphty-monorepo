@@ -10,6 +10,7 @@ import type {
     Cell,
     ChannelTile,
     Episode,
+    JobsSection,
     Member,
     MemberRef,
     MemberWindow,
@@ -18,7 +19,6 @@ import type {
     PageResponse,
     Range,
     Section,
-    JobsSection,
     ShardsSection,
     SlowRange,
     StatusResponse,
@@ -28,25 +28,19 @@ import type {
 } from "./contract";
 import {
     and,
+    attemptsLabel,
+    attemptText,
+    bigValue,
+    capital,
     CATEGORY_NAME,
     CHANNEL,
     CHANNELS_HEAD,
     CHANNELS_SUB,
-    EVENT,
-    attemptText,
-    attemptsLabel,
     channelSince,
-    LABEL,
-    MEMBER,
-    REPO,
-    STATE_WORD,
-    bigValue,
-    capital,
-    fewText,
-    partialText,
-    showsRangeValue,
     clock,
     esc,
+    EVENT,
+    fewText,
     fmtAgo,
     fmtDur,
     fmtN,
@@ -56,14 +50,20 @@ import {
     fmtValue,
     isMuted,
     issueLink,
+    LABEL,
+    MEMBER,
     memberLine,
+    partialText,
     prLink,
     rangeLabel,
     refText,
+    REPO,
     runLink,
     sentence,
     shaLink,
+    showsRangeValue,
     slaText,
+    STATE_WORD,
     stateChip,
     stateClass,
     stripTags,
@@ -98,86 +98,124 @@ export const PAGE_TITLE: Record<Exclude<PageId, "overview">, string> = {
     "local-runs": "Local runs",
 };
 
-/** A catalog label: the LABEL entry, else a member's name ("member.<id>") or a page's title ("page.<id>"). */
+/**
+ * A catalog label: the LABEL entry, else a member's name ("member.<id>") or a page's title ("page.<id>").
+ * @param code The label's code.
+ * @returns The label as HTML.
+ */
 export function labelText(code: string): string {
-    if (LABEL[code] !== undefined) return LABEL[code];
+    if (LABEL[code] !== undefined) {
+        return LABEL[code];
+    }
     const [kind, ...rest] = code.split(".");
     const id = rest.join(".");
-    if (kind === "member" && id in MEMBER) return esc(MEMBER[id as keyof typeof MEMBER].name);
-    if (kind === "page" && id in PAGE_TITLE) return esc(PAGE_TITLE[id as keyof typeof PAGE_TITLE]);
+    if (kind === "member" && id in MEMBER) {
+        return esc(MEMBER[id as keyof typeof MEMBER].name);
+    }
+    if (kind === "page" && id in PAGE_TITLE) {
+        return esc(PAGE_TITLE[id as keyof typeof PAGE_TITLE]);
+    }
     return esc(code);
 }
 
 let here: Here = { page: "overview", range: "1h", q: new URLSearchParams() };
 /** The Costs history the reader picked last, kept in every link to Costs. */
 let costsRange: SlowRange | undefined;
+/**
+ * Record the view being drawn, which links and pickers read.
+ * @param h The view being drawn.
+ */
 export function setHere(h: Here): void {
     here = h;
-    if (h.page === "costs" && h.q.has("range")) costsRange = h.range as SlowRange;
+    if (h.page === "costs" && h.q.has("range")) {
+        costsRange = h.range as SlowRange;
+    }
 }
 
 const isPickerRange = (r: string): r is Range => r === "1h" || r === "6h" || r === "24h";
 
-/** A link to a route of the page, keeping the picked range; absolute URLs pass through. */
+/**
+ * A link to a route of the page, keeping the picked range; absolute URLs pass through.
+ * @param route A route of the page, or an absolute URL.
+ * @param extra Query keys to add, if any.
+ * @returns The link.
+ */
 export function href(route: string, extra?: Record<string, string>): string {
-    if (/^https?:/.test(route)) return esc(route);
+    if (/^https?:/.test(route)) {
+        return esc(route);
+    }
     const [path, qs] = route.split("?");
     const q = new URLSearchParams(qs ?? "");
-    if (!q.has("range") && path === "/costs" && costsRange) q.set("range", costsRange);
-    if (!q.has("range") && isPickerRange(here.range) && path !== "/costs") q.set("range", here.range);
-    for (const [k, v] of Object.entries(extra ?? {})) q.set(k, v);
+    if (!q.has("range") && path === "/costs" && costsRange) {
+        q.set("range", costsRange);
+    }
+    if (!q.has("range") && isPickerRange(here.range) && path !== "/costs") {
+        q.set("range", here.range);
+    }
+    for (const [k, v] of Object.entries(extra ?? {})) {
+        q.set(k, v);
+    }
     const s = q.toString();
     return esc(`#${path}${s ? `?${s}` : ""}`);
 }
 
-/** The current view's URL with some query keys changed (the pickers). */
+/**
+ * The current view's URL with some query keys changed (the pickers).
+ * @param extra The query keys to change.
+ * @returns The URL.
+ */
 function hereWith(extra: Record<string, string>): string {
     const q = new URLSearchParams(here.q);
-    for (const [k, v] of Object.entries(extra)) q.set(k, v);
+    for (const [k, v] of Object.entries(extra)) {
+        q.set(k, v);
+    }
     const path = here.page === "test" ? "/flaky/test" : PAGE_PATH[here.page];
     return esc(`#${path}${here.section && here.page !== "test" ? `/${here.section}` : ""}?${q.toString()}`);
 }
 
 // ---------------------------------------------------------------- frame
 
+/**
+ * The side navigation: a link per category with its state, and the current page's sub-links.
+ * @param status The status of every category, or null before it loads.
+ * @param fixture True when the page draws the fixture rather than the API.
+ * @returns The side navigation as HTML.
+ */
 export function nav(status: StatusResponse | null, fixture: boolean): string {
-    const st = (id: CategoryStatus["id"]) => status?.categories.find((c) => c.id === id)?.state;
-    const cur =
-        here.page === "test" ? "flaky" : here.page === "runners" || here.page === "local-runs" ? "ci" : here.page;
-    const item = (id: "overview" | CategoryStatus["id"], sub = "") => {
+    const st = (id: CategoryStatus["id"]): CategoryState | undefined =>
+        status?.categories.find((c) => c.id === id)?.state;
+    let cur: string = here.page;
+    if (here.page === "test") {
+        cur = "flaky";
+    } else if (here.page === "runners" || here.page === "local-runs") {
+        cur = "ci";
+    }
+    const item = (id: "overview" | CategoryStatus["id"], sub = ""): string => {
         const s = id === "overview" ? undefined : st(id);
         const name = id === "overview" ? "Overview" : CATEGORY_NAME[id];
         const label = s ? `${name}: ${STATE_WORD[s]}` : name;
         const curCls = cur === id ? " cur" : "";
         return `<li><a class="ni${s ? ` ${stateClass(s)}` : ""}${curCls}" href="${href(PAGE_PATH[id])}" aria-label="${esc(label)}"${cur === id ? ' aria-current="page"' : ""}><span class="bar"></span>${esc(name)}</a>${cur === id ? sub : ""}</li>`;
     };
-    const sub = (links: [string, string][]) =>
+    const sub = (links: [string, string][]): string =>
         `<ul class="sub open">${links.map(([r, n]) => `<li><a href="${href(r)}">${esc(n)}</a></li>`).join("")}</ul>`;
-    return (
-        `<nav class="side" aria-label="Pages"><div class="brand">Pipeline health</div><ul>` +
-        item("overview") +
-        item("master") +
-        item("pull-requests") +
-        item(
-            "ci",
-            sub([
-                ["/ci/runners", "Runners"],
-                ["/ci/shards", "Shard times"],
-                ["/ci/local-runs", "Local runs"],
-            ]),
-        ) +
-        item(
-            "flaky",
-            sub([
-                ["/flaky/hotspots", "Hotspots"],
-                ["/flaky/quarantine", "Quarantine"],
-            ]),
-        ) +
-        item("releases") +
-        item("costs") +
-        item("data-sources") +
-        `</ul>${fixture ? `<p class="sample">Fixture data: the incidents of 2026-10-25, as of 23:30 UTC</p>` : ""}</nav>`
-    );
+    const sample = fixture ? '<p class="sample">Fixture data: the incidents of 2026-10-25, as of 23:30 UTC</p>' : "";
+    return `<nav class="side" aria-label="Pages"><div class="brand">Pipeline health</div><ul>${item("overview")}${item(
+        "master",
+    )}${item("pull-requests")}${item(
+        "ci",
+        sub([
+            ["/ci/runners", "Runners"],
+            ["/ci/shards", "Shard times"],
+            ["/ci/local-runs", "Local runs"],
+        ]),
+    )}${item(
+        "flaky",
+        sub([
+            ["/flaky/hotspots", "Hotspots"],
+            ["/flaky/quarantine", "Quarantine"],
+        ]),
+    )}${item("releases")}${item("costs")}${item("data-sources")}</ul>${sample}</nav>`;
 }
 
 function rangePicker(slow: boolean): string {
@@ -235,7 +273,11 @@ function numCell(c: Extract<Cell, { t: "num" }>): string {
     return c.bold ? `<b>${v}</b>` : v;
 }
 
-/** Each item once, and three at most: the rest is a count. */
+/**
+ * Each item once, and three at most: the rest is a count.
+ * @param c The list cell.
+ * @returns The list as HTML.
+ */
 function listCell(c: Extract<Cell, { t: "list" }>): string {
     const seen = new Set<string>();
     const items = c.items.filter((i) => !seen.has(JSON.stringify(i)) && seen.add(JSON.stringify(i)));
@@ -245,6 +287,11 @@ function listCell(c: Extract<Cell, { t: "list" }>): string {
     return items.slice(0, LIST_SHOWN).map(cellHtml).join(sep) + more;
 }
 
+/**
+ * A table cell's value as HTML.
+ * @param c The cell.
+ * @returns The cell as HTML.
+ */
 export function cellHtml(c: Cell): string {
     switch (c.t) {
         case "name":
@@ -288,28 +335,43 @@ export function cellHtml(c: Cell): string {
         case "sub":
             return `${cellHtml(c.main)}<small>${cellHtml(c.sub)}</small>`;
         case "none":
+        default:
             return "";
     }
 }
 
 // ---------------------------------------------------------------- members
 
-/** True when a member's link leads to the page the reader is on, with no section to scroll to. */
+/**
+ * True when a member's link leads to the page the reader is on, with no section to scroll to.
+ * @param link The member's link.
+ * @returns True when the link goes nowhere new.
+ */
 function linksHere(link: string): boolean {
-    if (/^https?:/.test(link) || here.page === "test") return false;
+    if (/^https?:/.test(link) || here.page === "test") {
+        return false;
+    }
     return link.split("?")[0] === PAGE_PATH[here.page];
 }
 
-const breached = (m: Member) => m.state === "warn" || m.state === "bad";
+const breached = (m: Member): boolean => m.state === "warn" || m.state === "bad";
 
 const STEP_WORD: Record<string, string> = { "15m": "15 minutes", "1h": "hour" };
 
-/** What red means, under a row's name; "Red:" when the row is past its red line, and yellow's own meaning first. */
+/**
+ * What red means, under a row's name; "Red:" when the row is past its red line, and yellow's own meaning first.
+ * @param m The member.
+ * @returns The note as HTML, or an empty string.
+ */
 function redNote(m: Member): string {
     const t = MEMBER[m.id];
-    if (!t.red) return "";
+    if (!t.red) {
+        return "";
+    }
     let lead = m.sla?.red ? "If red: " : "";
-    if (m.state === "bad") lead = "Red: ";
+    if (m.state === "bad") {
+        lead = "Red: ";
+    }
     const yellow = m.state === "warn" && t.yellow ? `Yellow now: ${esc(t.yellow)} ` : "";
     const redCls = breached(m) ? "redm on" : "redm";
     return `<small class="${redCls}">${yellow}${lead}${esc(t.red)}</small>`;
@@ -323,24 +385,39 @@ function memberRow(m: Member): string {
     // What red means is on every row ("If red:"), and reads "Red:" in ink when the row is past its red line; a
     // yellow row says what yellow means when that differs, then what red would mean.
     const red = redNote(m);
-    const title = t.red ? ` title="${esc("Red: " + t.red)}"` : "";
+    const redTitle = `Red: ${t.red ?? ""}`;
+    const title = t.red ? ` title="${esc(redTitle)}"` : "";
     // A row whose link is the page it is on goes nowhere, so it is no link and has no chevron; its own links work.
     const still = linksHere(m.link);
-    const text = (html: string) => (still ? html : unlinked(html));
+    const text = (html: string): string => (still ? html : unlinked(html));
     const cells =
         `<span class="nm">${esc(t.name)}<small>${text(memberLine(m))}</small>${red}</span>` +
         `<span class="val">${val}<small class="v6">${windowLabel(m, here.range)}</small></span>` +
         `<span class="tg">${text(slaText(m.sla))}</span><span class="sp">${sp}</span><span class="st">${stateChip(m, here.range)}</span>`;
-    if (still) return `<div class="row${dim}"${title}>${cells}<span class="chev"></span></div>`;
+    if (still) {
+        return `<div class="row${dim}"${title}>${cells}<span class="chev"></span></div>`;
+    }
     return `<a class="row${dim}" href="${href(m.link)}"${title}>${cells}${chev()}</a>`;
 }
 
-/** Row order: FAILING, WARNING, NO DATA, OK, then the gray ones; config order within. */
+/**
+ * Row order: FAILING, WARNING, NO DATA, OK, then the gray ones; config order within.
+ * @param m The member.
+ * @returns The member's rank; lower comes first.
+ */
 function rank(m: Member): number {
-    if (m.state === "bad") return 0;
-    if (m.state === "warn") return 1;
-    if (m.state === "nodata") return 2;
-    if (m.state === "ok") return 3;
+    if (m.state === "bad") {
+        return 0;
+    }
+    if (m.state === "warn") {
+        return 1;
+    }
+    if (m.state === "nodata") {
+        return 2;
+    }
+    if (m.state === "ok") {
+        return 3;
+    }
     return 4;
 }
 
@@ -348,9 +425,13 @@ function rank(m: Member): number {
  * The member rows: the judged ones (past a line first), then, under a divider, the rows not judged now, which
  * cannot set the page's color. At 6 h and 24 h the state column says it is the last hour's, since a value for the
  * picked range can be past a line while the row is OK now.
+ * @param members The page's members.
+ * @returns The rows as HTML.
  */
 function memberRows(members: Member[]): string {
-    if (!members.length) return "";
+    if (!members.length) {
+        return "";
+    }
     const by = here.range === "24h" ? "24 h by hour" : "6 h by 15 min";
     const state = here.range === "1h" ? "state" : "state now (rates: last 1 h)";
     const sorted = [...members].sort((a, b) => rank(a) - rank(b));
@@ -359,28 +440,29 @@ function memberRows(members: Member[]): string {
     const divider = gray.length
         ? `<p class="rowsep">Not judged now: these rows show context and do not set the page's color.</p>`
         : "";
-    return (
-        `<div class="rows"><div class="thead rowh"><span>measure</span><span>value</span><span>target</span><span>${by}</span><span>${state}</span><span></span></div>` +
-        judged.map(memberRow).join("") +
-        divider +
-        gray.map(memberRow).join("") +
-        `</div>`
-    );
+    return `<div class="rows"><div class="thead rowh"><span>measure</span><span>value</span><span>target</span><span>${by}</span><span>${state}</span><span></span></div>${judged
+        .map(memberRow)
+        .join("")}${divider}${gray.map(memberRow).join("")}</div>`;
 }
 
 /** Where a NO DATA member's source is listed, so the reader can see why and who fixes it. */
 const SOURCES_LINK = `<a class="ln" href="#/data-sources/sources">See Data sources</a>`;
 
-/** The page's state sentence: the member that set it, the others not OK, and the page's notes. */
+/**
+ * The page's state sentence: the member that set it, the others not OK, and the page's notes.
+ * @param p The page.
+ * @returns The sentence as HTML.
+ */
 function pageState(p: PageResponse): string {
     const word = p.state === "idle" ? "IDLE" : STATE_WORD[p.state];
     const chip = `<span class="chips"><span class="sw ${p.state === "idle" ? "idle" : stateClass(p.state)}">${word}</span></span>`;
-    const find = (r: MemberRef) => p.members.find((m) => m.id === r.member);
+    const find = (r: MemberRef): Member | undefined => p.members.find((m) => m.id === r.member);
     const parts: string[] = [];
     if (p.setBy) {
         const m = find(p.setBy);
-        if (p.setBy.fact && p.setBy.state !== "nodata") parts.push(`${capital(sentence(p.setBy.fact))}.`);
-        else if (m && p.setBy.state === "nodata") {
+        if (p.setBy.fact && p.setBy.state !== "nodata") {
+            parts.push(`${capital(sentence(p.setBy.fact))}.`);
+        } else if (m && p.setBy.state === "nodata") {
             const why = m.reason ? `: ${sentence(m.reason)}` : "";
             parts.push(`${capital(MEMBER[m.id].short)} has NO DATA${why}. ${SOURCES_LINK}.`);
         } else if (
@@ -388,9 +470,9 @@ function pageState(p: PageResponse): string {
             p.setBy.member === "ci.chronic_jobs" &&
             p.setBy.state === "bad" &&
             m.note?.code === "note.chronic_no_issue"
-        )
+        ) {
             parts.push(`Because ${sentence({ code: "chronic.no_issue_jobs", params: m.note.params })}.`);
-        else if (m) {
+        } else if (m) {
             const win = MEMBER[m.id].when ?? WINDOW_PHRASE[m.window] ?? "";
             const v6 = m.value6h ? ` (6 h: ${fmtValue(m.value6h)})` : "";
             // A word value ("found nothing 3 weeks running") reads after a colon, never as "is found nothing", and
@@ -402,14 +484,17 @@ function pageState(p: PageResponse): string {
                     ? `${capital(MEMBER[m.id].short)}: ${fmtValue(m.value)}. ${esc(meaning)}`
                     : `${capital(MEMBER[m.id].short)} is ${fmtValue(m.value)}${win}${v6}, ${slaText(m.sla)}.`,
             );
-        } else parts.push(`${capital(refText(p.setBy))}.`);
-    } else if (p.state === "ok")
+        } else {
+            parts.push(`${capital(refText(p.setBy))}.`);
+        }
+    } else if (p.state === "ok") {
         parts.push(
             isPickerRange(p.range) && p.range !== "1h"
                 ? `Every judged member is within its target now; rates are judged on the last 1 h, while the values show the last ${rangeLabel(p.range)}.`
                 : "Every judged member is within its target.",
         );
-    const named = (state: MemberRef["state"]) =>
+    }
+    const named = (state: MemberRef["state"]): string[] =>
         p.others
             .filter((r) => r.state === state)
             .map((r) => {
@@ -420,23 +505,37 @@ function pageState(p: PageResponse): string {
     const bad = named("bad");
     const warn = named("warn");
     const nodata = named("nodata");
-    if (bad.length) parts.push(`Also failing (past the red line): ${bad.join(", ")}.`);
-    if (warn.length) parts.push(`Also past target: ${warn.join(", ")}.`);
-    if (nodata.length) parts.push(`Also NO DATA: ${nodata.join(", ")}. ${SOURCES_LINK}.`);
+    if (bad.length) {
+        parts.push(`Also failing (past the red line): ${bad.join(", ")}.`);
+    }
+    if (warn.length) {
+        parts.push(`Also past target: ${warn.join(", ")}.`);
+    }
+    if (nodata.length) {
+        parts.push(`Also NO DATA: ${nodata.join(", ")}. ${SOURCES_LINK}.`);
+    }
     parts.push(...p.notes.map(sentence));
-    if (p.page === "costs") parts.push(...budgetLine(p.sections));
+    if (p.page === "costs") {
+        parts.push(...budgetLine(p.sections));
+    }
     return `<p class="pstate">${chip}<span>${parts.join(" ")}</span></p>`;
 }
 
-/** Costs: "331 USD of the 415 USD monthly budget spent; month-end forecast 340 USD.", from the money table's total. */
+/**
+ * Costs: "331 USD of the 415 USD monthly budget spent; month-end forecast 340 USD.", from the money table's total.
+ * @param sections The page's sections.
+ * @returns The sentence in a list, or an empty list when there is no budget.
+ */
 function budgetLine(sections: Section[]): string[] {
     const money = sections.find((x): x is TableSection => x.id === "money" && x.kind === "table");
     const total = money?.rows.find((r) => r.total)?.cells;
     const sofar = total?.sofar;
     const projected = total?.projected;
-    if (sofar?.t !== "budget" || sofar.budget === null) return [];
+    if (sofar?.t !== "budget" || sofar.budget === null) {
+        return [];
+    }
     // Whole dollars, as the member's own value reads in the sentence before it ("342 USD projected").
-    const usd = (n: number) => fmtN(Math.round(n));
+    const usd = (n: number): string => fmtN(Math.round(n));
     const forecast = projected?.t === "num" ? `; month-end forecast ${usd(projected.n)} USD` : "";
     return [`${usd(sofar.so)} USD of the ${usd(sofar.budget)} USD monthly budget spent${forecast}.`];
 }
@@ -459,7 +558,7 @@ interface TableDef {
     weights?: Record<string, number>;
 }
 
-const isMark = (c: Cell | undefined) => c?.t === "mark";
+const isMark = (c: Cell | undefined): boolean => c?.t === "mark";
 
 export const TABLES: Record<string, TableDef> = {
     "red-spans": {
@@ -633,8 +732,13 @@ export const TABLES: Record<string, TableDef> = {
     },
 };
 
-/** A table cell: the column's name rides along for a phone, which stacks the row (style.css); the value is wrapped
- * so the name and the value are two grid columns there. */
+/**
+ * A table cell: the column's name rides along for a phone, which stacks the row (style.css); the value is wrapped
+ * so the name and the value are two grid columns there.
+ * @param h The column's name.
+ * @param html The cell's HTML.
+ * @returns The cell as HTML.
+ */
 const cellSpan = (h: string, html: string): string => `<span data-h="${esc(h)}"><span class="cv">${html}</span></span>`;
 
 /** Rows a table shows before the rest folds away, unless its entry in TABLES says otherwise. */
@@ -648,7 +752,12 @@ const filled = (c: Cell | undefined): boolean => c !== undefined && c.t !== "non
  */
 type TableRow = TableSection["rows"][number];
 
-/** One table row; each cell carries its column's name, which a phone shows beside it when the row stacks (style.css). */
+/**
+ * One table row; each cell carries its column's name, which a phone shows beside it when the row stacks (style.css).
+ * @param cols The columns shown, as key and name.
+ * @param r The row.
+ * @returns The row as HTML.
+ */
 function tableRow(cols: [string, string][], r: TableRow): string {
     const cls = `tr${r.past ? " past" : ""}${r.total ? " tot" : ""}`;
     const cells = cols
@@ -660,17 +769,38 @@ function tableRow(cols: [string, string][], r: TableRow): string {
 /**
  * A table's folded rows behind a summary; a fold that would open onto nothing (benchmarks with too few runs are
  * only counted) is a plain sentence, and no folded row is nothing.
+ * @param id The table's id.
+ * @param folded How many rows are folded.
+ * @param root0 The fold's words.
+ * @param root0."0" What the folded rows are.
+ * @param root0."1" How many of them ended, as a note.
+ * @param inner The folded rows' HTML.
+ * @returns The fold as HTML.
  */
 function tableFold(id: string, folded: number, [what, endedNote]: [string, string], inner: string): string {
-    if (!folded) return "";
-    if (!inner) return `<p class="more">${capital(what)}.</p>`;
+    if (!folded) {
+        return "";
+    }
+    if (!inner) {
+        return `<p class="more">${capital(what)}.</p>`;
+    }
     return `<details class="epm tfold" data-key="t-${esc(id)}"><summary>${what}${endedNote}${chev()}</summary>${inner}</details>`;
 }
 
-/** The fold's summary: how many rows it holds, and how many of them ended, when rows are open above it. */
+/**
+ * The fold's summary: how many rows it holds, and how many of them ended, when rows are open above it.
+ * @param folded The folded rows.
+ * @param anyShown True when rows are shown above the fold.
+ * @param foldText The table's own summary of the folded rows, if any.
+ * @returns What the fold holds and how many ended.
+ */
 function foldWords(folded: TableRow[], anyShown: boolean, foldText?: (rows: TableRow[]) => string): [string, string] {
-    if (foldText) return [foldText(folded), ""];
-    if (!anyShown) return [`${fmtN(folded.length)} ended or idle ${folded.length === 1 ? "row" : "rows"}`, ""];
+    if (foldText) {
+        return [foldText(folded), ""];
+    }
+    if (!anyShown) {
+        return [`${fmtN(folded.length)} ended or idle ${folded.length === 1 ? "row" : "rows"}`, ""];
+    }
     const ended = folded.filter((r) => r.past).length;
     return [`${fmtN(folded.length)} more`, ended ? ` (${fmtN(ended)} ended or idle)` : ""];
 }
@@ -683,11 +813,12 @@ function table(s: TableSection): string {
     const cols = s.rows.length ? def.cols.filter(([k]) => s.rows.some((r) => filled(r.cells[k]))) : def.cols;
     // Dropped columns: the rest share the width, the first a little more (style.css, .tbl.dropped).
     const dropped = cols.length < def.cols.length;
-    const weight = (k: string, i: number) => def.weights?.[k] ?? (i === 0 ? 1.6 : 1);
+    const weight = (k: string, i: number): number => def.weights?.[k] ?? (i === 0 ? 1.6 : 1);
     const tracks = cols.map(([k], i) => `minmax(0, ${weight(k, i)}fr)`).join(" ");
     const style = dropped ? ` style="--cols: ${tracks}"` : "";
-    const head = `<div class="thead">${cols.map(([, h]) => "<span>" + esc(h) + "</span>").join("")}</div>`;
-    const row = (r: TableRow) => tableRow(cols, r);
+    const headCells = cols.map(([, h]) => `<span>${esc(h)}</span>`).join("");
+    const head = `<div class="thead">${headCells}</div>`;
+    const row = (r: TableRow): string => tableRow(cols, r);
     const cap = def.cap ?? TABLE_CAP;
     const live = s.rows.filter((r) => !r.past && !r.total);
     const keep = def.open ? live.filter(def.open) : live;
@@ -709,14 +840,21 @@ function table(s: TableSection): string {
     const none = s.rows.length && !shown.length && !totals.length ? `<p class="empty">${esc(noneText)}</p>` : "";
     const empty = s.rows.length ? "" : `<p class="empty">none in this range</p>`;
     // No row to draw, open or folded: no header over nothing, only the sentences.
-    if (!headOpen && !listed.length) return `${none}${fold}${empty}`;
+    if (!headOpen && !listed.length) {
+        return `${none}${fold}${empty}`;
+    }
     return `${none}<div class="tbl ${def.cls}${dropped ? " dropped" : ""}" role="table"${style}>${headOpen ? head : ""}${shown.map(row).join("")}${totals.map(row).join("")}${fold}</div>${empty}`;
 }
 
 /** Bars a list shows before the rest folds into "N more". */
 const BARS_SHOWN = 8;
 
-/** Sorted bars, the longest first, past BARS_SHOWN folded. */
+/**
+ * Sorted bars, the longest first, past BARS_SHOWN folded.
+ * @param items The bars.
+ * @param caption The bars' caption.
+ * @returns The bars as HTML.
+ */
 function barList(items: BarsSection["groups"][number]["items"], caption: string): string {
     const rest = items.slice(BARS_SHOWN);
     // One scale for the whole list, so a folded bar is never longer than a larger one above it.
@@ -727,7 +865,11 @@ function barList(items: BarsSection["groups"][number]["items"], caption: string)
     return sortedBars(items.slice(0, BARS_SHOWN), cellHtml, caption, max) + more;
 }
 
-/** "CI, pull_request" as "CI, pull request": the event of a runner holder's name in words. */
+/**
+ * "CI, pull_request" as "CI, pull request": the event of a runner holder's name in words.
+ * @param i The bar.
+ * @returns The bar with its name in words.
+ */
 function holderName(i: BarsSection["groups"][number]["items"][number]): BarsSection["groups"][number]["items"][number] {
     const m = i.label.t === "name" ? /^(.*), (\w+)$/.exec(i.label.v) : null;
     return m && EVENT[m[2]] ? { ...i, label: { t: "name", v: `${m[1]}, ${EVENT[m[2]]}` } } : i;
@@ -737,7 +879,9 @@ function bars(s0: BarsSection): string {
     const s =
         s0.id === "holders" ? { ...s0, groups: s0.groups.map((g) => ({ ...g, items: g.items.map(holderName) })) } : s0;
     const caption = s.id;
-    if (s.groups.length === 1) return barList(s.groups[0].items, caption);
+    if (s.groups.length === 1) {
+        return barList(s.groups[0].items, caption);
+    }
     const list = (g: BarsSection["groups"][number]): string =>
         g.items.length
             ? barList(g.items, g.head ? sentence(g.head) : caption)
@@ -756,7 +900,11 @@ function seg(key: string, on: string, options: [string, string][]): string {
         .join("")}</span>`;
 }
 
-/** A shard's name without the selector's flags; a screenshot shard gets a small tag ("graphty|shots"). */
+/**
+ * A shard's name without the selector's flags; a screenshot shard gets a small tag ("graphty|shots").
+ * @param shard The shard's name as the selector wrote it.
+ * @returns The name as HTML.
+ */
 function shardName(shard: string): string {
     const [base, ...flags] = shard.split("|");
     const shots = flags.includes("shots") ? ` <small class="tag">screenshots</small>` : "";
@@ -765,7 +913,7 @@ function shardName(shard: string): string {
 
 function shards(s: ShardsSection): string {
     const maxS = Math.max(1200, ...s.rows.map((r) => r.p90S));
-    const mins = (x: number) => fmtN(Math.round((x / 60) * 10) / 10);
+    const mins = (x: number): string => fmtN(Math.round((x / 60) * 10) / 10);
     const head =
         `<div class="srow thead"><span class="nm">${s.runKind === "full" ? "shard" : "family"}</span><span class="num">runs</span><span class="num">median</span><span class="num">p90</span>` +
         `<span>0 to ${fmtN(Math.round(maxS / 60))} min; line = budget</span><span></span><span></span></div>`;
@@ -774,10 +922,12 @@ function shards(s: ShardsSection): string {
             const { svg, note } = budgetBar(r, maxS);
             const name = shardName(r.shard) + (r.group ? ` (in ${esc(r.group)})` : "");
             const judged = r.runs >= r.minRuns;
-            const cols = (tail: string) =>
+            const cols = (tail: string): string =>
                 `<span class="nm">${name}</span><span class="num">${fmtN(r.runs)}</span><span class="num">${mins(r.medianS)}</span><span class="num">${mins(r.p90S)}</span>` +
                 `<span>${svg}</span><span class="note2${judged ? "" : " tg"}">${esc(note)}</span>${tail}`;
-            if (!r.files?.length) return `<div class="srow${judged ? "" : " dim"}">${cols("<span></span>")}</div>`;
+            if (!r.files?.length) {
+                return `<div class="srow${judged ? "" : " dim"}">${cols("<span></span>")}</div>`;
+            }
             const files = r.files
                 .map(
                     (fl) =>
@@ -813,16 +963,20 @@ function tree(s: TreeSection): string {
     return `<div class="hott">${head}${body}</div>${note}`;
 }
 
-/** The section's heading: its title, subtitle and, for slow sections, its own pickers. */
+/**
+ * The section's heading: its title, subtitle and, for slow sections, its own pickers.
+ * @param s The section.
+ * @returns The heading as HTML.
+ */
 function sectionHead(s: Section): string {
     const r = here.range;
     const last = isPickerRange(r) ? `last ${rangeLabel(r)}` : rangeLabel(r);
     const subText = s.sub ? sentence(s.sub) : "";
-    const sub = (t: string) => (t ? `<span class="h2sub">${t}</span>` : "");
-    const h = (title: string, subtitle = "", extra = "") =>
+    const sub = (t: string): string => (t ? `<span class="h2sub">${t}</span>` : "");
+    const h = (title: string, subtitle = "", extra = ""): string =>
         `<h2 id="s-${esc(s.id)}" tabindex="-1">${esc(title)}${sub(subtitle)}${extra}</h2>`;
     const widened = s.widened
-        ? `only ${fmtN(s.widened.n)} in the ${`last ${rangeLabel(s.widened.from)}`}, so the last ${rangeLabel(s.widened.to)} (${fmtN(s.widened.nTo)}); `
+        ? `only ${fmtN(s.widened.n)} in the last ${rangeLabel(s.widened.from)}, so the last ${rangeLabel(s.widened.to)} (${fmtN(s.widened.nTo)}); `
         : "";
     switch (s.id) {
         case "red":
@@ -957,6 +1111,8 @@ function sectionBody(s: Section): string {
             return tree(s);
         case "empty":
             return `<p class="empty">${sentence(s.fact)}</p>`;
+        default:
+            return "";
     }
 }
 
@@ -967,24 +1123,37 @@ function section(s: Section): string {
 
 // ---------------------------------------------------------------- views
 
-/** A section's title, as its heading reads, for the breadcrumb of a view opened at that section. */
+/**
+ * A section's title, as its heading reads, for the breadcrumb of a view opened at that section.
+ * @param s The section.
+ * @returns The title.
+ */
 function sectionTitle(s: Section): string {
     return /<h2[^>]*>([^<]*)/.exec(sectionHead(s))?.[1] ?? "";
 }
 
+/**
+ * A category page: its state sentence, its members and its sections.
+ * @param p The page.
+ * @returns The page as HTML.
+ */
 export function pageView(p: PageResponse): string {
     const title = PAGE_TITLE[p.page];
     const crumbs: [string, string][] = [["/", "Overview"]];
-    if (p.page === "runners" || p.page === "local-runs") crumbs.push(["/ci", "CI"]);
+    if (p.page === "runners" || p.page === "local-runs") {
+        crumbs.push(["/ci", "CI"]);
+    }
     const at = here.section ? p.sections.find((x) => x.id === here.section) : undefined;
     const atTitle = at ? sectionTitle(at) : "";
     // Local runs with nothing recorded: one line says why, not a page of empty rows.
     const idle = p.page === "local-runs" && p.state === "idle" && p.members.every((m) => m.value === null);
-    if (idle)
-        return (
-            header(title, crumbs, p.generated) +
-            `<p class="pstate"><span>No local test runs recorded. This page fills when agents run tests on the development machine with tools/run-tests.sh.</span></p>`
-        );
+    if (idle) {
+        return `${header(
+            title,
+            crumbs,
+            p.generated,
+        )}<p class="pstate"><span>No local test runs recorded. This page fills when agents run tests on the development machine with tools/run-tests.sh.</span></p>`;
+    }
     return (
         header(title, crumbs, p.generated, p.page === "costs", true, atTitle) +
         pageState(p) +
@@ -996,31 +1165,39 @@ export function pageView(p: PageResponse): string {
 function block(c: CategoryStatus): string {
     const name = CATEGORY_NAME[c.id];
     const word = c.state === "idle" ? "IDLE" : STATE_WORD[c.state];
-    const lab = (h: string) => (c.state === "nodata" ? `<span class="lab">${h}</span>` : h);
+    const lab = (h: string): string => (c.state === "nodata" ? `<span class="lab">${h}</span>` : h);
     const by = c.setBy ? unlinked(refText(c.setBy, true)) : "";
-    const more =
-        c.others.length === 1
-            ? `+ ${unlinked(refText(c.others[0], true))}`
-            : c.others.length > 1
-              ? `+ ${c.others.length} more`
-              : "";
+    let more = "";
+    if (c.others.length === 1) {
+        more = `+ ${unlinked(refText(c.others[0], true))}`;
+    } else if (c.others.length > 1) {
+        more = `+ ${c.others.length} more`;
+    }
     const aria = [`${name}: ${word}`, ...[by, more].filter(Boolean).map(stripTags)].join(", ");
     const cls = c.state === "idle" ? "idle" : stateClass(c.state);
-    return (
-        `<a class="blk ${cls}" href="${href(PAGE_PATH[c.id])}" aria-label="${esc(aria)}" title="${esc(aria)}"><span class="bn">${lab(esc(name))}</span><span class="bw">${lab(word)}</span>` +
-        (by ? `<span class="by">${lab(by)}</span>` : "") +
-        (more ? `<span class="by bym">${lab(more)}</span>` : "") +
-        `${chev()}</a>`
-    );
+    const byHtml = by ? `<span class="by">${lab(by)}</span>` : "";
+    const moreHtml = more ? `<span class="by bym">${lab(more)}</span>` : "";
+    return `<a class="blk ${cls}" href="${href(PAGE_PATH[c.id])}" aria-label="${esc(aria)}" title="${esc(aria)}"><span class="bn">${lab(esc(name))}</span><span class="bw">${lab(word)}</span>${byHtml}${moreHtml}${chev()}</a>`;
 }
 
-/** The headline's big value, or the gray word that stands in for it. */
+/**
+ * The headline's big value, or the gray word that stands in for it.
+ * @param m The member.
+ * @returns The value as HTML.
+ */
 function headlineValue(m: Member): string {
-    if (m.state === "few" && !showsRangeValue(m, here.range))
+    if (m.state === "few" && !showsRangeValue(m, here.range)) {
         return `<span class="kvl">${fewText(m, here.range)}</span>`;
-    if (m.state === "partial") return `<span class="kvm">${partialText(m.covered)}</span>`;
-    if (m.state === "nodata") return `<span class="kvl">NO DATA</span>`;
-    if (m.state === "notsetup") return `<span class="kvl">not set up</span>`;
+    }
+    if (m.state === "partial") {
+        return `<span class="kvm">${partialText(m.covered)}</span>`;
+    }
+    if (m.state === "nodata") {
+        return `<span class="kvl">NO DATA</span>`;
+    }
+    if (m.state === "notsetup") {
+        return `<span class="kvl">not set up</span>`;
+    }
     return bigValue(m.value);
 }
 
@@ -1030,10 +1207,13 @@ function headlineValue(m: Member): string {
  * @param m the category's headline member
  * @param setBy the member that set the category's state, when there is one
  * @param driver that member as a full row (payloads built before it was have only `setBy`)
+ * @returns The measure as HTML.
  */
 export function headline(m: Member, setBy?: MemberRef, driver?: Member): string {
     if (setBy !== undefined && setBy.member !== m.id) {
-        if (driver) return measure(driver, true);
+        if (driver) {
+            return measure(driver, true);
+        }
         // No full row for it: its name and value, and where its target is.
         const t = MEMBER[setBy.member];
         const kv = setBy.value === null ? "--" : bigValue(setBy.value);
@@ -1044,34 +1224,55 @@ export function headline(m: Member, setBy?: MemberRef, driver?: Member): string 
     return measure(m, false);
 }
 
-/** The first note under a measure: why it has no data, its 6 h value, or why its line is flat. */
+/**
+ * The first note under a measure: why it has no data, its 6 h value, or why its line is flat.
+ * @param m The member.
+ * @returns The note as HTML, or an empty string.
+ */
 function measureNote(m: Member): string {
-    if (m.state === "nodata" && m.reason) return sentence(m.reason);
+    if (m.state === "nodata" && m.reason) {
+        return sentence(m.reason);
+    }
     if (m.value6h && here.range === "1h") {
         const cov = m.covered6h ? `, ${fmtN(m.covered6h.h)} h of ${fmtN(m.covered6h.of)}` : "";
         return `6 h ${fmtValue(m.value6h)}${cov}`;
     }
-    if (m.window !== "now" || !m.spark || !m.value || "word" in m.value) return "";
+    if (m.window !== "now" || !m.spark || !m.value || "word" in m.value) {
+        return "";
+    }
     const v = m.value.n;
-    if (m.spark.trend.every((x) => x === v)) return "unchanged for the last 6 h";
+    if (m.spark.trend.every((x) => x === v)) {
+        return "unchanged for the last 6 h";
+    }
     return m.id.startsWith("costs.") ? "billing is daily" : "";
 }
 
-/** One measure under a block, with its window, value, target and sparkline; `set` labels it as the color's reason. */
+/**
+ * One measure under a block, with its window, value, target and sparkline; `set` labels it as the color's reason.
+ * @param m The member.
+ * @param set True when this member set the block's color.
+ * @returns The measure as HTML.
+ */
 function measure(m: Member, set: boolean): string {
     const t = MEMBER[m.id];
     let win = `last ${rangeLabel(here.range)}`;
-    if (m.window === "now") win = "now";
-    else if (m.window === "7d" || m.window === "28d") win = `last ${rangeLabel(m.window)}`;
+    if (m.window === "now") {
+        win = "now";
+    } else if (m.window === "7d" || m.window === "28d") {
+        win = `last ${rangeLabel(m.window)}`;
+    }
     const kv = headlineValue(m);
     const kt: string[] = [];
     const first = measureNote(m);
-    if (first) kt.push(first);
+    if (first) {
+        kt.push(first);
+    }
     kt.push(slaText(m.sla));
     // The block above is judged on the last hour whatever the picker shows, so a 24 h value past red under a
     // green block says why it is not red.
-    if (here.range !== "1h" && (m.window === "1h" || m.window === "1h6h"))
+    if (here.range !== "1h" && (m.window === "1h" || m.window === "1h6h")) {
         kt.push("the block's color is judged on the last 1 h");
+    }
     const sp = m.spark ? sparkline(m.spark, clock.generated, `${t.name} trend`) : "";
     const lead = set ? `<b class="knot">Set the color:</b> ` : "";
     const name = set ? t.name : (t.headline ?? t.name);
@@ -1082,7 +1283,9 @@ function episode(e: Episode): string {
     const past = e.end !== null;
     const span = fmtSpan(e.start, e.end, { edge: true, startUnknown: e.startUnknown });
     let status = e.notJudgedNow ? "not judged now" : "ongoing";
-    if (past) status = `cleared ${fmtAgo(e.end as string)}`;
+    if (past) {
+        status = `cleared ${fmtAgo(e.end as string)}`;
+    }
     return (
         `<a class="ep${past || e.notJudgedNow ? " past" : ""}" href="${href(e.link)}"><span class="eb ${e.worst}"></span><span class="et">${span}</span>` +
         `<span class="ec">${esc(CATEGORY_NAME[e.category])}</span><span class="ex">${unlinked(sentence(e.fact))}</span>` +
@@ -1093,7 +1296,11 @@ function episode(e: Episode): string {
 /** The hollow dots a channel with no attempt recorded shows (the design's 14). */
 const EMPTY_DOTS = 14;
 
-/** A release channel's tile (#4460): its state, the commit it serves and since when, a dot per recent attempt. */
+/**
+ * A release channel's tile (#4460): its state, the commit it serves and since when, a dot per recent attempt.
+ * @param c The channel's tile.
+ * @returns The tile as HTML.
+ */
 export function channelTile(c: ChannelTile): string {
     const dots = c.attempts.length
         ? c.attempts.map((a) => `<i class="dot d-${a.outcome}" title="${attemptText(c.id, a)}"></i>`).join("")
@@ -1120,7 +1327,7 @@ const PRIORITY: CategoryStatus["id"][] = [
     "costs",
     "data-sources",
 ];
-const prio = (id: CategoryStatus["id"]) => PRIORITY.indexOf(id);
+const prio = (id: CategoryStatus["id"]): number => PRIORITY.indexOf(id);
 
 /** The legend of the status blocks; the long form is its tooltip. */
 const LEGEND =
@@ -1133,22 +1340,25 @@ const SEVERITY: Record<CategoryState, number> = { bad: 0, warn: 1, nodata: 2, ok
 /**
  * The one line above the blocks: the most urgent category, the member that set it, what that red means and who
  * acts, and the others not OK, so a reader need not assemble the story from the blocks, tiles and episodes.
+ * @param categories The status of every category.
+ * @returns The line as HTML.
  */
 export function urgent(categories: CategoryStatus[]): string {
     const bad = categories
         .filter((c) => c.state === "bad" || c.state === "warn" || c.state === "nodata")
         .sort((a, b) => SEVERITY[a.state] - SEVERITY[b.state] || prio(a.id) - prio(b.id));
-    if (!bad.length)
+    if (!bad.length) {
         return `<p class="urgent ok"><b>Nothing needs action:</b> every category is within its targets.</p>`;
+    }
     const [top, ...rest] = bad;
     const by = top.setBy;
     // The other members of the same category past a line, so the line names every overrun, not only the worst.
     const also = top.others
         .filter((r) => r.state === "bad" || r.state === "warn")
         .map((r) => unlinked(refText(r, true)));
-    const alsoText = also.length ? "; also " + and(also) : "";
+    const alsoText = also.length ? `; also ${and(also)}` : "";
     const what = by ? `: ${unlinked(refText(by))}${alsoText}. ${esc(MEMBER[by.member].red)}` : ".";
-    const notOk = rest.map((c) => esc(CATEGORY_NAME[c.id]) + " (" + STATE_WORD[c.state] + ")").join(", ");
+    const notOk = rest.map((c) => `${esc(CATEGORY_NAME[c.id])} (${STATE_WORD[c.state]})`).join(", ");
     const others = rest.length ? ` Also not OK: ${notOk}.` : "";
     return (
         `<p class="urgent ${stateClass(top.state)}"><b>Most urgent:</b> ` +
@@ -1157,17 +1367,23 @@ export function urgent(categories: CategoryStatus[]): string {
     );
 }
 
+/**
+ * The overview: the urgent line, the status blocks, the release channels and the episodes.
+ * @param o The overview.
+ * @returns The overview as HTML.
+ */
 export function overviewView(o: OverviewResponse): string {
     const trend =
         here.range === "24h"
             ? "Small chart: the last 24 hours."
             : "Small chart: the last 6 hours, the last hour shaded.";
-    const long =
-        "Each block is its category's state: rates judged on the last 1 h, states now. Under it: the headline measure, " +
-        (here.range === "1h" ? "its 6 h value, and " : "") +
-        (here.range === "24h"
+    const long = `Each block is its category's state: rates judged on the last 1 h, states now. Under it: the headline measure, ${
+        here.range === "1h" ? "its 6 h value, and " : ""
+    }${
+        here.range === "24h"
             ? "the last 24 h by hour, the last hour shaded."
-            : "the last 6 h by 15 min with the last hour shaded; the faint line at the left is the rest of the last 24 h, hourly.");
+            : "the last 6 h by 15 min with the last hour shaded; the faint line at the left is the rest of the last 24 h, hourly."
+    }`;
     const cols = [...o.categories]
         .sort((a, b) => prio(a.id) - prio(b.id))
         .map((c) => `<li class="col">${block(c)}${headline(c.headline, c.setBy, c.driver)}</li>`)
@@ -1188,7 +1404,7 @@ export function overviewView(o: OverviewResponse): string {
     const reds = ongoing.filter((e) => e.worst === "bad").length;
     const open = ongoing.slice(0, Math.max(reds, ONGOING_SHOWN));
     const shown = open.length < ongoing.length ? 0 : Math.max(0, EPISODES_SHOWN - open.length);
-    const fold = (list: Episode[], what: string) =>
+    const fold = (list: Episode[], what: string): string =>
         list.length
             ? `<details class="epm"><summary>${fmtN(list.length)} more ${what}${chev()}</summary>${list.map(episode).join("")}</details>`
             : "";
@@ -1201,27 +1417,34 @@ export function overviewView(o: OverviewResponse): string {
         ? `<h2 class="top">${CHANNELS_HEAD}<span class="h2sub">${CHANNELS_SUB}</span></h2><div class="tiles">${o.channels.map(channelTile).join("")}</div>`
         : "";
     return (
-        header("Pipeline health", [], o.generated) +
-        channels +
-        urgent(o.categories) +
-        `<p class="kcap" title="${esc(long)}">${LEGEND} ${trend}</p>` +
+        `${
+            header("Pipeline health", [], o.generated) + channels + urgent(o.categories)
+        }<p class="kcap" title="${esc(long)}">${LEGEND} ${trend}</p>` +
         `<ol class="status" aria-label="Category status">${cols}</ol>` +
         `<h2>Last 24 hours<span class="h2sub">every time an hourly or current measure went past its target: ongoing first (red, then yellow), then those not judged now, then cleared, the most recent first; the bar is the worst it reached: red past the red line, yellow past the target; 7- and 28-day measures are on their pages, not here</span></h2><div class="eps">${eps}</div>`
     );
 }
 
-/** GitHub's issue search for the test file's name, open and closed: the issues the flaky counter could match. */
+/**
+ * GitHub's issue search for the test file's name, open and closed: the issues the flaky counter could match.
+ * @param h The test's history.
+ * @returns The search URL.
+ */
 function issueSearch(h: TestHistoryResponse): string {
     const file = h.file.split("/").pop() ?? h.file;
-    const q = new URLSearchParams({ q: 'is:issue "' + file + '"' });
+    const q = new URLSearchParams({ q: `is:issue "${file}"` });
     return `${REPO}/issues?${q.toString()}`;
 }
 
-/** A new-issue link with the test's facts filled in; GitHub opens it as a draft the reader submits or drops. */
+/**
+ * A new-issue link with the test's facts filled in; GitHub opens it as a draft the reader submits or drops.
+ * @param h The test's history.
+ * @returns The link as HTML.
+ */
 function draftIssue(h: TestHistoryResponse): string {
     const name = h.test ?? h.file;
     const newest = h.events[0];
-    const testPart = h.test ? " > " + h.test : "";
+    const testPart = h.test ? ` > ${h.test}` : "";
     const historyQuery = new URLSearchParams({ file: h.file, ...(h.test ? { test: h.test } : {}) }).toString();
     const body = [
         `Flaky test: \`${h.file}\`${testPart}`,
@@ -1241,9 +1464,15 @@ function draftIssue(h: TestHistoryResponse): string {
 
 const WHERE_WORD: Record<string, string> = { full: "full run", pr: "pull request" };
 
-/** The test's issue, or how to find or draft one. */
+/**
+ * The test's issue, or how to find or draft one.
+ * @param h The test's history.
+ * @returns The note as HTML.
+ */
 function issueNote(h: TestHistoryResponse): string {
-    if (h.issue) return `Tracked by ${issueLink(h.issue)}.`;
+    if (h.issue) {
+        return `Tracked by ${issueLink(h.issue)}.`;
+    }
     const search = `<a class="ln" href="${esc(issueSearch(h))}" target="_blank" rel="noopener">Search GitHub for issues naming this file</a>`;
     const draft = `<a class="ln" href="${esc(draftIssue(h))}" target="_blank" rel="noopener">draft the issue</a>`;
     return (
@@ -1252,23 +1481,33 @@ function issueNote(h: TestHistoryResponse): string {
     );
 }
 
+/**
+ * A test's page: its runs, outcomes and issue.
+ * @param h The test's history.
+ * @returns The test's page as HTML.
+ */
 export function testView(h: TestHistoryResponse): string {
     const title = h.test ?? h.file;
-    const outcome = (o: TestHistoryResponse["events"][number]["outcome"]) => {
-        if (o === "passed") return "passed";
+    const outcome = (o: TestHistoryResponse["events"][number]["outcome"]): string => {
+        if (o === "passed") {
+            return "passed";
+        }
         const word = o === "failed-rerun" ? "failed rerun" : o;
         return `<span class="mk ${o === "flaky" ? "warn" : "bad"}">${word}</span>`;
     };
-    const where = (e: TestHistoryResponse["events"][number]) => (e.pr ? prLink(e.pr) : (WHERE_WORD[e.kind] ?? "local"));
+    const where = (e: TestHistoryResponse["events"][number]): string =>
+        e.pr ? prLink(e.pr) : (WHERE_WORD[e.kind] ?? "local");
     const rows = h.events
-        .map(
-            (e) =>
+        .map((e) => {
+            const commit = `${shaLink(e.sha)}<small>attempt ${fmtN(e.attempt)}</small>`;
+            return (
                 `<div class="tr${e.outcome === "passed" ? " past" : ""}">${cellSpan("when", fmtTime(e.at))}${cellSpan("where", where(e))}` +
-                `${cellSpan("commit", shaLink(e.sha) + "<small>attempt " + fmtN(e.attempt) + "</small>")}${cellSpan("result", outcome(e.outcome))}${cellSpan("message", esc(e.signature ?? ""))}${cellSpan("run", runLink(e.run))}</div>`,
-        )
+                `${cellSpan("commit", commit)}${cellSpan("result", outcome(e.outcome))}${cellSpan("message", esc(e.signature ?? ""))}${cellSpan("run", runLink(e.run))}</div>`
+            );
+        })
         .join("");
     return (
-        header(
+        `${header(
             title,
             [
                 ["/", "Overview"],
@@ -1276,14 +1515,17 @@ export function testView(h: TestHistoryResponse): string {
             ],
             h.generated,
             true,
-        ) +
-        `<p class="pstate"><span>${esc(h.file)}, in the ${esc(h.family.split("|")[0])} test group. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; 'where' says whether it ran in a pull request, a full run or locally.</span></p>` +
+        )}<p class="pstate"><span>${esc(h.file)}, in the ${esc(h.family.split("|")[0])} test group. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; 'where' says whether it ran in a pull request, a full run or locally.</span></p>` +
         `<p class="note">${issueNote(h)}</p>` +
         `<div class="tbl t-hist" role="table"><div class="thead"><span>when</span><span>where</span><span>commit</span><span>result</span><span>message</span><span>run</span></div>${rows}</div>`
     );
 }
 
-/** A category state's word, for the document title. */
+/**
+ * A category state's word, for the document title.
+ * @param s The category's state.
+ * @returns The word.
+ */
 export function stateWord(s: CategoryState): string {
     return s === "idle" ? "IDLE" : STATE_WORD[s];
 }

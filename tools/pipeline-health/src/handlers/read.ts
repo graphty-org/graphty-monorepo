@@ -2,9 +2,9 @@
 // answer is one precomputed item the collector rewrote this cycle, or 503 {code: "no_data"} when there is none.
 // CORS is answered by the HTTP API itself (corsPreflight in infra/health-stack.ts).
 
-import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
-
 import { gunzipSync } from "node:zlib";
+
+import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
 import type { PageId, Range, SlowRange } from "../../web/src/contract.js";
 import { dynamoStore } from "../dynamo.js";
@@ -37,28 +37,46 @@ const ALIAS: Record<string, string> = { local: "local-runs" };
 
 let store: Store | undefined;
 
-/** The view a request names, or a 4xx reason. */
+/**
+ * The view a request names, or a 4xx reason.
+ * @param path - the request path
+ * @param query - the query string parameters
+ * @returns the view route, or the status and error code to answer
+ */
 export function routeOf(
     path: string,
     query: Record<string, string | undefined>,
 ): ViewRoute | { status: number; code: string } {
-    if (path === "/v1/status") return { kind: "status" };
+    if (path === "/v1/status") {
+        return { kind: "status" };
+    }
     const parts = path.split("/").filter(Boolean); // v1 page <page> [<section>]
-    if (parts[0] !== "v1" || parts[1] !== "page" || parts.length < 3 || parts.length > 4)
+    if (parts[0] !== "v1" || parts[1] !== "page" || parts.length < 3 || parts.length > 4) {
         return { status: 404, code: "unknown_route" };
+    }
     const page = (ALIAS[parts[2]] ?? parts[2]) as Exclude<PageId, "overview">;
-    if (!PAGES.has(page)) return { status: 404, code: "unknown_page" };
+    if (!PAGES.has(page)) {
+        return { status: 404, code: "unknown_page" };
+    }
     if (parts.length === 3) {
         const range = query.range ?? (page === "costs" ? "7d" : "1h");
-        if (!(page === "costs" ? SLOW : RANGES).has(range)) return { status: 400, code: "bad_range" };
+        if (!(page === "costs" ? SLOW : RANGES).has(range)) {
+            return { status: 400, code: "bad_range" };
+        }
         return { kind: "page", page, range: range as Range | SlowRange };
     }
     const section = SECTIONS[`${page}/${parts[3]}`];
-    if (!section) return { status: 404, code: "unknown_section" };
+    if (!section) {
+        return { status: 404, code: "unknown_section" };
+    }
     const range = query.range ?? "7d";
-    if (!section.ranges.includes(range)) return { status: 400, code: "bad_range" };
+    if (!section.ranges.includes(range)) {
+        return { status: 400, code: "bad_range" };
+    }
     const route = { kind: "section" as const, page, section: parts[3], range: range as SlowRange };
-    if (!section.kinds) return route;
+    if (!section.kinds) {
+        return route;
+    }
     const runKind = query.kind ?? section.kinds[0];
     return section.kinds.includes(runKind) ? { ...route, runKind } : { status: 400, code: "bad_kind" };
 }
@@ -69,15 +87,23 @@ export function routeOf(
  * @returns the JSON response
  */
 export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2> {
-    if (event.rawPath === "/v1/health") return json(200, { ok: true, time: new Date().toISOString() }, "no-store");
+    if (event.rawPath === "/v1/health") {
+        return json(200, { ok: true, time: new Date().toISOString() }, "no-store");
+    }
     const drill = await drillDown(event);
-    if (drill) return drill;
+    if (drill) {
+        return drill;
+    }
     const route = routeOf(event.rawPath, event.queryStringParameters ?? {});
-    if ("status" in route) return json(route.status, { code: route.code }, "max-age=300");
+    if ("status" in route) {
+        return json(route.status, { code: route.code }, "max-age=300");
+    }
     try {
         store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health");
         const item = (await store.get(viewKey(route))) as ViewItem | undefined;
-        if (!(item?.gz instanceof Uint8Array)) return json(503, { code: "no_data" }, "max-age=60");
+        if (!(item?.gz instanceof Uint8Array)) {
+            return json(503, { code: "no_data" }, "max-age=60");
+        }
         const gz = Buffer.from(item.gz);
         const gzip = /\bgzip\b/.test(event.headers?.["accept-encoding"] ?? "");
         return {
@@ -98,19 +124,29 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
     }
 }
 
-/** GET /v1/run/<id> and /v1/test-history, read from their index items; undefined for every other route. */
+/**
+ * GET /v1/run/<id> and /v1/test-history, read from their index items; undefined for every other route.
+ * @param event - the API Gateway request
+ * @returns the response, or undefined when the route is not a drill-down
+ */
 async function drillDown(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2 | undefined> {
     const run = /^\/v1\/run\/(\d+)$/.exec(event.rawPath);
-    if (!run && event.rawPath !== "/v1/test-history") return undefined;
+    if (!run && event.rawPath !== "/v1/test-history") {
+        return undefined;
+    }
     const q = event.queryStringParameters ?? {};
     const range = q.range ?? "7d";
-    if (!run && !q.file) return json(400, { code: "missing_file" }, "max-age=300");
-    if (!run && range !== "7d" && range !== "28d") return json(400, { code: "bad_range" }, "max-age=300");
+    if (!run && !q.file) {
+        return json(400, { code: "missing_file" }, "max-age=300");
+    }
+    if (!run && range !== "7d" && range !== "28d") {
+        return json(400, { code: "bad_range" }, "max-age=300");
+    }
     try {
         const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
         const body = run
             ? await runDrill(db, Number(run[1]), Date.now())
-            : await testHistory(db, { file: q.file!, test: q.test, range: range as "7d" | "28d" }, Date.now());
+            : await testHistory(db, { file: q.file ?? "", test: q.test, range: range as "7d" | "28d" }, Date.now());
         return body ? json(200, body, "public, max-age=60") : json(503, { code: "no_data" }, "max-age=60");
     } catch (error) {
         console.error(JSON.stringify({ route: event.rawPath, error: String(error) }));

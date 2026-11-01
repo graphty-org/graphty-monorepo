@@ -15,6 +15,7 @@ import {
     clusterMargins,
     edgeBends,
     edgeLabelPlaces,
+    edgeLabelsLeftOut,
     fromJson,
     nodeXlabelPlaces,
 } from "../../src/layout/graphviz/fromJson";
@@ -1047,5 +1048,63 @@ describe("where Graphviz put each edge label read back", () => {
         assert.deepEqual([...nodeXlabelPlaces(dropped.ok ? dropped.json : "{}")], [[0, null]]);
         const forced = await layout(dot("true"), "neato");
         assert.isArray(nodeXlabelPlaces(forced.ok ? forced.json : "{}").get(0), "placed when forced");
+    });
+
+    it("reads the edge labels Graphviz drew nothing for (forcelabels=false, no room) as left out", () => {
+        const text = (x: number, y: number): unknown[] => [{ op: "T", pt: [x, y], text: "t" }];
+        const json = JSON.stringify({
+            edges: [
+                // its label drawn beside a kept xlabel; its end labels drawn
+                {
+                    id: "e0",
+                    label: "m",
+                    lp: "50,40",
+                    xlabel: "x",
+                    xlp: "90,10",
+                    _ldraw_: [...text(50, 37), ...text(90, 7)],
+                    headlabel: "h",
+                    _hldraw_: text(1, 1),
+                    taillabel: "t",
+                    _tldraw_: text(2, 2),
+                },
+                // a stale lp, no end label drawings and no xlp: all four dropped
+                { id: "e1", label: "m", lp: "0,0", xlabel: "x", headlabel: "h", taillabel: "t" },
+                // the label dropped beside a kept xlabel: the only text is the xlabel's
+                { id: "e2", label: "m", lp: "0,0", xlabel: "x", xlp: "90,10", _ldraw_: text(90, 7) },
+                // an xlabel with no label is drawn as the label
+                { id: "e3", xlabel: "x" },
+                { id: "e4" },
+            ],
+        });
+        assert.deepEqual(
+            [...edgeLabelsLeftOut(json)],
+            [
+                [1, ["xlabel", "label", "headLabel", "tailLabel"]],
+                [2, ["label"]],
+                [3, ["label", "xlabel"]],
+            ],
+        );
+    });
+
+    it("leaves out, with the graph's forcelabels=false, the edge labels Graphviz has no room for", async () => {
+        // an edge across a ring of sixteen small touching nodes: every place for its labels covers one of them
+        const ring = Array.from({ length: 16 }, (_, i) => {
+            const a = (i * Math.PI) / 8;
+            return `n${i} [pos="${(30 * Math.cos(a)).toFixed(2)},${(30 * Math.sin(a)).toFixed(2)}!"];`;
+        });
+        const dot = (force: string): string =>
+            `digraph { graph [forcelabels=${force}, inputscale=72]; ` +
+            `node [shape=circle, width=0.1667, height=0.1667, fixedsize=true, label="", fontsize=10]; ` +
+            `edge [fontsize=10]; ${ring.join(" ")} n0 -> n8 [id=e0, label="a long middle label here", ` +
+            `xlabel="a long external edge label", headlabel="a long head label", taillabel="a long tail label"]; }`;
+        const dropped = await layout(dot("false"), "neato");
+        assert.isTrue(dropped.ok);
+        assert.deepEqual(
+            [...edgeLabelsLeftOut(dropped.ok ? dropped.json : "{}")],
+            [[0, ["xlabel", "label", "headLabel", "tailLabel"]]],
+        );
+        const forced = await layout(dot("true"), "neato");
+        assert.isTrue(forced.ok);
+        assert.deepEqual([...edgeLabelsLeftOut(forced.ok ? forced.json : "{}")], [], "placed when forced");
     });
 });

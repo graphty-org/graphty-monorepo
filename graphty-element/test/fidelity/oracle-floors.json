@@ -52741,34 +52741,6 @@
                 "date": "2026-11-01"
             }
         },
-        "cx-specimen-arrows": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-arrows@matched": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
         "cx-specimen-images-charts": {
             "stray.present": {
                 "floor": 0.979,
@@ -52806,34 +52778,6 @@
                 "floor": 1,
                 "to": 0.857,
                 "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-mappings-bypass-p11": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-mappings-bypass-p11@matched": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
                 "date": "2026-11-01"
             }
         },
@@ -52883,18 +52827,6 @@
                 "to": 0.8,
                 "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
                 "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
             }
         },
         "cx-syn-bypass@matched": {
@@ -52902,18 +52834,6 @@
                 "floor": 0.945,
                 "to": 0.8,
                 "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
                 "date": "2026-11-01"
             }
         },
@@ -52932,14 +52852,14 @@
             },
             "edge.arrowPlace": {
                 "floor": 1,
-                "to": 0.919,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             },
             "edge.arrowFill": {
                 "floor": 1,
-                "to": 0.907,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
@@ -52958,42 +52878,14 @@
             },
             "edge.arrowPlace": {
                 "floor": 1,
-                "to": 0.919,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             },
             "edge.arrowFill": {
                 "floor": 1,
-                "to": 0.907,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-arrows": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-arrows@matched": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
@@ -53083,18 +52975,6 @@
                 "to": 0.8,
                 "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
                 "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
             }
         },
         "cx2-syn-bypass@matched": {
@@ -53102,18 +52982,6 @@
                 "floor": 0.963,
                 "to": 0.8,
                 "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            },
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
                 "date": "2026-11-01"
             }
         },
@@ -53132,14 +53000,14 @@
             },
             "edge.arrowPlace": {
                 "floor": 1,
-                "to": 0.918,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             },
             "edge.arrowFill": {
                 "floor": 0.996,
-                "to": 0.902,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.992,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
@@ -53158,42 +53026,14 @@
             },
             "edge.arrowPlace": {
                 "floor": 1,
-                "to": 0.918,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             },
             "edge.arrowFill": {
                 "floor": 0.996,
-                "to": 0.902,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-arrows": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-arrows@matched": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.992,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
@@ -53234,34 +53074,6 @@
                 "floor": 1,
                 "to": 0.857,
                 "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-mappings-bypass-p11": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-mappings-bypass-p11@matched": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
                 "date": "2026-11-01"
             }
         },
@@ -53336,14 +53148,14 @@
             },
             "edge.arrowPlace": {
                 "floor": 1,
-                "to": 0.919,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             },
             "edge.arrowFill": {
                 "floor": 1,
-                "to": 0.907,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
@@ -53362,14 +53174,14 @@
             },
             "edge.arrowPlace": {
                 "floor": 1,
-                "to": 0.919,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             },
             "edge.arrowFill": {
                 "floor": 1,
-                "to": 0.907,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
@@ -53445,22 +53257,6 @@
                 "date": "2026-11-01"
             }
         },
-        "dot-specimen-arrows": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.982,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "dot-specimen-arrows@matched": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.982,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
         "dot-synth-nodes": {
             "label.align": {
                 "floor": 1,
@@ -53500,66 +53296,6 @@
                 "floor": 1,
                 "to": 0.977,
                 "reason": "floors recorded before the first master floors file (10-17 and 10-18, on the golden branch) and never measured on master: 0.949 and 0.977 on the golden cut merge (#3246, 77154dddc3), the round 4 merge (#4096) and every merge bisected since (#5332); the six labels and nineteen anchors are the CJK single-character labels already failing there",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-arrows-p4": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.882,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.882,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-arrows-p4@matched": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.882,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.882,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-arrows-p7": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.979,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-arrows-p7@matched": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.979,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-arrows-p8": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.98,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "gml-specimen-arrows-p8@matched": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.98,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
                 "date": "2026-11-01"
             }
         },
@@ -53841,22 +53577,6 @@
                 "date": "2026-11-01"
             }
         },
-        "vis-network-specimen-arrows": {
-            "edge.arrowShape": {
-                "floor": 1,
-                "to": 0.95,
-                "reason": "the comparator now tells a crow's foot (a tine along the line) from a vee turned back with its notch empty: vis-network's crow is the latter, graphty-element draws a crow's foot; graphty-element defect #5491 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "vis-network-specimen-arrows@matched": {
-            "edge.arrowShape": {
-                "floor": 1,
-                "to": 0.95,
-                "reason": "the comparator now tells a crow's foot (a tine along the line) from a vee turned back with its notch empty: vis-network's crow is the latter, graphty-element draws a crow's foot; graphty-element defect #5491 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
         "vis-network-specimen-images-charts": {
             "stray.present": {
                 "floor": 1,
@@ -53870,34 +53590,6 @@
                 "floor": 1,
                 "to": 0.938,
                 "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-arrows": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-arrows@matched": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
                 "date": "2026-11-01"
             }
         },
@@ -53938,34 +53630,6 @@
                 "floor": 1,
                 "to": 0.857,
                 "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-mappings-bypass-p11": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-mappings-bypass-p11@matched": {
-            "edge.arrowPlace": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
-                "date": "2026-11-01"
-            },
-            "edge.arrowFill": {
-                "floor": 1,
-                "to": 0.905,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
                 "date": "2026-11-01"
             }
         },
@@ -54040,14 +53704,14 @@
             },
             "edge.arrowPlace": {
                 "floor": 1,
-                "to": 0.919,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             },
             "edge.arrowFill": {
                 "floor": 1,
-                "to": 0.907,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
@@ -54066,14 +53730,14 @@
             },
             "edge.arrowPlace": {
                 "floor": 1,
-                "to": 0.919,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
             },
             "edge.arrowFill": {
                 "floor": 1,
-                "to": 0.907,
-                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },

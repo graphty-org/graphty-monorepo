@@ -4,7 +4,7 @@
 import { gunzipSync, gzipSync } from "node:zlib";
 
 import type { Item, Store } from "../model/store.js";
-import { SLAS, type SlaConfig } from "../sla/config.js";
+import { type SlaConfig, SLAS } from "../sla/config.js";
 import { evaluate, type Evaluation } from "../sla/engine.js";
 import { buildViews, type View } from "./build.js";
 import { viewKey, type ViewRoute } from "./keys.js";
@@ -25,10 +25,11 @@ export interface ViewItem extends Item {
 
 /**
  * Builds and stores every view; returns what it wrote. Throws, writing nothing, when one would not fit an item.
- * @param store
- * @param nowMs
- * @param cfg
+ * @param store - the table to read the collected items from and write the views to
+ * @param nowMs - the current time in epoch milliseconds
+ * @param cfg - the SLA definitions to evaluate
  * @param ev - this cycle's evaluate() result, when the caller already has it
+ * @returns how many views it wrote, their total gzipped bytes, and the largest one
  */
 export async function writeViews(
     store: Store,
@@ -57,8 +58,9 @@ export async function writeViews(
 
 /**
  * The stored gzipped JSON of one view, or undefined before the first cycle wrote it.
- * @param store
- * @param route
+ * @param store - the table holding the views
+ * @param route - which view to read
+ * @returns the gzipped bytes, or undefined when the view is not stored yet
  */
 export async function readView(store: Store, route: ViewRoute): Promise<Uint8Array | undefined> {
     const item = await store.get(viewKey(route));
@@ -67,8 +69,9 @@ export async function readView(store: Store, route: ViewRoute): Promise<Uint8Arr
 
 /**
  * The payload of one stored view, parsed (the MCP server and tests; the read handler sends the bytes as they are).
- * @param store
- * @param route
+ * @param store - the table holding the views
+ * @param route - which view to read
+ * @returns the parsed payload, or undefined when the view is not stored yet
  */
 export async function readViewJson(store: Store, route: ViewRoute): Promise<unknown> {
     const gz = await readView(store, route);

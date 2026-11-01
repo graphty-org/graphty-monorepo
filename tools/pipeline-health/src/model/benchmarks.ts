@@ -7,7 +7,7 @@
 // CPU models about 2x apart, so a trend compares only results from the same machine as the newest one.
 
 import { DAY, ttlAt } from "./items.js";
-import { isLive, type Item, type Store } from "./store.js";
+import { isLive, type Item, type Key, type Store } from "./store.js";
 
 export const BENCH_PK = "BENCH";
 /** Results kept per benchmark and machine: the 13 the regression rule reads, and some history for the trend. */
@@ -40,16 +40,17 @@ export interface BenchItem extends Item {
     points: BenchPoint[];
 }
 
-export const benchKey = (benchmark: string) => ({ pk: BENCH_PK, sk: benchmark });
+export const benchKey = (benchmark: string): Key => ({ pk: BENCH_PK, sk: benchmark });
 
 /**
  * A benchmark's item with one more result: a result of the same run replaces its earlier one; the newest
  * BENCH_KEEP of each machine are kept (BENCH_KEEP_ALL in all), oldest first.
  * @param old - the stored item, if any
- * @param benchmark
- * @param unit
+ * @param benchmark - benchmark name
+ * @param unit - unit of its values
  * @param p - the new result
- * @param now
+ * @param now - current time, epoch ms, for the expiry
+ * @returns the item to store
  */
 export function withPoint(
     old: BenchItem | undefined,
@@ -82,6 +83,7 @@ export interface BenchTrend {
 /**
  * The results measured on the same machine as the newest one, oldest first: the only ones it can be compared with.
  * @param points - oldest first
+ * @returns the newest machine's results, oldest first
  */
 export const sameMachine = (points: BenchPoint[]): BenchPoint[] =>
     points.filter((p) => p.machine === points.at(-1)?.machine);
@@ -90,10 +92,13 @@ export const sameMachine = (points: BenchPoint[]): BenchPoint[] =>
  * A sustained regression: the median of the newest 3 results is over 1.2 times the median of the 10 before them,
  * among the results of the newest one's machine. Judged only with all 13, so one slow run never counts.
  * @param all - oldest first
+ * @returns the two medians, their ratio and whether it regressed
  */
 export function trend(all: BenchPoint[]): BenchTrend {
     const points = sameMachine(all);
-    if (points.length < RECENT + BEFORE) return { regressed: false };
+    if (points.length < RECENT + BEFORE) {
+        return { regressed: false };
+    }
     const recent = median(points.slice(-RECENT).map((p) => p.v));
     const before = median(points.slice(-(RECENT + BEFORE), -RECENT).map((p) => p.v));
     const ratio = before > 0 ? recent / before : undefined;
@@ -102,8 +107,9 @@ export function trend(all: BenchPoint[]): BenchTrend {
 
 /**
  * Every benchmark's item not yet expired.
- * @param store
- * @param now
+ * @param store - the table
+ * @param now - current time, epoch ms
+ * @returns the live benchmark items
  */
 export async function readBenches(store: Store, now: number): Promise<BenchItem[]> {
     return ((await store.query(BENCH_PK)) as BenchItem[]).filter((b) => isLive(b, now));

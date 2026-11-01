@@ -22,7 +22,9 @@ const NOW = Date.parse("2026-10-25T23:30:00Z");
 
 async function reads(lists: Partial<Snapshots>) {
     const store = new MemoryStore();
-    for (const [k, v] of Object.entries(lists)) await setCursor(store, k, JSON.stringify(v), NOW);
+    for (const [k, v] of Object.entries(lists)) {
+        await setCursor(store, k, JSON.stringify(v), NOW);
+    }
     return new Reads(store, NOW, await evaluate(store, NOW), SLAS);
 }
 
@@ -71,8 +73,9 @@ describe("snapshot sections", () => {
             await lanesTable(r),
             await trainsTable(r),
             await workflowsTable(r),
-        ])
+        ]) {
             expect(s).toMatchObject({ kind: "empty", fact: { code: "section.no_detail" } });
+        }
         expect(await prTime(r, "1h")).toMatchObject({ kind: "empty", id: "time" });
     });
 
@@ -220,7 +223,9 @@ describe("train attempts", () => {
             },
         });
         const trains = await trainsTable(r);
-        if (trains.kind !== "table") throw new Error(trains.kind);
+        if (trains.kind !== "table") {
+            throw new Error(trains.kind);
+        }
         expect(trains.rows.map((x) => x.cells.nightly)).toEqual([
             { t: "mark", state: "warn", cell: { t: "fact", fact: { code: "train.held" } } },
             { t: "fact", fact: { code: "train.promoted" } },

@@ -426,6 +426,30 @@ export const STORY_PROJECTS = {
 export const STORY_SHARDS = Object.keys(STORY_PROJECTS);
 
 /**
+ * How ci.yml's story-tests job runs each STORY_SHARDS entry: its matrix's `command` without a leg's `--shard=N/M`,
+ * and `lfs`, what its Git LFS pull fetches beyond the project's baselines and the pinned fonts (a test checks they
+ * agree). A base check of a `-shots` variant runs one story file this way (tools/results/cli.mjs baseCheck()),
+ * building the shard's package and `build`, the nx projects its stories import beyond it (the story-tests job has
+ * every package's build).
+ */
+export const STORY_RUNS = {
+    "graphty-storybook": { command: "cd graphty && pnpm exec vitest run --project=storybook" },
+    "graphty-element-storybook-1": { command: "cd graphty-element && pnpm exec vitest run --project=storybook" },
+    "algorithms-browser": { command: "cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts" },
+    "cytoscape-extensions": {
+        command: "cd cytoscape-extensions && pnpm exec vitest run --config vitest.storybook.config.ts",
+    },
+    layout: { command: "cd layout && pnpm exec vitest run --config vitest.storybook.config.ts" },
+    "compact-mantine": { command: "cd compact-mantine && pnpm exec vitest run --config vitest.storybook.config.ts" },
+    "graph-io-browser": {
+        command: "cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts",
+        lfs: ",graph-io/test/fidelity/oracles/*.png",
+        // the fidelity stories draw with graphty-element's source, which imports the other packages' builds
+        build: ["graphty-element"],
+    },
+};
+
+/**
  * Shards too short to be worth a runner of their own (one to four minutes each, most of it
  * setup) run one after another in a single job. A group job runs only its affected members, and
  * every member runs even when an earlier one failed, so one job reports every failure. Without

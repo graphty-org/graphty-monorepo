@@ -1,24 +1,25 @@
 // The four-week backfill against recorded GitHub responses (no network): paging, the cursor, the throttle, the
 // stops, the needs: wait rule, and the run and test-history indexes it and ingest write.
 import { describe, expect, it } from "vitest";
-import { backfill, FLAKY_CURSOR, PRS_CURSOR, runsCursor, type BackfillOptions } from "../../src/collector/backfill.js";
+
+import { backfill, type BackfillOptions, FLAKY_CURSOR, PRS_CURSOR, runsCursor } from "../../src/collector/backfill.js";
 import { GitHub } from "../../src/collector/github.js";
 import {
     flakyTestItem,
+    type GhJob,
+    type GhRun,
     toJobItem,
     toRunItem,
     workflowFile,
-    type GhJob,
-    type GhRun,
 } from "../../src/collector/parse.js";
 import { runDrill, testHistory } from "../../src/model/drill.js";
 import {
     DAY,
     homeKey,
     MIN,
-    sourceKey,
     type ShardRunItem,
     type SourceItem,
+    sourceKey,
     type TestItem,
 } from "../../src/model/items.js";
 import { getCursor, putRaw, recordSource, setCursor } from "../../src/model/raw.js";
@@ -26,8 +27,8 @@ import { MemoryStore } from "../../src/model/store.js";
 import { fakeGitHub, fixture, NOW } from "./fake-github.js";
 
 const REPO = "graphty-org/graphty-monorepo";
-const master = fixture<GhRun>("run-master-40239928447.json");
-const masterJobs = fixture<{ jobs: GhJob[] }>("jobs-master-40239928447.json").jobs;
+const master = fixture("run-master-40239928447.json") as GhRun;
+const masterJobs = (fixture("jobs-master-40239928447.json") as { jobs: GhJob[] }).jobs;
 
 /** Seven runs on 2026-10-25 (a closed day) and two on 2026-10-26 (today), each with the recorded master jobs. */
 function history(): GhRun[] {
@@ -65,68 +66,81 @@ function fake(
     const runs = opts.runs ?? history();
     const f = {
         urls: [] as string[],
-        fetch: async (url: string, init?: RequestInit): Promise<Response> => {
-            f.urls.push(url);
-            const u = new URL(url);
-            const headers = {
-                "content-type": "application/json",
-                "x-ratelimit-remaining": String(opts.remaining ?? 4000),
-                "x-ratelimit-limit": "5000",
-            };
-            const reply = (body: unknown) => new Response(JSON.stringify(body), { headers });
-            const listing = /\/actions\/(?:workflows\/([^/]+)\/)?runs$/.exec(u.pathname);
-            if (listing && u.searchParams.get("created")) {
-                // A day ("2026-10-25") or a range ("a..b"), newest first; past `listed` runs a page comes back empty.
-                // A workflow's list (actions/workflows/<file>/runs) holds only that workflow's runs.
-                const created = u.searchParams.get("created")!;
-                const [from, to] = created.split("..");
-                const day = runs
-                    .filter((r) => !listing[1] || workflowFile(r.path) === listing[1])
-                    .filter((r) => (to ? r.created_at >= from && r.created_at <= to : r.created_at.startsWith(created)))
-                    .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
-                const per = Number(u.searchParams.get("per_page"));
-                const page = Number(u.searchParams.get("page"));
-                const shown = day.slice(0, opts.listed ?? Infinity);
-                return reply({ total_count: day.length, workflow_runs: shown.slice((page - 1) * per, page * per) });
-            }
-            if (u.pathname === "/graphql") {
-                // GitHub refuses a query that leaves a required (`$x: T!`) variable out.
-                const { query, variables } = JSON.parse(String(init?.body)) as {
-                    query: string;
-                    variables: Record<string, unknown>;
+        fetch: (url: string, init?: RequestInit): Promise<Response> =>
+            Promise.resolve().then(() => {
+                f.urls.push(url);
+                const u = new URL(url);
+                const headers = {
+                    "content-type": "application/json",
+                    "x-ratelimit-remaining": String(opts.remaining ?? 4000),
+                    "x-ratelimit-limit": "5000",
                 };
-                const missing = [...query.matchAll(/\$(\w+): \w+!/g)].filter(([, v]) => variables[v] === undefined);
-                if (missing.length) throw new Error(`graphql: required variable $${missing[0][1]} not provided`);
-            }
-            const ids =
-                opts.suites &&
-                (JSON.parse(String(init?.body ?? "{}")) as { variables?: { ids?: string[] } }).variables?.ids;
-            if (u.pathname === "/graphql" && ids) {
-                return reply({ data: { nodes: ids.map((id) => opts.suites![id] ?? null) } });
-            }
-            const jobs = /\/actions\/runs\/(\d+)\/jobs$/.exec(u.pathname);
-            if (jobs && opts.jobs?.[Number(jobs[1])]) return reply({ jobs: opts.jobs[Number(jobs[1])] });
-            if (jobs && Number(jobs[1]) < 40_000) {
-                const id = Number(jobs[1]);
-                const list = masterJobs.map((j, k) => ({ ...j, id: id * 100 + k, run_id: id }));
-                return reply({ total_count: list.length, jobs: list });
-            }
-            return base.fetch(url, init);
-        },
+                const reply = (body: unknown) => new Response(JSON.stringify(body), { headers });
+                const listing = /\/actions\/(?:workflows\/([^/]+)\/)?runs$/.exec(u.pathname);
+                if (listing && u.searchParams.get("created")) {
+                    // A day ("2026-10-25") or a range ("a..b"), newest first; past `listed` runs a page comes back empty.
+                    // A workflow's list (actions/workflows/<file>/runs) holds only that workflow's runs.
+                    const created = u.searchParams.get("created")!;
+                    const [from, to] = created.split("..");
+                    const day = runs
+                        .filter((r) => !listing[1] || workflowFile(r.path) === listing[1])
+                        .filter((r) =>
+                            to ? r.created_at >= from && r.created_at <= to : r.created_at.startsWith(created),
+                        )
+                        .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
+                    const per = Number(u.searchParams.get("per_page"));
+                    const page = Number(u.searchParams.get("page"));
+                    const shown = day.slice(0, opts.listed ?? Infinity);
+                    return reply({ total_count: day.length, workflow_runs: shown.slice((page - 1) * per, page * per) });
+                }
+                if (u.pathname === "/graphql") {
+                    // GitHub refuses a query that leaves a required (`$x: T!`) variable out.
+                    const { query, variables } = JSON.parse(init?.body as string) as {
+                        query: string;
+                        variables: Record<string, unknown>;
+                    };
+                    const missing = [...query.matchAll(/\$(\w+): \w+!/g)].filter(([, v]) => variables[v] === undefined);
+                    if (missing.length) {
+                        throw new Error(`graphql: required variable $${missing[0][1]} not provided`);
+                    }
+                }
+                const ids =
+                    opts.suites &&
+                    (JSON.parse((init?.body as string | undefined) ?? "{}") as { variables?: { ids?: string[] } })
+                        .variables?.ids;
+                if (u.pathname === "/graphql" && ids) {
+                    return reply({ data: { nodes: ids.map((id) => opts.suites![id] ?? null) } });
+                }
+                const jobs = /\/actions\/runs\/(\d+)\/jobs$/.exec(u.pathname);
+                if (jobs && opts.jobs?.[Number(jobs[1])]) {
+                    return reply({ jobs: opts.jobs[Number(jobs[1])] });
+                }
+                if (jobs && Number(jobs[1]) < 40_000) {
+                    const id = Number(jobs[1]);
+                    const list = masterJobs.map((j, k) => ({ ...j, id: id * 100 + k, run_id: id }));
+                    return reply({ total_count: list.length, jobs: list });
+                }
+                return base.fetch(url, init);
+            }),
     };
     return f;
 }
 
 /** A clock that only moves when the backfill sleeps (or a test moves it). */
 function clock() {
-    const c = { t: NOW, slept: 0, now: () => c.t, sleep: async (ms: number) => void ((c.t += ms), (c.slept += ms)) };
+    const c = {
+        t: NOW,
+        slept: 0,
+        now: () => c.t,
+        sleep: (ms: number) => Promise.resolve(void ((c.t += ms), (c.slept += ms))),
+    };
     return c;
 }
 
 function options(store: MemoryStore, f: ReturnType<typeof fake>, c = clock()): BackfillOptions & { gh: GitHub } {
     return {
         store,
-        gh: new GitHub(async () => "t", f.fetch),
+        gh: new GitHub(() => Promise.resolve("t"), f.fetch),
         repos: [REPO],
         repo: REPO,
         days: 2,
@@ -157,7 +171,7 @@ describe("backfill", () => {
         // 2026-10-25: 7 runs in pages of 3 (3, 3, 1). 2026-10-24: one empty page.
         expect(
             listCalls(f.urls).map(
-                (u) => new URL(u).searchParams.get("created") + "/" + new URL(u).searchParams.get("page"),
+                (u) => `${new URL(u).searchParams.get("created")}/${new URL(u).searchParams.get("page")}`,
             ),
         ).toEqual(["2026-10-25/1", "2026-10-25/2", "2026-10-25/3", "2026-10-24/1"]);
         // Past the range's first day: done.
@@ -168,7 +182,7 @@ describe("backfill", () => {
 
         // A second run loads nothing.
         const g = fake();
-        await backfill({ ...options(store, g), gh: new GitHub(async () => "t", g.fetch) });
+        await backfill({ ...options(store, g), gh: new GitHub(() => Promise.resolve("t"), g.fetch) });
         expect(g.urls.filter((u) => !u.endsWith("/access_tokens"))).toEqual([]);
         expect(homes(store, "run")).toHaveLength(7);
     });
@@ -388,7 +402,11 @@ describe("backfill", () => {
         expect(JSON.parse((await getCursor(store, runsCursor(REPO)))!)).toEqual({ day: "2026-10-25", page: 2 });
 
         const g = fake();
-        const second = await backfill({ ...o, gh: new GitHub(async () => "t", g.fetch), deadline: undefined });
+        const second = await backfill({
+            ...o,
+            gh: new GitHub(() => Promise.resolve("t"), g.fetch),
+            deadline: undefined,
+        });
         expect(second.done).toBe(true);
         expect(new URL(listCalls(g.urls)[0]).searchParams.get("page")).toBe("2");
         expect(new URL(listCalls(g.urls)[0]).searchParams.get("created")).toBe("2026-10-25");
@@ -503,7 +521,7 @@ describe("drill-down indexes", () => {
 
 describe("the flaky-history phase", () => {
     type Rec = { runs: GhRun[]; suites: Record<string, Suite> };
-    const rec = fixture<Rec>("flaky-annotations.json");
+    const rec = fixture("flaky-annotations.json") as Rec;
     // The recorded runs: two ci.yml runs of 2026-10-25 with real [FLAKY] lines, and one of 2026-10-24 whose only
     // [FLAKY] lines come from the tool tests in its Checks job (fixtures of test-quarantine.mjs, not CI shards).
     const flakyRows = (s: MemoryStore) =>
@@ -517,7 +535,7 @@ describe("the flaky-history phase", () => {
         const store = new MemoryStore();
         const r = await backfill(opts(store, fake({ runs: rec.runs, suites: rec.suites })));
         expect(r.flaky).toBe(3);
-        const rows = flakyRows(store).map(({ pk: _pk, sk: _sk, ...t }) => t as unknown as TestItem);
+        const rows = flakyRows(store).map(({ pk: _pk, sk: _sk, ...t }) => t);
         const byId = new Map(rows.map((t) => [t.id, t]));
         // tools/results/client.mjs postFlaky(): invocation `<run>.<attempt>.<GITHUB_JOB>.<shard>.1`, family the shard's
         expect(
@@ -588,13 +606,14 @@ describe("flakyTestItem", () => {
         for (const m of [
             "[FLAKY-UNRELATED] layout: layout/test/a.test.ts > d > t failed and passed; this pull request did not touch it. Base check: gh workflow run base-check.yml",
             "[QUARANTINED] layout: layout/test/a.test.ts > d > t failed and passed; issue #12",
-        ])
+        ]) {
             expect(flakyTestItem(m, "Test (small-node)", run, 1, 0)).toMatchObject({
                 file: "layout/test/a.test.ts",
                 name: "d > t",
                 family: "layout",
                 invocation: "1.1.test.layout.1",
             });
+        }
     });
 
     it("skips a test that failed both times, other annotations and jobs that are no test shard", () => {

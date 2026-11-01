@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { nonGatingJobs } from "../../src/collector/jobs.js";
 import { withPoint } from "../../src/model/benchmarks.js";
-import { HOUR, MIN, type JobItem, type ObservationItem } from "../../src/model/items.js";
+import { HOUR, type JobItem, MIN, type ObservationItem } from "../../src/model/items.js";
 import { putRaw, recordSource, setCursor } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import type { ChronicJob } from "../../src/model/snapshots.js";
@@ -111,7 +111,9 @@ describe("allowed to fail, and failing", () => {
         await putRaw(store, items, NOW);
         await setCursor(store, "non-gating", JSON.stringify(nonGatingJobs(CI_YML)), NOW);
         const s = await nonGatingTable(await reads(store));
-        if (s.kind !== "table") throw new Error(s.kind);
+        if (s.kind !== "table") {
+            throw new Error(s.kind);
+        }
         const row = (job: string) => s.rows.find((r) => r.cells.job.t === "name" && r.cells.job.v === job)?.cells;
         expect(row("Performance Benchmarks")).toEqual({
             job: { t: "name", v: "Performance Benchmarks" },
@@ -126,7 +128,7 @@ describe("allowed to fail, and failing", () => {
             cell: { t: "num", n: 67, unit: "pct" },
         });
         // a gating job (Story tests is, since #4613) gets no row, however often it failed
-        expect(row("Story tests (${{ matrix.name || matrix.project }})")).toBeUndefined();
+        expect(row(`Story tests (\${{ matrix.name || matrix.project }})`)).toBeUndefined();
         expect(row("Build")).toBeUndefined();
         expect(s.rows[0].cells.job).toEqual({ t: "name", v: "Performance Benchmarks" });
     });
@@ -136,7 +138,7 @@ describe("allowed to fail, and failing", () => {
         const yaml = [
             "jobs:",
             "    story-tests:",
-            "        name: Story tests (${{ matrix.project }})",
+            `        name: Story tests (\${{ matrix.project }})`,
             "        continue-on-error: true",
             "",
         ].join("\n");
@@ -151,10 +153,12 @@ describe("allowed to fail, and failing", () => {
         );
         await setCursor(store, "non-gating", JSON.stringify(nonGatingJobs(yaml)), NOW);
         const s = await nonGatingTable(await reads(store));
-        if (s.kind !== "table") throw new Error(s.kind);
+        if (s.kind !== "table") {
+            throw new Error(s.kind);
+        }
         expect(s.rows.map((r) => [r.cells.job, r.cells.failed])).toEqual([
             [
-                { t: "name", v: "Story tests (${{ matrix.project }})" },
+                { t: "name", v: `Story tests (\${{ matrix.project }})` },
                 { t: "num", n: 1 },
             ],
         ]);
@@ -166,14 +170,21 @@ describe("benchmarks", () => {
         const store = new MemoryStore();
         const post = async (benchmark: string, vs: number[]) => {
             let item;
-            for (const [i, v] of vs.entries()) item = withPoint(item, benchmark, "ms", { at: i, v, run: i }, NOW);
-            await store.put(item!);
+            for (const [i, v] of vs.entries()) {
+                item = withPoint(item, benchmark, "ms", { at: i, v, run: i }, NOW);
+            }
+            if (!item) {
+                throw new Error(`no points for ${benchmark}`);
+            }
+            await store.put(item);
         };
         await post("algorithms: Dijkstra n=10000", [18, 18, 19, 18, 17, 18, 18, 19, 18, 18, 18, 19, 18]);
         await post("algorithms: PageRank n=10000", [41, 40, 42, 41, 43, 40, 41, 42, 41, 40, 52, 53, 51]);
         await post("webgpu-graph-algorithms: upload / residency", [14, 15]);
         const s = await benchmarksTable(await reads(store));
-        if (s.kind !== "table") throw new Error(s.kind);
+        if (s.kind !== "table") {
+            throw new Error(s.kind);
+        }
         expect(s.rows.map((r) => [r.cells.benchmark, r.cells.ratio])).toEqual([
             [
                 { t: "name", v: "algorithms: PageRank n=10000" },

@@ -19,17 +19,17 @@ import type {
     WordValue,
 } from "../../web/src/contract.js";
 import { type Bucket, DAY, floorTo, HOUR, MIN, type Step, STEP_MS } from "../model/items.js";
-import { loadSeries, type MetricWindow, windowValue, type WindowName } from "../model/rollup.js";
+import { loadSeries, type MetricWindow, type WindowName, windowValue } from "../model/rollup.js";
 import { type PrStockPrs, readSnapshot } from "../model/snapshots.js";
 import type { Store } from "../model/store.js";
 import type { Measure, MemberConfig, SlaConfig, Threshold } from "../sla/config.js";
 import {
     type Evaluation,
+    hit,
     measureValue,
     type MemberStatus,
     type Reason,
     type SourceStatus,
-    hit,
     thresholds,
 } from "../sla/engine.js";
 
@@ -231,8 +231,8 @@ const STATE: Record<MemberStatus["state"], MemberState> = {
     IDLE: "idle",
 };
 
-const round = (x: number) => (Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 100) / 100);
-export const iso = (ms: number) => new Date(ms).toISOString();
+const round = (x: number): number => (Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 100) / 100);
+export const iso = (ms: number): string => new Date(ms).toISOString();
 const RANGE_MS: Record<Range, number> = { "1h": HOUR, "6h": 6 * HOUR, "24h": DAY };
 
 /** Reads shared by every member and section of one build, each store query made once. */
@@ -244,10 +244,11 @@ export class Reads {
     private readonly cache = new Map<string, Promise<unknown>>();
 
     /**
-     * @param store
-     * @param now
-     * @param ev
-     * @param cfg
+     * Reads over one store at one moment, for one evaluation.
+     * @param store - the table to read
+     * @param now - the current time in epoch milliseconds
+     * @param ev - this cycle's evaluation
+     * @param cfg - the SLA definitions
      */
     constructor(store: Store, now: number, ev: Evaluation, cfg: SlaConfig) {
         this.store = store;
@@ -266,18 +267,22 @@ export class Reads {
     }
 
     /**
-     * @param metric
-     * @param w
+     * One metric's rollup over a named window ending now, read once.
+     * @param metric - the metric name
+     * @param w - the window name
+     * @returns the metric's window
      */
     window(metric: string, w: WindowName): Promise<MetricWindow> {
         return this.once(`w:${metric}:${w}`, () => windowValue(this.store, metric, w, this.now));
     }
 
     /**
-     * @param metric
-     * @param step
-     * @param from
-     * @param to
+     * One metric's buckets at a step over a time span, read once.
+     * @param metric - the metric name
+     * @param step - the bucket size
+     * @param from - the span start in epoch milliseconds
+     * @param to - the span end in epoch milliseconds
+     * @returns the buckets by start time
      */
     series(metric: string, step: Step, from: number, to: number): Promise<Map<number, Bucket>> {
         return this.once(`s:${metric}:${step}:${from}:${to}`, () =>
@@ -285,13 +290,18 @@ export class Reads {
         );
     }
 
-    /** The pull requests behind the PR stocks, as the collector last wrote them. */
+    /**
+     * The pull requests behind the PR stocks, as the collector last wrote them.
+     * @returns the snapshot, or undefined before the collector wrote one
+     */
     prStocks(): Promise<PrStockPrs | undefined> {
         return this.once("snapshot:pr-stocks", () => readSnapshot(this.store, "pr-stocks"));
     }
 
     /**
-     * @param id
+     * One member's SLA configuration; throws when the config has no such member.
+     * @param id - the engine member id
+     * @returns the member's configuration
      */
     config(id: string): MemberConfig {
         const c = this.cfg.members.find((m) => m.id === id);
@@ -303,7 +313,8 @@ export class Reads {
 
     /**
      * When every source of a member has written: before it, a bucket is "no history", not zero.
-     * @param c
+     * @param c - the member's configuration
+     * @returns the time the last of its sources first wrote, or undefined before all have
      */
     historyStart(c: MemberConfig): number | undefined {
         let start = -Infinity;
@@ -325,8 +336,10 @@ const cmp = ([op, n]: Threshold, spec: Spec): Cmp => ({
 });
 
 /**
- * @param c
- * @param spec
+ * A member's target and red line as catalog facts.
+ * @param c - the member's configuration
+ * @param spec - how the member is shown
+ * @returns the SLA lines, or null when the member has no target
  */
 export function slaOf(c: MemberConfig, spec: Spec): Sla | null {
     // A money line red only on real spend: its target is the projection, its red line what is spent (section 7).
@@ -343,8 +356,10 @@ export function slaOf(c: MemberConfig, spec: Spec): Sla | null {
 }
 
 /**
- * @param v
- * @param spec
+ * An engine value as the shown value: scaled, rounded and with its unit, or as a word.
+ * @param v - the engine value
+ * @param spec - how the member is shown
+ * @returns the shown value, or null when there is no finite value
  */
 export function valueOf(v: number | undefined, spec: Spec): Value {
     if (v === undefined || !Number.isFinite(v)) {
@@ -363,8 +378,9 @@ export function valueOf(v: number | undefined, spec: Spec): Value {
 
 /**
  * An engine reason as a catalog fact; undefined where the state chip already says it (few, partial).
- * @param r
- * @param reads
+ * @param r - the engine's reason, when it gave one
+ * @param reads - the store reads shared by this build
+ * @returns the reason as a fact, or undefined
  */
 export function reasonFact(r: Reason | undefined, reads: Reads): Fact | undefined {
     if (!r) {
@@ -416,7 +432,9 @@ const MEMBER_WINDOW: Record<MemberConfig["window"], MemberWindow> = {
 };
 
 /**
- * @param s
+ * A member's state as the page draws it; an informational member is info.
+ * @param s - the member's status
+ * @returns the page state
  */
 export function stateOf(s: MemberStatus): MemberState {
     if (s.reason?.code === "informational") {
@@ -427,7 +445,7 @@ export function stateOf(s: MemberStatus): MemberState {
 
 const GRAY = new Set<MemberState>(["nodata", "notsetup", "idle", "info"]);
 const BUCKETED = new Set(["rate", "median", "p90", "sum", "share", "last"]);
-const windowed = (c: MemberConfig) => c.window === "1h" || c.window === "1h+6h";
+const windowed = (c: MemberConfig): boolean => c.window === "1h" || c.window === "1h+6h";
 
 function covered(start: number | undefined, now: number, spanMs: number): { h: number; of: number } | undefined {
     if (start === undefined || now - start >= spanMs) {
@@ -438,10 +456,11 @@ function covered(start: number | undefined, now: number, spanMs: number): { h: n
 
 /**
  * A member's sparkline (section 2.3): 6 h in 15-minute buckets with 18 faint hours before, or 24 hours at 24 h.
- * @param reads
- * @param c
- * @param spec
- * @param range
+ * @param reads - the store reads shared by this build
+ * @param c - the member's configuration
+ * @param spec - how the member is shown
+ * @param range - the page range to build for
+ * @returns the sparkline, or undefined when the member has none
  */
 async function sparkOf(reads: Reads, c: MemberConfig, spec: Spec, range: Range): Promise<Spark | undefined> {
     const m = c.measure;
@@ -488,8 +507,9 @@ async function sparkOf(reads: Reads, c: MemberConfig, spec: Spec, range: Range):
 /**
  * What is known about a member now, under its definition: the pull requests behind a PR count, and how many
  * chronically failing jobs have no open issue (that, not the count, turns the row red).
- * @param reads
- * @param s
+ * @param reads - the store reads shared by this build
+ * @param s - the member's status
+ * @returns the note as a fact, or undefined when there is none
  */
 async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> {
     if (s.id === "ci.chronic_jobs") {
@@ -533,10 +553,11 @@ function alsoNote(c: MemberConfig, spec: Spec, s: MemberStatus): { note?: Fact }
 /**
  * One engine member as the page's row at a range: the state is the engine's; at 6 h and 24 h a windowed member's
  * value, n and coverage cover the range (section 8), and the 1 h value stays the judged one.
- * @param reads
- * @param s
- * @param range
- * @param id
+ * @param reads - the store reads shared by this build
+ * @param s - the member's status
+ * @param range - the page range to build for
+ * @param id - the contract id to show it under, when not its own
+ * @returns the member's row
  */
 export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?: MemberId): Promise<Member> {
     const c = reads.config(s.id);
@@ -610,11 +631,12 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
 
 /**
  * One Local runs member at a range: its value, n and sparkline from the local writer's rollups, in the given state.
- * @param reads
+ * @param reads - the store reads shared by this build
  * @param id - a key of LOCAL
- * @param range
+ * @param range - the page range to build for
  * @param state - the local source's state as a member state; a value is read only when it is "info"
- * @param reason
+ * @param reason - why the local source is not OK, as a fact, when it is not
+ * @returns the member's row
  */
 export async function localMember(
     reads: Reads,
@@ -649,7 +671,8 @@ export async function localMember(
 
 /**
  * A source's state as the page draws it: stale is yellow, red past twice its age limit (section 9).
- * @param s
+ * @param s - the source's status
+ * @returns the page state of the source
  */
 export function sourceState(s: SourceStatus): SourceAge["state"] {
     switch (s.state) {
@@ -668,5 +691,7 @@ export function sourceState(s: SourceStatus): SourceAge["state"] {
                 return "nodata";
             }
             return (s.ageRatio ?? 0) > 2 ? "bad" : "warn";
+        default:
+            throw new Error(`unknown source state ${JSON.stringify(s.state satisfies never)}`);
     }
 }

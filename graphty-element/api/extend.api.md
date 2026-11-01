@@ -459,6 +459,9 @@ export interface CameraState {
 }
 
 // @public
+export type CameraViewExtent = "centers" | "drawn";
+
+// @public
 export interface CameraViewInput {
     readonly aspect: number;
     readonly bounds: GraphBounds;

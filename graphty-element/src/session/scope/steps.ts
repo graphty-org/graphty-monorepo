@@ -88,8 +88,11 @@ export interface StepReading {
     readonly id: string;
     readonly state: StepState;
     readonly reason: CodedFact<StepReasonCode> | null;
-    /** How many elements the branch holds after this step. */
-    readonly count: number;
+    /**
+     * How many elements the branch holds after this step; null while the step waits on a run
+     * (`"pending"`, its own or an earlier step's), since what it will hold is not known yet.
+     */
+    readonly count: number | null;
     /** The branch before this step. */
     readonly input: Scope;
     /** The branch after this step. */
@@ -115,6 +118,12 @@ export interface BranchReading {
     readonly reason: CodedFact<StepReasonCode> | null;
     /** How many elements it holds: a pending branch's last ready count, 0 when it was never ready. */
     readonly count: number;
+    /**
+     * How many of them are drawn in its color: the members no earlier branch that is on holds
+     * (the first branch wins); 0 for a branch that is off. The branches' `drawn` and the elements
+     * no branch holds add up to the base.
+     */
+    readonly drawn: number;
     readonly members: Scope;
     readonly steps: readonly StepReading[];
 }
@@ -134,6 +143,8 @@ export interface StepsReading {
     /** Everything in a ready branch that is on. */
     readonly result: Scope;
     readonly branches: readonly BranchReading[];
+    /** How many more branches the rule can take before the branch palette is used up. */
+    readonly branchesLeft: number;
     /**
      * The first branch that is on and holds an element, or null.
      * @param id - A node id (a node selection) or an edge id (an edge selection).
@@ -225,6 +236,8 @@ export interface ValueHistogramOptions extends HistogramOptions {
 /**
  * The branch colors when a session sets none: six hues each at least 3:1 against both a white and
  * a near-black panel, clear of the selection's gold ring and blue edge band.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
  */
 export const DEFAULT_BRANCH_PALETTE: readonly string[] = Object.freeze([
     "#009E73",
@@ -537,11 +550,27 @@ function lazy(make: () => Scope): () => Scope {
  * @param leaf - The canonical leaf.
  * @param read - The raw reading.
  * @param sources - What it needs.
+ * @param palette - The branch palette, which bounds how many branches the rule can take.
  * @returns The reading.
  */
-export function stepsReadingOf(leaf: UnionLeaf, read: UnionRead, sources: ReadingSources): StepsReading {
+export function stepsReadingOf(
+    leaf: UnionLeaf,
+    read: UnionRead,
+    sources: ReadingSources,
+    palette: readonly string[] = DEFAULT_BRANCH_PALETTE,
+): StepsReading {
     const { side } = leaf;
+    const claimed = new Uint8Array(read.base.length);
     const branches = read.branches.map((branch, at): BranchReading => {
+        let drawn = 0;
+        if (branch.state !== "off") {
+            for (let index = 0; index < claimed.length; index++) {
+                if (branch.members[index] === 1 && claimed[index] === 0) {
+                    claimed[index] = 1;
+                    drawn++;
+                }
+            }
+        }
         const spec = leaf.branches[at];
         const members = lazy(() => sources.scopeOf(side, branch.members));
         const steps = branch.steps.map((step, index): StepReading => {
@@ -552,7 +581,7 @@ export function stepsReadingOf(leaf: UnionLeaf, read: UnionRead, sources: Readin
                 id: given.id ?? "",
                 state: step.state,
                 reason: step.reason as CodedFact<StepReasonCode> | null,
-                count: ones(step.members),
+                count: step.state === "pending" ? null : ones(step.members),
                 get input(): Scope {
                     return input();
                 },
@@ -571,6 +600,7 @@ export function stepsReadingOf(leaf: UnionLeaf, read: UnionRead, sources: Readin
             state: branch.state,
             reason: branch.reason as CodedFact<StepReasonCode> | null,
             count: ones(branch.members),
+            drawn,
             get members(): Scope {
                 return members();
             },
@@ -589,6 +619,7 @@ export function stepsReadingOf(leaf: UnionLeaf, read: UnionRead, sources: Readin
             return result();
         },
         branches,
+        branchesLeft: Math.max(0, palette.length - leaf.branches.length),
         branchOf(id: NodeId | EdgeId): string | null {
             const index = sources.indexOf(side, id);
             if (index < 0) {
@@ -765,10 +796,15 @@ export function createScopeSteps(sources: ScopeStepsSources): ScopeStepsApi {
         return canonicalUnion(leaf, options.branchPalette ?? DEFAULT_BRANCH_PALETTE);
     };
     const readingNow = (leaf: UnionLeaf, read: UnionRead): StepsReading =>
-        stepsReadingOf(leaf, read, {
-            ...sources.reading,
-            runOf: (step) => sources.stepRuns?.()?.runOf(step, leaf.within) ?? null,
-        });
+        stepsReadingOf(
+            leaf,
+            read,
+            {
+                ...sources.reading,
+                runOf: (step) => sources.stepRuns?.()?.runOf(step, leaf.within) ?? null,
+            },
+            options.branchPalette ?? DEFAULT_BRANCH_PALETTE,
+        );
 
     return {
         watchSteps(rule, onChange, given = {}) {

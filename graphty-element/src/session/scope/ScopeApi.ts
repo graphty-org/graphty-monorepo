@@ -1058,26 +1058,27 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             const active = context();
             const graph = active.snapshot;
             const sourcesNow = filterSourcesIn(active);
-            const readers = readersOf(graph, path, sourcesNow);
+            const { src, dst } = graph.edgeList();
+            const leaf = options.within === undefined ? undefined : scopeLeafIn(scopeOf(options.within), active);
+            // An induced scope's edges are those between its nodes.
+            const edgeIn = (index: number): boolean =>
+                leaf !== undefined &&
+                (leaf.edges === null
+                    ? maskTest(leaf.nodes, src[index]) && maskTest(leaf.nodes, dst[index])
+                    : maskTest(leaf.edges, index));
+            const scopeEdges =
+                leaf === undefined
+                    ? undefined
+                    : Uint8Array.from({ length: graph.edgeCount }, (_, at) => (edgeIn(at) ? 1 : 0));
+            // A structure value (degree) is counted over the scope's own edges, as a step reads it.
+            const readers = readersOf(graph, path, sourcesNow, scopeEdges);
             const onNodes = readers.node !== null || readers.edge === null;
             const read = readers.node ?? readers.edge ?? ((): unknown => undefined);
             let within: Uint8Array | null = null;
-            if (options.within !== undefined) {
-                const leaf = scopeLeafIn(scopeOf(options.within), active);
-                const count = onNodes ? graph.nodeCount : graph.edgeCount;
-                const { src, dst } = graph.edgeList();
-                const { nodes, edges } = leaf;
-                // An induced scope's edges are those between its nodes.
-                const inScope = onNodes
-                    ? (index: number): boolean => maskTest(nodes, index)
-                    : (index: number): boolean =>
-                          edges === null
-                              ? maskTest(nodes, src[index]) && maskTest(nodes, dst[index])
-                              : maskTest(edges, index);
-                within = new Uint8Array(count);
-                for (let index = 0; index < count; index++) {
-                    within[index] = inScope(index) ? 1 : 0;
-                }
+            if (leaf !== undefined && scopeEdges !== undefined) {
+                within = onNodes
+                    ? Uint8Array.from({ length: graph.nodeCount }, (_, at) => (maskTest(leaf.nodes, at) ? 1 : 0))
+                    : scopeEdges;
             }
 
             const run = path.startsWith("results.") ? path.split(".")[1] : undefined;

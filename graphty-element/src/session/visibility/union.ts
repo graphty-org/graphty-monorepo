@@ -45,6 +45,11 @@ export interface StepFrame {
      * input when it is computed on `"so-far"`. Null for a half that is whole.
      */
     readonly population: { readonly node: Bytes | null; readonly edge: Bytes | null };
+    /**
+     * The leaf's base, both halves: a walk (hops, touching) and a structure value (degree) read
+     * only its nodes and edges, so a filtered-out node is never stepped through or counted.
+     */
+    readonly base: { readonly node: Bytes; readonly edge: Bytes };
 }
 
 /** What {@link readUnion} needs from the session. */
@@ -244,7 +249,9 @@ export function inertReason(rule: RuleTree): CodedFact | null {
         case "categories":
             return rule.values.length === 0 ? { code: "test-unset", params: {} } : null;
         case "text":
-            return rule.text === "" ? { code: "test-unset", params: {} } : null;
+            // An empty regex is the element's own "has a value" (`selectorRule` of a `has`
+            // selector): a test, never an unset one. Empty text in any other mode is unset.
+            return rule.text === "" && rule.mode !== "regex" ? { code: "test-unset", params: {} } : null;
         case "hops":
         case "touching":
         case "nonempty":
@@ -501,12 +508,19 @@ function frameOf(step: UnionStep, input: Bytes, fold: FoldContext): StepFrame {
             soFar,
             reference,
             population: nodesSide ? { node: input, edge: null } : { node: null, edge: input },
+            base: fold.halves,
         };
     }
 
     const whole = within === "graph";
 
-    return { within, soFar, reference, population: whole ? { node: null, edge: null } : fold.halves };
+    return {
+        within,
+        soFar,
+        reference,
+        population: whole ? { node: null, edge: null } : fold.halves,
+        base: fold.halves,
+    };
 }
 
 /**
@@ -544,6 +558,9 @@ function noteOf(step: UnionStep, input: Bytes, frame: StepFrame, fold: FoldConte
  * @param seeds - The seeds.
  * @param max - The hop limit, or undefined for none.
  * @param direction - Which way arcs are followed.
+ * @param base - The nodes and edges a walk may use; every one when absent.
+ * @param base.node - The nodes it may step onto.
+ * @param base.edge - The edges it may step along.
  * @returns The nodes.
  */
 export function hopsFrom(
@@ -551,8 +568,14 @@ export function hopsFrom(
     seeds: Bytes,
     max: number | undefined,
     direction: SelectionDirection | undefined,
+    base?: { readonly node: Bytes; readonly edge: Bytes },
 ): Bytes {
     const reached = seeds.slice();
+    // An arc is walked only when its edge and its far node are in the base.
+    const inBase = (edge: number, other: number): boolean =>
+        base === undefined || (base.edge[edge] === 1 && base.node[other] === 1);
+    const { arcToEdge } = graph;
+    const reverse = graph.reverse();
     let frontier: number[] = [];
     for (let index = 0; index < graph.nodeCount; index++) {
         if (seeds[index] === 1) {
@@ -560,7 +583,13 @@ export function hopsFrom(
         }
     }
 
-    const views = { out: [graph], in: [graph.reverse()], all: [graph, graph.reverse()] }[direction ?? "all"];
+    const forward = { rowPtr: graph.rowPtr, colIdx: graph.colIdx, edge: (arc: number) => arcToEdge[arc] };
+    const backward = {
+        rowPtr: reverse.rowPtr,
+        colIdx: reverse.colIdx,
+        edge: (arc: number) => arcToEdge[reverse.fwdArc[arc]],
+    };
+    const views = { out: [forward], in: [backward], all: [forward, backward] }[direction ?? "all"];
     const limit = max ?? Number.POSITIVE_INFINITY;
     for (let hop = 0; hop < limit && frontier.length > 0; hop++) {
         const next: number[] = [];
@@ -568,7 +597,7 @@ export function hopsFrom(
             for (const view of views) {
                 for (let arc = view.rowPtr[node]; arc < view.rowPtr[node + 1]; arc++) {
                     const other = view.colIdx[arc];
-                    if (reached[other] === 0) {
+                    if (reached[other] === 0 && inBase(view.edge(arc), other)) {
                         reached[other] = 1;
                         next.push(other);
                     }
@@ -587,12 +616,21 @@ export function hopsFrom(
  * @param graph - The snapshot.
  * @param nodes - The nodes.
  * @param ends - How many ends must be in.
+ * @param baseEdges - The edges that may pass; every one when absent.
  * @returns The edge test.
  */
-export function touchingTest(graph: GraphSnapshot, nodes: Bytes, ends: "either" | "both" | "one"): Test {
+export function touchingTest(
+    graph: GraphSnapshot,
+    nodes: Bytes,
+    ends: "either" | "both" | "one",
+    baseEdges?: Bytes,
+): Test {
     const { src, dst } = graph.edgeList();
 
     return (edge) => {
+        if (baseEdges !== undefined && baseEdges[edge] === 0) {
+            return false;
+        }
         const inside = nodes[src[edge]] + nodes[dst[edge]];
         return { either: inside > 0, both: inside === 2, one: inside === 1 }[ends];
     };

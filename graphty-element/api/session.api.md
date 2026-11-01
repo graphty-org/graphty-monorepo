@@ -390,6 +390,7 @@ export interface BranchReading {
     // (undocumented)
     readonly color: string;
     readonly count: number;
+    readonly drawn: number;
     // (undocumented)
     readonly id: string;
     // (undocumented)
@@ -773,7 +774,7 @@ export interface DataSourceInput {
     readonly type?: string;
 }
 
-// @public
+// @beta
 export const DEFAULT_BRANCH_PALETTE: readonly string[];
 
 // @public
@@ -6120,7 +6121,7 @@ export interface StepCounts {
 
 // @beta
 export interface StepReading {
-    readonly count: number;
+    readonly count: number | null;
     readonly frozen: boolean;
     // (undocumented)
     readonly id: string;
@@ -6144,6 +6145,7 @@ export type StepReference = Scope | "hovered-or-selected" | "so-far";
 export interface StepsReading {
     // (undocumented)
     readonly branches: readonly BranchReading[];
+    readonly branchesLeft: number;
     branchOf(id: NodeId | EdgeId): string | null;
     readonly pending: readonly string[];
     readonly result: Scope;
@@ -6307,7 +6309,7 @@ export interface StyleRowPlace {
     readonly parent?: StyleRowId | null;
 }
 
-// @public (undocumented)
+// @public
 export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
     addFolder(name: string, at?: StyleRowPlace, options?: RunOptions): Run<StyleRow>;

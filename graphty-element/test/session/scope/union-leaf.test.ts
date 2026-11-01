@@ -430,7 +430,17 @@ describe("the doors", () => {
 
         await session.visibility.addCondition({ effect: "keep", rule: STAFF });
         await session.styles.settled();
-        const staffNear = withNeighbors("Valjean").filter((each) => ROLE(IDS.indexOf(each)) === "staff");
-        assert.strictEqual(session.styles.counts(id).matched, staffNear.length);
+        // The walk stays in the filtered graph: a selected node the filter hides took its edges
+        // with it, so nothing is near it there.
+        const staff = (each: string): boolean => ROLE(IDS.indexOf(each)) === "staff";
+        assert.isFalse(staff("Valjean"));
+        assert.strictEqual(session.styles.counts(id).matched, 0);
+
+        const hub = IDS.filter(staff).sort(
+            (a, b) => withNeighbors(b).filter(staff).length - withNeighbors(a).filter(staff).length,
+        )[0];
+        await session.selection.apply({ nodes: [hub] });
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(id).matched, withNeighbors(hub).filter(staff).length);
     });
 });

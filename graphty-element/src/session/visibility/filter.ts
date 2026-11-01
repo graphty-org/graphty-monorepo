@@ -947,6 +947,8 @@ export interface CompileContext {
     readonly unresolvedQueries: Set<Path>;
     /** The step being compiled, inside a `union` leaf: what `"so-far"` names and the populations. */
     readonly step?: StepFrame;
+    /** The edges a structure value (degree) is counted over, outside a step; every edge when absent. */
+    readonly baseEdges?: Bytes;
 }
 
 /** One filter's two halves, before they are folded together. */
@@ -1232,17 +1234,68 @@ function inList(wanted: readonly string[], match: "any" | "all"): (value: unknow
  */
 function structureReaders(context: CompileContext, path: Path): { readonly node?: (index: number) => unknown } {
     const { graph } = context;
-    let degrees: U32 | null = null;
-    if (path === "graphty.degree") {
-        degrees = graph.degree();
-    } else if (path === "graphty.inDegree") {
-        degrees = graph.directed ? graph.inDegree() : graph.degree();
+    let which: "in" | "out" | undefined;
+    if (path === "graphty.inDegree") {
+        which = graph.directed ? "in" : undefined;
     } else if (path === "graphty.outDegree") {
-        degrees = graph.directed ? graph.outDegree() : graph.degree();
+        which = graph.directed ? "out" : undefined;
+    } else if (path !== "graphty.degree") {
+        return {};
     }
 
-    const read = degrees;
-    return read === null ? {} : { node: (index) => read[index] };
+    const read = degreesOf(context, which);
+    return { node: (index) => read[index] };
+}
+
+/**
+ * The base a step reads its walks and structure values in: null outside a step, and for a step
+ * over the whole graph.
+ * @param context - The compile context.
+ * @returns The base's halves, or undefined.
+ */
+function baseOf(context: CompileContext): { readonly node: Bytes; readonly edge: Bytes } | undefined {
+    if (context.baseEdges !== undefined) {
+        return { node: new Uint8Array(context.graph.nodeCount).fill(1), edge: context.baseEdges };
+    }
+
+    const { step } = context;
+    return step === undefined || step.within === "graph" ? undefined : step.base;
+}
+
+/**
+ * Every node's degree (in, out, or both ways when `which` is absent), counted over the base's
+ * edges inside a step, so a filtered-out neighbour is never counted; the snapshot's otherwise.
+ * @param context - The compile context.
+ * @param which - In, out, or both.
+ * @returns The degrees.
+ */
+function degreesOf(context: CompileContext, which: "in" | "out" | undefined): ArrayLike<number> {
+    const { graph } = context;
+    const base = baseOf(context);
+    if (base === undefined) {
+        if (which === "in") {
+            return graph.inDegree();
+        }
+
+        return which === "out" ? graph.outDegree() : graph.degree();
+    }
+
+    // ponytail: recounted per compile; cache by base bytes if a large graph's steps feel it.
+    const way = graph.directed ? which : undefined;
+    const out = new Uint32Array(graph.nodeCount);
+    const { src, dst } = graph.edgeList();
+    for (let edge = 0; edge < graph.edgeCount; edge++) {
+        if (base.edge[edge] === 1) {
+            if (way !== "in") {
+                out[src[edge]]++;
+            }
+            if (way !== "out") {
+                out[dst[edge]]++;
+            }
+        }
+    }
+
+    return out;
 }
 
 /**
@@ -1403,16 +1456,7 @@ function degreeTest(
     max: number | undefined,
     direction: SelectionDirection | undefined,
 ): ElementTest {
-    const { graph } = context;
-    let degrees: U32;
-
-    if (direction === "in") {
-        degrees = graph.inDegree();
-    } else if (direction === "out") {
-        degrees = graph.outDegree();
-    } else {
-        degrees = graph.degree();
-    }
+    const degrees = degreesOf(context, direction === "in" || direction === "out" ? direction : undefined);
 
     const low = min ?? Number.NEGATIVE_INFINITY;
     const high = max ?? Number.POSITIVE_INFINITY;
@@ -1829,11 +1873,26 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return filter.side === "nodes" ? { node: test, edge: null } : { node: null, edge: test };
         }
         case "hops": {
-            const reached = hopsFrom(context.graph, referenceBytes(context, filter.of), filter.max, filter.direction);
+            const base = baseOf(context);
+            const reached = hopsFrom(
+                context.graph,
+                referenceBytes(context, filter.of),
+                filter.max,
+                filter.direction,
+                base,
+            );
             return { node: (index) => reached[index] === 1, edge: null };
         }
         case "touching":
-            return { node: null, edge: touchingTest(context.graph, referenceBytes(context, filter.of), filter.ends) };
+            return {
+                node: null,
+                edge: touchingTest(
+                    context.graph,
+                    referenceBytes(context, filter.of),
+                    filter.ends,
+                    baseOf(context)?.edge,
+                ),
+            };
         case "nonempty": {
             const held = countOf(referenceBytes(context, filter.of)) > 0;
             return { node: () => held, edge: () => held };
@@ -2001,11 +2060,23 @@ export function readUnionLeaf(graph: GraphSnapshot, leaf: UnionLeaf, sources: Fi
  * @param graph - The snapshot.
  * @param path - The path.
  * @param sources - Where values are read.
+ * @param baseEdges - The edges a structure value is counted over; every edge when absent.
  * @returns The readers.
  */
-export function readersOf(graph: GraphSnapshot, path: Path, sources: FilterSources): ReturnType<typeof pathReaders> {
+export function readersOf(
+    graph: GraphSnapshot,
+    path: Path,
+    sources: FilterSources,
+    baseEdges?: Bytes,
+): ReturnType<typeof pathReaders> {
     return pathReaders(
-        { graph, sources, marks: new Map<Path, PathMark>(), unresolvedQueries: new Set<Path>() },
+        {
+            graph,
+            sources,
+            marks: new Map<Path, PathMark>(),
+            unresolvedQueries: new Set<Path>(),
+            ...(baseEdges === undefined ? {} : { baseEdges }),
+        },
         path,
         "histogram",
     );

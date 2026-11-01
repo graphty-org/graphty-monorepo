@@ -2904,6 +2904,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 }),
             ),
         scope: (spec: Scope) => scope.leafOf(spec),
+        // A condition's union reads its measure steps' runs as the scope API does.
+        steps: {
+            gate: (step, frame) => stepRunsRef.current?.gate(step, frame) ?? null,
+            result: (leaf, frame) => stepRunsRef.current?.result(leaf, frame),
+        },
         // The resolver's context turns a capture into bitmaps over the current snapshot.
         captured: (item: ResultItem) => scope.contextNow().captured?.(item),
         watch: {

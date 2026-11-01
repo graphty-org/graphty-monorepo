@@ -432,12 +432,6 @@ export interface UpdateManyResult {
 }
 
 /**
- * The style stack, the verbs that change it, and the three questions a reader asks of it.
- *
- * Everything on this surface addresses a layer by its id. Nothing on it takes an index, and
- * nothing on it returns one.
- */
-/**
  * What `styles.showBranches` draws: a selection built from branches, the rest drawn faint or as
  * the element's base look.
  * Experimental: may change or be removed in a minor release.
@@ -455,6 +449,12 @@ export interface BranchesView {
     readonly hold?: string;
 }
 
+/**
+ * The style stack, the verbs that change it, and the three questions a reader asks of it.
+ *
+ * Everything on this surface addresses a layer by its id. Nothing on it takes an index, and
+ * nothing on it returns one.
+ */
 export interface StylesApi {
     /**
      * Draw a selection built from branches while a reader picks: every layer of the stack is
@@ -2672,6 +2672,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const listLayers = (): readonly Layer[] => listed().layers;
 
     /**
+     * The first version of each edited layer, by every later version of it. An edit compiles a new
+     * layer object under the same id, and so does a removal followed by an add of the same name,
+     * which recycles the id: only an edit continues the layer, so only an edit is linked here.
+     */
+    const firstVersion = new WeakMap<CompiledLayer, CompiledLayer>();
+    const versionsOf = (entry: CompiledLayer): CompiledLayer => firstVersion.get(entry) ?? entry;
+
+    /** The last bindings each layer was painted with, by its first version, for {@link steadyEncodingOf}. */
+    const lastPainted = new WeakMap<CompiledLayer, readonly PreparedBinding[]>();
+
+    /**
      * The bindings one layer was painted from, by the id its readers know it by.
      *
      * The translation between the two ways a layer is addressed, in the one place that holds
@@ -2684,21 +2695,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      */
     const encodingOf: EncodingLookup = (layerId) => {
         // A branches view's layers are drawn and explained, though the stack does not hold them.
-        const entry = byId().get(layerId) ?? branchesShown?.layers.find((each) => each.layer.id === layerId);
-
-        return entry === undefined || sources.encoding === undefined ? NO_BINDINGS : sources.encoding(entry);
+        const own = byId().get(layerId);
+        const entry = own ?? branchesShown?.layers.find((each) => each.layer.id === layerId);
+        const prepared = entry === undefined || sources.encoding === undefined ? NO_BINDINGS : sources.encoding(entry);
+        if (own === undefined) {
+            return prepared;
+        }
+        if (prepared.length > 0) {
+            lastPainted.set(versionsOf(own), prepared);
+            return prepared;
+        }
+        // A layer edited while a branches view suspends it is not painted until the view ends, so
+        // the stack's readings (counts, the legend) read what it last painted, never "nothing".
+        return branchesShown === null ? prepared : (lastPainted.get(versionsOf(own)) ?? prepared);
     };
-
-    /**
-     * The first version of each edited layer, by every later version of it. An edit compiles a new
-     * layer object under the same id, and so does a removal followed by an add of the same name,
-     * which recycles the id: only an edit continues the layer, so only an edit is linked here.
-     */
-    const firstVersion = new WeakMap<CompiledLayer, CompiledLayer>();
-    const versionsOf = (entry: CompiledLayer): CompiledLayer => firstVersion.get(entry) ?? entry;
-
-    /** The last bindings each layer was painted with, by its first version, for {@link steadyEncodingOf}. */
-    const lastPainted = new WeakMap<CompiledLayer, readonly PreparedBinding[]>();
 
     /**
      * What a layer was last painted with, for the group reads: between an edit of a layer and the
@@ -2714,14 +2724,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const steadyEncodingOf: EncodingLookup = (layerId) => {
         const prepared = encodingOf(layerId);
         const entry = byId().get(layerId);
-        if (entry === undefined) {
-            return prepared;
-        }
-        if (prepared.length > 0) {
-            lastPainted.set(versionsOf(entry), prepared);
-            return prepared;
-        }
-        return lastPainted.get(versionsOf(entry)) ?? prepared;
+        return entry === undefined || prepared.length > 0 ? prepared : (lastPainted.get(versionsOf(entry)) ?? prepared);
     };
 
     /**
@@ -4459,6 +4462,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             for (const entry of next) {
                 const was = held.get(entry.layer.id);
                 if (was !== undefined && was !== entry) {
+                    // What the old version painted is read before the edit hides it (see encodingOf).
+                    encodingOf(was.layer.id);
                     firstVersion.set(entry, versionsOf(was));
                 }
             }

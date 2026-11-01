@@ -4,7 +4,7 @@
  * references a filter stores, and the runs a `measure` step reads under the run limits.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import type { StepsReading } from "../../../session";
 import type { RuleTree, UnionLeaf } from "../../../src/catalog/types";
@@ -159,12 +159,12 @@ describe("watchSteps", () => {
         assert.strictEqual(keep.state, "applied");
         assert.isFalse(keep.orderMatters);
         assert.isTrue(add.orderMatters, "an Add below a Keep depends on its place");
-        assert.isAbove(add.count, keep.count);
+        assert.isAbove(add.count ?? 0, keep.count ?? 0);
         const resolved = await session.scope.resolve(current.result);
         assert.strictEqual(resolved.nodes.size, current.total.count);
         assert.strictEqual(
             current.branchOf("Valjean"),
-            current.branches[0].steps[1].count > 0 ? current.branchOf("Valjean") : null,
+            (current.branches[0].steps[1].count ?? 0) > 0 ? current.branchOf("Valjean") : null,
         );
         assert.isNotNull(current.branchOf("Valjean"));
     });
@@ -346,6 +346,74 @@ describe("measure steps and runs", () => {
         assert.strictEqual(session.styles.list().length, layers, "a condition is not a repaint");
         assert.strictEqual(ready.branches[0].steps[0].run, session.runs.list()[0].id);
         assert.deepEqual(executions.sizes, [IDS.length]);
+    });
+
+    it("counts what each branch draws: overlap goes to the first branch, and a branch off draws none", async () => {
+        const session = await lesMis();
+        const near: RuleTree = { kind: "hops", of: { nodes: ["Valjean"] }, max: 1 };
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                { start: "none", steps: [{ op: "add", rule: STAFF }] },
+                { start: "none", steps: [{ op: "add", rule: near }] },
+            ],
+        };
+        const watch = session.scope.watchSteps(rule, () => undefined);
+        const [a, b] = watch.current.branches;
+        assert.strictEqual(a.drawn, a.count);
+        assert.isBelow(b.drawn, b.count, "B's staff members are drawn in A's color");
+        assert.strictEqual(a.drawn + b.drawn, watch.current.total.count);
+        watch.end();
+        const off = session.scope.watchSteps(
+            { ...rule, branches: [{ ...rule.branches[0], on: false }, rule.branches[1]] },
+            () => undefined,
+        );
+        assert.strictEqual(off.current.branches[0].drawn, 0);
+        assert.strictEqual(off.current.branches[1].drawn, off.current.branches[1].count);
+        off.end();
+    });
+
+    it("a step that waits on its run reads no count, and nor does a step after it", async () => {
+        const session = await lesMis();
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                {
+                    start: "all",
+                    steps: [
+                        { op: "keep", rule: TOP_BY_MEASURE },
+                        { op: "keep", rule: STAFF },
+                    ],
+                },
+            ],
+        };
+        const watch = session.scope.watchSteps(rule, () => undefined);
+        const [waiting, after] = watch.current.branches[0].steps;
+        watch.end();
+        assert.strictEqual(waiting.state, "pending");
+        assert.isNull(waiting.count);
+        assert.strictEqual(after.reason?.code, "waits-for");
+        assert.isNull(after.count);
+        assert.strictEqual(watch.current.branchesLeft, 5, "the default palette takes six branches");
+    });
+
+    it("a filter condition whose union tests an algorithm is written and keeps what the run measured", async () => {
+        const session = await lesMis();
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [{ start: "all", steps: [{ op: "keep", rule: TOP_BY_MEASURE }] }],
+        };
+        await session.visibility.addCondition({ effect: "keep", rule });
+        await vi.waitFor(() => {
+            assert.isAtLeast(session.visibility.nodes.size, 5);
+            assert.isBelow(session.visibility.nodes.size, IDS.length);
+        });
     });
 
     it("a measure with no test yet stays inert but starts its run, so a picker can show its values", async () => {

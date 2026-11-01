@@ -106,6 +106,13 @@ export interface ToolDefaults {
      * it says how every node's border width is read, so no rule carries it. Absent, a border width is a length.
      */
     readonly nodeBorderOnScreen?: ToolDefaultValue<boolean>;
+    /**
+     * Whether the program draws a label's `labelSize`, node and edge alike, in screen pixels, the same at every zoom,
+     * rather than as a length that grows and shrinks with the drawing: sigma keeps a label 12 px tall however far the
+     * view zooms. Not a label default: it says how every label size is read, so no rule carries it. Absent, a label
+     * size is a length.
+     */
+    readonly labelSizeOnScreen?: ToolDefaultValue<boolean>;
 }
 
 /**
@@ -727,6 +734,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "sigma 4.0.1",
                 units: "relative",
                 roundedCornerRadius: cornerCap("sigma"),
+                labelSizeOnScreen: v(
+                    true,
+                    "sigma 4.0.1 dist/factory-668a8969.esm.js lines 3241 and 5936 (a node label's zoomToLabelSizeRatioFunction is 1, an edge label's fontSizeMode \"fixed\")",
+                ),
                 node: {
                     fill: v("#666666", `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (color "#666")`),
                     shape: v("ellipse", `${SIGMA}/settings.ts lines 119-126`),

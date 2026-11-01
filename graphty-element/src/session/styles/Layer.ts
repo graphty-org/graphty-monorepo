@@ -318,6 +318,11 @@ export interface LayerCheckOptions {
      */
     readonly admitScope?: (scope: unknown) => unknown;
     /**
+     * A `{ match: "rule" }` selector's rule as the layer stores it: every union leaf given its
+     * branch and step ids and branch colors. Absent, the rule is stored as given.
+     */
+    readonly admitRule?: (rule: unknown) => unknown;
+    /**
      * Whether the layer may write no channel: an edit asked to keep a layer whose last value it
      * takes away, which then stays in place painting nothing, as a starting row that writes
      * nothing does.
@@ -1318,7 +1323,18 @@ function checkSelector(
  * @returns The specification to check and build from.
  */
 function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: ProblemLog): LayerSpec {
-    const selector = spec.selector as { match?: unknown; of?: unknown } | undefined;
+    const selector = spec.selector as { match?: unknown; of?: unknown; where?: unknown } | undefined;
+    if (options.admitRule !== undefined && typeof selector === "object" && selector?.match === "rule") {
+        try {
+            const where = options.admitRule(selector.where);
+            return where === selector.where ? spec : ({ ...spec, selector: { ...selector, where } } as LayerSpec);
+        } catch (error) {
+            report(log, problemFrom(error, "selector"));
+
+            return spec;
+        }
+    }
+
     if (options.admitScope === undefined || typeof selector !== "object" || selector?.match !== "member") {
         return spec;
     }

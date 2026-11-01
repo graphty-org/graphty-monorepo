@@ -1120,6 +1120,8 @@ const SHADERS_API: Readonly<Record<string, Door>> = {
 };
 
 const STYLES_API: Readonly<Record<string, Door>> = {
+    showBranches: exempt("a picking view: it suspends the stack's picture while a reader picks, never the stack"),
+    showingBranches: READ,
     list: READ,
     get: READ,
     validate: READ,
@@ -2948,7 +2950,31 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             list: READ,
             // The doors test saves "door seed" before calling it.
             remove: calls(["set_door-seed"], [{ op: "set.remove", id: "set_door-seed" }]),
+            watchSteps: READ,
+            asUnion: READ,
+            checkStep: READ,
+            options: READ,
+            setOptions: exempt("run limits and the branch palette are the reader's session preferences, saved nowhere"),
+            allowRun: exempt(
+                "consent for one step's run, held in the session; the run it lets start dispatches algo.run as any run",
+            ),
+            cancelRun: exempt("cancels a computing step's run, which a run's own cancel does without a step"),
         },
+    },
+    {
+        name: "StepsWatch",
+        file: "src/session/scope/steps.ts",
+        half: "session",
+        doors: {
+            current: READ,
+            end: exempt("stops a live reading, which nothing saves"),
+        },
+    },
+    {
+        name: "StepsReading",
+        file: "src/session/scope/steps.ts",
+        half: "session",
+        whole: READ,
     },
     {
         // Every write dispatches one set op. The doors test creates "door seed", a fixed set of

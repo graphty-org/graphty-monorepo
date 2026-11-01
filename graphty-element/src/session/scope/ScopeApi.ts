@@ -24,7 +24,15 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, makeMask, maskCount, maskTest, maskToIndices, type U32 } from "@graphty/graph-format";
+import {
+    type GraphSnapshot,
+    INVALID_INDEX,
+    makeMask,
+    maskCount,
+    maskTest,
+    maskToIndices,
+    type U32,
+} from "@graphty/graph-format";
 
 import { parseScope, readingOfScope, stabiliseEdgeRefs } from "../../catalog/sets/parse";
 import type {
@@ -36,12 +44,15 @@ import type {
     Path,
     Query,
     ResultItem,
+    RuleTree,
     RunId,
     Scope,
     ScopeId,
     ScopeInput,
     SetDefinition,
     SetDefinitionInput,
+    UnionLeaf,
+    UnionStep,
 } from "../../catalog/types";
 import { canonicalEdgeEnds, pairsOrdered } from "../../data/edgeIdentity";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
@@ -52,10 +63,12 @@ import { sealedSet } from "../sealed";
 import { resolveSet, SetsCache } from "../sets/cache";
 import { type Capture, capturedHalves } from "../sets/captures";
 import { assertIssued, referentReading, refuseNotePaths } from "../sets/dependencies";
+import type { SetWatch } from "../sets/notify";
 import {
     type ComponentLabels,
     deriveEdges,
     digestOf,
+    filterSourcesIn,
     type NodeHalf,
     type Resolution,
     type ResolveContext,
@@ -65,10 +78,29 @@ import {
     scopeLeafIn,
 } from "../sets/resolve";
 import { createSetsApi, sessionEdgeMember, setsStoreOf } from "../sets/SetsApi";
+import { scopeSignature } from "../sets/signature";
 import type { ElementSet, SetsApi } from "../sets/types";
-import type { FilterSources, FilterValueSource, ScopeLeaf } from "../visibility/filter";
+import type { CodedFact } from "../shared";
+import {
+    type FilterSources,
+    type FilterValueSource,
+    readUnionLeaf,
+    type ScopeLeaf,
+    type UnionStepSource,
+} from "../visibility/filter";
 import type { ElementMask } from "./ElementMask";
 import { edgeSpaceOf } from "./spaces";
+import type { StepRuns } from "./stepRuns";
+import {
+    canonicalUnion,
+    createScopeSteps,
+    DEFAULT_BRANCH_PALETTE,
+    mapUnions,
+    type ScopeStepOptions,
+    type StepCheckOptions,
+    type StepsReading,
+    type StepsWatch,
+} from "./steps";
 
 export type { ComponentLabels } from "../sets/resolve";
 
@@ -178,8 +210,20 @@ export interface ScopeSources {
     readonly supplied?: FilterSources["supplied"];
     /** The hovered node, else a lone selected node. Absent refuses a step's `"hovered-or-selected"`. */
     readonly focus?: FilterSources["focus"];
-    /** The runs a union step's `measure` leaf reads. Absent refuses `measure`. */
-    readonly steps?: FilterSources["steps"];
+    /** The runs a union step's `measure` leaf reads, once built. Absent refuses `measure`. */
+    readonly stepRuns?: () => StepRuns | undefined;
+    /**
+     * Watch the session's inputs, for `watchSteps`. Absent: a watch never hears a change.
+     * @param watch - The watch.
+     * @returns Stops it.
+     */
+    readonly subscribe?: (watch: SetWatch<unknown>) => () => void;
+    /**
+     * The scope a session run read, so a filter step reading a filtered-graph run is refused.
+     * @param run - The run.
+     * @returns Its scope, or undefined.
+     */
+    readonly runScopeOf?: (run: RunId) => Scope | undefined;
     /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
     readonly result?: FilterSources["result"];
     /**
@@ -287,6 +331,76 @@ export interface ScopeApi {
      * @param id - The id to remove.
      */
     remove(id: ScopeId): void;
+
+    /**
+     * Read a selection live: every branch's and step's count, state, reason and members. `current`
+     * is synchronous; the element calls `onChange` itself when data, runs, sets, the hovered node
+     * or the selection change what the rule holds. The app never decides when to recount.
+     * @param rule - A `union` leaf, or any rule `asUnion` converts (then `options` names the side
+     *     and the base).
+     * @param onChange - Hears each new reading.
+     * @param options - The side and the base, for a rule that is not a union.
+     * @param options.side - The side.
+     * @param options.within - The base.
+     * @returns The watch.
+     * @throws `E_BAD_COMMAND` for a malformed rule, or one `asUnion` cannot convert.
+     * @beta
+     */
+    watchSteps(
+        rule: RuleTree,
+        onChange: (reading: StepsReading) => void,
+        options?: { readonly side?: UnionLeaf["side"]; readonly within?: UnionLeaf["within"] },
+    ): StepsWatch;
+    /**
+     * A flat rule as one union leaf (see {@link asUnion}). Writing it back is the caller's choice.
+     * @param rule - The rule.
+     * @param options - The side and base.
+     * @param options.side - The side.
+     * @param options.within - The base.
+     * @returns The leaf, or null when the rule has no single-union form.
+     * @beta
+     */
+    asUnion(
+        rule: RuleTree,
+        options: { readonly side: UnionLeaf["side"]; readonly within: UnionLeaf["within"] },
+    ): UnionLeaf | null;
+    /**
+     * The refusal the element would give writing a step on a host, so a picker can grey a value
+     * with the element's reason: `circular-scope` for a filter that reads the filtered graph,
+     * `reference-outside-union`, `nested-union`, or the error code of any other refusal.
+     * @param step - The step.
+     * @param options - Where it would be written.
+     * @returns The refusal, or null when the step would be accepted.
+     * @beta
+     */
+    checkStep(step: UnionStep, options: StepCheckOptions): CodedFact | null;
+    /**
+     * Change the run limits and the branch palette. A key absent keeps its value; `undefined`
+     * clears it. Not saved, and not an undo step.
+     * @param options - The options.
+     * @throws `E_OPTION_RANGE` for a negative limit or an empty palette.
+     * @beta
+     */
+    setOptions(options: ScopeStepOptions): void;
+    /**
+     * The run limits and branch palette in force.
+     * @beta
+     */
+    readonly options: ScopeStepOptions;
+    /**
+     * The reader's Run: a step that waits on its estimate may start, until its definition changes.
+     * @param rule - The union leaf holding the step.
+     * @param stepId - The step.
+     * @beta
+     */
+    allowRun(rule: UnionLeaf, stepId: string): void;
+    /**
+     * Cancel a step's computing run; the step waits again (`run-needed`).
+     * @param rule - The union leaf holding the step.
+     * @param stepId - The step.
+     * @beta
+     */
+    cancelRun(rule: UnionLeaf, stepId: string): void;
 }
 
 /**
@@ -314,6 +428,14 @@ export interface ScopeResolver extends ScopeApi {
      * @throws `E_BAD_COMMAND` for a session edge id the graph lacks, or a set id never issued.
      */
     admit<T>(value: T): T;
+    /**
+     * A rule tree with every union leaf in it given its branch and step ids and branch colors, as
+     * a write door stores it.
+     * @param value - A rule tree.
+     * @returns The tree; the same object when nothing was missing.
+     * @throws `E_CAP_EXCEEDED` when a branch needs a color and the palette is used up.
+     */
+    canonicalUnions<T>(value: T): T;
     /**
      * The elements a specification covers, answered without a promise.
      * @param spec - What to resolve.
@@ -352,6 +474,18 @@ export interface ScopeResolver extends ScopeApi {
      * @returns The context over the current snapshot.
      */
     contextNow(): ResolveContext;
+}
+
+/**
+ * The compiler's step source over step runs built later than the resolver.
+ * @param stepRuns - The step runs, once built.
+ * @returns The source.
+ */
+function lateStepRuns(stepRuns: () => StepRuns | undefined): UnionStepSource {
+    return {
+        gate: (step, frame) => stepRuns()?.gate(step, frame) ?? null,
+        result: (leaf, frame) => stepRuns()?.result(leaf, frame),
+    };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -587,7 +721,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         ...(sources.values === undefined ? {} : { values: sources.values }),
         ...(sources.supplied === undefined ? {} : { supplied: sources.supplied }),
         ...(sources.focus === undefined ? {} : { focus: sources.focus }),
-        ...(sources.steps === undefined ? {} : { steps: sources.steps }),
+        ...(sources.stepRuns === undefined ? {} : { steps: lateStepRuns(sources.stepRuns) }),
         ...(sources.result === undefined ? {} : { result: sources.result }),
         ...(sources.fieldKinds === undefined ? {} : { fieldKinds: sources.fieldKinds }),
     });
@@ -820,18 +954,106 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         return resolved;
     };
 
+    /**
+     * A value with every union leaf in it canonical: a rule tree, or a rule set's definition
+     * inside a scope.
+     * @param value - The value.
+     * @returns The value; the same object when nothing was missing.
+     */
+    const canonicalUnions = <T>(value: T): T => {
+        const palette = steps.options.branchPalette ?? DEFAULT_BRANCH_PALETTE;
+        const tree = (where: RuleTree): RuleTree => mapUnions(where, (leaf) => canonicalUnion(leaf, palette));
+        const loose = value as { kind?: unknown; where?: unknown; define?: { kind?: unknown; where?: unknown } };
+        if (typeof value !== "object" || value === null) {
+            return value;
+        }
+
+        if (loose.kind === "rule" && typeof loose.where === "object" && loose.where !== null) {
+            const where = tree(loose.where as RuleTree);
+            return where === loose.where ? value : { ...value, where };
+        }
+
+        if (typeof loose.kind === "string") {
+            return tree(value as unknown as RuleTree) as T;
+        }
+
+        if (loose.define !== undefined) {
+            const define = canonicalUnions(loose.define);
+            return define === loose.define ? value : { ...value, define };
+        }
+
+        return value;
+    };
+
+    const steps = createScopeSteps({
+        read: (leaf) => readUnionLeaf(sources.snapshot(), leaf, filterSourcesIn(context())),
+        reading: {
+            scopeOf: (side, bytes) => {
+                const graph = sources.snapshot();
+                if (side === "nodes") {
+                    const nodes: NodeId[] = [];
+                    bytes.forEach((byte, index) => {
+                        if (byte === 1) {
+                            nodes.push(graph.ids.idOf(index));
+                        }
+                    });
+                    return { nodes };
+                }
+
+                const space = edgeSpaceOf(graph);
+                const edges: EdgeMember[] = [];
+                bytes.forEach((byte, index) => {
+                    if (byte === 1) {
+                        edges.push(stable(space.idOf(index)));
+                    }
+                });
+                return { define: { kind: "fixed", nodes: [], edges, reading: "listed" } };
+            },
+            indexOf: (side, id) => {
+                const graph = sources.snapshot();
+                const index = side === "nodes" ? graph.ids.indexOf(id) : edgeSpaceOf(graph).indexOf(id as EdgeId);
+                return index === INVALID_INDEX ? -1 : index;
+            },
+        },
+        assertRule: (tree) => {
+            parseScope({ define: { kind: "rule", where: tree, reading: "clipped" } });
+        },
+        signature: (leaf) => scopeSignature({ define: { kind: "rule", where: leaf, reading: "clipped" } }, context()),
+        ...(sources.subscribe === undefined ? {} : { subscribe: sources.subscribe }),
+        ...(sources.stepRuns === undefined ? {} : { stepRuns: sources.stepRuns }),
+        ...(sources.runScopeOf === undefined ? {} : { runScopeOf: sources.runScopeOf }),
+    });
+
     return {
         resolveNow,
 
         canonical: scopeOf,
+
+        watchSteps: (rule, onChange, given) => steps.watchSteps(rule, onChange, given),
+        asUnion: (rule, given) => steps.asUnion(rule, given),
+        checkStep: (step, where) => steps.checkStep(step, where),
+        setOptions: (next) => {
+            steps.setOptions(next);
+        },
+        get options(): ScopeStepOptions {
+            return steps.options;
+        },
+        allowRun: (rule, stepId) => {
+            steps.allowRun(rule, stepId);
+        },
+        cancelRun: (rule, stepId) => {
+            steps.cancelRun(rule, stepId);
+        },
 
         admit<T>(value: T): T {
             const admitted = stabiliseEdgeRefs(value, stable);
             assertIssued(admitted as Scope, kept);
             refuseNotePaths(admitted as Scope, sources.pathsOf);
 
-            return admitted;
+            return canonicalUnions(admitted);
         },
+
+        canonicalUnions,
 
         sets,
 

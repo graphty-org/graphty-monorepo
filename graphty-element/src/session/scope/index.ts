@@ -27,3 +27,15 @@ export {
     type ScopeSources,
     type ScopeVisibilitySource,
 } from "./ScopeApi";
+export {
+    type BranchReading,
+    type BranchState,
+    DEFAULT_BRANCH_PALETTE,
+    type ScopeStepOptions,
+    type StepCheckOptions,
+    type StepReading,
+    type StepReasonCode,
+    type StepsReading,
+    type StepState,
+    type StepsWatch,
+} from "./steps";

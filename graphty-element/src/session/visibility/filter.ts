@@ -296,13 +296,8 @@ export interface FilterSources {
 
 /** What a union step that reads an algorithm (a `measure` leaf) asks the session. */
 export interface UnionStepSource {
-    /**
-     * Why a step waits, or null when it can be evaluated.
-     * @param step - The step.
-     * @param frame - Its frame.
-     * @returns The reason, or null.
-     */
-    pending: NonNullable<UnionEnv["pending"]>;
+    /** Whether a step can be folded now: see {@link UnionEnv.gate}. */
+    gate: NonNullable<UnionEnv["gate"]>;
     /**
      * The result a `measure` leaf reads now, or undefined when it has none.
      * @param leaf - The leaf.
@@ -1828,8 +1823,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
         case "text":
             return compileText(context, filter);
         case "union": {
-            const { total } = readUnionIn(context, filter);
-            const test = (index: number): boolean => total[index] === 1;
+            const { painted } = readUnionIn(context, filter);
+            const test = (index: number): boolean => painted[index] === 1;
 
             return filter.side === "nodes" ? { node: test, edge: null } : { node: null, edge: test };
         }
@@ -1926,9 +1921,10 @@ function referenceBytes(context: CompileContext, reference: StepReference | unde
  * What {@link readUnion} reads, over a compile context: the base from the scope resolver, each
  * step compiled in its frame by this compiler.
  * @param context - The compile context.
+ * @param leaf - The leaf read.
  * @returns The environment.
  */
-function unionEnvOf(context: CompileContext): UnionEnv {
+function unionEnvOf(context: CompileContext, leaf: UnionLeaf): UnionEnv {
     const { graph, sources } = context;
 
     return {
@@ -1957,7 +1953,8 @@ function unionEnvOf(context: CompileContext): UnionEnv {
         },
         compile: (tree, frame) => compileOne(tree, { ...context, step: frame }),
         reference: (reference) => referenceBytes(context, reference),
-        ...(sources.steps === undefined ? {} : { pending: sources.steps.pending }),
+        ...(sources.steps === undefined ? {} : { gate: sources.steps.gate }),
+        held: (branch) => heldBranches.get(leaf)?.get(branch),
     };
 }
 
@@ -1968,8 +1965,23 @@ function unionEnvOf(context: CompileContext): UnionEnv {
  * @returns The reading.
  */
 function readUnionIn(context: CompileContext, leaf: UnionLeaf): UnionRead {
-    return readUnion(leaf, unionEnvOf(context));
+    const read = readUnion(leaf, unionEnvOf(context, leaf));
+    const held = heldBranches.get(leaf) ?? new Map<string, Bytes>();
+    for (const branch of read.branches) {
+        if (branch.state === "ready" && branch.id !== undefined) {
+            held.set(branch.id, branch.members);
+        }
+    }
+
+    heldBranches.set(leaf, held);
+    return read;
 }
+
+/**
+ * Each stored union leaf's branches' last ready members, so a branch that waits on a run is drawn
+ * as it last was rather than flickering off. Keyed by the leaf object a layer or a filter holds.
+ */
+const heldBranches = new WeakMap<UnionLeaf, Map<string, Bytes>>();
 
 /**
  * Read a union leaf over a snapshot: every branch and step, as `session.scope.watchSteps` reports

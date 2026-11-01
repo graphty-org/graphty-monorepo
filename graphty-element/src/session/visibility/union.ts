@@ -30,8 +30,16 @@ export interface Halves {
 
 /** What a leaf compiled inside a step reads beyond the filter's sources. */
 export interface StepFrame {
+    /** The leaf's base. */
+    readonly within: UnionLeaf["within"];
     /** The nodes of the step's input (its branch so far): what `"so-far"` names. */
     readonly soFar: Bytes;
+    /**
+     * The nodes a reference holds now, `"so-far"` included.
+     * @param reference - The reference.
+     * @returns The nodes.
+     */
+    reference(reference: StepReference): Bytes;
     /**
      * The elements a rank, a share or a category count is taken over: the base, or the step's
      * input when it is computed on `"so-far"`. Null for a half that is whole.
@@ -62,13 +70,27 @@ export interface UnionEnv {
      */
     reference(reference: Exclude<StepReference, "so-far">): Bytes;
     /**
-     * Whether a step's rule can be evaluated now, or why it waits (a run computing, needed,
-     * paused, failed or stale). Absent: every step is ready.
+     * Whether a step's rule can be evaluated now: null when it can; else it waits (`"pending"`: a
+     * run computing, needed, paused, failed or stale), is not yet a test (`"inert"`: a one-node
+     * option bound to several nodes), or matches nothing (`"empty"`: a bound reference holds no
+     * node). Absent: every step can.
      * @param step - The step.
      * @param frame - Its frame.
-     * @returns Null when ready, else the pending reason.
+     * @returns The gate, or null.
      */
-    pending?(step: UnionStep, frame: StepFrame): CodedFact | null;
+    gate?(step: UnionStep, frame: StepFrame): StepGate | null;
+    /**
+     * A branch's last ready members, which a pending branch is drawn with. Absent: none is held.
+     * @param branch - The branch's id.
+     * @returns The members, or undefined.
+     */
+    held?(branch: string): Bytes | undefined;
+}
+
+/** Why a step cannot be folded as it stands: see {@link UnionEnv.gate}. */
+export interface StepGate {
+    readonly state: "pending" | "inert" | "empty";
+    readonly reason: CodedFact;
 }
 
 /** One step as {@link readUnion} read it. */
@@ -96,8 +118,10 @@ export interface BranchRead {
     readonly state: "ready" | "pending" | "off";
     /** Why it is pending: the first pending step's reason. */
     readonly reason: CodedFact | null;
-    /** Its members after its last step (or its last ready result, held by a caller). */
+    /** Its members after its last step; a pending branch's last ready members, when held. */
     readonly members: Bytes;
+    /** Whether `members` are a pending branch's last ready members. */
+    readonly held: boolean;
     readonly steps: readonly StepRead[];
 }
 
@@ -108,6 +132,8 @@ export interface UnionRead {
     readonly base: Bytes;
     /** Everything in a ready branch that is on. */
     readonly total: Bytes;
+    /** What is drawn: the total, and the held members of the pending branches that are on. */
+    readonly painted: Bytes;
     readonly branches: readonly BranchRead[];
 }
 
@@ -324,24 +350,50 @@ export function readUnion(leaf: UnionLeaf, env: UnionEnv): UnionRead {
     const halves = env.base(leaf.within);
     const base = side === "nodes" ? halves.node : halves.edge;
     const total = new Uint8Array(base.length);
+    const painted = new Uint8Array(base.length);
+    const fold: FoldContext = { leaf, env, base, halves };
     const branches = leaf.branches.map((branch): BranchRead => {
-        const read = readBranch(branch.start === "all" ? base.slice() : new Uint8Array(base.length), branch.steps, {
-            leaf,
-            env,
-            base,
-            halves,
-        });
+        const read = readBranch(
+            branch.start === "all" ? base.slice() : new Uint8Array(base.length),
+            branch.steps,
+            fold,
+        );
         const on = branch.on !== false;
-        if (on && read.state === "ready") {
-            for (let index = 0; index < total.length; index++) {
-                total[index] |= read.members[index];
-            }
+        const pending = read.state === "pending";
+        const kept = pending && branch.id !== undefined ? env.held?.(branch.id) : undefined;
+        const held = kept?.length === base.length ? kept : undefined;
+        // A pending branch shows its last ready members, or none: never a half-folded result.
+        const members = pending ? (held ?? new Uint8Array(base.length)) : read.members;
+        if (on && !pending) {
+            orInto(total, members);
         }
 
-        return { id: branch.id, color: branch.color, ...read, state: on ? read.state : "off" };
+        if (on) {
+            orInto(painted, members);
+        }
+
+        return {
+            id: branch.id,
+            color: branch.color,
+            ...read,
+            members,
+            held: held !== undefined,
+            state: on ? read.state : "off",
+        };
     });
 
-    return { side, base, total, branches };
+    return { side, base, total, painted, branches };
+}
+
+/**
+ * Add one set of bytes into another.
+ * @param into - What grows.
+ * @param from - What it takes.
+ */
+function orInto(into: Bytes, from: Bytes): void {
+    for (let index = 0; index < into.length; index++) {
+        into[index] |= from[index];
+    }
 }
 
 /** What folding one branch reads. */
@@ -366,6 +418,7 @@ function readBranch(
     steps: readonly UnionStep[],
     fold: FoldContext,
 ): Pick<BranchRead, "state" | "reason" | "members" | "steps"> {
+    // ponytail: one pass per branch; a long branch recompiles every step on any input change.
     let current = start;
     let waiting: { readonly id: string | undefined; readonly reason: CodedFact } | null = null;
     const seen = { grow: false, narrow: false };
@@ -386,23 +439,30 @@ function readBranch(
         }
 
         const frame = frameOf(step, input, fold);
-        const pending = fold.env.pending?.(step, frame) ?? null;
-        if (pending !== null) {
-            waiting = { id: step.id, reason: pending };
-            return { ...idle, state: "pending", reason: pending };
+        const gate = fold.env.gate?.(step, frame) ?? null;
+        if (gate?.state === "pending") {
+            waiting = { id: step.id, reason: gate.reason };
+            return { ...idle, state: "pending", reason: gate.reason };
+        }
+
+        if (gate?.state === "inert") {
+            return { ...idle, state: "inert", reason: gate.reason };
         }
 
         const family = familyOf(step.op);
         const soFar = step.computedOn === "so-far" && !sameBytes(input, fold.base);
         const orderMatters = soFar || seen[family === "grow" ? "narrow" : "grow"];
         seen[family] = true;
-        const matches = onSide(fold.env.compile(step.rule, frame), fold.leaf.side, step.ends, fold.env.graph);
+        const matches =
+            gate === null
+                ? onSide(fold.env.compile(step.rule, frame), fold.leaf.side, step.ends, fold.env.graph)
+                : new Uint8Array(input.length);
         current = apply(step.op, input, matches, fold.base);
 
         return {
             id: step.id,
             state: "applied",
-            reason: noteOf(step, input, frame, fold),
+            reason: gate === null ? noteOf(step, input, frame, fold) : gate.reason,
             input,
             matches,
             members: current,
@@ -427,13 +487,20 @@ function readBranch(
 function frameOf(step: UnionStep, input: Bytes, fold: FoldContext): StepFrame {
     const nodesSide = fold.leaf.side === "nodes";
     const soFar = nodesSide ? input : endsOf(fold.env.graph, input);
+    const { within } = fold.leaf;
+    const reference = (to: StepReference): Bytes => (to === "so-far" ? soFar : fold.env.reference(to));
     if (step.computedOn === "so-far") {
-        return { soFar, population: nodesSide ? { node: input, edge: null } : { node: null, edge: input } };
+        return {
+            within,
+            soFar,
+            reference,
+            population: nodesSide ? { node: input, edge: null } : { node: null, edge: input },
+        };
     }
 
-    const whole = fold.leaf.within === "graph";
+    const whole = within === "graph";
 
-    return { soFar, population: whole ? { node: null, edge: null } : fold.halves };
+    return { within, soFar, reference, population: whole ? { node: null, edge: null } : fold.halves };
 }
 
 /**

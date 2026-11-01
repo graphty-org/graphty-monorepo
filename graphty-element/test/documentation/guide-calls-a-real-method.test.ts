@@ -237,7 +237,20 @@ describe("the session doors the guides teach", () => {
 
     it("reads the interfaces' own members and nothing beside them", () => {
         const scope = interfaceMembers("src/session/scope/ScopeApi.ts", "ScopeApi");
-        assert.deepStrictEqual([...scope].sort(), ["count", "list", "remove", "resolve", "save"]);
+        assert.deepStrictEqual([...scope].sort(), [
+            "allowRun",
+            "asUnion",
+            "cancelRun",
+            "checkStep",
+            "count",
+            "list",
+            "options",
+            "remove",
+            "resolve",
+            "save",
+            "setOptions",
+            "watchSteps",
+        ]);
         assert.isTrue(interfaceMembers("src/session/sets/types.ts", "SetsApi").has("createFrom"));
     });
 });

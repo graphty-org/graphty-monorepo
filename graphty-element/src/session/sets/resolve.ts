@@ -577,7 +577,18 @@ export function ruleHalves(
     const tree: RuleTree =
         typeof definition.where === "string" ? { kind: "expression", where: definition.where } : definition.where;
 
-    return compileFilter(context.snapshot, tree, {
+    return compileFilter(context.snapshot, tree, filterSourcesIn(context, seen));
+}
+
+/**
+ * What the rule compiler reads, over a resolution context: its sources, with `member` leaves
+ * resolved through the context.
+ * @param context - What the resolution reads.
+ * @param seen - The sets followed so far.
+ * @returns The sources.
+ */
+export function filterSourcesIn(context: ResolveContext, seen: readonly SetId[] = []): FilterSources {
+    return {
         ...(context.match === undefined ? {} : { match: context.match }),
         ...(context.matchEdges === undefined ? {} : { matchEdges: context.matchEdges }),
         ...(context.values === undefined ? {} : { values: context.values }),
@@ -588,7 +599,7 @@ export function ruleHalves(
         ...(context.captured === undefined ? {} : { captured: context.captured }),
         ...(context.components === undefined ? {} : { components: context.components }),
         scope: (scope: Scope) => scopeLeafIn(scope, context, seen),
-    });
+    };
 }
 
 /**

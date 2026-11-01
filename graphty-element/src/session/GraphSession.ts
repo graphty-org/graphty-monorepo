@@ -129,6 +129,8 @@ import {
     type ScopeApi,
     type ScopeResolver,
 } from "./scope";
+import { createStepRuns, type StepRuns } from "./scope/stepRuns";
+import { freezeLiveReferences, mapUnions } from "./scope/steps";
 import { sealedSet } from "./sealed";
 import { createSelectionApi, type RuleCheck, type SelectionOwner, type SelectionTextMode } from "./selection";
 import { createMaterialiser } from "./sets/algebra";
@@ -2843,6 +2845,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const suppliedNow = (keys: readonly SourceKey[]): ReturnType<typeof suppliedBy> =>
         suppliedBy(dispatcher.state.graph.values.get(PROVENANCE_VALUE) as Provenance | undefined, keys);
 
+    // The runs a union step's `measure` leaf reads, built once the runs and the planner exist.
+    const stepRunsRef: { current?: StepRuns } = {};
     const scope: ScopeResolver = createScopeApi({
         snapshot,
         store: store.store,
@@ -2870,6 +2874,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
         focus: () => focusedNode(),
+        // The runs a union step's measure reads: built once the runs and the estimate exist.
+        stepRuns: () => stepRunsRef.current,
+        subscribe: (watch) => notifier.subscribe(watch),
+        runScopeOf: (run: RunId) => runs.get(run)?.record.scope.spec,
     });
 
     /** The timeline's hooks, built after the runs it re-runs; read through calls until then. */
@@ -2882,7 +2890,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         components,
         dispatcher,
         dependencies,
-        admit: (filter: RuleTree) => scope.admit(filter),
+        // A filter cannot follow the pointer: a union's live references are frozen to the nodes
+        // they hold as it is written (design/ui/selection-groups/element-api.md section 7).
+        admit: (filter: RuleTree) =>
+            mapUnions(scope.admit(filter), (leaf) =>
+                freezeLiveReferences(leaf, (reference) => {
+                    if (reference === "selection") {
+                        return selection?.nodes ?? [];
+                    }
+
+                    const focused = focusedNode();
+                    return focused === null ? [] : [focused];
+                }),
+            ),
         scope: (spec: Scope) => scope.leafOf(spec),
         // The resolver's context turns a capture into bitmaps over the current snapshot.
         captured: (item: ResultItem) => scope.contextNow().captured?.(item),
@@ -3507,6 +3527,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             focus: focusSource,
         },
         admitScope: (spec: unknown) => scope.admit(spec),
+        admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
         directed: () => snapshot().directed,
         // `edge.lift` rises out of a flat layout's plane: drawn only for a flat layout in 3D.
@@ -3546,6 +3567,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         onBatch: (batch) => {
             publish(watchers, "style:batch-changed", batch);
+        },
+        onBranchesShown: (shown) => {
+            publish(watchers, "style:branches-shown-changed", { shown });
         },
         disposed: teardown.signal,
     });
@@ -3758,6 +3782,49 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         locationDesignation: () => session.config.data.knownFields,
         previewSteps: (steps) => visibility.previewSteps(steps),
     };
+    stepRunsRef.current = createStepRuns({
+        runs,
+        execute: sharingIndexes(
+            answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
+            snapshot,
+            () => dispatcher.state.graph.token,
+        ),
+        resolveScope: (spec: Scope) => scope.resolveNow(spec),
+        idsOf: (nodes) => {
+            const graph = snapshot();
+            const ids: NodeId[] = [];
+            nodes.forEach((byte, index) => {
+                if (byte === 1) {
+                    ids.push(graph.ids.idOf(index));
+                }
+            });
+            return ids;
+        },
+        readerOf: (result, run) => {
+            const graph = snapshot();
+            const space = edgeSpaceOf(graph);
+            return {
+                execution: run === undefined ? `#${identityOf(result)}` : executionOf(run),
+                fields: result.fields,
+                nodeValue: (index: number, field: string): unknown => result.node(graph.ids.idOf(index))?.[field],
+                edgeValue: (index: number, field: string): unknown => result.edge(space.idOf(index))?.[field],
+            };
+        },
+        estimateMs: (algorithm, params, spec) => {
+            const estimate = estimateCommand(planning, { op: "algo.run", algorithm, params, scope: spec });
+            return estimate.available ? estimate.seconds * 1000 : undefined;
+        },
+        optionType: (algorithm, option) =>
+            SESSION_CATALOG_TABLES.algorithms()
+                .find((descriptor) => descriptor.key === algorithm)
+                ?.options.find((descriptor) => descriptor.name === option)?.type,
+        options: () => scope.options,
+        hovering: () => (selection?.hovered ?? null) !== null,
+        moved: () => {
+            advanceTick();
+            notifier.notify({ kind: "run", run: "graphty-steps" });
+        },
+    });
 
     const shaders = createSessionShaders({
         dispatcher,

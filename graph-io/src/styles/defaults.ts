@@ -519,8 +519,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 ),
                 roundedCornerFraction: v(
                     1 / 3,
-                    "Graphviz 2.43.0 dot -Tsvg of style=rounded boxes: 7.33 on a 36 x 22 box, a third of its shorter " +
-                        "side, up to the 12 point cap (lib/common/shapes.c round_corners)",
+                    "Graphviz 2.43.0 dot -Tsvg of fixedsize style=rounded boxes: each side's straight run starts " +
+                        "4.67 in on a 22 x 14 box, 7.33 on 36 x 22 and 12 on 72 x 36 (a third of the shorter side), " +
+                        "and 12 on 72 x 72, 144 x 43, 216 x 144 and 504 x 432 (the cap)",
                 ),
                 // the median of the nearest-node spacings dot, neato and twopi leave in the nine fidelity oracles of DOT
                 // files with no positions (28 to 102 points)

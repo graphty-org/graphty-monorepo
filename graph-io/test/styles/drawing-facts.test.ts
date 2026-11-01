@@ -119,6 +119,7 @@ describe("TOOL_DEFAULTS roundedCornerFraction", () => {
         }
         expect(TOOL_DEFAULTS.get("cytoscape-js")?.roundedCornerFraction?.value).toBe(1 / 4);
         expect(TOOL_DEFAULTS.get("graphviz")?.roundedCornerFraction?.value).toBe(1 / 3);
+        expect(TOOL_DEFAULTS.get("graphviz")?.roundedCornerFraction?.source).toContain("7.33 on 36 x 22");
         expect(TOOL_DEFAULTS.get("vis-network")?.roundedCornerFraction?.value).toBe(1 / 2);
     });
 });

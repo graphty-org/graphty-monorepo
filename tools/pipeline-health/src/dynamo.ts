@@ -14,11 +14,19 @@ import {
 
 import type { BatchOp, Change, Condition, Item, Key, Store, TransactOp } from "./model/store.js";
 
-const failed = (error: unknown) => (error as { name?: string }).name === "ConditionalCheckFailedException";
+const failed = (error: unknown): boolean => (error as { name?: string }).name === "ConditionalCheckFailedException";
 
-function conditionOf(c: Condition | undefined, names: Record<string, string>, values: Record<string, unknown>) {
-    if (!c) return undefined;
-    if ("notExists" in c) return "attribute_not_exists(pk)";
+function conditionOf(
+    c: Condition | undefined,
+    names: Record<string, string>,
+    values: Record<string, unknown>,
+): string | undefined {
+    if (!c) {
+        return undefined;
+    }
+    if ("notExists" in c) {
+        return "attribute_not_exists(pk)";
+    }
     names["#c"] = c.field;
     values[":c"] = c.value;
     const op = c.op === "=" ? "=" : c.op;
@@ -27,7 +35,7 @@ function conditionOf(c: Condition | undefined, names: Record<string, string>, va
 
 const RETRY = new Set(["TransactionConflict", "ThrottlingError", "ProvisionedThroughputExceeded"]);
 const keyOf = (k: Key): Key => ({ pk: k.pk, sk: k.sk });
-const idOf = (k: Key) => `${k.pk}\u0000${k.sk}`;
+const idOf = (k: Key): string => `${k.pk}\u0000${k.sk}`;
 
 /**
  * The store over one table.
@@ -69,7 +77,9 @@ export function dynamoStore(
                 );
                 return true;
             } catch (error) {
-                if (failed(error)) return false;
+                if (failed(error)) {
+                    return false;
+                }
                 throw error;
             }
         },
@@ -120,8 +130,12 @@ export function dynamoStore(
                 names[`#s${i}`] = f;
                 values[`:s${i}`] = v;
             });
-            if (set.length) parts.push(`SET ${set.map((_, i) => `#s${i} = :s${i}`).join(", ")}`);
-            if (add.length) parts.push(`ADD ${add.map((_, i) => `#a${i} :a${i}`).join(", ")}`);
+            if (set.length) {
+                parts.push(`SET ${set.map((_, i) => `#s${i} = :s${i}`).join(", ")}`);
+            }
+            if (add.length) {
+                parts.push(`ADD ${add.map((_, i) => `#a${i} :a${i}`).join(", ")}`);
+            }
             const expr = conditionOf(condition, names, values);
             try {
                 const r = await client.send(
@@ -137,7 +151,9 @@ export function dynamoStore(
                 );
                 return r.Attributes as Item;
             } catch (error) {
-                if (failed(error)) return undefined;
+                if (failed(error)) {
+                    return undefined;
+                }
                 throw error;
             }
         },
@@ -156,8 +172,12 @@ export function dynamoStore(
             const write = async (chunk: typeof all): Promise<void> => {
                 let pending: typeof all | undefined = chunk;
                 for (let tries = 0; pending?.length; tries++) {
-                    if (tries === 8) throw new Error(`batch write: ${pending.length} items unprocessed`);
-                    if (tries) await new Promise((r) => setTimeout(r, 50 * 2 ** tries));
+                    if (tries === 8) {
+                        throw new Error(`batch write: ${pending.length} items unprocessed`);
+                    }
+                    if (tries) {
+                        await new Promise((r) => setTimeout(r, 50 * 2 ** tries));
+                    }
                     const r = await client.send(new BatchWriteCommand({ RequestItems: { [tableName]: pending } }));
                     pending = r.UnprocessedItems?.[tableName] as typeof all | undefined;
                 }
@@ -165,7 +185,9 @@ export function dynamoStore(
             // Eight BatchWriteItem calls at a time (ops on one key are already merged above).
             for (let i = 0; i < all.length; i += 200) {
                 const group: Promise<void>[] = [];
-                for (let j = i; j < Math.min(i + 200, all.length); j += 25) group.push(write(all.slice(j, j + 25)));
+                for (let j = i; j < Math.min(i + 200, all.length); j += 25) {
+                    group.push(write(all.slice(j, j + 25)));
+                }
                 await Promise.all(group);
             }
         },
@@ -179,7 +201,9 @@ export function dynamoStore(
                 last.set(id, op);
             }
             const items = [...last.values()].map((op) => {
-                if (!("put" in op)) return { Delete: { TableName: tableName, Key: keyOf(op.delete) } };
+                if (!("put" in op)) {
+                    return { Delete: { TableName: tableName, Key: keyOf(op.delete) } };
+                }
                 const names: Record<string, string> = {};
                 const values: Record<string, unknown> = {};
                 const expr = conditionOf(op.condition, names, values);
@@ -206,11 +230,17 @@ export function dynamoStore(
                     const reasons =
                         (error as { CancellationReasons?: { Code?: string; Message?: string }[] })
                             .CancellationReasons ?? [];
-                    if (reasons.some((r) => r.Code === "ConditionalCheckFailed")) return false;
+                    if (reasons.some((r) => r.Code === "ConditionalCheckFailed")) {
+                        return false;
+                    }
                     // A row DynamoDB refuses (over a size limit) answers as it does outside a transaction.
                     const invalid = reasons.find((r) => r.Code === "ValidationError");
-                    if (invalid) throw Object.assign(new Error(invalid.Message), { name: "ValidationException" });
-                    if (tries === 4 || !reasons.some((r) => RETRY.has(r.Code ?? ""))) throw error;
+                    if (invalid) {
+                        throw Object.assign(new Error(invalid.Message), { name: "ValidationException" });
+                    }
+                    if (tries === 4 || !reasons.some((r) => RETRY.has(r.Code ?? ""))) {
+                        throw error;
+                    }
                     await new Promise((r) => setTimeout(r, 50 * 2 ** tries));
                 }
             }

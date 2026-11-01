@@ -13,22 +13,22 @@ import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
 import { dynamoStore } from "../dynamo.js";
+import { BENCH_PK, type BenchItem, benchKey, withPoint } from "../model/benchmarks.js";
 import {
     BUMP_BRANCH,
     DAY,
-    oldestAt,
-    putRaw,
-    recordSource,
-    takeQuota,
-    ttlAt,
     type LocalRunItem,
     type ObservationItem,
+    oldestAt,
+    putRaw,
     type RawItem,
+    recordSource,
     type ShardRunItem,
     type StepItem,
+    takeQuota,
     type TestItem,
+    ttlAt,
 } from "../model/index.js";
-import { type BenchItem, benchKey, BENCH_PK, withPoint } from "../model/benchmarks.js";
 import type { Store } from "../model/store.js";
 
 export const MAX_BODY_BYTES = 1_000_000;
@@ -106,7 +106,9 @@ export async function handler(
     try {
         return json(200, await ingest(event, Date.now()));
     } catch (error) {
-        if (error instanceof Refused) return json(error.status, { code: error.code, params: error.params });
+        if (error instanceof Refused) {
+            return json(error.status, { code: error.code, params: error.params });
+        }
         // DynamoDB refused a row's content (a key or an item over its size limit): the body's fault, not an
         // outage, so a 400 the local collector splits on; everything else stays a 500 it retries.
         // Only DynamoDB's size limits: any other ValidationException is our own bug and must stay a 500.
@@ -125,19 +127,28 @@ export async function handler(
     }
 }
 
-async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: number) {
+async function ingest(
+    event: APIGatewayProxyEventV2WithJWTAuthorizer,
+    now: number,
+): Promise<{ stored: number; kind: Kind }> {
     const raw = event.body ?? "";
     const size = Buffer.byteLength(raw, event.isBase64Encoded ? "base64" : "utf8");
-    if (size > MAX_BODY_BYTES) refuse(413, "too_large", { limit: MAX_BODY_BYTES });
+    if (size > MAX_BODY_BYTES) {
+        refuse(413, "too_large", { limit: MAX_BODY_BYTES });
+    }
     const local = event.rawPath.startsWith("/v1/local/");
     const route = event.rawPath.split("/").pop() ?? "";
-    if (!(local ? LOCAL_ROUTES : CI_ROUTES).has(route)) refuse(404, "unknown_route");
+    if (!(local ? LOCAL_ROUTES : CI_ROUTES).has(route)) {
+        refuse(404, "unknown_route");
+    }
     let who: Who;
     if (local) {
-        if (!(await localTokenOk(event.headers?.authorization))) refuse(401, "unauthorized");
+        if (!(await localTokenOk(event.headers?.authorization))) {
+            refuse(401, "unauthorized");
+        }
         who = { kind: "local", claims: {} };
     } else {
-        who = whoOf((event.requestContext.authorizer?.jwt?.claims ?? {}) as Claims);
+        who = whoOf(event.requestContext.authorizer?.jwt?.claims ?? {});
     }
     let body: unknown;
     try {
@@ -145,35 +156,51 @@ async function ingest(event: APIGatewayProxyEventV2WithJWTAuthorizer, now: numbe
     } catch {
         return refuse(400, "bad_json");
     }
-    if (!body || typeof body !== "object") refuse(400, "bad_body");
+    if (!body || typeof body !== "object") {
+        refuse(400, "bad_body");
+    }
     const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
     const { items, extra, source } = await itemsOf(route, body as Record<string, unknown>, who, db, now);
     // The cap is on the rows posted; the bookkeeping copies (INVTESTS, at most one per row) are charged below.
-    if (items.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    if (items.length > MAX_ROWS) {
+        refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    }
     checkSizes(items);
-    if (!(await takeQuota(db, items.length + extra.length, now))) refuse(429, "write_budget");
+    if (!(await takeQuota(db, items.length + extra.length, now))) {
+        refuse(429, "write_budget");
+    }
     // The bookkeeping copies first: a failing try's INVTESTS rows exist before its test rows, so a passing retry
     // finds them even when a test write below fails.
-    if (extra.length) await db.batch(extra.map((put) => ({ put })));
+    if (extra.length) {
+        await db.batch(extra.map((put) => ({ put })));
+    }
     await putRaw(db, items, now);
     await recordSource(db, source, now, { ok: true }, oldestAt(items));
     log({ route: event.rawPath, kind: who.kind, size, rows: items.length });
     return { stored: items.length, kind: who.kind };
 }
 
-/** Refuses a row over DynamoDB's key or item size before anything is charged or written. */
+/**
+ * Refuses a row over DynamoDB's key or item size before anything is charged or written.
+ * @param items - the rows to check
+ */
 function checkSizes(items: RawItem[]): void {
-    for (const item of items)
-        if (
-            Buffer.byteLength(String(item.id)) > MAX_ID_BYTES ||
-            Buffer.byteLength(JSON.stringify(item)) > MAX_ITEM_BYTES
-        )
-            refuse(400, "row_refused", { id: String(item.id).slice(0, 200) });
+    for (const item of items) {
+        if (Buffer.byteLength(item.id) > MAX_ID_BYTES || Buffer.byteLength(JSON.stringify(item)) > MAX_ITEM_BYTES) {
+            refuse(400, "row_refused", { id: item.id.slice(0, 200) });
+        }
+    }
 }
 
-/** The kind a token's claims may write (tools/results-service kindOf), or a refusal. */
+/**
+ * The kind a token's claims may write (tools/results-service kindOf), or a refusal.
+ * @param claims - the OIDC token's claims
+ * @returns the writer's kind with its claims
+ */
 export function whoOf(claims: Claims): Who {
-    if (claims.repository_owner !== "graphty-org") refuse(403, "wrong_owner");
+    if (claims.repository_owner !== "graphty-org") {
+        refuse(403, "wrong_owner");
+    }
     const site = DEPLOY_REPOSITORIES[String(claims.repository_id)];
     if (site && claims.repository === site) {
         // Only the site repository's deploy.yml (tools/channel/site-deploy.yml) at its default branch: never a pull
@@ -183,42 +210,58 @@ export function whoOf(claims: Claims): Who {
             claims.event_name === "pull_request" ||
             !/^refs\/heads\/(main|master)$/.test(ref) ||
             claims.job_workflow_ref !== `${site}/.github/workflows/deploy.yml@${ref}`
-        )
+        ) {
             refuse(403, "deploy_from_default_branch_only");
+        }
         return { kind: "deploy", claims };
     }
-    if (claims.repository !== REPOSITORY || String(claims.repository_id) !== REPOSITORY_ID)
+    if (claims.repository !== REPOSITORY || String(claims.repository_id) !== REPOSITORY_ID) {
         refuse(403, "wrong_repository");
-    if (claims.event_name === "pull_request") return { kind: "pr", claims };
+    }
+    if (claims.event_name === "pull_request") {
+        return { kind: "pr", claims };
+    }
     const prefix = `${REPOSITORY}/.github/workflows/`;
     const [path, at] = String(claims.job_workflow_ref ?? "").split("@");
     const file = path.startsWith(prefix) ? path.slice(prefix.length) : "";
     const kind = Object.hasOwn(MASTER_KINDS, file) ? MASTER_KINDS[file] : undefined;
-    if (!kind || claims.ref !== MASTER || at !== MASTER) refuse(403, "wrong_workflow", { file });
-    return { kind: kind!, claims };
+    if (!kind || claims.ref !== MASTER || at !== MASTER) {
+        return refuse(403, "wrong_workflow", { file });
+    }
+    return { kind, claims };
 }
 
-const runPrefix = (who: Who) => (who.kind === "local" ? "local." : `${who.claims.run_id}.${who.claims.run_attempt}.`);
+const runPrefix = (who: Who): string =>
+    who.kind === "local" ? "local." : `${String(who.claims.run_id)}.${String(who.claims.run_attempt)}.`;
 function ownId(id: unknown, who: Who): string {
     const prefix = runPrefix(who);
-    if (typeof id !== "string" || !id.startsWith(prefix)) refuse(403, "foreign_id", { prefix });
+    if (typeof id !== "string" || !id.startsWith(prefix)) {
+        refuse(403, "foreign_id", { prefix });
+    }
     return id as string;
 }
 
 function need(o: Record<string, unknown>, fields: Record<string, "string" | "number">): void {
-    for (const [name, type] of Object.entries(fields))
-        if (typeof o[name] !== type || (type === "number" && !Number.isFinite(o[name])))
+    for (const [name, type] of Object.entries(fields)) {
+        if (typeof o[name] !== type || (type === "number" && !Number.isFinite(o[name]))) {
             refuse(400, "bad_field", { field: name, type });
+        }
+    }
 }
 
 const list = (v: unknown, field: string): Record<string, unknown>[] => {
-    if (!Array.isArray(v) || !v.every((r) => r && typeof r === "object"))
+    if (!Array.isArray(v) || !v.every((r) => r && typeof r === "object")) {
         refuse(400, "bad_field", { field, type: "list" });
+    }
     return v as Record<string, unknown>[];
 };
 
-/** "graphty-element-browser-3" and "compact-mantine+files" fold into their family. */
-export const familyOf = (variant: string) => variant.replace(/\+.*$/, "").replace(/-\d+$/, "");
+/**
+ * "graphty-element-browser-3" and "compact-mantine+files" fold into their family.
+ * @param variant - the shard variant
+ * @returns the family name
+ */
+export const familyOf = (variant: string): string => variant.replace(/\+.*$/, "").replace(/-\d+$/, "");
 
 type Extra = { pk: string; sk: string; [k: string]: unknown };
 interface Built {
@@ -228,28 +271,45 @@ interface Built {
     source: string;
 }
 
-async function localItems(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number) {
+async function localItems(
+    route: string,
+    body: Record<string, unknown>,
+    who: Who,
+    db: Store,
+    now: number,
+): Promise<RawItem[]> {
     const rows = list(body.rows, "rows");
-    if (rows.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    if (rows.length > MAX_ROWS) {
+        refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    }
     const items: RawItem[] = [];
     for (const r of rows) {
-        if (route === "invocations") items.push(...(await invocationItems(r, who, db, now)).items);
-        else if (route === "push-runs") items.push(pushRun(r));
-        else items.push(slotWait(r));
+        if (route === "invocations") {
+            items.push(...(await invocationItems(r, who, db, now)).items);
+        } else if (route === "push-runs") {
+            items.push(pushRun(r));
+        } else {
+            items.push(slotWait(r));
+        }
     }
     return items;
 }
 
 async function itemsOf(route: string, body: Record<string, unknown>, who: Who, db: Store, now: number): Promise<Built> {
-    if (who.kind === "local") return { items: await localItems(route, body, who, db, now), extra: [], source: "local" };
+    if (who.kind === "local") {
+        return { items: await localItems(route, body, who, db, now), extra: [], source: "local" };
+    }
     // As tools/results-service: a site repository writes only durations, deploy-pages.yml only its site and durations.
     if (
         (who.kind === "deploy" || who.kind === "site") &&
         route !== "durations" &&
         !(who.kind === "site" && route === "sites")
-    )
+    ) {
         refuse(403, "wrong_route", { kind: who.kind });
-    if (route === "sites" && who.kind !== "site") refuse(403, "sites_from_deploy_pages_only");
+    }
+    if (route === "sites" && who.kind !== "site") {
+        refuse(403, "sites_from_deploy_pages_only");
+    }
     switch (route) {
         case "sites":
             return { items: [], extra: [siteItem(body, who, now)], source: "site" };
@@ -278,14 +338,15 @@ async function itemsOf(route: string, body: Record<string, unknown>, who: Who, d
 // ---------------------------------------------------------------------------------------------------------------
 // Test results: an invocation is a shard run; each failure a test item.
 
-const INV_TESTS = (inv: string) => `INVTESTS#${inv}`;
+const INV_TESTS = (inv: string): string => `INVTESTS#${inv}`;
 
 /**
  * A dependency-bump pull request (Dependabot's, or tools/dependency-refresh.mjs's grouped refresh): its failures are
  * the bump's, deterministic, so they are kept out of the flaky readings (#4147).
- * @param who
+ * @param who - the writer
+ * @returns whether the writer is a dependency-bump pull request
  */
-const isBump = (who: Who) => who.kind === "pr" && BUMP_BRANCH.test(String(who.claims.head_ref ?? ""));
+const isBump = (who: Who): boolean => who.kind === "pr" && BUMP_BRANCH.test(String(who.claims.head_ref ?? ""));
 
 function testItem(
     inv: string,
@@ -325,12 +386,19 @@ async function invocationItems(
 ): Promise<{ items: RawItem[]; extra: Extra[] }> {
     const id = ownId(b.id, who);
     need(b, { sha: "string", variant: "string", try: "number", startedAt: "number", secs: "number" });
-    if (!Number.isInteger(b.try)) refuse(400, "bad_field", { field: "try", type: "integer" });
-    if (!OUTCOMES.has(b.outcome as string)) refuse(400, "bad_field", { field: "outcome", type: "outcome" });
-    if (who.kind === "pr" && b.sha !== who.claims.sha) refuse(403, "foreign_sha");
+    if (!Number.isInteger(b.try)) {
+        refuse(400, "bad_field", { field: "try", type: "integer" });
+    }
+    if (!OUTCOMES.has(b.outcome as string)) {
+        refuse(400, "bad_field", { field: "outcome", type: "outcome" });
+    }
+    if (who.kind === "pr" && b.sha !== who.claims.sha) {
+        refuse(403, "foreign_sha");
+    }
     const files = b.files ?? [];
-    if (!Array.isArray(files) || !files.every((f) => Array.isArray(f) && f.length === 5))
+    if (!Array.isArray(files) || !files.every((f) => Array.isArray(f) && f.length === 5)) {
         refuse(400, "bad_field", { field: "files", type: "file rows" });
+    }
     const variant = b.variant as string;
     const family = familyOf(variant);
     const source = who.kind === "local" ? "local" : "ci";
@@ -360,8 +428,9 @@ async function invocationItems(
     };
     // A failure in a shard that passed failed and then passed on the same inputs (its retry): flaky.
     const items: RawItem[] = [run];
-    for (const f of list(b.failures ?? [], "failures"))
+    for (const f of list(b.failures ?? [], "failures")) {
         items.push(testItem(id, f, family, source, passed, endedAt, isBump(who)));
+    }
     if (passed && source === "ci") {
         // This try's own failures are recorded above; the lookback marks only the earlier tries' other tests.
         const own = new Set(items.flatMap((i) => (i.kind === "test" ? [`${i.file}#${i.name}`] : [])));
@@ -370,15 +439,21 @@ async function invocationItems(
         const tryOf = /^(.*)\.(\d+)$/.exec(id);
         const invs = [id];
         // The poster sets try: bounded to the few retries CI makes, so it cannot drive unbounded queries.
-        if (tryOf && Number(tryOf[2]) === b.try)
-            for (let k = Math.max(1, b.try - MAX_TRIES); k < b.try; k++) invs.push(`${tryOf[1]}.${k}`);
-        for (const inv of invs)
+        if (tryOf && Number(tryOf[2]) === b.try) {
+            for (let k = Math.max(1, b.try - MAX_TRIES); k < b.try; k++) {
+                invs.push(`${tryOf[1]}.${k}`);
+            }
+        }
+        for (const inv of invs) {
             for (const t of await db.query(INV_TESTS(inv))) {
                 const { pk: _pk, sk: _sk, ttl: _ttl, ...test } = t;
-                if (own.has(`${String(test.file)}#${String(test.name)}`)) continue;
+                if (own.has(`${String(test.file)}#${String(test.name)}`)) {
+                    continue;
+                }
                 // The passing run's family: an early failure post only guessed it from the id.
                 items.push({ ...(test as unknown as TestItem), family, outcome: "flaky" });
             }
+        }
     }
     // The two tries' posts are not ordered: putRaw never lets a failed result replace a flaky one. A failing CI try
     // remembers its failures itself (written before its test rows), so a passing try can find them even when the
@@ -387,13 +462,24 @@ async function invocationItems(
     return { items, extra };
 }
 
-/** Each failure, remembered per invocation, so a shard run posted later as passed can turn it flaky. */
+/**
+ * Each failure, remembered per invocation, so a shard run posted later as passed can turn it flaky.
+ * @param inv - the invocation id
+ * @param items - the invocation's rows
+ * @param now - the current time, in ms
+ * @returns an INVTESTS copy of each test row
+ */
 const invTests = (inv: string, items: RawItem[], now: number): Extra[] =>
     items.flatMap((t) =>
         t.kind === "test" ? [{ ...t, pk: INV_TESTS(inv), sk: t.id, ttl: ttlAt(now + 90 * DAY) }] : [],
     );
 
-async function failureItems(b: Record<string, unknown>, who: Who, db: Store, now: number) {
+async function failureItems(
+    b: Record<string, unknown>,
+    who: Who,
+    db: Store,
+    now: number,
+): Promise<{ items: TestItem[]; extra: Extra[] }> {
     const inv = ownId(b.invocation, who);
     const failures = b.failures === undefined ? [b] : list(b.failures, "failures");
     // The shard run, when it was posted first, gives the family and whether it passed (then these are flaky).
@@ -408,14 +494,23 @@ async function failureItems(b: Record<string, unknown>, who: Who, db: Store, now
     return { items, extra: invTests(inv, items, now) };
 }
 
-/** Job and step timings: kept for drill-downs; no metric counts them, so they never double the collector's jobs. */
+/**
+ * Job and step timings: kept for drill-downs; no metric counts them, so they never double the collector's jobs.
+ * @param b - the posted body
+ * @param who - the writer
+ * @param now - the current time, in ms
+ * @returns a step row per posted timing
+ */
 function durationItems(b: Record<string, unknown>, who: Who, now: number): StepItem[] {
     const rows = list(b.rows, "rows");
-    if (rows.length > MAX_ROWS) refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    if (rows.length > MAX_ROWS) {
+        refuse(413, "too_many_rows", { limit: MAX_ROWS });
+    }
     return rows.map((r) => {
         need(r, { workflow: "string", job: "string", ms: "number" });
-        if (String(r.runId) !== String(who.claims.run_id) || String(r.attempt) !== String(who.claims.run_attempt))
+        if (String(r.runId) !== String(who.claims.run_id) || String(r.attempt) !== String(who.claims.run_attempt)) {
             refuse(403, "foreign_run");
+        }
         const part = (r.step ?? r.task ?? "-") as string;
         const startedAt = typeof r.startedAt === "number" ? r.startedAt : now - (r.ms as number);
         return {
@@ -439,14 +534,23 @@ function durationItems(b: Record<string, unknown>, who: Who, now: number): StepI
  * A benchmark job's results (`{ source, sha?, machine?, unit?, rows: [{ name, value }] }`, tools/results/post-benchmarks.mjs),
  * each added to its benchmark's item (model/benchmarks.ts) as this run's point. Only from master's workflows: a pull
  * request's numbers would move master's trend.
+ * @param b - the posted body
+ * @param who - the writer
+ * @param db - the metrics store
+ * @param now - the current time, in ms
+ * @returns each benchmark's item with this run's point
  */
 async function benchItems(b: Record<string, unknown>, who: Who, db: Store, now: number): Promise<Extra[]> {
-    if (who.kind !== "full") refuse(403, "benchmarks_from_master_only");
+    if (who.kind !== "full") {
+        refuse(403, "benchmarks_from_master_only");
+    }
     need(b, { source: "string" });
     const source = (b.source as string).slice(0, MAX_BENCH_NAME);
     const unit = typeof b.unit === "string" ? b.unit.slice(0, 10) : "ms";
     const rows = list(b.rows, "rows");
-    if (rows.length > MAX_BENCH_ROWS) refuse(413, "too_many_rows", { limit: MAX_BENCH_ROWS });
+    if (rows.length > MAX_BENCH_ROWS) {
+        refuse(413, "too_many_rows", { limit: MAX_BENCH_ROWS });
+    }
     const old = new Map(((await db.query(BENCH_PK)) as BenchItem[]).map((i) => [i.sk, i]));
     const run = Number(who.claims.run_id);
     const sha = typeof b.sha === "string" ? b.sha.slice(0, 40) : undefined;
@@ -454,17 +558,27 @@ async function benchItems(b: Record<string, unknown>, who: Who, db: Store, now: 
     const out = new Map<string, Extra>();
     for (const r of rows) {
         need(r, { name: "string", value: "number" });
-        if ((r.value as number) < 0) refuse(400, "bad_field", { field: "value", type: "non-negative" });
+        if ((r.value as number) < 0) {
+            refuse(400, "bad_field", { field: "value", type: "non-negative" });
+        }
         const benchmark = `${source}: ${(r.name as string).slice(0, MAX_BENCH_NAME)}`;
         const point = { at: now, v: r.value as number, run, ...(sha ? { sha } : {}), ...(machine ? { machine } : {}) };
-        out.set(benchmark, withPoint(old.get(benchKey(benchmark).sk), benchmark, unit, point, now) as Extra);
+        out.set(benchmark, withPoint(old.get(benchKey(benchmark).sk), benchmark, unit, point, now));
     }
     return [...out.values()];
 }
 
-/** A site deploy-pages.yml built and kept as artifact site-<sha> (as the results service's `site` table). */
+/**
+ * A site deploy-pages.yml built and kept as artifact site-<sha> (as the results service's `site` table).
+ * @param b - the posted body
+ * @param who - the writer
+ * @param now - the current time, in ms
+ * @returns the SITE row for the commit
+ */
 function siteItem(b: Record<string, unknown>, who: Who, now: number): Extra {
-    if (!/^[0-9a-f]{40}$/.test(String(b.sha ?? ""))) refuse(400, "bad_field", { field: "sha", type: "commit" });
+    if (!/^[0-9a-f]{40}$/.test(typeof b.sha === "string" ? b.sha : "")) {
+        refuse(400, "bad_field", { field: "sha", type: "commit" });
+    }
     return { pk: "SITE", sk: b.sha as string, sha: b.sha, builtAt: now, runId: Number(who.claims.run_id) };
 }
 
@@ -472,12 +586,19 @@ function siteItem(b: Record<string, unknown>, who: Who, now: number): Extra {
  * A full-run verdict, one observation per measure, each keyed by the commit so a same-commit re-run replaces it: red,
  * green-clean (a slot that promotes without waiting for the owner), and, for a green run, whether it met a changed
  * picture nobody had approved yet (green-images; early-capture.md, plan step 6).
+ * @param b - the posted body
+ * @param who - the writer
+ * @param now - the current time, in ms
+ * @returns the verdict's observations
  */
 function verdictItems(b: Record<string, unknown>, who: Who, now: number): ObservationItem[] {
-    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@"))
+    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
         refuse(403, "verdicts_from_release_only");
+    }
     need(b, { sha: "string", state: "string" });
-    if (!VERDICTS.has(b.state as string)) refuse(400, "bad_field", { field: "state", type: "verdict" });
+    if (!VERDICTS.has(b.state as string)) {
+        refuse(400, "bad_field", { field: "state", type: "verdict" });
+    }
     const o = (metric: string, value: number): ObservationItem => ({
         kind: "obs",
         id: `${metric}#${b.sha as string}`,
@@ -490,8 +611,9 @@ function verdictItems(b: Record<string, unknown>, who: Who, now: number): Observ
         o("master.full_run_failed", b.state === "red" ? 1 : 0),
         o("release.green_clean", b.state === "green-clean" ? 1 : 0),
     ];
-    if (b.state === "green-clean" || b.state === "green-images")
+    if (b.state === "green-clean" || b.state === "green-images") {
         items.push(o("release.slot_unreviewed", b.state === "green-images" ? 1 : 0));
+    }
     return items;
 }
 
@@ -499,7 +621,9 @@ function verdictItems(b: Record<string, unknown>, who: Who, now: number): Observ
 // The local writer's push log and slot waits.
 
 function localId(r: Record<string, unknown>): string {
-    if (typeof r.id !== "string" || !r.id.startsWith("local.")) refuse(403, "foreign_id", { prefix: "local." });
+    if (typeof r.id !== "string" || !r.id.startsWith("local.")) {
+        refuse(403, "foreign_id", { prefix: "local." });
+    }
     return r.id as string;
 }
 
@@ -509,10 +633,11 @@ const WHAT = /^[\w.-]{1,80}$/;
 function pushRun(r: Record<string, unknown>): LocalRunItem {
     const id = localId(r);
     need(r, { at: "number", exit: "number" });
-    if (r.what !== undefined && (typeof r.what !== "string" || !WHAT.test(r.what)))
+    if (r.what !== undefined && (typeof r.what !== "string" || !WHAT.test(r.what))) {
         refuse(400, "bad_field", { field: "what", type: "name" });
+    }
     const at = r.at as number;
-    const start = [r.startedAt, r.queuedAt].find((v) => typeof v === "number") as number | undefined;
+    const start = [r.startedAt, r.queuedAt].find((v): v is number => typeof v === "number");
     return {
         kind: "local_run",
         id,
@@ -536,7 +661,9 @@ function slotWait(r: Record<string, unknown>): ObservationItem {
 
 async function localTokenOk(authorization: string | undefined): Promise<boolean> {
     const token = /^Bearer (\S+)$/.exec(authorization ?? "")?.[1];
-    if (!token) return false;
+    if (!token) {
+        return false;
+    }
     localTokenHash ??= ssm
         .send(new GetParameterCommand({ Name: LOCAL_TOKEN_PARAMETER, WithDecryption: true }))
         .then((r) => r.Parameter?.Value?.trim().toLowerCase())
@@ -546,7 +673,9 @@ async function localTokenOk(authorization: string | undefined): Promise<boolean>
             return undefined;
         });
     const expected = await localTokenHash;
-    if (!expected) return false;
+    if (!expected) {
+        return false;
+    }
     const actual = createHash("sha256").update(token).digest("hex");
     return actual.length === expected.length && timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 }

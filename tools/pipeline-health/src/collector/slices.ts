@@ -101,11 +101,19 @@ export type SliceReason =
 export type SliceDecision =
     { action: "none"; reason: SliceReason } | { action: "dispatch"; mode: SliceMode; sha: string };
 
-const utcDay = (t: number) => Math.floor(t / DAY);
+const utcDay = (t: number): number => Math.floor(t / DAY);
 
-/** Runner-minutes spent per share: base and idle today (UTC), idle over the last hour. */
-export function spentMinutes(spent: SliceSpend[], now: number) {
-    const sum = (f: (s: SliceSpend) => boolean) => spent.filter(f).reduce((n, s) => n + s.minutes, 0);
+/**
+ * Runner-minutes spent per share: base and idle today (UTC), idle over the last hour.
+ * @param spent - the finished slice runs
+ * @param now - the current time, in ms
+ * @returns runner-minutes per share
+ */
+export function spentMinutes(
+    spent: SliceSpend[],
+    now: number,
+): { baseToday: number; idleToday: number; idleLastHour: number } {
+    const sum = (f: (s: SliceSpend) => boolean): number => spent.filter(f).reduce((n, s) => n + s.minutes, 0);
     return {
         baseToday: sum((s) => s.mode === "base" && utcDay(s.at) === utcDay(now)),
         idleToday: sum((s) => s.mode === "idle" && utcDay(s.at) === utcDay(now)),
@@ -116,25 +124,45 @@ export function spentMinutes(spent: SliceSpend[], now: number) {
 /**
  * Quiet: a sample in every cycle of the last `quietMinutes` (one per 5 minutes; a missed cycle is not quiet), none with
  * a job waiting over 2 minutes for a runner or saturation, and no job waited longer than `maxWaitMinutes` in any sample of the last hour.
+ * @param samples - the runner samples, oldest first
+ * @param now - the current time, in ms
+ * @param cfg - the dispatcher's limits
+ * @returns whether the runner pool is quiet
  */
 export function isQuiet(samples: RunnerSample[], now: number, cfg: SliceConfig): boolean {
     const window = cfg.quietMinutes * MIN;
     const recent = samples.filter((s) => s.at >= now - window - 4 * MIN);
     // The samples span the whole window with no missed cycle (a gap over 7.5 minutes) and none after the last.
-    if (!recent.length || recent[0].at > now - window + 2 * MIN || recent.at(-1)!.at < now - 7.5 * MIN) return false;
-    if (recent.some((s, k) => k > 0 && s.at - recent[k - 1].at > 7.5 * MIN)) return false;
-    if (recent.some((s) => (s.queuedOver2 ?? s.queued) > 0 || s.saturated)) return false;
+    if (!recent.length || recent[0].at > now - window + 2 * MIN || recent[recent.length - 1].at < now - 7.5 * MIN) {
+        return false;
+    }
+    if (recent.some((s, k) => k > 0 && s.at - recent[k - 1].at > 7.5 * MIN)) {
+        return false;
+    }
+    if (recent.some((s) => (s.queuedOver2 ?? s.queued) > 0 || s.saturated)) {
+        return false;
+    }
     return samples.filter((s) => s.at > now - HOUR).every((s) => s.longestQueuedMs <= cfg.maxWaitMinutes * MIN);
 }
 
-/** A slice run is queued or running, or one was dispatched in the last 15 minutes and has not shown up yet. */
+/**
+ * A slice run is queued or running, or one was dispatched in the last 15 minutes and has not shown up yet.
+ * @param i - the decision's inputs
+ * @returns whether a slice is in flight
+ */
 function inFlight(i: SliceInput): boolean {
     const d = i.state.dispatched;
     return i.running || (!!d && !d.seen && d.at > i.now - 15 * MIN);
 }
 
-/** Whether each share has room for one more slice of its planned size. */
-function capsLeft(spent: SliceSpend[], now: number, cfg: SliceConfig) {
+/**
+ * Whether each share has room for one more slice of its planned size.
+ * @param spent - the finished slice runs
+ * @param now - the current time, in ms
+ * @param cfg - the dispatcher's limits
+ * @returns whether the idle and the base share have room
+ */
+function capsLeft(spent: SliceSpend[], now: number, cfg: SliceConfig): { idleCap: boolean; baseCap: boolean } {
     const used = spentMinutes(spent, now);
     return {
         idleCap:
@@ -149,50 +177,91 @@ function capsLeft(spent: SliceSpend[], now: number, cfg: SliceConfig) {
  * data, unless the pool has been quiet, or past a share's cap. An idle slice when at most `idleRunning` jobs run and
  * some unit's newest capture is older than `freshHours`; else a base slice when at most `baseRunning` run and master's
  * newest green build has not been sliced or dispatched yet.
+ * @param i - the decision's inputs
+ * @returns the decision: dispatch with a mode and commit, or none with a reason
  */
 export function decideSlice(i: SliceInput): SliceDecision {
     const { cfg, now, state } = i;
     const none = (reason: SliceReason): SliceDecision => ({ action: "none", reason });
-    if (inFlight(i)) return none("in-flight");
+    if (inFlight(i)) {
+        return none("in-flight");
+    }
     const latest = state.samples.at(-1);
-    if (!latest || latest.at < now - 6 * MIN) return none("no-runner-data");
-    if (!isQuiet(state.samples, now, cfg)) return none("not-quiet");
-    if (!i.newestGreen) return none("no-green-build");
+    if (!latest || latest.at < now - 6 * MIN) {
+        return none("no-runner-data");
+    }
+    if (!isQuiet(state.samples, now, cfg)) {
+        return none("not-quiet");
+    }
+    if (!i.newestGreen) {
+        return none("no-green-build");
+    }
     const { idleCap, baseCap } = capsLeft(state.spent, now, cfg);
-    if (!idleCap && !baseCap) return none("caps-used");
+    if (!idleCap && !baseCap) {
+        return none("caps-used");
+    }
     const idleOk = idleCap && latest.running <= cfg.idleRunning;
     const baseOk = baseCap && latest.running <= cfg.baseRunning;
-    if (!idleOk && !baseOk) return none("busy");
-    const store = i.store;
-    if (!store) return none("store-unavailable");
-    const sha = i.newestGreen.sha;
+    if (!idleOk && !baseOk) {
+        return none("busy");
+    }
+    const { store } = i;
+    if (!store) {
+        return none("store-unavailable");
+    }
+    const { sha } = i.newestGreen;
     const stale = store.oldestAt === null || store.oldestAt < now - cfg.freshHours * HOUR;
-    if (idleOk && stale) return { action: "dispatch", mode: "idle", sha };
-    if (baseOk && sha !== store.lastSlicedSha && sha !== state.dispatched?.sha)
+    if (idleOk && stale) {
+        return { action: "dispatch", mode: "idle", sha };
+    }
+    if (baseOk && sha !== store.lastSlicedSha && sha !== state.dispatched?.sha) {
         return { action: "dispatch", mode: "base", sha };
+    }
     return none("fresh-and-current");
 }
 
-/** The mode a slice run was started with, from its run name ("Story slices: idle <sha>"); undefined if not a slice. */
+/**
+ * The mode a slice run was started with, from its run name ("Story slices: idle <sha>"); undefined if not a slice.
+ * @param run - the workflow run
+ * @returns the slice mode, or undefined
+ */
 export function sliceMode(run: GhRun): SliceMode | undefined {
     return /^Story slices: (base|idle)\b/.exec(run.display_title ?? "")?.[1] as SliceMode | undefined;
 }
 
-/** Master's newest green build in a newest-first list of ci.yml push runs, skipping red, cancelled and running ones. */
+/**
+ * Master's newest green build in a newest-first list of ci.yml push runs, skipping red, cancelled and running ones.
+ * @param runs - ci.yml push runs, newest first
+ * @returns the green build's commit, or undefined
+ */
 export function newestGreen(runs: GhRun[]): { sha: string } | undefined {
     const green = runs.find((r) => r.status === "completed" && r.conclusion === "success");
     return green ? { sha: green.head_sha } : undefined;
 }
 
-/** Runner-minutes of a finished attempt: every job's started-to-completed time (failed and cancelled ones too). */
+/**
+ * Runner-minutes of a finished attempt: every job's started-to-completed time (failed and cancelled ones too).
+ * @param jobs - the attempt's jobs
+ * @returns the summed runner-minutes
+ */
 export function jobMinutes(jobs: GhJob[]): number {
     let ms = 0;
-    for (const j of jobs)
-        if (j.started_at && j.completed_at) ms += Math.max(0, Date.parse(j.completed_at) - Date.parse(j.started_at));
+    for (const j of jobs) {
+        if (j.started_at && j.completed_at) {
+            ms += Math.max(0, Date.parse(j.completed_at) - Date.parse(j.started_at));
+        }
+    }
     return ms / MIN;
 }
 
-/** The state after this cycle: its runner sample, newly finished slice runs, and only what the decision still reads. */
+/**
+ * The state after this cycle: its runner sample, newly finished slice runs, and only what the decision still reads.
+ * @param prev - the state after the last cycle
+ * @param now - the current time, in ms
+ * @param sample - this cycle's runner sample, if read
+ * @param finished - slice runs finished since, with their jobs
+ * @returns the new state
+ */
 export function nextState(
     prev: SliceState,
     now: number,
@@ -202,7 +271,9 @@ export function nextState(
     const spent = [...prev.spent];
     for (const { run, jobs } of finished) {
         const mode = sliceMode(run);
-        if (!mode || spent.some((s) => s.run === run.id && s.attempt === run.run_attempt)) continue;
+        if (!mode || spent.some((s) => s.run === run.id && s.attempt === run.run_attempt)) {
+            continue;
+        }
         spent.push({
             run: run.id,
             attempt: run.run_attempt,
@@ -218,7 +289,12 @@ export function nextState(
     };
 }
 
-/** GET /v1/story-captures' summary as the decision reads it; the set's age (setAge) is the rotation's age. */
+/**
+ * GET /v1/story-captures' summary as the decision reads it; the set's age (setAge) is the rotation's age.
+ * @param body - the GET /v1/story-captures body
+ * @param now - the current time, in ms
+ * @returns the summary the decision reads
+ */
 export function storeSummary(body: StoryCaptures, now: number): StoreSummary {
     return { lastSlicedSha: body.summary?.lastSliced?.sha ?? null, oldestAt: setAge(body, now).oldestAt };
 }
@@ -233,17 +309,22 @@ export const SLICE_STORE_PARAMS = {
  * A GET of the results store, or undefined when its URL or token is not in SSM.
  * @param store the SSM parameters: the store's URL and local token
  * @param f fetch
+ * @returns a GET of a store path that parses its JSON, or undefined
  */
-export function storeReader(store: Record<string, string>, f: Fetch) {
+export function storeReader(store: Record<string, string>, f: Fetch): (<T>(path: string) => Promise<T>) | undefined {
     const url = store[SLICE_STORE_PARAMS.url];
     const token = store[SLICE_STORE_PARAMS.token];
-    if (!url || !token) return undefined;
+    if (!url || !token) {
+        return undefined;
+    }
     return async <T>(path: string): Promise<T> => {
         const res = await f(`${url.replace(/\/$/, "")}${path}`, {
             headers: { authorization: `Bearer ${token}` },
             signal: AbortSignal.timeout(15_000),
         });
-        if (!res.ok) throw new Error(`results store: HTTP ${res.status}`);
+        if (!res.ok) {
+            throw new Error(`results store: HTTP ${res.status}`);
+        }
         return (await res.json()) as T;
     };
 }
@@ -262,10 +343,16 @@ interface StoreQuarantine {
  * The quarantine in force, from the results store (where CI's retry step reads it), or undefined without a store.
  * @param store the SSM parameters: the store's URL and local token
  * @param f fetch
+ * @returns a reader of the quarantine in force, or undefined
  */
-export function quarantineReader(store: Record<string, string>, f: Fetch) {
+export function quarantineReader(
+    store: Record<string, string>,
+    f: Fetch,
+): (() => Promise<QuarantineEntry[]>) | undefined {
     const read = storeReader(store, f);
-    if (!read) return undefined;
+    if (!read) {
+        return undefined;
+    }
     return async (): Promise<QuarantineEntry[]> =>
         (await read<{ quarantine: StoreQuarantine[] }>("/v1/quarantine")).quarantine.map((q) => ({
             file: q.file,
@@ -285,6 +372,7 @@ export function quarantineReader(store: Record<string, string>, f: Fetch) {
  * @param app the release-scheduler App (Actions write), when its key is in SSM
  * @param f fetch
  * @param repo owner/name
+ * @returns the slice config with its store reader and dispatch, each when set up
  */
 export function sliceDeps(
     cfg: SliceConfig,
@@ -292,12 +380,16 @@ export function sliceDeps(
     app: AppConfig | undefined,
     f: Fetch,
     repo: string,
-) {
+): {
+    cfg: SliceConfig;
+    readStore?: () => Promise<StoryCaptures>;
+    dispatch?: (sha: string, mode: SliceMode) => Promise<void>;
+} {
     const read = storeReader(store, f);
-    const readStore = read ? () => read<StoryCaptures>("/v1/story-captures") : undefined;
+    const readStore = read ? (): Promise<StoryCaptures> => read<StoryCaptures>("/v1/story-captures") : undefined;
     const gh = app && cfg.dispatch ? new GitHub(() => installationToken(app, f, Date.now()), f) : undefined;
     const dispatch = gh
-        ? (sha: string, mode: SliceMode) =>
+        ? (sha: string, mode: SliceMode): Promise<void> =>
               gh.post(`repos/${repo}/actions/workflows/${cfg.workflow}/dispatches`, {
                   ref: "master",
                   inputs: { sha, mode, post: "true" },

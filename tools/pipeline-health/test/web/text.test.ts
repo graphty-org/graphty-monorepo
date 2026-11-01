@@ -165,7 +165,9 @@ describe("member text", () => {
         const { MEMBER } = await import("../../web/src/text.js");
         for (const [id, t] of Object.entries(MEMBER)) {
             expect(t.def, id).not.toBe("");
-            if (!NO_RED.has(id)) expect(t.red, id).not.toBe("");
+            if (!NO_RED.has(id)) {
+                expect(t.red, id).not.toBe("");
+            }
         }
     });
 
@@ -180,8 +182,9 @@ describe("member text", () => {
         expect(text).toContain("good &lt;= 5 min");
         expect(text).toContain("red &gt; 15 min");
         expect(text).toContain("in the last hour and the last 6 h");
-        for (const unit of ["min", "h", "pct", "d"] as const)
+        for (const unit of ["min", "h", "pct", "d"] as const) {
             expect(slaText({ ...sla, red: { op: ">", n: 3, unit } })).not.toMatch(/red &gt; 3($|[^ %])/);
+        }
         expect(slaText(null)).toBe("no target (shown for information)");
     });
 });
@@ -406,7 +409,9 @@ describe("last 24 hours", () => {
             episodes,
         } as never);
         const open = html.split('<details class="epm">')[0];
-        for (let i = 0; i < 7; i++) expect(open).toContain(`x${i} out of target`);
+        for (let i = 0; i < 7; i++) {
+            expect(open).toContain(`x${i} out of target`);
+        }
         expect(open).not.toContain("x20 out of target");
         expect(html).toContain("3 more ongoing");
         expect(html).toContain("1 more cleared");

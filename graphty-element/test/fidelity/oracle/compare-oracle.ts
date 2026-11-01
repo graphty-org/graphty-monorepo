@@ -2097,7 +2097,8 @@ export function compareOracle(
     const routeGap = (o: PEdge, g: PEdge): { gap: number; near: number } => {
         // none, or under a pixel, left between the outlines on both sides is no route a reader sees on either, only two
         // roundings of nodes that nearly touch: alike (json-graphology-synth n0 -> n1, n1's center on n0's outline)
-        if (shownParts(o, g).every((pts) => pts === null || pathLength(pts) < pixel)) {
+        const shown = shownParts(o, g);
+        if (shown.every((pts) => pts === null || pathLength(pts) < pixel)) {
             return { gap: 0, near: T.edgePathOfLength };
         }
         const [gs, gt] = flips(o, g) ? [g.target, g.source] : [g.source, g.target];
@@ -2105,14 +2106,33 @@ export function compareOracle(
             const [at, on] = [gOuter(gId), oById.get(oId)];
             return at === undefined || on === undefined ? [0, 0] : [at.cx - on.cx, at.cy - on.cy];
         };
-        const [vo, vg] = visible(o, g);
-        const { gap, unit } = routeShape(vo, vg, [shiftOf(gs, o.source), shiftOf(gt, o.target)]);
-        // a share of a long chord is more than a node: a line sent through another node on the way passed
-        // (dot-synth-nodes n_html3 -> n_unfilled, 1044 px long, through the middle of a 33 x 22 node). The allowance
-        // is no more than the smaller side of the smaller of its two end nodes
         const ends = [oById.get(o.source), oById.get(o.target)].flatMap((n) =>
             n === undefined ? [] : [Math.min(n.w, n.h)],
         );
+        // a line between nodes wider than the room between them shows a sliver between their outlines, whose own
+        // chord's frame reads where two programs' outlines differ by a pixel or two as half its length: shorter on both
+        // sides than its end nodes' smaller side, a line whose two drawings start and end at the same places (each end
+        // where it sits on its node) is judged by its whole route (pajek-synth-vertices 41 -> 42: both lines run
+        // center to center within 0.3 px between figures 55 px apart, and the sliver read 9.65 of its chord). A route
+        // one side ends elsewhere (an arc to its arrowhead's back, pajek-synth-lines) keeps its sliver.
+        const shifts = [shiftOf(gs, o.source), shiftOf(gt, o.target)];
+        const whole = routeOf(o, g);
+        // as drawn, or where each sits on its node: a figure's box is not centered where its lines meet (pajek-synth-
+        // vertices 17, 1.6 px above them)
+        const meet = (p: Pt | undefined, q: Pt | undefined, [sx, sy]: Pt): boolean =>
+            p !== undefined &&
+            q !== undefined &&
+            Math.min(Math.hypot(q[0] - p[0], q[1] - p[1]), Math.hypot(q[0] - sx - p[0], q[1] - sy - p[1])) <= pixel;
+        const sliver =
+            ends.length === 2 &&
+            shown.every((pts) => pts === null || pathLength(pts) < Math.min(...ends)) &&
+            meet(o.points[0], whole[0], shifts[0]) &&
+            meet(o.points.at(-1), whole.at(-1), shifts[1]);
+        const [vo, vg] = sliver ? [[...o.points], whole] : visible(o, g);
+        const { gap, unit } = routeShape(vo, vg, [shifts[0], shifts[1]]);
+        // a share of a long chord is more than a node: a line sent through another node on the way passed
+        // (dot-synth-nodes n_html3 -> n_unfilled, 1044 px long, through the middle of a 33 x 22 node). The allowance
+        // is no more than the smaller side of the smaller of its two end nodes
         // and no less than ten render pixels: an anchor drawn as a point (xgmml-wp4271-cy3-export) or a node a few
         // pixels across in a large drawing leaves no allowance a reader would grant
         const cap = ends.length === 2 ? Math.max(Math.min(...ends), ROUTE_CAP_PIXELS * pixel) / unit : Infinity;

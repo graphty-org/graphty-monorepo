@@ -217,6 +217,7 @@ export type {
     UnionBranch,
     UnionLeaf,
     UnionStep,
+    ValueKind,
 } from "./src/catalog/types";
 
 /**

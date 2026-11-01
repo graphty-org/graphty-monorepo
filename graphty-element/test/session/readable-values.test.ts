@@ -428,3 +428,52 @@ describe("session.data.valueCounts()", () => {
         assert.deepEqual(kind, { values: [{ value: "x", count: 2 }], missing: 1, total: 3 });
     });
 });
+
+describe("valueKind and field facts", () => {
+    it("reads each value's kind from its type, its measurement, a declared order and list values", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            {
+                id: "a",
+                age: 30,
+                staff: true,
+                tags: ["red", "blue"],
+                level: "low",
+                seen: "2001-02-03T00:00:00Z",
+                note: "x1",
+            },
+            { id: "b", age: 41, staff: false, tags: ["red"], level: "high", seen: "2002-03-04T00:00:00Z", note: "x2" },
+            { id: "c", age: 52, staff: true, tags: [], level: "low", seen: "2003-04-05T00:00:00Z", note: "x3" },
+        ]);
+        await session.data.declare({ kind: "node", name: "level" }, { measurement: "ordinal", order: ["low", "high"] });
+        await session.data.declare({ kind: "node", name: "seen" }, { measurement: "time" });
+        const values = session.data.readableValues();
+        const kindOf = (suffix: string): unknown => entry(values, suffix).valueKind;
+        assert.strictEqual(kindOf("data.age"), "number");
+        assert.strictEqual(kindOf("data.staff"), "flag");
+        assert.strictEqual(kindOf("data.tags"), "tags");
+        assert.strictEqual(kindOf("data.level"), "ordered");
+        assert.strictEqual(kindOf("data.seen"), "time");
+        assert.strictEqual(values[0].path, "id");
+        assert.strictEqual(values[0].valueKind, "text");
+        assert.isTrue(session.data.structureValues().every((each) => each.valueKind === "number"));
+    });
+
+    it("carries a run field's declared facts: a rank counts down, a community's numbers are unstable", async () => {
+        const session = await lesMisAfterRuns();
+        const values = session.data.readableValues();
+        assert.deepEqual(entry(values, ".rank").facts, { polarity: "lower" });
+        assert.deepEqual(entry(values, ".percentile").facts, { domain: { min: 0, max: 1 } });
+        assert.deepEqual(entry(values, ".group").facts, { unstable: true });
+        assert.strictEqual(entry(values, ".group").valueKind, "category");
+        assert.isUndefined(entry(values, ".value").facts);
+    });
+
+    it("declares what a search's unreached nodes mean", () => {
+        const level = algorithmByKey("bfs")?.fields.find((field) => field.name === "level");
+        const distance = algorithmByKey("shortest-path")?.fields.find((field) => field.name === "distance");
+        assert.strictEqual(level?.missing, "unreached");
+        assert.deepEqual([distance?.missing, distance?.polarity], ["unreached", "lower"]);
+        assert.include(algorithmByKey("betweenness")?.keywords ?? [], "bridges");
+    });
+});

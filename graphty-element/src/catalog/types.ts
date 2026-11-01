@@ -475,6 +475,37 @@ export interface FieldDescriptor {
      * @since 3.26.0
      */
     directedOnly?: boolean;
+    /**
+     * The fixed range its values fall in, when the measure defines one (a share is 0 to 1), so a
+     * histogram keeps a fixed axis. Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    domain?: { readonly min: number; readonly max: number };
+    /**
+     * Which end counts as more: `"lower"` for a distance or a rank, where 1 is the top.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    polarity?: "higher" | "lower";
+    /**
+     * The declared order of an ordered value's levels, lowest first.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    order?: readonly (string | number)[];
+    /**
+     * What an element with no value means: `"unreached"` for a search the element was not reached
+     * by. Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    missing?: "unreached" | "unmeasured" | (string & {});
+    /**
+     * Present (true) when its values are names a re-run may spell differently (a community's
+     * number), so a group is saved by a member it holds rather than by its number.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    unstable?: true;
     path: Path;
 }
 
@@ -1362,6 +1393,12 @@ export interface AlgorithmDescriptor {
     technicalName: string;
     description: string;
     category: "centrality" | "community" | "path" | "flow" | "structure" | "prediction" | (string & {});
+    /**
+     * Other words a reader may search for it by (`union`, `bridges`), so a picker finds it by more
+     * than its name. Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    keywords?: readonly string[];
     shape: ResultShape;
     fields: readonly FieldDescriptor[];
     options: readonly OptionDescriptor[];
@@ -1751,6 +1788,18 @@ export interface AttributeDescriptor {
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
 
 /**
+ * What a value is, for the control that tests it: an amount (`"number"`), an instant (`"time"`),
+ * levels with a declared order (`"ordered"`), groups (`"category"`), a list of labels (`"tags"`),
+ * yes or no (`"flag"`) or free text (`"text"`). Derived by the element from the value's type, what
+ * it measures, a declared order and list values.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type ValueKind = "number" | "time" | "ordered" | "category" | "tags" | "flag" | "text";
+
+/**
  * The kinds of channel value a {@link ReadableValue} can drive, as a style channel's `accepts`
  * names them.
  * @since 3.26.0
@@ -1789,6 +1838,20 @@ export interface ReadableValue {
     readonly runId?: RunId;
     /** What kind of value it is. A partition's group is a category however its ids are spelled. */
     readonly kind: ReadableValueKind;
+    /**
+     * What a value is, for the control that tests it: see {@link ValueKind}.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly valueKind?: ValueKind;
+    /**
+     * A run field's declared facts: its fixed range, which end counts as more, its levels' order,
+     * what a missing value means, and whether its values are unstable names. Absent for a data
+     * column, and for a field that declares none.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly facts?: Pick<FieldDescriptor, "domain" | "polarity" | "order" | "missing" | "unstable">;
     /** The lowest and highest value, for a number. */
     readonly range?: { readonly min: number; readonly max: number };
     /**
@@ -1858,6 +1921,12 @@ export interface StructureValue {
     readonly plainName: string;
     /** The name a technical reader knows it by: "degree", "inDegree" or "outDegree". */
     readonly technicalName: string;
+    /**
+     * What a value is: a count, so `"number"`. See {@link ValueKind}.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly valueKind?: ValueKind;
 }
 
 /**

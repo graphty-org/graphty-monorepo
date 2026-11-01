@@ -13,12 +13,14 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import type {
     AttributeDescriptor,
     AttributeUse,
+    FieldDescriptor,
     MeasurementDeclaration,
     Path,
     ReadableChannelKind,
     ReadableValue,
     ReadableValueKind,
     RuleTestKind,
+    ValueKind,
 } from "../catalog/types";
 import { describeRows } from "./attributes";
 import { elementIdsOf } from "./results/RunResult";
@@ -69,6 +71,7 @@ const EDGE_KINDS = kindsOn("edge");
  * @param from - Where it comes from.
  * @param declaration - Its declaration, if any.
  * @param usedBy - What reads it now.
+ * @param field
  * @returns The entry.
  */
 function entryOf(
@@ -76,8 +79,10 @@ function entryOf(
     from: "data" | "run",
     declaration: MeasurementDeclaration | undefined,
     usedBy: readonly AttributeUse[] | undefined,
+    field?: FieldDescriptor,
 ): ReadableValue {
     const kind = readableKindOf(column);
+    const facts = field === undefined ? undefined : factsOf(field);
     const kinds = column.kind === "node" ? NODE_KINDS : EDGE_KINDS;
     return Object.freeze({
         path: column.path,
@@ -87,6 +92,8 @@ function entryOf(
         from,
         ...(column.runId === undefined ? {} : { runId: column.runId }),
         kind,
+        valueKind: valueKindOf(column, declaration, field),
+        ...(facts === undefined ? {} : { facts }),
         ...(kind === "number" && column.min !== undefined && column.max !== undefined
             ? { range: Object.freeze({ min: column.min, max: column.max }) }
             : {}),
@@ -99,6 +106,49 @@ function entryOf(
         ...(usedBy === undefined || usedBy.length === 0 ? {} : { usedBy: Object.freeze([...usedBy]) }),
         tests: testsOf(kind, column.path, column.uniqueCount !== undefined),
     });
+}
+
+/**
+ * What a value is, for the control that tests it (see `ValueKind`): an instant, an ordered level,
+ * a list of labels, yes or no, an amount, a group or free text, in that order of precedence.
+ * @param column - The column.
+ * @param declaration - Its declaration, for a declared order.
+ * @param field - The run field it is, when it is one, for a declared order.
+ * @returns The kind.
+ */
+export function valueKindOf(
+    column: AttributeDescriptor,
+    declaration: MeasurementDeclaration | undefined,
+    field?: FieldDescriptor,
+): ValueKind {
+    if (column.type === "time" || column.measurement === "time") {
+        return "time";
+    }
+
+    if (column.measurement === "ordinal" || declaration?.measurement === "ordinal" || field?.order !== undefined) {
+        return "ordered";
+    }
+
+    if (column.sampleValues.some((value) => Array.isArray(value))) {
+        return "tags";
+    }
+
+    const kind = readableKindOf(column);
+    return kind === "yes-no" ? "flag" : kind;
+}
+
+/**
+ * A run field's declared facts, or undefined when it declares none.
+ * @param field - The field.
+ * @returns The facts.
+ */
+function factsOf(field: FieldDescriptor): ReadableValue["facts"] {
+    const facts = Object.fromEntries(
+        (["domain", "polarity", "order", "missing", "unstable"] as const).flatMap((name) =>
+            field[name] === undefined ? [] : [[name, field[name]]],
+        ),
+    );
+    return Object.keys(facts).length === 0 ? undefined : Object.freeze(facts);
 }
 
 /**
@@ -132,13 +182,13 @@ function testsOf(kind: ReadableValueKind, path: Path, countable: boolean): reado
  * @param input - The snapshot and the graph's direction.
  * @returns The descriptors.
  */
-function describeRun(run: Run, input: ReadableInput): AttributeDescriptor[] {
+function describeRun(run: Run, input: ReadableInput): (AttributeDescriptor & { readonly field: FieldDescriptor })[] {
     const { result } = run;
     if (result === undefined) {
         return [];
     }
 
-    const described: AttributeDescriptor[] = [];
+    const described: (AttributeDescriptor & { readonly field: FieldDescriptor })[] = [];
     for (const half of ["node", "edge"] as const) {
         const fields = result.fields.filter(
             (field) => field.kind === half && field.type !== "table" && (input.directed || field.directedOnly !== true),
@@ -172,6 +222,7 @@ function describeRun(run: Run, input: ReadableInput): AttributeDescriptor[] {
                 origin: "result",
                 runId: run.id,
                 measurement: fieldMeasurement(field, run.shape),
+                field,
             });
         }
     }
@@ -194,6 +245,7 @@ export function readableValues(input: ReadableInput): readonly ReadableValue[] {
             on: "node",
             from: "element",
             kind: "text",
+            valueKind: "text",
             completeness: 1,
             fits: Object.freeze([]),
             tests: Object.freeze(["text"] as const),
@@ -210,8 +262,8 @@ export function readableValues(input: ReadableInput): readonly ReadableValue[] {
     }
 
     for (const run of input.runs) {
-        for (const column of describeRun(run, input)) {
-            values.push(entryOf(column, "run", undefined, input.layersReading?.(column.path, column.kind)));
+        for (const { field, ...column } of describeRun(run, input)) {
+            values.push(entryOf(column, "run", undefined, input.layersReading?.(column.path, column.kind), field));
             if (column.kind === "node") {
                 nodeColumns.push([column, "run", undefined]);
             }

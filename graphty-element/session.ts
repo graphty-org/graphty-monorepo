@@ -516,6 +516,7 @@ export type {
     UnionBranch,
     UnionLeaf,
     UnionStep,
+    ValueKind,
 } from "./src/catalog/types";
 export type {
     AttributeLeafNodes,

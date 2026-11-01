@@ -1707,14 +1707,81 @@ export function cameThrough(pts: readonly Pt[], b: PBox): boolean {
     return inside(q, b);
 }
 
+/**
+ * The shapes no reader sees: each drawn wholly under an opaque shape drawn after it (the cover's outline holds every
+ * point of the shape's, within half a pixel, and a stroke's every point by half its width), and not drawn with a line,
+ * as a program that draws each edge whole draws its arrowheads right after its line (a head under a node drawn over it
+ * stays the line's, as graphty's side keeps its own there). json-cyjs-perf draws its 500 nodes over one another, and
+ * graphty hides the ones it draws under another: the oracle's hidden discs were read as arrowheads at the lines ending
+ * there and as strays (#5196).
+ * A shape drawn after a body the reader sees inside it covers nothing: the program's document order is not the order it
+ * paints in there (Cytoscape desktop exports a compound node's box after its children, gml-specimen-groups).
+ * @param prims - every primitive of the drawing, in document order
+ * @param candidates - the shapes that may be hidden
+ * @param seen - the shapes already read as seen (the nodes' bodies)
+ * @returns the hidden ones
+ */
+export function hiddenShapes(prims: readonly Prim[], candidates: readonly Prim[], seen: readonly Prim[] = []): Prim[] {
+    const byIndex = new Map(prims.map((p) => [p.index, p]));
+    const covers = prims.filter(
+        (c) =>
+            c.kind === "shape" &&
+            c.closed &&
+            (c.subpaths?.length ?? 1) <= 1 &&
+            c.tag !== PAINTED_OUTLINE &&
+            c.points.length >= 3 &&
+            (c.fill?.opacity ?? 0) >= OPAQUE,
+    );
+    // a line's own arrowheads follow it, the line first (Cytoscape.js, Cytoscape desktop, Graphviz), each by one of its
+    // ends (json-cyjs-perf draws its first node right after its last line, far from either end)
+    const withLine = (p: Prim): boolean => {
+        for (let i = p.index - 1; i >= p.index - 3; i--) {
+            const q = byIndex.get(i);
+            if (q?.kind !== "shape") {
+                return (
+                    q?.kind === "path" &&
+                    q.stroke !== null &&
+                    [q.points[0], q.points.at(-1)].some((e) => e !== undefined && toBox(e, p.box) <= OWN_HEAD_REACH)
+                );
+            }
+        }
+        return false;
+    };
+    // a stroke reaches half its width past the outline it is drawn along: a border drawn under its own fill shows
+    // (cx2-signor-aml's compound nodes)
+    const under = (p: Prim, c: Prim): boolean => {
+        const half = p.stroke === null ? null : p.stroke.width / 2;
+        return p.points.every((q) =>
+            half === null
+                ? inPolygon(q, c.points) || toOutline(q, c.points) <= INSIDE_SLACK
+                : inPolygon(q, c.points) && toOutline(q, c.points) >= half,
+        );
+    };
+    const paintsOver = (c: Prim): boolean =>
+        !seen.some((q) => q !== c && q.index < c.index && boxWithin(q.box, c.box) && under(q, c));
+    return candidates.filter(
+        (p) =>
+            p.kind === "shape" &&
+            p.points.length > 0 &&
+            !withLine(p) &&
+            covers.some((c) => c.index > p.index && boxWithin(p.box, c.box) && under(p, c) && paintsOver(c)),
+    );
+}
+
+/** How far off a box's outline a piece of that box's own drawing may run (`outlinePiece` in `associate`). */
+const OUTLINE_PX = 1.5;
+
 /** How far a line's end may lie from where a node graphty draws nothing for sits (`undrawnEnds`). */
 const UNDRAWN_END_REACH = 4;
 
 /**
  * The edge ends at nodes graphty draws nothing for (WikiPathways' anchors: a 2 px node of no opacity, on another
  * edge's line, that an edge ends at): each where graphty's lines end at it, carried into the oracle's frame by the
- * nodes both drawings hold. Only lines' ends see them; they are no body of the drawing. None
- * where graphty laid the graph out itself, which relates no place to the oracle's.
+ * nodes both drawings hold. Only lines' ends see them; they are no body of the drawing. So is a node graphty draws
+ * whose body the oracle's reader found nothing for, at graphty's box carried: a program may draw a node as no body
+ * at all (draw.io's stand-in draws yEd's flowchart annotation as an open bracket, `graphml-synthetic-nodes`
+ * generic-11), and the line it draws to it ends there, not at a container whose box lies 235 px off. None where
+ * graphty laid the graph out itself, which relates no place to the oracle's.
  * @param guide - graphty's drawing
  * @param nodes - the oracle's nodes found so far, by id
  * @param fit - graphty's drawing carried into the oracle's (`guideFrame`)
@@ -1739,8 +1806,13 @@ function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Simi
     }
     // the box of every line's end at it: a point for an anchor, its outline's reach for a node of some size drawn in
     // the canvas's own color (xgmml-wp4271-cy3-export: a 90 x 25 white ellipse, its lines ending round it)
-    return [...at].map(([id, pts]) => {
-        const box = boxOfPoints(pts);
+    const bodiless = guide.nodes
+        .filter((n) => !nodes.has(n.id) && !n.id.startsWith("cap-"))
+        .map((n): [string, PBox] => [
+            n.id,
+            carryBox(fit, { x0: n.cx - n.w / 2, y0: n.cy - n.h / 2, x1: n.cx + n.w / 2, y1: n.cy + n.h / 2 }),
+        ]);
+    return [...[...at].map(([id, pts]): [string, PBox] => [id, boxOfPoints(pts)]), ...bodiless].map(([id, box]) => {
         return {
             id,
             cx: cx(box),
@@ -2227,6 +2299,13 @@ export function associate(
         }
     }
 
+    // ---- what is drawn wholly under a shape drawn over it is not seen: no arrowhead, no stray, no group box
+    hiddenShapes(
+        prims,
+        free(),
+        prims.filter((p) => used.has(p.index) && p.kind === "shape"),
+    ).forEach(take);
+
     // ---- edges by geometry: open paths whose two ends land on drawn nodes
     const nodeList = [...nodes.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
     const nodeBox = boxOfNode;
@@ -2399,20 +2478,29 @@ export function associate(
         const onEnd = (end: "source" | "target", mine: readonly Prim[]): { n: PNode; d: number }[] => {
             const q = end === "source" ? path[0] : (path.at(-1) ?? path[0]);
             const direct = nodesOn(q, slack);
-            // an end on a node's outline is that node's, whatever arrowhead it touches
-            if (mine.length === 0 || (direct[0]?.d ?? Infinity) <= 2) {
+            if (mine.length === 0) {
                 return nodesAt(q, false, slack);
             }
-            // one short of it is also carried on to its arrowhead's tip, where the program points at its node: each node
-            // either reaches, at the nearer of the two (a neighbor's box the end lies nearer than its own node, a big
-            // arrowhead's tip pointing past its node, cys-syn-mappings 345->360), and the pair graphty draws decides
             const carried = extendToTip(
                 path,
                 mine.flatMap((h) => h.points),
                 end,
             );
+            const tip = nodesOn(end === "source" ? carried[0] : (carried.at(-1) ?? q), slack);
+            // an end on a node's outline is that node's, whatever arrowhead it touches -- unless its own arrowhead's tip
+            // is on another node's outline: a line stopped at its head's base (Cytoscape desktop's) whose base lies on a
+            // node drawn over the one its head points at is that one's (cx2-signor-aml: a curved 38 -> 50, its base on
+            // 27's outline and its tip on 50's, was read as a second 92 -> 27)
+            if ((direct[0]?.d ?? Infinity) <= 2) {
+                return tip.length > 0 && tip[0].d <= 2 && tip[0].n !== direct[0].n
+                    ? [...tip, ...direct.filter((x) => !tip.some((y) => y.n === x.n))]
+                    : nodesAt(q, false, slack);
+            }
+            // one short of it is also carried on to its arrowhead's tip, where the program points at its node: each node
+            // either reaches, at the nearer of the two (a neighbor's box the end lies nearer than its own node, a big
+            // arrowhead's tip pointing past its node, cys-syn-mappings 345->360), and the pair graphty draws decides
             const nearest = new Map<PNode, number>();
-            for (const x of [...nodesOn(end === "source" ? carried[0] : (carried.at(-1) ?? q), slack), ...direct]) {
+            for (const x of [...tip, ...direct]) {
                 nearest.set(x.n, Math.min(nearest.get(x.n) ?? Infinity, x.d));
             }
             const both = [...nearest].map(([n, d]) => ({ n, d })).sort((x, y) => x.d - y.d);
@@ -2558,13 +2646,74 @@ export function associate(
         }
         return note;
     };
+    // A path from one box's outline to that box's outline again, never leaving it, is a piece of that box's own drawing
+    // (kept aside as the pieces of one node's drawing are, below), not an edge: a container's outline or its header's
+    // rule, a split box's dividing line (draw.io's stand-ins, graphml-magiclantern-architecture: a swimlane's body
+    // outline from one corner of its header to the other was read as an edge to a node 122 px off;
+    // graphml-galaxy-lcms-workflow: a box's top line, #5387). Only a box's: a round or slanted node's box is no outline.
+    const onOutline = (q: Pt, b: PBox): boolean =>
+        inside(q, b, OUTLINE_PX) && Math.min(q[0] - b.x0, b.x1 - q[0], q[1] - b.y0, b.y1 - q[1]) <= OUTLINE_PX;
+    const outlinePiece = (p: Prim): PNode | undefined => {
+        const pts = p.points;
+        const ends = [pts[0], pts.at(-1) ?? pts[0]];
+        // its ends on two opposite sides, and all along its outline or a straight rule between them: a line through a
+        // small node from one neighbor to another, or a stub along its side or cutting its corner, is another edge's
+        // (cys-affinity-purification: lines between 24 x 8 boxes drawn edge to edge run through or along the one
+        // between them)
+        const near = (u: number, v: number): boolean => Math.abs(u - v) <= OUTLINE_PX;
+        const [a, z] = ends;
+        const wide = (b: PBox): boolean => near(Math.min(a[0], z[0]), b.x0) && near(Math.max(a[0], z[0]), b.x1);
+        const tall = (b: PBox): boolean => near(Math.min(a[1], z[1]), b.y0) && near(Math.max(a[1], z[1]), b.y1);
+        // every point and every segment's middle (a straight line from one side to the other crosses the box)
+        const halfway = pts.slice(1).map((q, i): Pt => [(q[0] + pts[i][0]) / 2, (q[1] + pts[i][1]) / 2]);
+        const along = (b: PBox): boolean => (wide(b) || tall(b)) && [...pts, ...halfway].every((q) => onOutline(q, b));
+        const rule = (b: PBox): boolean =>
+            pts.length === 2 && ((near(a[1], z[1]) && wide(b)) || (near(a[0], z[0]) && tall(b)));
+        const box = [...nodeList, ...groupEnds.map((g) => g.node)].find((n) => {
+            const b = nodeBox(n);
+            return (
+                (n.shape === "rect" || n.shape === "roundrect") &&
+                pts.every((q) => inside(q, b, OUTLINE_PX)) &&
+                ends.every((q) => onOutline(q, b)) &&
+                (along(b) || rule(b))
+            );
+        });
+        // and a container's body drawn right under its header, from one of the header's corners round to the other
+        // (draw.io's swimlane: its header box, then its body's outline, then the rule between them), wherever graphty's
+        // group box carried into this drawing lies a few pixels off it
+        const header = byIndex.get(p.index - 1);
+        if (
+            box !== undefined ||
+            header?.kind !== "shape" ||
+            !header.closed ||
+            used.has(header.index) ||
+            !ends.every((q) => onOutline(q, header.box)) ||
+            pts.every((q) => inside(q, header.box, OUTLINE_PX))
+        ) {
+            return box;
+        }
+        const b = header.box;
+        return {
+            id: `\u0000header:${String(header.index)}`,
+            cx: cx(b),
+            cy: cy(b),
+            w: bw(b),
+            h: bh(b),
+            shape: "rect",
+            fill: header.fill,
+            stroke: header.stroke,
+            label: null,
+        };
+    };
     for (const p of [...free().filter((q) => q.kind === "path"), ...bands]) {
         if (p.kind !== "path" || p.stroke === null || p.points.length < 2 || alongNote(p)) {
             continue;
         }
         const placed = bandLines.get(p);
         const own = placed?.own ?? ownHeads(p, [p.points[0], p.points.at(-1) ?? p.points[0]], p.stroke.width);
-        const ends = placed?.ends ?? endsOf(p.points, p.stroke.color, { own });
+        const box = outlinePiece(p);
+        const ends: [PNode, PNode] | null =
+            box === undefined ? (placed?.ends ?? endsOf(p.points, p.stroke.color, { own })) : [box, box];
         if (ends === null) {
             continue;
         }
@@ -2574,17 +2723,21 @@ export function associate(
             continue;
         }
         const pk = pairOf(a.id, b.id);
-        guidePairs.set(pk, (guidePairs.get(pk) ?? 0) - 1);
+        if (box === undefined) {
+            guidePairs.set(pk, (guidePairs.get(pk) ?? 0) - 1);
+        }
         take(p);
         // A path whose two ends land on one node is a self-loop only where the file has one, and graphty draws every
         // edge of the file, loops included: elsewhere it is a piece of the node's or a nearby edge's drawing (a
         // zigzag border, a bend, an arrowhead's stroke), which no edge of the file stands for.
         const key = `${a.id}->${b.id}`;
         const k = geoEdges.get(key) ?? 0;
-        geoEdges.set(key, k + 1);
+        if (box === undefined) {
+            geoEdges.set(key, k + 1);
+        }
         // kept aside, not dropped: the shapes at its ends are its own, not arrowheads of the edges beside it
         const edge: PEdge = {
-            id: `${key}#g${String(k)}`,
+            id: box === undefined ? `${key}#g${String(k)}` : `${key}#g-outline${String(p.index)}`,
             source: a.id,
             target: b.id,
             points: p.points,
@@ -2594,7 +2747,7 @@ export function associate(
         };
         withPieces.push(edge);
         drawnAt.set(edge, p.index);
-        if (!(a === b && !guideLoops.has(a.id))) {
+        if (box === undefined && !(a === b && !guideLoops.has(a.id))) {
             edges.push(edge);
             // the arrowheads drawn with its line cap its ends, whatever line of a neighbor's ends nearer them
             for (const [i, hs] of own.entries()) {
@@ -2602,6 +2755,7 @@ export function associate(
                 hs.forEach((h) => ownCaps.set(h, { e: edge, end }));
             }
         } else if (
+            box === undefined &&
             p.points.length >= 5 &&
             (Math.max(bw(p.box), bh(p.box)) < 0.5 * Math.max(a.w, a.h) ||
                 (strokedArc(p) && Math.max(bw(p.box), bh(p.box)) <= 3 * Math.max(a.w, a.h, 8)))
@@ -3625,6 +3779,15 @@ const drawnAlike = (a: Prim, b: Prim): boolean =>
     a.stroke?.opacity === b.stroke?.opacity &&
     a.stroke?.width === b.stroke?.width;
 
+/** Two shapes filled in one paint and outlined alike, whatever their sizes: two bodies, never a body and its outline. */
+const filledAlike = (a: Prim, b: Prim): boolean =>
+    a.kind === b.kind &&
+    a.fill !== null &&
+    a.fill.color === b.fill?.color &&
+    a.fill.opacity === b.fill.opacity &&
+    a.stroke?.color === b.stroke?.color &&
+    a.stroke?.width === b.stroke?.width;
+
 /**
  * Of the shapes drawn alike on one spot as a node's body (each within the other's box but for half a pixel), the one
  * drawn last: the one a reader sees, the others under it all but hidden (cx2-wp1449-tlr's IFNA2, drawn twice 0.22 px
@@ -3809,8 +3972,15 @@ function matchBodies(
                 (q) =>
                     !taken.has(q.index) &&
                     (c.id.startsWith(GROUP_CLAIM) || (bodyOf.get(q.index) ?? c.id) === c.id) &&
-                    // a second shape drawn like the body is another node's, a missing one's too (#4264)
+                    // a second shape drawn like the body is another node's, a missing one's too (#4264); so is one filled
+                    // in the body's own paint at another size off its middle, which no outline is (json-cyjs-perf: n571's
+                    // disc drawn over n570's, a fifth wider and 5.6 px off, was read as n570's outline, and n570's lines
+                    // as another node's, #5196); one on its middle is the node's own (yEd's double ellipse)
                     !drawnAlike(q, body) &&
+                    !(
+                        filledAlike(q, body) &&
+                        Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) > 0.05 * size + 0.5
+                    ) &&
                     Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
                     // and over it, not beside it: two flat boxes stacked a little under their height apart are two nodes,
                     // however short that is of their width (cx2-wp1449-tlr: two 45.7 x 10.5 labels 9.6 px apart)

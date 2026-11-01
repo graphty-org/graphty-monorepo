@@ -429,6 +429,20 @@ stand. Each entry reverses or narrows an entry above; those stay as the record.
 - **compact-mantine is unchanged.** Every control is an existing one; no Figma look change is
   needed, so nothing goes to `../owner-decisions.md`.
 
+### Built 2026-11-01 (studio engineer)
+
+- The outline and pane are built in both hosts; the style host draws the outline always (the
+  folded Which row is gone). A new filter card shows its title pane (Nodes | Edges) while its
+  first value is picked; Escape in that picker takes the card back, a click elsewhere keeps it.
+- graphty-element, additive and @beta: `scope.asUnion(rule, { effect: "exclude" })` reads a
+  Filter out card as what stays (All + Except); a node page sorts by `graphty.degree`. A tier 4
+  card is shown in that form and written as effect keep on its first edit (a Select card off).
+- The reference picker searches with `data.nodePage` (the find box's matching: id or any value),
+  starts-with first, then the most connected, 8 at most. Hops default 2.
+- Not built: the "Pick on canvas" target (graphty-element has no armed one-click pick that leaves
+  the selection alone), the group pane's Color, Settings in Advanced, and the HistogramRow brush
+  (the number test keeps the approved range card).
+
 ## Waiting for the owner
 
 - Retagging bfs `level`, k-core `value` and dfs `value` as ordinal changes what `fieldMeasurement`

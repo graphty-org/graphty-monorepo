@@ -2671,6 +2671,28 @@ export interface ProjectConfig {
      * @since 3.38.0
      */
     readonly viewRotation?: number;
+    /**
+     * How the element frames the graph on its own and on `zoomToFit()`: after a load, a layout change and a 2D/3D
+     * switch. Absent (the default), every visible node is framed whole with its labels, inside a small margin.
+     * `extent: "centers"` frames the nodes' centers alone, so a big node at the edge of the graph may run past the
+     * canvas and labels are not counted. `padding`, in CSS pixels, is the room kept clear at each end of the canvas's
+     * shorter side (the longer side keeps the same share), in place of the margin. A file's own framing sets it on
+     * import when the load asks for it (file style option `framing: "file"`): sigma.js fits node centers 30 px in.
+     *
+     * ```ts
+     * await session.config.set({ framing: { extent: "centers", padding: 30 } }); // as sigma.js frames a graph
+     * ```
+     * @since 3.38.0
+     */
+    readonly framing?: GraphFraming;
+}
+
+/** How the element frames the graph: see {@link ProjectConfig.framing}. */
+export interface GraphFraming {
+    /** What each node counts as: `"drawn"` the box it is drawn in, with its labels; `"centers"` its center alone. */
+    readonly extent: "drawn" | "centers";
+    /** CSS pixels kept clear at each end of the canvas's shorter side, 0 or more; absent, a small margin. */
+    readonly padding?: number;
 }
 
 /** Where a finished run's layer lands: see {@link ProjectConfig.runPlacement}. */
@@ -2703,6 +2725,8 @@ export interface ProjectConfigPatch {
     readonly layoutTransition?: LayoutTransitionConfig;
     /** See {@link ProjectConfig.viewRotation}; `undefined` turns the view upright. */
     readonly viewRotation?: number;
+    /** See {@link ProjectConfig.framing}; `undefined` returns to the element's own framing. */
+    readonly framing?: GraphFraming;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */

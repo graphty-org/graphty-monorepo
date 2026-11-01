@@ -124,7 +124,10 @@ zero=0000000000000000000000000000000000000000
 remote_sha=$(git rev-parse -q --verify "refs/remotes/origin/$branch" || echo "$zero")
 printf 'refs/heads/%s %s refs/heads/%s %s\n' "$branch" "$(git rev-parse HEAD)" "$branch" "$remote_sha" |
     "$here/lfs-pre-push.sh" origin "$(git remote get-url origin)" || die "the Git LFS upload failed"
-git -c core.hooksPath=/dev/null push -q -u origin "HEAD:refs/heads/$branch" || die "the push of $branch failed"
+git -c core.hooksPath=/dev/null push -q origin "HEAD:refs/heads/$branch" || die "the push of $branch failed"
+# Setting the upstream writes .git/config: under tools/worktree-new.sh's lock (issue #5213).
+flock "$(git rev-parse --path-format=absolute --git-common-dir)/config.flock" \
+    git branch -q --set-upstream-to="origin/$branch" || die "could not set $branch's upstream"
 
 [ -n "$title" ] || title=$(git log --reverse --no-merges --format=%s "$base..HEAD" | sed -n 1p)
 lint="${PR_OPEN_TITLE_LINT:-$here/../node_modules/.bin/commitlint --cwd $here/..}"

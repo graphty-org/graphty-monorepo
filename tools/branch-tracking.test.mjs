@@ -4,7 +4,7 @@
 //
 //   node tools/branch-tracking.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
     chmodSync,
     copyFileSync,
@@ -517,6 +517,48 @@ describe("tools/worktree-new.sh", () => {
         });
         assert.equal(handed.status, 1, handed.stderr);
         assert.equal(handed.stderr.match(/every branch belongs/g).length, 1, handed.stderr);
+    });
+
+    it("finishes every step when several runs start at once (issue #5213)", async () => {
+        // The fake pnpm writes .git/config where husky would: in an install without HUSKY=0, and in
+        // `pnpm exec husky`. gh calls take turns, since the fake gh rewrites one state file.
+        const par = join(dir, "bin-parallel");
+        mkdirSync(par, { recursive: true });
+        writeFileSync(
+            join(par, "pnpm"),
+            '#!/bin/sh\n[ "$1" = exec ] || [ "$HUSKY" != 0 ] || exit 0\nexec git config core.hooksPath "$(git config core.hooksPath)"\n',
+            { mode: 0o755 },
+        );
+        writeFileSync(join(par, "gh"), `#!/bin/sh\nexec flock "$FAKE_GH_STATE.lock" ${join(bin, "gh")} "$@"\n`, {
+            mode: 0o755,
+        });
+        const issues = [601, 602, 603, 604, 605, 606, 607, 608];
+        writeFileSync(
+            state,
+            JSON.stringify({ calls: [], nextId: 0, issues: Object.fromEntries(issues.map((n) => [n, issue("p")])) }),
+        );
+        const results = await Promise.all(
+            issues.map(
+                (n) =>
+                    new Promise((resolve) => {
+                        const c = spawn(script, [`feat/${n}-par`, "origin/master", "--issue", String(n)], {
+                            cwd: repo,
+                            env: { ...env, PATH: `${par}:${env.PATH}` },
+                        });
+                        let stderr = "";
+                        c.stderr.on("data", (d) => (stderr += d));
+                        c.on("close", (status) => resolve({ n, status, stderr }));
+                    }),
+            ),
+        );
+        for (const { n, status, stderr } of results) {
+            assert.equal(status, 0, `#${n}: ${stderr}`);
+            assert.doesNotMatch(stderr, /could not lock|warning:/, `#${n}: ${stderr}`);
+            const wt = join(repo, `.worktrees/feat-${n}-par`);
+            assert.equal(git(wt, "rev-parse", "--abbrev-ref", "@{upstream}"), `origin/feat/${n}-par`);
+            assert.equal(git(repo, "config", `branch.feat/${n}-par.issue`), String(n));
+            assert.deepEqual(gh().issues[n].labels, ["in-progress"]);
+        }
     });
 
     it("makes golden's worktree with no issue and no push", () => {

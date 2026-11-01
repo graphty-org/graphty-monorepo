@@ -84,22 +84,9 @@ const EDGE_PICK_TOLERANCE_PX = 6;
  * @returns The points, in order along the line.
  */
 function edgeWorldPoints(edge: Edge): Vector3[] {
-    const curve = edge.drawnCurve;
-    if (curve !== null) {
-        // A curve's points are in graph-root's space, which an XR gesture moves. A patterned
-        // line's pieces are slots in batches parented to graph-root, and it has no mesh of its own.
-        const root =
-            edge.mesh instanceof PatternedLineMesh
-                ? edge.srcNode.mesh.getScene().getTransformNodeByName("graph-root")
-                : edge.mesh;
-        if (root === null) {
-            return curve;
-        }
-        const world = root.getWorldMatrix();
-        return curve.map((point) => Vector3.TransformCoordinates(point, world));
-    }
-
-    return [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()];
+    return (
+        drawnCurveInWorld(edge) ?? [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()]
+    );
 }
 
 /**
@@ -166,6 +153,7 @@ import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema"
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
+import { drawnCurveInWorld } from "./edgeWorldCurve";
 import { GraphtyError } from "./errors";
 import {
     EventCallbackType,

@@ -30,9 +30,11 @@ import {
     ciCommand,
     GROUPS,
     groupEntry,
+    MATRIX_CAP,
     parseOnly,
     plan,
     SHARDS,
+    splitLines,
     storiesPlan,
     STORY_PROJECTS,
     STORY_RUNS,
@@ -2150,15 +2152,19 @@ const parseJobs = (text) => {
     let job;
     let step;
     let inNeeds = false;
+    // `steps: &name` / `steps: *name`: a job that runs another job's steps through a YAML alias (test-2, #5537)
+    const anchors = {};
     for (const line of text.slice(text.indexOf("\njobs:\n")).split("\n")) {
         let m = /^ {4}([\w-]+):\s*$/.exec(line);
         if (m) {
-            job = jobs[m[1]] = { needs: [], steps: [] };
+            job = jobs[m[1]] = { needs: [], steps: [], name: m[1] };
             step = undefined;
             inNeeds = false;
             continue;
         }
         if (!job) continue;
+        if ((m = /^ {8}steps: &([\w-]+)$/.exec(line))) anchors[m[1]] = job;
+        if ((m = /^ {8}steps: \*([\w-]+)$/.exec(line))) job.alias = anchors[m[1]].name;
         if (/^ {8}\S/.test(line)) {
             step = undefined;
             inNeeds = line.startsWith("        needs:");
@@ -2171,6 +2177,7 @@ const parseJobs = (text) => {
             if (m[1]) step[m[1]] = m[2];
         } else if (step && (m = /^ {14}([\w-]+):\s*(.*)$/.exec(line))) step[m[1]] = m[2];
     }
+    for (const j of Object.values(jobs)) if (j.alias) j.steps = jobs[j.alias].steps;
     for (const j of Object.values(jobs))
         j.steps = j.steps.map((s) => ({ ...s, name: s.name ?? s.uses, coe: s["continue-on-error"] }));
     return jobs;
@@ -2814,13 +2821,16 @@ describe("the summary checks fail as soon as a required job fails", () => {
             "packages",
             "stories",
             "test",
+            "test-2",
         ]);
         for (const name of deciding) {
             const last = jobs[name].steps.at(-1);
             assert.equal(last.uses, "./.github/actions/early-verdict", name);
             assert.equal(last.if, "failure() && github.event_name == 'pull_request'", name);
             assert.equal(last.coe, "true", `${name}: a failure to post never changes the job's result`);
-            assert.match(job(ci, name), new RegExp(`\\n {18}job: ${name}\\n`), name);
+            // a job running another's steps (test-2) reports as that job, whose warning period it shares
+            const id = jobs[name].alias ?? name;
+            assert.match(job(ci, id), new RegExp(`\\n {18}job: ${id}\\n`), name);
         }
         assert.match(ci, /\npermissions:\n {4}contents: read\n {4}checks: write\n/);
         assert.match(
@@ -7216,7 +7226,16 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         const reused = Object.keys(jobs).filter((name) =>
             /needs\.packages\.outputs\.reuse-run == ''/.test(job(ci, name)),
         );
-        assert.deepEqual(reused.sort(), ["checks", "cost-accuracy", "docs", "links", "lint", "story-tests", "test"]);
+        assert.deepEqual(reused.sort(), [
+            "checks",
+            "cost-accuracy",
+            "docs",
+            "links",
+            "lint",
+            "story-tests",
+            "test",
+            "test-2",
+        ]);
         for (const name of ["packages", "build", "visual", "all-checks"]) {
             assert.ok(!reused.includes(name), `${name} runs on every run`);
         }
@@ -8070,7 +8089,10 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
     it("runs the plan's bins as Test (<family>-<bin>) jobs, each through run-group.mjs", () => {
         const test = job(ci, "test");
         assert.match(test, /\n {8}name: Test \(\$\{\{ matrix\.shard \}\}\)\n/);
-        assert.match(test, /matrix: \$\{\{ fromJSON\(needs\.packages\.outputs\.test-matrix\) \}\}/);
+        assert.match(
+            test,
+            /matrix: \$\{\{ fromJSON\(needs\.packages\.outputs\.test-matrix-1 \|\| needs\.packages\.outputs\.test-matrix\) \}\}/,
+        );
         assert.match(test, /\n {14}run: \$\{\{ matrix\.test-command \}\}\n/);
         const light = {
             bins: [
@@ -8139,6 +8161,94 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
         assert.equal(verdict("3", "failure").status, 1);
         assert.equal(verdict("3", "cancelled").status, 1);
     });
+
+    // GitHub fails a matrix above 256 jobs without running a leg: PR #5525's plan made 302 and All Checks Pass
+    // failed with every Test job green (#5537). Such a plan is cut across the test and test-2 jobs.
+    it("runs a plan above 256 Test jobs as two matrices, and passes only when both did", () => {
+        const dir = mkdtempSync(join(TMP, "matrix-cap-"));
+        const covers = SHARDS.filter((s) => s.shard.startsWith("graphty-element-browser-")).map((s) => s.shard);
+        const bins = Array.from({ length: 302 }, (_, i) => ({
+            name: `graphty-element-browser-bin-${i + 1}`,
+            family: "graphty-element-browser",
+            shard: "graphty-element-browser-1",
+            covers,
+            files: [`graphty-element/test/browser/t${i}.test.ts`],
+            command: `pnpm exec vitest run --project=browser test/browser/t${i}.test.ts`,
+        }));
+        writeFileSync(join(dir, "plan.json"), JSON.stringify({ bins, whole: [], none: [] }));
+        const all = JSON.stringify(PACKAGES);
+        const out = spawnSync(
+            "node",
+            [
+                new URL("ci-test-matrix.mjs", import.meta.url).pathname,
+                all,
+                '["graphty-element"]',
+                "--plan",
+                join(dir, "plan.json"),
+                "--pull-request",
+            ],
+            { encoding: "utf8" },
+        );
+        assert.equal(out.status, 0, out.stderr);
+        const lines = Object.fromEntries(
+            out.stdout
+                .trim()
+                .split("\n")
+                .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
+        );
+        const whole = JSON.parse(lines["test-matrix"]).include;
+        const parts = [1, 2].map((n) => JSON.parse(lines[`test-matrix-${n}`]).include);
+        assert.equal(Number(lines["test-count"]), whole.length);
+        assert.ok(whole.length > MATRIX_CAP, `${whole.length} legs`);
+        assert.ok(parts.every((p) => p.length > 0 && p.length <= MATRIX_CAP));
+        assert.deepEqual([...parts[0], ...parts[1]], whole, "every leg once, in order, unchanged");
+        assert.deepEqual(splitLines(whole.slice(0, MATRIX_CAP)), [], "a plan at the cap stays one matrix");
+        assert.throws(() => splitLines(Array(2 * MATRIX_CAP + 1).fill({})), /two Test jobs hold 512/);
+
+        // the bins step forwards the two matrices, and the second Test job runs the first's steps on the rest
+        const build = job(ci, "packages");
+        assert.match(build, /test-matrix-1: \$\{\{ steps\.bins\.outputs\.test-matrix-1 \}\}/);
+        assert.match(build, /test-matrix-2: \$\{\{ steps\.bins\.outputs\.test-matrix-2 \}\}/);
+        const jobs = parseYaml(ci).jobs;
+        assert.deepEqual(jobs["test-2"].steps, jobs.test.steps);
+        assert.deepEqual(jobs["test-2"].permissions, jobs.test.permissions);
+        assert.equal(jobs["test-2"].name, jobs.test.name);
+        assert.equal(jobs["test-2"].strategy.matrix, "${{ fromJSON(needs.packages.outputs.test-matrix-2) }}");
+        assert.match(jobs["test-2"].if, /needs\.packages\.outputs\.test-matrix-2 != ''/);
+        assert.ok(jobs["all-checks"].needs.includes("test-2"));
+
+        const run = /- name: Check all jobs passed\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(
+            job(ci, "all-checks"),
+        )[1];
+        const ok = Object.fromEntries(
+            ["PACKAGES", "BUILD", "LINT", "CHECKS", "DOCS"].map((n) => [`R_${n}`, "success"]),
+        );
+        const verdict = (count, test, test2) =>
+            spawnSync("bash", ["-e", "-c", run], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    ...ok,
+                    BUILD: "success",
+                    FULL: "false",
+                    LIGHT: "false",
+                    ADVISORY: "[]",
+                    REUSE_RUN: "",
+                    TEST_COUNT: count,
+                    R_TEST: test,
+                    R_TEST_2: test2,
+                    R_LINKS: "skipped",
+                    R_COST: "skipped",
+                    R_STORIES: "skipped",
+                },
+            });
+        const passed = verdict("302", "success", "success");
+        assert.equal(passed.status, 0, passed.stdout);
+        assert.equal(verdict("302", "success", "failure").status, 1, "a failed leg past the cap fails Test");
+        assert.equal(verdict("302", "success", "skipped").status, 1, "legs past the cap that never ran fail Test");
+        assert.equal(verdict("302", "failure", "success").status, 1);
+        assert.equal(verdict("3", "success", "skipped").status, 0, "a plan under the cap has no test-2");
+    });
 });
 
 describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => {
@@ -8156,7 +8266,7 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
         assert.match(stories, /fromJSON\(needs\.packages\.outputs\.stories-count \|\| '0'\) > 0/);
         const build = job(ci, "packages");
         assert.match(build, /stories-matrix: \$\{\{ steps\.bins\.outputs\.stories-matrix \}\}/);
-        assert.match(build, /grep -E '\^\(test\|stories\)-\(matrix\|count\)='/);
+        assert.match(build, /grep -E '\^\(test\|stories\)-\(matrix\|count\)\(-\[12\]\)\?='/);
     });
 
     it("blocks: All Checks Pass needs it, and neither the job nor its capture is continue-on-error (#3472)", () => {

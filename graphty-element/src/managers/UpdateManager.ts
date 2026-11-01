@@ -19,6 +19,7 @@ import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraC
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
+import { drawnCurveInWorld } from "../edgeWorldCurve";
 import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
@@ -163,6 +164,21 @@ function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void
 }
 
 /**
+ * Grow a box to take in the points an edge's curve or bends are drawn through, which can reach
+ * well outside the box of its two nodes (issue #3097). A straight edge costs one check and adds
+ * nothing: its line runs between two nodes the box already holds.
+ * @param box - The box to grow.
+ * @param edge - The edge.
+ */
+function growForCurve(box: FramingBox, edge: Edge): void {
+    for (const point of drawnCurveInWorld(edge) ?? []) {
+        box.spots.push({ pos: point, half: 0 });
+        box.min.minimizeInPlace(point);
+        box.max.maximizeInPlace(point);
+    }
+}
+
+/**
  * The most rounds a framing takes to size the labels sized on screen for its own camera. Each round
  * shrinks the difference by about the share of the view a label takes, so a handful settle it; the
  * cap only bounds a label as big as the view, which no framing can fit.
@@ -182,10 +198,10 @@ function sameBox(a: FramingBox, b: FramingBox): boolean {
 
 /**
  * The box zoom-to-fit frames: {@link nodeFramingBox} grown by every label on a visible node and
- * every label and arrow caption on a visible edge, so no label is cut off by the edge of the
- * viewport. A label's size depends on its text and font, which is why framing runs on data loads
- * and layout changes and NOT on label edits: see `Graph`, which asks for a framing only from
- * those.
+ * every label, arrow caption and curve or bend point on a visible edge, so no label or bent line is
+ * cut off by the edge of the viewport. A label's size depends on its text and font, which is why
+ * framing runs on data loads and layout changes and NOT on label edits: see `Graph`, which asks
+ * for a framing only from those.
  * @param nodes - The nodes to frame; hidden ones and their labels are skipped.
  * @param edges - The edges whose labels to frame; hidden ones are skipped.
  * @param extent - What each node counts as; with its center alone no label is framed.
@@ -215,6 +231,7 @@ export function framingBox(
             growForLabel(box, edge.xlabelLabel?.labelMesh);
             growForLabel(box, edge.arrowHeadText?.labelMesh);
             growForLabel(box, edge.arrowTailText?.labelMesh);
+            growForCurve(box, edge);
         }
     }
 

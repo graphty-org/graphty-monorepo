@@ -53,6 +53,14 @@ describe("promotion", () => {
         const refused = promotion({ state: "green-clean", publishHold: "", gate: "failure" });
         assert.equal(refused.promote, false);
         assert.match(refused.why, /screenshot gate refused/);
+        const reason =
+            "graph-io-fidelity: 1 unstable (not accepted; a rejected item needs a code change, not another review)";
+        const named = promotion({ state: "approved", publishHold: "", gate: "failure", gateReason: reason });
+        assert.equal(
+            named.why,
+            `the screenshot gate refused: ${reason}`,
+            "the gate's own reason, not the generic text",
+        );
     });
 
     it("waits while a publish hold is open, and says which", () => {

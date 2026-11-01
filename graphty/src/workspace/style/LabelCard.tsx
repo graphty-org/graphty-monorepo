@@ -1,4 +1,4 @@
-import { FieldRow, MenuCheckItem, Popout } from "@graphty/compact-mantine";
+import { FieldRow, MenuCheckItem, Popout, TargetTooltip } from "@graphty/compact-mantine";
 import {
     type Channel,
     labelTemplateLine,
@@ -197,11 +197,11 @@ function CardRow({
     const menu = (
         <Menu position="bottom-end" withinPortal={false}>
             <Menu.Target>
-                <Tooltip label={`${place} actions`}>
+                <TargetTooltip label={`${place} actions`}>
                     <ActionIcon variant="subtle" size="sm" aria-label={`${place} actions`}>
                         <GLYPHS.more size={14} aria-hidden />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
                 {row === null ? null : (

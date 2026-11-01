@@ -1,4 +1,4 @@
-import { PopoutManager } from "@graphty/compact-mantine";
+import { PopoutManager, TargetTooltip } from "@graphty/compact-mantine";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { ActionIcon, Anchor, ColorSwatch, Group, Menu, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
@@ -415,7 +415,7 @@ function HeaderMenu({
     return (
         <Menu position="bottom-end">
             <Menu.Target>
-                <Tooltip label={`${kindWord} actions`}>
+                <TargetTooltip label={`${kindWord} actions`}>
                     <ActionIcon
                         variant="subtle"
                         size="sm"
@@ -426,7 +426,7 @@ function HeaderMenu({
                     >
                         <GLYPHS.more size={14} />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
                 {treeRow === undefined ? (

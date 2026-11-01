@@ -4,6 +4,7 @@ import {
     MenuShortcut,
     PanelField,
     PanelLabelsProvider,
+    TargetTooltip,
     ToggleIconButton,
     ToggleRow,
 } from "@graphty/compact-mantine";
@@ -823,11 +824,11 @@ function GroupActionsCell({
             <Menu withinPortal portalProps={{ target: menuHost ?? undefined }} position="bottom-end">
                 <Menu.Target>
                     {/* An icon alone, so it says its name on hover. */}
-                    <Tooltip label={`${source} ${row.name} actions`}>
+                    <TargetTooltip label={`${source} ${row.name} actions`}>
                         <ActionIcon variant="subtle" size="sm" aria-label={`${source} ${row.name} actions`}>
                             <GLYPHS.more size={14} aria-hidden />
                         </ActionIcon>
-                    </Tooltip>
+                    </TargetTooltip>
                 </Menu.Target>
                 <Menu.Dropdown>
                     {from.detail === undefined ? null : (

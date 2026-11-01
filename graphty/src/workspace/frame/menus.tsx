@@ -4,8 +4,8 @@
  * line.
  */
 
-import { MenuItemDescription, MenuShortcut } from "@graphty/compact-mantine";
-import { Menu, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
+import { MenuItemDescription, MenuShortcut, TargetTooltip } from "@graphty/compact-mantine";
+import { Menu, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import React, { Fragment } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
@@ -181,11 +181,11 @@ export function MainMenu({ start = false }: Readonly<{ start?: boolean }>): Reac
     return (
         <Menu position="bottom-start" withinPortal>
             <Menu.Target>
-                <Tooltip label="Main menu">
+                <TargetTooltip label="Main menu">
                     <UnstyledButton aria-label="Main menu" className="ws-header-button">
                         <GLYPHS.menu size={16} aria-hidden />
                     </UnstyledButton>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
                 {start ? null : (

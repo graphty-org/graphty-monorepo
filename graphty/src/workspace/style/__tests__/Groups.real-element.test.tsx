@@ -307,6 +307,29 @@ describe("per-group settings", () => {
         });
     });
 
+    it("Les Miserables: a row's actions button says its menu is open, and draws open (issue #5357)", async () => {
+        await page.viewport(1440, 900);
+        const { session, store } = await openSample("Les Miserables", 77);
+        const { layer } = await runGroups(session, "louvain");
+        const popover = await openBinding(store, layer);
+        const [row] = gridRows(popover);
+        const button = within(row).getByRole("button", { name: / actions$/ });
+        assert.equal(button.getAttribute("aria-expanded"), "false");
+
+        await userEvent.click(button);
+        const menu = await screen.findByRole("menu");
+        await waitFor(() => {
+            assert.equal(button.getAttribute("aria-expanded"), "true");
+        });
+        assert.equal(button.getAttribute("aria-controls"), menu.id);
+        // compact-mantine's open style: the glyph in the brand color.
+        const brand = document.createElement("span");
+        brand.style.color = "var(--cm-icon-brand)";
+        button.parentElement?.append(brand);
+        assert.equal(getComputedStyle(button).color, getComputedStyle(brand).color);
+        brand.remove();
+    });
+
     it("Les Miserables: the group grid is one Tab stop, and Escape on a row's actions closes the popover", async () => {
         await page.viewport(1440, 900);
         const { session, store } = await openSample("Les Miserables", 77);

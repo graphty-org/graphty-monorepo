@@ -126,6 +126,7 @@ import type {
     SparklineRowProps,
     SplitButtonProps,
     StatusBarProps,
+    TargetTooltipProps,
     ToastAction,
     ToastApi,
     ToastOptions,
@@ -287,6 +288,7 @@ type PublicTypeSurface = {
     contextMenu: ContextMenuProps;
     menuCheckItem: MenuCheckItemProps;
     modalFooter: ModalFooterProps;
+    targetTooltip: TargetTooltipProps;
     toastAction: ToastAction;
     toastApi: ToastApi;
     toastOptions: ToastOptions;
@@ -373,6 +375,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "MenuItemDescription",
     "MenuShortcut",
     "ModalFooter",
+    "TargetTooltip",
     "Toast",
     "ToastProvider",
     "TooltipShortcut",
@@ -883,6 +886,7 @@ describe("Package exports", () => {
                     contextMenu: true,
                     menuCheckItem: true,
                     modalFooter: true,
+                    targetTooltip: true,
                     toastAction: true,
                     toastApi: true,
                     toastOptions: true,
@@ -915,7 +919,7 @@ describe("Package exports", () => {
                 } satisfies Record<keyof PublicTypeSurface, true>;
                 const names = Object.keys(listed);
 
-                expect(names).toHaveLength(142);
+                expect(names).toHaveLength(143);
             });
         });
 

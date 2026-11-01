@@ -1,4 +1,4 @@
-import { ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
+import { TargetTooltip, ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { GraphSession, StaleNote, StyleRow } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -558,11 +558,11 @@ function AddMenu({
     return (
         <Menu position="bottom-end">
             <Menu.Target>
-                <Tooltip label={ADD_ROW_LABEL}>
+                <TargetTooltip label={ADD_ROW_LABEL}>
                     <ActionIcon ref={button} variant="subtle" size="sm" aria-label={ADD_ROW_LABEL}>
                         <GLYPHS.add size={14} />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
                 <Menu.Item

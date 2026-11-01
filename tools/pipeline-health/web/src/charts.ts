@@ -4,7 +4,7 @@
  * table, so a screen reader gets the numbers the picture shows.
  */
 import type { BarsSection, Cell, Iso, JobsSection, ShardRow, Spark, StripSection, TreeNode } from "./contract";
-import { esc, fmtN, fmtTime, fmtUnit, sentence } from "./text";
+import { esc, fmtN, fmtTime, fmtUnit, sentence, stripTags } from "./text";
 
 const CHEV = `<svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><path d="M2 2l6 6-6 6" /></svg>`;
 export const chev = () => CHEV;
@@ -37,11 +37,14 @@ export function sparkline(s: Spark, generated: Iso, caption: string): string {
     let lo = Math.min(0, ...all, s.target ?? 0);
     let hi = Math.max(...all, s.target ?? -Infinity);
     if (hi === lo) hi = lo + 1;
-    const y = (v: number) => r1(25 - ((v - lo) / (hi - lo)) * 22);
+    // One value alone has nothing to scale against: it sits mid-height at the newest end, not on the top edge.
+    const single = all.length === 1 && s.target === undefined;
+    const y = (v: number) => (single ? 14 : r1(25 - ((v - lo) / (hi - lo)) * 22));
     const hourly = s.step !== "15m";
     const xCtx = (i: number) => r1(1 + (i * 28) / Math.max(1, s.ctx.length - 1));
     const tx0 = hourly ? 3 : 35;
-    const xT = (i: number) => r1(tx0 + (i * (117 - tx0)) / Math.max(1, s.trend.length - 1));
+    const xT = (i: number) =>
+        s.trend.length === 1 ? 117 : r1(tx0 + (i * (117 - tx0)) / Math.max(1, s.trend.length - 1));
 
     const parts: string[] = [];
     const winW = hourly ? (117 - tx0) / (s.trend.length - 1) + 3 : 15.5;
@@ -58,7 +61,8 @@ export function sparkline(s: Spark, generated: Iso, caption: string): string {
     else if (!s.ctx.length && firstTrend > 0) hatchEnd = xT(firstTrend) - 2;
     if (hatchEnd > 0) {
         parts.push(`<rect x="0" y="1" width="${r1(hatchEnd)}" height="26" style="fill: url(#nh)" />`);
-        if (hatchEnd > 44)
+        // The words need about 70 px; a narrower hatch speaks for itself.
+        if (hatchEnd >= 70)
             parts.push(`<text class="nht" x="${r1(hatchEnd / 2)}" y="18" text-anchor="middle">no history</text>`);
     }
 
@@ -114,30 +118,34 @@ export function budgetBar(r: ShardRow, maxS: number): { svg: string; note: strin
         `<rect class="p90${p90Over ? " warn" : ""}" x="0" y="3" width="${x(r.p90S)}" height="8" />` +
         `<rect class="${judged ? `med${medOver ? " bad" : ""}` : "p90"}" x="0" y="3" width="${x(r.medianS)}" height="8" />` +
         `<line class="bud" x1="${x(r.budgetS)}" y1="0" x2="${x(r.budgetS)}" y2="14" /></svg>`;
+    // The budget is printed, not only drawn, so "over budget" says over what.
+    const budget = `budget ${fmtN(Math.round((r.budgetS / 60) * 10) / 10)} min`;
     const note = !judged
-        ? `n=${r.runs}, not judged`
+        ? `n=${r.runs}, not judged; ${budget}`
         : medOver
-          ? "median over budget"
+          ? `median over ${budget}`
           : p90Over
-            ? "p90 over budget"
-            : "";
+            ? `p90 over ${budget}`
+            : budget;
     return { svg, note };
 }
 
-/** Sorted bars: one row per item, its bar scaled to the group's largest. */
+/** Sorted bars: one row per item, its bar scaled to the group's largest (`max`, when the list is drawn in parts). */
 export function sortedBars(
     items: BarsSection["groups"][number]["items"],
     cellHtml: (c: Cell) => string,
     caption: string,
+    max = Math.max(1, ...items.map((i) => i.n)),
 ): string {
-    const max = Math.max(1, ...items.map((i) => i.n));
     const rows = items
         .map((i) => {
             const w = r1((i.n / max) * 100);
             const cls = i.tone === "bad" ? " bad" : i.tone === "value" ? " lv" : "";
             const val = i.unit === "usd" || i.unit === "count" ? fmtN(i.n) : fmtUnit(i.n, i.unit);
             const detail = i.detail ? `<small> ${cellHtml(i.detail)}</small>` : "";
-            return `<div class="br"><span class="bl">${cellHtml(i.label)}${detail}</span><span class="bv" aria-hidden="true"><span class="hb${cls}" style="width: ${w}%"></span><span class="bn2">${esc(val)}</span></span></div>`;
+            // cellHtml escapes its text, so the HTML without its tags is safe in an attribute.
+            const title = stripTags(i.detail ? `${cellHtml(i.label)} ${cellHtml(i.detail)}` : cellHtml(i.label));
+            return `<div class="br"><span class="bl" title="${title}">${cellHtml(i.label)}${detail}</span><span class="bv" aria-hidden="true"><span class="hb${cls}" style="width: ${w}%"></span><span class="bn2">${esc(val)}</span></span></div>`;
         })
         .join("");
     const table = hiddenTable(
@@ -158,8 +166,9 @@ function ticks(from: number, to: number, nowLabel: boolean): string {
     const span = to - from;
     const out = [`<span style="left: 0%">${fmtTime(new Date(from).toISOString()).slice(-5)}</span>`];
     const every = span > 12 * HOUR ? 3 * HOUR : HOUR;
-    for (let t = Math.ceil(from / every) * every; t < to - every / 3; t += every) {
-        if (t - from < every / 3) continue;
+    // A tick closer than 0.6 of a step to either end label would touch it.
+    for (let t = Math.ceil(from / every) * every; t < to - every * 0.6; t += every) {
+        if (t - from < every * 0.6) continue;
         out.push(
             `<span style="left: ${r1(((t - from) / span) * 100)}%">${fmtTime(new Date(t).toISOString()).slice(-5)}</span>`,
         );
@@ -199,12 +208,18 @@ export function minuteStrip(s: StripSection): string {
     );
 }
 
-/** Running and queued jobs on one count axis, the plan's limit dashed (Runners). */
+/**
+ * Running and queued jobs on one count axis (Runners). The axis fits the data, so 15 jobs never draw as a flat line
+ * under a 500-job limit; the limit is dashed only when it is in view. The end values sit right of the plot, apart.
+ */
 export function jobsChart(s: JobsSection): string {
     const n = s.running.length;
-    const top = Math.max(s.limit, ...s.running, ...s.queued);
-    const max = Math.ceil(top / 40) * 40 || 40;
-    const y = (v: number) => r1(118 - (v / max) * 116);
+    const top = Math.max(1, ...s.running, ...s.queued) * 1.2;
+    let step = 5;
+    if (top > 200) step = 100;
+    else if (top > 40) step = 20;
+    const max = Math.ceil(top / step) * step;
+    const y = (v: number) => r1(118 - (Math.min(v, max) / max) * 116);
     const x = (i: number) => r1((i * 960) / Math.max(1, n - 1));
     const line = (vals: number[]) => vals.map((v, i) => `${x(i)},${y(v)}`).join(" ");
     const pct = (v: number) => (y(v) / 120) * 100;
@@ -213,14 +228,23 @@ export function jobsChart(s: JobsSection): string {
     const stepMs = (s.step === "1h" ? 60 : 15) * 60_000;
     const from = Date.parse(s.start);
     const to = from + (n - 1) * stepMs;
+    // The two end labels, 14 px apart at least (the chart is 120 px tall): queued above, running below.
+    let runTop = (pct(lastRun) / 100) * 120 - 8;
+    let qTop = (pct(lastQ) / 100) * 120 - 8;
+    if (Math.abs(runTop - qTop) < 14) {
+        const mid = (runTop + qTop) / 2;
+        qTop = mid - 7;
+        runTop = mid + 7;
+    }
+    const limit = s.limit <= max ? `<line class="plat" x1="0" y1="${y(s.limit)}" x2="960" y2="${y(s.limit)}" />` : "";
+    const limitKey = s.limit <= max ? '<span class="lk lim"></span>limit' : "";
     return (
-        `<div class="chart"><svg viewBox="0 0 960 120" preserveAspectRatio="none" aria-hidden="true">` +
-        `<line class="plat" x1="0" y1="${y(s.limit)}" x2="960" y2="${y(s.limit)}" />` +
+        `<p class="legend"><span class="lk run"></span>running<span class="lk q"></span>queued${limitKey}</p>` +
+        `<div class="chart"><svg viewBox="0 0 960 120" preserveAspectRatio="none" aria-hidden="true">${limit}` +
         `<polyline class="run" points="${line(s.running)}" /><polyline class="q" points="${line(s.queued)}" /></svg>` +
-        `<span class="cl" style="top: -4px; left: 0">${fmtN(max)} jobs</span>` +
-        `<span class="cl" style="top: calc(${r1(pct(s.limit))}% - 20px); left: 0">limit ${fmtN(s.limit)} (from config); peak ${fmtN(s.peak.n)} at ${fmtTime(s.peak.at)}</span>` +
-        `<span class="cl ink r" style="top: calc(${r1(pct(lastRun))}% + 2px)">${fmtN(lastRun)} running</span>` +
-        `<span class="cl bad r" style="top: calc(${r1(pct(lastQ))}% - 18px); right: 34px">${fmtN(lastQ)} queued</span></div>` +
+        `<span class="cl" style="top: -4px; left: 4px">${fmtN(max)} jobs</span>` +
+        `<span class="cl ink end" style="top: ${r1(runTop)}px">${fmtN(lastRun)} running</span>` +
+        `<span class="cl bad end" style="top: ${r1(qTop)}px">${fmtN(lastQ)} queued</span></div>` +
         ticks(from, to, false) +
         hiddenTable(
             "jobs running and queued",
@@ -237,10 +261,13 @@ export function treeRows(nodes: TreeNode[], href: (route: string) => string, dep
         .map((nd, i) => {
             const key = `${path}/${i}`;
             const tags = nd.tags?.length ? ` <small>${nd.tags.map(sentence).join("; ")}</small>` : "";
+            let rate = "--";
+            if (nd.per1000 !== null)
+                rate = nd.per1000 > 10 ? `<span class="mk bad">${fmtN(nd.per1000)}</span>` : fmtN(nd.per1000);
             const cols =
-                `<span class="nm d${Math.min(depth, 2)}">${esc(nd.name)}${tags}</span>` +
+                `<span class="nm d${Math.min(depth, 2)}">${esc(nd.name.replaceAll("__tests__/", "")).replaceAll("/", "/<wbr>")}${tags}</span>` +
                 `<span class="dbar"><span style="width: ${Math.round((Math.min(nd.distinct, maxDistinct * 2) / maxDistinct) * 36)}px"></span>${fmtN(nd.distinct)}</span>` +
-                `<span class="num">${fmtN(nd.events)}</span><span class="num">${nd.per1000 === null ? "--" : fmtN(nd.per1000)}</span>` +
+                `<span class="num">${fmtN(nd.events)}</span><span class="num">${rate}</span>` +
                 `<span class="num">${nd.quarantined === null ? "--" : fmtN(nd.quarantined)}</span><span class="num">${nd.prsHeld === null ? "--" : fmtN(nd.prsHeld)}</span>${CHEV}`;
             if (nd.children?.length)
                 return `<details data-key="tree${key}"><summary class="hrow">${cols}</summary>${treeRows(nd.children, href, depth + 1, key)}</details>`;

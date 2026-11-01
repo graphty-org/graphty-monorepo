@@ -288,9 +288,12 @@ describe("a group with no stored position follows its members", () => {
         // so where the camera stood before decided the zoom, and nothing redrew the group once the layout rested, so
         // it stayed sized for the camera before the last framing: the same file drew two pictures (issue #4088).
         await follows("dot", DOT, { clusterC: ["m1", "m2"] });
+        // The group's face is read below as it is drawn, so its paint has to have landed: on a slow
+        // frame (or under the minimum-work test mode) the load's repaint is still applied in batches.
+        graph.getLayoutManager().running = false;
+        await graph.waitForStableFrame();
         const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
         try {
-            graph.getLayoutManager().running = false;
             const group = graph.getDataManager().nodes.get("clusterC");
             assert.isDefined(group);
             const camera = graph.getScene().activeCamera;
@@ -298,7 +301,8 @@ describe("a group with no stored position follows its members", () => {
             const framed = (z: number): number => {
                 camera.position.z = z;
                 group.update();
-                return group.framingHalf("x");
+                const box = group.framingBounds();
+                return (box.max.x - box.min.x) / 2;
             };
             const near = framed(-10);
             const far = framed(-1000);

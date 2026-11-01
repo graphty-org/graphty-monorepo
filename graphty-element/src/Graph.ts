@@ -125,7 +125,7 @@ import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
 import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
-import type { CameraState, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
+import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
@@ -4998,7 +4998,9 @@ export class Graph implements GraphContext {
      * so no fit puts a node under them: the automatic framing after a load or a layout,
      * `zoomToFit()`, and the `fitToGraph` view. In 3D the camera also centers what it looks at on
      * the part left free. Does not move the camera by itself; the element's own framing, when on,
-     * picks the margins up at its next fit. A preference of the view, not saved in a project file.
+     * picks the margins up at its next fit. A fit that landed and whose picture is not final yet
+     * counts as not done: margins set then are framed before `waitForStableFrame()` resolves. A
+     * preference of the view, not saved in a project file.
      * @param insets - CSS pixels per side; a side left out, negative or not finite is 0.
      */
     setViewInsets(insets: ViewInsets | undefined): void {
@@ -7435,17 +7437,20 @@ export class Graph implements GraphContext {
      * Ids that name no node are skipped; when none of them names a node the camera does not
      * move. The camera is view state, so this is not an undoable step.
      * @param nodeIds - One node id, or several.
-     * @param options - Optional animation configuration.
+     * @param options - Optional animation configuration, and the `extent` each node is measured by.
+     * @param options.extent - `"centers"` (the default) measures each node by its centre;
+     *   `"drawn"` by the box it is drawn in, so a big node is framed whole.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
      * @example
      * ```typescript
      * await graph.zoomToNodes(["n1", "n2"]);
+     * await graph.zoomToNodes("hub", { extent: "drawn" });
      * ```
      */
     async zoomToNodes(
         nodeIds: (string | number) | readonly (string | number)[],
-        options?: import("./screenshot/types.js").CameraAnimationOptions,
+        options?: { extent?: CameraViewExtent } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         // Each id is looked up the way getNode looks it up, so either spelling of an integer id
         // frames the node, and the scope is handed the ids the graph itself holds.
@@ -7495,7 +7500,7 @@ export class Graph implements GraphContext {
         return nodes;
     }
 
-    private boundsToFrame(nodeIds?: Iterable<string | number>): GraphBounds {
+    private boundsToFrame(nodeIds?: Iterable<string | number>, extent: CameraViewExtent = "centers"): GraphBounds {
         const nodes =
             nodeIds === undefined
                 ? this.getNodes()
@@ -7508,7 +7513,8 @@ export class Graph implements GraphContext {
             points.push(...mapCorners(frame));
         }
 
-        return measureBounds(points);
+        // "drawn" takes each node out to its drawn box, so a big node at the edge is not cut off.
+        return measureBounds(points, extent === "drawn" ? nodes.map((node) => node.framingBounds()) : []);
     }
 
     /**
@@ -7573,6 +7579,8 @@ export class Graph implements GraphContext {
      * @param options - What to frame and how to configure the view.
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
+     * @param options.extent - What each node counts as in the box: `"centers"` (the default) its
+     *   centre, `"drawn"` the box it is drawn in.
      * @returns The camera state the view computed.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` when nothing answers to the name,
      * `E_UNSUPPORTED` when the view does not work in the drawing mode the element is in, or
@@ -7580,7 +7588,11 @@ export class Graph implements GraphContext {
      */
     resolveCameraPreset(
         preset: string,
-        options?: { nodes?: Iterable<string | number>; params?: Readonly<Record<string, unknown>> },
+        options?: {
+            nodes?: Iterable<string | number>;
+            params?: Readonly<Record<string, unknown>>;
+            extent?: CameraViewExtent;
+        },
     ): CameraState {
         /* A VIEW IS ASKED FIRST, AND ONLY THEN A SNAPSHOT. `saveCameraPreset` refuses a name a
            view holds AT THE MOMENT OF SAVING, which leaves one order of events open: a consumer
@@ -7597,7 +7609,7 @@ export class Graph implements GraphContext {
             }
         }
 
-        const context = this.cameraViewContext(this.boundsToFrame(options?.nodes), options?.params);
+        const context = this.cameraViewContext(this.boundsToFrame(options?.nodes, options?.extent), options?.params);
 
         return resolveCameraView(preset, context);
     }
@@ -7614,6 +7626,8 @@ export class Graph implements GraphContext {
      * @param options.scope - What to frame. Absent frames the whole graph. `"selection"` frames the
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
+     * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
+     *   (the default) its centre, `"drawn"` the box it is drawn in.
      * @returns A promise that resolves once the camera has arrived.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA`, `E_UNSUPPORTED`, `E_UNKNOWN_OPTION` or
      * `E_OPTION_RANGE`, exactly as `resolveCameraPreset` does.
@@ -7623,6 +7637,7 @@ export class Graph implements GraphContext {
         options?: {
             scope?: ScopeInput;
             params?: Readonly<Record<string, unknown>>;
+            extent?: CameraViewExtent;
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         const scope = options?.scope;
@@ -7639,6 +7654,7 @@ export class Graph implements GraphContext {
         const state = this.resolveCameraPreset(id, {
             ...(nodes === undefined ? {} : { nodes }),
             ...(options?.params === undefined ? {} : { params: options.params }),
+            ...(options?.extent === undefined ? {} : { extent: options.extent }),
         });
 
         return this.setCameraState(state, options);

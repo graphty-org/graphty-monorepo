@@ -18,6 +18,21 @@
     },
     "others": [
         {
+            "member": "data-sources.stress_run",
+            "state": "bad",
+            "value": {
+                "word": "filed",
+                "n": 0
+            },
+            "fact": {
+                "code": "short.stress_filed",
+                "params": {
+                    "filed": 0,
+                    "failures": 27
+                }
+            }
+        },
+        {
             "member": "flaky.no_issue",
             "state": "warn",
             "value": {
@@ -210,7 +225,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "warn",
             "window": "7d",
             "sla": {
                 "target": {
@@ -237,7 +252,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "28d",
             "sla": {
                 "target": {
@@ -258,6 +273,24 @@
                 "unit": "d"
             },
             "n": 2
+        },
+        {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "code": "sla.passed_and_filed"
+                },
+                "red": {
+                    "code": "sla.filing_failed"
+                }
+            },
+            "link": "/flaky/stress",
+            "id": "data-sources.stress_run",
+            "value": {
+                "word": "filed",
+                "n": 0
+            }
         },
         {
             "state": "ok",
@@ -287,24 +320,6 @@
             },
             "n": 294,
             "minN": 10
-        },
-        {
-            "state": "bad",
-            "window": "now",
-            "sla": {
-                "target": {
-                    "code": "sla.passed_and_filed"
-                },
-                "red": {
-                    "code": "sla.filing_failed"
-                }
-            },
-            "link": "/data-sources/stress",
-            "id": "data-sources.stress_run",
-            "value": {
-                "word": "filed",
-                "n": 0
-            }
         }
     ],
     "sections": [

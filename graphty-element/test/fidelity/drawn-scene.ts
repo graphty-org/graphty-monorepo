@@ -31,11 +31,13 @@ import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
 import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import { JOIN_FLOATS_PER_PIECE } from "../../src/meshes/edgeJoinShader";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import { readLabelTable } from "../../src/meshes/labelTable";
 import type { NodeDecorationPiece } from "../../src/meshes/NodeDecorationMesh";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
+import { type LineOptions, measureLine } from "../../src/meshes/RichTextParser";
 import { pixelsPerUnit } from "../../src/meshes/screenSize";
 import { piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
 import type { Node } from "../../src/Node";
@@ -230,6 +232,48 @@ interface NodeInternals {
     outerBorder: AbstractMesh | null;
     drawnStyle: NodeStyleConfig | null;
     decorationPieces: readonly NodeDecorationPiece[];
+    tableTexts: readonly unknown[] | null;
+}
+
+/** A piece a node draws over its face, on screen: a body piece with its fill. */
+interface ScreenPiece {
+    kind: "shape" | "image" | "body";
+    box: ScreenBox;
+    fill?: NodeDecorationPiece["fill"];
+}
+
+/**
+ * The label of a node that draws it as a table (`shape.labelTable`), whose words are drawn in its cells, the last of
+ * its further texts, as Graphviz's scene records them: the cells' words in order, one line each, in a box round them
+ * all, in the first cell's font and color.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the label, or null for a node whose label is not a table
+ */
+function readTableLabel(node: Node, p: Projector): DrawnLabel | null {
+    const count = (node as unknown as NodeInternals).tableTexts?.length ?? 0;
+    const cells = count === 0 ? [] : node.shapeTextLabels.slice(-count).flatMap((l) => readLabel(l, p) ?? []);
+    const [first] = cells;
+    if (first === undefined) {
+        return null;
+    }
+    const edge = (key: keyof ScreenBox, pick: (...v: number[]) => number): number =>
+        pick(...cells.map((c) => c.box[key]));
+    return {
+        ...first,
+        text: cells.map((c) => c.text).join("\n"),
+        box: {
+            x0: edge("x0", Math.min),
+            y0: edge("y0", Math.min),
+            x1: edge("x1", Math.max),
+            y1: edge("y1", Math.max),
+            near: edge("near", Math.min),
+            far: edge("far", Math.max),
+        },
+        textBox: null,
+        lineCount: cells.reduce((sum, c) => sum + c.lineCount, 0),
+        background: null,
+    };
 }
 
 /**
@@ -238,7 +282,7 @@ interface NodeInternals {
  * @param p - the projector
  * @returns the pieces
  */
-function readPieces(node: Node, p: Projector): { kind: "shape" | "image" | "body"; box: ScreenBox }[] {
+function readPieces(node: Node, p: Projector): ScreenPiece[] {
     const pieces = (node as unknown as NodeInternals).decorationPieces;
     if (pieces.length === 0 || !node.mesh.isEnabled()) {
         return [];
@@ -255,6 +299,7 @@ function readPieces(node: Node, p: Projector): { kind: "shape" | "image" | "body
         ].map(([x, y]) => p.point(Vector3.TransformCoordinates(new Vector3(x, y, z), world)));
         return {
             kind: piece.kind,
+            ...(piece.fill === undefined ? {} : { fill: piece.fill }),
             box: {
                 x0: Math.min(...corners.map((c) => c.x)),
                 x1: Math.max(...corners.map((c) => c.x)),
@@ -283,6 +328,8 @@ interface LabelInternals {
         textOutline?: boolean;
         textOutlineColor?: string;
         textOutlineWidth?: number;
+        lineHeight?: number;
+        runAlign?: LineOptions["runAlign"];
     };
 }
 interface BlurInternals {
@@ -490,6 +537,32 @@ function nodeSizeRuleOf(label: RichTextLabel): Pick<DrawnLabel, "nodeSizeRule"> 
 }
 
 /**
+ * The leading a label's line height adds above its first line and below its last, in label units.
+ * @param label - the label
+ * @param opt - its options
+ * @returns the leading above and below
+ */
+function leadingOf(label: RichTextLabel, opt: LabelInternals["options"]): [number, number] {
+    const ctx = document.createElement("canvas").getContext("2d");
+    const lines = label.textRuns;
+    const lineHeight = opt.lineHeight ?? 1;
+    if (ctx === null || lines.length === 0 || !(lineHeight > 0)) {
+        return [0, 0];
+    }
+    // measured as the label measured them (RichTextLabel._calculateDimensions)
+    ctx.textRendering = "geometricPrecision";
+    const options: LineOptions = {
+        lineHeight,
+        textOutline: opt.textOutline === true,
+        textOutlineWidth: opt.textOutlineWidth ?? 0,
+        runAlign: opt.runAlign,
+    };
+    const half = (line: readonly TextSegment[]): number =>
+        (measureLine(ctx, [...line], options).lineBox * (1 - 1 / lineHeight)) / 2;
+    return [half(lines[0]), half(lines[lines.length - 1])];
+}
+
+/**
  * A label as drawn: its words, its plane on screen, the font height in pixels (the run's font
  * size in texture pixels times screen pixels per texture pixel of the plane) and its color.
  * @param label - the label
@@ -547,12 +620,16 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
     };
     const known = dims.width > 0 && dims.height > 0 && inner.contentArea !== undefined && inner.textSize !== undefined;
     const pad = opt.backgroundPadding ?? 0;
+    // the lines' font boxes, without the leading above the first and below the last: an SVG text's box (the oracle's)
+    // is its font's ascent plus descent, and a reader sees no line's leading (#5322: a DOT label read 1.2 times as
+    // tall as Graphviz's and reached into the glyph above it)
+    const [leadAbove, leadBelow] = known ? leadingOf(label, opt) : [0, 0];
     const textBox = known
         ? onScreen(
               inner.contentArea.x + (opt.marginLeft ?? 0) + pad,
-              inner.contentArea.y + (opt.marginTop ?? 0) + pad,
+              inner.contentArea.y + (opt.marginTop ?? 0) + pad + leadAbove,
               inner.textSize.width,
-              inner.textSize.height,
+              inner.textSize.height - leadAbove - leadBelow,
           )
         : null;
     // screen pixels per label unit, along the plane's height
@@ -641,6 +718,8 @@ export interface DrawnNode {
     insetPx: number;
     /** The border ring drawn outside the fill, or null when the node has none. */
     border: DrawnBorder | null;
+    /** Where a table label's background is the node's body, its cells' outline, else null. */
+    tableOutline?: DrawnBorder | null;
     /**
      * Where the node also draws an outer ring (`outer`), its own border ring at the fill, else null: `border` and the
      * box are then the outer ring's.
@@ -653,6 +732,11 @@ export interface DrawnNode {
     /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
     picture?: ScreenBox;
     label: DrawnLabel | null;
+    /**
+     * The label of a node that draws it as a table (`shape.labelTable`), read off the table's cells, or null for
+     * none; the cells are also among its `texts`.
+     */
+    tableLabel?: DrawnLabel | null;
     /** The further texts it draws over its face (`shape.texts`). */
     texts?: DrawnLabel[];
     /**
@@ -680,6 +764,36 @@ export interface DrawnBorder {
     screen: boolean;
     /** The opacity it is drawn at: its material's alpha times the ring's visibility. */
     opacity: number;
+}
+
+/**
+ * The outline a table label's cells draw (in the border's color, as wide as their border), which an SVG drawing
+ * reads as the node's outline where the table's background is its body (a program's scene keeps the node's own
+ * border apart).
+ * @param node - the node
+ * @param p - the projector
+ * @returns the outline, or null when the cells draw none
+ */
+function readTableOutline(node: Node, p: Projector): DrawnBorder | null {
+    const { drawnStyle } = node as unknown as NodeInternals;
+    const shape = drawnStyle?.shape;
+    // the style as painted, before the table's lines are added: their width is the cells' border, as the node draws it
+    const table = readLabelTable(shape?.labelTable);
+    const width = shape?.lineWidth ?? table?.cellBorder ?? 0;
+    const color = drawnStyle?.border?.color;
+    if (table === null || !(width > 0) || typeof color !== "string") {
+        return null;
+    }
+    const css = cssColor(color);
+    const at = node.mesh.getAbsolutePosition();
+    return {
+        color: css.hex,
+        widthPx: width * NodeMesh.extentPerSize(shape) * p.pxPerWorld(at),
+        lineWidthPx: null,
+        style: "solid",
+        screen: false,
+        opacity: css.alpha * (drawnStyle?.border?.opacity ?? 1),
+    };
 }
 
 /**
@@ -891,8 +1005,15 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     const border = outer?.border ?? own;
     const grow = outer?.gapPx ?? 0;
     // A node whose fill is transparent (Graphviz's default, unfilled shape) still draws its outline.
-    const shown = (mesh.isVisible && source.visibility > 0) || border !== null;
+    const ownFace = (mesh.isVisible && source.visibility > 0) || border !== null;
     const pieces = readPieces(node, p);
+    // a table label's background on a node that draws no face of its own (Graphviz's `shape=none` round a `<TABLE
+    // BGCOLOR>`) is the node's body, as the program's filled table is its node: drawn in the table's box and color
+    const tableBody =
+        ownFace || (node as unknown as NodeInternals).tableTexts === null
+            ? []
+            : pieces.filter((piece) => piece.kind === "body" && piece.fill !== undefined);
+    const shown = ownFace || tableBody.length > 0;
     // a node with no body draws nothing of its own but what is over its face: drawn as its image (vis-network's
     // image nodes)
     const picture = faces ? undefined : pieces.find((piece) => piece.kind === "image");
@@ -905,13 +1026,21 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         x1: box.x1 + grow,
         y1: box.y1 + grow,
     };
-    const drawnBox = [drawnOwn, ...body].reduce((a: ScreenBox, b: ScreenBox): ScreenBox => ({
-        ...a,
-        x0: Math.min(a.x0, b.x0),
-        y0: Math.min(a.y0, b.y0),
-        x1: Math.max(a.x1, b.x1),
-        y1: Math.max(a.y1, b.y1),
-    }));
+    const drawnBox = [...(tableBody.length > 0 ? [] : [drawnOwn]), ...body].reduce(
+        (a: ScreenBox, b: ScreenBox): ScreenBox => ({
+            ...a,
+            x0: Math.min(a.x0, b.x0),
+            y0: Math.min(a.y0, b.y0),
+            x1: Math.max(a.x1, b.x1),
+            y1: Math.max(a.y1, b.y1),
+        }),
+    );
+    // its outline is the table's cells' outlines (`shape.lines`), drawn in its border's color, as the program's is
+    const tableOutline = tableBody.length > 0 ? readTableOutline(node, p) : null;
+    const tableFill =
+        tableBody[0]?.fill === undefined
+            ? null
+            : { hex: hex(new Color3(...tableBody[0].fill.rgb)), opacity: tableBody[0].fill.opacity };
     // a body drawn off its position (a glyph above its baseline, in pieces) is placed by its box, as a program's is
     const offCenter = body.length > 0 || drawnStyle?.shape?.stretchPoints === false;
     const placedBy = picture?.box ?? (offCenter ? drawnBox : null);
@@ -922,8 +1051,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         meshName: source.name,
         shapeType: node.shapeType,
         polygon: (node as unknown as NodeInternals).drawnStyle?.shape?.points,
-        fillDrawn: ramp?.colors[0] ?? (rgb ? hex(rgb) : null),
-        fillOpacity: faces ? (base?.alpha ?? 1) * source.visibility : 0,
+        fillDrawn: tableFill?.hex ?? ramp?.colors[0] ?? (rgb ? hex(rgb) : null),
+        fillOpacity: tableFill?.opacity ?? (faces ? (base?.alpha ?? 1) * source.visibility : 0),
         gradient: base?.texture === true,
         ramp,
         instanceColor: buffer !== undefined,
@@ -932,9 +1061,11 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         ring: ring ?? null,
         insetPx: readInset(node, p),
         border,
+        tableOutline,
         innerBorder: outer === null ? null : own,
         outer,
         label: readLabel(node.label, p),
+        tableLabel: readTableLabel(node, p),
         // the further texts, and the external label beside the node (Graphviz's xlabel), each a text of the node
         texts: [...node.shapeTextLabels, ...(node.xlabelLabel === undefined ? [] : [node.xlabelLabel])].flatMap((l) => {
             const read = readLabel(l, p);
@@ -942,9 +1073,9 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         }),
         // the image of a node with no body is the node itself
         ...(picture === undefined ? {} : { picture: picture.box }),
-        pieces: pieces.filter(
-            (piece): piece is { kind: "shape" | "image"; box: ScreenBox } => piece !== picture && piece.kind !== "body",
-        ),
+        pieces: pieces
+            .filter((piece) => piece !== picture && piece.kind !== "body")
+            .map((piece) => ({ kind: piece.kind as "shape" | "image", box: piece.box })),
         // its only picture its glyph, where it asks for no image (an image node that drew none is still a node)
         faceless: drawnStyle?.shape?.type === "none" && (drawnStyle.image?.src ?? "") === "",
         glyph:

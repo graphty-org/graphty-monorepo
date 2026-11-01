@@ -636,7 +636,7 @@ Usage:
   npx @graphty/remote-logger [options]
 
 Options:
-  --port, -p <port>       Port to listen on (default: 9080)
+  --port, -p <port>       Port to listen on (default: PORT, else 9080)
   --host, -h <host>       Hostname to bind to (default: 0.0.0.0)
   --cert, -c <path>       Path to SSL certificate file (enables HTTPS)
   --key, -k <path>        Path to SSL private key file (enables HTTPS)
@@ -680,10 +680,20 @@ export interface ParseArgsResult {
  * Parse command line arguments into LogServerOptions.
  * This is separated from main() to enable testing.
  * @param args - Array of command line arguments (excluding node and script name)
+ * @param env - The environment to read PORT from (default: process.env)
  * @returns ParseArgsResult with options, help flag, or error
  */
-export function parseArgs(args: string[]): ParseArgsResult {
+export function parseArgs(args: string[], env: NodeJS.ProcessEnv = process.env): ParseArgsResult {
     const options: LogServerOptions = {};
+
+    // PORT is how process managers such as servherd hand over a port; --port overrides it
+    if (env.PORT !== undefined) {
+        try {
+            options.port = parseIntegerSetting("PORT", env.PORT, 1, 65535);
+        } catch (error) {
+            return { options, showHelp: false, error: (error as Error).message };
+        }
+    }
 
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
@@ -766,6 +776,9 @@ export async function main(): Promise<void> {
     // Common server options shared across all modes
     const baseOptions = {
         httpPort: options.port ?? 9080,
+        // A port the caller chose (--port or PORT) is bound exactly or the server fails;
+        // only the default port scans upward for a free one
+        maxPortNumber: options.port,
         httpHost: options.host ?? "0.0.0.0",
         quiet: options.quiet ?? false,
         certPath: options.certPath,

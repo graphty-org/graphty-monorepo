@@ -100,6 +100,30 @@ export interface FileStyleOptions {
      * looks as it does there. True by default.
      */
     readonly toolDefaults?: boolean;
+    /**
+     * The URL a picture the file names by a relative path (a node's `image`, a table cell's `<IMG>`) is
+     * resolved against, usually the URL the file itself was loaded from. Absent, a picture is loaded as the
+     * file wrote it, which the browser resolves against the page. A file read from a `Blob` or from text has
+     * no location of its own, so only this can give one.
+     */
+    readonly imageBaseUrl?: string;
+}
+
+/**
+ * A picture's path resolved against a base URL; as written without a base, or when the two do not make a URL.
+ * @param src - The path as the file wrote it.
+ * @param base - The base URL, or undefined.
+ * @returns The URL to load.
+ */
+export function pictureUrl(src: string, base: string | undefined): string {
+    if (base === undefined || src === "") {
+        return src;
+    }
+    try {
+        return new URL(src, base).href;
+    } catch {
+        return src;
+    }
 }
 
 /** One note of a translation: a code and the facts it is about. */
@@ -496,6 +520,7 @@ function closingQuote(where: string, from: number, quote: string): number {
  * @param graphty - Whether graphty wrote the file.
  * @param arrowsSized - Whether arrow sizes are drawn in a pass of their own (`#arrowSizes`).
  * @param borderOnScreen - Whether the writing program draws a node's border width in screen pixels.
+ * @param imageBase - The URL a picture's relative path is resolved against, or undefined.
  * @returns The plans per property.
  */
 function channelPlans(
@@ -505,8 +530,14 @@ function channelPlans(
     graphty: boolean,
     arrowsSized: boolean,
     borderOnScreen = false,
+    imageBase?: string,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
+    const picture = (channel: Channel): ChannelPlan => ({
+        channel,
+        convert: (value) => (typeof value === "string" ? pictureUrl(value, imageBase) : value),
+        identity: imageBase === undefined,
+    });
     const table = (
         channel: Channel,
         entries: ReadonlyMap<string, string>,
@@ -628,17 +659,27 @@ function channelPlans(
             ["shapeParts", [points("node.shapeParts")]],
             ["shapeLines", [points("node.shapeLines")]],
             ["shapeTexts", [id("node.shapeTexts")]],
+            [
+                "labelTable",
+                [
+                    {
+                        channel: "node.labelTable",
+                        convert: (value) => labelTableForElement(value, factors.node, imageBase),
+                        identity: false,
+                    },
+                ],
+            ],
             ["shapeLineWidth", [length("node.shapeLineWidth")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
             [
                 "image",
                 [
-                    id("node.image"),
+                    picture("node.image"),
                     { channel: "node.imagePixelSize", convert: () => round(factors.node), identity: false },
                 ],
             ],
             ["imageFit", [id("node.imageFit")]],
-            ["imageFallback", [id("node.imageFallback")]],
+            ["imageFallback", [picture("node.imageFallback")]],
             ["imageWidth", [length("node.imageWidth")]],
             ["imageHeight", [length("node.imageHeight")]],
             ["imagePositionX", [id("node.imagePositionX")]],
@@ -780,6 +821,8 @@ function channelPlans(
             ["labelPaddingY", [length("node.labelPaddingY")]],
             ["labelFitSquare", [id("node.labelFitSquare")]],
             ["labelFitQuantum", [length("node.labelFitQuantum")]],
+            ["labelFitImage", [length("node.labelFitImage")]],
+            ["labelFitImagePadding", [length("node.labelFitImagePadding")]],
             // Screen pixels, so never scaled by the file's lengths.
             ["labelMinScreenSize", [id("node.labelMinScreenSize")]],
             ["labelMinNodeScreenSize", [id("node.labelMinNodeScreenSize")]],
@@ -1290,6 +1333,89 @@ export function labelRunsMarkup(runs: unknown, size: unknown = null): string | n
         .join("");
 }
 
+/** The lengths of a table and of its cells, scaled as the file's other lengths are. */
+const TABLE_LENGTHS = [
+    "border",
+    "cellBorder",
+    "cellSpacing",
+    "cellPadding",
+    "width",
+    "height",
+    "padding",
+    "imagePixel",
+    "textPixel",
+] as const;
+
+/**
+ * A table label (the neutral `labelTable`, JSON with lengths in the file's units and each line's text as runs) as
+ * the element draws one (`node.labelTable`): its lengths scaled, each line's runs as label markup, each picture's pixel
+ * one file length across.
+ * ponytail: a run's own point size is not carried (its markup is a share of the label's size, which this value does
+ * not know); carry the table's label size when a file sizes the text of its cells.
+ * @param value - the table, as JSON
+ * @param factor - the scene's lengths per file length
+ * @param imageBase - the URL a picture's relative path is resolved against, or undefined
+ * @returns the element's table, as JSON, or null when the value is not a table
+ */
+export function labelTableForElement(value: unknown, factor: number, imageBase?: string): string | null {
+    if (typeof value !== "string") {
+        return null;
+    }
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(value);
+    } catch {
+        return null;
+    }
+    const table = (t: unknown, depth: number): unknown => {
+        if (typeof t !== "object" || t === null || depth > 8) {
+            return null;
+        }
+        const out: Record<string, unknown> = { ...(t as Record<string, unknown>) };
+        for (const key of TABLE_LENGTHS) {
+            if (typeof out[key] === "number") {
+                out[key] = round(out[key] * factor);
+            }
+        }
+        if (Array.isArray(out.rows)) {
+            out.rows = out.rows.map((row: unknown) => {
+                const r = typeof row === "object" && row !== null ? (row as Record<string, unknown>) : {};
+                const cells = Array.isArray(r.cells) ? r.cells : [];
+                return { ...r, cells: cells.map((c: unknown) => cellFor(c, depth)) };
+            });
+        }
+        return out;
+    };
+    const cellFor = (c: unknown, depth: number): unknown => {
+        const out = table(c, depth) as Record<string, unknown> | null;
+        if (out === null) {
+            return {};
+        }
+        delete out.rows;
+        if (out.table !== undefined) {
+            out.table = table(out.table, depth + 1);
+        }
+        // a picture drawn at its own size draws each of its pixels one of the file's lengths across, as `image` does
+        const image = out.image as { src?: unknown } | undefined;
+        if (image !== undefined) {
+            out.image =
+                typeof image === "object" && image !== null && typeof image.src === "string"
+                    ? { ...image, src: pictureUrl(image.src, imageBase), pixelSize: round(factor) }
+                    : undefined;
+        }
+        if (Array.isArray(out.lines)) {
+            out.lines = out.lines.map((line: unknown) => {
+                const l = typeof line === "object" && line !== null ? (line as Record<string, unknown>) : {};
+                const text = labelRunsMarkup(JSON.stringify(l.runs ?? [])) ?? "";
+                return typeof l.align === "string" ? { text, align: l.align } : { text };
+            });
+        }
+        return out;
+    };
+    const out = table(parsed, 0) as Record<string, unknown> | null;
+    return out !== null && Array.isArray(out.rows) ? JSON.stringify(out) : null;
+}
+
 /**
  * A number at 12 significant digits, so a length scaled by a factor compares as the same value
  * however it was computed.
@@ -1628,6 +1754,7 @@ class KindTranslation {
             tool === "graphty",
             this.#arrowhead !== null,
             tool !== null && toolDefaults(tool)?.nodeBorderOnScreen?.value === true,
+            input.options.imageBaseUrl,
         );
         this.#keys = new Set(input.extracted.columns[kind].keys());
         this.#rules = input.extracted.styles.rules

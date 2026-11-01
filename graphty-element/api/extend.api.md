@@ -459,6 +459,9 @@ export interface CameraState {
 }
 
 // @public
+export type CameraViewExtent = "centers" | "drawn";
+
+// @public
 export interface CameraViewInput {
     readonly aspect: number;
     readonly bounds: GraphBounds;
@@ -2066,7 +2069,10 @@ class Node_2 implements ModelUser {
     }>;
     get drawnRadius(): number;
     // @internal
-    framingHalf(axis: "x" | "y" | "z"): number;
+    framingBounds(): {
+        min: Vector3;
+        max: Vector3;
+    };
     getPosition(): {
         x: number;
         y: number;
@@ -2113,6 +2119,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
+    refitPicture(): void;
+    // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
     refreshScreenBorder(): boolean;
@@ -2133,6 +2141,8 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    get surfaceIsBox(): boolean;
     // @internal
     syncXlabelPlace(): void;
     tooltip?: RichTextLabel;

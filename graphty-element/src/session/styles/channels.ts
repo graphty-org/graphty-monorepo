@@ -429,12 +429,15 @@ export interface ChannelValues {
     "node.shapeParts": string;
     "node.shapeLines": string;
     "node.shapeTexts": string;
+    "node.labelTable": string;
     "node.shapeLineWidth": number;
     "node.labelFit": NodeLabelFitValue;
     "node.labelPaddingX": number;
     "node.labelPaddingY": number;
     "node.labelFitSquare": boolean;
     "node.labelFitQuantum": number;
+    "node.labelFitImage": number;
+    "node.labelFitImagePadding": number;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
     "node.gradientColors": string;
@@ -3532,6 +3535,30 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "node's height, the rotation in degrees clockwise (a chart's item labels). Drawn beside the node's " +
             "label, whatever it says.",
     },
+    "node.labelTable": {
+        channel: "node.labelTable",
+        target: "node",
+        plainName: "Node Label Table",
+        shortName: "Label table",
+        group: "text",
+        accepts: "text",
+        stylePath: "shape.labelTable",
+        renderable: true,
+        caveat:
+            "The label laid out as a table of cells, as an HTML-like table is: JSON " +
+            '`{ "rows": [{ "cells": [{ "lines": [{ "text": "a" }] }, { "lines": [{ "text": "b" }] }] }] }` is two ' +
+            "cells side by side. The table may give `border`, `cellBorder`, `cellSpacing`, `cellPadding`, " +
+            "`width`, `height`, `fixedSize`, `align`, `valign`, `lineHeight` (a text line's height as a multiple " +
+            "of the label's size, or `\"font\"`: its font's ascent plus descent, each rounded up to whole " +
+            "`textPixel`s when that is given) and `baseline` (how far a line's baseline sits below its top, as a " +
+            "multiple of the label's size; unset, its words are centered in it); a row `rule` (a line above it); a cell `colspan`, `rowspan`, `width`, " +
+            "`height`, `fixedSize`, `align` (`left`, `right`, `center`, `text`), `valign`, `balign`, `border`, " +
+            "`padding`, `rule` (a line on its left) and a `table` of its own in place of `lines`; a line `align`. " +
+            "Lengths are in the units of `node.size`, a line's `text` in label markup. Drawn in place of the " +
+            "label's words, in the label's font: each cell's outline a line in the border's color " +
+            "(`node.shapeLineWidth` wide, else the cell's border), each text line in its place. With " +
+            "`node.labelFit` the table is the label's box the node grows round.",
+    },
     "node.shapeLineWidth": {
         channel: "node.shapeLineWidth",
         target: "node",
@@ -3595,6 +3622,39 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "A node that grows to hold its label (`node.labelFit`) rounds its padded label box up to a " +
             "multiple of this length each way before its outline is fitted round it, as Graphviz's " +
             "`quantum` does. 0 rounds nothing; without `node.labelFit` it changes nothing.",
+    },
+    "node.labelFitImage": {
+        channel: "node.labelFitImage",
+        target: "node",
+        plainName: "Node Label Fit Image",
+        shortName: "Fit image",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.labelFitImage",
+        renderable: true,
+        caveat:
+            "A node that grows to hold its label (`node.labelFit`) also holds its picture (`node.image`): the " +
+            "picture's own pixels, each this long, padded by `node.labelFitImagePadding`; the larger of the " +
+            "padded label and the padded picture decides each way, as Graphviz grows a node round its `image`. " +
+            "The node is fitted again once the picture is read. 0 lets the picture size nothing; without " +
+            "`node.labelFit` it changes nothing.",
+    },
+    "node.labelFitImagePadding": {
+        channel: "node.labelFitImagePadding",
+        target: "node",
+        plainName: "Node Label Fit Image Padding",
+        shortName: "Fit image padding",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.labelFitImagePadding",
+        renderable: true,
+        caveat:
+            "The room on each side of a picture a node holds (`node.labelFitImage`), in the units of its size. " +
+            "Without `node.labelFitImage` it changes nothing.",
     },
     "node.gradientColor": {
         channel: "node.gradientColor",

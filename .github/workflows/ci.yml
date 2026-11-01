@@ -153,7 +153,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Wait for a turn
@@ -206,6 +205,7 @@ jobs:
             visual-on: ${{ steps.plan.outputs.visual-on }}
             docs: ${{ steps.optional.outputs.docs }}
             cost-accuracy: ${{ steps.optional.outputs.cost-accuracy }}
+            capture-impact: ${{ steps.capture.outputs.capture-impact }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
             reuse-url: ${{ steps.reuse.outputs.reuse-url }}
             artifacts-run: ${{ steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run }}
@@ -223,7 +223,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # One approval in flight (design/visual-testing/early-capture.md, 4d rule 4): a pull request that changes
@@ -391,6 +390,15 @@ jobs:
                       # graph-format, and what runs the job: graphty-element's test:cost script and vitest config, the lockfile, ci.yml
                       echo "cost-accuracy=$(has '^graphty-element/(src/(session|catalog|algorithms)/|test/session/cost/|package\.json$|vitest\.config\.ts$)|^(algorithms|graph-format)/src/|^pnpm-lock\.yaml$|^\.github/workflows/ci\.yml$')"
                   } | tee -a "$GITHUB_OUTPUT"
+
+            # The Capture impact job runs only on a pull request that changes how every picture is drawn
+            # (tools/capture-impact.sh changed).
+            - name: Plan the capture impact check
+              id: capture
+              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+              run: echo "capture-impact=$(tools/capture-impact.sh changed "origin/$BASE_REF" HEAD)" | tee -a "$GITHUB_OUTPUT"
 
             # A commit that changes only screenshot records (the owner's Finish on the review page commits
             # the accepted baselines and the signed approval to the branch) needs no new test run. When
@@ -804,7 +812,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # The same check as the packages job's step of this name: the run reuse_build_run names built this
@@ -999,7 +1006,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -1150,7 +1156,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -1353,7 +1358,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -1459,7 +1463,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v4
@@ -1568,7 +1571,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -1906,7 +1908,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Setup Node.js
@@ -2028,7 +2029,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -2138,7 +2138,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -2224,7 +2223,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # the Stories jobs' rule: a pull request runs the base branch's capture code, never its own
@@ -2310,7 +2308,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Restore this project's baseline images
@@ -2499,6 +2496,120 @@ jobs:
                   job: stories
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
+    # Capture impact (#5304): the Stories jobs run the base branch's capture code, so a pull request that changes
+    # how every picture is drawn (the capture code or settings, the pinned fonts, the Playwright or Chromium
+    # version, a Storybook preview; tools/capture-impact.sh changed) never shows its own effect there. #4603 moved
+    # about 1,700 screenshots by one device pixel that way and was first seen on a held nightly candidate. Only for
+    # such a pull request, this job captures a fixed sample of every project's stories from this run's Storybooks
+    # with the base's capture environment and with the pull request's, and counts the pictures that differ. At
+    # CAPTURE_IMPACT_THRESHOLD or more it labels the pull request capture-impact and comments the count;
+    # "All Checks Pass" then fails while the label is on, which keeps auto-merge from merging. Removing the label
+    # acknowledges the change (accepted as one group at the promotion, or fixed); re-run the failed jobs and a later
+    # push never labels it again. The job itself is report-only (continue-on-error): it never fails the run, and it
+    # touches neither the gate nor the story-test captures.
+    capture-impact:
+        name: Capture impact
+        needs: [packages, build]
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.packages.outputs.capture-impact == 'true' && needs.build.result == 'success' }}
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        permissions:
+            contents: read
+            # the label and the comment
+            issues: write
+            pull-requests: write
+        outputs:
+            held: ${{ steps.label.outputs.held }}
+        env:
+            CAPTURE_IMPACT_THRESHOLD: "5"
+            LABEL: capture-impact
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 2
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Download the Storybooks
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: build-storybook-*
+                  path: ${{ runner.temp }}/storybooks
+
+            # the artifacts' names to the paths visual-review.config.json names (tools/ci-reuse-plan.mjs)
+            - name: Put the Storybooks where the config names them
+              run: |
+                  while read -r name dir; do
+                      [ -d "$RUNNER_TEMP/storybooks/$name" ] || continue
+                      mkdir -p "$(dirname "$dir")"
+                      mv "$RUNNER_TEMP/storybooks/$name" "$dir"
+                  done < <(node --input-type=module -e 'import { STORYBOOKS } from "./tools/ci-reuse-plan.mjs"; for (const [n, d] of Object.entries(STORYBOOKS)) console.log(n, d);')
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Capture a sample with the base's and the pull request's capture environment
+              id: measure
+              run: tools/capture-impact.sh measure HEAD^1 HEAD "$RUNNER_TEMP/capture-impact" | tee -a "$GITHUB_OUTPUT"
+
+            - name: Upload the captures
+              if: always()
+              uses: actions/upload-artifact@v7
+              with:
+                  name: capture-impact-${{ github.run_attempt }}
+                  path: |
+                      ${{ runner.temp }}/capture-impact/*/*/
+                      ${{ runner.temp }}/capture-impact/*/*.log
+                      ${{ runner.temp }}/capture-impact/summary.md
+                      !${{ runner.temp }}/capture-impact/*/repo
+                      !${{ runner.temp }}/capture-impact/*/node_modules
+                  retention-days: 7
+                  if-no-files-found: ignore
+
+            # Labels at the threshold unless someone already removed the label from this pull request (its events),
+            # which acknowledged the change. held says the label is meant to be on; All Checks Pass reads the label.
+            - name: Label a mass visual change
+              id: label
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR: ${{ github.event.pull_request.number }}
+                  CHANGED: ${{ steps.measure.outputs.changed }}
+              run: |
+                  cat "$RUNNER_TEMP/capture-impact/summary.md" >> "$GITHUB_STEP_SUMMARY"
+                  if (( CHANGED < CAPTURE_IMPACT_THRESHOLD )); then
+                      echo "below the threshold of $CAPTURE_IMPACT_THRESHOLD changed pictures"
+                      exit 0
+                  fi
+                  removed=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/events" \
+                      --jq "[.[] | select(.event == \"unlabeled\" and .label.name == \"$LABEL\")] | length" | jq -s add)
+                  if (( removed > 0 )); then
+                      echo "::notice title=Capture impact::$CHANGED sampled pictures change; the $LABEL label was removed before, so the change is acknowledged"
+                      exit 0
+                  fi
+                  echo "held=true" >> "$GITHUB_OUTPUT"
+                  if ! gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -qx "$LABEL"; then
+                      gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" -f "labels[]=$LABEL" --silent
+                      {
+                          cat "$RUNNER_TEMP/capture-impact/summary.md"
+                          echo ""
+                          echo "This pull request changes how every picture is drawn, and $CHANGED sampled pictures change with it. Auto-merge waits until the \`$LABEL\` label is removed: remove it to accept the change as one group (or fix it), then re-run the failed jobs."
+                      } | gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@- --silent
+                  fi
+                  echo "::warning title=Capture impact::$CHANGED sampled pictures change; labeled $LABEL"
+
     # Stories as tests (design/ci/channels-pipeline/stories-as-tests.md, issue #3472): a project's story tests
     # shoot every story and mode at the end of its test and compare it with its baseline, writing the capture
     # the review page and the gate read. Every project has switched (two full runs with zero parity differences
@@ -2644,7 +2755,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # A pull request's screenshots are taken and written by the base branch's capture code, never its
@@ -2928,10 +3038,16 @@ jobs:
     # skipped required check as passing, so a skip here could let a pull request merge with no CI at all.
     all-checks:
         name: All Checks Pass
-        needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, stories]
+        # capture-impact is report-only; it is needed so the hold step below runs after it labels
+        needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, stories, capture-impact]
         if: always()
         runs-on: ubuntu-24.04
         timeout-minutes: 70
+        # pull-requests: read for the hold step's label read; checks: write for the early verdicts' clear
+        permissions:
+            contents: read
+            checks: write
+            pull-requests: read
         steps:
             - name: Check all jobs passed
               env:
@@ -3006,6 +3122,20 @@ jobs:
                       exit 1
                   fi
                   echo "All checks passed!"
+
+            # A pull request the Capture impact job labeled capture-impact does not pass while the label is on,
+            # so auto-merge waits for someone to acknowledge the change by removing it (then: re-run failed jobs).
+            # The label is read now, not from the event, which predates the job that added it.
+            - name: Hold a capture-impact pull request until its label is removed
+              if: github.event_name == 'pull_request' && needs.capture-impact.outputs.held == 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR: ${{ github.event.pull_request.number }}
+              run: |
+                  if gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -qx capture-impact; then
+                      echo "::error::the Capture impact job found many changed pictures and labeled this pull request capture-impact; remove the label to accept the change, then re-run the failed jobs"
+                      exit 1
+                  fi
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
@@ -3187,7 +3317,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Dispatch release.yml when a restart or a promotion is due
@@ -3231,7 +3360,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Delete superseded and closed pull requests' cache keys
@@ -3278,7 +3406,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Download the base checks
@@ -3319,7 +3446,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Setup Node.js
@@ -3367,7 +3493,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Restore graphty-element's baseline images
@@ -3487,7 +3612,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: ./.github/actions/timings

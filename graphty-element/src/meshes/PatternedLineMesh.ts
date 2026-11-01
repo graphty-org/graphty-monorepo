@@ -434,27 +434,34 @@ export class PatternedLineMesh {
      * Where a distance along the route the line was laid on falls, and the route's direction there. A distance before
      * the start or past the end runs on along the first or last segment.
      * @param distance - The distance from the route's start.
-     * @returns The point and the unit direction there.
+     * @param from - The segment to start looking from (1 is the first); a caller placing distances in increasing
+     *     order passes back the `segment` it was given, so the whole run is one sweep along the route.
+     * @returns The point, the unit direction there and the segment it is on.
      */
-    private onRoute(distance: number): { point: Vector3; direction: Vector3 } {
+    private onRoute(distance: number, from = 1): { point: Vector3; direction: Vector3; segment: number } {
         const { points, along } = this.laid ?? { points: [Vector3.Zero(), Vector3.Zero()], along: [0, 0] };
-        let i = 1;
+        let i = Math.max(1, from);
         while (i < points.length - 1 && along[i] < distance) {
             i++;
         }
 
         const [a, b] = [points[i - 1], points[i]];
         const direction = b.subtract(a).normalize();
-        return { point: a.add(direction.scale(distance - along[i - 1])), direction };
+        return { point: a.add(direction.scale(distance - along[i - 1])), direction, segment: i };
     }
 
     /**
-     * Put every element where it goes along the line, pointing along the route where it sits.
+     * Put every element where it goes along the line, pointing along the route where it sits. The offsets run in
+     * increasing order, so one sweep along the route places them all (issue #3094).
      */
     private placeElements(): void {
         const offsets = this.calculateOffsets();
+        let segment = 1;
         for (let i = 0; i < this.elements.length; i++) {
-            const { point, direction } = this.onRoute(offsets[i]);
+            // a line shorter than its elements can put a later centre before an earlier one: search from the start
+            const placed = this.onRoute(offsets[i], i > 0 && offsets[i] < offsets[i - 1] ? 1 : segment);
+            ({ segment } = placed);
+            const { point, direction } = placed;
             // In 3D the billboard shader faces the element to the camera about this direction; in
             // 2D its slot turns it along the line (issue #620). Either way, as an arrowhead is.
             this.elements[i].place(point, direction);

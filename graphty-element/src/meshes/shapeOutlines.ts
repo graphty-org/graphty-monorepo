@@ -347,6 +347,22 @@ export function shapePointList(text: string | undefined): ShapePoint[] | null {
 }
 
 /**
+ * Whether a polygon is drawn against its box (`shape.points` whose corners add lengths to their fractions, `-1+24`):
+ * a glyph of pieces at fixed sizes, which may fill little of its box and sit off its center. Graphviz ends its edges at
+ * the box and places its label by it, so the node's surface is the box, not its pieces.
+ * @param text - The corners.
+ * @returns True when at least three corners parse and one of them carries a length.
+ */
+export function drawnAgainstBox(text: string | undefined): boolean {
+    const corners = shapePointList(text);
+    return (
+        corners !== null &&
+        corners.length >= 3 &&
+        corners.some(([, xLength, , yLength]) => xLength !== 0 || yLength !== 0)
+    );
+}
+
+/**
  * Where a shape's point is drawn in a box.
  * @param point - The point.
  * @param halfWidth - The box's half width.

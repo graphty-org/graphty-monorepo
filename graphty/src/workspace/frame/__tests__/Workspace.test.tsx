@@ -224,11 +224,12 @@ describe("the workspace frame", () => {
         assert.isNotNull(await screen.findByText("Nothing to undo", undefined));
     });
 
-    it("says what the Main menu holds and where the privacy chip leads, in tooltips", async () => {
+    it("says the Main menu's name and where the privacy chip leads, in tooltips", async () => {
         renderWorkspace(OPEN);
 
         await userEvent.hover(screen.getByRole("button", { name: "Main menu" }));
-        assert.isNotNull(await screen.findByText("Main menu: open, save, export, settings", undefined));
+        // The tooltip says the button's name (decided.md: a tooltip and its name say the same words).
+        assert.equal((await screen.findByRole("tooltip", undefined)).textContent, "Main menu");
         await userEvent.unhover(screen.getByRole("button", { name: "Main menu" }));
         await userEvent.hover(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
         assert.isNotNull(await screen.findByText(/Opens Settings > Privacy$/, undefined));

@@ -17,6 +17,7 @@ import { useAccelerationStatus } from "../frame/useAccelerationStatus";
 import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { setNumberFormat, useNumberFormats } from "./numberFormat";
 import {
     ACCELERATION,
     fileStylesChoice,
@@ -42,7 +43,7 @@ type SectionId = (typeof SECTIONS)[number]["id"];
  */
 function General(): React.JSX.Element {
     const { colorScheme, setColorScheme } = useMantineColorScheme();
-    const [numberFormat, setNumberFormat] = useState(() => readPreference(NUMBER_FORMAT));
+    const numberFormat = useNumberFormats().choice;
     const [importStyles, setImportStyles] = useState(() => fileStylesChoice() === "file");
     return (
         <Stack gap="md">
@@ -68,7 +69,6 @@ function General(): React.JSX.Element {
                     onChange={(value) => {
                         const next = NUMBER_FORMAT.values.find((v) => v === value) ?? NUMBER_FORMAT.fallback;
                         setNumberFormat(next);
-                        writePreference(NUMBER_FORMAT, next);
                     }}
                     data={[
                         { value: "system", label: "System" },

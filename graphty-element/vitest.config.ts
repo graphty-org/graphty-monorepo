@@ -60,6 +60,30 @@ import { mapTileCommands } from "../vitest.map-tiles.mjs";
 const SHARD_CACHE_DIR = shardCacheDir();
 
 /**
+ * The "minimum-work" project's files: the tests of "the picture is final" written for the issues
+ * where work split across frames escaped it (#3287, #3361, #3372, #3527, #3528, #3531, #3533, #4218),
+ * and the frame reads of tests that once read a frame too early (#1473). Not layout-pace.test.ts: it
+ * counts a slow frame's layout catch-up rounds, which this mode turns off by design.
+ */
+const MINIMUM_WORK_TESTS = [
+    "test/browser/pending-work-split-across-frames.test.ts",
+    "test/browser/stable-frame-waits-for-framing.test.ts",
+    "test/browser/stable-frame-waits-for-work-that-came-late.test.ts",
+    "test/browser/stable-frame-rechecks-work-after-the-pass.test.ts",
+    "test/browser/stable-frame-follows-camera-moves.test.ts",
+    "test/browser/a-label-redraws-when-its-font-loads.test.ts",
+    "test/browser/an-image-annotation-is-in-the-stable-frame.test.ts",
+    "test/browser/simulation-owed-pre-steps.test.ts",
+    "test/browser/camera/owed-fit-reads-late-inputs.test.ts",
+    "test/browser/camera/view-insets.test.ts",
+    "test/browser/groups-follow-members.test.ts",
+    "test/browser/label-declutter.test.ts",
+    "test/browser/curves-rest-the-same-however-frames-split.test.ts",
+    "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
+    "test/browser/a-layer-added-later-paints.test.ts",
+];
+
+/**
  * Babylon modules the element imports only for their side effects (see
  * test/packaging/babylon-side-effects.test.ts). Pre-bundled in every browser project: a
  * dependency Vite discovers mid-run makes it reload the page under the test that is running.
@@ -817,6 +841,39 @@ const config = defineConfig({
                     browser: {
                         enabled: true,
                         commands: mapTileCommands,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [browserInstance()],
+                    },
+                },
+            },
+            {
+                // The tests that pin "the picture is final" again, under the minimum-work-per-frame
+                // test mode (src/managers/minimumWork.ts, issue #4218): one paint batch and one
+                // layout round per frame, every other render tick skipped. A fast machine fits most
+                // split work into one frame, so a wait that reads half-finished work is caught here
+                // rather than when a slow runner happens to split it. They also run in "browser" and
+                // "interactions" at full speed. A new test that reads the final picture of work the
+                // element splits across frames belongs in this list too.
+                define: { ...define },
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "minimum-work",
+                    setupFiles: [
+                        BROWSER_COVERAGE_SETUP,
+                        MAP_TILES_SETUP,
+                        "./test/setup.ts",
+                        "./test/setup-minimum-work.ts",
+                    ],
+                    include: MINIMUM_WORK_TESTS,
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        commands: { ...mapTileCommands, ...heldRequestCommands },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),

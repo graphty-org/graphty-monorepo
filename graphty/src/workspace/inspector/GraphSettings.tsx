@@ -7,6 +7,7 @@ import {
     PanelField,
     PanelLabelsProvider,
     ResetButton,
+    TargetTooltip,
 } from "@graphty/compact-mantine";
 import {
     DEFAULT_BACKGROUND_COLOR,
@@ -367,7 +368,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
     const addButton = (
         <Menu position="bottom-end">
             <Menu.Target>
-                <Tooltip label={BACKGROUND_SECTION_WORDS.add}>
+                <TargetTooltip label={BACKGROUND_SECTION_WORDS.add}>
                     <ActionIcon
                         variant="subtle"
                         size="sm"
@@ -377,7 +378,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
                     >
                         <GLYPHS.add size={14} aria-hidden />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
                 {BACKGROUND_KINDS.map((kind) => {

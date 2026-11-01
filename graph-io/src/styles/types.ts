@@ -233,6 +233,14 @@ export interface NodeStyleValues {
      * outline is fitted round it (Graphviz's `quantum`).
      */
     readonly labelFitQuantum: number;
+    /**
+     * How long each of the node's picture's (`image`) own pixels is when a node that grows to fit its label holds its
+     * picture too: the picture's box, padded by `labelFitImagePadding` on each side, is held as the padded label box
+     * is, the larger each way deciding (Graphviz grows a node round its `image`).
+     */
+    readonly labelFitImage: number;
+    /** The room on each side of a picture a node holds (`labelFitImage`). */
+    readonly labelFitImagePadding: number;
     /** The shape. */
     readonly shape: StyleNodeShape;
     /**
@@ -332,6 +340,28 @@ export interface NodeStyleValues {
      * throughout.
      */
     readonly labelRuns: string;
+    /**
+     * The label laid out as a table of cells (Graphviz's HTML-like `<TABLE>`), as JSON: `{ "border", "cellBorder",
+     * "cellSpacing", "cellPadding", "width"?, "height"?, "fixedSize"?, "align"?, "valign"?, "fill"?, "lineHeight"?,
+     * "textPixel"?, "baseline"?, "imagePixel"?, "rows" }`,
+     * lengths in the unit of `width`. `border` is the table's outline width, `cellBorder` and `cellPadding` every
+     * cell's own unless the cell gives one, `cellSpacing` the room between cells and round them, `width` and
+     * `height` a least size (exact with `fixedSize`), `align` (`left`, `right`) and `valign` (`top`, `bottom`) where
+     * the table sits in a cell larger than it, `fill` its background color, `lineHeight` how tall a text line is (a multiple of its font size, or
+     * `"font"`: its font's ascent plus descent, each rounded up to whole `textPixel`s when that is given), `baseline`
+     * how far a line's baseline sits below its top as a multiple of its font size (unset, its words centered in it),
+     * `imagePixel` how long each of a picture's own pixels is when its cell is sized by it (unset, as it is drawn).
+     * Each row is `{ "cells", "rule"? }` (`rule`: a line between it and the row above); each cell
+     * `{ "lines"?, "table"?, "image"?, "colspan"?, "rowspan"?, "width"?, "height"?, "fixedSize"?, "align"?, "valign"?,
+     * "balign"?, "border"?, "padding"?, "fill"?, "rule"? }`: its text as lines `{ "runs", "align"? }` (runs as in
+     * `labelRuns`), a table of its own, or a picture `{ "src", "scale"? }` (its file as written; `scale` unset draws it
+     * at its own size, `true` keeps its proportions inside the cell's padding, `both` stretches it there, `width` or
+     * `height` stretches that side only); `fill` is its background color; `align` is also `text` (the lines line up across the whole cell),
+     * `balign` lines up the lines that give no `align`, `rule` is a line between it and the cell on its left. The
+     * table's size, with `labelPaddingX` and `labelPaddingY` round it, is the label's box when the node grows to
+     * fit it. `label` holds its words.
+     */
+    readonly labelTable: string;
     /** The tooltip text. */
     readonly tooltip: string;
     /**

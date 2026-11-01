@@ -152,7 +152,7 @@ Usage:
   npx remote-log-server [options]
 
 Options:
-  --port, -p <port>       Port to listen on (default: 9080)
+  --port, -p <port>       Port to listen on (default: PORT, else 9080)
   --host, -h <host>       Hostname to bind to (default: 0.0.0.0)
   --cert, -c <path>       Path to SSL certificate file (enables HTTPS)
   --key, -k <path>        Path to SSL private key file (enables HTTPS)
@@ -177,11 +177,24 @@ Examples:
 stops the server at startup with an error naming the option and the value, rather than
 listening on a different port.
 
+A port you choose, with `--port` or the `PORT` environment variable, is the port the server
+listens on: if it is already in use, the server stops at startup with an error naming the port,
+rather than moving to another one. Only with no port given does it start at 9080 and move up to
+the next free port. `--port` wins over `PORT`.
+
+To run it under a process manager that assigns ports through `PORT`, such as servherd:
+
+```jsonc
+servherd_start({ name: "remote-logger", command: "npx remote-log-server --http-only",
+  env: { PORT: "{{port}}" } })
+```
+
 ### Environment Variables
 
 | Variable                    | Default | Description                                                     |
 | --------------------------- | ------- | --------------------------------------------------------------- |
 | `REMOTE_LOG_RETENTION_DAYS` | `7`     | Number of days to retain logs before cleanup (whole number, 1+) |
+| `PORT`                      | `9080`  | Port to listen on, as `--port` (whole number, 1 to 65535)       |
 
 A `REMOTE_LOG_RETENTION_DAYS` that is not a whole number of at least 1 (for example `seven` or
 `0`) stops the server at startup with an error naming the variable and the value.

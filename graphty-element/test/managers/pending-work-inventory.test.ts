@@ -77,6 +77,11 @@ const INVENTORY: Record<string, Covered> = {
     "src/models/loadModel.ts": { count: 2, kind: "model", reason: "a model's loader chunk and text formats" },
     "src/models/chunk.ts": { count: 2, kind: "model", reason: "a model's asset container load" },
     "src/models/TextureCache.ts": { count: 1, kind: "picture", reason: "a node's picture decoded into a texture" },
+    "src/meshes/pictureSize.ts": {
+        count: 2,
+        kind: "picture",
+        reason: "a picture read for its own size, which a node or a table cell is sized by, until the node is refitted",
+    },
     "src/meshes/AnnotationMeshes.ts": {
         count: 3,
         kind: "picture",

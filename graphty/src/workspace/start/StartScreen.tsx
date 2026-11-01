@@ -572,7 +572,7 @@ function SampleLibrary(): React.JSX.Element {
                         <LibraryTile
                             key={tile.id}
                             tile={tile}
-                            label={`Open the ${tile.name} sample`}
+                            label={`Open the ${tile.name} sample: ${tile.hook}`}
                             onClick={() => {
                                 tile.open(actions);
                             }}
@@ -654,7 +654,8 @@ function PageFoot(): React.JSX.Element {
                     Docs
                 </a>{" "}
                 &middot; Put it on your own site: <code>npm i @graphty/graphty-element</code>{" "}
-                <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer">
+                {/* The footer's other "Docs" is the app's; this one names what it documents. */}
+                <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer" aria-label="Docs for graphty-element">
                     Docs
                 </a>
             </span>

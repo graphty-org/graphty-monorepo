@@ -6,6 +6,7 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
+import { sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { ariaKey, formatKey } from "../../keys/keys";
 import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
@@ -69,9 +70,9 @@ describe("the start screen", () => {
         assert.isNotNull(screen.getByRole("link", { name: "Put it on your own site" }));
         assert.isNotNull(screen.getByRole("toolbar", { name: "Analyze the graph" }));
         const samples = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button", {
-            name: /^Open the .+ sample$/,
+            name: /^Open the .+ sample: /,
         });
-        const names = samples.map((button) => button.getAttribute("aria-label"));
+        const names = samples.map((button) => (button.getAttribute("aria-label") ?? "").split(": ")[0]);
         assert.deepEqual(names.slice(0, 4), [
             "Open the Les Miserables sample",
             "Open the Zachary's karate club sample",
@@ -128,8 +129,8 @@ describe("the start screen", () => {
         await userEvent.type(within(library).getByRole("searchbox", { name: "Search samples" }), "dolphin");
 
         const names = within(library)
-            .getAllByRole("button", { name: /^Open the .+ sample$/ })
-            .map((button) => button.getAttribute("aria-label"));
+            .getAllByRole("button", { name: /^Open the .+ sample: / })
+            .map((button) => (button.getAttribute("aria-label") ?? "").split(": ")[0]);
         assert.deepEqual(names, ["Open the Doubtful Sound dolphins sample"]);
     });
 
@@ -139,15 +140,15 @@ describe("the start screen", () => {
 
         await userEvent.click(within(library).getByRole("button", { name: "Sports" }));
 
-        const tiles = within(library).getAllByRole("button", { name: /^Open the .+ sample$/ });
+        const tiles = within(library).getAllByRole("button", { name: /^Open the .+ sample: / });
         assert.deepEqual(
-            tiles.map((button) => button.getAttribute("aria-label")),
+            tiles.map((button) => (button.getAttribute("aria-label") ?? "").split(": ")[0]),
             ["Open the College football sample"],
         );
         assert.isNotNull(within(tiles[0]).getByText("Sports"));
         assert.isNotNull(within(tiles[0]).getByText("Conferences fall out of who played whom"));
         await userEvent.click(within(library).getByRole("button", { name: "Any" }));
-        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 24);
+        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample: / }), 24);
     });
 
     it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {
@@ -201,7 +202,7 @@ describe("the start screen", () => {
     it("opens a sample as a project named after it, before the card is answered", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+        await userEvent.click(screen.getByRole("button", { name: sampleTile("Florentine families") }));
 
         assert.equal(store.get().project?.name, "Florentine families");
         assert.equal(store.get().opening?.name, "Florentine families");

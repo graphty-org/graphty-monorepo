@@ -17,6 +17,7 @@ import {
 } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
+import type { LabelTableImage } from "./labelTable";
 import type { MeshCache } from "./MeshCache";
 import {
     boxOf,
@@ -30,6 +31,7 @@ import {
     shapeLinePieces,
     shapePartPieces,
     stripeBands,
+    tableFillPieces,
 } from "./nodeDecoration";
 import { NodeMesh } from "./NodeMesh";
 import { earClip, type Point2 } from "./shapeOutlines";
@@ -41,11 +43,28 @@ import { earClip, type Point2 } from "./shapeOutlines";
 export interface NodeDecorationPiece {
     readonly kind: "shape" | "image" | "body";
     readonly box: PieceBox;
+    /** A body piece's fill: red, green and blue, 0..1, and its opacity. */
+    readonly fill?: Pick<ColorPiece, "rgb" | "opacity">;
 }
 
 /** The metadata a decoration's source mesh carries. */
 export interface NodeDecorationMetadata {
     readonly nodePieces: NodeDecorationPiece[];
+}
+
+/**
+ * What a node whose label is a table (`shape.labelTable`) draws over its face besides its lines and words, laid out
+ * with its mesh: its backgrounds, and its first picture with its cell's alignment. Each box is in fractions of the
+ * node's half width and half height from its center, y up.
+ */
+export interface TableDecoration {
+    readonly fills: readonly { readonly box: PieceBox; readonly color: string }[];
+    readonly image: {
+        readonly box: PieceBox;
+        readonly image: LabelTableImage;
+        readonly align?: string;
+        readonly valign?: string;
+    } | null;
 }
 
 /** What a node's decorations are built from. */
@@ -58,6 +77,7 @@ export interface NodeDecorationOptions {
     readonly image?: NodeStyleConfig["image"];
     readonly glyph?: NodeStyleConfig["glyph"];
     readonly texture?: NodeStyleConfig["texture"];
+    readonly table?: TableDecoration;
 }
 
 /**
@@ -81,7 +101,9 @@ export function hasDecoration(o: NodeDecorationOptions): boolean {
         (o.glyph?.text ?? "") !== "" ||
         (o.shape?.parts ?? "") !== "" ||
         (o.shape?.lines ?? "") !== "" ||
-        (o.shape?.type === "database" && (o.border?.width ?? 0) > 0)
+        (o.shape?.type === "database" && (o.border?.width ?? 0) > 0) ||
+        (o.table?.fills.length ?? 0) > 0 ||
+        (o.table?.image ?? null) !== null
     );
 }
 
@@ -113,13 +135,15 @@ export function createNodeDecorations(
     const colored = coloredPieces(o, face);
     const pieces =
         colored.length === 0 ? null : cache.get(`node-decoration-${key}`, () => buildColored(colored, z, scene));
+    const scale = NodeMesh.extentPerSize(o.shape);
+    // a table's picture is drawn in its cell, in place of the node's own
+    const cellImage = o.table?.image ?? null;
+    const drawn = cellImage === null ? { image: o.image, face } : tableImage(cellImage, face, scale);
+    const picture = drawn.image;
     const image =
-        (o.image?.src ?? "") === ""
+        picture === undefined || (picture.src ?? "") === ""
             ? null
-            : cache.get(`node-image-${key}`, () =>
-                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- checked just above
-                  buildImage(o.image!, face, NodeMesh.extentPerSize(o.shape), z - FRONT_STEP, scene),
-              );
+            : cache.get(`node-image-${key}`, () => buildImage(picture, drawn.face, scale, z - FRONT_STEP, scene));
     const glyph =
         (o.glyph?.text ?? "") === ""
             ? null
@@ -134,6 +158,58 @@ export function createNodeDecorations(
         }
     }
     return { pieces, image, glyph };
+}
+
+/** How a cell's `align` and `valign` place its picture in the room its padding leaves, 0 to 1. */
+const CELL_PLACE: Readonly<Record<string, number>> = { left: 0, top: 0, right: 1, bottom: 1 };
+
+/**
+ * A table's picture as a node image drawn in its cell: the cell's room inside its padding as the face it is fitted
+ * to, moved from the node's center to the room's, and scaled as `SCALE` says: at its own size (each pixel
+ * `pixelSize` long), its proportions kept inside the room (`true`), stretched over it (`both`), or one side stretched
+ * across it and the other at its own size (`width`, `height`), as Graphviz draws an `<IMG>` (`pos_html_img`).
+ * @param cell - The picture, its room and its cell's alignment.
+ * @param face - The node's face.
+ * @param face.width - Its width.
+ * @param face.height - Its height.
+ * @param scale - World units per unit of the style's lengths.
+ * @returns The image block and the face it is fitted to.
+ */
+function tableImage(
+    cell: NonNullable<TableDecoration["image"]>,
+    face: { width: number; height: number },
+    scale: number,
+): { image: NonNullable<NodeStyleConfig["image"]>; face: { outline: Point2[]; width: number; height: number } } {
+    const [hw, hh] = [face.width / 2, face.height / 2];
+    const [x0, x1, y0, y1] = [cell.box.x0 * hw, cell.box.x1 * hw, cell.box.y0 * hh, cell.box.y1 * hh];
+    const [width, height] = [x1 - x0, y1 - y0];
+    const { scale: how, pixelSize, src } = cell.image;
+    const fit = { true: "contain", both: "fill" } as const;
+    const s = scale > 0 ? scale : 1;
+    return {
+        image: {
+            src,
+            fit: how === "true" || how === "both" ? fit[how] : "none",
+            ...(pixelSize === undefined ? {} : { pixelSize }),
+            ...(how === "width" ? { width: width / s, autoSize: "natural" as const } : {}),
+            ...(how === "height" ? { height: height / s, autoSize: "natural" as const } : {}),
+            positionX: CELL_PLACE[cell.align ?? ""] ?? 0.5,
+            positionY: CELL_PLACE[cell.valign ?? ""] ?? 0.5,
+            offsetX: (x0 + x1) / 2 / s,
+            offsetY: -(y0 + y1) / 2 / s,
+            clip: "none",
+        },
+        face: {
+            outline: [
+                [-width / 2, -height / 2],
+                [width / 2, -height / 2],
+                [width / 2, height / 2],
+                [-width / 2, height / 2],
+            ],
+            width,
+            height,
+        },
+    };
 }
 
 /** How many texture pixels a glyph's font size is drawn at, whatever its size in the scene. */
@@ -243,6 +319,8 @@ function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; widt
     const [fill, fillOpacity] = solidFill(o.texture);
     const parts = shapePartPieces(o.shape, o.border, fill, face.width, face.height, scale, fillOpacity);
     return [
+        // a table's backgrounds are its body, under everything else drawn over the face
+        ...tableFillPieces(o.table?.fills ?? [], face.width, face.height).map((p) => ({ ...p, body: true })),
         ...parts.fills.map((p) => ({ ...p, body: true })),
         ...parts.lines.map((p) => ({ ...p, line: true })),
         ...bands,
@@ -355,7 +433,11 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
     const metadata: NodeDecorationMetadata = {
         nodePieces: pieces
             .filter((p) => p.line !== true)
-            .map((p) => ({ kind: p.body === true ? "body" : "shape", box: p.box ?? boxOf(p.outline) })),
+            .map((p) => ({
+                kind: p.body === true ? "body" : "shape",
+                box: p.box ?? boxOf(p.outline),
+                ...(p.body === true ? { fill: { rgb: p.rgb, opacity: p.opacity } } : {}),
+            })),
     };
     mesh.metadata = metadata;
     return mesh;

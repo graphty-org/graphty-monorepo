@@ -19,6 +19,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { START_SAMPLES } from "../../../data/sampleManifest";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { tooltipOf } from "../../../test/tooltip";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -212,6 +213,9 @@ describe("per-group settings", () => {
             assert.equal(drawn(session, inFirst, "node.shape"), "box", "the group draws the shape");
         });
         assert.equal(drawn(session, inSecond, "node.shape"), before, "every other group keeps its shape");
+        // The shape's Clear says on hover the words of its name.
+        const clearShape = within(detail).getByRole("button", { name: new RegExp(`^Clear .*${name}.* shape$`, "i") });
+        assert.equal(await tooltipOf(clearShape), clearShape.getAttribute("aria-label"));
 
         // Escape returns to the list; a second Escape closes the popover.
         await userEvent.keyboard("{Escape}");
@@ -301,6 +305,29 @@ describe("per-group settings", () => {
                 `typing 2 over ${shown} gives 2, not ${shown}2`,
             );
         });
+    });
+
+    it("Les Miserables: a row's actions button says its menu is open, and draws open (issue #5357)", async () => {
+        await page.viewport(1440, 900);
+        const { session, store } = await openSample("Les Miserables", 77);
+        const { layer } = await runGroups(session, "louvain");
+        const popover = await openBinding(store, layer);
+        const [row] = gridRows(popover);
+        const button = within(row).getByRole("button", { name: / actions$/ });
+        assert.equal(button.getAttribute("aria-expanded"), "false");
+
+        await userEvent.click(button);
+        const menu = await screen.findByRole("menu");
+        await waitFor(() => {
+            assert.equal(button.getAttribute("aria-expanded"), "true");
+        });
+        assert.equal(button.getAttribute("aria-controls"), menu.id);
+        // compact-mantine's open style: the glyph in the brand color.
+        const brand = document.createElement("span");
+        brand.style.color = "var(--cm-icon-brand)";
+        button.parentElement?.append(brand);
+        assert.equal(getComputedStyle(button).color, getComputedStyle(brand).color);
+        brand.remove();
     });
 
     it("Les Miserables: the group grid is one Tab stop, and Escape on a row's actions closes the popover", async () => {

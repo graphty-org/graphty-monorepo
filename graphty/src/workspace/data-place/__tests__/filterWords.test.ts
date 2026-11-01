@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import { chipTip, chipWords, filterChangeWords, type Namer, ruleWords, statusWords } from "../filterWords";
+import { chipName, chipWords, filterChangeWords, type Namer, ruleWords, statusWords } from "../filterWords";
 
 const NAMES: Namer = { attribute: (path) => path.replace("data.", ""), node: (id) => String(id) };
 const SHOWING = { visibleNodes: 9, totalNodes: 22, visibleEdges: 14, totalEdges: 30 };
@@ -76,14 +76,14 @@ describe("the Filters words", () => {
         assert.isNull(filterChangeWords("visibility.filter", "x"));
     });
 
-    it("names the cards that are on in the chip's tooltip", () => {
+    it("names the cards that are on in the chip's name and tooltip", () => {
         assert.equal(
-            chipTip(["weight is at least 4"]),
-            'Filtered by: "weight is at least 4". Click to open Filters, where you can turn it off.',
+            chipName("9 of 22 nodes", ["weight is at least 4"]),
+            'Filter: 9 of 22 nodes, showing only "weight is at least 4"',
         );
         assert.equal(
-            chipTip(["weight is at least 4", "in the largest component"]),
-            'Filtered by: "weight is at least 4", "in the largest component". Click to open Filters, where you can turn them off.',
+            chipName("9 of 22 nodes", ["weight is at least 4", "in the largest component"]),
+            'Filter: 9 of 22 nodes, showing only "weight is at least 4", "in the largest component"',
         );
     });
 });

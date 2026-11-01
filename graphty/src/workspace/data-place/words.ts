@@ -23,6 +23,7 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import { formatNumber, valueText } from "../inspector/words";
+import { formatCount } from "../settings/numberFormat";
 
 /** What a Sources row's glyph shows: a graph file holding both tables, one table, or the rows a load left out. */
 export type SourceKind = "file" | "nodes" | "edges" | "left-out";
@@ -67,7 +68,7 @@ export const FIND_PAST = 15;
  * @returns such as "1 node" or "34 nodes".
  */
 export function count(n: number, noun: string): string {
-    return `${n.toLocaleString("en-US")} ${noun}${n === 1 ? "" : "s"}`;
+    return `${formatCount(n)} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 /**

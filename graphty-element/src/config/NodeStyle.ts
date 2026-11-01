@@ -288,6 +288,10 @@ export const NodeStyle = z.strictObject({
             // (`{ "size": 0.2, "color": "#404040", "font": "Arial", "rotation": 45 }`, the size a share of the node's
             // height: a chart's item labels). Drawn whatever the label says, beside it.
             texts: z.string().optional(),
+            // The label laid out as a table of cells, as JSON (see the `node.labelTable` channel): drawn in place of
+            // the label's own words, each cell's outline a line over the node and each line of its text centered in
+            // its place; with `labelFit` the table is the label's box the node grows round.
+            labelTable: z.string().optional(),
             // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and
@@ -299,6 +303,12 @@ export const NodeStyle = z.strictObject({
             labelPaddingY: z.number().nonnegative().optional(),
             labelFitSquare: z.boolean().optional(),
             labelFitQuantum: z.number().nonnegative().optional(),
+            // With `labelFit`, the node holds its picture (`image.src`) too: the picture's own pixels, each this
+            // long in the units of `size`, padded by `labelFitImagePadding` on each side; the larger of the padded
+            // label and the padded picture decides each way. The node is fitted again once the picture's size is
+            // read. Unset, the picture does not size the node.
+            labelFitImage: z.number().nonnegative().optional(),
+            labelFitImagePadding: z.number().nonnegative().optional(),
             // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
             // URL. `type` stays the placeholder while it loads and the fallback when it fails
             // (design/rendering/node-models.md).

@@ -1,4 +1,4 @@
-import { ControlSection, PanelField, Popout } from "@graphty/compact-mantine";
+import { ControlSection, PanelField, Popout, TargetTooltip } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
@@ -401,6 +401,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                     anchorY={sectionBox}
                     boundaryTop={gallery ? headerBottom() : 0}
                     header={{ variant: "title", title: spec.title }}
+                    closeLabel={`Close ${spec.title}`}
                 >
                     <Popout.Content>
                         <ShaderGallery
@@ -561,7 +562,7 @@ export function AddButton({
     return (
         <Menu position="bottom-end">
             <Menu.Target>
-                <Tooltip label={name}>{button}</Tooltip>
+                <TargetTooltip label={name}>{button}</TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
                 {options.map((option) => (

@@ -102,14 +102,15 @@ function textWords(rule: Extract<RuleTree, { kind: "text" }>, names: Namer): str
 }
 
 /**
- * The header chip's tooltip: the cards that filter the picture, and that a click opens Filters to turn it off.
- * The Filters list is not on the Graph page, so the words say how to reach it.
+ * The header chip's name and tooltip, in the same words: how much is showing and which cards are
+ * on ("Filter: 9 of 22 nodes, showing only "kind is agency"").
+ * @param words - the chip's own words, from `chipWords`.
  * @param on - the words of the cards that are on.
  * @returns the words.
  */
-export function chipTip(on: readonly string[]): string {
-    const named = on.map((words) => `"${words}"`).join(", ");
-    return `Filtered by: ${named}. Click to open Filters, where you can turn ${on.length === 1 ? "it" : "them"} off.`;
+export function chipName(words: string, on: readonly string[]): string {
+    const cards = on.map((card) => `"${card}"`).join(", ");
+    return `Filter: ${words}, showing only ${cards}`;
 }
 
 /** How much of the graph is showing, as the element's summary has it. */

@@ -11,10 +11,11 @@ import type {
     StatusResponse,
 } from "../../web/src/contract.js";
 import { DAY, type RawItem, type ShardRunItem, type TestItem } from "../../src/model/items.js";
-import { oldestAt, putRaw, recordSource } from "../../src/model/raw.js";
+import { oldestAt, putRaw, recordSource, setCursor } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
-import { evaluate } from "../../src/sla/engine.js";
+import { SLAS } from "../../src/sla/config.js";
+import { categoryOf, evaluate } from "../../src/sla/engine.js";
 import { buildViews, MAX_VIEW_BYTES, readViewJson, type View, viewKey, writeViews } from "../../src/views/index.js";
 import { HOUR, job, MIN, obs, T0 } from "../model/helpers.js";
 
@@ -43,10 +44,10 @@ function fixtureName(v: View): string {
 const fixture = (name: string): Record<string, unknown> =>
     JSON.parse(readFileSync(new URL(`../../web/fixtures/${name}.json`, import.meta.url), "utf8"));
 
-/** Keys present whatever the state: setBy appears only when a category is not OK. */
+/** Keys present whatever the state: setBy and driver appear only when a category is not OK. */
 const keysOf = (o: object) =>
     Object.keys(o)
-        .filter((k) => k !== "setBy")
+        .filter((k) => k !== "setBy" && k !== "driver")
         .sort();
 
 const pages = (vs: View[]) =>
@@ -118,9 +119,29 @@ describe("views", () => {
         const master = (vs[0].body as StatusResponse).categories.find((c) => c.id === "master")!;
         expect(master.state).toBe("bad");
         expect(master.setBy).toMatchObject({ member: "master.red_now", state: "bad", value: { n: 20, unit: "min" } });
+        // The member that set the color is sent as a full row, so the overview shows its number, target and trend.
+        expect(master.headline.id).toBe("master.green_time");
+        expect(master.driver).toMatchObject({ id: "master.red_now", state: "bad", value: { n: 20, unit: "min" } });
+        expect(master.driver?.sla).toBeTruthy();
         expect(
             (vs[0].body as StatusResponse).episodes.some((e) => e.member === "master.red_now" && e.end === null),
         ).toBe(true);
+    });
+
+    it("an episode still open while its member cannot be judged now is not called ongoing", async () => {
+        const store = await world([obs("master.red_span_ms", 20 * MIN, T0 - 2 * MIN)]);
+        const ev = await evaluate(store, T0);
+        const ongoing = (vs: View[]) =>
+            (vs[0].body as StatusResponse).episodes.find((e) => e.member === "master.red_now" && e.end === null)!;
+        expect(ongoing(await buildViews(store, T0, ev)).notJudgedNow).toBeUndefined();
+        // The same open episode, with the member gray now (as after a source stops for under an hour).
+        const gray = {
+            ...ev,
+            members: ev.members.map((m) =>
+                m.id === "master.red_now" ? { ...m, state: "NO DATA" as const, judged: true } : m,
+            ),
+        };
+        expect(ongoing(await buildViews(store, T0, gray)).notJudgedNow).toBe(true);
     });
 
     it("every payload has the keys, section ids and member ids of its fixture", async () => {
@@ -253,8 +274,9 @@ describe("views", () => {
         };
         const live = [...LIVE, "story-slices"];
         expect(await member(LIVE, "ci", "ci.screenshot_set_age")).toMatchObject({ state: "notsetup", value: null });
+        // 8 h is past its 6 h target: judged like any other member, so it reads WARNING.
         expect(await member(live, "ci", "ci.screenshot_set_age")).toMatchObject({
-            state: "slow",
+            state: "warn",
             value: { n: 8, unit: "h" },
             sla: { target: { op: "<=", n: 6, unit: "h" }, red: { op: ">", n: 12, unit: "h" } },
         });
@@ -273,24 +295,28 @@ describe("views", () => {
     });
 
     it("Lanes red at 0 that is red for a held candidate says what holds it (#5125)", async () => {
-        const lanes = async (items: RawItem[]) => {
+        const member = async (items: RawItem[], id: string) => {
             const vs = await views(await world(items));
             const p = vs.find((v) => v.route.kind === "page" && v.route.page === "releases" && v.route.range === "1h")!
                 .body as PageResponse;
-            return p.members.find((m) => m.id === "releases.lanes_red")!;
+            return p.members.find((m) => m.id === id)!;
         };
         const at = T0 - 5 * MIN;
         const quiet = [obs("release.lanes_red", 0, at), obs("release.hold_open_ms", 0, at)];
-        expect(
-            await lanes([...quiet, obs("release.review_wait_ms", 7 * HOUR, at), obs("release.review_issue", 5065, at)]),
-        ).toMatchObject({
+        const held = await member(
+            [obs("release.lanes_red", 0, at), obs("release.hold_open_ms", 9 * HOUR, at)],
+            "releases.lanes_red",
+        );
+        expect(held).toMatchObject({ state: "bad", note: { code: "releases.held.note", params: { h: 9 } } });
+        // A green-images hold waiting on the screenshot review is its own member, never "lanes red" at 0 (#5294).
+        const waiting = [...quiet, obs("release.review_wait_ms", 7 * HOUR, at), obs("release.review_issue", 5065, at)];
+        expect((await member(waiting, "releases.lanes_red")).state).toBe("ok");
+        expect(await member(waiting, "releases.review_wait")).toMatchObject({
             state: "bad",
-            value: { n: 0 },
+            value: { n: 7, unit: "h" },
             note: { code: "releases.review_wait.note", params: { h: 7, issue: 5065 } },
         });
-        const held = await lanes([obs("release.lanes_red", 0, at), obs("release.hold_open_ms", 9 * HOUR, at)]);
-        expect(held).toMatchObject({ state: "bad", note: { code: "releases.held.note", params: { h: 9 } } });
-        const ok = await lanes([...quiet, obs("release.review_wait_ms", HOUR, at)]);
+        const ok = await member([...quiet, obs("release.review_wait_ms", HOUR, at)], "releases.review_wait");
         expect(ok.state).toBe("ok");
         expect(ok.note).toBeUndefined();
     });
@@ -303,6 +329,10 @@ describe("views", () => {
         expect(page.members.map((m) => m.id)).toEqual(
             expect.arrayContaining(["flaky.flake_rate", "ci.reruns", "data-sources.stress_run"]),
         );
+        // The stress run is judged here, on one page only: Data sources lists data sources.
+        const ds = (await readViewJson(store, { kind: "page", page: "data-sources", range: "1h" })) as PageResponse;
+        expect(ds.members.map((m) => m.id)).not.toContain("data-sources.stress_run");
+        expect(ds.sections.map((s) => s.id)).not.toContain("stress");
     });
 
     it("Local runs: an informational page is IDLE, and a posted backlog fills the 24 h trend", async () => {
@@ -327,6 +357,93 @@ describe("views", () => {
         // One point per hour with a run: the backlog's hours (20 h and 10 h ago) are history, not "no history".
         const points = (m?.spark?.trend ?? []).flatMap((v, i) => (v === null ? [] : [i]));
         expect(points).toEqual([3, 13, 22]);
+    });
+
+    it("a 7-day member past its red line sets its category's color and reads FAILING on its row", async () => {
+        const store = new MemoryStore();
+        const ev = await evaluate(store, T0);
+        const gc = ev.members.find((m) => m.id === "release.green_clean")!;
+        Object.assign(gc, { state: "FAILING", value: 0.17, judged: true, excess: 0.3 });
+        ev.categories = SLAS.categories.map((c) => categoryOf(c, ev.members));
+        const vs = await buildViews(store, T0, ev);
+        const status = vs[0].body as StatusResponse;
+        const releases = status.categories.find((c) => c.id === "releases")!;
+        // A block is never OK while a row under it is past its red line.
+        expect(releases.state).toBe("bad");
+        expect(releases.setBy).toMatchObject({ member: "releases.green_clean", state: "bad" });
+        const page = pages(vs).find((p) => p.page === "releases" && p.range === "1h")!;
+        expect(page.state).toBe("bad");
+        expect(page.members.find((m) => m.id === "releases.green_clean")).toMatchObject({ state: "bad", window: "7d" });
+    });
+
+    it("says a 7-day member within its target is, so its row reads OK rather than blank", async () => {
+        const store = new MemoryStore();
+        const ev = await evaluate(store, T0);
+        const su = ev.members.find((m) => m.id === "release.slots_unreviewed")!;
+        Object.assign(su, { state: "OK", value: 0.1, judged: true });
+        const page = pages(await buildViews(store, T0, ev)).find((p) => p.page === "releases" && p.range === "1h")!;
+        expect(page.members.find((m) => m.id === "releases.slots_unreviewed")).toMatchObject({ state: "ok" });
+    });
+
+    it("a money line's target is its projection and its red line what is spent, never one comparison", async () => {
+        const vs = await views(new MemoryStore());
+        const costs = pages(vs).find((p) => p.page === "costs")!;
+        const t4 = costs.members.find((m) => m.id === "costs.t4")!;
+        expect(t4.sla?.target).toMatchObject({ code: "sla.projected_within", params: { usd: expect.any(Number) } });
+        expect(t4.sla?.red).toMatchObject({ code: "sla.spent_over" });
+        // AWS is judged on what is spent, not a projection.
+        expect(costs.members.find((m) => m.id === "costs.aws")!.sla?.target).toMatchObject({ op: "<=" });
+    });
+
+    it("a source that writes on time says OK in its state cell, never a blank", async () => {
+        const vs = await views(await world([job(1)]));
+        const ds = pages(vs).find((p) => p.page === "data-sources" && p.range === "1h")!;
+        const sources = ds.sections.find((x) => x.id === "sources");
+        if (sources?.kind !== "table") throw new Error(String(sources?.kind));
+        const collector = sources.rows.find((r) => JSON.stringify(r.cells.source).includes("source.collector"));
+        expect(collector?.cells.state).toEqual({ t: "state", state: "ok" });
+    });
+
+    it("a rolling screenshot cap is read now, not over 7 days", async () => {
+        const store = new MemoryStore();
+        const ev = await evaluate(store, T0);
+        Object.assign(
+            ev.members.find((m) => m.id === "slices.idle_hour_budget")!,
+            { state: "OK", value: 0.5 },
+        );
+        const ci = pages(await buildViews(store, T0, ev)).find((p) => p.page === "ci" && p.range === "1h")!;
+        expect(ci.members.find((m) => m.id === "ci.slice_idle_hour_budget")?.window).toBe("now");
+        expect(ci.members.find((m) => m.id === "ci.runner_minutes")?.window).toBe("7d");
+    });
+
+    it("names the pull requests behind a PR count, and the chronic jobs with no issue that turn CI red", async () => {
+        const store = new MemoryStore();
+        await setCursor(store, "pr-stocks", JSON.stringify({ oldest: 1234, greenStuck: [], armedLong: [7, 8] }), T0);
+        const ev = await evaluate(store, T0);
+        const set = (id: string, v: Partial<(typeof ev.members)[number]>) =>
+            Object.assign(
+                ev.members.find((m) => m.id === id)!,
+                { state: "WARNING", judged: true, ...v },
+            );
+        set("pr.oldest_open", { value: 60 * HOUR });
+        set("pr.automerge_armed_long", { value: 2 });
+        set("pr.automerge_green_stuck", { value: 0, state: "OK" });
+        set("ci.chronic_jobs", { value: 3, state: "FAILING", facts: { "ci.chronic_no_issue": 1 } });
+        const vs = await buildViews(store, T0, ev);
+        const row = (page: string, id: string) =>
+            pages(vs)
+                .find((p) => p.page === page && p.range === "1h")!
+                .members.find((m) => m.id === id)!;
+        expect(row("pull-requests", "pull-requests.oldest_open").note).toEqual({
+            code: "note.oldest_pr",
+            params: { pr: 1234, h: 60 },
+        });
+        expect(row("pull-requests", "pull-requests.automerge_armed_long").note).toEqual({
+            code: "note.prs",
+            params: { prs: [7, 8] },
+        });
+        expect(row("pull-requests", "pull-requests.automerge_green_stuck").note).toBeUndefined();
+        expect(row("ci", "ci.chronic_jobs").note).toEqual({ code: "note.chronic_no_issue", params: { n: 1 } });
     });
 
     it("a page's state names only members the page shows", async () => {

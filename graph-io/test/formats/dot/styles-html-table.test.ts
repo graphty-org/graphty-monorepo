@@ -27,6 +27,23 @@ async function byId(doc: string, property: string): Promise<Map<string, unknown>
     return new Map(values.map((v, i) => [String(result.snapshot.ids.idOf(i)), v]));
 }
 
+/**
+ * Each node's table frame (`labelTable`): its border, cell border, cell spacing and cell padding, by node id.
+ * @param doc - the document
+ * @returns the frames by id; a node whose label is no table has none
+ */
+async function frames(doc: string): Promise<Map<string, number[]>> {
+    const tables = await byId(doc, "labelTable");
+    return new Map(
+        [...tables]
+            .filter(([, v]) => typeof v === "string")
+            .map(([id, v]) => {
+                const t = JSON.parse(v as string) as Record<string, number>;
+                return [id, [t.border, t.cellBorder, t.cellSpacing, t.cellPadding]];
+            }),
+    );
+}
+
 const doc = `digraph {
     node [shape=plain, color="#505050", fontsize=10];
     t [label=<<TABLE><TR><TD>a</TD><TD>b</TD></TR></TABLE>>];
@@ -58,13 +75,16 @@ describe("DOT styles: an HTML-like table label", () => {
         expect((await byId(doc, "borderStyle")).get("d")).toBe("dashed");
     });
 
-    it("holds the cells' text inside the table's border, spacing, cell border and padding", async () => {
+    it("carries the table's border, spacing, cell border and padding, the label's box being the table's", async () => {
+        const frame = await frames(doc);
+        // Graphviz's defaults: 1 border, 2 spacing, the border as the cells' border, 2 padding; BORDER=3 is the
+        // cells' border too
+        expect(frame.get("t")).toEqual([1, 1, 2, 2]);
+        expect(frame.get("b3")).toEqual([3, 3, 2, 2]);
+        expect(frame.get("txt")).toBeUndefined();
         const padX = await byId(doc, "labelPaddingX");
-        // 1 border + 2 spacing + 1 cell border + 2 padding; BORDER=3 is the cells' border too; plaintext adds its
-        // margin (8)
-        expect(["t", "b3", "pt", "txt"].map((id) => padX.get(id))).toEqual([6, 10, 14, 0]);
-        // plain forces the margin to 0, whatever it is given
-        expect(padX.get("m")).toBe(6);
+        // round the table only the node's margin: plaintext's 8, plain's 0 whatever it is given
+        expect(["t", "b3", "pt", "txt", "m"].map((id) => padX.get(id))).toEqual([0, 0, 8, 0, 0]);
         // TABLE WIDTH and HEIGHT are the least size
         expect((await byId(doc, "width")).get("w")).toBe(80);
         expect((await byId(doc, "height")).get("w")).toBe(40);
@@ -103,10 +123,10 @@ describe("DOT styles: an HTML-like table label", () => {
 
     it("uses the default for a table attribute out of Graphviz's range", async () => {
         expect((await byId(sized, "borderWidth")).get("huge")).toBe(1);
-        // 1 border + 2 spacing + 1 cell border + 2 padding (1000 is over 255); a negative CELLSPACING is allowed, but
-        // the text never sits outside the table
-        expect((await byId(sized, "labelPaddingX")).get("huge")).toBe(6);
-        expect((await byId(sized, "labelPaddingX")).get("neg")).toBe(0);
+        // BORDER 300 and CELLPADDING 1000 are over 255: the defaults hold; a negative CELLSPACING overlaps the cells,
+        // which graphty lays out touching
+        expect((await frames(sized)).get("huge")).toEqual([1, 1, 2, 2]);
+        expect((await frames(sized)).get("neg")).toEqual([1, 1, 0, 2]);
         // WIDTH over 65535 is ignored: the plain node keeps its size 0 and grows to its text
         expect((await byId(sized, "width")).get("huge")).toBe(0);
     });
@@ -121,11 +141,149 @@ describe("DOT styles: an HTML-like table label", () => {
         }`;
         const width = await byId(read, "borderWidth");
         expect([width.get("empty"), width.get("frac")]).toEqual([1, 2]);
-        // 2 border + 0 + 2 (the cells take the table's border) + 0
-        expect((await byId(read, "labelPaddingX")).get("frac")).toBe(4);
+        // 2 border, the cells take the table's border
+        expect((await frames(read)).get("frac")).toEqual([2, 2, 0, 0]);
         // CELLBORDER 200 is out of range: the table's border (0) holds
-        expect((await byId(read, "labelPaddingX")).get("cb")).toBe(0);
+        expect((await frames(read)).get("cb")).toEqual([0, 0, 0, 0]);
         // an empty margin is Graphviz's default 8 by 4, so the border is inside the node's box
         expect(width.get("gap")).toBe(0);
+    });
+});
+
+describe("DOT styles: an HTML-like table's cells (labelTable)", () => {
+    const cells = `digraph {
+        node [shape=plain];
+        spans [label=<<TABLE><TR><TD COLSPAN="2" ROWSPAN="3" WIDTH="60" HEIGHT="30" FIXEDSIZE="TRUE">ab</TD></TR><HR/><TR><TD>a</TD><VR/><TD BORDER="2" CELLPADDING="5">b</TD></TR></TABLE>>];
+        lines [label=<<TABLE><TR><TD ALIGN="TEXT" BALIGN="RIGHT" VALIGN="TOP">wide line<BR ALIGN="LEFT"/>x<BR/>y<BR ALIGN="RIGHT"/></TD></TR></TABLE>>];
+        fonts [label=<<FONT COLOR="red"><TABLE><TR><TD>a<B>b</B>  </TD><TD></TD></TR></TABLE></FONT>>];
+        nested [label=<<TABLE><TR><TD><TABLE ALIGN="RIGHT" VALIGN="BOTTOM" BORDER="0"><TR><TD>a</TD></TR></TABLE></TD></TR></TABLE>>];
+        text [label=<a<BR/>b>];
+    }`;
+
+    /**
+     * Each node's table, parsed.
+     * @returns the tables by id
+     */
+    async function tables(): Promise<Map<string, unknown>> {
+        const raw = await byId(cells, "labelTable");
+        return new Map([...raw].map(([id, v]) => [id, typeof v === "string" ? JSON.parse(v) : v]));
+    }
+
+    it("reads spans, sizes and rules between rows and cells", async () => {
+        const t = (await tables()).get("spans") as { rows: unknown[] };
+        // a line set as Graphviz 14 sets it: its font's ascent and descent rounded up to 96 dpi pixels, its baseline
+        // 0.95 font sizes under its top
+        expect(t).toMatchObject({ lineHeight: "font", textPixel: 0.75, baseline: 0.95 });
+        expect(t.rows).toEqual([
+            {
+                cells: [
+                    {
+                        colspan: 2,
+                        rowspan: 3,
+                        width: 60,
+                        height: 30,
+                        fixedSize: true,
+                        lines: [{ runs: [{ text: "ab" }] }],
+                    },
+                ],
+            },
+            {
+                rule: true,
+                cells: [
+                    { lines: [{ runs: [{ text: "a" }] }] },
+                    { border: 2, padding: 5, rule: true, lines: [{ runs: [{ text: "b" }] }] },
+                ],
+            },
+        ]);
+    });
+
+    it("splits a cell's text into lines, each lined up by the break that ends it; a last break adds none", async () => {
+        const t = (await tables()).get("lines") as { rows: { cells: unknown[] }[] };
+        expect(t.rows[0].cells[0]).toEqual({
+            align: "text",
+            valign: "top",
+            balign: "right",
+            lines: [
+                { runs: [{ text: "wide line" }], align: "left" },
+                { runs: [{ text: "x" }] },
+                { runs: [{ text: "y" }], align: "right" },
+            ],
+        });
+    });
+
+    it("draws a cell's runs in the fonts round them, the table's own included; an empty cell has no lines", async () => {
+        const t = (await tables()).get("fonts") as { rows: { cells: unknown[] }[] };
+        expect(t.rows[0].cells).toEqual([
+            {
+                lines: [
+                    {
+                        runs: [
+                            { text: "a", color: "#ff0000" },
+                            { text: "b", color: "#ff0000", weight: "bold" },
+                        ],
+                    },
+                ],
+            },
+            {},
+        ]);
+    });
+
+    it("reads a table inside a cell with its own frame and where it sits", async () => {
+        const t = (await tables()).get("nested") as { rows: { cells: { table: unknown }[] }[] };
+        expect(t.rows[0].cells[0].table).toEqual({
+            border: 0,
+            cellBorder: 0,
+            cellSpacing: 2,
+            cellPadding: 2,
+            align: "right",
+            valign: "bottom",
+            rows: [{ cells: [{ lines: [{ runs: [{ text: "a" }] }] }] }],
+        });
+        expect((await tables()).get("text")).toBeNull();
+    });
+});
+
+describe("DOT styles: pictures and backgrounds in a table, and a node's own picture", () => {
+    const pictures = `digraph {
+        node [shape=plain];
+        img [label=<<TABLE><TR><TD WIDTH="40" HEIGHT="30" FIXEDSIZE="TRUE"><IMG SRC="img-wide.png" SCALE="TRUE"/></TD><TD><IMG SRC="a.png"/></TD><TD><IMG SCALE="BOTH"/></TD></TR></TABLE>>];
+        bg [label=<<TABLE BGCOLOR="lightyellow"><TR><TD BGCOLOR="#4477aa">a</TD><TD BGCOLOR="#e41a1c:#377eb8">b</TD><TD BGCOLOR="nonsense-color">c</TD></TR></TABLE>>];
+        n [shape=box, width=0.6667, height=0.5, fixedsize=true, image="img-quadrants.png"];
+        t [shape=box, image="i.png", imagescale=true, imagepos=tl];
+        both [shape=box, image="i.png", imagescale=both];
+        w [shape=box, width=0.6667, image="i.png", imagescale=width, imagepos=br];
+        none [shape=box];
+    }`;
+
+    it("carries a cell's <IMG> as its src as written and its SCALE; an IMG without SRC is an empty cell", async () => {
+        const t = JSON.parse((await byId(pictures, "labelTable")).get("img") as string) as {
+            rows: { cells: unknown[] }[];
+        };
+        expect(t.rows[0].cells).toEqual([
+            { width: 40, height: 30, fixedSize: true, image: { src: "img-wide.png", scale: "true" } },
+            { image: { src: "a.png" } },
+            {},
+        ]);
+    });
+
+    it("carries the table's and each cell's BGCOLOR as a fill color, a gradient's first color, an unknown one black as Graphviz draws it", async () => {
+        const t = JSON.parse((await byId(pictures, "labelTable")).get("bg") as string) as {
+            fill: string;
+            rows: { cells: { fill?: string }[] }[];
+        };
+        expect(t.fill).toBe("#ffffe0");
+        expect(t.rows[0].cells.map((c) => c.fill)).toEqual(["#4477aa", "#e41a1c", "#000000"]);
+    });
+
+    it("carries a node's image, imagescale and imagepos", async () => {
+        const props = ["image", "imageFit", "imageWidth", "imageHeight", "imageAutoSize"];
+        const pos = ["imagePositionX", "imagePositionY"];
+        const values = await Promise.all([...props, ...pos].map((p) => byId(pictures, p)));
+        const row = (id: string): unknown[] => values.map((v) => v.get(id) ?? null);
+        expect(row("n")).toEqual(["img-quadrants.png", "none", null, null, null, null, null]);
+        expect(row("t")).toEqual(["i.png", "contain", null, null, null, 0, 0]);
+        expect(row("both")).toEqual(["i.png", "fill", null, null, null, null, null]);
+        expect(row("w")).toEqual(["i.png", "none", 48.0024, null, "natural", 1, 1]);
+        expect(row("none")).toEqual([null, null, null, null, null, null, null]);
     });
 });

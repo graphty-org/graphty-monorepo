@@ -785,11 +785,14 @@ function headParts(heads: readonly PArrow[]): number {
     return placed.length;
 }
 
+/** A line's usual advance, in its font box's heights (CSS's `line-height: normal`, Graphviz's LINESPACING). */
+const LINE_ADVANCE = 1.2;
+
 /**
  * Whether the program draws most of a text's words near it: half its words or more among the program's texts whose
- * middles lie within the text's box, give or take its height, or anywhere where no place relates the two drawings. A
- * text graphty draws on several lines the program draws one line a text (xgmml-wp4271-cy3-export's "Absorption and
- * transport"), and wraps where it wraps.
+ * middles lie within the text's box, give or take a line's advance, or anywhere where no place relates the two
+ * drawings. A text graphty draws on several lines the program draws one line a text (xgmml-wp4271-cy3-export's
+ * "Absorption and transport"), and wraps where it wraps.
  * @param words - the text's words, normalized
  * @param box - its box in the oracle's frame, or null to look anywhere
  * @param texts - the program's texts, words normalized
@@ -800,7 +803,9 @@ function wordsDrawnNear(words: string, box: PBox | null, texts: readonly { words
         if (box === null) {
             return true;
         }
-        const slack = box.y1 - box.y0;
+        // graphty's box is its letters' font box (#5322), no longer the line box 1.2 times as tall that this slack
+        // was set by
+        const slack = LINE_ADVANCE * (box.y1 - box.y0);
         const [x, y] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
         return x >= box.x0 - slack && x <= box.x1 + slack && y >= box.y0 - slack && y <= box.y1 + slack;
     };
@@ -3067,12 +3072,33 @@ export function labelAnchor(t: PText, b: PBox): string {
  * @returns the alignment, or null under two lines or where the lines are too alike in width to tell
  */
 export function lineAlign(t: PText): "start" | "middle" | "end" | null {
-    const lines = t.lines ?? [];
+    // a table's cells side by side are read apart: a cell's lines overlap across, the cell beside them does not
+    // (dot-specimen-labels-p2 html-td-balign-left); the cell with the most lines decides
+    const cells: PBox[][] = [];
+    for (const b of [...(t.lines ?? [])].sort((p, q) => p.x0 - q.x0)) {
+        const last = cells.at(-1);
+        if (last !== undefined && b.x0 < Math.max(...last.map((l) => l.x1))) {
+            last.push(b);
+        } else {
+            cells.push([b]);
+        }
+    }
+    const most = [...cells].sort((p, q) => q.length - p.length)[0];
+    return most === undefined ? null : alignOfLines(most, t.sizePx);
+}
+
+/**
+ * How lines of one cell are aligned.
+ * @param lines - the lines' boxes
+ * @param sizePx - their font size
+ * @returns the alignment, or null under two lines or where they are too alike in width to tell
+ */
+function alignOfLines(lines: readonly PBox[], sizePx: number): "start" | "middle" | "end" | null {
     if (lines.length < 2) {
         return null;
     }
     const widths = lines.map((b) => b.x1 - b.x0);
-    if (Math.max(...widths) - Math.min(...widths) < ORACLE_TOLERANCES.lineAlignOfSize * t.sizePx) {
+    if (Math.max(...widths) - Math.min(...widths) < ORACLE_TOLERANCES.lineAlignOfSize * sizePx) {
         return null;
     }
     const spread = (xs: number[]): number => Math.max(...xs) - Math.min(...xs);

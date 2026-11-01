@@ -147,7 +147,7 @@ describe("Filter cards on the real element", () => {
         assert.deepEqual(count.edges, { matched: 4, total: 9 });
         const valueCard = await card(VALUE);
         await valueCard.findByText("4 of 9");
-        await screen.findByRole("button", { name: "Filter: 5 of 8 nodes, 4 of 9 edges" });
+        await screen.findByRole("button", { name: /^Filter: 5 of 8 nodes, 4 of 9 edges, showing only "/ });
     });
 
     it("Select selects the matches and hides nothing; Filter to again empties that selection, and Undo restores it", async () => {

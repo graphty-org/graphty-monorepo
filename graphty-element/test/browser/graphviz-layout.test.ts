@@ -304,6 +304,32 @@ describe("Graphviz layouts in the element", () => {
         assert.closeTo(width / step, 2, 0.1, `a box ${String(width)} wide, its centres ${String(step)} apart`);
     });
 
+    it("keeps a DOT file's nodes apart when its styles are not drawn (issue #5293)", async () => {
+        // Without the file's styles the element draws its own node size, not the size Graphviz gives the file's
+        // nodes, so Graphviz must lay the nodes out at that drawn size or they land on top of each other.
+        const session = graph.getSession();
+        await session.data.import(
+            {
+                type: "dot",
+                config: {
+                    data: "digraph { layout=dot; rankdir=LR; start -> parse -> check -> plan -> run -> report; check -> report; parse -> report }",
+                },
+            },
+            { layout: "recommended" },
+        );
+        await settled();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        const ids = ["start", "parse", "check", "plan", "run", "report"];
+        for (const [i, a] of ids.entries()) {
+            for (const b of ids.slice(i + 1)) {
+                const gap = Math.hypot(at(a).x - at(b).x, at(a).y - at(b).y);
+                const width = (graph.getNode(a)?.drawnRadius ?? 0) + (graph.getNode(b)?.drawnRadius ?? 0);
+                assert.isAtLeast(gap, width, `${a} and ${b} overlap`);
+            }
+        }
+    });
+
     it("hands Graphviz the styled node sizes when no frame is drawn between the load and its layout", async () => {
         // A node's mesh takes its styled size when a frame draws the paint, and a load starts its
         // recommended layout in the same step as its styles. Hold every frame back from the load

@@ -141,7 +141,7 @@ describe("sendAlerts", () => {
                 "data.sources_age",
                 "master.red_now",
                 "master.untested_age",
-                "release.lanes_red",
+                "release.review_wait",
             ].sort(),
         );
     });
@@ -321,7 +321,7 @@ describe("the policy's conditions", () => {
         const store = new MemoryStore();
         const p = pushover();
         const late = Date.UTC(2026, 10, 12, 20); // noon Pacific
-        const ev = evaluation([cost("cost.t4", 300, 250), cost("cost.llm", 110, 95)]);
+        const ev = evaluation([cost("cost.t4", 300, 250), cost("cost.llm", 170, 155)]);
         await run(store, ev, late, p.fetch, SLAS);
         expect(p.calls).toHaveLength(0);
         const r = await run(store, ev, late + 6 * HOUR, p.fetch, SLAS);
@@ -338,7 +338,7 @@ describe("the policy's conditions", () => {
         // One decision that names every suggested budget, not one decision per member. Early in the month it holds
         // from now on, and a cut starts today.
         expect(body.message).toContain(
-            "What to do: Choose the limits from now on: raise T4 GPU to $310, LLM tests to $120 a month, or keep them and accept the overruns. Or have the agents cut LLM test runs from today to fit their $90 limit.",
+            "What to do: Choose the limits from now on: raise T4 GPU to $310, LLM tests to $180 a month, or keep them and accept the overruns. Or have the agents cut LLM test runs from today to fit their $150 limit.",
         );
         expect(body.message.match(/What to do/g)).toHaveLength(1);
         expect(body.message).toMatch(/^What to do: /);
@@ -392,7 +392,7 @@ describe("the policy's conditions", () => {
         const p = pushover();
         const store = new MemoryStore();
         const early = Date.UTC(2026, 10, 3, 12);
-        const ev = evaluation(cost("cost.llm", 120, 80));
+        const ev = evaluation(cost("cost.llm", 180, 140));
         await run(store, ev, early, p.fetch, SLAS);
         expect((await run(store, ev, early + 6 * HOUR, p.fetch, SLAS)).sent).toHaveLength(1);
     });
@@ -424,7 +424,7 @@ describe("the policy's conditions", () => {
             const start = Date.UTC(2026, 9, 14, 16); // 09:00 Pacific
             const sent: string[][] = [];
             for (let t = start; t < start + DAY; t += 5 * MIN) {
-                const llm = { ...cost("cost.llm", 110, 95) };
+                const llm = { ...cost("cost.llm", 170, 155) };
                 const ms = t >= spendFrom ? [llm, cost("cost.spend", 450, 420)] : [llm];
                 const ev = evaluation(ms);
                 ev.episodes = ev.episodes.map((e) => ({ ...e, start: e.member === "cost.llm" ? start : spendFrom }));
@@ -531,8 +531,8 @@ describe("the policy's conditions", () => {
 
     it("the screenshot reminder pages for a green-images nightly hold a day old, with its issue", async () => {
         const held = (waitMs: number, holdOpenMs = 0): MemberStatus => ({
-            ...member("release.lanes_red", "releases"),
-            value: 0,
+            ...member("release.review_wait", "releases"),
+            value: waitMs,
             facts: {
                 "release.review_wait_ms": waitMs,
                 "release.review_issue": 4700,
@@ -558,8 +558,8 @@ describe("the policy's conditions", () => {
     it("a publish hold or a red hold open a day never sends the screenshot reminder", async () => {
         const p = pushover();
         const m: MemberStatus = {
-            ...member("release.lanes_red", "releases"),
-            value: 2,
+            ...member("release.review_wait", "releases"),
+            value: 0,
             facts: { "release.review_wait_ms": 0, "release.review_issue": 0, "release.hold_open_ms": 30 * HOUR },
         };
         const store = new MemoryStore();
@@ -693,7 +693,7 @@ describe("the policy's conditions", () => {
         const costs = openMessage(ctx, [
             due("cost.spend", { value: 455.3, facts: { month_to_date: 430 } }),
             due("cost.t4", { value: 262.1, facts: { month_to_date: 251 } }),
-            due("cost.llm", { value: 97.55, facts: { month_to_date: 93 } }),
+            due("cost.llm", { value: 157.55, facts: { month_to_date: 153 } }),
         ]);
         expect(costs.message.length).toBeLessThanOrEqual(1024);
         // The total already holds T4 and the LLM tests: the title names them, it does not add them up.
@@ -703,7 +703,7 @@ describe("the policy's conditions", () => {
         );
         // In the month's last week October is spent: the choice is November's budget.
         expect(costs.message).toContain(
-            "What to do: Choose November's limits: raise Total to $460, T4 GPU to $270, LLM tests to $100 a month, or keep them and accept the overruns. Or have the agents cut LLM test runs from Nov 1 to fit their $90 limit. Nothing is cut unless you say so; tell any Claude session your choice.\n",
+            "What to do: Choose November's limits: raise Total to $460, T4 GPU to $270, LLM tests to $160 a month, or keep them and accept the overruns. Or have the agents cut LLM test runs from Nov 1 to fit their $150 limit. Nothing is cut unless you say so; tell any Claude session your choice.\n",
         );
         expect(costs.message).toMatch(/^What to do: /);
         const blind = openMessage(ctx, [
@@ -727,8 +727,8 @@ describe("the policy's conditions", () => {
             ...member(c.id, c.category),
             ok: c.ok,
             fail: c.fail,
-            value: 150,
-            facts: { month_to_date: 95.5 },
+            value: 210,
+            facts: { month_to_date: 155.5 },
         };
         const msg = openMessage({ evaluation: evaluation([]), now: at }, [
             { key: { pk: "", sk: "" }, e, m, c, start: e.start },
@@ -894,10 +894,13 @@ describe("messages", () => {
         "master.red_now": { value: 3 * HOUR + 20 * MIN },
         "master.untested_age": { value: 25 * HOUR, facts: { "release.since_slot_ms": 14 * HOUR } },
         "ci.runners_not_assigned": { value: 75 * MIN, facts: { "ci.jobs_running": 0, "ci.jobs_waiting_runner": 40 } },
-        "release.lanes_red": { value: 0, facts: { "release.review_wait_ms": 26 * HOUR, "release.review_issue": 4700 } },
+        "release.review_wait": {
+            value: 26 * HOUR,
+            facts: { "release.review_wait_ms": 26 * HOUR, "release.review_issue": 4700 },
+        },
         "cost.spend": { value: 412.3, facts: { month_to_date: 280 } },
         "cost.t4": { value: 232.1, facts: { month_to_date: 150 } },
-        "cost.llm": { value: 87.55, facts: { month_to_date: 70 } },
+        "cost.llm": { value: 147.55, facts: { month_to_date: 130 } },
         "cost.aws": { value: 8.4, state: "WARNING", facts: { projected: 9.9 } },
         "data.sources_age": {
             value: 1,

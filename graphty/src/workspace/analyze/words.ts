@@ -13,6 +13,7 @@ import type { Caveats, CostEstimate, GraphSession, Run, WeightMeaning } from "@g
 
 import { findTreeRow } from "../graph-place/rows";
 import { count, formatNumber } from "../inspector/words";
+import { formatCount } from "../settings/numberFormat";
 
 /** One heading of the list, and the result shapes it gathers. */
 export interface Heading {
@@ -703,7 +704,7 @@ export function runRefusalWords(estimate: CostEstimate): string {
             return "Needs edge weights";
         case "algorithm.needs-connected":
             return typeof params.pieces === "number"
-                ? `Needs a connected graph; this one is in ${params.pieces.toLocaleString("en-US")} pieces`
+                ? `Needs a connected graph; this one is in ${formatCount(params.pieces)} pieces`
                 : "Needs a connected graph";
         case "algorithm.needs-accelerator":
             return "Needs a graphics card this browser does not offer";

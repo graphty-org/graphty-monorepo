@@ -18,7 +18,7 @@ import type {
 import { Menu } from "@mantine/core";
 import React, { useState } from "react";
 
-import { formatNumber } from "../inspector/words";
+import { useNumberFormats } from "../settings/numberFormat";
 import { timeValue } from "../time/timeActions";
 import { elementSort, groupName, type RecordKind, type TableColumnChoice } from "./columns";
 
@@ -160,6 +160,7 @@ export function RecordTable({
     header,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
+    const numberFormats = useNumberFormats();
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
     const sorted = columns.find((column) => column.id === sort?.id);
 
@@ -262,7 +263,7 @@ export function RecordTable({
             // A short column (an id, a number) is drawn whole; a long one takes what it needs.
             columnSizing="content"
             // The inspector's and the key's spelling, so one score reads alike in all three.
-            formatNumber={formatNumber}
+            formatNumber={numberFormats.number}
             sorting={sort === null ? [] : [sort]}
             onSortingChange={(next) => {
                 onSortChange(next[0] ?? null);

@@ -22,7 +22,7 @@ export function ErrorFallback({ resetError }: Readonly<FallbackProps>): React.JS
             }}
         >
             <Stack align="center" gap="lg">
-                <AlertTriangle size={48} color="var(--mantine-color-red-5)" />
+                <AlertTriangle size={48} color="var(--cm-text-danger)" />
                 <Title order={2} c="gray.1">
                     Something went wrong
                 </Title>

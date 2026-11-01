@@ -6,6 +6,7 @@ import React from "react";
 import { SOURCE_GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
 import { ServerPlace } from "../server/ServerForm";
+import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { Fields } from "./Fields";
 import { FiltersSection } from "./Filters";
@@ -35,6 +36,8 @@ export function SourceGlyph({ kind }: Readonly<{ kind: SourceKind }>): React.JSX
 export function DataPlace(): React.JSX.Element {
     const { session, store } = useWorkspace();
     useSessionVersion(session);
+    // The reader's Number format respells the counts.
+    useNumberFormats();
     const graphName = useWorkspaceState((state) => state.project?.name ?? "");
     const picked = useWorkspaceState((state) => state.pickedSource);
     const sources = session?.data.sources() ?? [];

@@ -138,10 +138,15 @@ export async function jobs(reads: Reads, range: Range | "7d"): Promise<Section> 
             return b?.n ? (v(b) ?? null) : null;
         });
     let peak = { n: -1, at: iso(shown[0]) };
+    let peakQueued = { n: -1, at: iso(shown[0]) };
     for (const s of shown) {
         const n = run.get(s)?.max ?? -1;
         if (n > peak.n) {
             peak = { n, at: iso(s) };
+        }
+        const nq = q.get(s)?.max ?? -1;
+        if (nq > peakQueued.n) {
+            peakQueued = { n: nq, at: iso(s) };
         }
     }
     const out: JobsSection = {
@@ -157,6 +162,7 @@ export async function jobs(reads: Reads, range: Range | "7d"): Promise<Section> 
         saturatedMs: per(sat, (b) => b.sum),
         limit: reads.cfg.runnerLimits.linux_windows ?? 60,
         peak: { n: Math.max(0, peak.n), at: peak.at },
+        peakQueued: { n: Math.max(0, peakQueued.n), at: peakQueued.at },
     };
     return out;
 }
@@ -332,7 +338,8 @@ export function sourcesTable(reads: Reads): Section {
         .filter((s) => s.state !== "not set up")
         .map((s) => {
             const cfg = reads.cfg.sources[s.id];
-            const state: Cell = s.state === "ok" ? none : { t: "state", state: sourceState(s) };
+            // OK is said, not left blank, so a judged source reads apart from one with no state.
+            const state: Cell = { t: "state", state: sourceState(s) };
             const reason = reasonFact(s.reason, reads);
             return {
                 ...(s.state === "idle" ? { past: true } : {}),
@@ -436,7 +443,8 @@ export async function moneyTable(reads: Reads, range: SlowRange, members: Map<st
                 projected: { t: "num", n: round(projected), unit: "usd", bold: true },
                 sofar: { t: "budget", so: round(soFar), budget, unit: "usd" },
                 spark: line === undefined ? none : { t: "spark", spark },
-                state: st === "warn" || st === "bad" ? { t: "state", state: st } : none,
+                // A line its member judges says its state, OK included; a line no member judges has none.
+                state: st === "ok" || st === "warn" || st === "bad" ? { t: "state", state: st } : none,
             },
         };
     };
@@ -857,6 +865,9 @@ export async function stressTable(reads: Reads): Promise<Section> {
         } else if (r.foundFailures) {
             result = { t: "fact", fact: f("stress.found_filed") };
         }
+        let filed: Cell = none;
+        if (r.state === 2) filed = { t: "fact", fact: f("stress.not_reached") };
+        else if (r.state === 0 && !r.foundFailures) filed = { t: "num", n: 0 };
         return {
             ...(i > 0 ? { past: true } : {}),
             cells: {
@@ -869,7 +880,7 @@ export async function stressTable(reads: Reads): Promise<Section> {
                     ],
                 },
                 result,
-                filed: r.state === 0 && !r.foundFailures ? { t: "num", n: 0 } : none,
+                filed,
             },
         };
     });

@@ -1,3 +1,16 @@
+## 3.4.17 (2026-10-31)
+
+### 🩹 Fixes
+
+- **algorithms:** score every ordered pair in directed link prediction ([#961](https://github.com/graphty-org/graphty-monorepo/issues/961))
+- let dependency bumps pass and keep their failures out of the flaky readings ([#4147](https://github.com/graphty-org/graphty-monorepo/issues/4147))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.42
+- Updated visual-review to 0.2.38
+- Updated graph-format to 1.4.10
+
 ## 3.4.16 (2026-10-29)
 
 ### 🧱 Updated Dependencies

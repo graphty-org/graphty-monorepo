@@ -74,6 +74,7 @@ import {
     graphvizPolygonCorners,
     isGraphvizBox,
 } from "./drawing.js";
+import { type LabelTable, readLabelTable } from "./html-table.js";
 import { type LabelPlaceContext, readLabelPlaces } from "./label-places.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
 import { layoutRecord } from "./record.js";
@@ -760,8 +761,8 @@ interface NodeRead {
 interface HtmlTableFrame {
     /** `BORDER`: the width of the table's outline, 1 when not given. */
     readonly border: number;
-    /** From the outline to the cells' text on each side: the border, `CELLSPACING`, `CELLBORDER`, `CELLPADDING`. */
-    readonly inset: number;
+    /** The table's rows and cells, as the neutral `labelTable` value. */
+    readonly cells: LabelTable;
     /** `COLOR`, or null for the node's pen color. */
     readonly color: string | null;
     /** `STYLE`, lowercase. */
@@ -773,12 +774,19 @@ interface HtmlTableFrame {
 
 /**
  * The frame of a label that is an HTML-like table, perhaps inside font tags (Graphviz's `fonttable`); null for any
- * other label. Cells, rows and their own borders are not read: graphty draws the table as the node's box.
+ * other label, with its rows and cells.
  * @param label - the `label` attribute, or null
  * @param html - the file's HTML strings
+ * @param scheme - the node's color scheme, for its cells' font colors
+ * @param site - where a bad font color is noted
  * @returns the frame, or null
  */
-function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTableFrame | null {
+function htmlTableFrame(
+    label: string | null,
+    html: ReadonlySet<string>,
+    scheme: string | null,
+    site: CanonSite,
+): HtmlTableFrame | null {
     if (label === null || (!isHtmlString(label) && !html.has(`<${label}>`))) {
         return null;
     }
@@ -797,13 +805,24 @@ function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTa
         const v = length(name, 0, 0, 65535);
         return v > 0 ? v : null;
     };
-    const inset =
-        border + length("cellspacing", 2, -128, 127) + length("cellborder", border, 0, 127) + length("cellpadding", 2);
+    const tagAttrs = (tag: string): Map<string, string> =>
+        new Map(tagAttributes(tag).map(([k, v]) => [k.toLowerCase(), v]));
+    const markup = isHtmlString(label) ? label.slice(1, -1) : label;
+    const cells = readLabelTable(
+        markup,
+        tagAttrs,
+        (tags) => htmlRunFont(tags, scheme, site),
+        (value) => {
+            const c = canonColor(value, "graphviz", site, { scheme, use: "fill" });
+            return c === null || c.alpha <= 0 ? null : c.color;
+        },
+    );
+    if (cells === null) {
+        return null;
+    }
     return {
         border,
-        // a cell's border is the table's unless CELLBORDER is given; a negative CELLSPACING overlaps the cells, but
-        // the text never sits outside the table
-        inset: Math.max(0, inset),
+        cells,
         color: nonEmpty(attrs.get("color") ?? null),
         style: (attrs.get("style") ?? "").toLowerCase(),
         width: size("width"),
@@ -929,6 +948,10 @@ function readNodeLabel(n: NodeRead, label: string | null, shown: string, names: 
         put("label", shown);
         readLabelAlign(label, names, cx.html, RECORD.has(shape), put);
         readHtmlRuns(label, cx.html, n.scheme, put, at);
+        if (n.table !== null) {
+            // a text line set as Graphviz sets it; a cell sized by its picture counts each of its pixels as Graphviz does
+            put("labelTable", JSON.stringify({ ...n.table.cells, ...HTML_LINE, imagePixel: IMAGE_POINTS_PER_PIXEL }));
+        }
         if (cx.cluster) {
             put("labelPosition", clusterLabelPosition(get));
             readClusterLabelPlace(get, put);
@@ -1050,7 +1073,7 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
         point: !cx.cluster && shape === "point",
         scheme: get("colorscheme"),
         color: nonEmpty(get("color")),
-        table: cx.cluster ? null : htmlTableFrame(get(LABEL_ATTRIBUTE), cx.html),
+        table: cx.cluster ? null : htmlTableFrame(get(LABEL_ATTRIBUTE), cx.html, get("colorscheme"), at("labelTable")),
     };
     // in a node's label \E stands for nothing (measured with dot 2.43); \T and \H stand for their letters
     const names: DotEscapeNames = cx.cluster ? { graph: cx.name } : { node: cx.name, graph: cx.graph, edge: "" };
@@ -1064,6 +1087,72 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     readNodeOutline(n);
     readNodeShape(n);
     readNodeLabelAndSize(n, names);
+    readNodeImage(n);
+}
+
+/** Where `imagepos` puts a node's image, 0 to 1 across and down, by its first and second letter. */
+const IMAGE_POS: Readonly<Record<string, number>> = { t: 0, m: 0.5, b: 1, l: 0, c: 0.5, r: 1 };
+
+/**
+ * Reads a node's picture (`image`, its file as written): how it is scaled (`imagescale`: false draws it at its own
+ * size, true keeps its proportions inside the node, both stretches it, width or height stretches that side only) and
+ * where it sits (`imagepos`, `tl` to `br`; unset, the middle). https://graphviz.org/docs/attrs/image/
+ * @param n - the node
+ */
+function readNodeImage(n: NodeRead): void {
+    const { get, put } = n;
+    const src = nonEmpty(get("image"));
+    if (src === null || n.point || n.cx.cluster) {
+        return;
+    }
+    put("image", src);
+    const scale = (get("imagescale") ?? "").trim().toLowerCase();
+    const least = nodeLeastSize(get, n.shape);
+    if (scale === "true" || scale === "yes") {
+        put("imageFit", "contain");
+    } else if (scale === "both") {
+        put("imageFit", "fill");
+    } else {
+        put("imageFit", "none");
+        // the stretched side reaches across the node; the other keeps the picture's own size
+        if (scale === "width" || scale === "height") {
+            put(scale === "width" ? "imageWidth" : "imageHeight", num6(scale === "width" ? least.w : least.h));
+            put("imageAutoSize", "natural");
+        }
+    }
+    const pos = (get("imagepos") ?? "").trim().toLowerCase();
+    const [y, x] = [IMAGE_POS[pos[0]], IMAGE_POS[pos[1]]];
+    if (pos.length === 2 && "tmb".includes(pos[0]) && "lcr".includes(pos[1])) {
+        put("imagePositionX", x);
+        put("imagePositionY", y);
+    }
+    readNodeImageFit(n);
+}
+
+/** How long one of a picture's pixels is when Graphviz sizes something by it, in points: 96 pixels an inch. */
+const IMAGE_POINTS_PER_PIXEL = 0.75;
+
+/**
+ * A node that is not `fixedsize` grows round its picture as round its label (Graphviz's `poly_init`): the picture's
+ * own size, 2 points more each way ("some fixed padding"), and the larger of that and the padded label decides. A
+ * node with no words pads nothing but its picture.
+ * @param n - the node
+ */
+function readNodeImageFit(n: NodeRead): void {
+    const { get, put, shape } = n;
+    if (isTrue(get("fixedsize")) || RECORD.has(shape)) {
+        return;
+    }
+    put("labelFitImage", IMAGE_POINTS_PER_PIXEL);
+    put("labelFitImagePadding", 1);
+    if (get(LABEL_ATTRIBUTE) === "") {
+        put("labelFit", GRAPHVIZ_GLYPH_SHAPES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
+        put("labelPaddingX", 0);
+        put("labelPaddingY", 0);
+        if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {
+            put("labelFitSquare", true);
+        }
+    }
 }
 
 /**
@@ -1787,6 +1876,16 @@ const LABEL_PAD = { x: 8, y: 4 } as const;
 const LINE_SPACING = 1.2;
 
 /**
+ * How Graphviz 14 sets a line of an HTML-like label's text (lib/common/htmltable.c `size_html_txt`, `emit_htextspans`;
+ * plugin/pango/gvtextlayout_pango.c): the line is as tall as its pango layout, the font's ascent and descent each
+ * rounded up to whole pixels at 96 dpi (0.75 points; DejaVu Sans at 10 points: 13 and 4 pixels, 12.75 points), and its
+ * baseline one font size below the line's top, drawn 0.05 font sizes higher (`yoffset_centerline`): 9.5 points at 10.
+ * ponytail: a line of several runs or fonts (Graphviz's not `simple` text) is set 1 point higher still; carry it per
+ * cell when a file mixes runs in a table's cell
+ */
+const HTML_LINE = { lineHeight: "font", textPixel: IMAGE_POINTS_PER_PIXEL, baseline: 0.95 } as const;
+
+/**
  * Reads how a node that is not drawn at a fixed size grows to hold its label (`poly_init`, lib/common/shapes.c):
  * its padded label box fits inside its outline, the `margin` (else 8 points by 4) on each side, and a circle, a
  * square or a `regular` node stays as wide as it is tall. The neutral label box is one font size per line, so the
@@ -1823,8 +1922,9 @@ function readLabelFit(
     const given = shape === "plain" ? [] : margin;
     const marginX = given.length > 0 ? given[0] * DOT_POINTS_PER_INCH : pad.x;
     const marginY = given.length > 0 ? (given[1] ?? given[0]) * DOT_POINTS_PER_INCH : pad.y;
-    const padX = marginX + (table?.inset ?? 0);
-    const padY = marginY + (table?.inset ?? 0);
+    // a table's cells are laid out by whoever draws them (`labelTable`): the label's box is the table's
+    const padX = marginX;
+    const padY = marginY + (table === null ? ((LINE_SPACING - 1) * fontSize * lines) / 2 : 0);
     // a table's WIDTH and HEIGHT are its least size, the margin round it; the node's own size is another
     const least = nodeLeastSize(get, shape);
     if (typeof table?.width === "number") {
@@ -1839,7 +1939,7 @@ function readLabelFit(
     // tall reaches past the default height; carry it when a sample needs it
     put("labelFit", GRAPHVIZ_GLYPH_SHAPES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
     put("labelPaddingX", num6(padX));
-    put("labelPaddingY", num6(padY + ((LINE_SPACING - 1) * fontSize * lines) / 2));
+    put("labelPaddingY", num6(padY));
     if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {
         put("labelFitSquare", true);
     }

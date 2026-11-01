@@ -10,6 +10,7 @@ import {
     PopoutManager,
     ResetButton,
     SegmentedControl,
+    TargetTooltip,
     useFileDrop,
 } from "@graphty/compact-mantine";
 import {
@@ -550,11 +551,11 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                 <Menu position="bottom-start">
                     <Menu.Target>
                         {/* To the left, over empty space: below, it covers the table's "Each row is" label. */}
-                        <Tooltip label="Add a table" position="left">
+                        <TargetTooltip label="Add a table" position="left">
                             <ActionIcon ref={addButton} variant="subtle" size="sm" aria-label="Add a table">
                                 <GLYPHS.add size={14} aria-hidden />
                             </ActionIcon>
-                        </Tooltip>
+                        </TargetTooltip>
                     </Menu.Target>
                     <Menu.Dropdown>
                         <Menu.Item onClick={onChooseFiles}>File...</Menu.Item>
@@ -579,6 +580,7 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                     <Popout.Panel
                         width={ENTRY_WIDTH}
                         header={{ variant: "title", title: "From a URL" }}
+                        closeLabel="Close From a URL"
                         anchorX={addButton}
                         anchorY={addButton}
                         placement="right"
@@ -663,14 +665,14 @@ function leftOutRows(page: LoadDraftState): number {
  * @param props.leftOut - How many of its rows the load would leave out
  * @returns The mark
  */
-function ReadyMark({ ready, leftOut = 0 }: Readonly<{ ready: boolean; leftOut?: number }>): React.JSX.Element {
+export function ReadyMark({ ready, leftOut = 0 }: Readonly<{ ready: boolean; leftOut?: number }>): React.JSX.Element {
     if (!ready) {
         return <GLYPHS.empty size={14} role="img" aria-label="Not ready" />;
     }
     if (leftOut > 0) {
         return <GLYPHS.warning size={14} color="var(--cm-text-danger)" role="img" aria-label={leftOutWords(leftOut)} />;
     }
-    return <GLYPHS.ready size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />;
+    return <GLYPHS.ready size={14} color="var(--cm-text-success)" role="img" aria-label="Ready" />;
 }
 
 /**
@@ -963,6 +965,7 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                 <Popout.Panel
                     width={SETTINGS_WIDTH}
                     header={{ variant: "title", title: "File settings" }}
+                    closeLabel="Close File settings"
                     placement="bottom"
                 >
                     <Popout.Content>

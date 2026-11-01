@@ -1,4 +1,5 @@
-import { ActionIcon, Menu, Tooltip } from "@mantine/core";
+import { TargetTooltip } from "@graphty/compact-mantine";
+import { ActionIcon, Menu } from "@mantine/core";
 import React from "react";
 
 import { CommandMenuItem } from "../frame/menus";
@@ -46,17 +47,16 @@ export function AddSourceMenu(): React.JSX.Element | null {
         return null;
     }
     // Each item opens a dialog, a pop-over or the file chooser that takes focus; handing focus back
-    // to "+" as the menu closes would take it from them. The tooltip wraps the menu's target, so
-    // the button itself carries the menu's aria-haspopup and aria-expanded.
+    // to "+" as the menu closes would take it from them.
     return (
         <Menu position="bottom-end" returnFocus={false}>
-            <Tooltip label="Add source">
-                <Menu.Target>
+            <Menu.Target>
+                <TargetTooltip label="Add source">
                     <ActionIcon variant="subtle" size="sm" aria-label="Add source">
                         <GLYPHS.add size={14} aria-hidden />
                     </ActionIcon>
-                </Menu.Target>
-            </Tooltip>
+                </TargetTooltip>
+            </Menu.Target>
             <Menu.Dropdown>
                 {doors.map((door) => {
                     const id = door.command.id as (typeof ADD_SOURCE)[number];

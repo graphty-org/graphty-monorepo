@@ -8,10 +8,14 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
+import { MantineProvider } from "@mantine/core";
+import { render as renderBare } from "@testing-library/react";
+import axe from "axe-core";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { screen, waitFor, within } from "../../../test/test-utils";
+import { theme } from "../../../theme";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -43,7 +47,12 @@ describe("the location map whose placement code cannot be loaded", () => {
     });
 
     it("says so on Apply and leaves the layout and the drawing as they were", async () => {
-        render(<Workspace store={createWorkspaceStore({ project: { name: "Airports", id: 1 } })} />);
+        // In the light scheme, where a raw red failed 4.5:1 (#3080).
+        renderBare(
+            <MantineProvider theme={theme} forceColorScheme="light">
+                <Workspace store={createWorkspaceStore({ project: { name: "Airports", id: 1 } })} />
+            </MantineProvider>,
+        );
         let element: HTMLElementTagNameMap["graphty-element"] | null = null;
         await waitFor(() => {
             element = document.querySelector("graphty-element");
@@ -68,6 +77,12 @@ describe("the location map whose placement code cannot be loaded", () => {
 
         const alert = await within(popover).findByRole("alert", undefined);
         assert.include(alert.textContent, "could not be loaded");
+        // Status text meets 4.5:1 on the popover (WCAG 1.4.3).
+        const contrast = await axe.run(alert, { runOnly: ["color-contrast"], resultTypes: ["violations"] });
+        assert.deepEqual(
+            contrast.violations.flatMap((v) => v.nodes.map((node) => node.failureSummary ?? "")),
+            [],
+        );
         assert.strictEqual(el.session.layout.id, before, "the layout it had stays");
         assert.isNull(el.mapFrame, "no map is claimed");
         assert.strictEqual(el.basemapStatus.state, "off");

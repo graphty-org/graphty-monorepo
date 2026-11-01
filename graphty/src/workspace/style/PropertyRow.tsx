@@ -1025,14 +1025,14 @@ function varySlotOf(props: VarySlotProps): React.ReactNode {
     if (own?.binding !== undefined) {
         // A bound field's Stop varying sits where its vary glyph sat (Figma's detach on a variable
         // field). It is the one way back to a single value, so its words say what it does.
-        const one = descriptor.accepts === "color" ? "one color" : "one value";
+        const stop = `Stop varying ${name.toLowerCase()} by data`;
         const { binding } = own;
         return (
-            <Tooltip label={`Stop varying by data: use ${one} for all`}>
+            <Tooltip label={stop}>
                 <ActionIcon
                     variant="subtle"
                     size="sm"
-                    aria-label={`Stop varying ${name.toLowerCase()} by data`}
+                    aria-label={stop}
                     onClick={() => {
                         // A property set for a few groups goes back to the one value the rest have.
                         const value = binding.otherwise ?? startingValue(descriptor, ctx.session, own.layer.selector);
@@ -1056,7 +1056,7 @@ function varySlotOf(props: VarySlotProps): React.ReactNode {
         const reached = String(props.reached);
         const oneName = `Give all ${reached} layers one ${name.toLowerCase()}`;
         return (
-            <Tooltip label={`One value for all: use ${words} for all ${reached} layers`}>
+            <Tooltip label={oneName}>
                 <ActionIcon
                     variant="subtle"
                     size="sm"
@@ -1452,6 +1452,7 @@ function VaryButton({
                 placement="left"
                 alignment="start"
                 header={{ variant: "title", title: label }}
+                closeLabel={`Close ${label}`}
             >
                 <ValuePicker
                     title={label}
@@ -1635,6 +1636,7 @@ function BoundValue({
                 alignment="start"
                 anchorY={pill}
                 header={{ variant: "title", title: bindingTitle(channel, sourceWords) }}
+                closeLabel={`Close ${bindingTitle(channel, sourceWords)}`}
             >
                 <Popout.Content>
                     <BindingPopover

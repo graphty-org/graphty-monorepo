@@ -120,6 +120,19 @@ names a node the camera stays where it is:
 await graph.zoomToNodes(["alice", "bob"], { animate: true });
 ```
 
+By default each node counts as its centre, so a big node at the edge of the frame can be cut off,
+and one node is framed in a fixed-size box around its centre. Pass `extent: "drawn"` to measure each
+node by the box it is drawn in instead, so every framed node is whole on screen:
+
+```typescript
+await graph.zoomToNodes("hub", { extent: "drawn" });
+await graph.applyCameraView("isometric", { scope: "selection", extent: "drawn" });
+const state = graph.resolveCameraPreset("topView", { extent: "drawn" });
+```
+
+`extent` works the same for a camera view a third party registered: the box handed to its
+`compute` is measured either way.
+
 `zoomToSelection()` turns the camera to look at the middle of the selection, keeping where it
 stands. A selected edge counts by its two ends, so selecting only an edge frames that edge. With
 nothing selected the camera does not move.

@@ -15,7 +15,7 @@ import { type MemberConfig, type SlaConfig, SLAS } from "../../src/sla/config.js
 import { evaluate, projectMonth } from "../../src/sla/engine.js";
 import { HOUR, job, MIN, obs, pr, run, T0 } from "../model/helpers.js";
 
-const LIVE = ["collector", "ci-results", "release", "npm", "billing", "coverage"];
+const LIVE = ["collector", "views", "ci-results", "release", "npm", "billing", "coverage"];
 
 /** A store whose sources have written for hours and just now, holding `items`, recomputed. */
 async function world(items: RawItem[], now = T0, fresh = LIVE) {
@@ -241,6 +241,19 @@ describe("data states", () => {
         });
         expect(e.members.find((m) => m.id === "data.collector")).toMatchObject({ state: "FAILING", value: 30 * MIN });
         expect(e.categories.find((c) => c.id === "ci")).toMatchObject({ state: "NO DATA", setBy: "ci.hangs" });
+    });
+
+    it("pages that stop being written age the collector though it still reads GitHub (2026-11-01)", async () => {
+        const store = new MemoryStore();
+        await recordSource(store, "collector", T0, { ok: true });
+        await recordSource(store, "views", T0 - 30 * MIN, { ok: true });
+        await recordSource(store, "views", T0 - 5 * MIN, { ok: false, error: "Error: view too big" });
+        const e = await evaluate(store, T0, only("data.collector"));
+        expect(e.members.find((m) => m.id === "data.collector")).toMatchObject({
+            state: "FAILING",
+            value: 30 * MIN,
+            cause: { code: "error", params: { source: "views", error: "Error: view too big" } },
+        });
     });
 
     it("a rejected token is NO DATA with its error once its last good write is past the age limit", async () => {
@@ -510,6 +523,23 @@ describe("episodes", () => {
                 peak: 35,
             },
         ]);
+    });
+
+    it("an episode ends after an hour its member cannot be judged, so a stale incident does not stay ongoing", async () => {
+        // 35 open pull requests 3 h ago, then nothing: from an hour later the member has no value to judge.
+        const e = await evaluate(await world([obs("pr.open", 35, T0 - 3 * HOUR)]), T0, only("pr.open"));
+        expect(e.episodes).toHaveLength(1);
+        expect(e.episodes[0]).toMatchObject({ worst: "FAILING", start: T0 - 3 * HOUR });
+        expect(e.episodes[0].endedAt).toBeGreaterThan(T0 - 3 * HOUR);
+        expect(e.episodes[0].endedAt).toBeLessThanOrEqual(T0 - HOUR);
+    });
+
+    it("a 7- or 28-day member has no episodes: its start would be now on every cycle", async () => {
+        const cfg = only("flaky.net_new");
+        const store = await world([obs("flaky.net_change", 9, T0 - HOUR)]);
+        const e = await evaluate(store, T0, cfg);
+        expect(e.members[0].state).toBe("FAILING");
+        expect(e.episodes).toEqual([]);
     });
 
     it("evaluates the whole configuration on an empty store without throwing", async () => {

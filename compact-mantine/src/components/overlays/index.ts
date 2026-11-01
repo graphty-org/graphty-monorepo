@@ -6,6 +6,8 @@ export { MenuItemDescription } from "./MenuItemDescription";
 export { MenuShortcut } from "./MenuShortcut";
 export type { ModalFooterProps } from "./ModalFooter";
 export { ModalFooter } from "./ModalFooter";
+export type { TargetTooltipProps } from "./TargetTooltip";
+export { TargetTooltip } from "./TargetTooltip";
 export type { ToastAction, ToastApi, ToastOptions, ToastProps, ToastProviderProps } from "./Toast";
 export { Toast, ToastProvider, useToast } from "./Toast";
 export type { TooltipShortcutProps } from "./TooltipShortcut";

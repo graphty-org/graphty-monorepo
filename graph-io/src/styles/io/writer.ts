@@ -487,26 +487,8 @@ function lossNotes(
     picture: (target: StyleTarget, property: StyleProperty) => readonly (StyleValue | null)[],
     snapshot: GraphSnapshot,
 ): LossNote[] {
-    const notes: LossNote[] = [];
     const kept = keepsStyleBlock(exporter);
-    for (const target of TARGETS) {
-        const written = new Set<string>(caps?.[target] ?? []);
-        const drawn = drawnAnyway(caps?.tool, target, extracted.styles.units.length);
-        for (const property of ruleProperties(extracted.styles.rules, target)) {
-            // a property only graphty draws is written into the block alone: lost only when the block is
-            if (written.has(property) || (kept && property.startsWith("graphty:"))) {
-                if (target === "edge") {
-                    notes.push(...pairNotes(snapshot, exporter, property, picture("edge", property as StyleProperty)));
-                }
-            } else {
-                // a rule whose property no element ends up carrying loses nothing
-                const note = notWrittenNote(target, property, exporter, picture, drawn[property]);
-                if (note.count !== 0) {
-                    notes.push(note);
-                }
-            }
-        }
-    }
+    const notes = TARGETS.flatMap((target) => targetLossNotes(target, extracted, exporter, caps, picture, snapshot));
     notes.push(...graphLossNotes(extracted, exporter, caps));
     if (kept) {
         notes.push(...styleBlockLosses(writeStyleBlock(extracted, { snapshot }), extracted.styles.rules.length));
@@ -519,6 +501,46 @@ function lossNotes(
                 count: extracted.styles.rules.length,
             }),
         );
+    }
+    return notes;
+}
+
+/**
+ * The losses of one target's properties: W_STYLE_NOT_WRITTEN for one the format does not write, W_STYLE_APPROXIMATED
+ * for an edge property whose undirected halves differ.
+ * @param target - nodes or edges
+ * @param extracted - the styles
+ * @param exporter - the exporter
+ * @param caps - its style capabilities, or null
+ * @param picture - each element's value of a property
+ * @param snapshot - the graph
+ * @returns the notes
+ */
+function targetLossNotes(
+    target: StyleTarget,
+    extracted: ExtractedStyles,
+    exporter: GraphExporter,
+    caps: StyleWriteCapabilities | null,
+    picture: (target: StyleTarget, property: StyleProperty) => readonly (StyleValue | null)[],
+    snapshot: GraphSnapshot,
+): LossNote[] {
+    const notes: LossNote[] = [];
+    const kept = keepsStyleBlock(exporter);
+    const written = new Set<string>(caps?.[target] ?? []);
+    const drawn = drawnAnyway(caps?.tool, target, extracted.styles.units.length);
+    for (const property of ruleProperties(extracted.styles.rules, target)) {
+        // a property only graphty draws is written into the block alone: lost only when the block is
+        if (written.has(property) || (kept && property.startsWith("graphty:"))) {
+            if (target === "edge") {
+                notes.push(...pairNotes(snapshot, exporter, property, picture("edge", property as StyleProperty)));
+            }
+        } else {
+            // a rule whose property no element ends up carrying loses nothing
+            const note = notWrittenNote(target, property, exporter, picture, drawn[property]);
+            if (note.count !== 0) {
+                notes.push(note);
+            }
+        }
     }
     return notes;
 }

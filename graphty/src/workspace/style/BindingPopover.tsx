@@ -721,7 +721,7 @@ function openLayerFor(
     layerFor(session, layerId, channel, name, where, paint)
         .then((id) => {
             store.set({ inspected: { kind: "layer-row", id }, announcement: `Layer ${name} added on top` });
-            focusLineNext(channel);
+            focusLineNext(session, channel);
         })
         .catch((error: unknown) => {
             store.set({ notice: { message: failureWords("The layer", "added", error), error: true } });

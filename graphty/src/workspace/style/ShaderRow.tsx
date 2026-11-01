@@ -362,7 +362,7 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
     });
     const remove = (): void => {
         if (box.current?.contains(document.activeElement) === true) {
-            focusSectionNext(box.current, entry.key as Channel);
+            focusSectionNext(ctx.session, box.current, entry.key as Channel);
         }
         store.set({ announcement: `${name} removed` });
         removeShader(ctx, entry).catch(fail("removed"));

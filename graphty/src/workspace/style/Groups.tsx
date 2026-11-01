@@ -1307,7 +1307,7 @@ function openNewLayer(
             });
             const [first] = channelsBy(layer, path);
             if (first !== undefined) {
-                focusLineNext(first);
+                focusLineNext(session, first);
             }
         })
         .catch((error: unknown) => {

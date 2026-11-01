@@ -112,19 +112,15 @@ export function Workspace({
         }
         store.set({ opening: null });
         loading.current = true;
-        // Focus goes to the graph's heading once it is read, so its size is heard, unless the
-        // reader went somewhere else meanwhile.
-        const focusLater = focusOpenedGraphLater();
+        // Focus goes to the graph's heading (or where the opening says) once it is read, so its
+        // size is heard, unless the reader went somewhere else meanwhile.
+        const focusLater = focusOpenedGraphLater(opening.focus);
         defaults
             .then(() => opening.load(session, host))
             // Each load starts the project's history itself (open.ts passes the element's
             // `history: "start"`; a project file or kept work does so on opening).
             .then(() => {
-                const focus = store.get().page === "panels";
-                focusLater(focus && opening.focus === undefined);
-                if (focus) {
-                    opening.focus?.();
-                }
+                focusLater(store.get().page === "panels");
                 opening.settle();
             })
             .catch((error: unknown) => {

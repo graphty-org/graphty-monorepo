@@ -52,6 +52,7 @@ import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from
 import {
     ARROW_SHAPES,
     ARROW_SHAPES_NEAREST,
+    arrowShapesOf,
     BORDER_STYLES,
     BORDER_STYLES_NEAREST,
     FILE_STYLE_SHAPES,
@@ -528,7 +529,7 @@ function closingQuote(where: string, from: number, quote: string): number {
  * @param kind - Nodes or edges.
  * @param factors - What the file's lengths are multiplied by.
  * @param shapes - The 2D-to-3D shape table.
- * @param graphty - Whether graphty wrote the file.
+ * @param tool - The program that wrote the file, or null.
  * @param arrowsSized - Whether arrow sizes are drawn in a pass of their own (`#arrowSizes`).
  * @param onScreen - Whether the writing program draws a node's border width, and its label sizes, in screen pixels.
  * @param onScreen.border - A node's border width.
@@ -540,11 +541,13 @@ function channelPlans(
     kind: StyleTarget,
     factors: LengthFactors,
     shapes: FileStyleShapeTable,
-    graphty: boolean,
+    tool: StyleTool | null,
     arrowsSized: boolean,
     onScreen: { readonly border: boolean; readonly label: boolean },
     imageBase?: string,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
+    const graphty = tool === "graphty";
+    const arrows = arrowShapesOf(tool);
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
     const picture = (channel: Channel): ChannelPlan => ({
         channel,
@@ -892,12 +895,12 @@ function channelPlans(
         // in the line's own width units, as its width is
         ["waveAmplitude", [length("edge.waveAmplitude")]],
         ["wavePeriod", [length("edge.wavePeriod")]],
-        ["targetArrow", [table("edge.arrowHead", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
-        ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
+        ["targetArrow", [table("edge.arrowHead", arrows, ARROW_SHAPES_NEAREST)]],
+        ["sourceArrow", [table("edge.arrowTail", arrows, ARROW_SHAPES_NEAREST)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
-        ["midTargetArrow", [table("edge.arrowMiddleHead", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
-        ["midSourceArrow", [table("edge.arrowMiddleTail", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
+        ["midTargetArrow", [table("edge.arrowMiddleHead", arrows, ARROW_SHAPES_NEAREST)]],
+        ["midSourceArrow", [table("edge.arrowMiddleTail", arrows, ARROW_SHAPES_NEAREST)]],
         ["midTargetArrowColor", [id("edge.arrowMiddleHeadColor")]],
         ["midSourceArrowColor", [id("edge.arrowMiddleTailColor")]],
         ["targetArrowImage", [id("edge.arrowHeadImage")]],
@@ -1790,7 +1793,7 @@ class KindTranslation {
             kind,
             factors,
             input.options.shapes ?? FILE_STYLE_SHAPES,
-            tool === "graphty",
+            tool,
             this.#arrowhead !== null,
             {
                 border: tool !== null && toolDefaults(tool)?.nodeBorderOnScreen?.value === true,

@@ -218,7 +218,7 @@ export function FiltersSection(): React.JSX.Element {
         );
     // The filter's own picker entry: the Time window, while a time field has no Time window card.
     const timePick = (onPicked: () => void): readonly PickSection[] =>
-        session === null || session.time.field === null || timed
+        !session?.time.field || timed
             ? []
             : [
                   {

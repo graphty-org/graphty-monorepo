@@ -63,7 +63,7 @@ export function StyleSelection({
     }
     const rule = local ?? held;
     return (
-        <div
+        <div // NOSONAR(typescript:S6848): focus and blur bubble from its controls; the div is not a control
             className="ws-which-open"
             onFocus={() => {
                 cancelAnimationFrame(leaving.current);

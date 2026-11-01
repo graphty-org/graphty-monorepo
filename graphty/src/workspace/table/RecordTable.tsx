@@ -151,6 +151,24 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
  * @param props.groupOf - The group a record is in, while a selection is edited
  * @returns The table
  */
+/**
+ * A row's Group cell: its group's chit and name, or nothing.
+ * @param group - the row's group, or null.
+ * @param filled - whether the chit is filled with the group's color.
+ * @returns the cell.
+ */
+function groupCell(group: { name: string; color: string } | null, filled: boolean): React.ReactNode {
+    return group === null ? null : (
+        <span className="ws-table-group">
+            <span
+                className="sel-chit"
+                style={{ borderColor: group.color, background: filled ? group.color : "transparent" }}
+            />
+            {group.name}
+        </span>
+    );
+}
+
 export function RecordTable({
     session,
     kind,
@@ -248,18 +266,7 @@ export function RecordTable({
             sortable: false,
             hideable: false,
             value: (row) => groupOf(row.record.id)?.name,
-            cell: (row) => {
-                const group = groupOf(row.record.id);
-                return group === null ? null : (
-                    <span className="ws-table-group">
-                        <span
-                            className="sel-chit"
-                            style={{ borderColor: group.color, background: filled ? group.color : "transparent" }}
-                        />
-                        {group.name}
-                    </span>
-                );
-            },
+            cell: (row) => groupCell(groupOf(row.record.id), filled),
         });
     }
 

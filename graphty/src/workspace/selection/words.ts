@@ -47,7 +47,7 @@ export const NOUNS: Readonly<Record<Side, { one: string; many: string }>> = {
 export const countWords = (count: number, of: number, side: Side): string =>
     `${String(count)} of ${String(of)} ${of === 1 ? NOUNS[side].one : NOUNS[side].many}`;
 
-export { letterOf };
+export { letterOf } from "./model";
 
 /** A reason's short word on a step's row, and its whole words in the row's tooltip. */
 const REASONS: Readonly<Record<StepReasonCode, { short: string; long: string }>> = {
@@ -140,7 +140,10 @@ function relativeName(rule: RuleTree): string {
             if (rule.max === undefined) {
                 return "Connected to";
             }
-            return rule.max === 0 ? "Is in" : `Within ${String(rule.max)} ${rule.max === 1 ? "hop" : "hops"} of`;
+            if (rule.max === 0) {
+                return "Is in";
+            }
+            return `Within ${String(rule.max)} ${rule.max === 1 ? "hop" : "hops"} of`;
         case "touching":
             return { either: "Edges touching", both: "Edges within", one: "Edges leaving" }[rule.ends];
         case "nonempty":
@@ -265,7 +268,7 @@ export function summaryChips(
                 read?.state === "inert" || read?.state === "pending" ? reasonWords(read.reason).short : words.test;
             const letter = multi ? `${branch.name ?? letterOf(at)}: ` : "";
             const plain = index === 0 && step.op === "add" && branch.start === "none";
-            const text = `${words.value}${state === "" ? "" : ` ${state}`}`;
+            const text = state === "" ? words.value : `${words.value} ${state}`;
             // An off step, or a step of an off group, is drawn and said as its row is.
             const off = step.on === false || branch.on === false;
             return {

@@ -498,7 +498,7 @@ export interface FieldDescriptor {
      * by. Experimental: may change or be removed in a minor release.
      * @beta
      */
-    missing?: "unreached" | "unmeasured" | (string & {});
+    missing?: "unreached" | "unmeasured" | (string & {}); // NOSONAR(typescript:S4335): keeps the named codes in autocomplete while open to others
     /**
      * Present (true) when its values are names a re-run may spell differently (a community's
      * number), so a group is saved by a member it holds rather than by its number.

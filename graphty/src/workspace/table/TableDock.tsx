@@ -709,6 +709,7 @@ export function TableDock(): React.JSX.Element {
     if (pickedScope !== null) {
         scope = pickedScope;
     }
+    const pickedKey = pickedScope === null ? "" : `:${JSON.stringify(pickedScope)}`;
     const tableHeight = Math.max(MIN_TABLE_HEIGHT, bodyHeight);
     const issues = issuesByColumn(session, kind, choices);
     const issueColumns = new Map([...issues].map(([column, list]) => [column, list.map((issue) => issue.id)]));
@@ -889,7 +890,7 @@ export function TableDock(): React.JSX.Element {
             <Tabs.Panel value={active} className="ws-table-body" ref={bodyRef}>
                 {groupRun === undefined ? (
                     <RecordTable
-                        key={`${tableKey(kind, shownMembers, scope === "visible" ? shownCount : null, view.issue)}${pickedScope === null ? "" : `:${JSON.stringify(pickedScope)}`}`}
+                        key={`${tableKey(kind, shownMembers, scope === "visible" ? shownCount : null, view.issue)}${pickedKey}`}
                         session={session}
                         groupOf={groupOf}
                         kind={kind}

@@ -1359,7 +1359,7 @@ export function AddCondition({
         const options = [
             ...(document.getElementById(listId)?.querySelectorAll<HTMLElement>("[data-combobox-option]") ?? []),
         ];
-        const unused = options.findIndex((option) => !option.hasAttribute("data-used"));
+        const unused = options.findIndex((option) => option.dataset.used === undefined);
         if (unused > 0) {
             selectOption(unused);
             setActive(options[unused].id === "" ? first : options[unused].id);

@@ -172,7 +172,7 @@ export function SelectionEditor({
     const say = (words: string): void => {
         store.set({ announcement: words });
     };
-    const stepName = (step: UnionBranch["steps"][number]): string => stepWords(session, step, side, undefined).value;
+    const stepName = (step: UnionBranch["steps"][number]): string => stepWords(session, step, side).value;
     // The import filter says its own count once typing pauses, as a style layer's card does; the
     // table's and the selection's lines stay quiet while an editor is open.
     const [heardCount] = useDebouncedValue(

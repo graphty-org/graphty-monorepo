@@ -130,8 +130,10 @@ function lettered(branches: readonly UnionBranch[]): UnionBranch[] {
     const used = new Set(branches.flatMap((branch) => (branch.name === undefined ? [] : [branch.name])));
     const take = (wanted: string): string => {
         let name = wanted;
-        for (let at = 0; used.has(name); at++) {
+        let at = 0;
+        while (used.has(name)) {
             name = letterOf(at);
+            at++;
         }
         used.add(name);
         return name;

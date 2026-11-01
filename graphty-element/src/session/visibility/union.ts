@@ -648,7 +648,7 @@ export function touchingTest(
     const { src, dst } = graph.edgeList();
 
     return (edge) => {
-        if (baseEdges !== undefined && baseEdges[edge] === 0) {
+        if (baseEdges?.[edge] === 0) {
             return false;
         }
         const inside = nodes[src[edge]] + nodes[dst[edge]];

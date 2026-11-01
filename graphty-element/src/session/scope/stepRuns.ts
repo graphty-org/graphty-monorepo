@@ -167,7 +167,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
      * @returns The params, or a gate.
      */
     const bound = (leaf: MeasureLeaf, frame: StepFrame): Readonly<Record<string, unknown>> | StepGate => {
-        const params: Record<string, unknown> = { ...(leaf.params ?? {}) };
+        const params: Record<string, unknown> = { ...leaf.params };
         for (const [option, reference] of Object.entries(leaf.bind ?? {})) {
             const ids = sources.idsOf(frame.reference(reference));
             if (ids.length === 0) {

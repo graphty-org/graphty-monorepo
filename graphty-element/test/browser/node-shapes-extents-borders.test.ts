@@ -418,7 +418,10 @@ describe("a border in screen pixels", () => {
             [],
             [layerFor(["n"], { "node.shape": "ellipse", "node.size": 10, "node.borderScreenWidth": 3 })],
         );
-        const half = (el: Graphty): number => el.graph.getDataManager().nodes.get("n")?.framingHalf("x") ?? NaN;
+        const half = (el: Graphty): number => {
+            const box = el.graph.getDataManager().nodes.get("n")?.framingBounds();
+            return box === undefined ? NaN : (box.max.x - box.min.x) / 2;
+        };
         const unbordered = half(plain);
         const before = element.graph.getDataManager().nodes.get("n")?.borderReach ?? 0;
         assert.isAbove(before, 0, "the border is drawn");

@@ -709,7 +709,8 @@ export function groupShape({ shardName, shard, command, env }) {
  */
 export function groupKeys({ shardName, shard, command, cmd, env, shardKey, shots = "" }) {
     const { flags, selected, variant } = groupShape({ shardName, shard, command, env });
-    const extra = (selected ? cmd : "") + (env.VISUAL_REVIEW_STORY_OUT ? `\nshots${shots && `|${shots}`}` : "");
+    const shotsPart = shots ? `\nshots|${shots}` : "\nshots";
+    const extra = (selected ? cmd : "") + (env.VISUAL_REVIEW_STORY_OUT ? shotsPart : "");
     return { variant, inputs: inputsKey({ shardKey, env: envString(env), flags, extra }) };
 }
 

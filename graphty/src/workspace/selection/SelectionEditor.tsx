@@ -188,9 +188,9 @@ export function SelectionEditor({
     const [marked, setMarked] = useState<string | null>(null);
     const box = useRef<HTMLDivElement>(null);
     const pane = useRef<HTMLDivElement>(null);
-    const focusAfter = useRef<string | readonly string[] | null>(
-        autoFocus && !openPicker ? `[data-row="${TITLE}"]` : null,
-    );
+    // A card opened on a value takes focus in its step's pane, on the test's first box.
+    const arrival = autoFocus && !openPicker ? `[data-row="${TITLE}"]` : null;
+    const focusAfter = useRef<string | readonly string[] | null>(openFirst ? PANE_FOCUS : arrival);
     const picking = selected !== null || adding !== null;
     const multi = rule.branches.length > 1;
     const { of } = reading.total;

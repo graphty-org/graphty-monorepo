@@ -6,20 +6,13 @@ Filters "+" and a role card, and Analyze. Screenshots: main checkout
 
 ## What the live build does today
 
-- The two surfaces draw one card two ways. The Filters card has a count chip ("5 of 24"),
-  Select | Filter to | Filter out and an on box (13.png); the Style card has a text count ("24
-  nodes"), no effect, no on box (08.png). Closed, the Style card rests as a chip
-  ("hours 2 to 52, 24 nodes", 10.png); the Filters card never closes.
-- The two "+" pickers list the same columns in different orders: Style puts Node id under
-  Structure (07.png), Filters puts it under Nodes and adds Largest component and Neighbors of
-  selection (17c.png). Both draw a rule line after each section label, which the 2026-10-23 menu
-  decision removed.
-- "Nodes that pass every condition" is a UI sentence (owner rule: hints go in tooltips), and it
-  states AND, which the new model replaces with "any group".
-- A test is a select ("Between, Highest, Has a value, Has no value", 09.png) over a bare slider; no
-  histogram, no by value / by position.
-- Algorithm values appear in the pickers only after a run; Analyze is a separate popover with
-  its own settings card and Run (15.png).
+- One card drawn two ways: the Filters card has a count chip, Select | Filter to | Filter out and
+  an on box (13.png); the Style card a text count and neither (08.png).
+- The two "+" pickers order the same columns differently (Node id under Structure in 07.png, under
+  Nodes in 17c.png), and both draw section rules the 2026-10-23 menu decision removed.
+- "Nodes that pass every condition" is a UI sentence, and states AND, which J replaces.
+- A test is a select (Between, Highest, Has a value, Has no value; 09.png) over a bare slider.
+- Algorithm values reach the pickers only after a run from Analyze's own popover (15.png).
 
 ## One component, two headers
 
@@ -33,33 +26,28 @@ one screen.
 
 - **Groups are layer-like rows** (Figma Layers panel): a color chit, the name (double-click
   renames), the count chip, the on box. Hovering a group or a step row puts the hover mark on its
-  members, as hovering a style row already does (crosswalk row "Hovering a style in Selection
-  colors"). Drag reorders; Delete removes a focused row; Control+D duplicates a group. Steps
-  inside a group reorder by drag, because order is meaning (crosswalk: steps append at the end).
+  members, as hovering a style row already does. Drag reorders, Delete removes, Control+D
+  duplicates; steps reorder by drag too, because order is meaning.
 - **Steps are property rows** (Figma's Fill rows): one line at rest (verb glyph, value, short test,
   count; full words in the tooltip), click opens the card inline, X removes (graphty's existing
   remove, kept over Figma's minus because every graphty card uses X).
 - **Verbs are Figma's boolean-operation glyphs**: Add = Union (`squares-unite`), Keep = Intersect
   (`squares-intersect`), Except = Subtract (`squares-subtract`), all in lucide-react, which the app
-  already uses. Drawn as a 3-option icon segmented control (figma-spec 5.2, 24 x 24 glyph boxes,
-  a tooltip per option) at the row's left, so changing a verb is one click, not a menu. Exclude
-  (xor) is left out: no workflow needs it. The same glyphs already mean Union / Intersect /
-  Subtract on set rows, so one glyph keeps one meaning across graphty.
+  already uses, as a 3-option icon segmented control (figma-spec 5.2, a tooltip per option) at the
+  row's left: one click, not a menu. Exclude (xor) is left out. The same operations exist on set
+  rows, so one glyph keeps one meaning across graphty.
 - **Add first, configure after**: a group's "+" adds a step and opens the value picker at once
   (the Label "+" exception: a step with no value means nothing). Default verb: Add when the group
   starts with none, Keep when it starts with all.
-- **Binding gesture**: a bound end of a range uses Figma's variable hexagon (as mock J), the same
-  in-field button number rows already have.
 - **Outline mode is the precedent for group colors** (Figma View > Outlines, Control+Y): a view
   mode that suspends paint without changing the file.
 
 ## The owner's open questions
 
 1. **Open the table automatically while picking? No.** Figma never opens a panel on its own (UI3
-   reverted panels that moved unasked), and the dock costs canvas height on the surface whose
-   whole job is the picture. Instead the group and total count chips are a door: click opens the
-   table on Show only matches, with the table's key shown in the tooltip. Re-test in the study:
-   if readers with count-only feedback mis-pick, revisit.
+   reverted panels that moved unasked), and the dock costs canvas height. The count chips are a
+   door instead: click opens the table on Show only matches (key in the tooltip). The study
+   re-tests it.
 2. **Suspend styling and paint group colors while picking? Yes in the filter editor, as a view
    mode; no in a style layer.** In a filter card the reader judges membership, and a color-by
    layer underneath makes group hue unreadable. Model it on Outline mode: on while the filter
@@ -88,8 +76,9 @@ one screen.
     5. Structure -- Within k hops of, Connected to, On a path between, Linked to at least N of,
        Shares a value with, Downstream of, Upstream of, Edges within, Edges leaving, Largest
        component, While ... is not empty.
-       Node id goes in Data, first, on both surfaces. Placeholder "Find a value" (it now lists
-       results, not only attributes).
+
+    Node id goes first in Data on both surfaces; placeholder "Find a value".
+
 - **Test** (by kind): number, time, ordered: histogram with "By value | By position" segmented;
   category: counted checklist plus "By size"; flag: Is | Is not. "Has a value" / "Has no value"
   become the "not measured: K" chip's include toggle, not test options.
@@ -118,5 +107,4 @@ one screen.
   counts of what passes so far; show the step's as a delta in the tooltip only.
 - The landing page's hover highlight needs "Hovered" as a live reference; a run keyed to hover
   must never start above the live budget while the pointer moves (J's rule).
-- No compact-mantine change is needed: segmented control, select, checkbox and popover all exist
-  in their Figma form; the glyphs are lucide icons.
+- No compact-mantine change is needed; the glyphs are lucide icons.

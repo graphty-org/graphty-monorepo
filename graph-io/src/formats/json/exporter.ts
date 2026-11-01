@@ -777,14 +777,10 @@ function reservedKeys(snapshot: GraphSnapshot, resolved: Resolved): Readonly<Rec
  * @returns the plans of the written columns, in declaration order
  */
 function planTable(ctx: PlanContext, table: Iterable<Column>, domain: Domain): ColumnPlan[] {
-    const { dialect, note } = ctx;
     const plans: ColumnPlan[] = [];
-    const reserved = ctx.reserved[domain];
     const used = new Set<string>();
     for (const column of table) {
-        const { meta } = column;
-        const { role } = meta;
-        const setRows = column.length - column.nullCount;
+        const { role } = column.meta;
         if (role !== null && (STRUCTURAL_ROLES.has(role) || TEMPORAL_ROLES.has(role))) {
             continue;
         }
@@ -792,56 +788,87 @@ function planTable(ctx: PlanContext, table: Iterable<Column>, domain: Domain): C
             ctx.nonfinite.count += countNonFinite(column);
         }
         const slotted = planSlot(ctx, column, domain);
-        if (slotted !== null) {
-            if (slotted !== SKIPPED) {
-                plans.push(slotted);
+        if (slotted === null) {
+            const plan = planAttribute(ctx, column, domain, used);
+            if (plan !== null) {
+                plans.push(plan);
             }
-            continue;
+        } else if (slotted !== SKIPPED) {
+            plans.push(slotted);
         }
-        let key = meta.name;
-        let slot: Slot = "attribute";
-        if (NESTED_DIALECTS.has(dialect) && domain !== "graph") {
-            if (key.endsWith(SUFFIX.element)) {
-                key = key.slice(0, -SUFFIX.element.length);
-                slot = "element";
-            } else if (dialect === "cytoscape" && CYTOSCAPE_ELEMENT_KEYS.has(key)) {
-                slot = "element";
-            } else if (key.endsWith(SUFFIX.data)) {
-                key = key.slice(0, -SUFFIX.data.length);
-            }
-        }
-        if (slot === "attribute" && reserved.has(key)) {
-            note(
-                JSON_LOSS.RESERVED_KEY,
-                `${domain} column "${meta.name}" cannot be written: "${key}" is a reserved key of ${dialect}`,
-                meta.name,
-                setRows,
-            );
-            continue;
-        }
-        const slotKey = `${slot}:${key}`;
-        if (used.has(slotKey)) {
-            note(
-                JSON_LOSS.RESERVED_KEY,
-                `${domain} column "${meta.name}" cannot be written: key "${key}" is already used by another column`,
-                meta.name,
-                setRows,
-            );
-            continue;
-        }
-        used.add(slotKey);
-        if (setRows === 0 && domain !== "graph") {
-            note(
-                LOSS.EMPTY_COLUMN,
-                `${domain} column "${meta.name}" has no set cell and is not written: JSON writes values, never declarations`,
-                meta.name,
-                0,
-            );
-        }
-        inferenceNotes(ctx, column, domain, setRows);
-        plans.push({ column, key, slot });
     }
     return plans;
+}
+
+/**
+ * The key and slot of a plain attribute column: in a nested dialect a node or edge column named
+ * with the element suffix (or one of Cytoscape's element keys) is written on the element, one
+ * named with the data suffix in its data.
+ * @param dialect - the dialect
+ * @param domain - the column's domain
+ * @param name - the column name
+ * @returns the key and the slot
+ */
+function attributeKey(dialect: JsonDialect, domain: Domain, name: string): { key: string; slot: Slot } {
+    if (!NESTED_DIALECTS.has(dialect) || domain === "graph") {
+        return { key: name, slot: "attribute" };
+    }
+    if (name.endsWith(SUFFIX.element)) {
+        return { key: name.slice(0, -SUFFIX.element.length), slot: "element" };
+    }
+    if (dialect === "cytoscape" && CYTOSCAPE_ELEMENT_KEYS.has(name)) {
+        return { key: name, slot: "element" };
+    }
+    if (name.endsWith(SUFFIX.data)) {
+        return { key: name.slice(0, -SUFFIX.data.length), slot: "attribute" };
+    }
+    return { key: name, slot: "attribute" };
+}
+
+/**
+ * Plan a column written as a plain attribute, unless its key is reserved by the dialect or
+ * already used by another column of the table.
+ * @param ctx - the plan context
+ * @param column - the column
+ * @param domain - its domain
+ * @param used - the slot keys used so far in the table (receives this column's)
+ * @returns the plan, or null for a column that cannot be written
+ */
+function planAttribute(ctx: PlanContext, column: Column, domain: Domain, used: Set<string>): ColumnPlan | null {
+    const { dialect, note } = ctx;
+    const { meta } = column;
+    const setRows = column.length - column.nullCount;
+    const { key, slot } = attributeKey(dialect, domain, meta.name);
+    if (slot === "attribute" && ctx.reserved[domain].has(key)) {
+        note(
+            JSON_LOSS.RESERVED_KEY,
+            `${domain} column "${meta.name}" cannot be written: "${key}" is a reserved key of ${dialect}`,
+            meta.name,
+            setRows,
+        );
+        return null;
+    }
+    const slotKey = `${slot}:${key}`;
+    if (used.has(slotKey)) {
+        note(
+            JSON_LOSS.RESERVED_KEY,
+            `${domain} column "${meta.name}" cannot be written: key "${key}" is already used by another column`,
+            meta.name,
+            setRows,
+        );
+        return null;
+    }
+    used.add(slotKey);
+    if (setRows === 0 && domain !== "graph") {
+        note(
+            LOSS.EMPTY_COLUMN,
+            `${domain} column "${meta.name}" has no set cell and is not written: JSON writes values, never declarations`,
+            meta.name,
+            0,
+        );
+    }
+    inferenceNotes(ctx, column, domain, setRows);
+    return { column, key, slot };
 }
 
 /** planSlot()'s answer for a role column handled (or dropped) without a plan of its own. */
@@ -858,69 +885,117 @@ const SKIPPED = Symbol("skipped");
  * @returns the plan, SKIPPED for a column written structurally or dropped, null for a plain attribute
  */
 function planSlot(ctx: PlanContext, column: Column, domain: Domain): ColumnPlan | typeof SKIPPED | null {
-    const { dialect, note } = ctx;
-    const { meta } = column;
-    const { role } = meta;
-    const setRows = column.length - column.nullCount;
+    const { role } = column.meta;
     if (role === "parent" || role === "parents") {
-        if (dialect === "cytoscape" && domain === "node") {
-            if (role === "parent" && column.dtype === "u32" && meta.refersTo === "node") {
-                return { column, key: "parent", slot: "parent" };
-            }
-            note(
-                LOSS.PARENTS,
-                `node column "${meta.name}" (${role}) cannot be written: Cytoscape has a single parent`,
-                meta.name,
-                setRows,
-            );
-        }
-        return SKIPPED;
+        return planParentSlot(ctx, column, domain, role);
     }
     if (role === "position" && domain === "node") {
-        if (dialect === "cytoscape" && (column.dtype === "f32" || column.dtype === "f64") && meta.components >= 2) {
-            const z = countNonZeroZ(column);
-            if (z > 0) {
-                note(
-                    JSON_LOSS.POSITION_Z_DROPPED,
-                    `${z} position${plural(z)} ${agree(z, "has", "have")} a non-zero z; Cytoscape positions are 2D`,
-                    meta.name,
-                    z,
-                );
-            }
-            return { column, key: "position", slot: "cytoscapePosition" };
-        }
-        note(
-            LOSS.POSITIONS,
-            `node column "${meta.name}" (position) is written as a plain array attribute; its role is lost on re-import`,
-            meta.name,
-            setRows,
-        );
-        return { column, key: meta.name, slot: "position" };
+        return planPositionSlot(ctx, column);
     }
     if (role === "id" && domain === "edge") {
-        if (dialect === "node-link" || dialect === "d3") {
-            note(
-                LOSS.EDGE_IDS_DROPPED,
-                `edge column "${meta.name}" (id) is written as a plain attribute; ${dialect} has no edge id`,
-                meta.name,
-                setRows,
-            );
-            return null;
-        }
+        return planEdgeIdSlot(ctx, column);
+    }
+    return planDialectSlot(ctx.dialect, column, domain);
+}
+
+/**
+ * The slot of a parent or parents column: Cytoscape's parent for a node parent column that
+ * refers to nodes; every other one is dropped (noted for a Cytoscape node column).
+ * @param ctx - the plan context
+ * @param column - the parent or parents column
+ * @param domain - its domain
+ * @param role - its role
+ * @returns the plan, or SKIPPED
+ */
+function planParentSlot(ctx: PlanContext, column: Column, domain: Domain, role: string): ColumnPlan | typeof SKIPPED {
+    const { meta } = column;
+    if (ctx.dialect !== "cytoscape" || domain !== "node") {
         return SKIPPED;
     }
+    if (role === "parent" && column.dtype === "u32" && meta.refersTo === "node") {
+        return { column, key: "parent", slot: "parent" };
+    }
+    ctx.note(
+        LOSS.PARENTS,
+        `node column "${meta.name}" (${role}) cannot be written: Cytoscape has a single parent`,
+        meta.name,
+        column.length - column.nullCount,
+    );
+    return SKIPPED;
+}
+
+/**
+ * The slot of a node position column: Cytoscape's position for a float column of two or more
+ * components (a non-zero z is noted), else a plain array attribute with the role lost.
+ * @param ctx - the plan context
+ * @param column - the node position column
+ * @returns the plan
+ */
+function planPositionSlot(ctx: PlanContext, column: Column): ColumnPlan {
+    const { dialect, note } = ctx;
+    const { meta } = column;
+    if (dialect === "cytoscape" && (column.dtype === "f32" || column.dtype === "f64") && meta.components >= 2) {
+        const z = countNonZeroZ(column);
+        if (z > 0) {
+            note(
+                JSON_LOSS.POSITION_Z_DROPPED,
+                `${z} position${plural(z)} ${agree(z, "has", "have")} a non-zero z; Cytoscape positions are 2D`,
+                meta.name,
+                z,
+            );
+        }
+        return { column, key: "position", slot: "cytoscapePosition" };
+    }
+    note(
+        LOSS.POSITIONS,
+        `node column "${meta.name}" (position) is written as a plain array attribute; its role is lost on re-import`,
+        meta.name,
+        column.length - column.nullCount,
+    );
+    return { column, key: meta.name, slot: "position" };
+}
+
+/**
+ * The slot of the id-role edge column: written structurally where the dialect has an edge id,
+ * else a plain attribute (noted).
+ * @param ctx - the plan context
+ * @param column - the edge id column
+ * @returns null for a plain attribute, else SKIPPED
+ */
+function planEdgeIdSlot(ctx: PlanContext, column: Column): typeof SKIPPED | null {
+    const { dialect } = ctx;
+    if (dialect !== "node-link" && dialect !== "d3") {
+        return SKIPPED;
+    }
+    ctx.note(
+        LOSS.EDGE_IDS_DROPPED,
+        `edge column "${column.meta.name}" (id) is written as a plain attribute; ${dialect} has no edge id`,
+        column.meta.name,
+        column.length - column.nullCount,
+    );
+    return null;
+}
+
+/**
+ * The dialect slot of a classes, label or kind column: Cytoscape's classes, JGF's label and
+ * relation.
+ * @param dialect - the dialect
+ * @param column - the column
+ * @param domain - its domain
+ * @returns the plan, or null for a plain attribute
+ */
+function planDialectSlot(dialect: JsonDialect, column: Column, domain: Domain): ColumnPlan | null {
+    const { role } = column.meta;
     if (dialect === "cytoscape" && role === "classes" && column.dtype === "list" && column.child.dtype === "string") {
         return { column, key: "classes", slot: "classes" };
     }
-    if (dialect === "jgf" && role === "label" && (column.dtype === "string" || column.dtype === "dict")) {
+    if (dialect !== "jgf" || (column.dtype !== "string" && column.dtype !== "dict")) {
+        return null;
+    }
+    if (role === "label") {
         return { column, key: "label", slot: "label" };
     }
-    if (
-        dialect === "jgf" &&
-        role === "kind" &&
-        domain === "edge" &&
-        (column.dtype === "string" || column.dtype === "dict")
-    ) {
+    if (role === "kind" && domain === "edge") {
         return { column, key: "relation", slot: "relation" };
     }
     return null;
@@ -1455,25 +1530,59 @@ function* writeVis(snapshot: GraphSnapshot, p: Plan): Generator<string, void, un
 }
 
 /**
- * Write a graphology serialization.
+ * Write a row's attribute columns as a nested object (graphology's `attributes`, JGF's
+ * `metadata`), with the edge weight first; nothing when the row has neither.
+ * @param c - the cursor
+ * @param plans - the column plans of the table
+ * @param row - the row
+ * @param key - the key of the nested object
+ * @param weight - the weight text of an edge, or null
+ * @param weightKey - the key of the weight
+ */
+function writeAttributeObject(
+    c: Cursor,
+    plans: readonly ColumnPlan[],
+    row: number,
+    key: string,
+    weight: string | null,
+    weightKey: string,
+): void {
+    if (weight === null && !anySet(plans, row, ATTRIBUTE_SLOTS)) {
+        return;
+    }
+    const { w } = c;
+    w.key(key);
+    w.open("{");
+    if (weight !== null) {
+        w.member(weightKey, weight);
+    }
+    writeSlots(c, plans, row, ATTRIBUTE_SLOTS);
+    w.close("}");
+}
+
+/**
+ * The graphology graph type: undirected, mixed (a directed graph holding undirected edges) or directed.
  * @param snapshot - the snapshot
  * @param p - the plan
- * @yields the parts
- * @returns nothing
+ * @returns the type
  */
-function* writeGraphology(snapshot: GraphSnapshot, p: Plan): Generator<string, void, undefined> {
-    const { resolved } = p;
-    const c: Cursor = { w: new JsonWriter(resolved.indent), ids: snapshot.ids, nonfinite: { count: 0 } };
-    const { w } = c;
-    let type: string;
+function graphologyType(snapshot: GraphSnapshot, p: Plan): string {
     if (!p.directed) {
-        type = "undirected";
-    } else {
-        type = countMixedEdges(snapshot) > 0 ? "mixed" : "directed";
+        return "undirected";
     }
-    w.open("{");
-    w.key("attributes");
-    writeGraphObject(c, p);
+    return countMixedEdges(snapshot) > 0 ? "mixed" : "directed";
+}
+
+/**
+ * Write the graphology `options` object.
+ * @param c - the cursor
+ * @param snapshot - the snapshot
+ * @param p - the plan
+ * @param type - the graph type
+ */
+function writeGraphologyOptions(c: Cursor, snapshot: GraphSnapshot, p: Plan, type: string): void {
+    const { w } = c;
+    const { resolved } = p;
     w.key("options");
     w.open("{");
     w.member("type", JSON.stringify(type));
@@ -1486,6 +1595,51 @@ function* writeGraphology(snapshot: GraphSnapshot, p: Plan): Generator<string, v
         w.member("allowSelfLoops", !resolved.shape.allowSelfLoops && snapshot.selfLoopCount === 0 ? "false" : "true");
     }
     w.close("}");
+}
+
+/**
+ * Write one graphology edge.
+ * @param c - the cursor
+ * @param snapshot - the snapshot
+ * @param p - the plan
+ * @param e - the edge
+ * @param undirected - whether the edge is marked undirected (an undirected edge of a mixed graph)
+ */
+function writeGraphologyEdge(c: Cursor, snapshot: GraphSnapshot, p: Plan, e: number, undirected: boolean): void {
+    const { w } = c;
+    const list = snapshot.edgeList();
+    w.item();
+    w.open("{");
+    const id = edgeIdText(p, e, c);
+    if (id !== null) {
+        w.member("key", id);
+    }
+    w.member("source", idText(snapshot.ids.idOf(list.src[e])));
+    w.member("target", idText(snapshot.ids.idOf(list.dst[e])));
+    if (undirected) {
+        w.member("undirected", "true");
+    }
+    writeAttributeObject(c, p.edges, e, "attributes", p.weights(e), p.resolved.weightKey);
+    writeSlots(c, p.edges, e, ELEMENT_SLOTS);
+    w.close("}");
+}
+
+/**
+ * Write a graphology serialization.
+ * @param snapshot - the snapshot
+ * @param p - the plan
+ * @yields the parts
+ * @returns nothing
+ */
+function* writeGraphology(snapshot: GraphSnapshot, p: Plan): Generator<string, void, undefined> {
+    const { resolved } = p;
+    const c: Cursor = { w: new JsonWriter(resolved.indent), ids: snapshot.ids, nonfinite: { count: 0 } };
+    const { w } = c;
+    const type = graphologyType(snapshot, p);
+    w.open("{");
+    w.key("attributes");
+    writeGraphObject(c, p);
+    writeGraphologyOptions(c, snapshot, p, type);
     w.key("nodes");
     w.open("[");
     yield w.take();
@@ -1493,12 +1647,7 @@ function* writeGraphology(snapshot: GraphSnapshot, p: Plan): Generator<string, v
         w.item();
         w.open("{");
         w.member("key", idText(snapshot.ids.idOf(i)));
-        if (anySet(p.nodes, i, ATTRIBUTE_SLOTS)) {
-            w.key("attributes");
-            w.open("{");
-            writeSlots(c, p.nodes, i, ATTRIBUTE_SLOTS);
-            w.close("}");
-        }
+        writeAttributeObject(c, p.nodes, i, "attributes", null, resolved.weightKey);
         writeSlots(c, p.nodes, i, ELEMENT_SLOTS);
         w.close("}");
         yield w.take();
@@ -1511,35 +1660,72 @@ function* writeGraphology(snapshot: GraphSnapshot, p: Plan): Generator<string, v
         if (disposition === "skip") {
             continue;
         }
-        const list = snapshot.edgeList();
-        w.item();
-        w.open("{");
-        const id = edgeIdText(p, e, c);
-        if (id !== null) {
-            w.member("key", id);
-        }
-        w.member("source", idText(snapshot.ids.idOf(list.src[e])));
-        w.member("target", idText(snapshot.ids.idOf(list.dst[e])));
-        if (type === "mixed" && disposition === "undirected") {
-            w.member("undirected", "true");
-        }
-        const weight = p.weights(e);
-        if (weight !== null || anySet(p.edges, e, ATTRIBUTE_SLOTS)) {
-            w.key("attributes");
-            w.open("{");
-            if (weight !== null) {
-                w.member(resolved.weightKey, weight);
-            }
-            writeSlots(c, p.edges, e, ATTRIBUTE_SLOTS);
-            w.close("}");
-        }
-        writeSlots(c, p.edges, e, ELEMENT_SLOTS);
-        w.close("}");
+        writeGraphologyEdge(c, snapshot, p, e, type === "mixed" && disposition === "undirected");
         yield w.take();
     }
     w.close("]");
     w.close("}");
     yield w.take();
+}
+
+/** The JGF label slot. */
+const JGF_LABEL_SLOTS: ReadonlySet<Slot> = new Set(["label"]);
+
+/** The JGF relation slot. */
+const JGF_RELATION_SLOTS: ReadonlySet<Slot> = new Set(["relation"]);
+
+/**
+ * Write the members of the JGF `graph` object that precede its nodes.
+ * @param c - the cursor
+ * @param snapshot - the snapshot
+ * @param p - the plan
+ */
+function writeJgfGraphHeader(c: Cursor, snapshot: GraphSnapshot, p: Plan): void {
+    const { w } = c;
+    const { shape } = p.resolved;
+    if (shape.id !== undefined) {
+        w.member("id", JSON.stringify(shape.id));
+    }
+    if (snapshot.meta.name !== null) {
+        w.member("label", JSON.stringify(snapshot.meta.name));
+    }
+    if (shape.type !== undefined) {
+        w.member("type", JSON.stringify(shape.type));
+    }
+    w.member("directed", p.directed ? "true" : "false");
+    if (p.graph.some((item) => item.column.isSet(0))) {
+        w.key("metadata");
+        writeGraphObject(c, p);
+    }
+}
+
+/**
+ * Write one JGF edge.
+ * @param c - the cursor
+ * @param snapshot - the snapshot
+ * @param p - the plan
+ * @param e - the edge
+ * @param undirected - whether the edge is undirected in a directed graph
+ */
+function writeJgfEdge(c: Cursor, snapshot: GraphSnapshot, p: Plan, e: number, undirected: boolean): void {
+    const { w } = c;
+    const list = snapshot.edgeList();
+    w.item();
+    w.open("{");
+    const id = edgeIdText(p, e, c);
+    if (id !== null) {
+        w.member("id", id);
+    }
+    w.member("source", JSON.stringify(String(snapshot.ids.idOf(list.src[e]))));
+    w.member("target", JSON.stringify(String(snapshot.ids.idOf(list.dst[e]))));
+    writeSlots(c, p.edges, e, JGF_RELATION_SLOTS);
+    if (undirected) {
+        w.member("directed", "false");
+    }
+    writeSlots(c, p.edges, e, JGF_LABEL_SLOTS);
+    writeAttributeObject(c, p.edges, e, "metadata", p.weights(e), p.resolved.weightKey);
+    writeSlots(c, p.edges, e, ELEMENT_SLOTS);
+    w.close("}");
 }
 
 /**
@@ -1553,38 +1739,18 @@ function* writeJgf(snapshot: GraphSnapshot, p: Plan): Generator<string, void, un
     const { resolved } = p;
     const c: Cursor = { w: new JsonWriter(resolved.indent), ids: snapshot.ids, nonfinite: { count: 0 } };
     const { w } = c;
-    const labelSlots: ReadonlySet<Slot> = new Set(["label"]);
-    const relationSlots: ReadonlySet<Slot> = new Set(["relation"]);
     w.open("{");
     w.key("graph");
     w.open("{");
-    if (resolved.shape.id !== undefined) {
-        w.member("id", JSON.stringify(resolved.shape.id));
-    }
-    if (snapshot.meta.name !== null) {
-        w.member("label", JSON.stringify(snapshot.meta.name));
-    }
-    if (resolved.shape.type !== undefined) {
-        w.member("type", JSON.stringify(resolved.shape.type));
-    }
-    w.member("directed", p.directed ? "true" : "false");
-    if (p.graph.some((item) => item.column.isSet(0))) {
-        w.key("metadata");
-        writeGraphObject(c, p);
-    }
+    writeJgfGraphHeader(c, snapshot, p);
     w.key("nodes");
     w.open("{");
     yield w.take();
     for (let i = 0; i < snapshot.nodeCount; i++) {
         w.key(String(snapshot.ids.idOf(i)));
         w.open("{");
-        writeSlots(c, p.nodes, i, labelSlots);
-        if (anySet(p.nodes, i, ATTRIBUTE_SLOTS)) {
-            w.key("metadata");
-            w.open("{");
-            writeSlots(c, p.nodes, i, ATTRIBUTE_SLOTS);
-            w.close("}");
-        }
+        writeSlots(c, p.nodes, i, JGF_LABEL_SLOTS);
+        writeAttributeObject(c, p.nodes, i, "metadata", null, resolved.weightKey);
         writeSlots(c, p.nodes, i, ELEMENT_SLOTS);
         w.close("}");
         yield w.take();
@@ -1597,32 +1763,7 @@ function* writeJgf(snapshot: GraphSnapshot, p: Plan): Generator<string, void, un
         if (disposition === "skip") {
             continue;
         }
-        const list = snapshot.edgeList();
-        w.item();
-        w.open("{");
-        const id = edgeIdText(p, e, c);
-        if (id !== null) {
-            w.member("id", id);
-        }
-        w.member("source", JSON.stringify(String(snapshot.ids.idOf(list.src[e]))));
-        w.member("target", JSON.stringify(String(snapshot.ids.idOf(list.dst[e]))));
-        writeSlots(c, p.edges, e, relationSlots);
-        if (p.directed && disposition === "undirected") {
-            w.member("directed", "false");
-        }
-        writeSlots(c, p.edges, e, labelSlots);
-        const weight = p.weights(e);
-        if (weight !== null || anySet(p.edges, e, ATTRIBUTE_SLOTS)) {
-            w.key("metadata");
-            w.open("{");
-            if (weight !== null) {
-                w.member(resolved.weightKey, weight);
-            }
-            writeSlots(c, p.edges, e, ATTRIBUTE_SLOTS);
-            w.close("}");
-        }
-        writeSlots(c, p.edges, e, ELEMENT_SLOTS);
-        w.close("}");
+        writeJgfEdge(c, snapshot, p, e, p.directed && disposition === "undirected");
         yield w.take();
     }
     w.close("]");

@@ -232,6 +232,39 @@ function toolSetOf(
     return Object.keys(toolSet).length === 0 ? null : toolSet;
 }
 
+/** The property each of a tool's rule-like defaults decides, so its constant default is not what the tool draws. */
+const DERIVED_PROPERTY: Readonly<Record<ToolDerivedDefault["kind"], readonly [StyleTarget, string]>> = {
+    labelFromColumn: ["node", "label"],
+    labelFromId: ["node", "label"],
+    colorFromSourceNode: ["edge", "color"],
+    colorFromEndNodes: ["edge", "color"],
+    widthFromWeight: ["edge", "width"],
+    targetArrowOnDirected: ["edge", "targetArrow"],
+};
+
+/**
+ * The values of a target a program draws anyway, when a file leaves them unset: its
+ * constant defaults, less a length stated in other units than the styles' (Gephi's and sigma's relative sizes against
+ * pixels: no scale relates them, so such a value is still reported) and less a property one of its rule-like defaults
+ * decides (Gephi draws a directed edge's arrow whatever its constant `targetArrow`).
+ * @param tool - the program, or undefined when there is none
+ * @param target - nodes or edges
+ * @param units - the styles' length units
+ * @returns the values by property
+ */
+export function drawnAnyway(
+    tool: StyleTool | undefined,
+    target: StyleTarget,
+    units: string,
+): Readonly<Record<string, StyleValue>> {
+    const defaults = tool === undefined ? null : toolDefaults(tool);
+    const decided = new Set(
+        (defaults?.derived ?? []).map((d) => DERIVED_PROPERTY[d.kind]).flatMap(([t, p]) => (t === target ? [p] : [])),
+    );
+    const set = (defaults === null ? null : toolSetOf(defaults, target, units)) ?? {};
+    return Object.fromEntries(Object.entries(set).filter(([p]) => !decided.has(p)));
+}
+
 /**
  * The graph's styles: the tool's defaults, then the file's own values over them.
  * @param defaults - the tool's defaults, or null

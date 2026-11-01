@@ -3517,6 +3517,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // The passes a selection or pointer change starts without awaiting: `settled()` waits for
         // those already asked for when it is called.
         idle: painter.idle,
+        // Live sets a freeze queued for a later frame: `settled()` resolves them now (issue #3667).
+        resolveQueuedSets: () => {
+            notifier.drain();
+        },
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
         // empty picture on a graph that is plainly painted.

@@ -26,8 +26,11 @@ import {
     uploadPremultiplied,
 } from "./LabelBatch";
 import { closeGlyphRect, closeHitFractions, closeReserve, drawCloseGlyph, markCloseLabel } from "./labelClose";
+import { keepOnEyeLine } from "./labelEyeLine";
 import { fontFamilies, noteLabelFont } from "./labelFonts";
 import { fitToScreen, type LabelPlacement, type PlacementBounds } from "./labelScreenFit";
+import { LabelTexture } from "./LabelTexture";
+import { fitTexturesToScreen } from "./labelTextureFit";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser, wrapLines } from "./RichTextParser";
@@ -58,7 +61,28 @@ const DEFAULT_LINE_HEIGHT = 1.2;
 /** The most texture pixels a label gives one em of its font (see `_createTexture`). */
 const LABEL_MAX_FONT_PX = 64;
 
-/** The labels drawn in each scene, for {@link RichTextLabel.setCaptureScale}. */
+/**
+ * The steps a label's uploaded texels per em are rounded up to, per doubling: four, so a label is uploaded at
+ * one to 1.19 texels per pixel it covers. A step is a function of the size on screen alone, never of the size
+ * it had before, so the same view always draws the same texture: a zoom in and back draws what it drew.
+ */
+const TEXEL_STEPS_PER_DOUBLING = 4;
+
+/** The fewest texture pixels per em a label is uploaded with, however small it is on screen. */
+const MIN_TEXELS_PER_EM = 4;
+
+/**
+ * Device pixels per CSS pixel, at least 1.
+ * @returns The ratio.
+ */
+function deviceScale(): number {
+    return Math.max(1, globalThis.devicePixelRatio || 1);
+}
+
+/** The scenes being captured larger than their canvas; see {@link RichTextLabel.setCaptureScale}. */
+const capturing = new WeakSet<Scene>();
+
+/** The labels drawn in each scene, for {@link RichTextLabel.setCaptureScale} and the texture sweep. */
 const sceneLabels = new WeakMap<Scene, Set<RichTextLabel>>();
 
 export type BadgeType =
@@ -446,6 +470,10 @@ export class RichTextLabel {
     private placementBounds: PlacementBounds | null = null;
     /** What a "center" label hangs from: a point at its node's centre that faces the camera. */
     private centerPivot: TransformNode | null = null;
+    /** Between the pivot and the label: slides the label onto its node's line of sight; see labelEyeLine. */
+    private eyeLineShift: TransformNode | null = null;
+    /** Ends keeping the label on its node's line of sight; see labelEyeLine. */
+    private stopEyeLine: (() => void) | null = null;
     /** Whether the label last undid a stretch of its target, so a target back at its own size resets it. */
     private undoesStretch = false;
     private animationStarted = false;
@@ -458,6 +486,9 @@ export class RichTextLabel {
     /** How many times its usual texture pixels the label is drawn with, for a capture larger than the canvas. */
     private captureScale = 1;
 
+    /** Texture pixels per em the label is uploaded at for its size on screen; null uploads its canvas whole. */
+    private screenTexelsPerEm: number | null = null;
+
     /**
      * Draw every label of a scene with as many texture pixels as a capture of `scale` output pixels per
      * canvas pixel shows it at, so its words stay as sharp as on screen; 1 puts every label back.
@@ -469,8 +500,38 @@ export class RichTextLabel {
      */
     static setCaptureScale(scene: Scene, scale: number): void {
         const camera = scene.activeCamera;
+        if (scale === 1) {
+            capturing.delete(scene);
+        } else {
+            capturing.add(scene);
+        }
+
         for (const label of sceneLabels.get(scene) ?? []) {
             label.useCaptureScale(scale === 1 || camera === null ? 1 : label.captureScaleFor(camera, scale));
+            label.uploadForCapture(camera, scale);
+        }
+    }
+
+    /**
+     * Upload a label fitted to the screen at as many texels as a capture of `scale` shows it at, up to its whole
+     * canvas, or back at its size on screen when `scale` is 1. A label redrawn for the capture
+     * ({@link useCaptureScale}) is already uploaded whole.
+     * @param camera - The camera the capture is drawn from.
+     * @param scale - Output pixels per canvas pixel.
+     */
+    private uploadForCapture(camera: Camera | null, scale: number): void {
+        const { texture } = this;
+        if (!(texture instanceof LabelTexture)) {
+            return;
+        }
+
+        let perEm = this.captureScale === 1 ? this.screenTexelsPerEm : null;
+        if (perEm !== null && scale !== 1 && camera !== null) {
+            perEm = this.screenFontPx(camera) * scale;
+        }
+
+        if (this.uploadAt(texture, perEm)) {
+            uploadPremultiplied(texture);
         }
     }
 
@@ -751,6 +812,7 @@ export class RichTextLabel {
         }
 
         labels.add(this);
+        fitTexturesToScreen(this.scene, labels);
 
         if (this.options.attachTo) {
             this._attachToTarget();
@@ -953,12 +1015,80 @@ export class RichTextLabel {
     }
 
     /**
-     * Texture pixels per pixel of the label's own canvas, before any capture scale.
-     * @param screenDensity - Texture pixels per canvas pixel a screen-sized label needs.
+     * Texture pixels per pixel of the label's own canvas, before any capture scale: one (one per device pixel for
+     * a label sized for the screen), at most {@link LABEL_MAX_FONT_PX} per em.
      * @returns The density.
      */
-    private texelsPerFontPx(screenDensity: number): number {
+    private texelsPerFontPx(): number {
+        const screenDensity = this.options.sizeMode === "screen" ? deviceScale() : 1;
         return screenDensity * Math.min(1, LABEL_MAX_FONT_PX / this.options.fontSize);
+    }
+
+    /**
+     * Upload the texture at about one texture pixel per pixel the label's letters cover in the drawn frame,
+     * rounded up to a step of {@link TEXEL_STEPS_PER_DOUBLING}, when its step has changed. Never more than the
+     * label's own canvas has: a label
+     * drawn larger than that is uploaded whole, as before. Only a label that sizes its texture to its words
+     * (`autoSize`), is shown, and is not drawn for a capture (see {@link setCaptureScale}) is fitted. See
+     * labelTextureFit and LabelTexture.
+     * @param camera - The camera the frame is drawn from.
+     * @returns True when it was uploaded again.
+     */
+    public fitTextureToScreen(camera: Camera): boolean {
+        const { mesh, texture } = this;
+        const shown = mesh?.isEnabled() === true && mesh.isVisible && mesh.visibility > 0;
+        const fittable = this.options.autoSize && this.captureScale === 1 && !capturing.has(this.scene);
+        if (!fittable || !(texture instanceof LabelTexture) || !shown) {
+            return false;
+        }
+
+        // Pixels of the drawn frame: the canvas's CSS pixels times the element's pixel ratio.
+        const onScreen = this.screenFontPx(camera);
+        if (onScreen <= 0) {
+            return false;
+        }
+
+        const own = this.canvasTexelsPerEm(texture);
+        const step = Math.ceil(Math.log2(Math.max(onScreen, MIN_TEXELS_PER_EM)) * TEXEL_STEPS_PER_DOUBLING);
+        const wanted = 2 ** (step / TEXEL_STEPS_PER_DOUBLING);
+        const target = wanted >= own ? null : wanted;
+        if (target === this.screenTexelsPerEm) {
+            return false;
+        }
+
+        this.screenTexelsPerEm = target;
+        this.uploadAt(texture, this.screenTexelsPerEm);
+        uploadPremultiplied(texture);
+        return true;
+    }
+
+    /**
+     * Size what the texture uploads: its canvas shrunk to `perEm` texels per em, or whole.
+     * @param texture - The label's texture.
+     * @param perEm - Texels per em; null, or at least the canvas's own, uploads the canvas whole.
+     * @returns Whether the uploaded size changed, so the texture must be uploaded again.
+     */
+    private uploadAt(texture: LabelTexture, perEm: number | null): boolean {
+        const shrunk = perEm !== null && perEm < this.canvasTexelsPerEm(texture);
+        const perPx = shrunk ? perEm / this.options.fontSize : 0;
+        const changed = texture.showAt(
+            shrunk
+                ? { width: this.actualDimensions.width * perPx, height: this.actualDimensions.height * perPx }
+                : null,
+        );
+        // About one texture pixel per screen pixel: sampled straight, since mipmaps would only blur it.
+        texture.updateSamplingMode(shrunk ? Texture.BILINEAR_SAMPLINGMODE : Texture.TRILINEAR_SAMPLINGMODE);
+        return changed;
+    }
+
+    /**
+     * Texture pixels per em down the label's own canvas, as drawn (rounded up to a power of two).
+     * @param texture - The label's texture.
+     * @returns The density.
+     */
+    private canvasTexelsPerEm(texture: LabelTexture): number {
+        const { height } = this.actualDimensions;
+        return height > 0 ? (texture.getSize().height / height) * this.options.fontSize : 0;
     }
 
     /**
@@ -969,8 +1099,7 @@ export class RichTextLabel {
      * @returns The scale, 1 when the capture does not magnify the label.
      */
     private captureScaleFor(camera: Camera, scale: number): number {
-        const screenDensity = this.options.sizeMode === "screen" ? Math.max(1, globalThis.devicePixelRatio || 1) : 1;
-        const texelsPerEm = this.options.fontSize * this.texelsPerFontPx(screenDensity);
+        const texelsPerEm = this.options.fontSize * this.texelsPerFontPx();
         const wanted = (this.screenFontPx(camera) * scale) / texelsPerEm;
         return wanted > 1 ? Math.min(scale, wanted) : 1;
     }
@@ -991,25 +1120,26 @@ export class RichTextLabel {
         old?.dispose();
     }
 
-    private _createTexture(): void {
+    /**
+     * The texture's size in pixels, for the label's canvas at its density and capture scale.
+     * @returns The width and height.
+     */
+    private textureSize(): { width: number; height: number } {
         const MAX_TEXTURE_SIZE = 4096;
-        // A label sized for the screen draws one canvas unit per CSS pixel, so its texture needs
-        // a texel per device pixel to stay sharp on a high-density screen.
-        const screenDensity = this.options.sizeMode === "screen" ? Math.max(1, globalThis.devicePixelRatio || 1) : 1;
-
         // AT MOST LABEL_MAX_FONT_PX TEXTURE PIXELS PER EM. The plane's size in the scene comes from
         // the font size, not from the texture, so a label drawn very large in the scene (a file whose
         // labels are many times its nodes) needs no more pixels than one drawn at that cap: without
         // it a 1000 px font asked a 4096 x 1024 texture of every label, and a hundred such labels
         // took gigabytes of GPU memory and crashed the browser.
-        const density = this.texelsPerFontPx(screenDensity) * this.captureScale;
+        const density = this.texelsPerFontPx() * this.captureScale;
+        const round = (px: number): number => Math.pow(2, Math.ceil(Math.log2(px)));
         let textureWidth = this.options.autoSize
-            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.width * density)))
+            ? round(this.actualDimensions.width * density)
             : this.options.resolution;
 
         const aspectRatio = this.actualDimensions.width / this.actualDimensions.height;
         let textureHeight = this.options.autoSize
-            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.height * density)))
+            ? round(this.actualDimensions.height * density)
             : Math.floor(textureWidth / aspectRatio);
 
         if (textureWidth > MAX_TEXTURE_SIZE || textureHeight > MAX_TEXTURE_SIZE) {
@@ -1031,6 +1161,12 @@ export class RichTextLabel {
             }
         }
 
+        return { width: textureWidth, height: textureHeight };
+    }
+
+    private _createTexture(): void {
+        const { width: textureWidth, height: textureHeight } = this.textureSize();
+
         // RASTERISED ON THE CPU. Chromium draws an ordinary 2D canvas on the GPU, and on a
         // software GPU (SwiftShader: headless browsers, visual-review services) the antialiased
         // edge of large text differs by one alpha level at scattered pixels from one page load
@@ -1039,11 +1175,14 @@ export class RichTextLabel {
         // time. A canvas has one context for life, so Babylon's own getContext("2d") gets this one.
         const canvas = this.scene.getEngine().createCanvas(textureWidth, textureHeight);
         canvas.getContext("2d", { willReadFrequently: true });
-        this.texture = new DynamicTexture(`richTextTexture_${this.id}`, canvas, this.scene, true);
+        const texture = new LabelTexture(`richTextTexture_${this.id}`, canvas, this.scene);
+        this.texture = texture;
 
         // Nothing uses the texture yet; see LabelBatch (issue #2762).
-        giveAlphaQuietly(this.scene, this.texture);
-        this.texture.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
+        giveAlphaQuietly(this.scene, texture);
+        // A label redrawn (new words, the end of a capture) keeps the size on screen it was last fitted to; one
+        // redrawn for a capture is uploaded whole.
+        this.uploadAt(texture, this.captureScale === 1 ? this.screenTexelsPerEm : null);
 
         this._drawContent();
     }
@@ -1941,9 +2080,10 @@ export class RichTextLabel {
      *
      * A "center" label sits in the middle of its node, which is inside the node's mesh, so the
      * mesh hid it. It hangs from a pivot at the node's centre instead, and the pivot, not the
-     * label, turns to face the camera: in the pivot's frame the camera is always straight down
-     * -z, so a label placed one bounding radius along -z is in front of the node from wherever it
-     * is seen.
+     * label, turns like the camera: in the pivot's frame the camera looks down +z, so a label placed
+     * one bounding radius along -z is in front of the node from wherever it is seen. Between the
+     * two, a shift slides the label onto the node's own line of sight (see labelEyeLine), so a
+     * centered label is drawn over the node's center anywhere in the view.
      * @param target - The mesh the label belongs to.
      * @param center - The mesh's bounds when the label sits at its centre, otherwise null.
      * @returns The origin of the frame the label is now positioned in.
@@ -1962,7 +2102,12 @@ export class RichTextLabel {
         this.centerPivot.position =
             this.options.centerAtOrigin === true ? Vector3.Zero() : center.min.add(center.max).scaleInPlace(0.5);
         this.centerPivot.billboardMode = this.billboard();
-        mesh.parent = this.centerPivot;
+        if (this.eyeLineShift === null) {
+            this.eyeLineShift = new TransformNode(`richTextEyeLine_${this.id}`, this.scene);
+            this.eyeLineShift.parent = this.centerPivot;
+            this.stopEyeLine = keepOnEyeLine(this.scene, this.centerPivot, this.eyeLineShift, () => mesh.position.z);
+        }
+        mesh.parent = this.eyeLineShift;
         mesh.billboardMode = Mesh.BILLBOARDMODE_NONE;
         return Vector3.Zero();
     }
@@ -1982,6 +2127,9 @@ export class RichTextLabel {
 
     /** Dispose the pivot a "center" label hung from, once the label no longer hangs from it. */
     private dropPivot(): void {
+        this.stopEyeLine?.();
+        this.stopEyeLine = null;
+        this.eyeLineShift = null;
         this.centerPivot?.dispose();
         this.centerPivot = null;
     }
@@ -2135,6 +2283,8 @@ export class RichTextLabel {
         this.stopMinScreenSize = null;
         this.stopScreenFit?.();
         this.stopScreenFit = null;
+        this.stopEyeLine?.();
+        this.stopEyeLine = null;
         this.unmarkClose?.();
         sceneLabels.get(this.scene)?.delete(this);
 

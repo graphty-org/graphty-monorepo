@@ -19,6 +19,8 @@ import {
     differingImages,
     duplicateOf,
     fixedRecently,
+    laneRedTitle,
+    runsOnTitleCommit,
     flakyLanes,
     FLAKY_GROUP,
     flakyFilings,
@@ -415,11 +417,56 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
                 stateReason: "completed",
             },
         ];
-        assert.equal(fixedRecently(closed, "abcdef1234", now), 9001);
+        const url = "https://github.com/o/r/actions/runs/41";
+        const names = () => `The full run failed on abcdef1234 (CI): ${url}`;
+        assert.equal(fixedRecently(closed, "abcdef1234", url, names, now), 9001);
         const dup = [{ ...closed[0], stateReason: "not_planned" }];
-        assert.equal(fixedRecently(dup, "abcdef1234", now), null, "a duplicate closed by fileRed is not a fix");
-        assert.equal(fixedRecently(closed, "1234567890", now), null, "another commit's issue");
-        assert.equal(fixedRecently(closed, "abcdef1234", now + 2 * 60 * 60 * 1000), null, "closed long ago");
+        assert.equal(
+            fixedRecently(dup, "abcdef1234", url, names, now),
+            null,
+            "a duplicate closed by fileRed is not a fix",
+        );
+        assert.equal(fixedRecently(closed, "1234567890", url, names, now), null, "another commit's issue");
+        const later = now + 2 * 60 * 60 * 1000;
+        assert.equal(fixedRecently(closed, "abcdef1234", url, names, later), null, "closed long ago");
+    });
+
+    it("files for a run the fixed issue does not name, which release-due leaves running (#3644)", () => {
+        const now = Date.parse("2026-10-25T12:00:00Z");
+        const closed = [
+            {
+                number: 9001,
+                title: "Full run red: CI on abcdef1",
+                closedAt: "2026-10-25T11:50:00Z",
+                stateReason: "completed",
+            },
+        ];
+        const other = "https://github.com/o/r/actions/runs/42";
+        const names = () => "The full run failed on abcdef1234 (CI): https://github.com/o/r/actions/runs/41";
+        assert.equal(fixedRecently(closed, "abcdef1234", other, names, now), null, "another run on the same commit");
+        // the same test as release-due's toCancel: a run named on another commit is not cancelled either
+        const elsewhere = () => "The full run failed on 1234567890 (CI): https://github.com/o/r/actions/runs/42";
+        assert.equal(fixedRecently(closed, "abcdef1234", other, elsewhere, now), null);
+        assert.deepEqual([...runsOnTitleCommit(closed[0].title, names())], [41]);
+        // a lane name with brackets in it still pairs the run with its commit
+        const mac = "The full run failed on abcdef1234 (work protection (macOS), CI): https://x/actions/runs/7";
+        assert.deepEqual([...runsOnTitleCommit(closed[0].title, mac)], [7]);
+    });
+
+    it("keeps the lanes the open issue already names on the same commit, in lane order (#3644)", () => {
+        assert.equal(
+            laneRedTitle("Full run red: T4 GPU on abcdef1", "Full run red: CI on abcdef1"),
+            "Full run red: CI, T4 GPU on abcdef1",
+        );
+        assert.equal(
+            laneRedTitle("Full run red: CI, T4 GPU on abcdef1", "Full run red: CI on abcdef1"),
+            "Full run red: CI, T4 GPU on abcdef1",
+        );
+        assert.equal(
+            laneRedTitle("Full run red: T4 GPU on 1234567", "Full run red: CI on abcdef1"),
+            "Full run red: CI on abcdef1",
+            "another commit's issue takes the new title",
+        );
     });
 
     it("keeps the oldest of two red issues lanes ending red together created, so both filers agree", () => {
@@ -482,6 +529,11 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
         assert.match(calls, /^issue edit 9 --title Full run red: T4 GPU on abcdef1$/m);
         assert.match(calls, /^issue comment 9 --body-file /m);
         assert.match(stdout, /^issue=9$/m);
+    });
+
+    it("keeps the lane another lane of the run filed when it updates the issue on the same commit (#3644)", () => {
+        const { calls } = runLaneRed([{ number: 9, title: "Full run red: CI on abcdef1" }]);
+        assert.match(calls, /^issue edit 9 --title Full run red: CI, T4 GPU on abcdef1$/m);
     });
 
     it("opens the issue when none is open, and leaves a lane with an owner item to the verdict", () => {
@@ -856,7 +908,8 @@ describe("the verdict reads the hold from the store when it decides", () => {
 });
 
 describe("file-deferred", () => {
-    it("files nothing when a fix closed the commit's red issue in the last hour (release-due cancelled the run)", () => {
+    // file-deferred for run 5 on abcdef1234, with a gh whose closed red issue names `named` (a run URL)
+    const fileDeferred = (named) => {
         const dir = mkdtempSync(join(tmpdir(), "file-deferred-"));
         const log = join(dir, "calls.log");
         const sha = "abcdef1234";
@@ -869,13 +922,15 @@ describe("file-deferred", () => {
         });
         writeFileSync(
             join(dir, "gh"),
-            `#!/bin/bash\necho "$*" >> "${log}"\n[[ "$*" == *state=closed* ]] && echo '${closed}'\nexit 0\n`,
+            `#!/bin/bash\necho "$*" >> "${log}"\n[[ "$*" == *state=closed* ]] && echo '${closed}'\n` +
+                `[[ "$1 $2" == "issue view" ]] && echo 'The full run failed on ${sha} (T4 GPU): ${named}'\nexit 0\n`,
             { mode: 0o755 },
         );
         const record = join(dir, "verdict-1.json");
+        const runUrl = "https://github.com/o/r/actions/runs/5";
         writeFileSync(
             record,
-            JSON.stringify({ sha, good: "", runId: "5", runUrl: "u", red: ["t4"], lanes: {}, deferred: true }),
+            JSON.stringify({ sha, good: "", runId: "5", runUrl, red: ["t4"], lanes: {}, deferred: true }),
         );
         const r = spawnSync(process.execPath, ["tools/full-run.mjs", "file-deferred", record], {
             encoding: "utf8",
@@ -889,8 +944,19 @@ describe("file-deferred", () => {
             },
         });
         assert.equal(r.status, 0, r.stderr);
-        assert.match(r.stdout, /^fixed=77$/m);
-        assert.doesNotMatch(readFileSync(log, "utf8"), /issue create|workflow run bisect/);
+        return { stdout: r.stdout, calls: readFileSync(log, "utf8") };
+    };
+
+    it("files nothing when a fix closed the commit's red issue in the last hour (release-due cancelled the run)", () => {
+        const { stdout, calls } = fileDeferred("https://github.com/o/r/actions/runs/5");
+        assert.match(stdout, /^fixed=77$/m);
+        assert.doesNotMatch(calls, /issue create|workflow run bisect/);
+    });
+
+    it("files when the fixed issue names another run, which release-due did not cancel (#3644)", () => {
+        const { stdout, calls } = fileDeferred("https://github.com/o/r/actions/runs/6");
+        assert.doesNotMatch(stdout, /^fixed=/m);
+        assert.match(calls, /^issue create --title Full run red: T4 GPU on abcdef1/m);
     });
 });
 

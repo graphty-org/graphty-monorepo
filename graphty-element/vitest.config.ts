@@ -82,6 +82,7 @@ const MINIMUM_WORK_TESTS = [
     "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
     "test/browser/a-layer-added-later-paints.test.ts",
     "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
+    "test/browser/label-textures-fit-across-frames.test.ts",
 ];
 
 /**

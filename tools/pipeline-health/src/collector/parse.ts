@@ -25,7 +25,7 @@ import {
     type ReleaseSeen,
     type WorkflowState,
 } from "../model/snapshots.js";
-import { failingChecks } from "./snapshots.js";
+import { failureGroups } from "./snapshots.js";
 
 // ---------------------------------------------------------------------------------------------------------------
 // The REST shapes the collector reads (only the fields it uses).
@@ -495,7 +495,10 @@ export function runnerFlags(use: RunnerUse, limit: number): { saturated: boolean
 
 export interface GqlCheck {
     __typename: string;
+    id?: string;
     name?: string;
+    /** The failing check run's first failed step, filled in by the collector from STEPS_QUERY. */
+    failedStep?: string;
     status?: string;
     conclusion?: string | null;
     context?: string;
@@ -532,6 +535,8 @@ export interface GqlPr {
             };
         }[];
     };
+    /** The head's last 100 commits, to count a pull request stacked on another once (only on the open page). */
+    stackCommits?: { nodes: { commit: { oid: string } }[] };
 }
 
 /** Labels that keep auto-merge off by rule, so the pull request waits on the owner. */
@@ -782,7 +787,6 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
         maxFailingSameCheck: 0,
         prs: { greenStuck: [], armedLong: [] },
     };
-    const failing = new Map<string, number>();
     for (const p of open) {
         if (p.state !== "OPEN" || p.isDraft) {
             continue;
@@ -806,13 +810,9 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
             s.prs.armedLong.push(p.number);
         }
         s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, screenshotWaitMs(p, nowMs));
-        // An aggregator failing alone counts too (4, "Excluded checks").
-        const checks = new Set(failingChecks(p, nowMs).map((c) => c.check));
-        for (const c of checks) {
-            failing.set(c, (failing.get(c) ?? 0) + 1);
-        }
     }
-    s.maxFailingSameCheck = Math.max(0, ...failing.values());
+    // An aggregator failing alone counts too (4, "Excluded checks"); a stack of pull requests counts once.
+    s.maxFailingSameCheck = Math.max(0, ...[...failureGroups(open, nowMs).values()].map((g) => g.units.size));
     return s;
 }
 

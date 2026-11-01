@@ -19,6 +19,7 @@ import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraC
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
+import { drawnCurveInWorld } from "../edgeWorldCurve";
 import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
@@ -31,6 +32,7 @@ import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
+import type { GraphFraming } from "../session/types";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { mapCorners } from "./BasemapManager";
 import { type DataManager, disposeReleased } from "./DataManager";
@@ -73,9 +75,13 @@ interface FramingBox {
  * most of the picture: one world unit on each side moved a two-node graph's camera from 6.0 to 8.6
  * units out. The cameras pad the fit themselves.
  * @param nodes - The nodes to frame; hidden ones are skipped.
+ * @param extent - What each node counts as: the box it is drawn in, or its center alone.
  * @returns The corners, or undefined when no node is visible.
  */
-export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
+export function nodeFramingBox(
+    nodes: Iterable<Node>,
+    extent: GraphFraming["extent"] = "drawn",
+): FramingBox | undefined {
     let min: Vector3 | undefined;
     let max: Vector3 | undefined;
     const spots: FramingSpot[] = [];
@@ -91,7 +97,7 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
         // world matrix first, because Babylon only refreshes world bounds while it renders and this
         // runs BEFORE that render. In world space, because a node mesh is parented to the
         // "graph-root" transform an XR gesture moves, rotates and scales.
-        const box = node.framingBounds();
+        const box = extent === "centers" ? centerOf(node) : node.framingBounds();
         // A spot is as wide as the node's widest half, so the turning fit keeps all of it in view.
         const half = box.max.subtract(box.min).scaleInPlace(0.5);
         spots.push({ pos: box.min.add(half), half: Math.max(half.x, half.y, half.z) });
@@ -102,7 +108,27 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
         max.maximizeInPlace(box.max);
     }
 
-    return min && max ? { min, max, spots } : undefined;
+    if (!min || !max) {
+        return undefined;
+    }
+
+    // The centers of one node, or of nodes all in one place, enclose nothing to fit: their drawn box is framed instead.
+    if (extent === "centers" && min.x === max.x && min.y === max.y) {
+        return nodeFramingBox(nodes);
+    }
+
+    return { min, max, spots };
+}
+
+/**
+ * A node's center in the world, as a box with no size: what `extent: "centers"` frames.
+ * @param node - The node.
+ * @returns The center as both corners.
+ */
+function centerOf(node: Node): { min: Vector3; max: Vector3 } {
+    node.mesh.computeWorldMatrix(true);
+    const center = node.mesh.getAbsolutePosition();
+    return { min: center.clone(), max: center.clone() };
 }
 
 /**
@@ -138,6 +164,21 @@ function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void
 }
 
 /**
+ * Grow a box to take in the points an edge's curve or bends are drawn through, which can reach
+ * well outside the box of its two nodes (issue #3097). A straight edge costs one check and adds
+ * nothing: its line runs between two nodes the box already holds.
+ * @param box - The box to grow.
+ * @param edge - The edge.
+ */
+function growForCurve(box: FramingBox, edge: Edge): void {
+    for (const point of drawnCurveInWorld(edge) ?? []) {
+        box.spots.push({ pos: point, half: 0 });
+        box.min.minimizeInPlace(point);
+        box.max.maximizeInPlace(point);
+    }
+}
+
+/**
  * The most rounds a framing takes to size the labels sized on screen for its own camera. Each round
  * shrinks the difference by about the share of the view a label takes, so a handful settle it; the
  * cap only bounds a label as big as the view, which no framing can fit.
@@ -157,19 +198,25 @@ function sameBox(a: FramingBox, b: FramingBox): boolean {
 
 /**
  * The box zoom-to-fit frames: {@link nodeFramingBox} grown by every label on a visible node and
- * every label and arrow caption on a visible edge, so no label is cut off by the edge of the
- * viewport. A label's size depends on its text and font, which is why framing runs on data loads
- * and layout changes and NOT on label edits: see `Graph`, which asks for a framing only from
- * those.
+ * every label, arrow caption and curve or bend point on a visible edge, so no label or bent line is
+ * cut off by the edge of the viewport. A label's size depends on its text and font, which is why
+ * framing runs on data loads and layout changes and NOT on label edits: see `Graph`, which asks
+ * for a framing only from those.
  * @param nodes - The nodes to frame; hidden ones and their labels are skipped.
  * @param edges - The edges whose labels to frame; hidden ones are skipped.
+ * @param extent - What each node counts as; with its center alone no label is framed.
  * @returns The corners, or undefined when no node is visible.
  */
-export function framingBox(nodes: Iterable<Node>, edges: Iterable<Edge>): FramingBox | undefined {
-    const box = nodeFramingBox(nodes);
+export function framingBox(
+    nodes: Iterable<Node>,
+    edges: Iterable<Edge>,
+    extent: GraphFraming["extent"] = "drawn",
+): FramingBox | undefined {
+    const box = nodeFramingBox(nodes, extent);
 
-    if (!box) {
-        return undefined;
+    // Centers frame no label, as a program that fits node centers lets labels run off the canvas.
+    if (!box || extent === "centers") {
+        return box;
     }
 
     for (const node of nodes) {
@@ -184,6 +231,7 @@ export function framingBox(nodes: Iterable<Node>, edges: Iterable<Edge>): Framin
             growForLabel(box, edge.xlabelLabel?.labelMesh);
             growForLabel(box, edge.arrowHeadText?.labelMesh);
             growForLabel(box, edge.arrowTailText?.labelMesh);
+            growForCurve(box, edge);
         }
     }
 
@@ -1808,6 +1856,7 @@ export class UpdateManager implements Manager {
         const { camera } = this.graphContext.getStyles().config.behavior;
         this.camera.setFitInsets(camera.fitInsets);
         this.camera.setFitBounds(camera.fitBounds);
+        this.camera.setFitPadding(this.framing?.padding);
         if (this.fitIsStale()) {
             // An input the last fit read changed before its picture was final: owe it again.
             this.fitRead = null;
@@ -2139,8 +2188,14 @@ export class UpdateManager implements Manager {
      * @returns The box, or undefined when nothing is visible.
      */
     private measure(): FramingBox | undefined {
-        return framingBox(this.layoutManager.nodes, this.layoutManager.edges);
+        return framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent);
     }
+
+    /**
+     * How the graph is framed: the project setting `framing`, which the element hands over when it changes.
+     * @internal
+     */
+    framing: GraphFraming | undefined = undefined;
 
     /**
      * Update all edges.
@@ -2938,6 +2993,7 @@ export class UpdateManager implements Manager {
             this.camera.getActiveController()?.viewInsets ?? null,
             fitInsets,
             fitBounds,
+            this.framing ?? null,
             canvas?.clientWidth,
             canvas?.clientHeight,
             engine.getRenderWidth(),

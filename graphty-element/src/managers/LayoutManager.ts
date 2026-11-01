@@ -8,6 +8,7 @@ import type {
 import { z } from "zod";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
+import { resolveLayoutWeight } from "../algorithms/input/weight";
 import { LAYOUT_DESCRIPTORS, layoutAlias, layoutDescriptor } from "../catalog/layouts";
 import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
@@ -1207,6 +1208,33 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * What the graph's stored edge weights mean to one layout engine, asked each time it reads
+     * them: the loaded weight checked against `data.knownFields.edgeWeightMeaning` by the same rule
+     * an algorithm run uses. A meaning assumed or left unread is reported as a `layout-warning`,
+     * once per engine until the answer changes.
+     * @param type - The layout, which the warning names.
+     * @returns The reader.
+     */
+    private weightMeaningFor(type: string): () => "strength" | "distance" | null {
+        let warned: string | null = null;
+        return () => {
+            const attribute = this.dataManager.lastImport?.weights.attribute ?? null;
+            const reading = resolveLayoutWeight(
+                attribute === null
+                    ? null
+                    : { attribute, meaning: this.styles.config.data.knownFields.edgeWeightMeaning },
+            );
+            const key = JSON.stringify(reading.warning ?? null);
+            if (reading.warning !== undefined && key !== warned) {
+                this.warnLayout(type, reading.warning);
+            }
+
+            warned = key;
+            return reading.meaning;
+        };
+    }
+
+    /**
      * Report the consumer's options a layout will run without, as `W_UNKNOWN_OPTION`.
      * @param type - The layout.
      * @param engineClass - Its engine.
@@ -1427,6 +1455,7 @@ export class LayoutManager implements Manager {
                     },
                     dataManager: this.dataManager,
                     fromSeed: how.fromSeed,
+                    weightMeaning: this.weightMeaningFor(type),
                 };
                 engine = new SimulationLayoutEngine(init);
             }
@@ -1473,6 +1502,7 @@ export class LayoutManager implements Manager {
                 this.reportLayoutFailure(type, error, "stepped");
             },
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
+            weightMeaning: this.weightMeaningFor(type),
             drawPaint: () => {
                 this.drawArrivedPaint?.();
             },

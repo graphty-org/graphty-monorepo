@@ -53,6 +53,7 @@ import {
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { narrowLayout } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION, type GraphAccelerator } from "../acceleration/types";
+import { asStrength } from "../algorithms/input/weight";
 import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
@@ -314,7 +315,16 @@ export interface SimulationEngineInit {
      * after `init()` as for any build.
      */
     readonly fromSeed?: boolean;
+    /**
+     * What the stored edge weights mean, asked at every load of a simulation that reads them:
+     * a strength is read as it is, a distance inverted, and null leaves them unread. Absent reads
+     * every weight as a strength.
+     */
+    readonly weightMeaning?: () => "strength" | "distance" | null;
 }
+
+/** The derived edge column a distance weight is inverted into, for the simulation to read. */
+const STRENGTH_COLUMN = "graphty.layoutStrength";
 
 /**
  * The refusal for a bridge built without a controller, which is what `LayoutEngine.get(type, {})`
@@ -359,6 +369,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
     readonly #controller: AccelerationController;
     readonly #report: (error: GraphtyError) => void;
     readonly #dataManager: DataManager;
+    readonly #weightMeaning: () => "strength" | "distance" | null;
+    /**
+     * The `weight` the running simulation was built with, or undefined for a simulation that reads
+     * no weight: a load whose answer differs rebuilds it.
+     */
+    #weightSpec: boolean | string | undefined = undefined;
     /** See {@link SimulationEngineInit.fromSeed}; cleared by the first load. */
     #fromSeed: boolean;
 
@@ -486,6 +502,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#report = built.report as (error: GraphtyError) => void;
         this.#dataManager = built.dataManager as DataManager;
         this.#fromSeed = built.fromSeed === true;
+        this.#weightMeaning = built.weightMeaning ?? ((): "strength" => "strength");
         this.#targetCentre = resolveCentre(this.#options.model.center ?? this.#options.center);
 
         // THE FIRST ADOPTION IS THE IDENTITY. Nothing has been published yet, so an arrangement
@@ -647,6 +664,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const simulation = this.#simulation;
         this.#snapshot = snapshot;
         this.#positions = positions;
+        const loadable = this.#loadable(snapshot);
 
         // BEFORE THE PLAN, and at every reload whether or not the simulation is rebuilt: a freeze
         // renumbers the rows, and the element's array is the copy it renumbered.
@@ -662,14 +680,19 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // and survives a freeze on its own, which is why this is the one option that can force a
         // rebuild, and why it forces one at EVERY reload.
         const massStale = this.#nodeMass !== null;
-        if (simulation === null || decision.accelerated !== this.#accelerated || massStale) {
+        if (
+            simulation === null ||
+            decision.accelerated !== this.#accelerated ||
+            massStale ||
+            loadable.weight !== this.#weightSpec
+        ) {
             this.replaceSimulation();
             return;
         }
 
         this.#iterations = this.#resolveIterations(snapshot.nodeCount);
         this.#seed(snapshot, simPositions);
-        simulation.load(this.#dataManager.undirected(snapshot).snapshot, simPositions);
+        simulation.load(loadable.graph, simPositions);
 
         // THE STOP FLAG SURVIVES A RELOAD. A simulation whose batch rejected is not made well by
         // a new graph, and only a rebuild clears the flag -- which the controller's next
@@ -1296,7 +1319,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             });
         }
 
-        const undirected = this.#dataManager.undirected(snapshot).snapshot;
+        const { graph: undirected, weight } = this.#loadable(snapshot);
+        this.#weightSpec = weight;
         this.#seed(snapshot, simPositions);
         this.#nodeMass = this.#resolveNodeMass(undirected);
         this.#iterations = this.#resolveIterations(snapshot.nodeCount);
@@ -1394,7 +1418,34 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #simulationOptions(): ForceAtlas2Options | FruchtermanReingoldOptions | SpringElectricalOptions {
         const { model, iterationsPerStep: _explicit, stepMultiplier: _base, ...common } = this.#options;
         const resolved = this.#nodeMass === null ? {} : { nodeMass: this.#nodeMass };
-        return { ...common, ...model, ...resolved, iterationsPerStep: this.#iterations };
+        const weight = this.#weightSpec === undefined ? {} : { weight: this.#weightSpec };
+        return { ...common, ...model, ...resolved, ...weight, iterationsPerStep: this.#iterations };
+    }
+
+    /**
+     * The undirected graph a simulation is loaded with, and the `weight` it reads it by.
+     *
+     * Only a simulation asked to read weights (ForceAtlas2 with `weighted`) asks what they mean: a
+     * strength is the snapshot's own weights, a distance is inverted into a derived column (same
+     * core and serial, so an accelerator's residency for the snapshot is reused and released with
+     * it), and null reads none. The CPU and the accelerator read the same answer.
+     * @param snapshot - The graph, as `getSnapshot()` returns it.
+     * @returns The graph to load, and the `weight` option, undefined when the model reads none.
+     */
+    #loadable(snapshot: GraphSnapshot): { graph: GraphSnapshot; weight: boolean | string | undefined } {
+        const graph = this.#dataManager.undirected(snapshot).snapshot;
+        if ((this.#options.model as { weight?: unknown }).weight !== true) {
+            return { graph, weight: undefined };
+        }
+
+        const meaning = this.#weightMeaning();
+        const { weights } = graph.edgeList();
+        if (meaning !== "distance" || weights === null) {
+            return { graph, weight: meaning !== null };
+        }
+
+        const strengths = Float32Array.from(weights, (w) => asStrength(w, "distance"));
+        return { graph: graph.withColumns(undefined, { [STRENGTH_COLUMN]: strengths }), weight: STRENGTH_COLUMN };
     }
 
     /**

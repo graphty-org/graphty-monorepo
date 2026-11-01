@@ -539,8 +539,17 @@ nodes in -- `"2d"` or `"3d"` -- which `session.layout.dimension`, the view's dim
 ## Edge weights
 
 Two layouts read edge weights: `kamada-kawai` and `forceatlas2`. Both are on by default on a graph
-whose edges carry weights, and both read the number the same way: **a larger weight means a
-stronger connection**, drawn shorter.
+whose edges carry weights, and both read the number by what it means, as
+`data.knownFields.edgeWeightMeaning` says (the meaning chosen when the data was loaded):
+
+| Meaning             | How the layouts read it                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `"strength"`        | a larger weight is a stronger connection, drawn shorter                                      |
+| `"distance"`        | a larger weight is a longer edge (Kamada-Kawai's ideal length; a weaker pull in ForceAtlas2) |
+| not stated (`null`) | read as a strength, with a `layout-warning` `W_WEIGHT_MEANING_ASSUMED`                       |
+| `"capacity"`        | left unread, every edge the same, with a `layout-warning` `W_WEIGHT_MEANING_MISMATCH`        |
+
+Both warnings carry `params: { attribute, meaning }`. Algorithm runs read a weight by the same rule.
 
 ```typescript
 // Weights are read by default. This says so explicitly.

@@ -1054,6 +1054,7 @@ export const READ_ONLY: readonly string[] = [
     "SnapshotLayoutInput.nodeSizes",
     "SnapshotLayoutInput.report",
     "SnapshotLayoutInput.warn",
+    "SnapshotLayoutInput.weightMeaning",
     "StatsManager.decrementCounter",
     "StatsManager.disableFrameProfiling",
     "StatsManager.disableProfiling",

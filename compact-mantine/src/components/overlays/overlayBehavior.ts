@@ -46,6 +46,7 @@
  * dispatched, so the animation alone would let a focus-opened tooltip show before it is held.
  */
 import { TOOLTIP_CLOSE_DELAY, TOOLTIP_OPEN_DELAY } from "../../theme/styles/overlays";
+import { installSafeTriangle } from "./safeTriangle";
 import { tooltipTrigger } from "./tooltipPlacement";
 
 /** Keys that never dismiss a tooltip. */
@@ -555,6 +556,7 @@ export function installOverlayBehavior(): void {
         return;
     }
     installed = true;
+    installSafeTriangle();
     const capture = { capture: true, passive: true } as const;
     document.addEventListener(
         "pointerdown",

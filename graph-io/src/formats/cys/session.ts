@@ -253,27 +253,7 @@ const NOISE = /(^|\/)(__MACOSX\/|\.DS_Store$)/;
  * @returns the layout
  */
 function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder): SessionLayout {
-    const byName = new Map<string, ZipEntry>();
-    const repeated: string[] = [];
-    for (const entry of zipEntries) {
-        // a Windows tool may write backslashes, which APPNOTE 4.4.17 forbids: read them as "/"
-        const name = entry.name.replaceAll("\\", "/");
-        if (name.endsWith("/") || NOISE.test(name)) {
-            continue;
-        }
-        if (byName.has(name)) {
-            repeated.push(name);
-            continue;
-        }
-        byName.set(name, entry);
-    }
-    if (repeated.length > 0) {
-        report.warning(
-            "unsupported",
-            CYS_ISSUE.DUPLICATE_ENTRY,
-            `${repeated.length} entry name${plural(repeated.length)} appear more than once; the first of each is read: ${listed(repeated)}`,
-        );
-    }
+    const byName = entriesByName(zipEntries, report);
     const names = [...byName.keys()];
     const markers = shallowest(names, /(^|\/)[^/]+\.version$/);
     const marker = markers.at(0);
@@ -293,25 +273,7 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
         );
     }
     const root = anchor.slice(0, anchor.lastIndexOf("/") + 1);
-    let era: "2" | "3" = "2";
-    let version = "2.0.0";
-    if (marker !== undefined) {
-        version = marker.slice(root.length, -".version".length);
-        if (!/^\d+(\.\d+)*$/.test(version)) {
-            report.fail(
-                CYS_ISSUE.VERSION,
-                `the session version marker ${marker} does not parse as a version (<major>.<minor>.<patch>.version)`,
-            );
-        }
-        const major = Number(version.split(".")[0]);
-        if (major > 3) {
-            report.fail(
-                CYS_ISSUE.VERSION,
-                `the session version ${version} is newer than the Cytoscape 3 sessions graph-io reads`,
-            );
-        }
-        era = major === 3 ? "3" : "2";
-    }
+    const { era, version } = marker === undefined ? ERA_2 : versionOf(marker, root, report);
     const layout = {
         era,
         version,
@@ -343,6 +305,71 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
         }
     }
     return layout;
+}
+
+/** The era and version of a session without a version marker. */
+const ERA_2 = { era: "2", version: "2.0.0" } as const;
+
+/**
+ * The entries of the central directory by name, for layoutOf(): directory entries and macOS noise dropped, the first
+ * of a repeated name kept (W_CYS_DUPLICATE_ENTRY).
+ * @param zipEntries - the central directory
+ * @param report - the report
+ * @returns the entries by name, in directory order
+ */
+function entriesByName(zipEntries: readonly ZipEntry[], report: ImportReportBuilder): Map<string, ZipEntry> {
+    const byName = new Map<string, ZipEntry>();
+    const repeated: string[] = [];
+    for (const entry of zipEntries) {
+        // a Windows tool may write backslashes, which APPNOTE 4.4.17 forbids: read them as "/"
+        const name = entry.name.replaceAll("\\", "/");
+        if (name.endsWith("/") || NOISE.test(name)) {
+            continue;
+        }
+        if (byName.has(name)) {
+            repeated.push(name);
+            continue;
+        }
+        byName.set(name, entry);
+    }
+    if (repeated.length > 0) {
+        report.warning(
+            "unsupported",
+            CYS_ISSUE.DUPLICATE_ENTRY,
+            `${repeated.length} entry name${plural(repeated.length)} appear more than once; the first of each is read: ${listed(repeated)}`,
+        );
+    }
+    return byName;
+}
+
+/**
+ * The era and version a session version marker names, for layoutOf(); E_CYS_VERSION when it does not parse or is
+ * newer than Cytoscape 3.
+ * @param marker - the marker's entry name
+ * @param root - the session's root folder
+ * @param report - the report
+ * @returns the era and version
+ */
+function versionOf(
+    marker: string,
+    root: string,
+    report: ImportReportBuilder,
+): { readonly era: "2" | "3"; readonly version: string } {
+    const version = marker.slice(root.length, -".version".length);
+    if (!/^\d+(\.\d+)*$/.test(version)) {
+        report.fail(
+            CYS_ISSUE.VERSION,
+            `the session version marker ${marker} does not parse as a version (<major>.<minor>.<patch>.version)`,
+        );
+    }
+    const major = Number(version.split(".")[0]);
+    if (major > 3) {
+        report.fail(
+            CYS_ISSUE.VERSION,
+            `the session version ${version} is newer than the Cytoscape 3 sessions graph-io reads`,
+        );
+    }
+    return { era: major === 3 ? "3" : "2", version };
 }
 
 /**

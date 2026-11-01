@@ -225,9 +225,17 @@ export function rewriteNumbers(
     const sentinel = sentinelFor(text);
     const exactPrefix = `${sentinel}exact:`;
     const parts: string[] = [];
-    const tokens = new Set<string>();
-    const bigIntegers: string[] = [];
-    const inexact: string[] = [];
+    const scan: NumberScan = {
+        text,
+        nonstandard,
+        exactSentinel,
+        sentinel,
+        exactPrefix,
+        tokens: new Set<string>(),
+        bigIntegers: [],
+        inexact: [],
+        end: 0,
+    };
     const arrays: boolean[] = [];
     let expectValue = true;
     let copied = 0;
@@ -236,11 +244,7 @@ export function rewriteNumbers(
     while (i < n) {
         const ch = text[i];
         if (ch === '"') {
-            i++;
-            while (i < n && text[i] !== '"') {
-                i += text[i] === "\\" ? 2 : 1;
-            }
-            i++;
+            i = skipJsonString(text, i);
             expectValue = false;
             continue;
         }
@@ -254,40 +258,20 @@ export function rewriteNumbers(
             expectValue = true;
         } else if (ch === ",") {
             expectValue = arrays.at(-1) ?? false;
-        } else if (expectValue && ch !== " " && ch !== "\t" && ch !== "\n" && ch !== "\r") {
+        } else if (expectValue && !isJsonWhitespace(ch)) {
             expectValue = false;
-            const token = nonstandard ? NONSTANDARD_TOKENS.find(([word]) => text.startsWith(word, i)) : undefined;
-            let end = i;
-            let replacement: string | null = null;
-            if (token !== undefined) {
-                end = i + token[0].length;
-                tokens.add(token[0]);
-                replacement = JSON.stringify(`${sentinel}${token[0]}`);
-            } else if (ch === "-" || (ch >= "0" && ch <= "9")) {
-                end = i + 1;
-                while (end < n && "0123456789+-.eE".includes(text[end])) {
-                    end++;
-                }
-                const literal = text.slice(i, end);
-                if (INTEGER_LITERAL.test(literal)) {
-                    if (!Number.isSafeInteger(Number(literal))) {
-                        bigIntegers.push(literal);
-                        replacement = exactSentinel ? JSON.stringify(`${exactPrefix}${literal}`) : `"${literal}"`;
-                    }
-                } else if (isInexactLiteral(literal)) {
-                    inexact.push(literal);
-                }
-            }
+            const replacement = rewriteValueAt(scan, i);
             if (replacement !== null) {
                 parts.push(text.slice(copied, i), replacement);
-                copied = end;
+                copied = scan.end;
             }
-            i = Math.max(end, i + 1);
+            i = Math.max(scan.end, i + 1);
             continue;
         }
         i++;
     }
     parts.push(text.slice(copied));
+    const { tokens, bigIntegers, inexact } = scan;
     const revive = (_key: string, value: unknown): unknown => {
         if (typeof value === "string" && value.startsWith(sentinel)) {
             const found = NONSTANDARD_TOKENS.find(([word]) => word === value.slice(sentinel.length));
@@ -300,6 +284,96 @@ export function rewriteNumbers(
             ? new ExactInteger(value.slice(exactPrefix.length))
             : value;
     return { text: parts.join(""), tokens, bigIntegers, inexact, revive, reviveExact };
+}
+
+/** The state of one rewriteNumbers() pass that its value rewrite reads and records into. */
+interface NumberScan {
+    readonly text: string;
+    readonly nonstandard: boolean;
+    readonly exactSentinel: boolean;
+    readonly sentinel: string;
+    readonly exactPrefix: string;
+    readonly tokens: Set<string>;
+    readonly bigIntegers: string[];
+    readonly inexact: string[];
+    /** Where the value last read by rewriteValueAt() ends. */
+    end: number;
+}
+
+/**
+ * The index just past the string literal that starts at a quote (past the end of the text when it is not closed).
+ * @param text - the document text
+ * @param at - the index of the opening quote
+ * @returns the index after the closing quote
+ */
+function skipJsonString(text: string, at: number): number {
+    const n = text.length;
+    let i = at + 1;
+    while (i < n && text[i] !== '"') {
+        i += text[i] === "\\" ? 2 : 1;
+    }
+    return i + 1;
+}
+
+/**
+ * Whether a character is JSON insignificant whitespace.
+ * @param ch - the character
+ * @returns true for space, tab, line feed and carriage return
+ */
+function isJsonWhitespace(ch: string): boolean {
+    return ch === " " || ch === "\t" || ch === "\n" || ch === "\r";
+}
+
+/**
+ * Read the value that starts at an index in a value position for rewriteNumbers(): record a nonstandard token, a big
+ * integer or an inexact literal, and set `scan.end` to where the value read ends.
+ * @param scan - the pass's state
+ * @param i - the index of the value's first character
+ * @returns the replacement text, or null to keep the value as written
+ */
+function rewriteValueAt(scan: NumberScan, i: number): string | null {
+    const { text } = scan;
+    const ch = text[i];
+    const token = scan.nonstandard ? NONSTANDARD_TOKENS.find(([word]) => text.startsWith(word, i)) : undefined;
+    scan.end = i;
+    if (token !== undefined) {
+        scan.end = i + token[0].length;
+        scan.tokens.add(token[0]);
+        return JSON.stringify(`${scan.sentinel}${token[0]}`);
+    }
+    if (ch === "-" || (ch >= "0" && ch <= "9")) {
+        return rewriteNumberAt(scan, i);
+    }
+    return null;
+}
+
+/**
+ * Read the number literal that starts at an index for rewriteValueAt(): a big integer becomes its replacement, an
+ * inexact literal is listed.
+ * @param scan - the pass's state
+ * @param i - the index of the literal's first character
+ * @returns the replacement text, or null to keep the literal as written
+ */
+function rewriteNumberAt(scan: NumberScan, i: number): string | null {
+    const { text } = scan;
+    const n = text.length;
+    let end = i + 1;
+    while (end < n && "0123456789+-.eE".includes(text[end])) {
+        end++;
+    }
+    scan.end = end;
+    const literal = text.slice(i, end);
+    if (INTEGER_LITERAL.test(literal)) {
+        if (Number.isSafeInteger(Number(literal))) {
+            return null;
+        }
+        scan.bigIntegers.push(literal);
+        return scan.exactSentinel ? JSON.stringify(`${scan.exactPrefix}${literal}`) : `"${literal}"`;
+    }
+    if (isInexactLiteral(literal)) {
+        scan.inexact.push(literal);
+    }
+    return null;
 }
 
 /** One key repeated in a JSON object. */

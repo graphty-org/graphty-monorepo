@@ -469,18 +469,9 @@ async function resolve(
     if (joinIndex < 0) {
         return `joins on the column "${virtual.sourceJoinKey}", which its source table does not have`;
     }
-    const joinOf = (key: string, cells: readonly string[]): string | undefined =>
-        joinIndex === 0 ? key : cells[joinIndex];
     const own = source.columns.findIndex((c) => c.name === virtual.sourceColumn);
     if (own >= 0) {
-        const values = new Map<string, string>();
-        for (const [key, cells] of source.rows) {
-            const join = joinOf(key, cells);
-            if (join !== undefined && cells[own] !== undefined) {
-                values.set(join, cells[own]);
-            }
-        }
-        return { column: source.columns[own], values };
+        return { column: source.columns[own], values: ownValues(source, joinIndex, own) };
     }
     const chained = virtuals.find((v) => v.targetTable === source.path && v.name === virtual.sourceColumn);
     if (chained === undefined) {
@@ -490,19 +481,65 @@ async function resolve(
     if (typeof inner === "string") {
         return inner;
     }
-    // re-key the chained values (by the chained source's join key) to this source's join key
-    const values = new Map<string, string>();
     const chainedJoin = source.columns.findIndex((c) => c.name === chained.targetJoinKey);
     if (chainedJoin < 0) {
         return `reads the virtual column "${chained.name}", which joins on the column "${chained.targetJoinKey}" its table does not have`;
     }
+    return { column: inner.column, values: rekeyChained(source, joinIndex, chainedJoin, inner.values) };
+}
+
+/**
+ * The join value of a source row for resolve(): the row key for the key column, else the cell.
+ * @param joinIndex - the join column's index
+ * @param key - the row key
+ * @param cells - the row's cells
+ * @returns the join value, or undefined for a missing cell
+ */
+function joinOf(joinIndex: number, key: string, cells: readonly string[]): string | undefined {
+    return joinIndex === 0 ? key : cells[joinIndex];
+}
+
+/**
+ * The values of a source table's own column by its join key, for resolve().
+ * @param source - the source table
+ * @param joinIndex - the join column's index
+ * @param own - the column's index
+ * @returns the values
+ */
+function ownValues(source: CyTable, joinIndex: number, own: number): Map<string, string> {
+    const values = new Map<string, string>();
+    for (const [key, cells] of source.rows) {
+        const join = joinOf(joinIndex, key, cells);
+        if (join !== undefined && cells[own] !== undefined) {
+            values.set(join, cells[own]);
+        }
+    }
+    return values;
+}
+
+/**
+ * Re-key a chained virtual column's values (by the chained source's join key) to this source's join key, for
+ * resolve().
+ * @param source - the source table
+ * @param joinIndex - this source's join column index
+ * @param chainedJoin - the chained column's join column index in this source
+ * @param inner - the chained values
+ * @returns the re-keyed values
+ */
+function rekeyChained(
+    source: CyTable,
+    joinIndex: number,
+    chainedJoin: number,
+    inner: ReadonlyMap<string, string>,
+): Map<string, string> {
+    const values = new Map<string, string>();
     for (const [key, cells] of source.rows) {
         const lookup = chainedJoin <= 0 ? key : cells[chainedJoin];
-        const value = lookup === undefined ? undefined : inner.values.get(lookup);
-        const join = joinOf(key, cells);
+        const value = lookup === undefined ? undefined : inner.get(lookup);
+        const join = joinOf(joinIndex, key, cells);
         if (value !== undefined && join !== undefined) {
             values.set(join, value);
         }
     }
-    return { column: inner.column, values };
+    return values;
 }

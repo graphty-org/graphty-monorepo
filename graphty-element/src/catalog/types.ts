@@ -1986,6 +1986,12 @@ export type RuleTree =
           readonly as?: "time";
           /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
           readonly nodes?: AttributeLeafNodes;
+          /**
+           * Whether an element with no value (absent, NaN or infinite) passes. Default `"exclude"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly missing?: MissingValues;
       }
     | {
           readonly kind: "categories";
@@ -1993,6 +1999,19 @@ export type RuleTree =
           readonly values: readonly string[];
           /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
           readonly nodes?: AttributeLeafNodes;
+          /**
+           * Whether an element with no value passes. Default `"exclude"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly missing?: MissingValues;
+          /**
+           * How a list value is read: `"any"` passes when it holds any of `values`, `"all"` when it
+           * holds every one. Absent, a value is read as one category, as before.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly match?: "any" | "all";
       }
     | {
           readonly kind: "degree";
@@ -2042,6 +2061,26 @@ export type RuleTree =
           readonly ties?: TopTies;
           /** Strictly above this value. Exactly one cut. */
           readonly above?: number;
+          /**
+           * The share of the population, from 0 to 100, kept from the `from` end; whole tie groups
+           * only, as `top` keeps them. Exactly one cut.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly percentile?: number;
+          /**
+           * Which end `top` and `percentile` count from: the highest values (`"high"`, the default)
+           * or the lowest. `above` reads it as "below" when `"low"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly from?: "high" | "low";
+          /**
+           * Whether an element with no value passes. Default `"exclude"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly missing?: MissingValues;
       }
     /**
      * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -2080,9 +2119,214 @@ export type RuleTree =
            */
           readonly side?: RuleSide;
       }
+    | UnionLeaf
+    | HopsLeaf
+    | TouchingLeaf
+    | NonemptyLeaf
+    | SameValueLeaf
+    | BySizeLeaf
+    | MeasureLeaf
     | { readonly kind: "all"; readonly of: readonly RuleTree[] }
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }
     | { readonly kind: "not"; readonly of: RuleTree };
+
+/**
+ * Whether an element with no value for a leaf's path (absent, NaN or infinite) passes the leaf.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type MissingValues = "include" | "exclude";
+
+/**
+ * What a step's leaf is relative to: a {@link Scope}, or one of two forms that exist only inside a
+ * {@link UnionStep}: `"hovered-or-selected"` (the hovered node, else a lone selected node: what a
+ * `{ match: "hover", orSelected: true }` selector follows) and `"so-far"` (the step's input: its
+ * branch before this step). A reference that holds no node matches nothing; it is never read as
+ * an unset option.
+ *
+ * OPEN UNION: forms may be added in a minor release; handle unknown forms.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type StepReference = Scope | "hovered-or-selected" | "so-far";
+
+/**
+ * A selection built from branches, each folded from a start by ordered steps, the way a vector
+ * editor combines shapes: the result is everything in ANY branch that is on.
+ *
+ * A branch starts with all of `side` within the base, or with none, then each step that is on
+ * adds what its leaf matches (`add`), keeps only what it matches (`keep`), or removes it
+ * (`except`). Every population a leaf ranks or counts over (a threshold's top, a percentile, a
+ * category's size) is the base, or the step's input when it is computed on `"so-far"`. A node
+ * branch reads an edge leaf as the nodes touching a passing edge; an edge branch reads a node leaf
+ * by its step's `ends`. A leaf silent on `side` changes nothing.
+ *
+ * Speaks `side` only. `session.scope.watchSteps` reads every branch's and step's count and state.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface UnionLeaf {
+    readonly kind: "union";
+    /** Which half the branches select. */
+    readonly side: "nodes" | "edges";
+    /**
+     * The base: `"visible"` (what the visibility filter leaves drawn) or `"graph"` (everything
+     * loaded). A visibility filter condition must read `"graph"`.
+     */
+    readonly within: "graph" | "visible";
+    /** The branches, in order. */
+    readonly branches: readonly UnionBranch[];
+}
+
+/**
+ * One branch of a {@link UnionLeaf}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface UnionBranch {
+    /** Its id, unique in the leaf; filled by the element on write, always present on read. */
+    readonly id?: string;
+    /** Its name, the consumer's. */
+    readonly name?: string;
+    /** Its color, filled from the branch palette on write (`session.scope.options.branchPalette`). */
+    readonly color?: string;
+    /** Whether it counts. Default true. */
+    readonly on?: boolean;
+    /** What it starts with before its first step: all of the side within the base, or none. */
+    readonly start: "all" | "none";
+    /** The steps, folded in order. */
+    readonly steps: readonly UnionStep[];
+}
+
+/**
+ * One step of a {@link UnionBranch}: a verb and one leaf.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface UnionStep {
+    /** Its id, unique in the leaf; filled by the element on write. */
+    readonly id?: string;
+    /** `add`: the branch so far plus the matches; `keep`: only the matches; `except`: minus them. */
+    readonly op: "add" | "keep" | "except";
+    /** Whether it applies. Default true. */
+    readonly on?: boolean;
+    /** What it matches. A `union` is refused here. */
+    readonly rule: RuleTree;
+    /** What its populations are: the base (default) or the branch before this step. */
+    readonly computedOn?: "base" | "so-far";
+    /** On an edge branch, how a node leaf is read: both ends pass (default), or either. */
+    readonly ends?: "both" | "either";
+    /** Written by the element when it froze a live reference on a write that cannot follow one. */
+    readonly frozenFrom?: "selection" | "hovered-or-selected";
+}
+
+/**
+ * The nodes at most `max` hops from a reference, the reference included; without `max`, every
+ * node it reaches. `direction` follows arcs out of, into, or either way (default) on a directed
+ * graph. Speaks nodes. A step leaf: valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface HopsLeaf {
+    readonly kind: "hops";
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly of?: StepReference;
+    readonly max?: number;
+    readonly direction?: SelectionDirection;
+}
+
+/**
+ * The edges with `"either"`, `"both"` or exactly `"one"` end in a reference. Speaks edges. A step
+ * leaf: valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface TouchingLeaf {
+    readonly kind: "touching";
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly of?: StepReference;
+    readonly ends: "either" | "both" | "one";
+}
+
+/**
+ * Everything while a reference holds a node, else nothing. Speaks nodes and edges. A step leaf:
+ * valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface NonemptyLeaf {
+    readonly kind: "nonempty";
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly of?: StepReference;
+}
+
+/**
+ * The elements whose value for `path` equals (or, for a list, shares) a value a reference node
+ * holds: "the community of Valjean". Speaks the halves that carry the path. A step leaf: valid
+ * only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface SameValueLeaf {
+    readonly kind: "same-value";
+    /** A value path: `data.<field>`, `results.<run>.<field>` or `graphty.degree`. */
+    readonly path: Path;
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly as?: StepReference;
+}
+
+/**
+ * The elements whose category for `path` has a member count in `min..max`, or is among the `top`
+ * categories by size (whole tie groups, as a threshold's `top`), counted over the population.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface BySizeLeaf {
+    readonly kind: "by-size";
+    readonly path: Path;
+    readonly min?: number;
+    readonly max?: number;
+    readonly top?: number;
+    /** Which end `top` counts from: the largest categories (default) or the smallest. */
+    readonly from?: "high" | "low";
+    readonly ties?: TopTies;
+}
+
+/**
+ * The test a {@link MeasureLeaf} puts to its field: the body of a `range`, `threshold`,
+ * `categories`, `text`, `by-size` or `same-value` leaf without its path.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type MeasureTest =
+    | Omit<Extract<RuleTree, { kind: "range" }>, "attribute" | "nodes">
+    | Omit<Extract<RuleTree, { kind: "threshold" }>, "path">
+    | Omit<Extract<RuleTree, { kind: "categories" }>, "attribute" | "nodes">
+    | Omit<Extract<RuleTree, { kind: "text" }>, "reads" | "nodes">
+    | Omit<BySizeLeaf, "path">
+    | Omit<SameValueLeaf, "path">;
+
+/**
+ * The elements whose value of an algorithm's field passes `test`. The element reads the session
+ * run with the same algorithm, params and base, or starts one (without suggested styles), so the
+ * leaf saves the algorithm, not a run id. `bind` maps the algorithm's node options to references,
+ * resolved to node ids before it is called. A step leaf: valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface MeasureLeaf {
+    readonly kind: "measure";
+    /** The algorithm's key, as `session.catalog.algorithms` lists it. */
+    readonly algorithm: string;
+    readonly params?: Readonly<Record<string, unknown>>;
+    readonly bind?: Readonly<Record<string, StepReference>>;
+    /** The result field to test. */
+    readonly field: string;
+    /** The test. Absent, the step is inert (`test-unset`). */
+    readonly test?: MeasureTest;
+}
 
 /**
  * Which half of the graph a `source` rule leaf speaks: its nodes or its edges.

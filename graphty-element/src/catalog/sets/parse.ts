@@ -18,7 +18,7 @@
  *
  * Reserved fields -- names a later release will give a meaning, refused at the doors until then:
  * `weights` on a fixed set, `scope` on a rule, `key` and `dataSource` on an edge member, `graph` on
- * `{ set }`, `percentile`, `z` and `population` on a threshold, `op` on an item key. Reserved kinds:
+ * `{ set }`, `z` and `population` on a threshold, `op` on an item key. Reserved kinds:
  * the scope keyword `"search"`, and the item key forms `{ smallestNode }`, `{ edges }`, `{ binds }`.
  *
  * `parseScope` is the same validator for a `Scope`, which may carry a definition inline.
@@ -41,7 +41,6 @@ const RESERVED = new Set([
     "edgeMember.dataSource",
     "set.graph",
     "search",
-    "threshold.percentile",
     "threshold.z",
     "threshold.population",
     "itemKey.op",
@@ -99,6 +98,8 @@ function isId(value: unknown): boolean {
 /** One validation pass: the mode, and the first unknown name met so far. */
 class Walker {
     first: string | undefined;
+    /** How many union steps the walk is inside: a step leaf is valid only inside one. */
+    inStep = 0;
 
     constructor(readonly mode: Mode) {}
 
@@ -297,6 +298,10 @@ function isValuePath(path: unknown): boolean {
         return false;
     }
 
+    if (STRUCTURE_PATHS.has(path)) {
+        return true;
+    }
+
     if (path.startsWith("data.")) {
         return path.length > "data.".length;
     }
@@ -313,7 +318,7 @@ function isValuePath(path: unknown): boolean {
  * @param walker - The pass.
  */
 function checkThreshold(value: Loose, walker: Walker): void {
-    walker.fields(value, "threshold", ["kind", "path", "top", "above", "ties"]);
+    walker.fields(value, "threshold", ["kind", "path", "top", "above", "ties", "percentile", "from", "missing"]);
     checkRoot(value.path);
 
     if (!isValuePath(value.path)) {
@@ -321,11 +326,25 @@ function checkThreshold(value: Loose, walker: Walker): void {
     }
 
     // A reserved cut kept opaque on load counts as the leaf's cut.
-    const reservedCut = walker.mode === "load" && (value.percentile !== undefined || value.z !== undefined);
-    const cuts = [value.top, value.above].filter((cut) => cut !== undefined).length;
+    const reservedCut = walker.mode === "load" && value.z !== undefined;
+    const cuts = [value.top, value.above, value.percentile].filter((cut) => cut !== undefined).length;
     if (cuts !== 1 && !(reservedCut && cuts === 0)) {
-        throw bad('A "threshold" leaf has exactly one cut: top or above.', { top: value.top, above: value.above });
+        throw bad('A "threshold" leaf has exactly one cut: top, above or percentile.', {
+            top: value.top,
+            above: value.above,
+            percentile: value.percentile,
+        });
     }
+
+    if (
+        value.percentile !== undefined &&
+        (!isFiniteNumber(value.percentile) || value.percentile < 0 || value.percentile > 100)
+    ) {
+        throw bad('A "threshold" leaf\'s percentile is a share from 0 to 100.', { percentile: value.percentile });
+    }
+
+    checkFrom(value);
+    checkMissing(value);
 
     if (value.top !== undefined && (!Number.isInteger(value.top) || (value.top as number) < 0)) {
         throw bad('A "threshold" leaf\'s top is a whole number of elements.', { top: value.top });
@@ -346,6 +365,13 @@ function checkThreshold(value: Loose, walker: Walker): void {
  */
 const FIELD_ROOTS = new Set(["data", "results"]);
 
+/** The structure values a rule reads with no run and no column: a node's degree. */
+export const STRUCTURE_PATHS: ReadonlySet<string> = new Set([
+    "graphty.degree",
+    "graphty.inDegree",
+    "graphty.outDegree",
+]);
+
 /**
  * Refuse a field path whose root is reserved: `graph.<measure>` and every other root but `data`
  * and `results` may be given a meaning later, and a stored path must not change meaning when it
@@ -354,7 +380,7 @@ const FIELD_ROOTS = new Set(["data", "results"]);
  * @throws `E_BAD_COMMAND` with `details.reason: "reserved-root"`.
  */
 function checkRoot(path: unknown): void {
-    if (typeof path !== "string" || path === "") {
+    if (typeof path !== "string" || path === "" || STRUCTURE_PATHS.has(path)) {
         return;
     }
 
@@ -473,6 +499,258 @@ function checkRangeAs(value: Readonly<Record<string, unknown>>): void {
 }
 
 /**
+ * Refuse a `missing` that is neither `"include"` nor `"exclude"`.
+ * @param value - The leaf.
+ */
+function checkMissing(value: Loose): void {
+    if (value.missing !== undefined && value.missing !== "include" && value.missing !== "exclude") {
+        throw bad(`A "${String(value.kind)}" leaf's missing is "include" or "exclude".`, { missing: value.missing });
+    }
+}
+
+/**
+ * Refuse a `from` that is neither `"high"` nor `"low"`.
+ * @param value - The leaf.
+ */
+function checkFrom(value: Loose): void {
+    if (value.from !== undefined && value.from !== "high" && value.from !== "low") {
+        throw bad(`A "${String(value.kind)}" leaf's from is "high" or "low".`, { from: value.from });
+    }
+}
+
+/**
+ * Refuse a path that is not a value path.
+ * @param path - The candidate.
+ * @param kind - The leaf kind, for the message.
+ */
+function checkValuePath(path: unknown, kind: string): void {
+    checkRoot(path);
+    if (!isValuePath(path)) {
+        throw bad(`A "${kind}" leaf's path is "data.<field>", "results.<run>.<field>" or "graphty.degree".`, { path });
+    }
+}
+
+/**
+ * Check a `by-size` leaf's cut: a size range, or a top count.
+ * @param value - The leaf.
+ */
+function checkBySize(value: Loose): void {
+    checkBounds(value);
+    checkFrom(value);
+    if (value.top !== undefined && (!Number.isInteger(value.top) || (value.top as number) < 0)) {
+        throw bad('A "by-size" leaf\'s top is a whole number of categories.', { top: value.top });
+    }
+
+    if (value.top !== undefined && (value.min !== undefined || value.max !== undefined)) {
+        throw bad('A "by-size" leaf cuts by top or by min and max, not both.', { top: value.top });
+    }
+
+    if (value.ties !== undefined && value.ties !== "fewer" && value.ties !== "all") {
+        throw bad('A "by-size" leaf\'s ties is "fewer" or "all".', { ties: value.ties });
+    }
+}
+
+/**
+ * Refuse a step leaf outside a union step: its references are view or step state.
+ * @param value - The leaf.
+ * @param walker - The pass.
+ */
+function checkStepLeaf(value: Loose, walker: Walker): void {
+    if (walker.inStep === 0) {
+        throw bad(`A "${String(value.kind)}" leaf is valid only inside a step of a "union" leaf.`, {
+            kind: value.kind,
+            reason: "reference-outside-union",
+        });
+    }
+}
+
+/**
+ * Check a step's reference: absent (the step is inert), one of the two step forms, or a scope.
+ * @param value - The reference.
+ * @param walker - The pass.
+ */
+function checkReference(value: unknown, walker: Walker): void {
+    if (value === undefined || value === "hovered-or-selected" || value === "so-far") {
+        return;
+    }
+
+    checkScope(value, walker);
+}
+
+/** The test kinds a `measure` leaf may put to its field, and the field each one names its path by. */
+const MEASURE_TESTS: Readonly<Record<string, string>> = {
+    range: "attribute",
+    threshold: "path",
+    categories: "attribute",
+    text: "reads",
+    "by-size": "path",
+    "same-value": "path",
+};
+
+/**
+ * Check a `measure` leaf: an algorithm, a field, plain params, references bound by option name,
+ * and a test that is a known leaf's body without its path.
+ * @param value - The leaf.
+ * @param walker - The pass.
+ */
+function checkMeasure(value: Loose, walker: Walker): void {
+    if (typeof value.algorithm !== "string" || value.algorithm === "") {
+        throw bad('A "measure" leaf names its algorithm by key.', { algorithm: value.algorithm });
+    }
+
+    if (typeof value.field !== "string" || value.field === "") {
+        throw bad('A "measure" leaf names the result field it tests.', { field: value.field });
+    }
+
+    if (value.params !== undefined && !isObject(value.params)) {
+        throw bad('A "measure" leaf\'s params are an object of option values.', { params: value.params });
+    }
+
+    if (value.bind !== undefined) {
+        if (!isObject(value.bind)) {
+            throw bad('A "measure" leaf\'s bind maps option names to references.', { bind: value.bind });
+        }
+
+        for (const reference of Object.values(value.bind)) {
+            checkReference(reference, walker);
+        }
+    }
+
+    if (value.test === undefined) {
+        return;
+    }
+
+    const { test } = value;
+    const pathField = isObject(test) && typeof test.kind === "string" ? MEASURE_TESTS[test.kind] : undefined;
+    if (!isObject(test) || pathField === undefined) {
+        throw bad(`A "measure" leaf's test is a ${Object.keys(MEASURE_TESTS).join(", ")} test without its path.`, {
+            test,
+        });
+    }
+
+    checkTree({ ...test, [pathField]: "data.measure" }, walker);
+}
+
+/** The fields a union branch and a union step define. */
+const BRANCH_FIELDS = ["id", "name", "color", "on", "start", "steps"];
+const STEP_FIELDS = ["id", "op", "on", "rule", "computedOn", "ends", "frozenFrom"];
+
+/**
+ * Check a `union` leaf: its side, its base, and each branch and step; a union inside a step is
+ * refused.
+ * @param value - The leaf.
+ * @param walker - The pass.
+ */
+function checkUnion(value: Loose, walker: Walker): void {
+    if (walker.inStep > 0) {
+        throw bad('A "union" leaf cannot sit inside a step of another.', { reason: "nested-union" });
+    }
+
+    if (value.side !== "nodes" && value.side !== "edges") {
+        throw bad('A "union" leaf\'s side is "nodes" or "edges".', { side: value.side });
+    }
+
+    if (value.within !== "graph" && value.within !== "visible") {
+        throw bad('A "union" leaf\'s within is "graph" or "visible".', { within: value.within });
+    }
+
+    if (!Array.isArray(value.branches)) {
+        throw bad('A "union" leaf\'s branches are a list.', { branches: value.branches });
+    }
+
+    const ids = new Set<unknown>();
+    const unique = (id: unknown, what: string): void => {
+        if (id === undefined) {
+            return;
+        }
+
+        if (typeof id !== "string" || id === "" || ids.has(id)) {
+            throw bad(`A union ${what}'s id is a string unique in the leaf.`, { id });
+        }
+
+        ids.add(id);
+    };
+
+    for (const branch of value.branches as readonly unknown[]) {
+        if (!isObject(branch)) {
+            throw bad("A union branch is an object with a start and steps.", { branch });
+        }
+
+        walker.fields(branch, "unionBranch", BRANCH_FIELDS);
+        unique(branch.id, "branch");
+        checkFlagAndText(branch, ["name", "color"]);
+
+        if (branch.start !== "all" && branch.start !== "none") {
+            throw bad('A union branch\'s start is "all" or "none".', { start: branch.start });
+        }
+
+        if (!Array.isArray(branch.steps)) {
+            throw bad("A union branch's steps are a list.", { steps: branch.steps });
+        }
+
+        for (const step of branch.steps as readonly unknown[]) {
+            if (!isObject(step)) {
+                throw bad("A union step is an object with an op and a rule.", { step });
+            }
+
+            walker.fields(step, "unionStep", STEP_FIELDS);
+            unique(step.id, "step");
+            checkFlagAndText(step, []);
+            checkStepEnums(step);
+            walker.inStep++;
+            try {
+                checkTree(step.rule, walker);
+            } finally {
+                walker.inStep--;
+            }
+        }
+    }
+}
+
+/**
+ * Check a branch's or step's optional `on` flag and its optional text fields.
+ * @param value - The branch or step.
+ * @param texts - Its text fields.
+ */
+function checkFlagAndText(value: Loose, texts: readonly string[]): void {
+    if (value.on !== undefined && typeof value.on !== "boolean") {
+        throw bad("A union branch's or step's on is true or false.", { on: value.on });
+    }
+
+    for (const name of texts) {
+        if (value[name] !== undefined && typeof value[name] !== "string") {
+            throw bad(`A union branch's ${name} is a string.`, { [name]: value[name] });
+        }
+    }
+}
+
+/**
+ * Check a step's op, computedOn, ends and frozenFrom.
+ * @param step - The step.
+ */
+function checkStepEnums(step: Loose): void {
+    const allowed: Readonly<Record<string, readonly unknown[]>> = {
+        op: ["add", "keep", "except"],
+        computedOn: [undefined, "base", "so-far"],
+        ends: [undefined, "both", "either"],
+        frozenFrom: [undefined, "selection", "hovered-or-selected"],
+    };
+    for (const [name, values] of Object.entries(allowed)) {
+        if (!values.includes(step[name])) {
+            throw bad(
+                `A union step's ${name} is ${values
+                    .filter((each) => each !== undefined)
+                    .map(String)
+                    .join(", ")}.`,
+                {
+                    [name]: step[name],
+                },
+            );
+        }
+    }
+}
+
+/**
  * Check one rule tree node, all the way down.
  * @param value - The candidate node.
  * @param walker - The pass.
@@ -495,19 +773,25 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "range":
-            known(["attribute", "min", "max", "nodes", "as"]);
+            known(["attribute", "min", "max", "nodes", "as", "missing"]);
             checkQuery(value.attribute, 'A "range" leaf\'s attribute');
             checkDoorRoot(value.attribute, walker);
             checkBounds(value);
             checkRangeAs(value);
             checkLeafNodes(value);
+            checkMissing(value);
 
             return;
         case "categories":
-            known(["attribute", "values", "nodes"]);
+            known(["attribute", "values", "nodes", "missing", "match"]);
             checkQuery(value.attribute, 'A "categories" leaf\'s attribute');
             checkDoorRoot(value.attribute, walker);
             checkLeafNodes(value);
+            checkMissing(value);
+
+            if (value.match !== undefined && value.match !== "any" && value.match !== "all") {
+                throw bad('A "categories" leaf\'s match is "any" or "all".', { match: value.match });
+            }
 
             checkStrings(value.values, 'A "categories" leaf\'s values are a list of strings.', {
                 values: value.values,
@@ -572,6 +856,60 @@ function checkTree(value: unknown, walker: Walker): void {
         case "text":
             known(["reads", "mode", "text", "caseSensitive", "nodes"]);
             checkTextLeaf(value, walker);
+
+            return;
+        case "union":
+            known(["side", "within", "branches"]);
+            checkUnion(value, walker);
+
+            return;
+        case "hops":
+            known(["of", "max", "direction"]);
+            checkStepLeaf(value, walker);
+            checkReference(value.of, walker);
+
+            if (value.max !== undefined && (!Number.isInteger(value.max) || (value.max as number) < 0)) {
+                throw bad('A "hops" leaf\'s max is a whole number of hops, from 0.', { max: value.max });
+            }
+
+            if (value.direction !== undefined && !DIRECTIONS.has(value.direction as string)) {
+                throw bad('A "hops" leaf\'s direction is "in", "out" or "all".', { direction: value.direction });
+            }
+
+            return;
+        case "touching":
+            known(["of", "ends"]);
+            checkStepLeaf(value, walker);
+            checkReference(value.of, walker);
+
+            if (value.ends !== "either" && value.ends !== "both" && value.ends !== "one") {
+                throw bad('A "touching" leaf\'s ends are "either", "both" or "one".', { ends: value.ends });
+            }
+
+            return;
+        case "nonempty":
+            known(["of"]);
+            checkStepLeaf(value, walker);
+            checkReference(value.of, walker);
+
+            return;
+        case "same-value":
+            known(["path", "as"]);
+            checkStepLeaf(value, walker);
+            checkValuePath(value.path, kind);
+            checkReference(value.as, walker);
+
+            return;
+        case "by-size":
+            known(["path", "min", "max", "top", "from", "ties"]);
+            checkValuePath(value.path, kind);
+            checkBySize(value);
+
+            return;
+        case "measure":
+            known(["algorithm", "params", "bind", "field", "test"]);
+            checkStepLeaf(value, walker);
+            checkMeasure(value, walker);
 
             return;
         case "all":

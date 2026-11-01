@@ -142,6 +142,10 @@ export interface ResolveContext {
     readonly values?: FilterValueSource;
     /** What each load supplied. Absent refuses a rule's `source` leaf. */
     readonly supplied?: FilterSources["supplied"];
+    /** The hovered node, else a lone selected node. Absent refuses a step's `"hovered-or-selected"`. */
+    readonly focus?: FilterSources["focus"];
+    /** The runs a union step's `measure` leaf reads. Absent refuses `measure`. */
+    readonly steps?: FilterSources["steps"];
     /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
     readonly result?: FilterSources["result"];
     /** What a held item's re-run captured (`./captures`). Absent: nothing was captured. */
@@ -578,6 +582,8 @@ export function ruleHalves(
         ...(context.matchEdges === undefined ? {} : { matchEdges: context.matchEdges }),
         ...(context.values === undefined ? {} : { values: context.values }),
         ...(context.supplied === undefined ? {} : { supplied: context.supplied }),
+        ...(context.focus === undefined ? {} : { focus: context.focus }),
+        ...(context.steps === undefined ? {} : { steps: context.steps }),
         ...(context.result === undefined ? {} : { result: context.result }),
         ...(context.captured === undefined ? {} : { captured: context.captured }),
         ...(context.components === undefined ? {} : { components: context.components }),

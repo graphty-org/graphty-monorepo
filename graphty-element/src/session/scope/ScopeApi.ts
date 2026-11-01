@@ -176,6 +176,10 @@ export interface ScopeSources {
     readonly values?: FilterValueSource;
     /** What each load supplied. Absent refuses a rule's `source` leaf. */
     readonly supplied?: FilterSources["supplied"];
+    /** The hovered node, else a lone selected node. Absent refuses a step's `"hovered-or-selected"`. */
+    readonly focus?: FilterSources["focus"];
+    /** The runs a union step's `measure` leaf reads. Absent refuses `measure`. */
+    readonly steps?: FilterSources["steps"];
     /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
     readonly result?: FilterSources["result"];
     /**
@@ -582,6 +586,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         ...(sources.matchEdges === undefined ? {} : { matchEdges: sources.matchEdges }),
         ...(sources.values === undefined ? {} : { values: sources.values }),
         ...(sources.supplied === undefined ? {} : { supplied: sources.supplied }),
+        ...(sources.focus === undefined ? {} : { focus: sources.focus }),
+        ...(sources.steps === undefined ? {} : { steps: sources.steps }),
         ...(sources.result === undefined ? {} : { result: sources.result }),
         ...(sources.fieldKinds === undefined ? {} : { fieldKinds: sources.fieldKinds }),
     });

@@ -29,7 +29,16 @@
  */
 
 import { runIdOfRef } from "../../catalog/sets/canonical";
-import type { Query, RuleTree, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
+import type {
+    Query,
+    RuleTree,
+    Scope,
+    ScopeId,
+    SetDefinition,
+    SetId,
+    StepReference,
+    UnionLeaf,
+} from "../../catalog/types";
 import { dependencyOf } from "./dependencies";
 import type { EdgeSeeds, ResolveContext } from "./resolve";
 
@@ -273,7 +282,25 @@ function rulePart(
             // Follow or hold, the members move exactly when the run's current execution does.
             return runPart(String(runIdOfRef(where.item.result)), context);
         case "threshold":
+        case "by-size":
             return pathPart(where.path, context);
+        case "union":
+            return unionPart(where, context, parts, seen);
+        case "hops":
+        case "touching":
+        case "nonempty": {
+            const part = referencePart(where.of, context, parts, seen);
+            return part === null ? null : `t(${part})`;
+        }
+        case "same-value": {
+            const path = pathPart(where.path, context);
+            const part = referencePart(where.as, context, parts, seen);
+            return path === null || part === null ? null : `${path}(${part})`;
+        }
+        case "measure":
+            // ponytail: a measure's run is found by definition, so nothing keys it; it is never
+            // cached. Key it on the run it finds if a measure step shows up hot.
+            return null;
         case "degree":
         case "component":
         case "neighborhood":
@@ -300,6 +327,57 @@ function rulePart(
             // An unknown leaf makes its definition opaque, which resolves to nothing.
             return `x${loose.kind}`;
     }
+}
+
+/**
+ * The part of a step's reference: a scope's, the live focus's node, or nothing for `"so-far"`
+ * (the parts of the steps before it say it all).
+ * @param reference - The reference.
+ * @param context - What the resolution reads.
+ * @param parts - The epoch memo, or null.
+ * @param seen - The ids followed so far.
+ * @returns The part, or null.
+ */
+function referencePart(
+    reference: StepReference | undefined,
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string | null {
+    if (reference === undefined || reference === "so-far") {
+        return "-";
+    }
+
+    if (reference === "hovered-or-selected") {
+        return `f${JSON.stringify(context.focus?.() ?? null)}`;
+    }
+
+    return scopePart(reference, context, parts, seen);
+}
+
+/**
+ * The part of a `union` leaf: the base's, then every step's rule in order.
+ * @param leaf - The leaf.
+ * @param context - What the resolution reads.
+ * @param parts - The epoch memo, or null.
+ * @param seen - The ids followed so far.
+ * @returns The part, or null when some step's inputs cannot be enumerated.
+ */
+function unionPart(
+    leaf: UnionLeaf,
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string | null {
+    const base = leaf.within === "visible" ? scopePart("visible", context, parts, seen) : "g";
+    const inner = operandParts(
+        leaf.branches.flatMap((branch) => branch.steps.map((step) => step.rule)),
+        context,
+        parts,
+        seen,
+    );
+
+    return base === null || inner === null ? null : `u(${base})[${inner.join(";")}]`;
 }
 
 /**

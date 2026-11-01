@@ -2523,6 +2523,16 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Assigned below, and read only from inside a callback: a store this session built delivers
     // its freeze remaps here, and a freeze cannot happen before the store exists.
     let selection: SelectionOwner | null = null;
+    /**
+     * The hovered node, else the one selected node: what an `orSelected` hover layer and a union
+     * step's `"hovered-or-selected"` follow.
+     * @returns The node, or null.
+     */
+    const focusedNode = (): NodeId | null => {
+        const hovered = selection?.hovered ?? null;
+        const selected = selection?.nodes ?? [];
+        return hovered ?? (selected.length === 1 ? selected[0] : null);
+    };
     // Set once the style stack exists: what a selection change repaints.
     let repaintSelected = (): void => undefined;
     let repaintGhosts = (): void => undefined;
@@ -2859,6 +2869,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
+        focus: () => focusedNode(),
     });
 
     /** The timeline's hooks, built after the runs it re-runs; read through calls until then. */
@@ -3291,6 +3302,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             });
             // An input moved: what a count read before the move is stale now.
             advanceTick();
+            // A union step reading "hovered-or-selected" follows the pointer.
+            notifier.notify({ kind: "hover" });
             repaintStates({ node: nodes, edge: [] });
             // The pointer moved to another node, or off every node: repaint what a hover layer paints.
             repaintHover();
@@ -3460,9 +3473,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     // The hovered node, else the one selected node: what an `orSelected` hover layer follows.
     const focusSource = createHoverSource(snapshot, () => {
-        const hovered = selection?.hovered ?? null;
-        const selected = selection?.nodes ?? [];
-        const id = hovered ?? (selected.length === 1 ? selected[0] : null);
+        const id = focusedNode();
         return id === null ? undefined : nodeIndex(id);
     });
     const styles = createStylesApi({

@@ -1,6 +1,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 import {
     type CommonImportOptions,
+    type FileLayout,
     type GraphChoiceOptions,
     type GraphImporter,
     type GraphListing,
@@ -399,6 +400,8 @@ export abstract class DataSource {
     private declaration: DeclaredDirection | null = null;
     /** Backing field of {@link declaredGraphValues}; written only by {@link declareGraphValues}. */
     private graphValues: Readonly<Record<string, unknown>> | null = null;
+    /** Backing field of {@link declaredFileLayout}; written only by {@link declareFileLayout}. */
+    private fileLayout: FileLayout | null = null;
 
     /**
      * Creates a new DataSource instance.
@@ -790,6 +793,26 @@ export abstract class DataSource {
      */
     protected declareGraphValues(values: Readonly<Record<string, unknown>>): void {
         this.graphValues = Object.freeze({ ...values });
+    }
+
+    /**
+     * The layout the file asks to be drawn with, as graph-io's importer read it, or null when the
+     * file names none or the source has not parsed yet. Read it after the last chunk.
+     * @returns the layout
+     * @since 3.35.0
+     */
+    get declaredFileLayout(): FileLayout | null {
+        return this.fileLayout;
+    }
+
+    /**
+     * Record the layout the file being parsed asks for (graph-io's `importer.layout(snapshot)`). A
+     * load that asks for the recommended layout draws the file with it.
+     * @param layout - the layout, or null when the file names none
+     * @since 3.35.0
+     */
+    protected declareFileLayout(layout: FileLayout | null): void {
+        this.fileLayout = layout;
     }
 
     /**

@@ -12,6 +12,7 @@
  */
 
 import { type DuplicatePolicy, INVALID_INDEX } from "@graphty/graph-format";
+import type { FileLayout } from "@graphty/graph-io";
 
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
@@ -2284,6 +2285,7 @@ function heldReader(held: HeldRows): ChunkReader {
         // What the file said about the whole graph, from the source that read the rows, so a
         // draft's load keeps it as `data.import` of the same file does.
         declaredGraphValues: HELD_READERS.get(held)?.declaredGraphValues ?? null,
+        declaredFileLayout: HELD_READERS.get(held)?.declaredFileLayout ?? null,
         getErrorAggregator: () => {
             const errors = new ErrorAggregator(held.errorLimit);
             for (const error of held.errors) {
@@ -2305,8 +2307,15 @@ function heldReader(held: HeldRows): ChunkReader {
  */
 function keepFileGraph(reader: ChunkReader, format: string, writer: GraphWriter): void {
     const attributes = reader.declaredGraphValues;
+    const layout = reader.declaredFileLayout;
     if (attributes !== null && attributes !== undefined) {
-        writer.setGraphValues({ [FILE_GRAPH_VALUE]: Object.freeze({ format, attributes }) });
+        writer.setGraphValues({
+            [FILE_GRAPH_VALUE]: Object.freeze({
+                format,
+                attributes,
+                ...(layout === null || layout === undefined ? {} : { layout }),
+            }),
+        });
     }
 }
 
@@ -2315,6 +2324,8 @@ interface ChunkReader {
     readonly declaredDirection: DeclaredDirection | null;
     /** The file's graph-level attributes, once its last chunk is read; absent for held rows. */
     readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
+    /** The layout the file asks for, once its last chunk is read; absent for held rows. */
+    readonly declaredFileLayout?: FileLayout | null;
     getErrorAggregator(): ErrorAggregator;
     getData(): AsyncIterable<DataSourceChunk> | Iterable<DataSourceChunk>;
 }

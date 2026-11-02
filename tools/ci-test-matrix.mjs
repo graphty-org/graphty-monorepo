@@ -26,6 +26,8 @@
  *   test-count=<number of shards>   (0 means skip the test job: an empty matrix is an error)
  * and, when the plan holds more than MATRIX_CAP jobs, test-matrix-1 and test-matrix-2: the same list cut in
  * two, one per Test job of ci.yml (test and test-2), since GitHub refuses a matrix above 256 jobs (#5537).
+ * test-matrix is then a slim index of the legs (no commands or file lists): later jobs only test it for a
+ * shard's name, and a second full copy pushed a 261-bin plan past GitHub's 1 MB cap on a job's outputs (#5605).
  *
  * It fails when a shard names a package nx does not know: a renamed project would otherwise match
  * no affected name and its shards would silently never run on a pull request again.
@@ -679,6 +681,23 @@ export function splitLines(include) {
     );
 }
 
+/** The fields a leg of the slim test-matrix leaves out: only the Test jobs run a leg, from test-matrix-1/2. */
+const SLIM_DROPS = ["test-command", "files", "ids", "local-paths"];
+
+/**
+ * The test-matrix line: the whole plan, or, when splitLines cut it in two, a slim index of its legs that still
+ * names every shard, member and package (ci.yml tests test-matrix with contains() for those).
+ * @param include the plan's include list, in order
+ * @returns the GITHUB_OUTPUT line
+ */
+export function matrixLine(include) {
+    const listed =
+        include.length <= MATRIX_CAP
+            ? include
+            : include.map((leg) => Object.fromEntries(Object.entries(leg).filter(([k]) => !SLIM_DROPS.includes(k))));
+    return `test-matrix=${JSON.stringify({ include: listed })}`;
+}
+
 /**
  * The --only argument as a list of shard names.
  * @param arg the argument's JSON text, or undefined when it was not given
@@ -744,7 +763,7 @@ function main() {
     const light = values.plan === undefined ? undefined : JSON.parse(readFileSync(values.plan, "utf8"));
     const include = plan(affected, only, light, values["pull-request"] === true);
     console.log(`affected=${JSON.stringify(affected)}`);
-    console.log(`test-matrix=${JSON.stringify({ include })}`);
+    console.log(matrixLine(include));
     console.log(`test-count=${include.length}`);
     for (const line of splitLines(include)) console.log(line);
     const stories = storiesPlan(light);

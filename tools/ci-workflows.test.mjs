@@ -31,6 +31,7 @@ import {
     GROUPS,
     groupEntry,
     MATRIX_CAP,
+    matrixLine,
     parseOnly,
     plan,
     SHARDS,
@@ -8201,8 +8202,24 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
         assert.equal(Number(lines["test-count"]), whole.length);
         assert.ok(whole.length > MATRIX_CAP, `${whole.length} legs`);
         assert.ok(parts.every((p) => p.length > 0 && p.length <= MATRIX_CAP));
-        assert.deepEqual([...parts[0], ...parts[1]], whole, "every leg once, in order, unchanged");
+        assert.deepEqual(
+            [...parts[0], ...parts[1]].map((leg) => leg.shard),
+            whole.map((leg) => leg.shard),
+            "every leg once, in order",
+        );
+        assert.ok(
+            parts.flat().every((leg) => typeof leg["test-command"] === "string"),
+            "the halves hold the commands",
+        );
+        // the whole list is a slim index (#5605): two full copies pass GitHub's 1 MB cap on a job's outputs
+        assert.ok(whole.every((leg) => typeof leg.shard === "string" && !("test-command" in leg) && !("files" in leg)));
+        assert.ok(lines["test-matrix"].length < lines["test-matrix-1"].length, "the index is smaller than either half");
         assert.deepEqual(splitLines(whole.slice(0, MATRIX_CAP)), [], "a plan at the cap stays one matrix");
+        assert.equal(
+            matrixLine([{ shard: "a", "test-command": "x" }]),
+            'test-matrix={"include":[{"shard":"a","test-command":"x"}]}',
+            "a plan within the cap lists every field",
+        );
         assert.throws(() => splitLines(Array(2 * MATRIX_CAP + 1).fill({})), /two Test jobs hold 512/);
 
         // the bins step forwards the two matrices, and the second Test job runs the first's steps on the rest

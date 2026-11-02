@@ -87,14 +87,17 @@ const OFF_SHARDS = [
     // graph-io-fidelity's stories (graph-io/fidelity-stories): every play function run as a test, so the
     // selector has an import graph that picks the stories a change reaches. No coverage: the graph-io shard
     // measures graph-io. The stories draw the oracles' rasterized PNGs, Git LFS objects: "lfs" names the paths
-    // ci.yml's test job pulls (a pointer file fails to decode, #4989).
-    {
-        shard: "graph-io-storybook",
+    // ci.yml's test job pulls (a pointer file fails to decode, #4989). Two parts with a job each: since every test
+    // waits for its story to finish importing, comparing and taking its screenshot (#4997), the stories run one file
+    // at a time for 13.8 minutes of vitest on a CI runner (ci.yml run 41364852981, 2026-11-02), where they took
+    // 1.6 minutes before; inside small-browser that pushed the group past its 30 minute limit (#5631).
+    ...[1, 2].map((n) => ({
+        shard: `graph-io-storybook-${n}`,
         package: "graph-io",
-        "test-command": "cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
+        "test-command": `cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook --shard=${n}/2`,
         "needs-browser": true,
         lfs: "graph-io/test/fidelity/oracles/*.png",
-    },
+    })),
     // webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
     // project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
     // pass (four node shards, below), and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
@@ -457,7 +460,7 @@ export const STORY_RUNS = {
  * Shards too short to be worth a runner of their own (one to four minutes each, most of it
  * setup) run one after another in a single job. A group job runs only its affected members, and
  * every member runs even when an earlier one failed, so one job reports every failure. Without
- * the groups a full run would ask for 36 test runners at once; with them it asks for 25.
+ * the groups a full run would ask for 42 test runners at once; with them it asks for 27.
  *
  * Each group is kept under about 15 minutes so no test job holds up a pull request's CI or a
  * re-run of one failed job. Measured on CI runners (ci.yml runs 39537734606 of 2026-10-21 and
@@ -469,10 +472,10 @@ export const STORY_RUNS = {
  *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
  *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
  *                  webgpu-graph-algorithms-browser 1.1, algorithms-storybook 1.8,
- *                  graph-io-storybook 1.6 (on this machine), layout-storybook 0.3,
- *                  cytoscape-extensions-storybook 0.7
+ *                  layout-storybook 0.3, cytoscape-extensions-storybook 0.7
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
+ * graph-io-storybook-1 and -2 (13.8 minutes of vitest together; small-browser hit its 30 minute limit with it, #5631),
  * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS) and graphty-storybook (2.1 minutes;
  * small-browser took over 64 minutes with the graphty shards in it).
  */
@@ -495,7 +498,6 @@ export const GROUPS = {
         "visual-review",
         "webgpu-graph-algorithms-browser",
         "algorithms-storybook",
-        "graph-io-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",
     ],
@@ -510,7 +512,8 @@ const NO_COVERAGE = new Set([
     "webgpu-graph-algorithms-browser",
     "graphty-storybook",
     "algorithms-storybook",
-    "graph-io-storybook",
+    "graph-io-storybook-1",
+    "graph-io-storybook-2",
     "layout-storybook",
     "cytoscape-extensions-storybook",
     "graph-io-browser",

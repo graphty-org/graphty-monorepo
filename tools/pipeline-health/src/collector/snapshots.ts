@@ -316,6 +316,31 @@ export function holderKey(run: GhRun, repo: string, mainRepo: string): string {
 const QUEUED = new Set(["queued", "waiting", "pending"]);
 
 /**
+ * Adds a run's jobs to its holder's counts: running (and of those, macOS) and queued; jobs on other pools are not
+ * counted.
+ * @param holders - the counts so far, by holder
+ * @param key - the run's holder
+ * @param jobs - the run's jobs
+ */
+function countJobs(holders: Record<string, HolderCount>, key: string, jobs: GhJob[]): void {
+    for (const j of jobs) {
+        const p = pool(j.labels);
+        if (p === "other") {
+            continue;
+        }
+        const h = (holders[key] ??= { running: 0, queued: 0, macos: 0 });
+        if (j.status === "in_progress") {
+            h.running++;
+            if (p === "macos") {
+                h.macos++;
+            }
+        } else if (QUEUED.has(j.status)) {
+            h.queued++;
+        }
+    }
+}
+
+/**
  * The holders of every unfinished run; machine.dev and self-hosted pools are outside the limit, so left out.
  * @param prev - the last snapshot, if any
  * @param open - the unfinished runs with their repository and jobs
@@ -343,21 +368,7 @@ export function nextHolders(
             noJobs[key] = { runs: n.runs + 1, since: Math.min(n.since, Date.parse(run.created_at)) };
             continue;
         }
-        for (const j of jobs) {
-            const p = pool(j.labels);
-            if (p === "other") {
-                continue;
-            }
-            const h = (holders[key] ??= { running: 0, queued: 0, macos: 0 });
-            if (j.status === "in_progress") {
-                h.running++;
-                if (p === "macos") {
-                    h.macos++;
-                }
-            } else if (QUEUED.has(j.status)) {
-                h.queued++;
-            }
-        }
+        countJobs(holders, key, jobs);
     }
     const sat = (prev?.saturated ?? []).filter((s) => now - s.at < DAY);
     if (saturated) {
@@ -420,5 +431,6 @@ export function supersededRuns(openRuns: GhRun[], open: GqlPr[], now: number): S
         }
         rows.push({ workflow: r.name, runId: r.id, pr, newerAt: head.at ?? now });
     }
-    return { at: now, rows: rows.sort((a, b) => a.newerAt - b.newerAt) };
+    rows.sort((a, b) => a.newerAt - b.newerAt);
+    return { at: now, rows };
 }

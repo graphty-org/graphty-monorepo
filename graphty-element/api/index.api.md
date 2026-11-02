@@ -4671,7 +4671,7 @@ export class LayoutManager implements Manager {
     get isSettled(): boolean;
     get layoutEngine(): LayoutEngine | undefined;
     get layoutType(): string | undefined;
-    loadArrangement(restoring: boolean, wrote?: boolean): void;
+    loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): void;
     get nodes(): Iterable<Node_2>;
     onRest: (() => void) | null;
     placeGroups(): void;
@@ -5228,6 +5228,7 @@ export const NodeStyle: z.ZodObject<{
         cornerFraction: z.ZodOptional<z.ZodNumber>;
         points: z.ZodOptional<z.ZodString>;
         stretchPoints: z.ZodOptional<z.ZodBoolean>;
+        rotation: z.ZodOptional<z.ZodNumber>;
         parts: z.ZodOptional<z.ZodString>;
         lines: z.ZodOptional<z.ZodString>;
         lineWidth: z.ZodOptional<z.ZodNumber>;

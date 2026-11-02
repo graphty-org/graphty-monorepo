@@ -428,9 +428,13 @@ describe("node effects", () => {
         frameClock(element);
         await element.session.selection.apply({ nodes: nodes.map((node) => node.id) });
         await until(element, "every selected node carries the reticle", () => batchHolds(element, 500));
-        const playing = drawingOf(element).stats().entrances.get("e3/reticle") ?? 0;
-        assert.isAtMost(playing, 64, "at most 64 entrances play at once");
-        assert.isAbove(playing, 0, "the selection's entrances play");
+        // Counted by the slots given an entrance, not by those still playing it: an entrance lasts
+        // 0.55 s by the clock, and on a slow machine the frame that fills the batch comes later than
+        // that (issue #5439). One selection is one cause, so every entrance it gives overlaps the
+        // others, and the slots given one are the entrances that played at once.
+        const played = drawingOf(element).stats().entered.get("e3/reticle") ?? 0;
+        assert.isAtMost(played, 64, "at most 64 entrances play at once");
+        assert.isAbove(played, 0, "the selection's entrances play");
     });
 
     it("adding a reticle layer over selected nodes shows them at rest", async () => {
@@ -455,7 +459,7 @@ describe("node effects", () => {
         });
         await until(element, "both reticles are drawn", () => batchHolds(element, 2));
         assert.strictEqual(
-            drawingOf(element).stats().entrances.get("e3/reticle") ?? 0,
+            drawingOf(element).stats().entered.get("e3/reticle") ?? 0,
             0,
             "a layer's own add plays no entrance",
         );

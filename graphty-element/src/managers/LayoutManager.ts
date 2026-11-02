@@ -643,6 +643,8 @@ export class LayoutManager implements Manager {
     #building = 0;
     /** Moves at every restore of the arrangement; pre-steps computed before one are dropped. */
     #generation = 0;
+    /** Whether the last restore of the arrangement was the reader's (undo, redo, a history jump). */
+    #restoredByReader = false;
 
     /**
      * Set while a CONSUMER has paused the layout, through {@link LayoutManager.setPaused}. Nothing
@@ -1036,6 +1038,12 @@ export class LayoutManager implements Manager {
      * The layout is stopped before the rebuild, which is asynchronous, so no frame steps a
      * simulation over the snapshot the freeze that triggered this is about to release.
      * `_setLayoutInternal` starts it again once the new driver is in, and reports its own failures.
+     *
+     * A RESTORE OF THE ARRANGEMENT LANDING MID-REBUILD STARTS THE REBUILD OVER, as it starts a
+     * `build` over (issue #5613): the driver is still the wrong one. What initiated the restore
+     * decides whether the layout runs again, never when it landed: one the reader asked for (an
+     * undo, a redo, a history jump) leaves it at rest, and a rollback of another command's writes
+     * resumes the layout that was running (issue #5670).
      * @param nodeCount - The graph the layout will be run over.
      * @returns True when a rebuild was started, so the caller leaves the engine alone.
      */
@@ -1057,22 +1065,36 @@ export class LayoutManager implements Manager {
         // QUEUED BEHIND EVERY BUILD ALREADY ASKED FOR, as `apply` queues them, so a rebuild never
         // races a `layout.set` -- and counted as a build, so the frame loop steps nothing until the
         // new driver is in. A restore of the arrangement drops it, as it drops any build.
-        const generation = this.#generation;
+        let generation = this.#generation;
         this.#building++;
         const rebuild = this.#applying.then(async () => {
-            const engine = this.layoutEngine;
-            if (engine === undefined || !this.driverChanged(this.dataManager.nodes.size)) {
-                // A build that ran ahead of this one already chose the driver for the graph as it is.
-                this.running = !this.restoring();
-                return;
-            }
+            let restoring = this.restoring();
+            for (;;) {
+                const engine = this.layoutEngine;
+                if (engine === undefined || !this.driverChanged(this.dataManager.nodes.size)) {
+                    // A build that ran ahead of this one already chose the driver for the graph as it is.
+                    this.running = !restoring && !this.restoring();
+                    return;
+                }
 
-            await this._setLayoutInternal(engine.type, this.driverOptions, {
-                dimension: this.engineDimension ?? 3,
-                restoring: this.restoring(),
-                live: () => this.#generation === generation,
-                explicitScope: false,
-            });
+                const attempt = generation;
+                try {
+                    await this._setLayoutInternal(engine.type, this.driverOptions, {
+                        dimension: this.engineDimension ?? 3,
+                        restoring,
+                        live: () => this.#generation === attempt,
+                        explicitScope: false,
+                    });
+                    return;
+                } catch (error) {
+                    if (this.#generation === attempt || (error as Error | null)?.name !== "AbortError") {
+                        throw error;
+                    }
+                }
+
+                generation = this.#generation;
+                restoring = this.restoring() || this.#restoredByReader;
+            }
         });
         this.#applying = rebuild.catch(() => undefined);
         void rebuild
@@ -1765,11 +1787,10 @@ export class LayoutManager implements Manager {
         options: { readonly restoring: boolean; readonly signal?: AbortSignal; readonly explicitScope?: boolean },
     ): Promise<void> {
         this.#wanted = choice;
-        const generation = this.#generation;
         const build = this.#applying.then(async () => {
             this.#building++;
             try {
-                await this.build(choice, options, generation);
+                await this.build(choice, options);
             } finally {
                 this.#building--;
                 if (this.#wanted === choice) {
@@ -1788,9 +1809,42 @@ export class LayoutManager implements Manager {
      * @param options.restoring - Whether this is a restore.
      * @param options.signal - The asking command's signal.
      * @param options.explicitScope - Whether the asking command named the scope.
-     * @param generation - The arrangement generation it was asked for under.
      */
     private async build(
+        choice: LayoutChoice,
+        options: { readonly restoring: boolean; readonly signal?: AbortSignal; readonly explicitScope?: boolean },
+    ): Promise<void> {
+        // A RESTORE OF THE ARRANGEMENT LANDING MID-BUILD STARTS THE BUILD OVER; it never fails it.
+        // The restore drops pre-steps computed from the coordinates it replaced (`loadArrangement`),
+        // but the layout is still wanted: only its own command being cancelled or overtaken (the
+        // signal) ends it. Failing it made a `setLayout` reject with an AbortError whenever another
+        // command's rollback -- a queued layout it overtook -- reached the arrangement hook after
+        // this build began, which moved with every microtask between the two (issue #5613).
+        for (;;) {
+            const generation = this.#generation;
+            try {
+                await this.buildOnce(choice, options, generation);
+                return;
+            } catch (error) {
+                const restoredOnly =
+                    options.signal?.aborted !== true && !options.restoring && this.#generation !== generation;
+                if (!restoredOnly || (error as Error | null)?.name !== "AbortError") {
+                    throw error;
+                }
+            }
+        }
+    }
+
+    /**
+     * One attempt at {@link LayoutManager.build}, given up when the arrangement is restored under it.
+     * @param choice - The value.
+     * @param options - How.
+     * @param options.restoring - Whether this is a restore.
+     * @param options.signal - The asking command's signal.
+     * @param options.explicitScope - Whether the asking command named the scope.
+     * @param generation - The arrangement generation the attempt began under.
+     */
+    private async buildOnce(
         choice: LayoutChoice,
         options: { readonly restoring: boolean; readonly signal?: AbortSignal; readonly explicitScope?: boolean },
         generation: number,
@@ -1866,10 +1920,14 @@ export class LayoutManager implements Manager {
      * @param restoring - Whether undo, redo, a restore or a rollback wrote them.
      * @param wrote - Whether anything was written into the lane, which forward is a
      *     `positions.set`.
+     * @param byReader - Whether the reader asked for the restore (undo, redo, a history jump);
+     *     false for a rollback of another command's writes, after which a driver rebuild the
+     *     restore landed on resumes the layout. Defaults to `restoring`.
      */
-    loadArrangement(restoring: boolean, wrote = false): void {
+    loadArrangement(restoring: boolean, wrote = false, byReader = restoring): void {
         if (restoring) {
             this.#generation++;
+            this.#restoredByReader = byReader;
         }
 
         // A consumer placed nodes: the arrangement is no longer the layout's alone to start over.

@@ -49,7 +49,7 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys-merge-ratio-cohort`;
 
 /**
  * When a job started on a runner, or undefined when it never did. GitHub gives a job cancelled before any runner
@@ -124,10 +124,15 @@ export const METRICS: MetricDef[] = [
         ),
     },
     {
+        // By cohort (#5400): of the pull requests opened in the window, the settled ones that merged. One still
+        // open (most often still in CI) is neither merged nor unmerged; a stuck one is pr.oldest_open_ms's to judge.
         id: "pr.merge_ratio",
         from: [
-            src("pr", "createdAt", (p) => ({ n: 1, dim: p.repo })),
-            src("pr", "mergedAt", (p) => (p.mergedAt === undefined ? null : { n: 0, sum: 1, dim: p.repo })),
+            src("pr", "createdAt", (p) =>
+                p.mergedAt === undefined && p.closedAt === undefined
+                    ? null
+                    : { n: 1, sum: p.mergedAt === undefined ? 0 : 1, dim: p.repo },
+            ),
         ],
     },
     // Runs failed on a test their own change touched (#3951): the batching trigger, per pull request run.

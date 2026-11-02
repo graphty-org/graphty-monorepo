@@ -69,10 +69,10 @@ export type MemberState = SlaState | "notsetup" | "few" | "partial" | "idle" | "
 export type CategoryState = SlaState | "idle";
 
 /** An ISO 8601 time in UTC. */
-export type Iso = string;
+export type Iso = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
 
 /** A hash route of the page, such as `/ci/runners` or `/master/red`, or an absolute https URL. */
-export type Route = string;
+export type Route = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
 
 /** A parameter of a {@link Fact}: numbers in the unit its code names, ids, names of data, ISO times. */
 export type Param = string | number | boolean | null | readonly (string | number)[];
@@ -349,6 +349,18 @@ export interface OverviewResponse extends StatusResponse {
     range: Range;
     /** Canary, Nightly and Production, in that order; absent from payloads built before the channels were. */
     channels?: ChannelTile[];
+    /** The Issues page's headline; absent when no issue is stored and from payloads built before it was. */
+    issues?: IssuesSummary;
+}
+
+/** Open bugs now and 28 days ago, and the issues opened and closed in the last 28 days. */
+export interface IssuesSummary {
+    bugs: number;
+    bugs28dAgo: number;
+    critical: number;
+    critical28dAgo: number;
+    opened: number;
+    closed: number;
 }
 
 /** A release channel: canary.graphty.app, nightly.graphty.app, graphty.app. */

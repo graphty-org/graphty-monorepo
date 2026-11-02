@@ -8,6 +8,7 @@ import "@babylonjs/core/Culling/ray.js";
 import "@babylonjs/core/Animations/animatable.js";
 
 import {
+    type AbstractEngine,
     AbstractMesh,
     Animation,
     Camera,
@@ -15,8 +16,10 @@ import {
     EasingFunction,
     Engine,
     type InstancedMesh,
+    type Nullable,
     NullEngine,
     Observable,
+    type Observer,
     PointerEventTypes,
     Quaternion,
     RenderingGroup,
@@ -743,6 +746,14 @@ export class Graph implements GraphContext {
     };
 
     /**
+     * A canvas of a new size frames the graph again when `camera.refitOnResize` is on and the camera
+     * is still where a fit left it. Without it, a resize after the picture was final kept a framing
+     * for the old size, so a page whose panel opened before or after that point drew two pictures
+     * (issue #5097). A camera somebody placed is left alone.
+     */
+    #refitOnResize: Nullable<Observer<AbstractEngine>> = null;
+
+    /**
      * Fits the drawing to the canvas's current size and draws it at once, so the frame the page
      * paints after a resize holds the graph rather than the canvas the resize cleared. Called by
      * the element's ResizeObserver.
@@ -1165,8 +1176,8 @@ export class Graph implements GraphContext {
             suspend: () => {
                 this.layoutManager.running = false;
             },
-            loadArrangement: (restoring, wrote) => {
-                this.layoutManager.loadArrangement(restoring, wrote);
+            loadArrangement: (restoring, wrote, byReader) => {
+                this.layoutManager.loadArrangement(restoring, wrote, byReader);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
@@ -1702,6 +1713,8 @@ export class Graph implements GraphContext {
 
         // Clean up event listeners
         window.removeEventListener("resize", this.resizeHandler);
+        this.engine.onResizeObservable.remove(this.#refitOnResize);
+        this.#refitOnResize = null;
 
         // Mark as not initialized
         this.initialized = false;
@@ -2206,6 +2219,15 @@ export class Graph implements GraphContext {
 
             // Watch for browser/canvas resize events
             window.addEventListener("resize", this.resizeHandler);
+            this.#refitOnResize ??= this.engine.onResizeObservable.add(() => {
+                if (
+                    this.styles.config.behavior.camera.refitOnResize &&
+                    !this.#cameraPlaced &&
+                    this.updateManager.zoomToFitCompleted
+                ) {
+                    this.autoFrame();
+                }
+            });
             // A label drawn while its web font loaded shows the fallback face until it is rebuilt.
             this.#unwatchFonts ??= watchFontLoads(this.scene, (families) => {
                 this.refreshFonts(families);
@@ -5028,7 +5050,9 @@ export class Graph implements GraphContext {
      * `zoomToFit()`, and the `fitToGraph` view. In 3D the camera also centers what it looks at on
      * the part left free. Does not move the camera by itself; the element's own framing, when on,
      * picks the margins up at its next fit. A fit that landed and whose picture is not final yet
-     * counts as not done: margins set then are framed before `waitForStableFrame()` resolves. A
+     * counts as not done: margins set then are framed before `waitForStableFrame()` resolves; set
+     * after that picture is final, they wait for the next fit. A canvas resize is the one input
+     * that can frame again after that, with `layoutBehavior.camera.refitOnResize` on. A
      * preference of the view, not saved in a project file.
      * @param insets - CSS pixels per side; a side left out, negative or not finite is 0.
      */

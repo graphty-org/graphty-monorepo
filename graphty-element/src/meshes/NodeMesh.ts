@@ -35,6 +35,7 @@ import {
     outlineSlab,
     projectedVertices,
     ringSlab,
+    setLabelBox,
 } from "./NodeShapeGeometry";
 import {
     borderRing,
@@ -635,8 +636,12 @@ export class NodeMesh {
         const type = shape.type ?? "";
 
         const build = type === "none" ? bodilessSlab : outlineSlab;
+        const mesh = build(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
+        if ((shape.rotation ?? 0) % 360 !== 0) {
+            setLabelBox(mesh, this.unturnedFlatOutline(shape, extents));
+        }
 
-        return build(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
+        return mesh;
     }
 
     /**
@@ -909,6 +914,19 @@ export class NodeMesh {
     }
 
     private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
+        // turned clockwise (y up) last, once drawn at its width and height (`shape.rotation`)
+        const turn = ((shape.rotation ?? 0) * Math.PI) / 180;
+        const outline = this.unturnedFlatOutline(shape, extents);
+        if (turn === 0) {
+            return outline;
+        }
+
+        const [c, s] = [Math.cos(turn), Math.sin(turn)];
+
+        return outline.map(([x, y]): Point2 => [x * c + y * s, y * c - x * s]);
+    }
+
+    private static unturnedFlatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
         // drawn in units of size, where a polygon's lengths (`-1+24`) and the corner radius are, then in world units
         const perSize = this.extentPerSize(shape);
         const outline = flatShapeOutline(

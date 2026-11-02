@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { IssueItem } from "../../src/model/items.js";
-import { issuesPage } from "../../src/views/issue-sections.js";
+import { issuesPage, issuesSummary } from "../../src/views/issue-sections.js";
 import type {
     CategoryStatus,
     ChannelOutcome,
@@ -75,8 +75,11 @@ const cmp = (op: Cmp["op"], n: number, unit?: Cmp["unit"]): Cmp => (unit ? { op,
 function ramp(a: number, b: number, n: number): number[] {
     return Array.from({ length: n }, (_, i) => +(a + ((b - a) * i) / Math.max(1, n - 1)).toFixed(2));
 }
-const flat = (v: number, n: number): number[] => Array(n).fill(v);
-const nulls = (n: number): null[] => Array(n).fill(null);
+const flat = (v: number, n: number): number[] => new Array<number>(n).fill(v);
+const nulls = (n: number): null[] => new Array<null>(n).fill(null);
+
+/** A sparkline point's mark: yellow, red, or none. */
+type Mark = "warn" | "bad" | null;
 
 /**
  * Green when the target holds, red when the red comparison holds, yellow between.
@@ -84,7 +87,7 @@ const nulls = (n: number): null[] => Array(n).fill(null);
  * @param sla - The target and red comparisons to judge it against.
  * @returns null when the target holds, "bad" when the red comparison holds, else "warn".
  */
-function judge(v: number | null, sla: Sla): "warn" | "bad" | null {
+function judge(v: number | null, sla: Sla): Mark {
     if (v === null || !("op" in sla.target)) {
         return null;
     }
@@ -390,7 +393,7 @@ const ciMembers: Member[] = [
         id: "ci.pr_duration",
         window: "1h6h",
         value: num(0.9, "x"),
-        value6h: num(1.0, "x"),
+        value6h: num(1, "x"),
         n: 6,
         minN: 5,
         sla: SLA.prDuration,
@@ -508,7 +511,7 @@ const flakeRate = member({
     sla: SLA.flakeRate,
     spark: spark(
         nulls(18),
-        [...nulls(10), 0.9, 0.9, 1.0, 1.15, 1.3, 1.45, 1.46, 1.33, 1.2, 1.1, 1.1, 1.2, 1.33, 1.4],
+        [...nulls(10), 0.9, 0.9, 1, 1.15, 1.3, 1.45, 1.46, 1.33, 1.2, 1.1, 1.1, 1.2, 1.33, 1.4],
         SLA.flakeRate,
     ),
     note: f("flaky.flake_rate.note", { since: t("20:42") }),
@@ -2106,13 +2109,13 @@ function hourly(v: (number | null)[]): (number | null)[] {
     }
     return out;
 }
-function worst(b: ("warn" | "bad" | null)[]): ("warn" | "bad" | null)[] {
-    const out: ("warn" | "bad" | null)[] = [];
+function worst(b: Mark[]): Mark[] {
+    const out: Mark[] = [];
     for (let i = 0; i < b.length; i += 4) {
-        const xs = b.slice(i, i + 4);
-        if (xs.includes("bad")) {
+        const xs = new Set(b.slice(i, i + 4));
+        if (xs.has("bad")) {
             out.push("bad");
-        } else if (xs.includes("warn")) {
+        } else if (xs.has("warn")) {
             out.push("warn");
         } else {
             out.push(null);
@@ -2189,6 +2192,7 @@ for (const range of RANGES) {
         ...overview,
         range,
         categories: categories.map((c) => ({ ...c, headline: memberFor(c.headline, range) })),
+        issues: issuesSummary(fixtureIssues(), Date.parse(GEN)),
     } satisfies OverviewResponse);
     for (const p of pages) {
         write(`${p.page}.${range}`, {

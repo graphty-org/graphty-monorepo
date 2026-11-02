@@ -1,26 +1,11 @@
 ---
-head:
-    - - link
-      - rel: icon
-        href: /docs/brand/graph-io/favicon.ico
-        sizes: 48x48
-    - - link
-      - rel: icon
-        href: /docs/brand/graph-io/favicon.svg
-        type: image/svg+xml
+title: graph-io
 ---
 
-![graphty graph-io](./brand/graphty-graph-io-lockup-color-on-light.svg){.graph-io-logo-light}
-![graphty graph-io](./brand/graphty-graph-io-lockup-color-on-dark.svg){.graph-io-logo-dark}
-
-<style>
-html:not(.dark) .graph-io-logo-dark,
-html.dark .graph-io-logo-light {
-    display: none;
-}
-</style>
-
-# graph-io
+<h1 class="package-lockup">
+<img class="lockup-on-light" src="./brand/graphty-graph-io-lockup-color-on-light.svg" alt="graphty graph-io">
+<img class="lockup-on-dark" src="./brand/graphty-graph-io-lockup-color-on-dark.svg" alt="graphty graph-io">
+</h1>
 
 graph-io reads and writes graph files. It turns a GraphML, GEXF, CSV or other graph file into a
 [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format) snapshot, and writes a

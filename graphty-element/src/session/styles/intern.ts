@@ -184,6 +184,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.cornerFraction": "mesh",
     "node.shapePoints": "mesh",
     "node.shapeStretchPoints": "mesh",
+    "node.shapeRotation": "mesh",
     "node.shapeParts": "mesh",
     "node.shapeLines": "mesh",
     // words, like a label: per node, drawn by `Node.syncLabel`

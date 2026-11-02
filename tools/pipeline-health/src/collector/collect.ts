@@ -431,7 +431,8 @@ async function collectRuns(c: Cycle, gh: GitHub, repos: string[], extra: Collect
 async function repoRuns(c: Cycle, gh: GitHub, repo: string, out: Collected[]): Promise<void> {
     const since = (await c.cursor(`runs#${repo}`)) ?? iso(c.now - 15 * MIN);
     const from = iso(Date.parse(since) - 5 * MIN);
-    const fresh = await runsPages(gh, `repos/${repo}/actions/runs?created=${encodeURIComponent(`>=${from}`)}`);
+    const created = encodeURIComponent(`>=${from}`);
+    const fresh = await runsPages(gh, `repos/${repo}/actions/runs?created=${created}`);
     const running = await runsPages(gh, `repos/${repo}/actions/runs?status=in_progress`, 2);
     const queued = await runsPages(gh, `repos/${repo}/actions/runs?status=queued`, 2);
     const byId = new Map<number, GhRun>();
@@ -628,21 +629,11 @@ async function pendingPrRuns(c: Cycle, gh: GitHub, prs: GqlPr[]): Promise<void> 
     }
     const left: PendingPrRun[] = [];
     for (const p of pending) {
-        let pr = prOfRun(p.run, prs);
-        const late = pr === undefined && !p.looked;
-        if (late) {
-            const got = await prOfCommit(c, gh, p);
-            if (got === "retry") {
-                if (c.now - p.r[2] < DAY) {
-                    left.push(p);
-                }
-                continue;
-            }
-            pr = got;
-        }
-        if (pr === undefined) {
+        const { pr, late } = await pendingRunPr(c, gh, p, prs);
+        if (pr === "retry" || pr === undefined) {
+            // A failed lookup is tried again as it was; a run no pull request maps is not looked up again.
             if (c.now - p.r[2] < DAY) {
-                left.push({ ...p, looked: true });
+                left.push(pr === "retry" ? p : { ...p, looked: true });
             }
             continue;
         }
@@ -652,6 +643,26 @@ async function pendingPrRuns(c: Cycle, gh: GitHub, prs: GqlPr[]): Promise<void> 
         }
     }
     await c.setJson(PENDING_PR_RUNS, left);
+}
+
+/**
+ * The pull request a pending run maps to: one of this pass's pull requests, else (once per run, `late`) the one
+ * GitHub lists for its commit.
+ * @param c - the cycle
+ * @param gh - the GitHub client
+ * @param p - the pending run
+ * @param prs - the pull requests read this pass
+ * @returns the pull request number, undefined for none, or "retry"; and whether it was looked up by its commit
+ */
+async function pendingRunPr(
+    c: Cycle,
+    gh: GitHub,
+    p: PendingPrRun,
+    prs: GqlPr[],
+): Promise<{ pr: number | "retry" | undefined; late: boolean }> {
+    const mapped = prOfRun(p.run, prs);
+    const late = mapped === undefined && !p.looked;
+    return { pr: late ? await prOfCommit(c, gh, p) : mapped, late };
 }
 
 /**

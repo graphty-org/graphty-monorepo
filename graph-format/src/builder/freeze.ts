@@ -598,38 +598,51 @@ function checkFreezeOptions(options: FreezeOptions): void {
 
 // ============================================================ the pipeline
 
+/** The profile clock of one freeze: per-phase laps and the total, recorded only when profiling. */
+interface PhaseClock {
+    /** Phase name -> elapsed milliseconds; stays empty when not profiling. */
+    readonly timings: Record<string, number>;
+    /** Add the time since the previous lap to a phase. */
+    lap(phase: string): void;
+    /** Record the total since the clock started. */
+    finish(): void;
+}
+
 /**
- * Run the freeze pipeline of design section 6.3 over a builder's state and produce the snapshot, the
- * FreezeReport and the staging the builder should hold afterwards. The context is never mutated: a
- * throw (E_SELF_LOOP, E_DUPLICATE_EDGE, E_DUPLICATE_EDGE_ID, E_TOO_LARGE, E_INVALID_WEIGHT,
- * E_COLUMN_TYPE) leaves the builder exactly as it was.
- * @param ctx - the builder's state
- * @param options - the freeze options
- * @returns the snapshot, the report and the staging to adopt
+ * A phase clock that reads the time only when profiling.
+ * @param profile - whether to record timings
+ * @returns the clock
  */
-export function runFreeze(ctx: FreezeContext, options: FreezeOptions): FreezeOutcome {
-    const profile = options.profile === true;
+function phaseClock(profile: boolean): PhaseClock {
     const timings: Record<string, number> = {};
     const start = profile ? now() : 0;
     let mark = start;
-    const lap = (phase: string): void => {
-        if (profile) {
+    return {
+        timings,
+        lap(phase: string): void {
+            if (!profile) {
+                return;
+            }
             const t = now();
             timings[phase] = (timings[phase] ?? 0) + (t - mark);
             mark = t;
-        }
+        },
+        finish(): void {
+            if (profile) {
+                timings.total = now() - start;
+            }
+        },
     };
-    const { directed } = ctx;
-    const source = ctx.staging;
-    checkFreezeOptions(options);
-    const useArena = options.arena !== false;
-    const policy = options.duplicateEdges ?? ctx.options.duplicateEdges;
-    const loopPolicy = ctx.options.selfLoops;
-    const oldNodeBound = source.nodeBound;
-    const oldEdgeBound = source.edgeBound;
-    const tombstonedEdges = oldEdgeBound - source.liveEdgeCount;
+}
 
-    // pre-checks that must not leave a half-applied freeze behind
+/**
+ * The freeze pre-checks that must not leave a half-applied freeze behind: E_SELF_LOOP under policy
+ * "error" and E_TOO_LARGE when the arcs would pass MAX_COUNT.
+ * @param source - the source staging
+ * @param directed - the direction
+ * @param loopPolicy - the builder's self-loop policy
+ */
+function checkFreezable(source: Staging, directed: boolean, loopPolicy: ResolvedBuilderOptions["selfLoops"]): void {
     if (loopPolicy === "error") {
         checkSelfLoops(source);
     }
@@ -640,103 +653,244 @@ export function runFreeze(ctx: FreezeContext, options: FreezeOptions): FreezeOut
             max: MAX_COUNT,
         });
     }
+}
 
-    // steps 1-2: compaction of tombstones and dropped loops into a fresh staging
-    let staging = source;
-    let nodeRemap: IndexRemap | null = null;
-    let edgeRemap: IndexRemap | null = null;
-    let droppedSelfLoops = 0;
+/** The result of steps 1-2: the staging to sort and the remaps that produced it. */
+interface SourceCompaction {
+    /** The compacted staging, or the source when nothing was compacted. */
+    readonly staging: Staging;
+    /** The node remap, or null when no compaction ran. */
+    readonly nodeRemap: IndexRemap | null;
+    /** The edge remap, or null when no compaction ran. */
+    readonly edgeRemap: IndexRemap | null;
+    /** How many self-loops the "drop" policy removed. */
+    readonly droppedSelfLoops: number;
+}
+
+/**
+ * Steps 1-2: compact tombstones and, under policy "drop", self-loops into a fresh staging.
+ * @param source - the source staging; never modified
+ * @param loopPolicy - the builder's self-loop policy
+ * @returns the staging to sort and its remaps
+ */
+function compactSource(source: Staging, loopPolicy: ResolvedBuilderOptions["selfLoops"]): SourceCompaction {
     const dropLoops = loopPolicy === "drop" && source.selfLoopCount > 0;
-    if (source.hasTombstones || dropLoops) {
-        const nodes = remapKeepingBits(oldNodeBound, source.nodeAlive.view());
-        const edges = remapKeepingBits(oldEdgeBound, dropLoops ? liveNonLoopBits(source) : source.edgeAlive.view());
-        droppedSelfLoops = dropLoops ? source.selfLoopCount : 0;
-        staging = compactStaging(source, {
-            nodes,
-            edges,
-            edgeValues: null,
-            mergedWeights: null,
-            mergedWeightStored: null,
-            mergedWeightSet: null,
-        });
-        nodeRemap = nodes;
-        edgeRemap = edges;
+    if (!source.hasTombstones && !dropLoops) {
+        return { staging: source, nodeRemap: null, edgeRemap: null, droppedSelfLoops: 0 };
     }
-    lap("compact");
+    const nodes = remapKeepingBits(source.nodeBound, source.nodeAlive.view());
+    const edges = remapKeepingBits(source.edgeBound, dropLoops ? liveNonLoopBits(source) : source.edgeAlive.view());
+    const staging = compactStaging(source, {
+        nodes,
+        edges,
+        edgeValues: null,
+        mergedWeights: null,
+        mergedWeightStored: null,
+        mergedWeightSet: null,
+    });
+    return { staging, nodeRemap: nodes, edgeRemap: edges, droppedSelfLoops: dropLoops ? source.selfLoopCount : 0 };
+}
 
-    // steps 3-6: arcs and the two counting sorts
-    const nodeCount = staging.nodeBound;
-    let sorted = sortIntoCore(sortInputOf(staging, directed), useArena && policy === "keep");
-    lap("sort");
-
-    // step 7: duplicate policy
-    let walk: DuplicateWalk | null = null;
-    let mergeRemap: IndexRemap | null = null;
-    if (policy !== "keep") {
-        const compaction = edgeRemap;
-        walk = walkDuplicates(sorted, staging, directed, policy, ctx.options.weighted !== false, (e) =>
-            compaction === null ? e : compaction.origin[e],
-        );
-        if (walk !== null) {
-            const { survivorOf } = walk;
-            const edges = remapSurvivors(survivorOf);
-            let mergedWeights: Float64Array | null = null;
-            let mergedWeightStored: U32 | null = null;
-            if (walk.reduced !== null && walk.stored !== null) {
-                mergedWeights = new Float64Array(edges.count);
-                mergedWeightStored = new Uint32Array(bitmapWordCount(edges.count));
-                for (let e = 0; e < survivorOf.length; e++) {
-                    if (survivorOf[e] === e && bitmapGet(walk.stored, e)) {
-                        mergedWeights[edges.remap[e]] = walk.reduced[e];
-                        bitmapSet(mergedWeightStored, edges.remap[e]);
-                    }
-                }
-            }
-            let mergedWeightSet: U32 | null = null;
-            if (walk.explicit !== null) {
-                mergedWeightSet = new Uint32Array(bitmapWordCount(edges.count));
-                for (let e = 0; e < survivorOf.length; e++) {
-                    if (survivorOf[e] === e && bitmapGet(walk.explicit, e)) {
-                        bitmapSet(mergedWeightSet, edges.remap[e]);
-                    }
-                }
-            }
-            // refersTo edge values follow the survivor (design sections 5.11 and 7.3), not the row remap
-            const edgeValues = new Uint32Array(survivorOf.length);
-            for (let e = 0; e < survivorOf.length; e++) {
-                edgeValues[e] = edges.remap[survivorOf[e]];
-            }
-            staging = compactStaging(staging, {
-                nodes: identityRemap(nodeCount),
-                edges,
-                edgeValues,
-                mergedWeights,
-                mergedWeightStored,
-                mergedWeightSet,
-            });
-            mergeRemap = edges;
-            sorted = sortIntoCore(sortInputOf(staging, directed), useArena);
-        } else if (useArena) {
-            sorted = { ...sorted, core: copyCoreIntoArena(sorted.core) };
+/**
+ * The reduced weights a merge stores on its survivors, in the post-merge edge space.
+ * @param walk - the merge walk
+ * @param edges - the survivor remap
+ * @returns the weights and the bitmap of survivors that store one, or nulls when the walk reduced none
+ */
+function mergedWeightsOf(
+    walk: DuplicateWalk,
+    edges: IndexRemap,
+): { mergedWeights: Float64Array | null; mergedWeightStored: U32 | null } {
+    const { survivorOf, reduced, stored } = walk;
+    if (reduced === null || stored === null) {
+        return { mergedWeights: null, mergedWeightStored: null };
+    }
+    const mergedWeights = new Float64Array(edges.count);
+    const mergedWeightStored = new Uint32Array(bitmapWordCount(edges.count));
+    for (let e = 0; e < survivorOf.length; e++) {
+        if (survivorOf[e] === e && bitmapGet(stored, e)) {
+            mergedWeights[edges.remap[e]] = reduced[e];
+            bitmapSet(mergedWeightStored, edges.remap[e]);
         }
-        lap("duplicates");
     }
-    const edgeCount = staging.edgeBound;
-    const { core, arcCount, selfLoopCount, flags } = sorted;
+    return { mergedWeights, mergedWeightStored };
+}
 
-    // steps 8-10: weights, id map, columns
-    const shadow = weightShadowColumn(staging, edgeCount, ctx.options.weightDtype);
-    lap("weights");
-    const ids = idMapOf(staging, nodeCount);
-    lap("ids");
-    const nodes = tableOf("node", nodeCount, staging.nodeColumns);
-    const edges = tableOf("edge", edgeCount, staging.edgeColumns, shadow === null ? [] : [shadow]);
-    const graph = graphTableOf(ctx.graphValues);
+/**
+ * The survivors whose weight is explicit after the merge, in the post-merge edge space.
+ * @param walk - the merge walk
+ * @param edges - the survivor remap
+ * @returns the bitmap, or null when the walk made no weight explicit
+ */
+function mergedWeightSetOf(walk: DuplicateWalk, edges: IndexRemap): U32 | null {
+    const { survivorOf, explicit } = walk;
+    if (explicit === null) {
+        return null;
+    }
+    const mergedWeightSet = new Uint32Array(bitmapWordCount(edges.count));
+    for (let e = 0; e < survivorOf.length; e++) {
+        if (survivorOf[e] === e && bitmapGet(explicit, e)) {
+            bitmapSet(mergedWeightSet, edges.remap[e]);
+        }
+    }
+    return mergedWeightSet;
+}
+
+/** The result of step 7: the staging and core after the duplicate policy, and the merge it applied. */
+interface DuplicateOutcome {
+    /** The staging after any merge. */
+    readonly staging: Staging;
+    /** The sorted core of that staging. */
+    readonly sorted: SortResult;
+    /** The merge walk, or null when nothing merged. */
+    readonly walk: DuplicateWalk | null;
+    /** The post-merge edge remap, or null when nothing merged. */
+    readonly mergeRemap: IndexRemap | null;
+}
+
+/**
+ * Step 7: apply a duplicate policy other than "keep". A merge compacts the staging onto its
+ * survivors and sorts again; without one the core is copied into the arena when one is wanted.
+ * @param ctx - the builder's state
+ * @param policy - the duplicate policy
+ * @param compaction - the result of steps 1-2
+ * @param sorted - the core sorted from the compacted staging
+ * @param useArena - whether the core lives in an arena
+ * @returns the staging, core and merge after the policy
+ */
+function applyDuplicatePolicy(
+    ctx: FreezeContext,
+    policy: Exclude<DuplicatePolicy, "keep">,
+    compaction: SourceCompaction,
+    sorted: SortResult,
+    useArena: boolean,
+): DuplicateOutcome {
+    const { directed } = ctx;
+    const { staging, edgeRemap } = compaction;
+    const walk = walkDuplicates(sorted, staging, directed, policy, ctx.options.weighted !== false, (e) =>
+        edgeRemap === null ? e : edgeRemap.origin[e],
+    );
+    if (walk === null) {
+        const kept = useArena ? { ...sorted, core: copyCoreIntoArena(sorted.core) } : sorted;
+        return { staging, sorted: kept, walk: null, mergeRemap: null };
+    }
+    const { survivorOf } = walk;
+    const edges = remapSurvivors(survivorOf);
+    const { mergedWeights, mergedWeightStored } = mergedWeightsOf(walk, edges);
+    const mergedWeightSet = mergedWeightSetOf(walk, edges);
+    // refersTo edge values follow the survivor (design sections 5.11 and 7.3), not the row remap
+    const edgeValues = new Uint32Array(survivorOf.length);
+    for (let e = 0; e < survivorOf.length; e++) {
+        edgeValues[e] = edges.remap[survivorOf[e]];
+    }
+    const merged = compactStaging(staging, {
+        nodes: identityRemap(staging.nodeBound),
+        edges,
+        edgeValues,
+        mergedWeights,
+        mergedWeightStored,
+        mergedWeightSet,
+    });
+    return { staging: merged, sorted: sortIntoCore(sortInputOf(merged, directed), useArena), walk, mergeRemap: edges };
+}
+
+/**
+ * The extension tables of a staging, by name.
+ * @param staging - the staging
+ * @returns the frozen extension tables
+ */
+function extensionTablesOf(staging: Staging): Map<string, AttributeTable> {
     const extensions = new Map<string, AttributeTable>();
     for (const table of staging.extensions) {
         extensions.set(table.name, tableOf("extension", table.rowCount, table.columns));
     }
-    lap("columns");
+    return extensions;
+}
+
+/**
+ * The FreezeReport of design section 12.2.
+ * @param ctx - the builder's state
+ * @param compaction - the result of steps 1-2
+ * @param dedup - the result of step 7
+ * @param oldEdgeBound - the source staging's edge index space
+ * @param timings - the profile timings
+ * @returns the frozen report
+ */
+function freezeReportOf(
+    ctx: FreezeContext,
+    compaction: SourceCompaction,
+    dedup: DuplicateOutcome,
+    oldEdgeBound: number,
+    timings: Record<string, number>,
+): FreezeReport {
+    const { nodeRemap, edgeRemap, droppedSelfLoops } = compaction;
+    const { walk } = dedup;
+    const tombstonedEdges = oldEdgeBound - ctx.staging.liveEdgeCount;
+    const nodeRemapOut = nodeRemap !== null && !isIdentity(nodeRemap.remap) ? nodeRemap.remap : null;
+    const edgeRemapOut = composeEdgeRemap(oldEdgeBound, edgeRemap, walk, dedup.mergeRemap);
+    const mergedEdges = walk === null ? 0 : walk.merged;
+    return Object.freeze({
+        nodeRemap: nodeRemapOut,
+        edgeRemap: edgeRemapOut,
+        compacted: nodeRemapOut !== null || edgeRemapOut !== null,
+        droppedSelfLoops,
+        mergedEdges,
+        droppedEdges: tombstonedEdges + droppedSelfLoops + mergedEdges,
+        widened: Object.freeze(ctx.widened.map((w) => Object.freeze({ ...w }))),
+        timings: Object.freeze({ ...timings }),
+    });
+}
+
+/**
+ * Run the freeze pipeline of design section 6.3 over a builder's state and produce the snapshot, the
+ * FreezeReport and the staging the builder should hold afterwards. The context is never mutated: a
+ * throw (E_SELF_LOOP, E_DUPLICATE_EDGE, E_DUPLICATE_EDGE_ID, E_TOO_LARGE, E_INVALID_WEIGHT,
+ * E_COLUMN_TYPE) leaves the builder exactly as it was.
+ * @param ctx - the builder's state
+ * @param options - the freeze options
+ * @returns the snapshot, the report and the staging to adopt
+ */
+export function runFreeze(ctx: FreezeContext, options: FreezeOptions): FreezeOutcome {
+    const clock = phaseClock(options.profile === true);
+    const { directed } = ctx;
+    const source = ctx.staging;
+    checkFreezeOptions(options);
+    const useArena = options.arena !== false;
+    const policy = options.duplicateEdges ?? ctx.options.duplicateEdges;
+    const oldEdgeBound = source.edgeBound;
+
+    // pre-checks that must not leave a half-applied freeze behind
+    checkFreezable(source, directed, ctx.options.selfLoops);
+
+    // steps 1-2: compaction of tombstones and dropped loops into a fresh staging
+    const compaction = compactSource(source, ctx.options.selfLoops);
+    clock.lap("compact");
+
+    // steps 3-6: arcs and the two counting sorts
+    const nodeCount = compaction.staging.nodeBound;
+    const firstSort = sortIntoCore(sortInputOf(compaction.staging, directed), useArena && policy === "keep");
+    clock.lap("sort");
+
+    // step 7: duplicate policy
+    let dedup: DuplicateOutcome = { staging: compaction.staging, sorted: firstSort, walk: null, mergeRemap: null };
+    if (policy !== "keep") {
+        dedup = applyDuplicatePolicy(ctx, policy, compaction, firstSort, useArena);
+        clock.lap("duplicates");
+    }
+    const { staging } = dedup;
+    const edgeCount = staging.edgeBound;
+    const { core, arcCount, selfLoopCount, flags } = dedup.sorted;
+
+    // steps 8-10: weights, id map, columns
+    const shadow = weightShadowColumn(staging, edgeCount, ctx.options.weightDtype);
+    clock.lap("weights");
+    const ids = idMapOf(staging, nodeCount);
+    clock.lap("ids");
+    const nodes = tableOf("node", nodeCount, staging.nodeColumns);
+    const edges = tableOf("edge", edgeCount, staging.edgeColumns, shadow === null ? [] : [shadow]);
+    const graph = graphTableOf(ctx.graphValues);
+    const extensions = extensionTablesOf(staging);
+    clock.lap("columns");
 
     // step 12: the snapshot
     const parts: SnapshotParts = {
@@ -766,23 +920,8 @@ export function runFreeze(ctx: FreezeContext, options: FreezeOptions): FreezeOut
     if (options.prepare !== undefined && options.prepare.length > 0) {
         snapshot.prepare(options.prepare);
     }
-    lap("snapshot");
-    if (profile) {
-        timings.total = now() - start;
-    }
-
-    const nodeRemapOut = nodeRemap !== null && !isIdentity(nodeRemap.remap) ? nodeRemap.remap : null;
-    const edgeRemapOut = composeEdgeRemap(oldEdgeBound, edgeRemap, walk, mergeRemap);
-    const mergedEdges = walk === null ? 0 : walk.merged;
-    const report: FreezeReport = Object.freeze({
-        nodeRemap: nodeRemapOut,
-        edgeRemap: edgeRemapOut,
-        compacted: nodeRemapOut !== null || edgeRemapOut !== null,
-        droppedSelfLoops,
-        mergedEdges,
-        droppedEdges: tombstonedEdges + droppedSelfLoops + mergedEdges,
-        widened: Object.freeze(ctx.widened.map((w) => Object.freeze({ ...w }))),
-        timings: Object.freeze({ ...timings }),
-    });
+    clock.lap("snapshot");
+    clock.finish();
+    const report = freezeReportOf(ctx, compaction, dedup, oldEdgeBound, clock.timings);
     return { snapshot, report, staging };
 }

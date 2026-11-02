@@ -24,6 +24,24 @@ Trimmed again 2026-11-02: the 2026-10-30 study tool facts (scripted bars, the ga
 folders, the wording check, the matcher's role names, data panel selectors, `REAL_WARM_POOL=0`,
 one background script per re-walk): `git show 42601df9bf:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) A 50,000-node edit shows "Drawing" before it blocks (decided.md "Dry run pass 1").
+  App only: `SelectionEditor.tsx` hands every edit, Done, Cancel and Escape on one painted frame
+  later, opens the workspace from local state and names it in the store after the paint, and holds
+  the preview, strip, editing selection and canvas framing until that first frame (`warm`). Test:
+  `LargeGraph.real-element.test.tsx` "an edit says Drawing in the frame of its input" (fails
+  without the change: the first frame after a tick already held the new count). Re-walked on a
+  fresh build into `design/ui/studio/tmp/r1-dry1-busy-sign/` with `REAL_GLANCE_MS=300`: every route
+  matched its pilot; first frame after a tick 33 to 65 ms, Done 18 to 21 ms, a new filter card
+  216 ms, each glance showing "Drawing" with the old count; settled headers 1,050 of 50,000.
+  STILL OPEN: opening Which nodes right after adding a layer paints its first frame 1.4 to 2.3 s
+  after the press. The block is not the editor's: a default-priority React render of `RowStyle`
+  (`session.styles.agreement`, ~0.9 s, uncached, read in render through `row.ts`
+  `paintedOverOf`/`beneathOf`) and `StyleTree` counts (~0.26 s) runs between pointerdown and click,
+  most likely started by the press closing the new layer's name field (`renamingRow`). Fix where
+  it lives: graphty-element caches `agreement` per style and input revision (as a reading over an
+  unchanged stack), or the app stops re-reading it on renders that change nothing it reads.
+  `REAL_PROFILE=1` + `tmp/busy-sign/prof.mjs` in the studio worktree found it.
+
 - (2026-11-02) The data table never takes an editor's selection (decided.md, "Dry run pass 1").
   Cause: `TableDock` read the store's `editingSelection` (Group column, "Matches only", whole-graph
   matches), and an editor at rest keeps holding that slot after Done, so the table kept the last
@@ -166,6 +184,18 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
 
 ## Decisions and reasons
 
+- 2026-11-02: An edit in the selection editor is handed on one painted frame after its input
+  (`afterPaint` in `SelectionEditor.tsx`: `requestAnimationFrame` then `setTimeout`, the handover
+  inside `flushSync` so no queued input runs between it and the host's write). The edit waits as
+  the editor's own rule (`waiting`), so the outline shows it and a second edit before the handover
+  builds on it, never on the rule before it (a stale second tick would drop the first). Opening
+  draws the workspace from local state (`opening`) and names it in the store only after the paint,
+  because the panels that follow the store (`RowStyle`'s `agreement`, the style tree's counts) cost
+  the opening ~0.6 s before its first frame. The preview, the strip, the store's editing
+  selection and the canvas framing wait for `warm` (the workspace's first frame painted); Done,
+  Cancel and Escape go through `closeAfterPaint`. Why: decided.md "Dry run pass 1", an edit that
+  blocks shows that it is working first; app-only, no element change (the element is not slow to
+  answer; the app called it before painting).
 - 2026-10-29: The Time role no longer changes how a column is drawn. `timeValue(session, value,
 date)` lost its kind and column arguments: a text or number time field shows its raw values, and a
   date column is written to the day whatever the timeline's unit (a date column's unit is ms anyway).
@@ -221,6 +251,15 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-11-02 did not work: a CPU profile (CDP `Profiler`) of opening, a tick and Done inside the
+  `real-element` test on 50,000 nodes: the force layout and SwiftShader frames swamp it (React's
+  share under 1 s of 100 s), so it cannot say what blocks the real app. What blocks is not needed
+  to fix the sign: deferring everything an input starts by one painted frame covers it whatever it is.
+- 2026-11-02 worked: timing the first animation frame after an input, armed by a capture
+  `pointerdown`/`keydown` listener, both in a test (`firstFrameAfter` in
+  `LargeGraph.real-element.test.tsx`, asserts what that frame drew, never how long) and in the
+  study tool (`ms.firstFrame`, `ms.input`, `ms.glance` in route.jsonl).
 
 - 2026-11-02 worked: probing a reading at each moment (in the event listener, right after
   `view.end()`, after `settled()`) in a happy-dom session test found the stale window in one

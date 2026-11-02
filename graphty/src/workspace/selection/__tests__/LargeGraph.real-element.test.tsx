@@ -122,6 +122,57 @@ function listed(): { options: string[]; headings: string[] } {
     };
 }
 
+/** What the first frame after an input drew. */
+interface FirstFrame {
+    /** The workspace header says "Drawing". */
+    readonly drawing: boolean;
+    /** The workspace header's count, or null with no workspace open. */
+    readonly count: string | null;
+    /** graphty-element draws the workspace's branches view. */
+    readonly showing: boolean;
+    /** Milliseconds from the input to that frame, for the failure message. */
+    readonly after: number;
+}
+
+/**
+ * Does an input and reads what the first animation frame after it drew: the frame the browser
+ * paints once the input's own task is done.
+ * @param session - The session.
+ * @param input - The input, by real pointer or keys.
+ * @returns What that frame drew.
+ */
+async function firstFrameAfter(session: GraphSession, input: () => Promise<void>): Promise<FirstFrame> {
+    let at = -1;
+    const arm = (): void => {
+        if (at < 0) {
+            at = performance.now();
+        }
+    };
+    window.addEventListener("pointerdown", arm, { capture: true });
+    window.addEventListener("keydown", arm, { capture: true });
+    const seen = new Promise<FirstFrame>((resolve) => {
+        const look = (now: number): void => {
+            if (at < 0) {
+                requestAnimationFrame(look);
+                return;
+            }
+            const head = document.querySelector(".sel-ws-head");
+            resolve({
+                drawing: head?.querySelector("[data-drawing]") !== null && head !== null,
+                count: head?.querySelector(".sel-count")?.textContent ?? null,
+                showing: session.styles.showingBranches,
+                after: now - at,
+            });
+        };
+        requestAnimationFrame(look);
+    });
+    await input();
+    const frame = await seen;
+    window.removeEventListener("pointerdown", arm, { capture: true });
+    window.removeEventListener("keydown", arm, { capture: true });
+    return frame;
+}
+
 describe("the selection editor on 50,000 nodes", () => {
     it("the reference picker lists no node before typing, and at most 8 after", async () => {
         const session = await openGenerated();
@@ -278,5 +329,53 @@ describe("the selection editor on 50,000 nodes", () => {
         const options = await screen.findAllByRole("option");
         assert.isBelow(options.length, 200);
         await userEvent.keyboard("{Escape}");
+    });
+    it("an edit says Drawing in the frame of its input, before the work starts (opening, a tick, Done)", async () => {
+        const session = await openGenerated();
+        // A drawing that settles (the force layout on 50,000 nodes runs for minutes), so "Drawing"
+        // ends once the element has painted, as on a study's graph.
+        await session.layout.set("random");
+        await openLayer(
+            session,
+            "Busy",
+            oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
+        );
+        const row = document.querySelector<HTMLElement>('.sel-rest [data-row="com"] .sel-value');
+        if (row === null) {
+            throw new Error("the step's row is drawn");
+        }
+        const opened = await firstFrameAfter(session, () => userEvent.click(row));
+        assert.isTrue(opened.drawing, `opening: Drawing in the first frame (${String(opened.after)} ms)`);
+        assert.isFalse(opened.showing, "opening: the preview is drawn after that frame");
+        await waitFor(() => {
+            assert.isTrue(session.styles.showingBranches);
+        });
+        const values = await screen.findByRole("group", { name: "community values" });
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws-head [data-drawing]"));
+        });
+        const before = document.querySelector(".sel-ws-head .sel-count")?.textContent ?? null;
+        const ticked = await firstFrameAfter(session, () =>
+            userEvent.click(within(values).getAllByRole("checkbox")[0]),
+        );
+        assert.isTrue(ticked.drawing, `a tick: Drawing in the first frame (${String(ticked.after)} ms)`);
+        assert.strictEqual(ticked.count, before, "a tick: the count is read after that frame");
+        await waitFor(() => {
+            assert.notStrictEqual(document.querySelector(".sel-ws-head .sel-count")?.textContent ?? null, before);
+            assert.isNull(document.querySelector(".sel-ws-head [data-drawing]"));
+        });
+        const ws = document.querySelector<HTMLElement>(".sel-ws");
+        if (ws === null) {
+            throw new Error("the workspace is open");
+        }
+        const done = await firstFrameAfter(session, () =>
+            userEvent.click(within(ws).getByRole("button", { name: "Done" })),
+        );
+        assert.isTrue(done.drawing, `Done: Drawing in the first frame (${String(done.after)} ms)`);
+        assert.isTrue(done.showing, "Done: the preview ends after that frame");
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+            assert.isFalse(session.styles.showingBranches);
+        });
     });
 });

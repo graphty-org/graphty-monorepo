@@ -45,7 +45,7 @@ import {
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 
 import { canFocus, focusInspectorTitle, focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
@@ -171,6 +171,18 @@ const ROW = "[data-row]";
 const SPEAK_AFTER_MS = 500;
 
 /**
+ * Runs work once the browser has painted the frame being drawn now. An edit on a large graph blocks
+ * the page while graphty-element evaluates it, so the frame of the click or key that starts it
+ * says "Drawing" first, and the work starts after that frame is on screen.
+ * @param work - the work.
+ */
+function afterPaint(work: () => void): void {
+    requestAnimationFrame(() => {
+        setTimeout(work, 0);
+    });
+}
+
+/**
  * The selection editor: the read-only outline in its host's sidebar, and while it is open, the
  * one workspace over the canvas column that edits it (spec 3.0).
  * @param props - Component props
@@ -200,7 +212,7 @@ export function SelectionEditor({
     session,
     rule: given,
     host,
-    onChange,
+    onChange: handOn,
     onDone,
     openFirst = false,
     hold,
@@ -221,14 +233,50 @@ export function SelectionEditor({
     const { store, element } = useWorkspace();
     const reading = useSteps(session, given);
     // The element's canonical form: every group and step has its id and color.
-    const { rule } = reading;
+    // An edit is handed to the host after the frame of its input is painted (see afterPaint); until
+    // then the outline shows it, and the next edit builds on it, never on the rule before it.
+    const [waiting, setWaiting] = useState<UnionLeaf | null>(null);
+    const waitingNow = useRef<UnionLeaf | null>(null);
+    // The input that started the work says "Drawing" in its own frame, until the work is handed on.
+    const [starting, setStarting] = useState(false);
+    const rule = waiting ?? reading.rule;
+    const onChange = (next: UnionLeaf): void => {
+        const first = waitingNow.current === null;
+        waitingNow.current = next;
+        setWaiting(next);
+        setStarting(true);
+        if (first) {
+            afterPaint(() => {
+                const last = waitingNow.current;
+                waitingNow.current = null;
+                flushSync(() => {
+                    setWaiting(null);
+                    setStarting(false);
+                    if (last !== null) {
+                        handOn(last);
+                    }
+                });
+            });
+        }
+    };
     const side = sideOf(rule);
     const name = title ?? `Which ${NOUNS[side].many}`;
     const wsTitle = ownerName === undefined ? name : `${name} -- ${ownerName}`;
     const owner = useId();
     const titleId = useId();
-    // The one workspace is this editor's while the store names it (spec 3.0).
-    const open = useWorkspaceState((state) => state.selectionWorkspace?.owner === owner);
+    // The one workspace is this editor's while the store names it (spec 3.0). An opening draws the
+    // workspace's header ("Drawing") in the frame of its click or key, and names it in the store, which
+    // the panels around it follow, after that frame is painted.
+    const named = useWorkspaceState((state) => state.selectionWorkspace?.owner === owner);
+    const [opening, setOpening] = useState(false);
+    const open = named || opening;
+    const mounted = useRef(true);
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
     // The row whose pane the workspace shows; null at rest, and after a delete.
     const [selected, setSelected] = useState<string | null>(null);
     // Whether the last key was Escape: a picker it closed on a selection with no step takes a new
@@ -351,7 +399,19 @@ export function SelectionEditor({
                 `[data-row="${TITLE}"]`,
             ];
         }
-        store.set({ selectionWorkspace: { owner, host } });
+        if (named) {
+            store.set({ selectionWorkspace: { owner, host } });
+            return;
+        }
+        setOpening(true);
+        afterPaint(() => {
+            flushSync(() => {
+                setOpening(false);
+                if (mounted.current) {
+                    store.set({ selectionWorkspace: { owner, host } });
+                }
+            });
+        });
     };
     /**
      * Closes the workspace: Done keeps every edit; Cancel restores the selection as it was when it
@@ -385,6 +445,17 @@ export function SelectionEditor({
         }
     };
     closeRef.current = close;
+    // Done, Cancel and Escape say "Drawing" in their own frame: ending the preview and handing the
+    // rule on repaints the whole graph. An edit still waiting is handed on first.
+    const closeAfterPaint = (how: "done" | "cancel"): void => {
+        setStarting(true);
+        afterPaint(() => {
+            flushSync(() => {
+                setStarting(false);
+                closeRef.current(how);
+            });
+        });
+    };
     // A new filter card opens the workspace at once: on its title (Nodes | Edges) with its value
     // picker open, or on its first step.
     const arrived = useRef(false);
@@ -442,7 +513,27 @@ export function SelectionEditor({
     // faint; graphty-element draws it. A changed rule replaces the view in place.
     const view = useRef<{ end(): void } | null>(null);
     const viewKey = JSON.stringify(reading.rule);
-    const previewing = open && colors;
+    // The workspace's first frame is drawn before the work its opening starts (the preview, the
+    // strip's and the table's readings, the canvas's framing), so it says "Drawing" first.
+    const [warm, setWarm] = useState(false);
+    useEffect(() => {
+        if (!open) {
+            setWarm(false);
+            return undefined;
+        }
+        let live = true;
+        afterPaint(() => {
+            if (live) {
+                flushSync(() => {
+                    setWarm(true);
+                });
+            }
+        });
+        return () => {
+            live = false;
+        };
+    }, [open]);
+    const previewing = open && warm && colors;
     // The group pointed at, else the group whose row is selected, is marked: its members on top in
     // its color, the other groups faint (spec 9).
     const markedNow = marked ?? (multi && rule.branches.some((branch) => branch.id === selected) ? selected : null);
@@ -498,7 +589,7 @@ export function SelectionEditor({
     );
     useEffect(() => {
         const was = store.get().editingSelection;
-        if (open || was === null || was.owner === owner) {
+        if ((open && warm) || was === null || was.owner === owner) {
             store.set({
                 editingSelection: {
                     owner,
@@ -508,7 +599,7 @@ export function SelectionEditor({
                 },
             });
         }
-    }, [viewKey, store, name, open, owner, holder]);
+    }, [viewKey, store, name, open, warm, owner, holder]);
     useEffect(
         () => () => {
             if (store.get().editingSelection?.owner === owner) {
@@ -1584,7 +1675,7 @@ export function SelectionEditor({
     // graphty-element's canvas takes the preview cell's box, beside the outline and the properties
     // and above the strip, never under them. On open it frames the graph when more than a quarter
     // of what was drawn now lies outside the cell, and on close the camera goes back where it was.
-    const placed = wsPlace !== null;
+    const placed = wsPlace !== null && warm;
     useLayoutEffect(() => {
         const cell = wsBox.current?.querySelector<HTMLElement>(".sel-ws-preview");
         const canvas = frame?.querySelector<HTMLElement>(".ws-canvas");
@@ -1706,7 +1797,7 @@ export function SelectionEditor({
                 return;
             }
         }
-        close("done");
+        closeAfterPaint("done");
     };
 
     const workspace =
@@ -1749,7 +1840,7 @@ export function SelectionEditor({
                           <Text size="sm" className="sel-count">
                               {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
                           </Text>
-                          {drawing && (
+                          {(drawing || starting || !warm) && (
                               <Text size="sm" c="dimmed" className="sel-state" data-drawing="">
                                   Drawing
                               </Text>
@@ -1787,7 +1878,7 @@ export function SelectionEditor({
                               size="compact-xs"
                               variant="subtle"
                               onClick={() => {
-                                  close("cancel");
+                                  closeAfterPaint("cancel");
                               }}
                           >
                               Cancel
@@ -1795,7 +1886,7 @@ export function SelectionEditor({
                           <Button
                               size="compact-xs"
                               onClick={() => {
-                                  close("done");
+                                  closeAfterPaint("done");
                               }}
                           >
                               Done
@@ -1835,7 +1926,7 @@ export function SelectionEditor({
                                       </Button>
                                   </Tooltip>
                               </div>
-                              {strip && (
+                              {strip && warm && (
                                   <MatchesStrip
                                       session={session}
                                       rule={reading.rule}

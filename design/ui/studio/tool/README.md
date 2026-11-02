@@ -68,6 +68,15 @@ person watching would have read it.
   audit at 1200x900 or 900x700); studies keep the default 1440 x 900. `session.json` records it.
 - `REAL_SCHEME=light` (or `dark`) on the `--start` command opens the app in that color scheme, for
   the scripted walk of both themes (`bars.mjs --tier 3 --scheme`); studies leave it unset.
+- Each step's line in `route.jsonl` times how soon the app answered its first pointer press or
+  key: `ms.input` (when the page took it) and `ms.firstFrame` (from the input to the next frame
+  the browser drew, the frame that shows whether the app said it is working before it got busy).
+  `REAL_GLANCE_MS=<ms>` on the `--start` (or `--replay`) command, with `REAL_WARM_POOL=0`, also
+  saves `NN-glance.png`, the last frame the browser drew by that long after the input (from its
+  screencast, so a busy page cannot delay it): the screen a person looks at while the step works.
+  `ms.glance` is when that frame was drawn, from the input (negative: nothing new was drawn by
+  then); the line names the file as `glance`. `REAL_PROFILE=1` saves `NN.cpuprofile`, a CPU
+  profile of the step, for DevTools.
 - Scrollbars are drawn as a person's desktop Chrome draws them: Playwright's headless Chromium
   hides them by default (`--hide-scrollbars`), and the tool turns that off, so a pane that
   scrolls shows its scrollbar in the screenshot. A report quotes a control's name up to 80

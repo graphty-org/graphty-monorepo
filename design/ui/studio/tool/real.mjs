@@ -1385,6 +1385,8 @@ async function newTab(s) {
     const { origin } = s;
     page.on("pageerror", (e) => s.errors.push(`script error: ${e.message.split("\n")[0]}`));
     page.on("console", (m) => m.type() === "error" && s.errors.push(`console error: ${m.text().slice(0, 300)}`));
+    // the step's first input reached the page (see INPUT_PROBE); heard here even while the page is busy
+    page.on("console", (m) => m.type() === "debug" && m.text() === INPUT_SEEN && s.onInput?.());
     page.on(
         "response",
         (r) => r.status() >= 400 && s.errors.push(`failed request: ${r.status()} ${r.url().replace(origin, "")}`),
@@ -2109,7 +2111,9 @@ async function opStep(s, steps, asRecorded = []) {
     s.ms = {};
     // a replay names the clicks its route recorded as refused: checked by name, never done
     s.asRecorded = new Set(asRecorded);
+    const glance = await watchInput(s, t0);
     const r = await run(s, steps, out).finally(() => (s.asRecorded = null));
+    await glance();
     const t1 = performance.now();
     const said = await shot(s);
     out.push(said);
@@ -2121,6 +2125,86 @@ async function opStep(s, steps, asRecorded = []) {
     s.ms.total = performance.now() - t0;
     const check = await recordRoute(s, { steps, out, code, missed: r.missed });
     return { out, code, check };
+}
+
+// How soon the page answers an input. Before a step, the page is armed to log INPUT_SEEN at the
+// step's first pointer press or key and to time the first animation frame after it: ms.firstFrame
+// in route.jsonl is the wait from the input to the frame the browser paints next, the frame that
+// shows whether the app said it is working before it blocked. REAL_GLANCE_MS=<ms> on --start also
+// saves NN-glance.png, the last frame the browser drew by that long after the input (the screen a
+// person sees while the step works); ms.glance is when that frame was drawn, from the input.
+const INPUT_SEEN = "real:input";
+function INPUT_PROBE(seen) {
+    window.__realFirstFrame = null;
+    const on = () => {
+        removeEventListener("pointerdown", on, true);
+        removeEventListener("keydown", on, true);
+        const at = performance.now();
+        console.debug(seen);
+        requestAnimationFrame(() => {
+            window.__realFirstFrame = performance.now() - at;
+        });
+    };
+    addEventListener("pointerdown", on, true);
+    addEventListener("keydown", on, true);
+}
+async function watchInput(s, t0) {
+    const glanceMs = Number(process.env.REAL_GLANCE_MS) || 0;
+    s.lastGlance = null;
+    await s.page.evaluate(INPUT_PROBE, INPUT_SEEN).catch(() => {});
+    // REAL_PROFILE=1: a CPU profile of the step's own work, NN.cpuprofile (open it in DevTools)
+    const profile = process.env.REAL_PROFILE === "1";
+    if (profile) {
+        s.cdp ??= await s.context.newCDPSession(s.page);
+        await s.cdp.send("Profiler.enable");
+        await s.cdp.send("Profiler.start");
+    }
+    // s.ms is replaced as the step goes, so these are kept apart and added at the end
+    const got = {};
+    // The glance is taken from the browser's screencast, the frames it actually drew with the time
+    // each was drawn: a screenshot asked for while the page is busy comes back only after it is not.
+    const frames = [];
+    let seenAt = null;
+    const onFrame = ({ data, metadata, sessionId }) => {
+        frames.push({ data, at: metadata.timestamp * 1000 });
+        s.cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
+    };
+    if (glanceMs > 0) {
+        s.cdp ??= await s.context.newCDPSession(s.page);
+        s.cdp.on("Page.screencastFrame", onFrame);
+        await s.cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+    }
+    s.onInput = () => {
+        s.onInput = null;
+        seenAt = Date.now();
+        got.input = performance.now() - t0;
+    };
+    return async () => {
+        s.onInput = null;
+        const frame = await s.page.evaluate(() => window.__realFirstFrame).catch(() => null);
+        if (typeof frame === "number") got.firstFrame = frame;
+        if (glanceMs > 0) {
+            await s.cdp.send("Page.stopScreencast").catch(() => {});
+            s.cdp.off("Page.screencastFrame", onFrame);
+            // the screen as it stood glanceMs after the input: the last frame drawn by then
+            const shown = seenAt === null ? [] : frames.filter((f) => f.at <= seenAt + glanceMs);
+            const last = shown[shown.length - 1];
+            if (last) {
+                const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
+                const name = `${String(n).padStart(2, "0")}-glance.png`;
+                await writeFile(join(s.dir, name), Buffer.from(last.data, "base64"));
+                s.lastGlance = name;
+                // when that frame was drawn, from the input (negative: nothing new was drawn by then)
+                got.glance = last.at - seenAt;
+            }
+        }
+        if (profile) {
+            const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
+            const { profile: p } = await s.cdp.send("Profiler.stop");
+            await writeFile(join(s.dir, `${String(n).padStart(2, "0")}.cpuprofile`), JSON.stringify(p));
+        }
+        Object.assign(s.ms, got);
+    };
 }
 
 // The screenshot is always saved for graders; a screen-reader participant is not told where. It is
@@ -2174,6 +2258,7 @@ async function recordRoute(s, { steps, out, code, missed }) {
         code,
         missed,
         shot: s.lastShot,
+        ...(s.lastGlance ? { glance: s.lastGlance } : {}),
         out: checkLines(out, s.dir),
         screen: await s.page.evaluate(screenOf).catch(() => []),
         ms,

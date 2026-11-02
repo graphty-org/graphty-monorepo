@@ -637,6 +637,11 @@ Two-way doors decided while building spec 3.0 and 3.5 (the record of what change
   Degree, hops, touching). Its edge condition is one value and its test; the row's tag and
   Advanced say "Links: <column> <test>". graphty-element computes such a step as the step's own
   (never a run in Analyze), and its degree bars are drawn from the scoped count.
+- **At 1280 x 800 the preview is 424 px wide, not 440** (check 39): 1280 less the 56 px rail,
+  the 240 px inspector beside a style layer's workspace and the 320 px properties column leaves no
+  more, whatever the outline's width (it covers the left panel). Narrowing the properties column
+  to 300 px at that width would reach 440; it stays 320 as the spec says until the owner prefers
+  otherwise.
 - **Not built:** pointing at a sidebar row at rest marks nothing on the canvas (the preview is the
   workspace's); `watchSteps` reports no links count (the row says the rule, not how many links
   pass).

@@ -144,13 +144,12 @@ describe("the key, the marked group and the counts", () => {
         const { session } = await openSample();
         await openLayer(session, "Covered", COVERED);
         const ws = await edit();
-        const key = await screen.findByRole("region", { name: /^Preview: / });
-        await waitFor(() => {
-            assert.include(key.textContent ?? "", "1, under A");
-        });
+        // No key over the preview (ws-polish 3): B's row says it is drawn under A in its tooltip.
+        await userEvent.hover(within(ws).getByRole("treeitem", { name: /^B, / }));
+        await screen.findByText("1, under A");
         // "Drawing" is said only until the element's picture is final.
         await waitFor(() => {
-            assert.isNull(key.querySelector("[data-drawing]"), "the key stops saying Drawing");
+            assert.isNull(ws.querySelector("[data-drawing]"), "the header stops saying Drawing");
         });
         await userEvent.click(within(ws).getByRole("treeitem", { name: /^B, / }));
         await waitFor(() => {
@@ -243,7 +242,10 @@ describe("the workspace over the canvas", () => {
             const where = selector?.match === "rule" ? selector.where : undefined;
             assert.strictEqual(where?.kind === "union" ? where.branches[0]?.start : undefined, "all");
         });
-        within(ws).getByRole("treeitem", { name: "All nodes" });
+        // It opens on its value picker, as a new layer does (ws-polish 3); Escape shuts it.
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await userEvent.keyboard("{Escape}");
+        await within(ws).findByRole("treeitem", { name: "All nodes" });
         assert.isNull(ws.querySelector(".sel-ws-outline .sel-add-row"), "no Condition row under All nodes");
     });
 

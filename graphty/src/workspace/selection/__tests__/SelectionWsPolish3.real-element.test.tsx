@@ -360,6 +360,13 @@ describe("the Filters", () => {
             assert.strictEqual(active?.value, "edge", "focus is on Edges");
         });
         assert.isNull(screen.queryByRole("combobox", { name: "Find attributes, results" }), "the picker stays shut");
+        assert.strictEqual(
+            within(await opened())
+                .getByRole("button", { name: "Value" })
+                .getAttribute("aria-expanded"),
+            "false",
+            "its Value field waits under the switch",
+        );
         assert.isFalse(
             heard.slice(said).some((each) => each.startsWith("Editing")),
             `no Editing was said: ${heard.slice(said).join(" | ")}`,

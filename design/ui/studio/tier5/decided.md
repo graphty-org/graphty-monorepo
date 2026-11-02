@@ -776,7 +776,8 @@ reviews above judged their build, so nothing of it was left unverified.
 - **A click on the preview canvas never closes the workspace**: the inspector ignores canvas clicks
   and selection changes while it is open, and follows the selection once it closes.
 - **Both hosts say the count** as it changes (WCAG 4.1.3), not the filter only.
-- **A new card's side switch** keeps focus on Nodes | Edges, the picker shut, nothing said.
+- **A new card's side switch** keeps focus on Nodes | Edges, the picker shut, nothing said; the
+  new step's Value field waits under it, and Enter or a click opens its picker.
 - **Rows**: no "No test" word; an Edges tag only once its condition tests; a picked edge value goes
   on to its Min box; a cut test keeps an ellipsis and a tag the width of "Edges"; with two or more
   groups the outline's levels are 1, 2, 3; a filter card's title row keeps its state word while

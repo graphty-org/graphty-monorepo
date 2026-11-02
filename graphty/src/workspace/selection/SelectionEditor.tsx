@@ -313,8 +313,9 @@ export function SelectionEditor({
      * @param from - the sidebar row or Edit that opened it, where focus returns.
      * @param add - a group to add a step to, its value picker open.
      * @param quiet - says nothing as it opens (a host's side switch).
+     * @param shut - the added step's value picker waits shut.
      */
-    const openAt = (row: string, from: string, add?: UnionBranch, quiet = false): void => {
+    const openAt = (row: string, from: string, add?: UnionBranch, quiet = false, shut = false): void => {
         if (!open) {
             openedIn.current = store.get().place;
             openedWith.current = reading.rule;
@@ -342,7 +343,7 @@ export function SelectionEditor({
         setSelected(add === undefined ? shown : null);
         setActive(shown);
         if (add !== undefined) {
-            setAdding({ branch: add.id ?? "", op: newVerb(add), open: true, back: row });
+            setAdding({ branch: add.id ?? "", op: newVerb(add), open: !shut, back: row });
         } else if (stepless) {
             // The new step's row is the one lit, never the title's too, and its value picker is
             // open under its field, its search focused (the owner's review, ws-polish 3).
@@ -405,7 +406,10 @@ export function SelectionEditor({
             openAt(firstStep, TITLE);
             focusAfter.current = PANE_FOCUS;
         } else if (openTitle) {
-            openAt(TITLE, TITLE, undefined, switchedSide);
+            // After a side switch its new step's Value field waits under the side, its picker shut:
+            // Enter opens it.
+            const shutStep = switchedSide && first !== undefined && first.steps.length === 0 ? first : undefined;
+            openAt(TITLE, TITLE, shutStep, switchedSide, true);
             if (switchedSide) {
                 // The side's segment was replaced with the editor: focus goes back to the side chosen.
                 // Only there: the sidebar's title row would take it before the workspace is drawn.
@@ -1993,6 +1997,9 @@ function NewStepPane({
     // A letter typed on the closed field opens the picker with it in the search (ws-polish 3).
     const [seed, setSeed] = useState("");
     const picked = useRef(false);
+    // A press on the field itself closes the open list as a click outside it does; the step stays,
+    // and the click opens the list again.
+    const pressedField = useRef(false);
     const choose = (stepRule: RuleTree): void => {
         picked.current = true;
         onPick(stepRule);
@@ -2016,10 +2023,11 @@ function NewStepPane({
                         setOpen(false);
                         setSeed("");
                         requestAnimationFrame(() => {
-                            if (!picked.current) {
+                            if (!picked.current && !pressedField.current) {
                                 onCancel();
                             }
                             picked.current = false;
+                            pressedField.current = false;
                         });
                     }
                 }}
@@ -2036,6 +2044,15 @@ function NewStepPane({
                         aria-label="Value"
                         aria-haspopup="dialog"
                         aria-expanded={open}
+                        onPointerDown={() => {
+                            pressedField.current = open;
+                        }}
+                        onMouseDown={(event) => {
+                            // With the list open, a press on the field keeps typing in its search.
+                            if (open) {
+                                event.preventDefault();
+                            }
+                        }}
                         onClick={() => {
                             setOpen(true);
                         }}

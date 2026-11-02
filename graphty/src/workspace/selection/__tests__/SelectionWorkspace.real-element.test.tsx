@@ -465,6 +465,9 @@ describe("starting over (check 44, fix 3)", () => {
         await waitFor(() => {
             assert.isTrue(unionOf(session, layer.id)?.branches.every((branch) => branch.steps.length === 0));
         });
+        // A cleared rule opens on its value picker (ws-polish 3); Escape shuts it, All nodes stays.
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await userEvent.keyboard("{Escape}");
         await within(ws).findByRole("treeitem", { name: "All nodes" });
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
@@ -559,7 +562,8 @@ describe("By position switches only on an explicit choice (check 46, fix 6)", ()
             assert.isUndefined(rule.top);
             assert.match(
                 ws.querySelector('.sel-ws-outline [data-row="d"]')?.getAttribute("aria-label") ?? "",
-                /No test/,
+                // Untested, the step is its value alone (ws-polish 3).
+                /^Degree, \d+ of 77 nodes so far$/,
             );
         });
         await userEvent.click(within(ws).getByRole("combobox", { name: "Degree test" }));
@@ -581,12 +585,17 @@ describe("the workspace as a region (check 47)", () => {
             assert.isTrue(ws.contains(document.activeElement), "focus is in the workspace");
         });
         assert.include(heard, "Editing Which nodes, Ring");
+        // The preview comes right after the workspace in the F6 ring, then the inspector (ws-polish 3).
+        await userEvent.keyboard("{F6}");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement?.tagName, "GRAPHTY-ELEMENT", "F6 reached the preview");
+        });
         await userEvent.keyboard("{F6}");
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         await waitFor(() => {
             assert.isTrue(inspector.contains(document.activeElement), "F6 reached the inspector");
         });
-        await userEvent.keyboard("{Shift>}{F6}{/Shift}");
+        await userEvent.keyboard("{Shift>}{F6}{/Shift}{Shift>}{F6}{/Shift}");
         await waitFor(() => {
             assert.isTrue(ws.contains(document.activeElement), "Shift+F6 came back");
         });

@@ -162,6 +162,8 @@ nodes and Which edges, and a Data filter card -- with the same outline, verbs an
 - **A selection with no step** (a new rule, or after Clear) opens on its new step's pane with the
   value picker open under the field, its search focused; a letter typed on a closed value field
   opens the picker with that letter in its search. The picker is always as wide as its field.
+- **A new filter card's side switch** (Nodes | Edges, by arrow or click) keeps focus on the
+  segment, says nothing, and leaves the picker shut over the new step's Value field.
 - **F6** goes from the workspace to the preview, then to the side panel beside it; the drawing is
   named "Preview: <title>" while it is the preview. Opening another owner's editor (another layer's Which nodes, another
   card's row) switches the one workspace to it, keeping the current edits (Done).

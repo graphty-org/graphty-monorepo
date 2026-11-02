@@ -151,9 +151,10 @@ describe("the import filter's cards as selections", () => {
         await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
         const card = await filterCard(/degree/i);
         await userEvent.click(within(card).getByRole("button", { name: /Degree/ }));
-        // A card named after its only step is its title row (repolish 2): the step, untested, is back.
+        // A card named after its only step is its title row (repolish 2): the step, untested, is back,
+        // said as its value alone (ws-polish 3).
         const title = await within(card).findByRole("treeitem", { name: /^Degree, / });
-        assert.include(title.textContent ?? "", "No test");
+        assert.notInclude(title.textContent ?? "", "No test");
     });
 
     it("a new card's Edges switch starts it again on edges", async () => {
@@ -165,7 +166,17 @@ describe("the import filter's cards as selections", () => {
         await userEvent.click(within(card).getByRole("treeitem", { name: /^New filter, / }));
         // The segment's radio is visually hidden: a reader clicks its label.
         await userEvent.click(await within(await ws()).findByText("Edges"));
-        // Switching side opens the value picker again, on the edges' values (ws-polish 2).
+        // Switching side keeps the picker shut (ws-polish 3); the Value field under it opens it on the
+        // edges' values.
+        const value = await waitFor(() => {
+            const found = within(document.querySelector<HTMLElement>(".sel-ws") ?? document.body).queryByRole(
+                "button",
+                { name: "Value" },
+            );
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(value);
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Self-loops");
         await userEvent.keyboard("{Enter}");

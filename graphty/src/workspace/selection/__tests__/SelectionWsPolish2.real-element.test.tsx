@@ -304,12 +304,13 @@ describe("the new step", () => {
         });
     });
 
-    it("the key draws no No match row while every node matches", async () => {
+    it("the outline draws no No match row while every node matches", async () => {
         const { session } = await openSample();
         await openLayer(session, "Key");
         const ws = await edit();
-        const key = await within(ws).findByRole("region", { name: /^Preview: / });
-        assert.notInclude(key.textContent ?? "", "No match");
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        assert.isNull(ws.querySelector("[data-no-match]"));
+        assert.isNull(document.querySelector(".ws-legend-card"), "no key over the preview (ws-polish 3)");
     });
 });
 
@@ -353,6 +354,11 @@ describe("a new filter card", () => {
             const radio = within(open ?? document.body).getByRole("radio", { name: "Edges" });
             assert.isTrue((radio as HTMLInputElement).checked, "the card is on edges");
         });
+        // The switch keeps its picker shut (ws-polish 3): the Value field under it opens it.
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("combobox", { name: "Find attributes, results" }));
+        });
+        await userEvent.click(within(await opened()).getByRole("button", { name: "Value" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await screen.findByRole("option", { name: /shared_chapters/ });
     });

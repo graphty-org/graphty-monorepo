@@ -205,7 +205,7 @@ describe("the selection editor in a style layer", () => {
             assert.notProperty(rule, "min", "a value with no test yet");
         });
         await waitFor(() => {
-            assert.match(stepRows()[0] ?? "", /^Degree, No test, 77 of 77 nodes so far$/);
+            assert.match(stepRows()[0] ?? "", /^Degree, 77 of 77 nodes so far$/);
         });
         // The new step is selected: its pane holds the test; a number written there narrows the layer.
         const from = await screen.findByRole("textbox", { name: "Degree from, number" });
@@ -386,9 +386,10 @@ describe("the selection editor in a style layer", () => {
         await waitFor(() => {
             assert.isTrue(session.styles.showingBranches);
         });
-        // The key says the styles are suspended, with the group and what matches none.
-        const preview = await screen.findByRole("region", { name: "Preview: Which nodes" });
-        assert.isNotNull(within(preview).queryByText("No match"));
+        // The outline ends with what matches none (no key over the preview, ws-polish 3).
+        await waitFor(() => {
+            assert.isNotNull(document.querySelector(".sel-ws-outline [data-no-match]"));
+        });
         const keyed = session.styles.legend().map((block) => block.layerId);
         assert.isFalse(
             keyed.some((id) => id.startsWith("graphty-branches")),

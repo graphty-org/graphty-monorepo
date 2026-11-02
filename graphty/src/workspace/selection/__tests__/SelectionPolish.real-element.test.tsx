@@ -365,16 +365,19 @@ describe("the editor's verbs, groups and words", () => {
         });
     });
 
-    it("a single group in the key goes by the selection's title, never a letter", async () => {
+    it("a single group goes by the selection's title, never a letter", async () => {
         const session = await lesMis();
         await openLayer(session, "One", { match: "rule", where: DEGREE_6_TO_10 });
         const row = document.querySelector<HTMLElement>(".sel-step-row[data-row]");
         await userEvent.click(row?.querySelector(".sel-value") ?? document.body);
-        const preview = await screen.findByRole("region", { name: "Preview: Which nodes" });
-        await waitFor(() => {
-            assert.isNotNull(within(preview).queryByText("Which nodes"));
+        // No key over the preview (ws-polish 3): the outline draws no group row, and no letter.
+        const outline = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws-outline");
+            assert.isNotNull(found);
+            return found;
         });
-        assert.isNull(within(preview).queryByText("A"));
+        assert.isNull(outline?.querySelector(".sel-group-row") ?? null);
+        assert.isNotNull(within(outline).queryByText("Which nodes"));
     });
 });
 

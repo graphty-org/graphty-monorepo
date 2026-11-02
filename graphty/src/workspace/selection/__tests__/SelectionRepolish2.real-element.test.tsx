@@ -247,13 +247,15 @@ describe("a condition is said once", () => {
                 ],
             },
         });
+        // Untested, the step is its value alone: no state word (ws-polish 3).
         await waitFor(() => {
-            assert.equal(row("deg").querySelector(".sel-state")?.textContent, "No test");
+            assert.include(row("deg").textContent ?? "", "Degree");
+            assert.isNull(row("deg").querySelector(".sel-state"));
         });
         await userEvent.click(row("deg").querySelector(".sel-value") ?? row("deg"));
         await waitFor(() => {
             assert.strictEqual(row("deg").getAttribute("aria-selected"), "true");
-            assert.equal(row("deg").querySelector(".sel-state")?.textContent, "No test");
+            assert.isNull(row("deg").querySelector(".sel-state"));
         });
     });
 });

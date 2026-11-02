@@ -346,8 +346,8 @@ const PICTURE_TYPES: Readonly<Record<string, string>> = {
 const refusedPictures = new WeakMap<object, string[] | null>();
 
 /**
- * The commands the style fidelity harness (test/fidelity/mount.ts) runs around loading a sample, in the `fidelity`
- * and `browser` projects' `commands`.
+ * The commands the style fidelity harness (test/fidelity/mount.ts) runs around loading a sample, in the `commands` of
+ * every project that runs a test file using it (`fidelity`, `browser`, `minimum-work`).
  */
 const samplePictureCommands: {
     serveSamplePictures: BrowserCommand<[]>;
@@ -976,7 +976,7 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: { ...mapTileCommands, ...heldRequestCommands },
+                        commands: { ...mapTileCommands, ...heldRequestCommands, ...samplePictureCommands },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),

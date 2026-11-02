@@ -42,6 +42,10 @@ picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360d
   without the fix), `graphty/src/workspace/style/__tests__/CoveredClaim.real-element.test.tsx`.
   Residual: a CHANNEL added to a layer while a view is drawn reads from the old bindings until
   the next style event; no pilot route does that.
+  Re-walked all eight routes on a fresh build (`design/ui/studio/tmp/r1-dry1-covered-claim/`):
+  no Fill "Covered by" and no key "covered by" for the edited layer on any; the key's count equals
+  Which nodes. Where the key still says "covered by", it is under the LOWER layer, which the edited
+  layer truly paints over (T70A, T73A) -- correct.
 - (2026-10-30) Tier 4 round 1 closed; the studio stopped at its 1-round cap with bars 2, 3, 5, 6
   and 7 failing (`tier4/rounds/round-1/insights.md`). No severity 3 or 4 survived the skeptic
   checks. Most severe open problem (sev 2): the join preview tags the wrong rows -- the

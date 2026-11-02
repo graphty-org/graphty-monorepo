@@ -31,6 +31,11 @@ export interface PGradient {
     kind: "linear" | "radial";
     stops: PStop[];
     angle: number | null;
+    /**
+     * A linear gradient read off a picture's pixels (`pictureGradient`), whose direction is known only up to a half
+     * turn: one run the other way from its other end is the same picture. Absent for a gradient a program wrote.
+     */
+    halfTurn?: true;
 }
 
 /** A fill: a flat color, or a gradient (its first stop is also its `color`). */

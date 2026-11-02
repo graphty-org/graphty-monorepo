@@ -41,6 +41,8 @@ describe("a gradient read off a picture's pixels", () => {
         assert.isNotNull(g);
         assert.strictEqual(g?.kind, "linear");
         assert.strictEqual(g?.angle, 135);
+        // its direction is known only up to a half turn: the comparison may judge it run either way
+        assert.isTrue(g?.halfTurn);
         const stops = g?.stops ?? [];
         assert.strictEqual(stops[0].offset, 0);
         assert.strictEqual(stops.at(-1)?.offset, 1);
@@ -52,6 +54,7 @@ describe("a gradient read off a picture's pixels", () => {
     it("reads a radial ramp out from the middle", () => {
         const g = pictureGradient(picture(60, (x, y) => mix(WHITE, BLUE, Math.hypot(x, y) / 0.7)));
         assert.strictEqual(g?.kind, "radial");
+        assert.isUndefined(g?.halfTurn);
         assert.isTrue(near(g?.stops[0].color, WHITE), g?.stops[0].color);
     });
 

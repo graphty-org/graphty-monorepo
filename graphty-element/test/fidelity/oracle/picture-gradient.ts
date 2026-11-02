@@ -157,5 +157,9 @@ export function pictureGradient(p: Pixels): PGradient | null {
     }
     const first = best.places[0];
     const spread = Math.max(...best.places.map((m) => Math.hypot(m[1] - first[1], m[2] - first[2], m[3] - first[3])));
-    return spread < FLAT ? null : { kind: best.kind, stops: stopsOf(best.places), angle: best.angle };
+    if (spread < FLAT) {
+        return null;
+    }
+    const gradient: PGradient = { kind: best.kind, stops: stopsOf(best.places), angle: best.angle };
+    return best.kind === "linear" ? { ...gradient, halfTurn: true } : gradient;
 }

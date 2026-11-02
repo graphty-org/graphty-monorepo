@@ -1252,7 +1252,9 @@ export function lineWidthMiss(o: number, g: number, color: string, opacity: numb
 const turnOf = (deg: number): number => (((deg % 360) + 540) % 360) - 180;
 
 /**
- * Whether graphty's linear ramp runs the other way from the oracle's: their directions more than a quarter turn apart.
+ * Whether graphty's linear ramp runs the other way from the oracle's, where the oracle's direction is known only up to
+ * a half turn (a ramp read off a picture's pixels): their directions more than a quarter turn apart. A gradient a
+ * program wrote has its direction, and one drawn backwards against it is a miss.
  * @param o - the oracle's gradient
  * @param g - graphty's
  * @param angles - each one's direction as judged
@@ -1262,6 +1264,7 @@ const turnOf = (deg: number): number => (((deg % 360) + 540) % 360) - 180;
  */
 function runsBackwards(o: PGradient, g: PGradient, angles: { o: number | null; g: number | null }): boolean {
     return (
+        o.halfTurn === true &&
         o.kind === "linear" &&
         g.kind === "linear" &&
         angles.o !== null &&

@@ -522,25 +522,45 @@ async function writeRuns(
             await flaky(c, run, repo);
         }
         for (const j of jobs ?? []) {
-            c.items.push(
-                toJobItem(j, repo, workflow, cancel?.hung.has(j.name) ?? false, loadKind(run), offMaster(run)),
-            );
-            if (STEP_WORKFLOWS.has(workflow) && j.status === "completed") {
-                c.items.push(...toStepItems(j, repo, workflow));
-            }
-            if (j.status === "completed") {
-                const t4 = t4Cost(j, repo, c.d.rates, workflow);
-                const llm = llmCost(j, repo, c.d.rates, workflow, run);
-                if (t4) {
-                    c.items.push(t4);
-                }
-                if (llm) {
-                    c.items.push(llm);
-                }
-            }
+            c.items.push(...jobItems(c, { run, repo, workflow, hung: cancel?.hung.has(j.name) ?? false }, j));
         }
     }
     await markPrCaused(c.d.store, gh, c.d.repo, runItems, c.now);
+}
+
+/**
+ * One job's items: the job, and once it completed, its steps (for the workflows timed by step) and its costs.
+ * @param c - the cycle
+ * @param r - the job's run, repository, workflow file and whether the job hung
+ * @param r.run - the job's run
+ * @param r.repo - owner/name of the repository
+ * @param r.workflow - the run's workflow file
+ * @param r.hung - true when the job timed out in a cancelled run
+ * @param j - the job
+ * @returns the job's items
+ */
+function jobItems(
+    c: Cycle,
+    r: { run: GhRun; repo: string; workflow: string; hung: boolean },
+    j: NonNullable<Collected["jobs"]>[number],
+): RawItem[] {
+    const { run, repo, workflow } = r;
+    const items: RawItem[] = [toJobItem(j, repo, workflow, r.hung, loadKind(run), offMaster(run))];
+    if (j.status !== "completed") {
+        return items;
+    }
+    if (STEP_WORKFLOWS.has(workflow)) {
+        items.push(...toStepItems(j, repo, workflow));
+    }
+    const t4 = t4Cost(j, repo, c.d.rates, workflow);
+    const llm = llmCost(j, repo, c.d.rates, workflow, run);
+    if (t4) {
+        items.push(t4);
+    }
+    if (llm) {
+        items.push(llm);
+    }
+    return items;
 }
 
 /**

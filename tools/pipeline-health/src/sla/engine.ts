@@ -853,6 +853,49 @@ const closed = ({ score: _score, ...e }: OpenEpisode): Episode => e;
 const GRAY_ENDS = HOUR_SPAN / STEP;
 
 /**
+ * Ends an open episode: cleared then, unless it cleared earlier, and ended then.
+ * @param open - the open episode
+ * @param end - when it ends
+ * @returns the closed episode
+ */
+function endAt(open: OpenEpisode, end: number): Episode {
+    open.clearedAt ??= end;
+    open.endedAt = end;
+    return closed(open);
+}
+
+/**
+ * A failing or warning step: opens the member's episode or extends it, and marks it cleared or not.
+ * @param ctx - what evaluate loaded
+ * @param c - the member
+ * @param current - its status now
+ * @param open - its open episode, if any
+ * @param step - the step: its state, index back from now (0 is now), start, and the state of the step before
+ * @param step.h - the step's state
+ * @param step.i - the step's index back from now
+ * @param step.t - the step's start
+ * @param step.before - the state of the step before it
+ * @returns the open episode
+ */
+function badStep(
+    ctx: Ctx,
+    c: MemberConfig,
+    current: MemberStatus,
+    open: OpenEpisode | undefined,
+    step: { h: StepState; i: number; t: number; before: MemberState | null },
+): OpenEpisode {
+    const { h, i, t, before } = step;
+    const next = extend(open, c, h, i === 0 ? (current.since ?? t) : t);
+    // Opened by the current step after steps that could not be judged, with no time the engine can tell:
+    // it may have begun any time in that gray stretch, so its start is unknown.
+    if (open === undefined && i === 0 && current.since === undefined && before === null) {
+        next.startUnknown = true;
+    }
+    clearing(next, recovered(ctx, c, t), t);
+    return next;
+}
+
+/**
  * The member's episodes over the last 24 h. A 7- or 28-day member has none: it has no 5-minute history, so its
  * start would be "now" on every cycle; its rows and blocks show its breach instead. An episode ends after an hour
  * of gray steps, so one the member stopped being judged on (too few samples) does not stay ongoing.
@@ -878,29 +921,17 @@ function episodesOf(ctx: Ctx, c: MemberConfig, current: MemberStatus): Episode[]
         if (h.state === null && open) {
             gray++;
             if (gray >= GRAY_ENDS) {
-                const end = t - (GRAY_ENDS - 1) * STEP;
-                open.clearedAt ??= end;
-                open.endedAt = end;
-                out.push(closed(open));
+                out.push(endAt(open, t - (GRAY_ENDS - 1) * STEP));
                 open = undefined;
             }
             continue;
         }
         gray = 0;
         if (BAD(h.state)) {
-            const fresh = open === undefined;
-            open = extend(open, c, h, i === 0 ? (current.since ?? t) : t);
-            // Opened by the current step after steps that could not be judged, with no time the engine can tell:
-            // it may have begun any time in that gray stretch, so its start is unknown.
-            if (fresh && i === 0 && current.since === undefined && before === null) {
-                open.startUnknown = true;
-            }
-            clearing(open, recovered(ctx, c, t), t);
+            open = badStep(ctx, c, current, open, { h, i, t, before });
         } else if (h.state === "OK" && open) {
             // Gray or unknown steps (null) neither open nor clear an episode.
-            open.clearedAt ??= t;
-            open.endedAt = t;
-            out.push(closed(open));
+            out.push(endAt(open, t));
             open = undefined;
         }
     }

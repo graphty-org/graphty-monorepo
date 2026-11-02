@@ -53,7 +53,10 @@ bank's two spreadsheets together in the Data place, and once narrowed the volunt
 trained people from the Data place. You have colored people by a result from the Style tab, but you
 have never picked by hand which people a color goes to. For the thank-you event a colleague set up
 a separate project from the volunteer list, which you have opened from Recent projects and looked
-at, but not changed. Anything you have not done before is as new to you as it was the first day."
+at, but not changed. This month the food bank also started keeping a newer copy of the volunteer
+list that records how many shifts each pair of volunteers worked together; you opened it with 'Open
+a file', looked at it and saved it. Anything you have not done before is as new to you as it was
+the first day."
 
 ### Ruth -- reporter, weeks into the story
 
@@ -184,7 +187,7 @@ starts every one again on the frozen build.
 | T73  | `volunteers.txt`        | `gauges-clean.txt`     | A has no names designated, B has: the reference by name meets both.                  |
 | T74  | `volunteers.txt`        | `gauges-clean.txt`     | A holds a ranking run already (Results); B has none (a run started from the editor). |
 | T75  | `researchers.txt`       | `yeast.txt`            | The two big networks: one piece (A), 26 pieces (B).                                  |
-| T76  | `sources.txt`           | `gauges-clean.txt`     | The networks shown in a meeting.                                                     |
+| T76  | `sources.txt`           | `gauges-clean.txt`     | The networks shown in a meeting (dry run only: no round sessions).                   |
 | T77  | `volunteers-thanks.txt` | `gauges-telemetry.txt` | A colleague's filter card and layer, built in the workspace, to be changed.          |
 | T78  | `volunteers-shifts.txt` | `gauges-clean.txt`     | A count over the ties, where the weak ones must not count: `shifts` (A), `km` (B).   |
 | T79  | `staff-50k.txt`         | `sensors-50k.txt`      | 50,000 nodes: every list bounded, every edit a wait.                                 |
@@ -192,15 +195,17 @@ starts every one again on the frozen build.
 ## Who takes which task (30 sessions)
 
 Listed by persona first, so `real.mjs --brief` reads each task's start from the table above. Each
-core task (T70, T71, T73, T74) has two pointer sessions per half; every other task one per half;
-Sam's two are on top and count only for the keyboard bar.
+core task (T70, T71, T73, T74, T78) has two pointer sessions per half; T72, T75, T77 and T79 one
+per half; T76 none (it is piloted in the dry run only); Sam's two are on top and count only for
+the keyboard bar. Every start is the person's own saved project or one shared with them, as their
+history says; no task starts empty.
 
 | Persona | Tasks                                    |
 | ------- | ---------------------------------------- |
-| Grace   | T70 A, T71 A, T73 A, T74 A, T77 A        |
+| Grace   | T70 A, T71 A, T73 A, T74 A, T77 A, T78 A |
 | Dana    | T70 A, T71 A, T73 A, T74 A, T78 A        |
-| Ruth    | T72 A, T76 A                             |
-| Tom     | T70 B, T71 B, T72 B, T76 B, T77 B, T79 B |
+| Ruth    | T72 A                                    |
+| Tom     | T70 B, T71 B, T72 B, T77 B, T78 B, T79 B |
 | Maren   | T70 B, T73 B, T74 B, T75 B, T78 B        |
 | Alex    | T71 B, T73 B, T74 B, T75 A, T79 A        |
 | Sam     | T70 A (`--keys`), T71 A (`--keys`)       |

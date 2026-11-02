@@ -25,8 +25,8 @@ round plan: `criteria.md`. Participants and which tasks they take: `roster.md`. 
   tier 5 task starts empty: choosing among what is already there is the task. Keyboard-only Sam's
   start adds `--keys`.
 - **A follow-up** is asked by the tool at the participant's first `--end`, word for word, in every
-  task: the overwhelm rating (the owner's bar, `criteria.md` bar 9), and in T70 and T71 the owner's
-  question before it. The two 50,000-node starts (T79) need
+  task: the overwhelm rating first (the owner's bar, `criteria.md` bar 9), then in T70 and T71 the
+  owner's question, worded so it names nothing the drawing did. The two 50,000-node starts (T79) need
   `python3 design/ui/studio/tool/files/big-50k.py` run once on the machine first.
 - **Step notes** are one or two sentences, in character. No step cap.
 
@@ -107,16 +107,15 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
   phrase for when a gauge was installed; `readings` -- the river team's word for what telemetry
   sends (the screens say it in no control).
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "While you were choosing who goes in orange, the drawing changed its colors for a while.
-      What did you take that to mean, and would you rather it had kept the colors you had?
-      Last, on a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
+    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
       walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
-    - B: "While you were choosing which gauges go in orange, the drawing changed its colors for a
-      while. What did you take that to mean, and would you rather it had kept the colors you had?
-      Last, on a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
+      that most made it feel that way. Then: what did you notice the drawing do while you were choosing who goes in
+      orange, and what did you take it to mean? Would you rather it had shown something else?"
+    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
       walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
+      that most made it feel that way. Then: what did you notice the drawing do while you were choosing which gauges
+      go in orange, and what did you take it to mean? Would you rather it had shown something
+      else?"
 
 ### T71. Either of two things (two datasets)
 
@@ -131,16 +130,14 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
 - **Kept on purpose:** `just` -- the everyday word where tier 4 avoided "only"; `kinds` -- what the
   person calls the two ways in; `longer` -- tier 4's "10 hours or longer".
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "While you were deciding who stays in the picture, did you look at the list of people
-      under the drawing? Did it help, or get in the way?
-      Last, on a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
+    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
       walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
-    - B: "While you were deciding which gauges stay in the picture, did you look at the list of
-      gauges under the drawing? Did it help, or get in the way?
-      Last, on a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
+      that most made it feel that way. Then: while you were deciding who stays in the picture, what on the screen
+      besides the drawing did you look at, and did it help or get in the way?"
+    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
       walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
+      that most made it feel that way. Then: while you were deciding which gauges stay in the picture, what on the
+      screen besides the drawing did you look at, and did it help or get in the way?"
 
 ### T72. All of one kind, but not some of them (two datasets)
 
@@ -167,11 +164,12 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
   shift with him, or with someone who worked a shift with him, in orange -- James too -- so he
   knows whom to ask first. Tell us how many people are in orange."
 - **Prompt B (gauges):** "A spill was reported at Cedar Bend. Put Cedar Bend and every gauge no
-  more than two stretches of river from it, in either direction along the river, in orange, so the
+  more than two stretches of river from it, upriver or down, in orange, so the
   crew knows which gauges to check first. Tell us how many gauges are in orange."
 - **Kept on purpose:** `worked a shift with` -- what a tie in Grace's file is; `stretches of river`
-  -- what a tie in Tom's file is; `either direction` -- says the river's flow does not matter, where
-  the screens' Upstream of and Downstream of would. `or with someone` -- "or" inside the person's
+  -- what a tie in Tom's file is; `upriver or down` -- says the river's flow does not matter, where
+  the screens' Upstream of and Downstream of would (and where "either direction" would echo the
+  Connected choice "Either direction"). `or with someone` -- "or" inside the person's
   sentence, not a choice between two ways.
 - **Follow-up** (asked after the participant's first `--end`):
     - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
@@ -225,6 +223,8 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
 
 ### T76. The start screen's pointing effect (two datasets)
 
+Piloted in the dry run only; no round sessions (`criteria.md`, round plan).
+
 - **Prompt A (sources):** "At the newsroom meeting you will walk your editor through the network on
   screen. Set it up to behave like the picture on the program's start screen: when you rest the
   pointer on someone, everyone not directly tied to them goes pale and their ties stand out; when
@@ -248,7 +248,7 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
 
 - **Prompt A (volunteers):** "A colleague set this project up for the volunteers' thank-you event:
   just the trained people who gave 10 hours or longer are in the picture, and the staff among them
-  are in orange. The event's plan changed. It should now be 20 hours or longer instead of 10, and
+  are in orange. The event's plan changed. It should now be 20 hours or longer, not 10, and
   anyone in the picture who gave 30 hours or longer should be in orange too, along with the staff.
   Change the project accordingly, and tell us how many people are in the picture and how many of them
   are in orange."
@@ -258,8 +258,8 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
   whether they send readings or not, and the orange should now go to every gauge in the picture put
   in up to the end of 2004. Change the project accordingly, and tell us how many gauges are in the
   picture and how many are in orange."
-- **Kept on purpose:** `instead of`, `along with`, `too` -- everyday words for changing what is
-  there; `up to the end of 2004` -- the person's own bound, where the card says Before.
+- **Kept on purpose:** `not 10`, `along with`, `too` -- everyday words for changing what is
+  there ("instead of" would echo the step menu's "Add instead"); `up to the end of 2004` -- the person's own bound, where the card says Before.
 - **Follow-up** (asked after the participant's first `--end`):
     - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
       walk away), how did the program feel while you did this? Say the number, and the one thing
@@ -276,14 +276,15 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
   who has worked together with more than two different people in orange. Tell us how many people
   are in orange."
 - **Prompt B (gauges):** "The crew checks the gauges on foot and will not walk a stretch of river
-  that is 3 km long or longer. Put in orange every gauge that has more than one neighboring gauge
-  the crew will walk to, in either direction along the river. Tell us how many gauges are in
+  that is 3 km long or longer. Put in orange every gauge that has more than one other gauge next to
+  it on the river, upriver or down, that the crew will walk to. Tell us how many gauges are in
   orange."
 - **Kept on purpose:** `shared ... shift`, `more than one shift` -- what Dana's friend's `shifts`
   column counts, and the person's threshold; `worked together with more than two different people`
   -- the person's words for a count of ties, where the screens say Degree; `3 km long or longer`
-  -- the crew's bound on `km`, where the screens say max; `neighboring gauge` -- one stretch away;
-  `either direction along the river` -- the river's flow does not matter, as in T73.
+  -- the crew's bound on `km`, where the screens say max; `next to it on the river` -- one stretch
+  away ("neighboring" would find Degree by its search keyword "neighbors"); `upriver or down` --
+  the river's flow does not matter, as in T73.
 - **Follow-up** (asked after the participant's first `--end`):
     - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
       walk away), how did the program feel while you did this? Say the number, and the one thing
@@ -314,15 +315,15 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
 
 ## Detours each pilot walks
 
-| Task | Commonest detours (a person who does not know the path tries these first)                                                                                                                                                |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| T70  | Hiding with a style layer's Visibility; coloring from the Data place; the table's column header menu; clicking nodes on the canvas one by one; Cancel read as "close" (it undoes the edits)                              |
-| T71  | Two filter cards (both must hold, not either); the second value added by Condition... in the same group (both at once); a style layer instead of a filter                                                                |
-| T72  | Two layers (one coloring, one un-coloring); a second step with on the record No (an equal result); a filter card; looking for "not" in the value picker before the Except switch                                         |
-| T73  | Typing the name into the reference list (A has no label designated); 1 hop; Analyze's Steps away; selecting James on the canvas first, or Pick on canvas                                                                 |
-| T74  | Analyze's ranking run again; a hand-typed lower bound By value; the table sorted by the measure and nodes selected by hand                                                                                               |
-| T75  | A second filter card for the big tangle (it reads the whole graph); the steps in the other order; a style layer that fades the rest                                                                                      |
-| T76  | The add menu's Hover highlight; editing the Hovered row; four layers built by hand in the workspace                                                                                                                      |
-| T77  | A new filter card or layer instead of reopening the old one; Clear and rebuild; Edit not found on the single-step card (its row, Enter); changing the wrong host                                                         |
-| T78  | The Data place's graph-wide filter on the ties (it takes the weak ties out of every reader's picture: an equal count, noted); the step's Edges left on All edges (A 24, B 9); Degree In or Out on the directed river (B) |
-| T79  | Scrolling the checklist for the value instead of its search; clicking a node of the department on the canvas; reading a count while the header still says Drawing; giving up while an edit is busy                       |
+| Task | Commonest detours (a person who does not know the path tries these first)                                                                                                                                                                                                          |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T70  | Hiding with a style layer's Visibility; coloring from the Data place; the table's column header menu; clicking nodes on the canvas one by one; Cancel read as "close" (it undoes the edits)                                                                                        |
+| T71  | Two filter cards (both must hold, not either); the second value added by Condition... in the same group (both at once); a style layer instead of a filter                                                                                                                          |
+| T72  | Two layers (one coloring, one un-coloring); a second step with on the record No (an equal result); a filter card; looking for "not" in the value picker before the Except switch                                                                                                   |
+| T73  | Typing the name into the reference list (A has no label designated); 1 hop; Analyze's Steps away; selecting James on the canvas first, or Pick on canvas                                                                                                                           |
+| T74  | Analyze's ranking run again; a hand-typed lower bound By value; the table sorted by the measure and nodes selected by hand                                                                                                                                                         |
+| T75  | A second filter card for the big tangle (it reads the whole graph); the steps in the other order; a style layer that fades the rest                                                                                                                                                |
+| T76  | The add menu's Hover highlight; editing the Hovered row; four layers built by hand in the workspace                                                                                                                                                                                |
+| T77  | A new filter card or layer instead of reopening the old one; Clear and rebuild; Edit not found on the single-step card (its row, Enter); changing the wrong host                                                                                                                   |
+| T78  | The Data place's graph-wide filter on the ties (it takes the weak ties out of every reader's picture: an equal count, noted); the step's Edges left on All edges (A 24, B 9); Degree In or Out on the directed river (B); typing "neighbor" in the picker (Neighbors of selection) |
+| T79  | Scrolling the checklist for the value instead of its search; clicking a node of the department on the canvas; reading a count while the header still says Drawing; giving up while an edit is busy                                                                                 |

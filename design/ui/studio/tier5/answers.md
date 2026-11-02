@@ -33,6 +33,18 @@ click, key, typed text and file chosen counts, looking does not.
   visibly orange or red-orange hue (the setups use E4572E); a different hue with the right members
   is SD for the color, never P.
 
+## Wrong turns, worked examples
+
+`criteria.md` ("Grades") counts a wrong turn only before the session first reaches the success
+state. One example of each kind:
+
+- **Counted**: T71 A opens the Style tab's "+" menu, closes it with nothing chosen, then goes to
+  Data (1). T77 B presses Cancel meaning "close", losing the Or group, and rebuilds it (1). T72 B
+  adds a second layer to un-color the 1990s gauges and deletes it before using Except (1).
+- **Not counted**: resting the pointer on Advanced without clicking; reopening the finished layer
+  after the count is right to check it; a click made because the tool's hover line reported
+  nothing where the screenshot shows a tooltip (reported as a tool defect).
+
 ## Facts no briefing may hold
 
 - `Ben Adler` -- T74 A's answer (also `Seun Okoro`, `Priya Nair`, `Hannah Weiss`)
@@ -244,9 +256,9 @@ click, key, typed text and file chosen counts, looking does not.
   In or Out alone on the directed river differ (P).
 - **Path (A)** (walked): + > Layer; Which nodes; type "degree"; Enter; type 3; Enter; Advanced;
   Edges where ...; Edge value...; `shifts`; type 2 (its Min box takes focus); Enter; Done; Fill;
-  hex; Enter. 17 steps. The row reads "Degree min 3 Edges"; Advanced's right "Edges: shifts min 2".
+  hex; Enter. Path steps: 17 (A). The row reads "Degree min 3 Edges"; Advanced's right "Edges: shifts min 2".
 - **Path (B)** (walked): the same with Degree min 2, `km`, then the "km to" box, Ctrl+A, type 2.9
-  (or 3: no stretch is exactly 3 km), Enter. 19 steps.
+  (or 3: no stretch is exactly 3 km), Enter. Path steps: 19 (B).
 - **Also success**: a Data place filter card on the ties (`shifts` 2 or more / `km` under 3) and
   the layer's Degree on the filtered graph: an equal count, but every reader loses the weak ties;
   noted as its route (the placement study's T4 counted it).

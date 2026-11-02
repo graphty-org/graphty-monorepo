@@ -47,8 +47,8 @@ interface Paints {
 }
 
 /**
- * What a layer row paints: how many nodes and edges its parts match, and whether every property
- * it writes is painted over above it (`styles.counts`).
+ * What a layer row paints: how many of the nodes and edges drawn its parts match, and whether
+ * every property it writes is painted over above it (`styles.counts`).
  * @param session - the element's session.
  * @param row - the layer row.
  * @returns the facts.
@@ -64,9 +64,10 @@ function paintsOf(session: GraphSession, row: StyleRow): Paints {
     // A row that matches nothing paints nothing, so nothing of it is painted over.
     const matched = (node?.matched ?? 0) + (edge?.matched ?? 0);
     const by = [node, edge].flatMap((c) => c?.paintedBy ?? []).map((id) => session.styles.get(id)?.name ?? id);
+    // Counted over the graph the filter leaves drawn, the base Which nodes and the key count over.
     return {
-        nodes: node?.matched,
-        edges: edge?.matched,
+        nodes: node === undefined ? undefined : (node.visible?.matched ?? node.matched),
+        edges: edge === undefined ? undefined : (edge.visible?.matched ?? edge.matched),
         paintedOver: matched > 0 && painted.length > 0 && painted.every((n) => n === 0),
         paintedBy: [...new Set(by)],
     };

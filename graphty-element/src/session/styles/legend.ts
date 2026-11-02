@@ -294,6 +294,13 @@ export interface LegendBlock {
         readonly count: number;
         /** How many elements of that kind the graph holds. */
         readonly of: number;
+        /**
+         * How many elements of that kind are drawn, those no filter step hides: the base `count` is
+         * read over, as a layer's `styles.counts(layerId).visible.of`. Equal to `of` with no filter
+         * on. Absent only on a block written by hand.
+         * @since 3.36.0
+         */
+        readonly visible?: number;
     };
     /** How many rows did not fit, when some did not. The `"other"` row is never counted here. */
     readonly overflow?: {
@@ -472,7 +479,11 @@ export interface LegendSources {
      * @param layerId - The layer.
      * @returns The two counts.
      */
-    readonly selects?: (layerId: LayerId) => { readonly count: number; readonly of: number };
+    readonly selects?: (layerId: LayerId) => {
+        readonly count: number;
+        readonly of: number;
+        readonly visible?: number;
+    };
     /**
      * For each category one layer's binding meets among the elements it selects, how many carry
      * it, how many of those show the layer's paint for the channel, and the layer shown instead on
@@ -1140,7 +1151,15 @@ function buildBlock(
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),
         swatches: Object.freeze(capped.swatches),
         ...(painted === undefined ? {} : { painted: painted[channel] ?? 0 }),
-        ...(scoped ? { scope: { count: selects.count, of: selects.of } } : {}),
+        ...(scoped
+            ? {
+                  scope: {
+                      count: selects.count,
+                      of: selects.of,
+                      ...(selects.visible === undefined ? {} : { visible: selects.visible }),
+                  },
+              }
+            : {}),
         ...(capped.hidden === 0 ? {} : { overflow: { hidden: capped.hidden } }),
         facts: Object.freeze([...facts]),
         departures: Object.freeze(facts.map(departureSentence)),
@@ -1298,11 +1317,14 @@ function foldGroup(copies: readonly LegendBlock[], reached: LegendSources["reach
         : undefined;
     const { scope: _scope, ...keptRest } = kept;
     const of = kept.scope?.of ?? 0;
+    const visible = kept.scope?.visible;
     const folded = {
         ...keptRest,
         layers: Object.freeze(copies.map((copy) => copy.layerId)),
         ...painted,
-        ...(together !== undefined && together < of ? { scope: { count: together, of } } : {}),
+        ...(together !== undefined && together < of
+            ? { scope: { count: together, of, ...(visible === undefined ? {} : { visible }) } }
+            : {}),
     };
     // A ramp's rows are samples along the domain, not categories an element carries: kept whole,
     // or the ramp lost both its end values to the category filter below.

@@ -4,6 +4,21 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-02 -- Decided by the team: a layer's count over the graph the filter leaves (graphty-element)
+
+**What.** Additive. `StyleCounts.visible?: { matched, of }` -- what the layer's selector selects
+among the elements no filter step hides, and how many of its kind those are -- and a legend block's
+`scope.visible?: number`, how many of its kind are drawn. Both are always present on what
+graphty-element returns, optional only so hand-written values still type-check (as
+`StyleCounts.adjusted` is). `matched`, `scope.count` and `scope.of` return exactly what they did.
+
+**Why.** One layer was counted over two bases: the style tree row and Everything's "styles all N"
+read the whole graph (`matched`), the key's "of N" read the whole graph (`scope.of`), while Which
+nodes read the graph the filter leaves -- "24", "10 of 10" and "of 24" for one layer at once.
+`tier5/decided.md`, "Dry run pass 1", settles the base as the graph the filter leaves drawn and
+asks for the count additively. Changing `matched` or `scope.of` instead would change what existing
+APIs return, which is breaking. Named `visible` after the `"visible"` scope, which is that base.
+
 ## 2026-10-31 -- For the owner: a filter condition that reads the selection goes stale (graphty-element)
 
 **What.** Not done; a question. `visibility.addCondition` accepts `{ kind: "member", of: "selection" }`

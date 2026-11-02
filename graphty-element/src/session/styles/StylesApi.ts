@@ -2897,6 +2897,28 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * What a layer selects among the elements no filter step hides, and how many of its kind those
+     * are: the style selector's base (`StyleCounts.visible`, a legend block's `scope`).
+     * @param id - The layer.
+     * @returns The two counts.
+     */
+    const amongDrawn = (id: LayerId): { readonly matched: number; readonly of: number } => {
+        const compiled = byId().get(id);
+        const edges = compiled?.layer.target === "edge";
+        const drawn = elementsOf(DRAWN);
+        const test = compiled?.selector.test ?? null;
+        let matched = 0;
+        let of = 0;
+        for (const index of edges ? drawn.edges : drawn.nodes) {
+            of++;
+            if (test === null || test(index)) {
+                matched++;
+            }
+        }
+        return { matched, of };
+    };
+
+    /**
      * The layers some rows of the tree hold: both parts of a two-kind row, every layer in a folder.
      * @param ids - The rows.
      * @returns The layers, bottom first, once each.
@@ -2979,17 +3001,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         // takes them out of the count, so a key never counts nodes the drawing does not show.
         selects: (id) => {
             const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
-            const compiled = byId().get(id);
-            const edges = compiled?.layer.target === "edge";
-            const drawn = elementsOf(DRAWN);
-            const test = compiled?.selector.test ?? null;
-            let count = 0;
-            for (const index of edges ? drawn.edges : drawn.nodes) {
-                if (test === null || test(index)) {
-                    count++;
-                }
-            }
-            return { count, of: edges ? whole.edgeCount : whole.nodeCount };
+            const edges = byId().get(id)?.layer.target === "edge";
+            const { matched, of } = amongDrawn(id);
+            return { count: matched, of: edges ? whole.edgeCount : whole.nodeCount, visible: of };
         },
         reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), countSources()),
         reached: (id, channel) => {
@@ -5572,7 +5586,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
 
             // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
-            const counts = styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision);
+            const counts = {
+                ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision),
+                visible: amongDrawn(id),
+            };
             // Groups past the outline cap draw nothing; said here, never dropped silently.
             const left = groupOutlinesOf(api)
                 .filter((each) => each.layer === id)

@@ -628,8 +628,7 @@ function BaseRow({
     rows,
     side,
 }: Readonly<{ session: GraphSession; rows: readonly PickRow[]; side: Side }>): React.JSX.Element {
-    const stats = session.data.statistics();
-    const total = side === "node" ? stats.nodeCount : stats.edgeCount;
+    const total = drawnTotal(session, rows[0]?.layer.id, side);
     return (
         <div className="ws-which" data-testid="which-picker" data-side={side} data-base="">
             <Text size="xs" className="ws-which-base">
@@ -638,6 +637,23 @@ function BaseRow({
             </Text>
         </div>
     );
+}
+
+/**
+ * How many elements of a kind are drawn, the base a layer styles over (`styles.counts(id).visible`):
+ * what the filter leaves, the graph's count with no filter on.
+ * @param session - the element's session.
+ * @param layerId - the layer, if any.
+ * @param side - nodes or edges.
+ * @returns the count.
+ */
+function drawnTotal(session: GraphSession, layerId: string | undefined, side: Side): number {
+    const of = layerId === undefined ? undefined : session.styles.counts(layerId).visible?.of;
+    if (of !== undefined) {
+        return of;
+    }
+    const stats = session.data.statistics();
+    return side === "node" ? stats.nodeCount : stats.edgeCount;
 }
 
 /**
@@ -816,8 +832,6 @@ function Cards({
     const fields = cardFields(session, side).filter((field) => !sourceTwice || field.kind !== "source");
     const elsewhere = cardFields(session, side === "node" ? "edge" : "node");
     const bulk = rows.length > 1;
-    const stats = session.data.statistics();
-    const total = side === "node" ? stats.nodeCount : stats.edgeCount;
 
     useEffect(() => {
         if (focus === null) {
@@ -910,7 +924,7 @@ function Cards({
             );
             store.set({
                 notice: {
-                    message: `${row.name} now styles all ${many(total, side)}: no condition is left`,
+                    message: `${row.name} now styles all ${many(drawnTotal(session, row.layer.id, side), side)}: no condition is left`,
                     action: {
                         label: "Undo",
                         run: () => {

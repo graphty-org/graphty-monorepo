@@ -150,6 +150,21 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         assert.isNull(within(await row("Nobody")).queryByRole("img", { name: /Painted over/ }));
     });
 
+    it("counts each row over the nodes the filter leaves drawn, as Which nodes does", async () => {
+        const { session } = await openScene();
+        await session.visibility.set({ kind: "member", of: { nodes: [2, 3, 4] } });
+        await session.styles.settled();
+        // Cover selects all 4 nodes and Key people 2 of them; the filter leaves 3, Key people's 1 among them.
+        const countOf = (name: string): string | null | undefined =>
+            within(tree())
+                .getByRole("treeitem", { name: new RegExp(`^${name}, `) })
+                .querySelector(".ws-row-count")?.textContent;
+        await waitFor(() => {
+            assert.equal(countOf("Cover"), "3");
+            assert.equal(countOf("Key people"), "1");
+        });
+    });
+
     it("groups the row menu, with an icon on every item, Hide and Lock by their keys, and no Unpin on an unpinned row", async () => {
         const { session, key } = await openScene();
         const menu = await rowMenu("Key people");

@@ -21,6 +21,15 @@ Trimmed 2026-10-30 (the file passed 25 KB); the full earlier Top of mind (the Se
 fix 71230abff1, the unknown-end mark, inspector node names, the weight re-run, Select within the
 picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360dd57f:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) Tier 5: every style count reads over the graph the filter leaves. graphty-element
+  added `StyleCounts.visible { matched, of }` and legend `scope.visible` (additive; `matched` and
+  `scope.of` unchanged). The app reads them in the tree rows, Everything's "styles all N", the
+  "no condition is left" notice and the key's "N of M" (no key line once a layer holds every node
+  drawn). Re-walked T72A d2, T72B d3, T77A d1, T70A success on a fresh build: 7 / "all 7", 5 / "5 of
+  5", 10 beside "10 of 10", key "4 of 15". Still over the whole graph: the collapsed Which row's
+  `useHead`, MultiRowPanel, LayerValues "on N of M", PropertyRow "on N" -- check them if a reader
+  meets two bases again.
+
 - (2026-10-30) Tier 4 round 1 closed; the studio stopped at its 1-round cap with bars 2, 3, 5, 6
   and 7 failing (`tier4/rounds/round-1/insights.md`). No severity 3 or 4 survived the skeptic
   checks. Most severe open problem (sev 2): the join preview tags the wrong rows -- the
@@ -265,6 +274,11 @@ date)` lost its kind and column arguments: a text or number time field shows its
 - Entries dated 2026-10-21 and earlier (bars.mjs sizes, real.mjs keys and starts, builds while
   other agents rebuild, Escape and focus traces, live regions, disabled-state proofs), in full:
   `git show 51d0e57509:design/ui/studio/notes/engineer.md`.
+
+- (2026-11-02) Worked: one helper (`amongDrawn` in StylesApi) serves both `counts().visible` and
+  the legend's `selects`, so the key and the rows cannot drift. Did not work: a real-element test
+  whose `waitFor` callback awaited `findByRole` sat with no output for 13 minutes; a synchronous
+  `getByRole` inside `waitFor` is the shape the other tests use.
 
 ## Sources
 

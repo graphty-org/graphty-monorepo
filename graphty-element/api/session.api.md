@@ -2992,6 +2992,7 @@ export interface LegendBlock {
     readonly scope?: {
         readonly count: number;
         readonly of: number;
+        readonly visible?: number;
     };
     readonly swatches: readonly LegendSwatch[];
 }
@@ -6289,6 +6290,10 @@ export interface StyleCounts {
     readonly revision: string;
     readonly tops: readonly CodedFact<TopFactCode>[];
     readonly undrawn: readonly CodedFact<UndrawnCode>[];
+    readonly visible?: {
+        readonly matched: number;
+        readonly of: number;
+    };
 }
 
 // @public

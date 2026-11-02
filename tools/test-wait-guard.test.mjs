@@ -11,7 +11,7 @@ import { guardViWaits, TEST_GUARD_MS, WAIT_GUARD_MS, withTestGuards } from "./te
 import { trackedFiles } from "./tracked-files.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
-const SETUP = "../vitest.wait-guard-setup.ts";
+const SETUP = join(ROOT, "vitest.wait-guard-setup.ts");
 
 test("the guards end only a hang: a wait's is below the test's, and both are minutes", () => {
     assert.ok(WAIT_GUARD_MS >= 60_000);
@@ -77,11 +77,24 @@ test("vi.waitFor and vi.waitUntil always wait until the guard, whatever a call n
     assert.deepEqual(seen, Array(4).fill({ timeout: WAIT_GUARD_MS }));
 });
 
-test("every vitest config in the repository is wrapped in withTestGuards", () => {
-    const configs = trackedFiles(/^[^./][^/]*\/vitest(\.[\w-]+)?\.config\.(ts|mts|mjs|js)$/);
+// Tracked vitest configs that export no config of their own, each with the reason it needs no wrap.
+const UNWRAPPED = {
+    // A factory, not a config: packages build theirs from createVitestConfig(), which guards its result.
+    "vitest.shared.config.ts": /return withTestGuards\(config\);/,
+};
+
+test("every tracked vitest config, at any depth, is wrapped in withTestGuards", () => {
+    const configs = trackedFiles(/(^|\/)vitest(\.[\w-]+)?\.config\.(ts|mts|mjs|js)$/);
     assert.ok(configs.length >= 10, `found only ${configs.length} configs`);
+    for (const file of Object.keys(UNWRAPPED)) {
+        assert.ok(configs.includes(file), `${file} is listed as an exception but no longer tracked`);
+    }
     for (const file of configs) {
-        assert.match(readFileSync(join(ROOT, file), "utf8"), /export default withTestGuards\(/, file);
+        assert.match(
+            readFileSync(join(ROOT, file), "utf8"),
+            UNWRAPPED[file] ?? /export default withTestGuards\(/,
+            file,
+        );
     }
 });
 

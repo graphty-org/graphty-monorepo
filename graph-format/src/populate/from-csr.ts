@@ -238,11 +238,7 @@ function resolveUndirectedPerms(input: CsrInput): ResolvedPerms {
             reason: "missing arcToEdge",
         });
     }
-    // only undefined takes the default (not null), exactly as before the split
-    let { edgeCount } = input;
-    if (edgeCount === undefined) {
-        edgeCount = maxValue(arcToEdge) + 1;
-    }
+    const edgeCount = input.edgeCount ?? maxValue(arcToEdge) + 1;
     return { arcToEdge, edgeToArc: input.edgeToArc ?? deriveEdgeToArc(arcToEdge, edgeCount), edgeCount };
 }
 

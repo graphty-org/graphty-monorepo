@@ -76,6 +76,15 @@ const NO_MODULE_MOCK = {
     message:
         "No vi.mock in a browser test: it switches the page's HTTP cache off (#3416). Pass the test double in through a prop, an option or a test-only setter.",
 };
+// An error's `.message` read in the app's own code (#5574): a GraphtyError's message is English for
+// people debugging, may change in any release and ignores the reader's Number format, so a reader
+// sees the app's words from the error's code and details (errorWords in
+// src/workspace/project/words.ts). Tests and stories may read it.
+const NO_ERROR_MESSAGE = {
+    selector: "MemberExpression[object.name=/^(e|err|error|reason|cause)$/][property.name='message']",
+    message:
+        "Never show an error's message to a reader: word it from its code and details with errorWords (src/workspace/project/words.ts).",
+};
 const NO_LUCIDE = { name: "lucide-react", message: "Use GLYPHS from src/workspace/glyphs.ts: one icon per concept." };
 
 export default tseslint.config(
@@ -203,6 +212,11 @@ export default tseslint.config(
     {
         files: ["src/**/*.{ts,tsx}"],
         rules: { "no-restricted-syntax": ["error", NO_MODULE_MOCK] },
+    },
+    {
+        files: ["src/**/*.{ts,tsx}"],
+        ignores: ["src/**/*.test.{ts,tsx}", "src/**/*.stories.{ts,tsx}", "src/**/__tests__/**", "src/test/**"],
+        rules: { "no-restricted-syntax": ["error", NO_MODULE_MOCK, NO_ERROR_MESSAGE] },
     },
 
     // A real-element test waits for an open on the workspace's `opened` (openBy in

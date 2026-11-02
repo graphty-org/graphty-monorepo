@@ -74,6 +74,7 @@ export class DOTDataSource extends DataSource {
         }
 
         this.declareGraphValues(graphValuesOf(snapshot));
+        this.declareFileLayout(imported.importer.layout?.(snapshot) ?? null);
         const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this);
         yield* this.chunkData(nodes, edges);
     }

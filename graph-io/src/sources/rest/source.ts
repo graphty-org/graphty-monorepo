@@ -161,6 +161,7 @@ class RestRun {
             body = JSON.parse(text) as unknown;
         } catch {
             failOn(report, "E_SOURCE_RESPONSE", "the response is not JSON", {
+                origin: originOf(new URL(url, this.endpoint)),
                 expected: "json",
                 contentType: response.headers.get("content-type"),
             });
@@ -660,6 +661,7 @@ export function restMethods<P>(
             const page = await run.read(run.plan.mapping.load, run.plan.values, undefined);
             if (page.records.length === 0 && page.status !== 304) {
                 failOn(ctx.report, "E_SOURCE_NOT_FOUND", "the load request found no records", {
+                    origin: run.endpoint.origin,
                     what: "records",
                     value: run.plan.mapping.load,
                 });

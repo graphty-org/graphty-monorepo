@@ -1,3 +1,13 @@
+## 1.4.12 (2026-11-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep lint type checks inside the worktree ([#5296](https://github.com/graphty-org/graphty-monorepo/issues/5296))
+
+## 1.4.11 (2026-11-01)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
 ## 1.4.10 (2026-10-31)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

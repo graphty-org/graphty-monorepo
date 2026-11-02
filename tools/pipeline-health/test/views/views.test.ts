@@ -3,6 +3,13 @@ import { gunzipSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
+import { DAY, type IssueItem, type RawItem, type ShardRunItem, type TestItem } from "../../src/model/items.js";
+import { oldestAt, putRaw, recordSource, setCursor } from "../../src/model/raw.js";
+import { recompute } from "../../src/model/rollup.js";
+import { MemoryStore } from "../../src/model/store.js";
+import { SLAS } from "../../src/sla/config.js";
+import { categoryOf, evaluate } from "../../src/sla/engine.js";
+import { buildViews, MAX_VIEW_BYTES, readViewJson, type View, viewKey, writeViews } from "../../src/views/index.js";
 import type {
     Member,
     OverviewResponse,
@@ -10,13 +17,6 @@ import type {
     SectionResponse,
     StatusResponse,
 } from "../../web/src/contract.js";
-import { DAY, type RawItem, type ShardRunItem, type TestItem } from "../../src/model/items.js";
-import { oldestAt, putRaw, recordSource, setCursor } from "../../src/model/raw.js";
-import { recompute } from "../../src/model/rollup.js";
-import { MemoryStore } from "../../src/model/store.js";
-import { SLAS } from "../../src/sla/config.js";
-import { categoryOf, evaluate } from "../../src/sla/engine.js";
-import { buildViews, MAX_VIEW_BYTES, readViewJson, type View, viewKey, writeViews } from "../../src/views/index.js";
 import { HOUR, job, MIN, obs, T0 } from "../model/helpers.js";
 
 const LIVE = ["collector", "ci-results", "release", "npm", "billing", "stress", "hosts"];
@@ -37,8 +37,12 @@ const views = async (store: MemoryStore, now = T0) => buildViews(store, now, awa
 /** The fixture file the page reads for the same route. */
 function fixtureName(v: View): string {
     const r = v.route;
-    if (r.kind === "status") return "status";
-    if (r.kind === "page") return `${r.page}.${r.range}`;
+    if (r.kind === "status") {
+        return "status";
+    }
+    if (r.kind === "page") {
+        return `${r.page}.${r.range}`;
+    }
     return `${r.page}.${r.section}${r.runKind ? `.${r.runKind}` : ""}.${r.range}`;
 }
 const fixture = (name: string): Record<string, unknown> =>
@@ -73,9 +77,13 @@ describe("views", () => {
         const vs = await views(new MemoryStore());
         const gray = new Set(["nodata", "notsetup", "few", "partial", "idle", "info"]);
         for (const m of allMembers(vs)) {
-            if (SELF_IDS.has(m.id)) continue;
+            if (SELF_IDS.has(m.id)) {
+                continue;
+            }
             expect(gray.has(m.state), `${m.id} is ${m.state}`).toBe(true);
-            if (m.state !== "info") expect(m.value, m.id).toBeNull();
+            if (m.state !== "info") {
+                expect(m.value, m.id).toBeNull();
+            }
         }
         const status = vs[0].body as StatusResponse;
         expect(status.categories.map((c) => c.id)).toEqual([
@@ -145,8 +153,18 @@ describe("views", () => {
     });
 
     it("every payload has the keys, section ids and member ids of its fixture", async () => {
-        const vs = await views(await world([job(1), obs("pr.open", 4, T0 - MIN)]));
-        expect(vs).toHaveLength(2 + 3 * 9 + 2 * 4);
+        // An open critical bug, so the Issues pages hold every section (the oldest table among them).
+        const bug: IssueItem = {
+            kind: "issue",
+            id: "o/r#1",
+            attempt: 1,
+            repo: "o/r",
+            number: 1,
+            labels: ["bug", "priority:critical"],
+            createdAt: T0 - 3 * DAY,
+        };
+        const vs = await views(await world([job(1), obs("pr.open", 4, T0 - MIN), bug]));
+        expect(vs).toHaveLength(2 + 3 * 9 + 2 * 4 + 2);
         for (const v of vs) {
             const name = fixtureName(v);
             const fx = fixture(name);
@@ -158,7 +176,7 @@ describe("views", () => {
                 expect(mids(v.body.members), name).toEqual(mids(fx.members as { id: string }[]));
             }
             if ("section" in v.body) {
-                expect((v.body as SectionResponse).section.id).toBe((fx.section as { id: string }).id);
+                expect(v.body.section.id).toBe((fx.section as { id: string }).id);
             }
             if (v.route.kind === "page" && v.route.page === "overview") {
                 const o = v.body as OverviewResponse;
@@ -222,7 +240,7 @@ describe("views", () => {
         }
         const store = await world(items);
         const out = await writeViews(store, T0);
-        expect(out.views).toBe(2 + 3 * 9 + 2 * 4);
+        expect(out.views).toBe(2 + 3 * 9 + 2 * 4 + 2);
         expect(out.largest.bytes).toBeLessThan(MAX_VIEW_BYTES);
         expect(viewKey({ kind: "page", page: "ci", range: "6h" })).toEqual({ pk: "PAGE#ci#6h", sk: "-" });
         const item = await store.get(
@@ -399,7 +417,9 @@ describe("views", () => {
         const vs = await views(await world([job(1)]));
         const ds = pages(vs).find((p) => p.page === "data-sources" && p.range === "1h")!;
         const sources = ds.sections.find((x) => x.id === "sources");
-        if (sources?.kind !== "table") throw new Error(String(sources?.kind));
+        if (sources?.kind !== "table") {
+            throw new Error(String(sources?.kind));
+        }
         const collector = sources.rows.find((r) => JSON.stringify(r.cells.source).includes("source.collector"));
         expect(collector?.cells.state).toEqual({ t: "state", state: "ok" });
     });

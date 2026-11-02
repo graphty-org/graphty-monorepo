@@ -78,6 +78,10 @@ describe("lettering drawn as glyph outlines", () => {
         assert.isFalse(isLettering(Array.from({ length: 6 }, (_, i) => at(box(0, 0, 6, 2), 10 * i, 0))));
         // a dotted one: one dot repeated
         assert.isFalse(isLettering(Array.from({ length: 8 }, (_, i) => at(box(0, 0, 2, 2), 4 * i, 0))));
+        // a short word that repeats a letter (cx-polygenic-sle's TET3, its two Ts alike): the outlines' lengths vary by
+        // under 0.15 of their mean (32, 44, 32 and 40 here), but only two of the four are alike
+        const glyph = (perimeter: number, x: number): Pt[] => at(box(0, 0, perimeter / 2 - 8.8, 8.8), x, 0);
+        assert.isTrue(isLettering([glyph(32, 0), glyph(44, 8), glyph(32, 22), glyph(40, 30)]));
         // a ring round a node is two outlines, one in the other
         assert.isFalse(isLettering([at(box(0, 0, 30, 30), 0, 0), at(box(2, 2, 28, 28), 0, 0)]));
     });

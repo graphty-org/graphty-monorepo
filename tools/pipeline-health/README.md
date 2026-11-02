@@ -16,21 +16,22 @@ secret (runs, pull requests, test names and truncated failure messages are alrea
 
 ### Pages
 
-A left navigation lists the overview and seven categories. Each category link carries a colored bar
-with that category's state, so every page repeats the status line.
+A left navigation lists the overview, seven categories and Issues. Each category link carries a colored bar
+with that category's state, so every page repeats the status line; Issues has no state and no bar.
 
-| Page          | What it shows                                                                                                                                                                                                                                                                                                                                         |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                                                                                                                                                                                                                         |
-| Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.                                                                                                                                                                                                    |
-| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                                                                                                                                                                                                                      |
-| CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; **Runner-minutes per merge** by run kind; **Shard times**: median and p90 per shard against budget; **Chronically failing jobs**, gating or not; **Allowed to fail, and failing**: each non-gating job's pass rate; and **Benchmarks**: each benchmark's trend. |
-| Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.                                                                                                                                                                                                            |
-| Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                                                                                                                                                                               |
-| Flaky tests   | **Hotspots**: where flaky failures cluster (group, family, shard, file, test, per 1,000 runs); **Quarantine**: the quarantine entries, if any.                                                                                                                                                                                                        |
-| Releases      | The lanes of the newest tested release candidate, every train attempt (including skipped ones), and the release workflows.                                                                                                                                                                                                                            |
-| Costs         | Money spent this month against budget, the projection to month-end, unit costs and spend by workflow. The LLM regression line is an estimate of CI's Gemini spend only (see "The LLM regression line").                                                                                                                                               |
-| Data sources  | Each source's last write, its age limit, volume and last error; then "Not set up": what has no writer or token yet, and what unblocks it.                                                                                                                                                                                                             |
+| Page          | What it shows                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                                                                                                                                                                                                                                                                          |
+| Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.                                                                                                                                                                                                                                                     |
+| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                                                                                                                                                                                                                                                                       |
+| CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; **Runner-minutes per merge** by run kind; **Shard times**: median and p90 per shard against budget; **Chronically failing jobs**, gating or not; **Allowed to fail, and failing**: each non-gating job's pass rate; and **Benchmarks**: each benchmark's trend.                                                  |
+| Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.                                                                                                                                                                                                                                                             |
+| Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                                                                                                                                                                                                                                |
+| Flaky tests   | **Hotspots**: where flaky failures cluster (group, family, shard, file, test, per 1,000 runs); **Quarantine**: the quarantine entries, if any.                                                                                                                                                                                                                                                         |
+| Releases      | The lanes of the newest tested release candidate, every train attempt (including skipped ones), and the release workflows.                                                                                                                                                                                                                                                                             |
+| Costs         | Money spent this month against budget, the projection to month-end, unit costs and spend by workflow. The LLM regression line is an estimate of CI's Gemini spend only (see "The LLM regression line").                                                                                                                                                                                                |
+| Data sources  | Each source's last write, its age limit, volume and last error; then "Not set up": what has no writer or token yet, and what unblocks it.                                                                                                                                                                                                                                                              |
+| Issues        | Open issues now by type and priority; **Open bugs by priority** stacked, per day (28 d) or per week from Monday UTC (all) (the burn-down); bugs and all issues **opened vs closed** per day or week, closes split into completed and not planned, with opened less closed as a line; open issues by type; issues opened by type; and the oldest open critical and high bugs. Facts only, never judged. |
 
 Every row with a chevron drills down: to the run with its jobs, the pull request, or a test's history
 (its flaky and failed results, newest first). The page, section and range are in the URL
@@ -47,6 +48,15 @@ faint part of each sparkline and the incident list.
 
 Costs, Shard times and Hotspots are slow measures with their own **7 d / 28 d** choice; they never set a
 category's color.
+
+Issues has its own choice too: **28 d** (by UTC day, the default) or **all** (by week from Monday, from the first
+issue). A type is an issue's first type label in the order bug, enhancement, documentation, research,
+infrastructure, tracking, sonarqube, dead-links, ci-budget, intermittent, flaky; a priority its first
+`priority:` label, most urgent first; an issue without one is counted as "no type" or "no priority". Labels are
+read as they are now and applied to an issue's whole history, and a reopened issue counts as open since it was
+first opened. Production issues are open bugs labeled `priority:critical`; that label also marks red full runs and
+load-sensitive tests, so most of them are pipeline work. When GitHub's own open count differs from the page's, the
+page says so: the store is missing issues until the all-issues backfill (below) has run.
 
 ### Colors and gray states
 
@@ -80,6 +90,7 @@ seconds and throttled (20 requests/s, burst 40). CORS allows https://health.grap
 | `/v1/page/overview?range=1h\|6h\|24h`                 | The status, with each headline's value and sparkline                         |
 | `/v1/page/<page>?range=1h\|6h\|24h`                   | One page: its members (value, SLA, state) and sections                       |
 | `/v1/page/costs?range=7d\|28d`                        | The Costs page                                                               |
+| `/v1/page/issues?range=28d\|all`                      | The Issues page (default 28d)                                                |
 | `/v1/page/ci/shards?range=7d\|28d&kind=full\|pr-bins` | Shard times, for full runs or pull request runs                              |
 | `/v1/page/flaky/hotspots?range=7d\|28d`               | Flake hotspots                                                               |
 | `/v1/page/runners/jobs?range=7d`                      | Runner history: 15-minute running, queued, longest queued and saturated time |
@@ -114,7 +125,7 @@ It needs Node 22.18 or later and this package's dependencies, which `start.mjs` 
 | Tool                                     | Returns                                                                                |
 | ---------------------------------------- | -------------------------------------------------------------------------------------- |
 | `health_status()`                        | Each category's state, the member that set it, the others not OK, and the last 24 h    |
-| `category(name, range?)`                 | One page: its state, members and sections                                              |
+| `category(name, range?)`                 | One page: its state, members and sections (Issues: `range` 28d or all)                 |
 | `master(range?)`                         | Red spans, the full-run verdict, untested age, shared failures with suspects           |
 | `runners(range?)`                        | Running and queued jobs against the limit, who holds the runners, saturation           |
 | `release_lanes()`                        | The lanes of the newest tested candidate, train attempts and release workflows         |
@@ -302,6 +313,18 @@ shards leave on their check runs (the `Test`, `Story tests` and `Restricted CPU`
 live feed writes for that test, and a row already there is left alone. CI prints those annotations since
 2026-10-22, when the quarantine began, so the flaky history starts then. Then runs and jobs from yesterday back,
 then pull requests and issues.
+
+The Issues page counts open issues over their whole history, so it needs every issue, not only those updated in the
+last 28 days. `"issues": "all"` loads every issue of the repository, whatever its update time, and nothing else:
+
+```bash
+aws lambda invoke --profile graphty-deploy --region us-east-2 --function-name graphty-health-backfill \
+    --cli-binary-format raw-in-base64-out --payload '{"mode":"backfill","issues":"all"}' /dev/stdout
+```
+
+It reads about 30 pages of 100 issues and answers `"done": true`; if it answers `"done": false`, invoke it again (it
+rewrites the same rows). It marks no 5-minute bucket older than 28 days for a recompute, so old days' rollups are
+never rebuilt from raw items. From a workstation: `pnpm run backfill -- --all-issues`.
 
 ## Running the tests and the page
 

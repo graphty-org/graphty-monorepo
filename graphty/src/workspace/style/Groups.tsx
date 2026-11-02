@@ -197,7 +197,9 @@ function selectGroups(session: GraphSession, target: Layer["target"], path: stri
         values: [...keys],
         ...(target === "edge" ? { nodes: "ends" as const } : {}),
     };
-    void session.selection.apply({ scope: { define: { kind: "rule", where, reading: "clipped" } } });
+    void session.selection.apply({ scope: { define: { kind: "rule", where, reading: "clipped" } } }, "replace", {
+        cause: "user",
+    });
 }
 
 /**
@@ -585,7 +587,10 @@ export function LayerGroupList({
         },
         select: (keys) => {
             void keys.reduce<Promise<unknown>>(
-                (done, layer, at) => done.then(() => session.selection.apply({ layer }, at === 0 ? "replace" : "add")),
+                (done, layer, at) =>
+                    done.then(() =>
+                        session.selection.apply({ layer }, at === 0 ? "replace" : "add", { cause: "user" }),
+                    ),
                 Promise.resolve(),
             );
         },

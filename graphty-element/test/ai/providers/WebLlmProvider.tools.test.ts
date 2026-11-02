@@ -149,6 +149,65 @@ describe("WebLlmProvider tool capability", () => {
         assert.deepEqual(response.toolCalls, [{ id: "c1", name: "zoomToNodes", arguments: { nodeIds: ["a"] } }]);
     });
 
+    it("streams text and each named tool call of a Hermes model, then completes with all of them", async () => {
+        const chunks = [
+            { choices: [{ delta: { content: "on " } }] },
+            {},
+            {
+                choices: [
+                    {
+                        delta: {
+                            content: "it",
+                            [TOOL_CALLS]: [
+                                { id: "c1", function: { name: "zoomToNodes", arguments: '{"nodeIds":["a"]}' } },
+                            ],
+                        },
+                    },
+                ],
+            },
+            {
+                choices: [
+                    {
+                        delta: {
+                            [TOOL_CALLS]: [
+                                { function: {} },
+                                { id: "c2", function: { name: "fitToGraph", arguments: { all: true } } },
+                            ],
+                        },
+                    },
+                ],
+            },
+        ];
+        responses.push({ [Symbol.asyncIterator]: () => chunks[Symbol.iterator]() });
+        const provider = await providerFor(HERMES);
+        const seen: string[] = [];
+        let completed: { text: string; toolCalls: { id: string; name: string }[] } | undefined;
+        await provider.generateStream([{ role: "user", content: "zoom to a" }], TOOLS, {
+            onChunk: (text) => seen.push(`chunk:${text}`),
+            onToolCall: (name, args) => seen.push(`tool:${name}:${JSON.stringify(args)}`),
+            onToolResult: () => undefined,
+            onComplete: (result) => {
+                completed = result;
+            },
+            onError: () => undefined,
+        });
+
+        assert.deepStrictEqual(seen, [
+            "chunk:on ",
+            "chunk:it",
+            'tool:zoomToNodes:{"nodeIds":["a"]}',
+            'tool:fitToGraph:{"all":true}',
+        ]);
+        assert.strictEqual(completed?.text, "on it");
+        assert.deepStrictEqual(
+            completed?.toolCalls.map((call) => [call.id, call.name]),
+            [
+                ["c1", "zoomToNodes"],
+                ["c2", "fitToGraph"],
+            ],
+        );
+    });
+
     it("asks a Hermes model again without tools when it calls none, for a text answer", async () => {
         responses.push({ choices: [{ message: { content: null, [TOOL_CALLS]: [] } }] });
         const provider = await providerFor(HERMES);

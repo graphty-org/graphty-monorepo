@@ -239,6 +239,10 @@ export const NodeStyle = z.strictObject({
             width: z.number().nonnegative().optional(),
             height: z.number().nonnegative().optional(),
             depth: z.number().nonnegative().optional(),
+            // Read `width`, `height` and `depth` as multiples of `size`, so changing the size keeps
+            // the stretch: width 2 at size 3 is drawn 6 wide. Unset or false reads them as extents.
+            // A painted style carries the extents already multiplied, with this flag beside them.
+            relativeExtents: z.boolean().optional(),
             // Draw the node thin along z, as a flat shape facing a 2D camera, even in a 3D view.
             planar: z.boolean().optional(),
             // Drawing order in a 2D view: below 0 draws the node behind every edge and every node
@@ -255,6 +259,10 @@ export const NodeStyle = z.strictObject({
             // than capped at a quarter of it (round-rectangle) or a tenth (the round-* polygons),
             // as Cytoscape.js and vis-network draw a radius a file sets. Unset or false keeps the caps.
             exactCornerRadius: z.boolean().optional(),
+            // The share of the shorter side a round-rectangle's corners are rounded by when
+            // `exactCornerRadius` is not set, never more than `cornerRadius`: unset, a quarter, as
+            // Cytoscape.js rounds; Cytoscape desktop rounds an eighth, Graphviz a third. At most a half.
+            cornerFraction: z.number().min(0).max(0.5).optional(),
             // A "polygon" node's corners, as `x,y` pairs separated by spaces: each relative to the
             // node's center as fractions of its half width and half height, y up ("0,1 1,-1 -1,-1"
             // is a triangle). The outline is stretched so its farthest corners reach the node's
@@ -270,6 +278,11 @@ export const NodeStyle = z.strictObject({
             // lie on the ellipse inside the node's box stays that size, as OGDF draws its
             // triangles, pentagons, hexagons and octagons. Other shapes ignore it.
             stretchPoints: z.boolean().optional(),
+            // Turns a flat shape's outline this many degrees clockwise about the node's center, after
+            // it is drawn at its width and height (Pajek's `phi` turns an ellipse 20 x 30 into a
+            // tilted one). Its fill, border and the edges that end at it turn with it; its label does
+            // not. Unset or 0, unturned. Solids ignore it.
+            rotation: z.number().optional(),
             // Further closed pieces of a flat node's body, beside its outline: polygons as `x,y` pairs
             // separated by spaces, one polygon after another separated by ";", each point relative to
             // the node's center as fractions of its half width and half height, y up, drawn where they

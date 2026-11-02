@@ -546,6 +546,46 @@ describe("node width and height (#2317)", () => {
     });
 });
 
+describe("width, height and depth relative to size (#2690)", () => {
+    it("keeps a node's stretch along x, y and z when its size changes, in a box and a flat shape", async () => {
+        const stretch = { "node.width": 2, "node.height": 1, "node.depth": 3, "node.relativeExtents": true };
+        const element = await mounted(
+            "3d",
+            [
+                { id: "box", position: { x: 0, y: 0, z: 0 } },
+                { id: "card", position: { x: 12, y: 0, z: 0 } },
+            ],
+            [],
+            [
+                layerFor(["box"], { ...stretch, "node.shape": "box", "node.size": 1 }),
+                layerFor(["card"], { ...stretch, "node.shape": "rectangle", "node.size": 1 }),
+            ],
+        );
+        const at = (n: number): { x: number; y: number; z: number } => ({
+            x: 2 * n * NODE_EXTENT_PER_SIZE,
+            y: n * NODE_EXTENT_PER_SIZE,
+            z: 3 * n * NODE_EXTENT_PER_SIZE,
+        });
+        const expectBox = (n: number): void => {
+            const drawn = sizeOf(meshOf(element, "box"));
+            assert.approximately(drawn.x, at(n).x, 1e-6, `box width at size ${String(n)}`);
+            assert.approximately(drawn.y, at(n).y, 1e-6, `box height at size ${String(n)}`);
+            assert.approximately(drawn.z, at(n).z, 1e-6, `box depth at size ${String(n)}`);
+        };
+        expectBox(1);
+
+        await element.session.styles.add(layerFor(["box", "card"], { "node.size": 2 }));
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        expectBox(2);
+        const card = sizeOf(meshOf(element, "card"));
+        assert.approximately(card.x, at(2).x, 1e-6, "the flat shape's width follows its size");
+        assert.approximately(card.y, at(2).y, 1e-6, "the flat shape's height follows its size");
+        assert.approximately(card.z, at(2).z, 1e-6, "the flat shape's depth follows its size");
+    });
+});
+
 describe("one extent for every shape (#2495)", () => {
     /**
      * How many device pixels across a node's drawn box is on screen: its bounding box, projected.

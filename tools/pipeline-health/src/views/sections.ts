@@ -1,6 +1,7 @@
 // The sections of each page (web/src/contract.ts, Section) built from the rollups. A section whose detail no writer
 // records yet is an EmptySection with the same id, saying so, never a table of zeros.
 
+import rates from "../../config/rates.json" with { type: "json" };
 import type {
     BarsSection,
     Cell,
@@ -17,8 +18,13 @@ import type {
     TableRow,
     TreeNode,
 } from "../../web/src/contract.js";
-import rates from "../../config/rates.json" with { type: "json" };
 import type { StressCursorRun } from "../collector/parse.js";
+import {
+    type HoldersSnapshot,
+    type SharedSnapshot,
+    SNAPSHOT,
+    type SupersededSnapshot,
+} from "../collector/snapshots.js";
 import { quantile } from "../model/histogram.js";
 import { type Agg, type Bucket, DAY, floorTo, HOUR, type LoadKind, MIN, STEP_MS } from "../model/items.js";
 import { fileRunKey, hotspotFamily } from "../model/metrics.js";
@@ -26,30 +32,26 @@ import { getCursor } from "../model/raw.js";
 import { aggQuantile, emptyAgg, mergeAgg } from "../model/rollup.js";
 import { readSnapshot } from "../model/snapshots.js";
 import { type MemberStatus, PROJECTION_DAYS, projectMonth } from "../sla/engine.js";
-import {
-    type HoldersSnapshot,
-    type SharedSnapshot,
-    SNAPSHOT,
-    type SupersededSnapshot,
-} from "../collector/snapshots.js";
 import { iso, type Reads, reasonFact, sourceState, SPEC } from "./members.js";
 
 const f = (code: string, params?: Fact["params"]): Fact => (params ? { code, params } : { code });
 const none: Cell = { t: "none" };
-const round = (x: number) => Math.round(x * 100) / 100;
+const round = (x: number): number => Math.round(x * 100) / 100;
 const STEP5 = STEP_MS["5m"];
 const RANGE_STEPS: Record<Range, number> = { "1h": 12, "6h": 72, "24h": 288 };
 
 /**
  * A section no writer feeds yet.
- * @param id
+ * @param id - the section id
+ * @returns an empty section saying no detail is collected
  */
 export const notCollected = (id: string): Section => ({ kind: "empty", id, fact: f("section.no_detail") });
 
 /**
  * Master builds by 5-minute bucket: red where the collector saw master red for half the bucket or more.
- * @param reads
- * @param range
+ * @param reads - the store reads shared by this build
+ * @param range - the page range to build for
+ * @returns the strip, or undefined when the collector wrote nothing in the range
  */
 export async function masterStrip(reads: Reads, range: Range): Promise<StripSection | undefined> {
     const now5 = floorTo(reads.now, "5m");
@@ -75,8 +77,9 @@ export async function masterStrip(reads: Reads, range: Range): Promise<StripSect
 
 /**
  * The red spans of the strip, newest first; an ongoing one has no end.
- * @param strip
- * @param now
+ * @param strip - the master strip, when there is one
+ * @param now - the current time in epoch milliseconds
+ * @returns the red spans table, or an empty section
  */
 export function redSpans(strip: StripSection | undefined, now: number): Section {
     const red = (strip?.spans ?? []).filter((s) => s.state === "red").reverse();
@@ -110,8 +113,9 @@ const JOB_STEPS: Record<Range | "7d", { step: "15m" | "1h"; count: number }> = {
 /**
  * Running and queued jobs (collector stocks `ci.jobs_running`, `ci.jobs_queued`), gaps carried forward, and per
  * bucket the peaks, the longest queued job and the saturated time (null where the collector wrote nothing).
- * @param reads
- * @param range
+ * @param reads - the store reads shared by this build
+ * @param range - the page range, or 7d for the runner history
+ * @returns the jobs chart, or a not-collected section
  */
 export async function jobs(reads: Reads, range: Range | "7d"): Promise<Section> {
     const { step, count } = JOB_STEPS[range];
@@ -128,11 +132,11 @@ export async function jobs(reads: Reads, range: Range | "7d"): Promise<Section> 
         return notCollected("jobs");
     }
     const shown = starts.slice(first);
-    const carry = (series: Map<number, Bucket>) => {
+    const carry = (series: Map<number, Bucket>): number[] => {
         let prev = 0;
         return shown.map((s) => (prev = series.get(s)?.last ?? prev));
     };
-    const per = (series: Map<number, Bucket>, v: (b: Bucket) => number | undefined) =>
+    const per = (series: Map<number, Bucket>, v: (b: Bucket) => number | undefined): (number | null)[] =>
         shown.map((s) => {
             const b = series.get(s);
             return b?.n ? (v(b) ?? null) : null;
@@ -169,9 +173,10 @@ export async function jobs(reads: Reads, range: Range | "7d"): Promise<Section> 
 
 /**
  * One metric's dimensions merged over the last `days` daily buckets.
- * @param reads
- * @param metric
- * @param days
+ * @param reads - the store reads shared by this build
+ * @param metric - the metric name
+ * @param days - how many daily buckets, today included
+ * @returns each dimension's merged aggregate, by dimension key
  */
 async function dimsOver(reads: Reads, metric: string, days: number): Promise<Map<string, Agg>> {
     const today = floorTo(reads.now, "1d");
@@ -186,15 +191,16 @@ async function dimsOver(reads: Reads, metric: string, days: number): Promise<Map
     return out;
 }
 
-const daysOf = (r: SlowRange) => (r === "28d" ? 28 : 7);
+const daysOf = (r: SlowRange): number => (r === "28d" ? 28 : 7);
 const SHOWN = 12;
 
 /**
  * One shard's or family's row; undefined while it has no time or (full runs) no recorded budget.
- * @param shard
- * @param a
- * @param full
- * @param minRuns
+ * @param shard - the shard or family name
+ * @param a - its aggregated times
+ * @param full - whether these are full-run shards, which need a budget
+ * @param minRuns - the fewest runs a row needs
+ * @returns the shard's row, or undefined
  */
 function shardRow(shard: string, a: Agg, full: boolean, minRuns: number): ShardRow | undefined {
     const q50 = aggQuantile(a, 0.5);
@@ -207,15 +213,16 @@ function shardRow(shard: string, a: Agg, full: boolean, minRuns: number): ShardR
     if (q50 === undefined || q90 === undefined || budgetMs === undefined) {
         return undefined;
     }
-    const toS = (q: number) => Math.round(q / 1000);
+    const toS = (q: number): number => Math.round(q / 1000);
     return { shard, runs: a.n, minRuns, medianS: toS(q50), p90S: toS(q90), budgetS: toS(budgetMs) };
 }
 
 /**
  * Shard times (section 6): full-run shards against their budgets, or pull request bins against 8 minutes.
- * @param reads
- * @param range
- * @param runKind
+ * @param reads - the store reads shared by this build
+ * @param range - the 7 d or 28 d range
+ * @param runKind - full-run shards or pull request bins
+ * @returns the shard times section, or a not-collected section
  */
 export async function shards(reads: Reads, range: SlowRange, runKind: "full" | "pr-bins"): Promise<Section> {
     const full = runKind === "full";
@@ -246,8 +253,9 @@ export async function shards(reads: Reads, range: SlowRange, runKind: "full" | "
  * flaky events over runs at that level: a family's over the test files its shard runs ran, a file's over its own
  * runs, a test's over its file's runs (a test runs whenever its file does). Quarantined counts the quarantine
  * in force (the results store's entries); held pull requests have no writer yet, so they are null.
- * @param reads
- * @param range
+ * @param reads - the store reads shared by this build
+ * @param range - the 7 d or 28 d range
+ * @returns the hotspot tree
  */
 export async function hotspots(reads: Reads, range: SlowRange): Promise<Section> {
     const days = daysOf(range);
@@ -274,10 +282,12 @@ export async function hotspots(reads: Reads, range: SlowRange): Promise<Section>
         files.set(file, ts);
         ts.set(test, (ts.get(test) ?? 0) + a.sum);
     }
-    const per1000 = (events: number, runs: number | undefined) => (runs ? round((events / runs) * 1000) : null);
-    const quarantined = (file: string, test?: string) =>
+    const per1000 = (events: number, runs: number | undefined): number | null =>
+        runs ? round((events / runs) * 1000) : null;
+    const quarantined = (file: string, test?: string): number | null =>
         quarantine ? quarantine.filter((q) => q.file === file && (test === undefined || q.name === test)).length : null;
-    const sum = (ns: (number | null)[]) => (quarantine ? ns.reduce<number>((s, n) => s + (n ?? 0), 0) : null);
+    const sum = (ns: (number | null)[]): number | null =>
+        quarantine ? ns.reduce<number>((s, n) => s + (n ?? 0), 0) : null;
     const node = (
         level: TreeNode["level"],
         name: string,
@@ -285,7 +295,7 @@ export async function hotspots(reads: Reads, range: SlowRange): Promise<Section>
         events: number,
         rateOf: number | null,
         q: number | null,
-    ) => ({
+    ): TreeNode => ({
         level,
         name,
         distinct,
@@ -294,7 +304,7 @@ export async function hotspots(reads: Reads, range: SlowRange): Promise<Section>
         quarantined: q,
         prsHeld: null,
     });
-    const byDistinct = (a: TreeNode, b: TreeNode) => b.distinct - a.distinct || b.events - a.events;
+    const byDistinct = (a: TreeNode, b: TreeNode): number => b.distinct - a.distinct || b.events - a.events;
     const nodes: TreeNode[] = [];
     for (const [family, files] of fams) {
         const fileNodes: TreeNode[] = [];
@@ -331,7 +341,8 @@ export async function hotspots(reads: Reads, range: SlowRange): Promise<Section>
 
 /**
  * The sources table of the Data sources page (section 9), from the engine's source states.
- * @param reads
+ * @param reads - the store reads shared by this build
+ * @returns the sources table
  */
 export function sourcesTable(reads: Reads): Section {
     const rows: TableRow[] = reads.ev.sources
@@ -359,8 +370,9 @@ export function sourcesTable(reads: Reads): Section {
 
 /**
  * The members that are not set up, wherever they show, and what unblocks each.
- * @param reads
- * @param members
+ * @param reads - the store reads shared by this build
+ * @param members - the members to list
+ * @returns the not-set-up table, or an empty section
  */
 export function notSetUpTable(reads: Reads, members: MemberStatus[]): Section {
     const seen = new Set<string>();
@@ -397,9 +409,10 @@ const LINES: { line: string; member?: string }[] = [
 
 /**
  * The money table (section 7): projected month, so far against budget, the daily line over the range.
- * @param reads
- * @param range
- * @param members
+ * @param reads - the store reads shared by this build
+ * @param range - the 7 d or 28 d range
+ * @param members - the cost members' rows, by engine id
+ * @returns the money table, or an empty section
  */
 export async function moneyTable(reads: Reads, range: SlowRange, members: Map<string, Member>): Promise<Section> {
     const days = daysOf(range);
@@ -409,7 +422,7 @@ export async function moneyTable(reads: Reads, range: SlowRange, members: Map<st
     const today = floorTo(reads.now, "1d");
     const from = Math.min(monthStart, today - Math.max(days - 1, PROJECTION_DAYS) * DAY);
     const daily = await reads.series("cost.usd", "1d", from, today);
-    const sumOf = (b: Bucket | undefined, line?: string) => {
+    const sumOf = (b: Bucket | undefined, line?: string): number => {
         if (!b) {
             return 0;
         }
@@ -479,16 +492,21 @@ export async function moneyTable(reads: Reads, range: SlowRange, members: Map<st
     };
 }
 
-/** The page each section list belongs to, with the ids the page draws (web/src/render.ts). */
-const median = (a: Agg) => (a.hist && quantile(a.hist, 0.5)) ?? 0;
+/**
+ * The median of an aggregate's histogram, 0 without one.
+ * @param a - the aggregate
+ * @returns the median, in the aggregate's unit
+ */
+const median = (a: Agg): number => (a.hist && quantile(a.hist, 0.5)) ?? 0;
 
 /**
  * Sorted bars of one metric's dimensions over the range: the median (ms -> min) or the count of events.
- * @param reads
+ * @param reads - the store reads shared by this build
  * @param id - the section id
- * @param metric
- * @param range
- * @param as
+ * @param metric - the metric name
+ * @param range - the page range to build for
+ * @param as - show each dimension's median or its event count
+ * @returns the bars, or an empty section
  */
 export async function dimBars(
     reads: Reads,
@@ -500,7 +518,7 @@ export async function dimBars(
     const { total } = await reads.window(metric, range);
     const items = Object.entries(total.dims ?? {})
         .map(([dim, a]) => ({
-            label: { t: "name", v: dim } as Cell,
+            label: { t: "name", v: dim } satisfies Cell,
             n: round(as === "n" ? a.n : median(a) / MIN),
             unit: as === "n" ? ("count" as const) : ("min" as const),
         }))
@@ -512,7 +530,12 @@ export async function dimBars(
     return { kind: "bars", id, groups: [{ items }] };
 }
 
-/** A snapshot the collector keeps in a cursor (collector/snapshots.ts); absent, unreadable or over 1 h old: none. */
+/**
+ * A snapshot the collector keeps in a cursor (collector/snapshots.ts); absent, unreadable or over 1 h old: none.
+ * @param reads - the store reads shared by this build
+ * @param name - the cursor name
+ * @returns the snapshot, or undefined when it is absent, unreadable or stale
+ */
 async function snapshot<T extends { at: number }>(reads: Reads, name: string): Promise<T | undefined> {
     const raw = await getCursor(reads.store, name);
     try {
@@ -528,7 +551,8 @@ const prList = (ns: number[]): Cell => ({ t: "list", sep: "space", items: ns.map
 /**
  * Master's shared failures (4.1): the checks failing in 3 or more open pull requests, or failing alone, now and
  * in the last 24 h.
- * @param reads
+ * @param reads - the store reads shared by this build
+ * @returns the shared failures table, or an empty or not-collected section
  */
 export async function shared(reads: Reads): Promise<Section> {
     const snap = await snapshot<SharedSnapshot>(reads, SNAPSHOT.shared);
@@ -542,11 +566,12 @@ export async function shared(reads: Reads): Promise<Section> {
         .toSorted((a, b) => Number(a.end !== undefined) - Number(b.end !== undefined) || b.since - a.since)
         .map((r) => {
             const name: Cell = { t: "name", v: r.check, bold: true };
-            const sub = r.alone
-                ? f("check.failed_alone")
-                : r.bins > 1
-                  ? f("check.family", { bins: r.bins })
-                  : undefined;
+            let sub: Fact | undefined;
+            if (r.alone) {
+                sub = f("check.failed_alone");
+            } else if (r.bins > 1) {
+                sub = f("check.family", { bins: r.bins });
+            }
             const main: Cell = r.end === undefined ? { t: "mark", state: "bad", cell: name } : name;
             return {
                 ...(r.end === undefined ? {} : { past: true }),
@@ -578,8 +603,9 @@ const CAUSES = ["shared_check", "shared_aggregator", "change", "flaky", "infrast
 
 /**
  * Why first attempts of pull request runs failed (4, "Failure cause"), counted over the range.
- * @param reads
- * @param range
+ * @param reads - the store reads shared by this build
+ * @param range - the page range to build for
+ * @returns the failure causes as bars, or an empty section
  */
 export async function causes(reads: Reads, range: Range): Promise<Section> {
     const dims = (await reads.window("ci.first_attempt_cause", range)).total.dims ?? {};
@@ -588,7 +614,7 @@ export async function causes(reads: Reads, range: Range): Promise<Section> {
         return { kind: "empty", id: "causes", fact: f("section.no_events") };
     }
     const items = CAUSES.map((c) => ({
-        label: { t: "label", code: `cause.${c}` } as Cell,
+        label: { t: "label", code: `cause.${c}` } satisfies Cell,
         n: dims[c]?.n ?? 0,
         unit: "count" as const,
         ...(c.startsWith("shared") ? { tone: "bad" as const } : {}),
@@ -598,7 +624,8 @@ export async function causes(reads: Reads, range: Range): Promise<Section> {
 
 /**
  * Who holds the runners now (4.3): running and queued jobs by workflow and event, and runs with no job yet.
- * @param reads
+ * @param reads - the store reads shared by this build
+ * @returns the running and queued bars with their notes, or an empty or not-collected section
  */
 export async function holders(reads: Reads): Promise<Section> {
     const snap = await snapshot<HoldersSnapshot>(reads, SNAPSHOT.holders);
@@ -606,13 +633,13 @@ export async function holders(reads: Reads): Promise<Section> {
         return notCollected("holders");
     }
     const all = Object.entries(snap.holders);
-    const group = (k: "running" | "queued", head: string) => {
+    const group = (k: "running" | "queued", head: string): BarsSection["groups"][number] => {
         const items = all
             .filter(([, h]) => h[k] > 0)
             .map(([label, h]) => ({
-                label: { t: "name", v: label } as Cell,
+                label: { t: "name", v: label } satisfies Cell,
                 ...(k === "running" && h.macos
-                    ? { detail: { t: "fact", fact: f("runners.macos", { jobs: h.macos }) } as Cell }
+                    ? { detail: { t: "fact", fact: f("runners.macos", { jobs: h.macos }) } satisfies Cell }
                     : {}),
                 n: h[k],
                 unit: "jobs" as const,
@@ -640,7 +667,8 @@ export async function holders(reads: Reads): Promise<Section> {
 
 /**
  * Pull request runs still running after a newer commit was pushed (4.3).
- * @param reads
+ * @param reads - the store reads shared by this build
+ * @returns the superseded runs table, or an empty or not-collected section
  */
 export async function superseded(reads: Reads): Promise<Section> {
     const snap = await snapshot<SupersededSnapshot>(reads, SNAPSHOT.superseded);
@@ -689,12 +717,14 @@ export async function runnerMinutes(reads: Reads): Promise<Section> {
         reads.series("ci.runner_minutes", "1h", hour - 23 * HOUR, hour),
         reads.series("ci.runner_minutes", "1d", today - 6 * DAY, today),
     ]);
-    const total = (got: Map<number, Bucket>) => {
+    const total = (got: Map<number, Bucket>): { merged: number; by: Map<string, number> } => {
         const by = new Map<string, number>();
         let merged = 0;
         for (const b of got.values()) {
             merged += b.n;
-            for (const [d, a] of Object.entries(b.dims ?? {})) by.set(d, (by.get(d) ?? 0) + a.sum);
+            for (const [d, a] of Object.entries(b.dims ?? {})) {
+                by.set(d, (by.get(d) ?? 0) + a.sum);
+            }
         }
         by.set(
             "total",
@@ -704,7 +734,9 @@ export async function runnerMinutes(reads: Reads): Promise<Section> {
     };
     const d = total(day);
     const w = total(week);
-    if (!w.by.get("total")) return { kind: "empty", id: "runner-minutes", fact: f("section.no_events") };
+    if (!w.by.get("total")) {
+        return { kind: "empty", id: "runner-minutes", fact: f("section.no_events") };
+    }
     const per = (x: { merged: number; by: Map<string, number> }, k: string): Cell =>
         x.merged > 0 ? { t: "num", n: Math.round((x.by.get(k) ?? 0) / x.merged), unit: "min" } : none;
     const mins = (x: { by: Map<string, number> }, k: string): Cell => ({
@@ -866,8 +898,11 @@ export async function stressTable(reads: Reads): Promise<Section> {
             result = { t: "fact", fact: f("stress.found_filed") };
         }
         let filed: Cell = none;
-        if (r.state === 2) filed = { t: "fact", fact: f("stress.not_reached") };
-        else if (r.state === 0 && !r.foundFailures) filed = { t: "num", n: 0 };
+        if (r.state === 2) {
+            filed = { t: "fact", fact: f("stress.not_reached") };
+        } else if (r.state === 0 && !r.foundFailures) {
+            filed = { t: "num", n: 0 };
+        }
         return {
             ...(i > 0 ? { past: true } : {}),
             cells: {

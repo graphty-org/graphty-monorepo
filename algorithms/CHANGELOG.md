@@ -1,3 +1,24 @@
+## 3.4.19 (2026-11-02)
+
+### 🩹 Fixes
+
+- **algorithms:** build algorithms before its Storybook ([#5524](https://github.com/graphty-org/graphty-monorepo/issues/5524))
+- **workspace:** bundle storybook test dependencies afresh every run ([#5240](https://github.com/graphty-org/graphty-monorepo/issues/5240))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.44
+- Updated visual-review to 0.2.40
+- Updated graph-format to 1.4.12
+
+## 3.4.18 (2026-11-01)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.43
+- Updated visual-review to 0.2.39
+- Updated graph-format to 1.4.11
+
 ## 3.4.17 (2026-10-31)
 
 ### 🩹 Fixes

@@ -705,6 +705,61 @@ function ringSettles(search: KnnSearch, u: number, r: number): boolean {
 }
 
 /**
+ * The arcs u -> each of its k nearest, ascending u then ascending target.
+ * @param n - the node count
+ * @param k - neighbours per node
+ * @param neighbours - k nearest per node, row u at u * k
+ * @returns the edges
+ */
+function knnArcs(n: number, k: number, neighbours: Uint32Array): EdgeBuffer {
+    const out = new EdgeBuffer(n * k);
+    for (let u = 0; u < n; u++) {
+        for (let j = u * k; j < (u + 1) * k; j++) {
+            out.push(u, neighbours[j]);
+        }
+    }
+    return out;
+}
+
+/**
+ * The union of the k-nearest pairs without duplicates as (u, v), u < v, ascending u then v: bucket
+ * the pairs (min, max) by their smaller end with a counting sort, then sort and dedupe each bucket.
+ * @param n - the node count
+ * @param k - neighbours per node
+ * @param neighbours - k nearest per node, row u at u * k
+ * @returns the edges
+ */
+function knnPairs(n: number, k: number, neighbours: Uint32Array): EdgeBuffer {
+    const start = new Uint32Array(n + 1);
+    for (let u = 0; u < n; u++) {
+        for (let j = u * k; j < (u + 1) * k; j++) {
+            start[Math.min(u, neighbours[j]) + 1]++;
+        }
+    }
+    for (let u = 0; u < n; u++) {
+        start[u + 1] += start[u];
+    }
+    const fill = start.slice(0, -1);
+    const other = new Uint32Array(n * k);
+    for (let u = 0; u < n; u++) {
+        for (let j = u * k; j < (u + 1) * k; j++) {
+            const v = neighbours[j];
+            other[fill[Math.min(u, v)]++] = Math.max(u, v);
+        }
+    }
+    const out = new EdgeBuffer(n * k);
+    for (let u = 0; u < n; u++) {
+        const row = other.subarray(start[u], start[u + 1]).sort();
+        for (let j = 0; j < row.length; j++) {
+            if (j === 0 || row[j] !== row[j - 1]) {
+                out.push(u, row[j]);
+            }
+        }
+    }
+    return out;
+}
+
+/**
  * The k-nearest-neighbour graph of random points, the standard input of spectral clustering
  * (U. von Luxburg, "A tutorial on spectral clustering", Statistics and Computing 17, 395-416, 2007,
  * doi:10.1007/s11222-007-9033-z).
@@ -748,42 +803,6 @@ export function knnGraph(options: KnnOptions): SampleGraph {
     Object.assign(columns, positionColumns(axes));
     const neighbours = nearestNeighbours(axes, k);
     checkEdgeCount(n * k);
-    let out: EdgeBuffer;
-    if (directed) {
-        out = new EdgeBuffer(n * k);
-        for (let u = 0; u < n; u++) {
-            for (let j = u * k; j < (u + 1) * k; j++) {
-                out.push(u, neighbours[j]);
-            }
-        }
-    } else {
-        // bucket the pairs (min, max) by their smaller end with a counting sort, then sort and dedupe each bucket
-        const start = new Uint32Array(n + 1);
-        for (let u = 0; u < n; u++) {
-            for (let j = u * k; j < (u + 1) * k; j++) {
-                start[Math.min(u, neighbours[j]) + 1]++;
-            }
-        }
-        for (let u = 0; u < n; u++) {
-            start[u + 1] += start[u];
-        }
-        const fill = start.slice(0, -1);
-        const other = new Uint32Array(n * k);
-        for (let u = 0; u < n; u++) {
-            for (let j = u * k; j < (u + 1) * k; j++) {
-                const v = neighbours[j];
-                other[fill[Math.min(u, v)]++] = Math.max(u, v);
-            }
-        }
-        out = new EdgeBuffer(n * k);
-        for (let u = 0; u < n; u++) {
-            const row = other.subarray(start[u], start[u + 1]).sort();
-            for (let j = 0; j < row.length; j++) {
-                if (j === 0 || row[j] !== row[j - 1]) {
-                    out.push(u, row[j]);
-                }
-            }
-        }
-    }
+    const out = directed ? knnArcs(n, k, neighbours) : knnPairs(n, k, neighbours);
     return applyWeights(toGraph(n, out, directed, columns), options);
 }

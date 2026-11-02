@@ -24,6 +24,43 @@ export interface ParsedLoggingParams {
 }
 
 /**
+ * Parse a comma-separated module list (each entry optionally `module:level`)
+ * into the result's module list and per-module level overrides.
+ * @param result - The parsed parameters to fill in
+ * @param loggingValue - The raw logging URL parameter value
+ */
+function applyModuleSpecs(result: ParsedLoggingParams, loggingValue: string): void {
+    const moduleSpecs = loggingValue
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    const modules: string[] = [];
+    const moduleOverrides = new Map<string, LogLevel>();
+
+    for (const spec of moduleSpecs) {
+        // Check for module:level format
+        const colonIndex = spec.indexOf(":");
+        if (colonIndex > 0) {
+            const moduleName = spec.substring(0, colonIndex).trim();
+            const levelStr = spec.substring(colonIndex + 1).trim();
+            const level = parseLogLevel(levelStr);
+
+            modules.push(moduleName);
+            if (level !== undefined) {
+                moduleOverrides.set(moduleName, level);
+            }
+        } else {
+            modules.push(spec);
+        }
+    }
+
+    result.modules = modules;
+    if (moduleOverrides.size > 0) {
+        result.moduleOverrides = moduleOverrides;
+    }
+}
+
+/**
  * Parse logging configuration from URL parameters.
  *
  * Supported URL parameter formats:
@@ -57,38 +94,8 @@ export function parseLoggingURLParams(): ParsedLoggingParams | null {
     };
 
     // "true" means enable all modules
-    if (loggingValue === "true") {
-        result.modules = "*";
-    } else {
-        // Parse module list (potentially with level overrides)
-        const moduleSpecs = loggingValue
-            .split(",")
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0);
-        const modules: string[] = [];
-        const moduleOverrides = new Map<string, LogLevel>();
-
-        for (const spec of moduleSpecs) {
-            // Check for module:level format
-            const colonIndex = spec.indexOf(":");
-            if (colonIndex > 0) {
-                const moduleName = spec.substring(0, colonIndex).trim();
-                const levelStr = spec.substring(colonIndex + 1).trim();
-                const level = parseLogLevel(levelStr);
-
-                modules.push(moduleName);
-                if (level !== undefined) {
-                    moduleOverrides.set(moduleName, level);
-                }
-            } else {
-                modules.push(spec);
-            }
-        }
-
-        result.modules = modules;
-        if (moduleOverrides.size > 0) {
-            result.moduleOverrides = moduleOverrides;
-        }
+    if (loggingValue !== "true") {
+        applyModuleSpecs(result, loggingValue);
     }
 
     // Parse global log level if specified

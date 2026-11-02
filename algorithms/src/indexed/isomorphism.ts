@@ -127,6 +127,271 @@ function enqueueNeighbours(
     return tail;
 }
 
+/** What a VF2 search over one pair of graphs reads and writes while it runs. */
+interface Vf2State {
+    readonly s1: GraphSnapshot;
+    readonly s2: GraphSnapshot;
+    readonly sig1: Float64Array;
+    readonly sig2: Float64Array;
+    readonly views1: AdjacencyView[];
+    readonly views2: AdjacencyView[];
+    /** Image in s2 of every node of s1, INVALID_INDEX while unmapped. */
+    readonly core1: U32;
+    /** Preimage in s1 of every node of s2, INVALID_INDEX while unmapped. */
+    readonly core2: U32;
+    /** Per view, the search step that last stamped each node of s2 as a neighbour of the candidate. */
+    readonly stamp: Uint32Array[];
+    /** Per view, the arc of s2 from the candidate to each stamped neighbour. */
+    readonly arcTo: Uint32Array[];
+    step: number;
+    readonly nodeMatch: IsomorphismOptions["nodeMatch"];
+    readonly edgeMatch: IsomorphismOptions["edgeMatch"];
+}
+
+/** The candidates for one depth: a row of a view of s2, or every node when `view` is null. */
+interface CandidateRange {
+    readonly view: AdjacencyView | null;
+    readonly from: number;
+    readonly to: number;
+}
+
+/** The DFS position: the match order, a cursor per depth and the current depth's candidates. */
+interface Vf2Walk {
+    readonly order: U32;
+    readonly parent: U32;
+    readonly parentView: Uint8Array;
+    readonly cursor: Uint32Array;
+    depth: number;
+    range: CandidateRange;
+}
+
+const EXHAUSTED = 0;
+const ADVANCED = 1;
+const STOPPED = 2;
+
+/**
+ * Build the search state, or return null when the graphs cannot be isomorphic: different
+ * direction, size or multiset of node signatures.
+ * @param s1 - The first graph
+ * @param s2 - The second graph
+ * @param options - Node and edge match predicates
+ * @returns The state, or null
+ */
+function vf2State(s1: GraphSnapshot, s2: GraphSnapshot, options: IsomorphismOptions): Vf2State | null {
+    const n = s1.nodeCount;
+    if (s1.directed !== s2.directed || n !== s2.nodeCount) {
+        return null;
+    }
+    const sig1 = signatures(s1);
+    const sig2 = signatures(s2);
+    const sorted1 = sig1.slice().sort();
+    const sorted2 = sig2.slice().sort();
+    if (sorted1.some((x, i) => x !== sorted2[i])) {
+        return null;
+    }
+    const views2: AdjacencyView[] = s2.directed ? [s2, s2.reverse()] : [s2];
+    return {
+        s1,
+        s2,
+        sig1,
+        sig2,
+        views1: s1.directed ? [s1, s1.reverse()] : [s1],
+        views2,
+        core1: new Uint32Array(n).fill(INVALID_INDEX),
+        core2: new Uint32Array(n).fill(INVALID_INDEX),
+        stamp: views2.map(() => new Uint32Array(n)),
+        arcTo: views2.map(() => new Uint32Array(n)),
+        step: 0,
+        nodeMatch: options.nodeMatch,
+        edgeMatch: options.edgeMatch,
+    };
+}
+
+/**
+ * Whether u1 and u2 agree on their signature, the node predicate and the self-loop edge predicate.
+ * @param st - The search state
+ * @param u1 - Node of s1
+ * @param u2 - Candidate image in s2
+ * @returns Whether the pair passes
+ */
+function nodesCompatible(st: Vf2State, u1: number, u2: number): boolean {
+    const { s1, s2, sig1, nodeMatch, edgeMatch } = st;
+    if (sig1[u1] !== st.sig2[u2] || (nodeMatch !== undefined && !nodeMatch(u1, u2, s1, s2))) {
+        return false;
+    }
+    // The signatures agree, so u1 has a self-loop exactly when u2 has one: offer the two loops.
+    if (edgeMatch === undefined || sig1[u1] % 2 !== 1) {
+        return true;
+    }
+    const loop1 = s1.arcToEdge[s1.findArc(u1, u1)];
+    const loop2 = s2.arcToEdge[s2.findArc(u2, u2)];
+    return edgeMatch(loop1, loop2, s1, s2);
+}
+
+/**
+ * Stamp every simple neighbour of u2 in view k with the current step and its arc.
+ * @param st - The search state
+ * @param k - The view index
+ * @param u2 - The candidate image in s2
+ * @returns How many of those neighbours are already mapped
+ */
+function stampNeighbours(st: Vf2State, k: number, u2: number): number {
+    const g2 = st.views2[k];
+    const stamp = st.stamp[k];
+    const arcTo = st.arcTo[k];
+    let mapped2 = 0;
+    let prev = INVALID_INDEX;
+    for (let a = g2.rowPtr[u2]; a < g2.rowPtr[u2 + 1]; a++) {
+        const v = g2.colIdx[a];
+        if (v === prev || v === u2) {
+            continue;
+        }
+        prev = v;
+        stamp[v] = st.step;
+        arcTo[v] = a;
+        if (st.core2[v] !== INVALID_INDEX) {
+            mapped2++;
+        }
+    }
+    return mapped2;
+}
+
+/**
+ * Check every mapped simple neighbour of u1 in view k: its image must be a stamped neighbour of
+ * the candidate and the edge between them must pass the edge predicate.
+ * @param st - The search state
+ * @param k - The view index
+ * @param u1 - Node of s1
+ * @returns How many neighbours are mapped, or -1 when one fails
+ */
+function countMappedNeighbours(st: Vf2State, k: number, u1: number): number {
+    const { s1, s2, edgeMatch } = st;
+    const g1 = st.views1[k];
+    const g2 = st.views2[k];
+    const stamp = st.stamp[k];
+    let mapped1 = 0;
+    let prev = INVALID_INDEX;
+    for (let a = g1.rowPtr[u1]; a < g1.rowPtr[u1 + 1]; a++) {
+        const v = g1.colIdx[a];
+        if (v === prev || v === u1) {
+            continue;
+        }
+        prev = v;
+        const image = st.core1[v];
+        if (image === INVALID_INDEX) {
+            continue;
+        }
+        if (stamp[image] !== st.step) {
+            return -1;
+        }
+        mapped1++;
+        // An undirected edge is offered once: through the out-rows. A directed arc is
+        // offered through the view it is an out-arc or an in-arc of the new node in.
+        if (edgeMatch !== undefined && !edgeMatch(g1.arcToEdge[a], g2.arcToEdge[st.arcTo[k][image]], s1, s2)) {
+            return -1;
+        }
+    }
+    return mapped1;
+}
+
+/**
+ * Whether mapping u1 to u2 keeps the partial mapping an isomorphism of the mapped subgraphs.
+ * @param st - The search state
+ * @param u1 - Node of s1
+ * @param u2 - Candidate image in s2
+ * @returns Whether the pair is feasible
+ */
+function feasible(st: Vf2State, u1: number, u2: number): boolean {
+    if (!nodesCompatible(st, u1, u2)) {
+        return false;
+    }
+    st.step++;
+    for (let k = 0; k < st.views1.length; k++) {
+        const mapped2 = stampNeighbours(st, k, u2);
+        if (countMappedNeighbours(st, k, u1) !== mapped2) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * The candidates for depth d: every node for a component's first node, else the neighbours of
+ * the image of its BFS parent, in the view the parent reached it through.
+ * @param st - The search state
+ * @param w - The walk
+ * @param d - The depth
+ * @returns The candidate range
+ */
+function candidatesOf(st: Vf2State, w: Vf2Walk, d: number): CandidateRange {
+    const p = w.parent[w.order[d]];
+    if (p === INVALID_INDEX) {
+        return { view: null, from: 0, to: st.core1.length };
+    }
+    const view = st.views2[w.parentView[w.order[d]]];
+    const image = st.core1[p];
+    return { view, from: view.rowPtr[image], to: view.rowPtr[image + 1] };
+}
+
+/**
+ * Try the remaining candidates of the current depth: report a full mapping, or descend into the
+ * first feasible partial one.
+ * @param st - The search state
+ * @param w - The walk
+ * @param found - The isomorphism callback; returning true stops the search
+ * @returns STOPPED, ADVANCED (one depth deeper) or EXHAUSTED
+ */
+function tryCandidates(st: Vf2State, w: Vf2Walk, found: (mapping: U32) => boolean): number {
+    const { core1, core2 } = st;
+    const u1 = w.order[w.depth];
+    const { range } = w;
+    while (w.cursor[w.depth] < range.to) {
+        const c = w.cursor[w.depth]++;
+        const u2 = range.view === null ? c : range.view.colIdx[c];
+        // Parallel arcs repeat a candidate; take it once.
+        if (range.view !== null && c > range.from && range.view.colIdx[c - 1] === u2) {
+            continue;
+        }
+        if (core2[u2] !== INVALID_INDEX || !feasible(st, u1, u2)) {
+            continue;
+        }
+        core1[u1] = u2;
+        core2[u2] = u1;
+        if (w.depth === core1.length - 1) {
+            const stop = found(core1);
+            core1[u1] = INVALID_INDEX;
+            core2[u2] = INVALID_INDEX;
+            if (stop) {
+                return STOPPED;
+            }
+            continue;
+        }
+        w.depth++;
+        w.range = candidatesOf(st, w, w.depth);
+        w.cursor[w.depth] = w.range.from;
+        return ADVANCED;
+    }
+    return EXHAUSTED;
+}
+
+/**
+ * Undo the mapping of the node one depth down and resume its candidates.
+ * @param st - The search state
+ * @param w - The walk
+ * @returns False at depth 0, where there is nothing to go back to
+ */
+function backtrack(st: Vf2State, w: Vf2Walk): boolean {
+    if (w.depth === 0) {
+        return false;
+    }
+    w.depth--;
+    const back = w.order[w.depth];
+    st.core2[st.core1[back]] = INVALID_INDEX;
+    st.core1[back] = INVALID_INDEX;
+    w.range = candidatesOf(st, w, w.depth);
+    return true;
+}
+
 /**
  * VF2-style depth-first search for isomorphisms from `s1` to `s2`.
  * @param s1 - The first graph
@@ -141,148 +406,32 @@ function search(
     options: IsomorphismOptions,
     found: (mapping: U32) => boolean,
 ): void {
+    const st = vf2State(s1, s2, options);
+    if (st === null) {
+        return;
+    }
     const n = s1.nodeCount;
-    if (s1.directed !== s2.directed || n !== s2.nodeCount) {
-        return;
-    }
-    const sig1 = signatures(s1);
-    const sig2 = signatures(s2);
-    const sorted1 = sig1.slice().sort();
-    const sorted2 = sig2.slice().sort();
-    if (sorted1.some((x, i) => x !== sorted2[i])) {
-        return;
-    }
-    const views1: AdjacencyView[] = s1.directed ? [s1, s1.reverse()] : [s1];
-    const views2: AdjacencyView[] = s2.directed ? [s2, s2.reverse()] : [s2];
-    const { order, parent, parentView } = matchOrder(views1, n);
-    const core1 = new Uint32Array(n).fill(INVALID_INDEX);
-    const core2 = new Uint32Array(n).fill(INVALID_INDEX);
-    // Per view, the arc of s2 from the candidate to each neighbour, stamped with the search step.
-    const stamp = views2.map(() => new Uint32Array(n));
-    const arcTo = views2.map(() => new Uint32Array(n));
-    let step = 0;
-    const { nodeMatch, edgeMatch } = options;
-
-    const feasible = (u1: number, u2: number): boolean => {
-        if (sig1[u1] !== sig2[u2] || (nodeMatch !== undefined && !nodeMatch(u1, u2, s1, s2))) {
-            return false;
-        }
-        // The signatures agree, so u1 has a self-loop exactly when u2 has one: offer the two loops.
-        if (edgeMatch !== undefined && sig1[u1] % 2 === 1) {
-            const loop1 = s1.arcToEdge[s1.findArc(u1, u1)];
-            const loop2 = s2.arcToEdge[s2.findArc(u2, u2)];
-            if (!edgeMatch(loop1, loop2, s1, s2)) {
-                return false;
-            }
-        }
-        step++;
-        for (let k = 0; k < views1.length; k++) {
-            const g1 = views1[k];
-            const g2 = views2[k];
-            let mapped2 = 0;
-            let prev = INVALID_INDEX;
-            for (let a = g2.rowPtr[u2]; a < g2.rowPtr[u2 + 1]; a++) {
-                const v = g2.colIdx[a];
-                if (v === prev || v === u2) {
-                    continue;
-                }
-                prev = v;
-                stamp[k][v] = step;
-                arcTo[k][v] = a;
-                if (core2[v] !== INVALID_INDEX) {
-                    mapped2++;
-                }
-            }
-            let mapped1 = 0;
-            prev = INVALID_INDEX;
-            for (let a = g1.rowPtr[u1]; a < g1.rowPtr[u1 + 1]; a++) {
-                const v = g1.colIdx[a];
-                if (v === prev || v === u1) {
-                    continue;
-                }
-                prev = v;
-                const image = core1[v];
-                if (image === INVALID_INDEX) {
-                    continue;
-                }
-                if (stamp[k][image] !== step) {
-                    return false;
-                }
-                mapped1++;
-                // An undirected edge is offered once: through the out-rows. A directed arc is
-                // offered through the view it is an out-arc or an in-arc of the new node in.
-                if (edgeMatch !== undefined && !edgeMatch(g1.arcToEdge[a], g2.arcToEdge[arcTo[k][image]], s1, s2)) {
-                    return false;
-                }
-            }
-            if (mapped1 !== mapped2) {
-                return false;
-            }
-        }
-        return true;
-    };
-
-    // Iterative DFS over depth; cursor[d] walks the candidate list of order[d].
-    const cursor = new Uint32Array(n + 1);
-    let depth = 0;
-    let stop = false;
-    const candidatesOf = (d: number): { view: AdjacencyView | null; from: number; to: number } => {
-        const p = parent[order[d]];
-        if (p === INVALID_INDEX) {
-            return { view: null, from: 0, to: n };
-        }
-        const view = views2[parentView[order[d]]];
-        const image = core1[p];
-        return { view, from: view.rowPtr[image], to: view.rowPtr[image + 1] };
-    };
+    const { order, parent, parentView } = matchOrder(st.views1, n);
     if (n === 0) {
-        found(core1);
+        found(st.core1);
         return;
     }
-    let range = candidatesOf(0);
-    cursor[0] = range.from;
-    while (!stop) {
-        const u1 = order[depth];
-        let advanced = false;
-        while (cursor[depth] < range.to) {
-            const c = cursor[depth]++;
-            const u2 = range.view === null ? c : range.view.colIdx[c];
-            // Parallel arcs repeat a candidate; take it once.
-            if (range.view !== null && c > range.from && range.view.colIdx[c - 1] === u2) {
-                continue;
-            }
-            if (core2[u2] !== INVALID_INDEX || !feasible(u1, u2)) {
-                continue;
-            }
-            core1[u1] = u2;
-            core2[u2] = u1;
-            if (depth === n - 1) {
-                stop = found(core1);
-                core1[u1] = INVALID_INDEX;
-                core2[u2] = INVALID_INDEX;
-                if (stop) {
-                    break;
-                }
-                continue;
-            }
-            depth++;
-            range = candidatesOf(depth);
-            cursor[depth] = range.from;
-            advanced = true;
-            break;
-        }
-        if (stop || advanced) {
-            continue;
-        }
-        // Exhausted: undo the mapping of the node below and resume its candidates.
-        if (depth === 0) {
+    // Iterative DFS over depth; cursor[d] walks the candidate list of order[d].
+    const w: Vf2Walk = {
+        order,
+        parent,
+        parentView,
+        cursor: new Uint32Array(n + 1),
+        depth: 0,
+        range: { view: null, from: 0, to: 0 },
+    };
+    w.range = candidatesOf(st, w, 0);
+    w.cursor[0] = w.range.from;
+    for (;;) {
+        const r = tryCandidates(st, w, found);
+        if (r === STOPPED || (r === EXHAUSTED && !backtrack(st, w))) {
             return;
         }
-        depth--;
-        const back = order[depth];
-        core2[core1[back]] = INVALID_INDEX;
-        core1[back] = INVALID_INDEX;
-        range = candidatesOf(depth);
     }
 }
 

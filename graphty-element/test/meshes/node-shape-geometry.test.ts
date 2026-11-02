@@ -9,7 +9,7 @@ import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import { FLAT_NODE_SHAPES, NodeShapes, type NodeStyleConfig } from "../../src/config/NodeStyle";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { NODE_EXTENT_PER_SIZE, NodeMesh } from "../../src/meshes/NodeMesh";
-import { outlineSlab } from "../../src/meshes/NodeShapeGeometry";
+import { labelBoxOf, outlineSlab } from "../../src/meshes/NodeShapeGeometry";
 import {
     borderRing,
     convexHull,
@@ -63,6 +63,27 @@ const ROUNDED = new Set([
  */
 function areaOf(outline: readonly Point2[]): number {
     return outline.reduce((sum, point, i) => sum + turn([0, 0], point, outline[(i + 1) % outline.length]), 0) / 2;
+}
+
+/**
+ * Where a mesh's vertices are drawn, seen from the front.
+ * @param mesh - The mesh.
+ * @returns Each vertex's x and y in the world.
+ */
+function pointsOf(mesh: AbstractMesh): Point2[] {
+    mesh.computeWorldMatrix(true);
+    const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+    const world = mesh.getWorldMatrix().m;
+    const points: Point2[] = [];
+    for (let i = 0; i < positions.length; i += 3) {
+        const [x, y, z] = [positions[i], positions[i + 1], positions[i + 2]];
+        points.push([
+            x * world[0] + y * world[4] + z * world[8] + world[12],
+            x * world[1] + y * world[5] + z * world[9] + world[13],
+        ]);
+    }
+
+    return points;
 }
 
 describe("flat shape outlines", () => {
@@ -287,7 +308,7 @@ describe("flat shape outlines", () => {
         const topEnd = (outline: Point2[], halfHeight: number): number =>
             Math.max(...outline.filter(([, y]) => Math.abs(y - halfHeight) < 1e-9).map(([x]) => x));
         const exact = (shape: string, w: number, h: number, r: number): Point2[] =>
-            flatShapeOutline(shape, w, h, r, undefined, true, true);
+            flatShapeOutline(shape, w, h, r, undefined, true, { exact: true });
 
         // Cytoscape.js's corner-radius 14 on a 30 px box: 14 across each corner, not the quarter's 7.5
         assert.approximately(topEnd(exact("round-rectangle", 30, 30, 14), 15), 15 - 14, 1e-9);
@@ -363,6 +384,49 @@ describe("border rings", () => {
         assert.isTrue(ring.closed);
         assert.deepEqual(ring.inner, square);
         assert.deepEqual(boxOf(ring.outer), { width: 3, height: 3 });
+    });
+
+    test.each(["solid", "dashed"])(
+        "a %s ring round sharp corners is its full width along every side (issue #5570)",
+        (style) => {
+            // a stretched diamond, Pajek's bow tie (q 2) and a vee: corners too sharp to mitre in full
+            const outlines = [
+                flatShapeOutline("diamond", 5.4, 1),
+                flatShapeOutline("polygon", 50, 30, undefined, "-1,0 -2,1 2,1 1,0 2,-1 -2,-1", false),
+                flatShapeOutline("vee", 0.66, 0.95),
+            ];
+            for (const outline of outlines) {
+                const width = 0.3;
+                for (const { inner, outer, closed } of borderRing(outline, width, style)) {
+                    assert.strictEqual(inner.length, outer.length);
+                    // every outer point is the width out from the side of the outline it lies against, never nearer
+                    for (let i = 0; i < (closed ? inner.length : inner.length - 1); i++) {
+                        const j = (i + 1) % inner.length;
+                        const [a, b] = [inner[i], inner[j]];
+                        const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+                        if (length > 0) {
+                            for (const q of [outer[i], outer[j]]) {
+                                const out = ((q[0] - a[0]) * (b[1] - a[1]) - (q[1] - a[1]) * (b[0] - a[0])) / length;
+                                assert.approximately(out, width, 1e-9);
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    );
+
+    test("a dashed ring that starts at a sharp corner keeps both cut points of that corner (issue #5581)", () => {
+        // a tall diamond's outline starts at its bottom tip, too sharp to mitre in full
+        const outline = flatShapeOutline("diamond", 1, 5.4);
+        const [solid] = borderRing(outline, 0.3, "solid");
+        const dashed = borderRing(outline, 0.3, "dashed");
+        const drawn = (point: Point2): boolean =>
+            dashed.some(({ outer }) => outer.some(([x, y]) => Math.hypot(x - point[0], y - point[1]) < 1e-9));
+
+        // the first dash starts at the tip, so it covers the whole cut, not only its second point
+        assert.isTrue(drawn(solid.outer[0]), "the first cut point of the starting tip");
+        assert.isTrue(drawn(solid.outer[1]), "the second cut point of the starting tip");
     });
 
     test("a double border is two thin rings with a gap between", () => {
@@ -454,6 +518,24 @@ describe("node extents", () => {
         assert.approximately(x, 1.5, 1e-6);
         assert.approximately(y, 1.5, 1e-6);
         assert.approximately(z, 1.5, 1e-6);
+    });
+
+    test("rotation turns a flat shape's outline clockwise, its label box staying the unturned one", () => {
+        // an ellipse 4 by 2 turned a quarter is 2 wide and 4 tall; turned 60 degrees, its box is
+        // 2 * sqrt(a^2 cos^2 + b^2 sin^2) wide and 2 * sqrt(a^2 sin^2 + b^2 cos^2) tall
+        const quarter = build({ type: "ellipse", size: 1, width: 4, height: 2, rotation: 90 });
+        const turned = extentOf(quarter);
+        assert.approximately(turned.x, 2 * NODE_EXTENT_PER_SIZE, 1e-3);
+        assert.approximately(turned.y, 4 * NODE_EXTENT_PER_SIZE, 1e-3);
+        const sixty = extentOf(build({ type: "ellipse", size: 1, width: 4, height: 2, rotation: 60 }));
+        const [c, s] = [Math.cos(Math.PI / 3), Math.sin(Math.PI / 3)];
+        // the ellipse is drawn as a polygon of many sides, so its turned box is a hair inside the true one
+        assert.approximately(sixty.x, 2 * Math.hypot(2 * c, s) * NODE_EXTENT_PER_SIZE, 0.03);
+        assert.approximately(sixty.y, 2 * Math.hypot(2 * s, c) * NODE_EXTENT_PER_SIZE, 0.03);
+        const box = labelBoxOf(quarter);
+        assert.isDefined(box);
+        assert.approximately((box?.max.x ?? 0) - (box?.min.x ?? 0), 4 * NODE_EXTENT_PER_SIZE, 1e-3);
+        assert.isUndefined(labelBoxOf(build({ type: "ellipse", size: 1, width: 4, height: 2 })));
     });
 
     test("width and height set the extent along each axis, for a solid and a flat shape", () => {
@@ -653,21 +735,6 @@ describe("node borders", () => {
             const fill = NodeMesh.create(cache, options, { shape }, scene);
             const ring = NodeMesh.createBorder(cache, options, { shape, border: { width } }, fill, scene);
             assert.isNotNull(ring);
-            const pointsOf = (mesh: AbstractMesh): Point2[] => {
-                mesh.computeWorldMatrix(true);
-                const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
-                const world = mesh.getWorldMatrix().m;
-                const points: Point2[] = [];
-                for (let i = 0; i < positions.length; i += 3) {
-                    const [x, y, z] = [positions[i], positions[i + 1], positions[i + 2]];
-                    points.push([
-                        x * world[0] + y * world[4] + z * world[8] + world[12],
-                        x * world[1] + y * world[5] + z * world[9] + world[13],
-                    ]);
-                }
-
-                return points;
-            };
             const hull = convexHull(pointsOf(fill));
             const outer = pointsOf(ring.sourceMesh);
             const asked = width * NODE_EXTENT_PER_SIZE;
@@ -680,6 +747,42 @@ describe("node borders", () => {
                 const reach = Math.max(...outer.map(([x, y]) => (x - x0) * nx + (y - y0) * ny));
                 assert.approximately(reach, asked, asked * 0.02, `side ${String(i)} of the ${type}`);
             });
+        });
+    }
+    // Issue #5581: the main ring cuts a sharp corner square to stay its full width, so an outer border with no offset
+    // starts exactly on the main ring's outer edge, cut points included, never inside it.
+    for (const [name, shape] of [
+        ["stretched diamond", { type: "diamond", size: 1, width: 1, height: 5.4 }],
+        ["vee", { type: "vee", size: 1, width: 0.66, height: 0.95 }],
+        ["bow tie", { type: "polygon", size: 1, width: 3, height: 1, points: "-1,0 -2,1 2,1 1,0 2,-1 -2,-1" }],
+    ] as const) {
+        test(`a ${name}'s outer border starts on its border's outer edge`, () => {
+            const options = { styleId: `outer-${name}`, is2D: true, size: 1 };
+            const border = { width: 0.3 };
+            const fill = NodeMesh.create(cache, options, { shape }, scene);
+            const ring = NodeMesh.createBorder(cache, options, { shape, border }, fill, scene);
+            const outerBorder = NodeMesh.createOuterBorder(
+                cache,
+                options,
+                { shape, border, outerBorder: { width: 0.2, offset: 0 } },
+                fill,
+                scene,
+            );
+            assert.isNotNull(ring);
+            assert.isNotNull(outerBorder);
+            const near = (points: readonly Point2[], [x, y]: Point2): boolean =>
+                points.some(([px, py]) => Math.hypot(px - x, py - y) < 1e-6);
+            const outline = pointsOf(fill);
+            const outer = pointsOf(outerBorder.sourceMesh);
+            const ringEdge = pointsOf(ring.sourceMesh).filter((point) => !near(outline, point));
+
+            assert.isNotEmpty(ringEdge);
+            for (const point of ringEdge) {
+                assert.isTrue(
+                    near(outer, point),
+                    `the border's outer point ${point.join(", ")} starts the outer border`,
+                );
+            }
         });
     }
 });

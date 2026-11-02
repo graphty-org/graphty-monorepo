@@ -193,7 +193,7 @@ describe("the Project package", () => {
             problemSentence("a.json", error("E_UNSUPPORTED_VERSION")),
             "a.json was saved by a newer graphty. Update graphty to open it.",
         );
-        assert.equal(problemSentence("a.json", error("E_TOO_LARGE")), "a.json is too large to open.");
+        assert.equal(problemSentence("a.json", error("E_TOO_LARGE")), "a.json could not be opened: it is too large.");
         assert.equal(problemSentence("a.json", new Error("x")), "a.json could not be opened.");
         assert.equal(
             saveProblemSentence("Karate", new GraphtyError({ code: "E_TOO_LARGE", message: "x", source: "data" })),

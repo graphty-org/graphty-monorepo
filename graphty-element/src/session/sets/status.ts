@@ -50,6 +50,9 @@ const RANK: Readonly<Record<Freshness, number>> = {
     unresolvable: 4,
 };
 
+/** A run reference a definition reads. */
+type RunDependency = Extract<ReturnType<typeof dependenciesOf>[number], { kind: "run" }>;
+
 /** What status reads about one run. */
 export interface StatusRun {
     readonly id: RunId;
@@ -382,76 +385,104 @@ class StatusWalk {
         ring: ReadonlySet<string>,
         builder: Builder,
     ): void {
-        const { sources } = this;
-        for (const dependency of dependenciesOf(definition, sources.dependencies.pathsOf)) {
+        for (const dependency of dependenciesOf(definition, this.sources.dependencies.pathsOf)) {
             if (dependency.kind === "set") {
-                if (dependency.id === record?.id || ring.has(dependency.id)) {
-                    continue;
+                this.setDependency(dependency.id, record, ring, builder);
+            } else if (dependency.kind === "run") {
+                this.runDependency(dependency, definition, builder);
+            }
+        }
+    }
+
+    /**
+     * Fold in a set the definition reads: detached when it is gone, else its own freshness.
+     * @param id - The set read.
+     * @param record - The kept set, when it is kept.
+     * @param ring - The sets on the cycle this set is caught in, which report it themselves.
+     * @param builder - Where the status is collected.
+     */
+    private setDependency(
+        id: SetId,
+        record: ElementSet | undefined,
+        ring: ReadonlySet<string>,
+        builder: Builder,
+    ): void {
+        if (id === record?.id || ring.has(id)) {
+            return;
+        }
+
+        const input = this.set(id);
+        if (this.sources.sets.get(id) === undefined) {
+            // The referent itself is gone: this set is detached, not merely reading one.
+            for (const reason of input.reasons) {
+                builder.reason(reason);
+            }
+
+            builder.worsen("detached");
+        } else if (input.freshness !== "current") {
+            builder.worsen(input.freshness);
+            builder.reason({ kind: "input", id, freshness: input.freshness });
+        }
+    }
+
+    /**
+     * Fold in a run the definition reads: missing, held at an earlier execution, or followed.
+     * @param dependency - The run reference.
+     * @param definition - The definition reading it.
+     * @param builder - Where the status is collected.
+     */
+    private runDependency(dependency: RunDependency, definition: SetDefinition, builder: Builder): void {
+        const run = this.sources.run?.(dependency.run);
+        if (run === undefined) {
+            builder.worsen("detached");
+            builder.reason({ kind: "missing-run", run: dependency.run });
+            return;
+        }
+
+        if (dependency.execution !== undefined && dependency.execution !== run.execution) {
+            // An earlier execution's values are held, not recomputed: the run's own freshness
+            // is not this reference's.
+            builder.earlier.add(run.id);
+            const keys = heldItems([definition], run.id).get(dependency.execution);
+            const kept = run.captures.get(dependency.execution);
+            for (const key of keys?.keys() ?? []) {
+                if (kept?.has(key) !== true) {
+                    builder.reason({ kind: "values-not-kept", run: run.id });
                 }
-
-                const input = this.set(dependency.id);
-                if (sources.sets.get(dependency.id) === undefined) {
-                    // The referent itself is gone: this set is detached, not merely reading one.
-                    for (const reason of input.reasons) {
-                        builder.reason(reason);
-                    }
-
-                    builder.worsen("detached");
-                } else if (input.freshness !== "current") {
-                    builder.worsen(input.freshness);
-                    builder.reason({ kind: "input", id: dependency.id, freshness: input.freshness });
-                }
-
-                continue;
             }
 
-            if (dependency.kind !== "run") {
-                continue;
-            }
+            return;
+        }
 
-            const run = sources.run?.(dependency.run);
-            if (run === undefined) {
-                builder.worsen("detached");
-                builder.reason({ kind: "missing-run", run: dependency.run });
-                continue;
-            }
+        this.followedRun(run, builder);
+    }
 
-            if (dependency.execution !== undefined && dependency.execution !== run.execution) {
-                // An earlier execution's values are held, not recomputed: the run's own freshness
-                // is not this reference's.
-                builder.earlier.add(run.id);
-                const keys = heldItems([definition], run.id).get(dependency.execution);
-                const kept = run.captures.get(dependency.execution);
-                for (const key of keys?.keys() ?? []) {
-                    if (kept?.has(key) !== true) {
-                        builder.reason({ kind: "values-not-kept", run: run.id });
-                    }
-                }
+    /**
+     * Fold in a run the definition follows: whether it can re-run and whether it is out of date.
+     * @param run - The run.
+     * @param builder - Where the status is collected.
+     */
+    private followedRun(run: StatusRun, builder: Builder): void {
+        const inputs = runInputs(run, this.sources.sets);
+        if (typeof inputs === "object") {
+            // The run's own scope set was removed: its values stand, but it cannot re-run.
+            builder.worsen("cannot-rerun");
+            builder.reason({ kind: "missing-set", id: inputs.gone, name: inputs.name });
+            return;
+        }
 
-                continue;
-            }
-
-            const inputs = runInputs(run, sources.sets);
-            if (typeof inputs === "object") {
-                // The run's own scope set was removed: its values stand, but it cannot re-run.
+        if (!run.registered) {
+            builder.reason({ kind: "missing-capability", name: run.algorithm });
+            if (inputs === "changed") {
                 builder.worsen("cannot-rerun");
-                builder.reason({ kind: "missing-set", id: inputs.gone, name: inputs.name });
-                continue;
             }
+        } else if (inputs === "changed") {
+            builder.worsen("out-of-date");
+            builder.reason({ kind: "run-out-of-date", run: run.id });
+        }
 
-            if (!run.registered) {
-                builder.reason({ kind: "missing-capability", name: run.algorithm });
-                if (inputs === "changed") {
-                    builder.worsen("cannot-rerun");
-                }
-            } else if (inputs === "changed") {
-                builder.worsen("out-of-date");
-                builder.reason({ kind: "run-out-of-date", run: run.id });
-            }
-
-            if (inputs === "unknown") {
-                builder.reason({ kind: "revision-unknown", run: run.id });
-            }
+        if (inputs === "unknown") {
+            builder.reason({ kind: "revision-unknown", run: run.id });
         }
     }
 }

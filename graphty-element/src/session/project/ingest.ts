@@ -12,6 +12,7 @@
  */
 
 import { type DuplicatePolicy, INVALID_INDEX } from "@graphty/graph-format";
+import type { FileLayout } from "@graphty/graph-io";
 
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
@@ -530,6 +531,9 @@ export class Ingest<K extends KnownEdge> {
     /** The ids the load in progress named, for its entry in `provenance`; null outside a load. */
     private supplied: Supplied | null = null;
 
+    /** What writes beside a running load added, so the load does not count them as its own. */
+    private besideAdded = { nodes: 0, edges: 0 };
+
     /** The highest load key number handed out, so a key is never handed out twice. */
     private sourceSerial = 0;
 
@@ -702,6 +706,7 @@ export class Ingest<K extends KnownEdge> {
         }
 
         const before = this.heldCounts();
+        const beside = this.besideAdded;
         const supplied = this.beginLoad(command);
         try {
             const outcome = await this.addDataFromSource(
@@ -716,7 +721,11 @@ export class Ingest<K extends KnownEdge> {
             );
             const { report } = outcome;
             const after = this.heldCounts();
-            const added = Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges });
+            // Less what plain writes beside the load added (issue #5416).
+            const added = Object.freeze({
+                nodes: after.nodes - before.nodes - (this.besideAdded.nodes - beside.nodes),
+                edges: after.edges - before.edges - (this.besideAdded.edges - beside.edges),
+            });
             const leftOut: LoadedSource["leftOut"] =
                 this.leaveOutUnmatched && report.unmatched.rows > 0
                     ? Object.freeze({
@@ -891,13 +900,98 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
-     * Adds multiple nodes to the graph
+     * Adds multiple nodes to the graph, as a write of their own: a load running beside it (waiting
+     * on its next chunk) does not count them as its rows (issue #5416).
      * @param nodes - Array of node data objects
      * @param idPath - JMESPath expression to extract node ID from data, or undefined for the
      *     configured one
      * @param writer - the graph primitives to write through
      */
     addNodes(
+        nodes: readonly Record<string | number, unknown>[],
+        idPath: string | undefined,
+        writer: GraphWriter,
+    ): void {
+        this.outsideLoad(() => {
+            this.addNodeRows(nodes, idPath, writer);
+        });
+    }
+
+    /**
+     * Run a write that is not the running load's with no load state, and give the load its state
+     * back after: the write is synchronous, so nothing of the load runs in between.
+     * @param write - The write.
+     */
+    private outsideLoad(write: () => void): void {
+        const inLoad = this.supplied !== null || this.loadTally !== null;
+        const held = {
+            loadTally: this.loadTally,
+            loadEndpoints: this.loadEndpoints,
+            made: [...this.loadMadeEndpoints],
+            leaveOutUnmatched: this.leaveOutUnmatched,
+            leftOutEdges: this.leftOutEdges,
+            leftOutEnds: this.leftOutEnds,
+            loadEdgeLines: this.loadEdgeLines,
+            duplicateIds: this.duplicateIds,
+            updateExisting: this.updateExisting,
+            loadBeganWithNodes: this.loadBeganWithNodes,
+            measure: this.measure,
+            supplied: this.supplied,
+        };
+        this.loadTally = null;
+        this.loadEndpoints = null;
+        this.loadMadeEndpoints.clear();
+        this.leaveOutUnmatched = false;
+        this.leftOutEdges = [];
+        this.leftOutEnds = null;
+        this.loadEdgeLines = null;
+        this.duplicateIds = "first";
+        this.updateExisting = false;
+        this.loadBeganWithNodes = false;
+        this.measure = null;
+        this.supplied = null;
+        const before = inLoad ? this.heldCounts() : null;
+        try {
+            write();
+        } finally {
+            if (before !== null) {
+                // What the load's own count of what it added leaves out.
+                const after = this.heldCounts();
+                this.besideAdded = {
+                    nodes: this.besideAdded.nodes + after.nodes - before.nodes,
+                    edges: this.besideAdded.edges + after.edges - before.edges,
+                };
+            }
+
+            ({
+                loadTally: this.loadTally,
+                loadEndpoints: this.loadEndpoints,
+                leaveOutUnmatched: this.leaveOutUnmatched,
+                leftOutEdges: this.leftOutEdges,
+                leftOutEnds: this.leftOutEnds,
+                loadEdgeLines: this.loadEdgeLines,
+                duplicateIds: this.duplicateIds,
+                updateExisting: this.updateExisting,
+                loadBeganWithNodes: this.loadBeganWithNodes,
+                measure: this.measure,
+                supplied: this.supplied,
+            } = held);
+            this.loadMadeEndpoints.clear();
+            for (const id of held.made) {
+                this.loadMadeEndpoints.add(id);
+            }
+        }
+    }
+
+    /**
+     * Add node records, counting them as the running load's rows when one runs: the chunk
+     * reader's entry, and {@link addNodes}'s with the load state set aside.
+     * @param nodes - Array of node data objects
+     * @param idPath - JMESPath expression to extract node ID from data, or undefined for the
+     *     configured one
+     * @param writer - the graph primitives to write through
+     */
+    private addNodeRows(
         nodes: readonly Record<string | number, unknown>[],
         idPath: string | undefined,
         writer: GraphWriter,
@@ -1034,6 +1128,24 @@ export class Ingest<K extends KnownEdge> {
      *     with `E_DUPLICATE_EDGE` under the `"error"` repeat policy.
      */
     addEdges(
+        edges: readonly Record<string | number, unknown>[],
+        options: AddEdgesOptions | undefined,
+        writer: GraphWriter,
+    ): void {
+        // A write of its own, not the rows of a load running beside it (issue #5416).
+        this.outsideLoad(() => {
+            this.addEdgeRows(edges, options, writer);
+        });
+    }
+
+    /**
+     * Add edge records, counting them as the running load's rows when one runs: the chunk
+     * reader's entry, and {@link addEdges}'s with the load state set aside.
+     * @param edges - Array of edge data objects
+     * @param options - the endpoint expressions and the repeat policy for this call
+     * @param writer - the graph primitives to write through
+     */
+    private addEdgeRows(
         edges: readonly Record<string | number, unknown>[],
         options: AddEdgesOptions | undefined,
         writer: GraphWriter,
@@ -1567,30 +1679,58 @@ export class Ingest<K extends KnownEdge> {
                 continue;
             }
 
-            if (policy !== "keep") {
-                const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
-                if (!replacing && this.knownEdgeFor(srcNodeId, dstNodeId, recordId) !== null) {
-                    continue;
-                }
-
-                const pairs = seenPairs.get(srcNodeId) ?? new Set<NodeIdType>();
-                seenPairs.set(srcNodeId, pairs);
-                const repeatsBatch = isStorableRecordId(recordId) ? seenIds.has(recordId) : pairs.has(dstNodeId);
-                if (repeatsBatch) {
-                    continue;
-                }
-
-                if (isStorableRecordId(recordId)) {
-                    seenIds.add(recordId);
-                }
-
-                pairs.add(dstNodeId);
+            if (
+                policy !== "keep" &&
+                this.folds(edge, recordIdPath, srcNodeId, dstNodeId, replacing, seenIds, seenPairs)
+            ) {
+                continue;
             }
 
             adding++;
         }
 
         return adding;
+    }
+
+    /**
+     * Whether an edge record folds into an edge the graph holds or one earlier in the batch, and
+     * if not, remember it as seen.
+     * @param edge - the record
+     * @param recordIdPath - where its record id is, or null when none is configured
+     * @param srcNodeId - its source
+     * @param dstNodeId - its target
+     * @param replacing - true when every held edge is about to be removed
+     * @param seenIds - the record ids earlier in the batch
+     * @param seenPairs - the endpoint pairs earlier in the batch, by source
+     * @returns true when it adds nothing
+     */
+    private folds(
+        edge: Record<string | number, unknown>,
+        recordIdPath: string | null,
+        srcNodeId: NodeIdType,
+        dstNodeId: NodeIdType,
+        replacing: boolean,
+        seenIds: Set<string | number>,
+        seenPairs: Map<NodeIdType, Set<NodeIdType>>,
+    ): boolean {
+        const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
+        if (!replacing && this.knownEdgeFor(srcNodeId, dstNodeId, recordId) !== null) {
+            return true;
+        }
+
+        const pairs = seenPairs.get(srcNodeId) ?? new Set<NodeIdType>();
+        seenPairs.set(srcNodeId, pairs);
+        const repeatsBatch = isStorableRecordId(recordId) ? seenIds.has(recordId) : pairs.has(dstNodeId);
+        if (repeatsBatch) {
+            return true;
+        }
+
+        if (isStorableRecordId(recordId)) {
+            seenIds.add(recordId);
+        }
+
+        pairs.add(dstNodeId);
+        return false;
     }
 
     /**
@@ -1706,11 +1846,11 @@ export class Ingest<K extends KnownEdge> {
                 directionSettled = this.applyDeclaredDirection(type, reader.declaredDirection, writer);
             }
 
-            this.addNodes(chunk.nodes, load.nodeIdPath, writer);
+            this.addNodeRows(chunk.nodes, load.nodeIdPath, writer);
             // The endpoint names a caller passed to the SOURCE are honoured here rather
             // than inside each of the seven importers: whatever shape a source produces,
             // the consumer who named the columns named them for the records that come out.
-            this.addEdges(chunk.edges, load.endpointOverrides, writer);
+            this.addEdgeRows(chunk.edges, load.endpointOverrides, writer);
 
             progress = {
                 ...progress,
@@ -2173,6 +2313,7 @@ function heldReader(held: HeldRows): ChunkReader {
         // What the file said about the whole graph, from the source that read the rows, so a
         // draft's load keeps it as `data.import` of the same file does.
         declaredGraphValues: HELD_READERS.get(held)?.declaredGraphValues ?? null,
+        declaredFileLayout: HELD_READERS.get(held)?.declaredFileLayout ?? null,
         getErrorAggregator: () => {
             const errors = new ErrorAggregator(held.errorLimit);
             for (const error of held.errors) {
@@ -2194,8 +2335,15 @@ function heldReader(held: HeldRows): ChunkReader {
  */
 function keepFileGraph(reader: ChunkReader, format: string, writer: GraphWriter): void {
     const attributes = reader.declaredGraphValues;
+    const layout = reader.declaredFileLayout;
     if (attributes !== null && attributes !== undefined) {
-        writer.setGraphValues({ [FILE_GRAPH_VALUE]: Object.freeze({ format, attributes }) });
+        writer.setGraphValues({
+            [FILE_GRAPH_VALUE]: Object.freeze({
+                format,
+                attributes,
+                ...(layout === null || layout === undefined ? {} : { layout }),
+            }),
+        });
     }
 }
 
@@ -2204,6 +2352,8 @@ interface ChunkReader {
     readonly declaredDirection: DeclaredDirection | null;
     /** The file's graph-level attributes, once its last chunk is read; absent for held rows. */
     readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
+    /** The layout the file asks for, once its last chunk is read; absent for held rows. */
+    readonly declaredFileLayout?: FileLayout | null;
     getErrorAggregator(): ErrorAggregator;
     getData(): AsyncIterable<DataSourceChunk> | Iterable<DataSourceChunk>;
 }

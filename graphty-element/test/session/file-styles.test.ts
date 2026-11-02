@@ -438,6 +438,38 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
+    it('frames a sigma.js file as sigma.js does with framing: "file", and leaves the framing alone by default (#5367)', async () => {
+        const graphology = JSON.stringify({
+            options: { type: "undirected" },
+            nodes: [
+                { key: "a", attributes: { x: 0, y: 0, size: 10 } },
+                { key: "b", attributes: { x: 100, y: 50, size: 10 } },
+            ],
+            edges: [{ source: "a", target: "b" }],
+        });
+        const sigma = { type: "json", config: { data: graphology } };
+        const session = createGraphSession();
+
+        await session.data.import(sigma, { styles: "file" });
+        assert.isUndefined(session.config.framing, "the default leaves the element's own framing");
+
+        await session.undo();
+        await session.data.import(sigma, { styles: "file", styleOptions: { framing: "file" } });
+        assert.deepEqual(session.config.framing, { extent: "centers", padding: 30 });
+
+        // a file whose program states no fit returns the graph to the element's framing
+        await session.data.import(
+            { type: "dot", config: { data: "digraph { a -> b }" } },
+            { styles: "file", styleOptions: { framing: "file" } },
+        );
+        assert.isUndefined(session.config.framing);
+
+        // one undo takes a load and its framing back together
+        await session.undo();
+        assert.deepEqual(session.config.framing, { extent: "centers", padding: 30 });
+        session.dispose();
+    });
+
     it("draws a Cytoscape font size mapped over a ramp as the whole number Cytoscape draws", async () => {
         const doc = JSON.stringify([
             { CXVersion: "2.0", hasFragments: false },

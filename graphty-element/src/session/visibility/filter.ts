@@ -1543,6 +1543,37 @@ function componentTest(context: CompileContext, id: number): ElementTest {
 }
 
 /**
+ * One breadth-first hop: the nodes first reached from the frontier along any of the views' arcs,
+ * marked in `reached`.
+ * @param frontier - The nodes reached on the last hop.
+ * @param views - The adjacency to follow, in order (the graph, then its reverse).
+ * @param reached - One byte per node, 1 once reached; updated in place.
+ * @returns The newly reached nodes, in the order they were found.
+ */
+function nextHop(
+    frontier: readonly number[],
+    views: readonly { readonly rowPtr: ArrayLike<number>; readonly colIdx: ArrayLike<number> }[],
+    reached: Uint8Array,
+): number[] {
+    const next: number[] = [];
+
+    for (const node of frontier) {
+        for (const view of views) {
+            for (let arc = view.rowPtr[node]; arc < view.rowPtr[node + 1]; arc++) {
+                const other = view.colIdx[arc];
+
+                if (reached[other] === 0) {
+                    reached[other] = 1;
+                    next.push(other);
+                }
+            }
+        }
+    }
+
+    return next;
+}
+
+/**
  * A test over the nodes within so many hops of a set of seeds.
  *
  * Hops are counted in BOTH directions even on a directed graph: a neighbourhood is what surrounds
@@ -1570,22 +1601,7 @@ function neighborhoodTest(context: CompileContext, seeds: readonly NodeId[], dep
     const reverse = graph.reverse();
 
     for (let hop = 0; hop < depth && frontier.length > 0; hop++) {
-        const next: number[] = [];
-
-        for (const node of frontier) {
-            for (const view of [graph, reverse]) {
-                for (let arc = view.rowPtr[node]; arc < view.rowPtr[node + 1]; arc++) {
-                    const other = view.colIdx[arc];
-
-                    if (reached[other] === 0) {
-                        reached[other] = 1;
-                        next.push(other);
-                    }
-                }
-            }
-        }
-
-        frontier = next;
+        frontier = nextHop(frontier, [graph, reverse], reached);
     }
 
     return (index) => reached[index] === 1;
@@ -1648,6 +1664,29 @@ function itemTest(read: (index: number) => unknown, wanted: unknown, mark: PathM
 }
 
 /**
+ * The elements one item of a held execution holds: what its run's re-run captured, and nothing
+ * when no capture was kept.
+ * @param context - The compile context.
+ * @param item - The item.
+ * @param mark - The path's mark.
+ * @returns The halves the capture holds.
+ */
+function heldItem(context: CompileContext, item: ResultItem, mark: PathMark): CompiledHalves {
+    const held = context.sources.captured?.(item);
+    if (held === undefined || (held.nodes === null && held.edges === null)) {
+        return NOTHING;
+    }
+
+    mark.seen = true;
+    const { nodes, edges } = held;
+
+    return {
+        node: nodes === null ? null : (index) => maskTest(nodes, index),
+        edge: edges === null ? null : (index) => maskTest(edges, index),
+    };
+}
+
+/**
  * The elements one item of a result holds. A run with no result, a field the result does not
  * publish per element, and a held execution that is no longer current all hold nothing.
  * @param context - The compile context.
@@ -1663,18 +1702,7 @@ function compileItem(context: CompileContext, item: ResultItem): CompiledHalves 
     // A held execution that is no longer current reads what its run's re-run captured, and
     // nothing when no capture was kept.
     if (item.run !== undefined && item.run !== result?.execution) {
-        const held = context.sources.captured?.(item);
-        if (held === undefined || (held.nodes === null && held.edges === null)) {
-            return NOTHING;
-        }
-
-        mark.seen = true;
-        const { nodes, edges } = held;
-
-        return {
-            node: nodes === null ? null : (index) => maskTest(nodes, index),
-            edge: edges === null ? null : (index) => maskTest(edges, index),
-        };
+        return heldItem(context, item, mark);
     }
 
     if (result === undefined) {

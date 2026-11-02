@@ -31,8 +31,6 @@ on:
                 required: true
 
 env:
-    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
-    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
     RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
     SHA: ${{ inputs.sha || github.event.workflow_run.head_sha }}
 
@@ -160,8 +158,10 @@ jobs:
             # packed from the repository's data/, which the script copies beside the large ones it builds). With
             # --reuse-published it takes each large dataset already on canary.graphty.app (or else graphty.app) whose SHA-256 is the one
             # src/datasets/hosted.ts records, so a deploy never depends on the third-party source hosts (#3302);
-            # only a dataset whose recorded checksum changed is built from its sources. The script records every
-            # source's URL and SHA-256, so its hash keys the download cache for those builds.
+            # only a dataset whose recorded checksum changed is built from its sources, fetched from this
+            # repository's graph-samples-source-<sha256> releases and checked against their recorded SHA-256. They
+            # are not cached: a cache restored into this privileged job could be poisoned (CodeQL
+            # actions/cache-poisoning, #5077), and the rare build that needs them refetches them from the releases.
             - name: Download graph-format build
               uses: actions/download-artifact@v8
               with:
@@ -195,13 +195,6 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-
-            - name: Cache graph-samples dataset sources
-              uses: actions/cache@v6
-              with:
-                  path: tmp/graph-samples-sources
-                  key: graph-samples-sources-${{ hashFiles('graph-samples/scripts/build-hosted.mjs', 'graph-samples/scripts/graph-io-source.mjs') }}
-                  restore-keys: graph-samples-sources-
 
             # Fails the deploy rather than publishing a site without the data fetchDataset() loads
             - name: Build graph-samples hosted datasets

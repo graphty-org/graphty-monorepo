@@ -4,7 +4,7 @@ import "@babylonjs/core/Culling/ray.js";
 import { Camera, Color4, Matrix, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
 import { raySphere } from "babylonjs-map/projection";
 
-import { type FreeArea, freeArea, fullInsets } from "../camera/insets";
+import { type FreeArea, freeArea, fullInsets, paddedArea } from "../camera/insets";
 import type { ViewInsets } from "../camera/types";
 import type { FitBounds, FitInsets } from "../config/GraphBehavior";
 import { glideTowards } from "./CameraManager";
@@ -115,6 +115,8 @@ export class OrbitCameraController {
     public fitInsets: FitInsets = NO_INSETS;
     /** What a fit fits into view; see `camera.fitBounds`. */
     public fitBounds: FitBounds = "box";
+    /** CSS pixels a fit keeps clear at each end of the free area's shorter side, in place of its margin. */
+    public fitPadding: number | undefined = undefined;
 
     private readonly pivotController: PivotController;
 
@@ -473,6 +475,15 @@ export class OrbitCameraController {
     }
 
     /**
+     * The part of the canvas a fit fills: the free area less the fit padding.
+     * @returns The area in normalized device coordinates.
+     */
+    #fitArea(): FreeArea {
+        const { clientWidth, clientHeight } = this.#canvas;
+        return paddedArea(this.#freeArea(), this.fitPadding, clientWidth, clientHeight);
+    }
+
+    /**
      * The tangents of half the horizontal and the vertical field of view.
      * @returns Both tangents.
      */
@@ -506,7 +517,7 @@ export class OrbitCameraController {
         this.pivot.computeWorldMatrix(true);
         this.scene.getEngine().resize();
         const { tanX, tanY } = this.#halfFovTangents();
-        const free = this.#freeArea();
+        const free = this.#fitArea();
         const tan = Math.min(tanX * free.width, tanY * free.height);
         this.cameraDistance = this.clampDistance(sphereFitDistance(radius, tan));
         this.updateCameraPosition();
@@ -533,7 +544,7 @@ export class OrbitCameraController {
         const engine = this.scene.getEngine();
         engine.resize(); // Ensure we have current dimensions
         const { tanX, tanY } = this.#halfFovTangents();
-        const free = this.#freeArea();
+        const free = this.#fitArea();
 
         // For 3D scenes, we need to account for perspective projection.
         // Objects at different Z depths will project differently on screen.
@@ -584,7 +595,7 @@ export class OrbitCameraController {
         // Since we already include labels in the bounding box, we only need
         // a small padding for visual comfort and edge arrows
         // The turning fit is already met only at the worst angle, so it gets no more room.
-        const PADDING_PERCENT = turning ? 0 : 5;
+        const PADDING_PERCENT = turning || this.fitPadding !== undefined ? 0 : 5;
         const targetDistance = maxRequiredDistance * (1 + PADDING_PERCENT / 100);
 
         // Only the floor applies: a fit that the configured ceiling cut short would put the

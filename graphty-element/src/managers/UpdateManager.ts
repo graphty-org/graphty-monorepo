@@ -19,17 +19,20 @@ import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraC
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
+import { drawnCurveInWorld } from "../edgeWorldCurve";
 import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
+import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
+import type { GraphFraming } from "../session/types";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { mapCorners } from "./BasemapManager";
 import { type DataManager, disposeReleased } from "./DataManager";
@@ -72,9 +75,13 @@ interface FramingBox {
  * most of the picture: one world unit on each side moved a two-node graph's camera from 6.0 to 8.6
  * units out. The cameras pad the fit themselves.
  * @param nodes - The nodes to frame; hidden ones are skipped.
+ * @param extent - What each node counts as: the box it is drawn in, or its center alone.
  * @returns The corners, or undefined when no node is visible.
  */
-export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
+export function nodeFramingBox(
+    nodes: Iterable<Node>,
+    extent: GraphFraming["extent"] = "drawn",
+): FramingBox | undefined {
     let min: Vector3 | undefined;
     let max: Vector3 | undefined;
     const spots: FramingSpot[] = [];
@@ -90,7 +97,7 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
         // world matrix first, because Babylon only refreshes world bounds while it renders and this
         // runs BEFORE that render. In world space, because a node mesh is parented to the
         // "graph-root" transform an XR gesture moves, rotates and scales.
-        const box = node.framingBounds();
+        const box = extent === "centers" ? centerOf(node) : node.framingBounds();
         // A spot is as wide as the node's widest half, so the turning fit keeps all of it in view.
         const half = box.max.subtract(box.min).scaleInPlace(0.5);
         spots.push({ pos: box.min.add(half), half: Math.max(half.x, half.y, half.z) });
@@ -101,7 +108,27 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
         max.maximizeInPlace(box.max);
     }
 
-    return min && max ? { min, max, spots } : undefined;
+    if (!min || !max) {
+        return undefined;
+    }
+
+    // The centers of one node, or of nodes all in one place, enclose nothing to fit: their drawn box is framed instead.
+    if (extent === "centers" && min.x === max.x && min.y === max.y) {
+        return nodeFramingBox(nodes);
+    }
+
+    return { min, max, spots };
+}
+
+/**
+ * A node's center in the world, as a box with no size: what `extent: "centers"` frames.
+ * @param node - The node.
+ * @returns The center as both corners.
+ */
+function centerOf(node: Node): { min: Vector3; max: Vector3 } {
+    node.mesh.computeWorldMatrix(true);
+    const center = node.mesh.getAbsolutePosition();
+    return { min: center.clone(), max: center.clone() };
 }
 
 /**
@@ -112,7 +139,7 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
  * in 2D and 3D -- counts for exactly the room it takes. Those bounds are only refreshed when the
  * plane's world matrix is computed, and a node label is parented to the node it annotates, so
  * without the forced compute the label would stretch the box to where it was drawn last frame
- * rather than to where its node has just moved.
+ * rather than to where its node has just moved (`withoutEyeLine` forces it).
  * @param box - The box to grow.
  * @param labelMesh - The plane, or nothing.
  */
@@ -121,16 +148,33 @@ function growForLabel(box: FramingBox, labelMesh: Mesh | null | undefined): void
         return;
     }
 
-    labelMesh.computeWorldMatrix(true);
+    // A center label slides onto its node's line of sight for the camera it is seen from; the framing is
+    // about to move that camera, so it measures the plane before the slide (see withoutEyeLine).
+    withoutEyeLine(labelMesh, () => {
+        const { minimumWorld, maximumWorld, vectorsWorld } = labelMesh.getBoundingInfo().boundingBox;
+        for (const corner of vectorsWorld) {
+            box.spots.push({ pos: corner.clone(), half: 0 });
+        }
 
-    const { minimumWorld, maximumWorld, vectorsWorld } = labelMesh.getBoundingInfo().boundingBox;
-    for (const corner of vectorsWorld) {
-        box.spots.push({ pos: corner, half: 0 });
-    }
+        for (const axis of ["x", "y", "z"] as const) {
+            box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
+            box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
+        }
+    });
+}
 
-    for (const axis of ["x", "y", "z"] as const) {
-        box.min[axis] = Math.min(box.min[axis], minimumWorld[axis]);
-        box.max[axis] = Math.max(box.max[axis], maximumWorld[axis]);
+/**
+ * Grow a box to take in the points an edge's curve or bends are drawn through, which can reach
+ * well outside the box of its two nodes (issue #3097). A straight edge costs one check and adds
+ * nothing: its line runs between two nodes the box already holds.
+ * @param box - The box to grow.
+ * @param edge - The edge.
+ */
+function growForCurve(box: FramingBox, edge: Edge): void {
+    for (const point of drawnCurveInWorld(edge) ?? []) {
+        box.spots.push({ pos: point, half: 0 });
+        box.min.minimizeInPlace(point);
+        box.max.maximizeInPlace(point);
     }
 }
 
@@ -154,19 +198,25 @@ function sameBox(a: FramingBox, b: FramingBox): boolean {
 
 /**
  * The box zoom-to-fit frames: {@link nodeFramingBox} grown by every label on a visible node and
- * every label and arrow caption on a visible edge, so no label is cut off by the edge of the
- * viewport. A label's size depends on its text and font, which is why framing runs on data loads
- * and layout changes and NOT on label edits: see `Graph`, which asks for a framing only from
- * those.
+ * every label, arrow caption and curve or bend point on a visible edge, so no label or bent line is
+ * cut off by the edge of the viewport. A label's size depends on its text and font, which is why
+ * framing runs on data loads and layout changes and NOT on label edits: see `Graph`, which asks
+ * for a framing only from those.
  * @param nodes - The nodes to frame; hidden ones and their labels are skipped.
  * @param edges - The edges whose labels to frame; hidden ones are skipped.
+ * @param extent - What each node counts as; with its center alone no label is framed.
  * @returns The corners, or undefined when no node is visible.
  */
-export function framingBox(nodes: Iterable<Node>, edges: Iterable<Edge>): FramingBox | undefined {
-    const box = nodeFramingBox(nodes);
+export function framingBox(
+    nodes: Iterable<Node>,
+    edges: Iterable<Edge>,
+    extent: GraphFraming["extent"] = "drawn",
+): FramingBox | undefined {
+    const box = nodeFramingBox(nodes, extent);
 
-    if (!box) {
-        return undefined;
+    // Centers frame no label, as a program that fits node centers lets labels run off the canvas.
+    if (!box || extent === "centers") {
+        return box;
     }
 
     for (const node of nodes) {
@@ -181,6 +231,7 @@ export function framingBox(nodes: Iterable<Node>, edges: Iterable<Edge>): Framin
             growForLabel(box, edge.xlabelLabel?.labelMesh);
             growForLabel(box, edge.arrowHeadText?.labelMesh);
             growForLabel(box, edge.arrowTailText?.labelMesh);
+            growForCurve(box, edge);
         }
     }
 
@@ -368,6 +419,16 @@ export class UpdateManager implements Manager {
     private lastZoomStep = 0;
     private wasSettled = false;
 
+    /**
+     * Where an accelerated simulation's nodes were drawn at its last measured landing, for
+     * `minDelta`. See `landedMoveBelow`.
+     */
+    private lastLanding: {
+        engine: SimulationLayoutEngine;
+        landed: number;
+        positions: Map<NodeIdType, { x: number; y: number; z: number }>;
+    } | null = null;
+
     /** Where the two masks are read from, or null while nothing has been bound. */
     private viewMasks: ViewMasks | null = null;
 
@@ -452,7 +513,9 @@ export class UpdateManager implements Manager {
      * schedule -- left the picture called final on a framing of stale inputs, and whether the
      * write came before or after the fit depended on the machine's speed (issues #3372, #4218).
      * A change to one of them in that window owes the fit again. Once the picture was final, an
-     * input change moves nothing, as `setViewInsets` documents.
+     * input change moves nothing, as `setViewInsets` documents -- except a canvas resize with
+     * `camera.refitOnResize` on, which the graph frames again itself while the camera is still
+     * where a fit left it (issue #5097).
      */
     private fitRead: string | null = null;
 
@@ -1825,6 +1888,7 @@ export class UpdateManager implements Manager {
         const { camera } = this.graphContext.getStyles().config.behavior;
         this.camera.setFitInsets(camera.fitInsets);
         this.camera.setFitBounds(camera.fitBounds);
+        this.camera.setFitPadding(this.framing?.padding);
         if (this.fitIsStale()) {
             // An input the last fit read changed before its picture was final: owe it again.
             this.fitRead = null;
@@ -1969,6 +2033,13 @@ export class UpdateManager implements Manager {
      * @returns True when the round moved no node as far as `minDelta`: the layout has arrived.
      */
     private stepRound(simulation: boolean, stepMultiplier: number, minDelta: number): boolean {
+        const engine = this.layoutManager.layoutEngine;
+        if (minDelta > 0 && engine instanceof SimulationLayoutEngine && engine.isAccelerated) {
+            this.layoutManager.stepBatch();
+            this.layoutStepCount++;
+            return this.landedMoveBelow(engine, minDelta);
+        }
+
         const before = minDelta > 0 ? this.enginePositions() : null;
 
         if (simulation) {
@@ -1982,6 +2053,30 @@ export class UpdateManager implements Manager {
         }
 
         return before !== null && this.largestMove(before) < minDelta;
+    }
+
+    /**
+     * Whether the last landed batches of an accelerated simulation moved every node less than
+     * `minDelta`. Its `step()` only submits a batch, which lands frames later, so a move measured
+     * across the submit is 0 on every frame nothing landed in, and read as arrived it stopped the
+     * layout on its first stepped frame (issue #4437). Measured instead between the positions the
+     * last two publishes of NEWLY LANDED batches drew.
+     * @param engine - The accelerated simulation.
+     * @param minDelta - The settle threshold, above 0.
+     * @returns True when the latest landing moved no node as far as `minDelta`.
+     */
+    private landedMoveBelow(engine: SimulationLayoutEngine, minDelta: number): boolean {
+        const landed = engine.landedBatchesPublished;
+        const last = this.lastLanding;
+        if (last?.engine === engine && last.landed === landed) {
+            // Nothing new has landed since the last measurement: no evidence either way.
+            return false;
+        }
+
+        const positions = this.enginePositions();
+        this.lastLanding = { engine, landed, positions };
+
+        return last?.engine === engine && this.largestMove(last.positions, positions) < minDelta;
     }
 
     /**
@@ -2031,12 +2126,14 @@ export class UpdateManager implements Manager {
     /**
      * How far the node that moved most has moved since the positions were taken.
      * @param before - The positions to measure against.
+     * @param now - The positions to measure; by default where the engine has them now.
      * @returns The largest distance, or Infinity when there is nothing to compare -- a graph with
      *     no placed nodes has not settled, it has not started.
      */
-    private largestMove(before: Map<NodeIdType, { x: number; y: number; z: number }>): number {
-        const now = this.enginePositions();
-
+    private largestMove(
+        before: Map<NodeIdType, { x: number; y: number; z: number }>,
+        now = this.enginePositions(),
+    ): number {
         if (before.size === 0 || now.size === 0) {
             return Number.POSITIVE_INFINITY;
         }
@@ -2123,8 +2220,14 @@ export class UpdateManager implements Manager {
      * @returns The box, or undefined when nothing is visible.
      */
     private measure(): FramingBox | undefined {
-        return framingBox(this.layoutManager.nodes, this.layoutManager.edges);
+        return framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent);
     }
+
+    /**
+     * How the graph is framed: the project setting `framing`, which the element hands over when it changes.
+     * @internal
+     */
+    framing: GraphFraming | undefined = undefined;
 
     /**
      * Update all edges.
@@ -2922,6 +3025,7 @@ export class UpdateManager implements Manager {
             this.camera.getActiveController()?.viewInsets ?? null,
             fitInsets,
             fitBounds,
+            this.framing ?? null,
             canvas?.clientWidth,
             canvas?.clientHeight,
             engine.getRenderWidth(),

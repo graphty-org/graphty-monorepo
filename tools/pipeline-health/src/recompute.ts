@@ -5,7 +5,7 @@
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 
 import { type AlertsResult, sendAlerts } from "./alerts/index.js";
-import { DAY, dirtyKey, floorTo, MIN } from "./model/items.js";
+import { dirtyKey, floorTo, MIN, REFOLD_MS } from "./model/items.js";
 import { FOLD_VERSION } from "./model/metrics.js";
 import { getCursor, recordSource, setCursor } from "./model/raw.js";
 import { recompute } from "./model/rollup.js";
@@ -34,9 +34,6 @@ export async function ssmSecret(name: string): Promise<string | undefined> {
     }
 }
 
-/** How far back a fold change re-marks buckets: the four weeks the dashboard and the backfill cover. */
-export const REFOLD_MS = 28 * DAY;
-
 /**
  * Marks every 5-minute bucket of the last REFOLD_MS dirty once per FOLD_VERSION, so items stored before a fold
  * changed (ci.full_shard_time's budget) are folded again; recompute drains the marks newest first over later cycles.
@@ -45,7 +42,9 @@ export const REFOLD_MS = 28 * DAY;
  * @returns the buckets marked
  */
 export async function refold(store: Store, now: number): Promise<number> {
-    if ((await getCursor(store, "fold-version")) === FOLD_VERSION) return 0;
+    if ((await getCursor(store, "fold-version")) === FOLD_VERSION) {
+        return 0;
+    }
     // ponytail: marks every bucket (8064), not only those holding shard runs; a key-per-kind index if folds change often.
     const ops = [];
     for (let t = floorTo(now - REFOLD_MS, "5m"); t <= now; t += 5 * MIN) {
@@ -74,7 +73,9 @@ export async function recomputeAll(
     deps: RecomputeDeps = {},
 ): Promise<{ buckets: number; items: number; pages: number; alerts: AlertsResult }> {
     // A background re-mark: its failure is logged and retried next cycle, never a reason to skip the live hour.
-    await refold(store, now).catch((err: unknown) => console.error(JSON.stringify({ refold: String(err) })));
+    await refold(store, now).catch((err: unknown) => {
+        console.error(JSON.stringify({ refold: String(err) }));
+    });
     const rolled = await recompute(store, now);
     const evaluation = await evaluate(store, now);
     // Alerts before the pages: a cycle whose pages fail still pages the owner, and the "views" write time ages
@@ -86,7 +87,7 @@ export async function recomputeAll(
         getSecret: deps.getSecret ?? ssmSecret,
         fetch: deps.fetch ?? globalThis.fetch,
     });
-    console.log(JSON.stringify({ alerts }));
+    console.warn(JSON.stringify({ alerts }));
     let views: Awaited<ReturnType<typeof writeViews>>;
     try {
         views = await writeViews(store, now, SLAS, evaluation);

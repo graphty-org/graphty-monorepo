@@ -31,6 +31,7 @@ import {
 } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
 import { judgesFor, type Reference, SHEET_JUDGES, specificationScene } from "./judges";
+import type { Pixels } from "./picture-gradient";
 import type { PScene } from "./primitives";
 import { pngPixels } from "./raster";
 import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
@@ -363,9 +364,16 @@ let lastRead: { svg: string; read: SvgPrimitives } | undefined;
  * @param svg - the SVG's text
  * @returns its primitives
  */
-function readSvgOnce(svg: string): SvgPrimitives {
+async function readSvgOnce(svg: string): Promise<SvgPrimitives> {
     if (lastRead?.svg !== svg) {
-        lastRead = { svg, read: readSvgPrimitives(svg) };
+        // the PNGs it embeds (Cytoscape desktop's gradient custom graphics), decoded so their pixels can be read
+        // keyed without whitespace: base64 written across lines reads back from the DOM with spaces for the breaks
+        const hrefs = new Set((svg.match(/data:image\/png;base64,[^"']+/gi) ?? []).map((h) => h.replace(/\s+/g, "")));
+        const pictures = new Map<string, Pixels>();
+        for (const href of hrefs) {
+            pictures.set(href, await pngPixels(href));
+        }
+        lastRead = { svg, read: readSvgPrimitives(svg, pictures) };
     }
     return structuredClone(lastRead.read);
 }
@@ -395,7 +403,7 @@ export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInp
         drawnBy: Record<string, unknown>,
         reference: Reference,
     ): Promise<{ association: Association; report: OracleReport; width: number; height: number }> => {
-        const read = readSvgOnce(svg);
+        const read = await readSvgOnce(svg);
         const associated = await associateOracle(
             id,
             drawnBy,

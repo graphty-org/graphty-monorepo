@@ -1500,9 +1500,6 @@ function exactFromBlock(
         values: target === "node" ? node : edge,
         properties: target === "node" ? ["shape", "width", "height"] : ["lineStyle"],
         readBack: (_i, want) => (property) => written[property](want),
-        // a size is written from the width and the height together: one the block leaves unset reads back too
-        take: (property, wanted, native) =>
-            native !== null && (wanted !== null || property === "width" || property === "height"),
     }));
 }
 

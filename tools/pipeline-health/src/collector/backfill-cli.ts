@@ -4,18 +4,20 @@
 //   ... pnpm run backfill -- --days 28 --restart
 // To re-read only some days' runs of some workflows (days an earlier backfill lost), whatever the cursors say:
 //   ... pnpm run backfill -- --repair-days 2026-10-09,2026-10-11 --repair-workflows release.yml,bisect.yml
+// To load every issue, whatever its update time, and nothing else (the Issues page's history):
+//   ... pnpm run backfill -- --all-issues
 
 import { dynamoStore } from "../dynamo.js";
 import { ssmGetParams } from "./aws.js";
 import { backfill, backfillRepos } from "./backfill.js";
 import { GitHub, installationToken, readAppConfig } from "./github.js";
 
-async function main() {
-    const arg = (name: string, d: number) => {
+async function main(): Promise<void> {
+    const arg = (name: string, d: number): number => {
         const i = process.argv.indexOf(`--${name}`);
         return i > 0 ? Number(process.argv[i + 1]) : d;
     };
-    const list = (name: string) => {
+    const list = (name: string): string[] => {
         const i = process.argv.indexOf(`--${name}`);
         return i > 0 ? process.argv[i + 1].split(",").filter(Boolean) : [];
     };
@@ -38,9 +40,12 @@ async function main() {
         now: Date.now(),
         ...(days.length ? { repair: { days, workflows: list("repair-workflows") } } : {}),
         ...(process.argv.includes("--restart") ? { restart: true } : {}),
-        log: (l) => console.log(l),
+        ...(process.argv.includes("--all-issues") ? { issues: "all" as const } : {}),
+        log: (l) => {
+            process.stdout.write(`${l}\n`);
+        },
     });
-    console.log(JSON.stringify(r));
+    process.stdout.write(`${JSON.stringify(r)}\n`);
 }
 
 await main();

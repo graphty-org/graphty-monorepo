@@ -969,16 +969,16 @@ function readElement(
         text ||= property === "label" && value !== null;
         put(property, value);
     };
+    // gv2gml writes no graphics before a layout; Graphviz still draws its defaults (a digraph's arrowheads)
     if (isRec(g)) {
         (target === "node" ? readNodeGraphics : readEdgeGraphics)(g, writer, put, at);
+    } else if (writer.vocabulary === "graphviz" && target === "edge") {
+        readEdgeGraphics({}, writer, put, at);
     }
     if (lg !== null && lg !== undefined) {
         readLabelGraphics(lg, writer, target === "node", putLabel, at);
     }
-    // the GML draft draws the label key; Cytoscape reads it as the node's name, which its default style shows
-    const drawn =
-        writer.vocabulary === "cytoscape" ? target === "node" : writer.labelKey && (isRec(g) || lg !== undefined);
-    if (!text && drawn && label !== null && label !== undefined) {
+    if (!text && labelKeyDrawn(target, writer, isRec(g) || lg !== undefined) && label !== null && label !== undefined) {
         put(
             "label",
             writer.vocabulary === "graphviz" ? graphvizText(label, at("label")) : canonText(label, at("label")),
@@ -989,6 +989,22 @@ function readElement(
             put("labelPosition", "center");
         }
     }
+}
+
+/**
+ * Whether the writer's program draws an element's `label` key: the GML draft draws it on an element with graphics;
+ * Cytoscape reads it as the node's name, which its default style shows, and Graphviz labels every node (its label
+ * default is \N, the node's name).
+ * @param target - nodes or edges
+ * @param writer - the writer
+ * @param hasGraphics - whether the element has `graphics` or `LabelGraphics`
+ * @returns whether the label is drawn
+ */
+function labelKeyDrawn(target: StyleTarget, writer: GmlWriter, hasGraphics: boolean): boolean {
+    if (writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz") {
+        return target === "node";
+    }
+    return writer.labelKey && hasGraphics;
 }
 
 /** The font size GraphIO::drawSVG draws every label in (SVGSettings), by which it sets a cluster's label off its box. */
@@ -1053,6 +1069,13 @@ function labelOf(snapshot: GraphSnapshot, writer: GmlWriter, target: StyleTarget
     const label = cellOf(table, "label", i);
     if (writer.vocabulary === "cytoscape" && target === "node" && (label === undefined || label === "")) {
         return String(snapshot.ids.idOf(i));
+    }
+    // gv2gml writes `label` only once a layout has set it; Graphviz draws `\N`, the `name` gv2gml always writes. A
+    // layout writes every node's label (its `\N` default too) and its graphics, so a laid-out node gv2gml wrote with
+    // no `label` has an empty one and Graphviz draws none
+    const laidOut = isRec(cellOf(table, "graphics", i));
+    if (writer.vocabulary === "graphviz" && target === "node" && label === undefined && !laidOut) {
+        return cellOf(table, "name", i);
     }
     return label;
 }
@@ -1324,7 +1347,10 @@ function readValues(
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const out = valueColumns(n);
-        if (!table.has("graphics") && !table.has("LabelGraphics") && writer.vocabulary !== "cytoscape") {
+        // Cytoscape names every element, and Graphviz labels every node and arrows a digraph's edges, with or
+        // without graphics (gv2gml writes graphics only once a layout ran)
+        const drawnBare = writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz";
+        if (!table.has("graphics") && !table.has("LabelGraphics") && !drawnBare) {
             return out.values;
         }
         for (let i = 0; i < n; i++) {

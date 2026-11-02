@@ -3,8 +3,7 @@
 // out (parse.ts releaseAttempt), which is right for the lane and is how Performance Benchmarks failed in most full
 // runs for a week with nothing on the page; these members read each job's own conclusions instead.
 
-import { DAY, floorTo } from "../model/items.js";
-import type { Bucket } from "../model/items.js";
+import { type Bucket, DAY, floorTo } from "../model/items.js";
 import { loadSeries } from "../model/rollup.js";
 import { type ChronicJob, readSnapshot } from "../model/snapshots.js";
 import type { Store } from "../model/store.js";
@@ -41,25 +40,37 @@ export interface JobHistory {
  * Each job's runs from the ci.job_history rollup, newest first: its dimension is [workflow, job, "pass" | "fail"] and
  * its values the times the job finished.
  * @param series - buckets of ci.job_history
+ * @returns each job's history
  */
 export function jobHistories(series: Iterable<Bucket>): JobHistory[] {
     const out = new Map<string, JobHistory>();
-    for (const b of series)
+    for (const b of series) {
         for (const [dim, a] of Object.entries(b.dims ?? {})) {
             const [workflow, job, outcome] = JSON.parse(dim) as [string, string, string];
             const k = JSON.stringify([workflow, job]);
             const h = out.get(k) ?? { workflow, job, runs: [] };
             out.set(k, h);
-            for (const at of a.vals ?? []) h.runs.push({ at, ok: outcome === "pass" });
+            for (const at of a.vals ?? []) {
+                h.runs.push({ at, ok: outcome === "pass" });
+            }
         }
-    for (const h of out.values()) h.runs.sort((x, y) => y.at - x.at);
+    }
+    for (const h of out.values()) {
+        h.runs.sort((x, y) => y.at - x.at);
+    }
     return [...out.values()];
 }
 
-/** How long a job may go without a run and still be running: ACTIVE_MS, or twice its median gap between runs. */
+/**
+ * How long a job may go without a run and still be running: ACTIVE_MS, or twice its median gap between runs.
+ * @param runs - the job's runs, newest first
+ * @returns the allowed gap, in ms
+ */
 function activeFor(runs: JobRun[]): number {
     const gaps = runs.slice(1).map((r, i) => runs[i].at - r.at);
-    if (!gaps.length) return ACTIVE_MS;
+    if (!gaps.length) {
+        return ACTIVE_MS;
+    }
     const median = gaps.toSorted((a, b) => a - b)[Math.floor(gaps.length / 2)];
     return Math.max(ACTIVE_MS, 2 * median);
 }
@@ -68,13 +79,16 @@ function activeFor(runs: JobRun[]): number {
  * The jobs failing chronically: failed in at least half of their newest LAST_RUNS runs (MIN_RUNS at least), or
  * failed in every run for STREAK_MS. Worst first.
  * @param histories - jobHistories
- * @param now
+ * @param now - the current time, in ms
+ * @returns the chronic jobs, worst first
  */
 export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] {
     const out: ChronicJob[] = [];
     for (const h of histories) {
         const newest = h.runs[0];
-        if (!newest || now - newest.at > activeFor(h.runs)) continue;
+        if (!newest || now - newest.at > activeFor(h.runs)) {
+            continue;
+        }
         const last = h.runs.slice(0, LAST_RUNS);
         const failed = last.filter((r) => !r.ok).length;
         const streak = h.runs.findIndex((r) => r.ok);
@@ -82,7 +96,9 @@ export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] 
         const failingSince = streakRuns.at(-1)?.at;
         const byShare = last.length >= MIN_RUNS && failed * 2 >= last.length;
         const byStreak = failingSince !== undefined && now - failingSince >= STREAK_MS;
-        if (!byShare && !byStreak) continue;
+        if (!byShare && !byStreak) {
+            continue;
+        }
         const lastPassAt = h.runs.find((r) => r.ok)?.at;
         out.push({
             workflow: h.workflow,
@@ -96,7 +112,11 @@ export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] 
     return out.sort((a, b) => b.failed / b.runs - a.failed / a.runs || (a.lastPassAt ?? 0) - (b.lastPassAt ?? 0));
 }
 
-/** The name an issue uses for a job: its own name without the caller's ("CI / Performance Benchmarks"). */
+/**
+ * The name an issue uses for a job: its own name without the caller's ("CI / Performance Benchmarks").
+ * @param job - the job's full name
+ * @returns the last part of the name
+ */
 export const shortName = (job: string): string => job.split(" / ").at(-1) ?? job;
 
 /** Run kinds a title may name a workflow's runs by, beside the workflow's own name ("Full run: ..." is release.yml). */
@@ -107,19 +127,24 @@ const RUN_KINDS: Record<string, string[]> = { "release.yml": ["full run"], "ci.y
  * ("release", "codeql", "work protection macos") or the kind of its runs ("full run") -- outside a leading
  * conventional-commit type ("ci: ..." names no workflow). A title naming a called job ("CI / All Checks Pass", called by
  * release.yml) does not own a job of the same name that nothing calls (ci.yml's own "All Checks Pass").
- * @param title
+ * @param title - the issue title
  * @param job - its workflow file and its name
+ * @returns whether the title owns the job
  */
 export function titleOwnsJob(title: string, job: Pick<ChronicJob, "workflow" | "job">): boolean {
     const short = shortName(job.job);
-    if (!words(title).includes(words(short))) return false;
+    if (!words(title).includes(words(short))) {
+        return false;
+    }
     const called = title
         .toLowerCase()
         .split("/")
         .map((x) => x.trim())
         .join("/")
         .includes(`/${short.toLowerCase()}`);
-    if (called && short === job.job) return false;
+    if (called && short === job.job) {
+        return false;
+    }
     const rest = words(title.replace(/^[a-z]+(\([^)]*\))?!?:/, ""));
     const names = [job.workflow.replace(/\.ya?ml$/, ""), ...(RUN_KINDS[job.workflow] ?? [])];
     return names.some((n) => rest.includes(words(n)));
@@ -129,14 +154,16 @@ export function titleOwnsJob(title: string, job: Pick<ChronicJob, "workflow" | "
  * The open issue owning each job (titleOwnsJob), in one GraphQL query: a search per job name for an open bug naming
  * it that is not a CI budget issue (those are about a job's time, not its failures). A mention in a body is not
  * ownership: it named #3447 for "All Checks Pass" and #3606 for "Dependabot".
- * @param gh
- * @param repo
- * @param jobs
+ * @param gh - the GitHub client
+ * @param repo - the repository, as owner/name
+ * @param jobs - the chronic jobs
  * @returns each job's issue number, in the order of `jobs`
  */
 export async function issuesNamingJobs(gh: GitHub, repo: string, jobs: ChronicJob[]): Promise<(number | undefined)[]> {
     const names = [...new Set(jobs.map((j) => shortName(j.job)))];
-    if (!names.length) return [];
+    if (!names.length) {
+        return [];
+    }
     const vars: Record<string, string> = {};
     const fields = names.map((n, i) => {
         vars[`q${i}`] = `repo:${repo} is:issue is:open label:bug -label:ci-budget "${n.replaceAll('"', " ")}" in:title`;
@@ -154,19 +181,29 @@ export async function issuesNamingJobs(gh: GitHub, repo: string, jobs: ChronicJo
     });
 }
 
-/** A job of ci.yml, run on its own or called by another workflow as "CI" (release.yml's "CI / Lint"). */
+/**
+ * A job of ci.yml, run on its own or called by another workflow as "CI" (release.yml's "CI / Lint").
+ * @param j - the chronic job
+ * @returns whether it is a ci.yml job
+ */
 const isCiJob = (j: ChronicJob): boolean => j.workflow === "ci.yml" || j.job.startsWith("CI / ");
 
 /**
  * The chronic jobs with their issues, and the two observations: chronic jobs, and those with no open issue. A ci.yml
  * job that ci.yml on master no longer defines (removed or renamed) is left out at once: its old failures are not a
  * job failing now, and waiting ACTIVE_MS for it to go quiet kept a removed job red for two days.
- * @param store
- * @param gh
- * @param repo
- * @param now
+ * @param store - the metrics store
+ * @param gh - the GitHub client
+ * @param repo - the repository, as owner/name
+ * @param now - the current time, in ms
+ * @returns the chronic jobs and the two observations
  */
-export async function jobMembers(store: Store, gh: GitHub, repo: string, now: number) {
+export async function jobMembers(
+    store: Store,
+    gh: GitHub,
+    repo: string,
+    now: number,
+): Promise<{ list: ChronicJob[]; obs: { "ci.chronic_jobs": number; "ci.chronic_no_issue": number } }> {
     const today = floorTo(now, "1d");
     const series = await loadSeries(store, "ci.job_history", "1d", today - (HISTORY_DAYS - 1) * DAY, today, now);
     const ciJobs = await readSnapshot(store, "ci-jobs");
@@ -200,6 +237,7 @@ interface WorkflowJob {
  * use a YAML parser if a workflow ever leaves that layout.
  * @param yaml - the workflow file
  * @param advisory - jobs in their warning period
+ * @returns the jobs, in file order
  */
 function workflowJobs(yaml: string, advisory: string[]): WorkflowJob[] {
     const out: WorkflowJob[] = [];
@@ -211,7 +249,9 @@ function workflowJobs(yaml: string, advisory: string[]): WorkflowJob[] {
             inJobs = line.startsWith("jobs:");
             continue;
         }
-        if (!inJobs) continue;
+        if (!inJobs) {
+            continue;
+        }
         const id = /^ {4}([\w-]+):\s*$/.exec(line)?.[1];
         if (id) {
             job = { id };
@@ -219,10 +259,15 @@ function workflowJobs(yaml: string, advisory: string[]): WorkflowJob[] {
             continue;
         }
         const key = /^ {8}(name|continue-on-error):(.*)$/.exec(line);
-        if (!job || !key) continue;
+        if (!job || !key) {
+            continue;
+        }
         const value = key[2].trim().replace(/^(["'])(.*)\1$/, "$2");
-        if (key[1] === "name") job.name = value;
-        else job.non = value === "true" || (value.startsWith("${{") && advisory.includes(job.id));
+        if (key[1] === "name") {
+            job.name = value;
+        } else {
+            job.non = value === "true" || (value.startsWith("${{") && advisory.includes(job.id));
+        }
     }
     return out;
 }
@@ -232,6 +277,7 @@ function workflowJobs(yaml: string, advisory: string[]): WorkflowJob[] {
  * name matches anything (a matrix job).
  * @param yaml - the workflow file
  * @param advisory - jobs in their warning period (tools/ci-advisory-checks.json, a whole job)
+ * @returns the names of the jobs allowed to fail
  */
 export function nonGatingJobs(yaml: string, advisory: string[] = []): string[] {
     return workflowJobs(yaml, advisory)
@@ -242,6 +288,7 @@ export function nonGatingJobs(yaml: string, advisory: string[] = []): string[] {
 /**
  * Every job a workflow file defines, by its `name:`, or its id when it has none (patterns for isJob).
  * @param yaml - the workflow file
+ * @returns the job names
  */
 export const definedJobs = (yaml: string): string[] => workflowJobs(yaml, []).map((j) => j.name ?? j.id);
 
@@ -249,7 +296,8 @@ export const definedJobs = (yaml: string): string[] => workflowJobs(yaml, []).ma
  * Whether a job (its family name, as ci.job_outcome keys it) is the non-gating job `pattern` names, called or not:
  * "Story tests (${{ matrix.name || matrix.project }})" matches "CI / Story tests (graphty)".
  * @param pattern - a nonGatingJobs name
- * @param job
+ * @param job - the job's family name
+ * @returns whether the job matches the pattern
  */
 export function isJob(pattern: string, job: string): boolean {
     const re = pattern

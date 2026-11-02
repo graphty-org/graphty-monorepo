@@ -8,7 +8,7 @@
  * hovering a list item picks its outline out, and clicking it zooms every panel onto that element. The outlines are this story's own SVG over the pictures: nothing in
  * graphty-element is restyled.
  *
- * The story root has `whenDone()`, which settles once the comparison and the pictures are done; the play function
+ * The story root has `whenDone()`, which settles once the comparison and the pictures are done; its afterEach
  * waits on it. A failure is printed as "fidelity story failed: <reason>".
  */
 import "../../../graphty-element/index.ts";
@@ -33,6 +33,7 @@ import oracleFloors from "../../../graphty-element/test/fidelity/oracle-floors.j
 import oracleKnown from "../../../graphty-element/test/fidelity/oracle-known-failures.json";
 import { CORPUS_SAMPLES } from "../../test/fidelity/corpus-samples";
 import { type FidelitySample, SAMPLES } from "../../test/fidelity/samples";
+import { untilDone } from "./fidelity";
 
 const { width: W, height: H } = ORACLE_CANVAS;
 const KNOWN: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = oracleKnown.known;
@@ -385,8 +386,6 @@ function render(sample: FidelitySample, fileUrl: string): HTMLElement {
     return root;
 }
 
-type Root = HTMLElement & { whenDone: () => Promise<void> };
-
 /**
  * A matched story whose `sample` arg picks any of the given samples that has an oracle.
  * @param files - the samples' files by sample id, imported with `?url`
@@ -407,16 +406,6 @@ export function matchedStory(files: Readonly<Record<string, string>>, initial: s
             }
             return render(sample, url);
         },
-        play: async ({ canvasElement }) => {
-            const root = canvasElement.querySelector<Root>("[data-fidelity]");
-            if (root === null) {
-                throw new Error("the story drew no root");
-            }
-            await root.whenDone();
-            const failed = root.querySelector(".failed");
-            if (failed !== null) {
-                throw new Error(failed.textContent ?? "failed");
-            }
-        },
+        afterEach: untilDone,
     };
 }

@@ -34,5 +34,9 @@ graph-io/fidelity-stories/references/*.png filter=lfs diff=lfs merge=lfs -text
 # same reason; the SVG beside each one is the program's own output and regenerates it.
 graph-io/test/fidelity/oracles/*.png filter=lfs diff=lfs merge=lfs -text
 
+# The style fidelity corpus's large inputs that only the reference extractors read (graph-io/test/fidelity/references/
+# cytoscape-loads/SOURCES.md), Git LFS for the same reason; no test reads them.
+graph-io/test/fidelity/references/cytoscape-loads/*.gz filter=lfs diff=lfs merge=lfs -text
+
 # The CI workflow test list: every branch adding a tool test appends a line, so a union merge keeps both sides.
 tools/tool-tests.txt merge=union

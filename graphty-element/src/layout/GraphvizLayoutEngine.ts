@@ -16,7 +16,15 @@ import {
     graphvizLayoutId,
 } from "./graphviz/engines";
 import { canvasMeasure, withDrawnFonts } from "./graphviz/fonts";
-import { clusterMargins, edgeBends, edgeLabelPlaces, fromJson, nodeXlabelPlaces } from "./graphviz/fromJson";
+import {
+    clusterMargins,
+    edgeBends,
+    edgeLabelPlaces,
+    type EdgeLabelsAt,
+    edgeLabelsLeftOut,
+    fromJson,
+    nodeXlabelPlaces,
+} from "./graphviz/fromJson";
 import type { GraphvizFailureCode, GraphvizReply } from "./graphviz/protocol";
 import { graphvizStructure } from "./graphviz/structure";
 import { type DotStructure, POINTS_PER_UNIT, toDot } from "./graphviz/toDot";
@@ -232,7 +240,7 @@ async function computeWith(
     positions: F32;
     bends: ReadonlyMap<number, string>;
     labels: ReadonlyMap<number, EdgeLabelsAt>;
-    xlabels: ReadonlyMap<number, readonly [number, number]>;
+    xlabels: ReadonlyMap<number, readonly [number, number] | null>;
     margins: ReadonlyMap<number, GroupMargins>;
 }> {
     const n = input.graph.nodeCount;
@@ -295,9 +303,11 @@ async function computeWith(
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
         labels: edgeLabelsAt(reply.json, structure.edges ?? []),
         xlabels: new Map(
-            [...nodeXlabelPlaces(reply.json)].map(([row, [x, y]]) => [
+            [...nodeXlabelPlaces(reply.json)].map(([row, place]) => [
                 row,
-                [(x / POINTS_PER_UNIT) * scale, (y / POINTS_PER_UNIT) * scale] as const,
+                place === null
+                    ? null
+                    : ([(place[0] / POINTS_PER_UNIT) * scale, (place[1] / POINTS_PER_UNIT) * scale] as const),
             ]),
         ),
         margins: new Map(
@@ -315,13 +325,9 @@ async function computeWith(
 }
 
 /**
- * Where Graphviz put an edge's label (its `lp`, or its `xlp` when it has only an external label), its external label
- * beside a label (`xlp`) and its end labels.
- */
-type EdgeLabelsAt = Pick<EdgePosition, "labelAt" | "headLabelAt" | "tailLabelAt" | "xlabelAt">;
-
-/**
- * Where Graphviz put each edge's labels, by its place in the list handed over.
+ * Where Graphviz put each edge's labels, by its place in the list handed over: its label (its `lp`, or its `xlp` when
+ * it has only an external label), its external label beside a label (`xlp`) and its end labels; and the labels it left
+ * out, which have no place.
  * @param json - the `-Tjson` text
  * @param edges - the edges handed over
  * @returns each edge's label places; absent for an edge Graphviz placed none of
@@ -334,16 +340,23 @@ function edgeLabelsAt(
     // an edge with only an external label draws it as its label; beside a label it is drawn at `xlp` on its own
     const external = edgeLabelPlaces(json, edges, "xlp");
     const places = [
-        ["labelAt", external],
-        ["xlabelAt", external],
-        ["labelAt", edgeLabelPlaces(json, edges)],
-        ["headLabelAt", edgeLabelPlaces(json, edges, "head_lp")],
-        ["tailLabelAt", edgeLabelPlaces(json, edges, "tail_lp")],
+        ["labelAt", "label", external],
+        ["xlabelAt", "xlabel", external],
+        ["labelAt", "label", edgeLabelPlaces(json, edges)],
+        ["headLabelAt", "headLabel", edgeLabelPlaces(json, edges, "head_lp")],
+        ["tailLabelAt", "tailLabel", edgeLabelPlaces(json, edges, "tail_lp")],
     ] as const;
-    for (const [name, byEdge] of places) {
+    const leftOut = edgeLabelsLeftOut(json);
+    for (const [name, part, byEdge] of places) {
         for (const [k, place] of byEdge) {
-            out.set(k, { ...out.get(k), [name]: place });
+            // a label left out still has an `lp`, `head_lp` or `tail_lp`, at no place Graphviz drew
+            if (!leftOut.get(k)?.includes(part)) {
+                out.set(k, { ...out.get(k), [name]: place });
+            }
         }
+    }
+    for (const [k, parts] of leftOut) {
+        out.set(k, { ...out.get(k), leftOut: parts });
     }
 
     return out;
@@ -482,7 +495,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         /** Where Graphviz put each labelled edge's label and end labels, as `along, across` its two ends. */
         private labelPlaces = new Map<Edge, EdgeLabelsAt>();
         /** Where Graphviz put each node's external label, right and down of its center in scene units, by node id as text. */
-        private xlabelPlaces = new Map<string, readonly [number, number]>();
+        private xlabelPlaces = new Map<string, readonly [number, number] | null>();
 
         /**
          * Build the engine for one `setLayout`.
@@ -540,7 +553,16 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
          * @returns right and down of the node's center, in scene units, or undefined when Graphviz placed none
          */
         override getNodeXlabelOffset(n: Node): readonly [number, number] | undefined {
-            return this.xlabelPlaces.get(String(n.id));
+            return this.xlabelPlaces.get(String(n.id)) ?? undefined;
+        }
+
+        /**
+         * Whether Graphviz left a node's external label out (the graph's `forcelabels=false` and no room for it).
+         * @param n - the node
+         * @returns true when Graphviz was handed the label and gave it no place
+         */
+        override isNodeXlabelLeftOut(n: Node): boolean {
+            return this.xlabelPlaces.get(String(n.id)) === null;
         }
 
         /**

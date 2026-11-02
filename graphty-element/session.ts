@@ -95,6 +95,7 @@ export type {
     FindOptions,
     FindResult,
     FindValueRow,
+    GraphFraming,
     GraphSession,
     GraphSettingKey,
     GraphStatistics,
@@ -486,6 +487,7 @@ export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";
 export type {
     RuleCheck,
     SelectionApi,
+    SelectionApplyOptions,
     SelectionAttributeStatistics,
     SelectionCause,
     SelectionDelta,

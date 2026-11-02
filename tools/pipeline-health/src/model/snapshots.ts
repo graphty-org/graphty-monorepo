@@ -144,15 +144,19 @@ export interface Snapshots {
 }
 
 /**
- * @param store
- * @param name
+ * Reads a stored snapshot, kept as JSON in the cursor of its name.
+ * @param store - the table
+ * @param name - snapshot name
+ * @returns the snapshot, or undefined when absent or not valid JSON
  */
 export async function readSnapshot<K extends keyof Snapshots>(
     store: Store,
     name: K,
 ): Promise<Snapshots[K] | undefined> {
     const raw = await getCursor(store, name);
-    if (raw === undefined) return undefined;
+    if (raw === undefined) {
+        return undefined;
+    }
     try {
         return JSON.parse(raw) as Snapshots[K];
     } catch {

@@ -6,6 +6,7 @@
 // Not `node --test` in a package.json script, for the reason tools/release-scheduler/test/index.test.mjs gives.
 import assert from "node:assert/strict";
 import { createHash, createSign, generateKeyPairSync } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
@@ -314,6 +315,27 @@ describe("POST /v1/failures", () => {
 });
 
 describe("POST /v1/durations", () => {
+    it("leaves trend and lastSeen out until the summary tables are whole (#5597), and stores the rows", async () => {
+        const { call, env } = service();
+        const row = { runId: 4010, attempt: 1, workflow: "ci.yml", ms: 61000, startedAt: NOW };
+        const post = async (job) =>
+            (await call("POST", "/v1/durations", { token: master("ci.yml"), body: { rows: [{ ...row, job }] } })).body;
+        // before migration 0010 ran
+        env.DB.sqlite.exec("ALTER TABLE duration_backfill RENAME TO kept");
+        assert.deepEqual(await post("Build"), { stored: 1, kind: "full" });
+        // mid-backfill
+        env.DB.sqlite.exec(
+            "ALTER TABLE kept RENAME TO duration_backfill; UPDATE duration_backfill SET done = 1, last = 9",
+        );
+        assert.deepEqual(await post("Test"), { stored: 1, kind: "full" });
+        // finished
+        env.DB.sqlite.exec("UPDATE duration_backfill SET done = 9");
+        const done = await post("Lint");
+        assert.deepEqual(Object.keys(done), ["stored", "kind", "trend", "lastSeen"]);
+        assert.equal(done.lastSeen["job:ci.yml:Lint"].runId, 4010);
+        const [{ n }] = env.DB.sqlite.prepare("SELECT count(*) AS n FROM duration").all();
+        assert.equal(n, 3);
+    });
     it("stores a run's own durations with the credential's kind, a site repository's as deploy", async () => {
         const { call, rows } = service();
         const row = {
@@ -1294,6 +1316,80 @@ describe("POST /v1/durations lastSeen", () => {
             runsSince: 11,
         });
         assert.equal(body.lastSeen["job:ci.yml:Build"].runsSince, 0);
+    });
+    it("reads the newest samples per key, a task's over every job that ran it, and leaves cancelled runs out", async () => {
+        const { call, env } = service();
+        const run = (sql, ...args) => env.DB.sqlite.prepare(sql).run(...args);
+        const task = (runId, job, ms, conclusion = "success") =>
+            run(
+                "INSERT INTO duration (run_id, attempt, workflow, job, task, sha, kind, started_at, ms, conclusion) VALUES (?, 1, 'ci.yml', ?, 'pkg:build', ?, 'full', ?, ?, ?)",
+                runId,
+                job,
+                `sha${runId}`,
+                NOW - DAY + runId,
+                ms,
+                conclusion,
+            );
+        // job Build ran the task 40 times, slowing down at run 36; job Test runs it for the first time
+        for (let i = 1; i <= 35; i++) task(i, "Build", 60_000);
+        for (let i = 36; i <= 40; i++) task(i, "Build", 900_000);
+        task(41, "Build", 60_000, "cancelled");
+        const row = { runId: 4010, attempt: 1, workflow: "ci.yml", job: "Test", task: "pkg:build", ms: 900_000 };
+        const { body } = await call("POST", "/v1/durations", {
+            token: master("ci.yml"),
+            body: { rows: [{ ...row, startedAt: NOW, sha: "new" }] },
+        });
+        assert.deepEqual(body.trend, [
+            { key: "task:pkg:build", kind: "full", recent: 900, earlier: 60, alarm: true, range: "sha36..sha37" },
+        ]);
+        assert.deepEqual(body.lastSeen["task:pkg:build"], { runId: 4010, sha: "new", at: NOW, runsSince: 0 });
+        const [{ n }] = env.DB.sqlite.prepare("SELECT count(*) AS n FROM duration_run WHERE run_id = 41").all();
+        assert.equal(n, 0);
+    });
+    it("backfill.sql copies rows that predate the trigger in batches, to what the trigger would have kept", () => {
+        const { sqlite } = d1();
+        const migration = (name) => readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8");
+        const summaries = () => [
+            sqlite.prepare("SELECT * FROM duration_last ORDER BY kind, workflow, job, step, task").all(),
+            sqlite.prepare("SELECT * FROM duration_run ORDER BY kind, workflow, run_id").all(),
+        ];
+        const ins = sqlite.prepare("INSERT INTO duration VALUES (?, 1, 'ci.yml', ?, ?, '', ?, ?, ?, ?, ?)");
+        const rows = (from, to) => {
+            for (let r = from; r < to; r++) {
+                for (const job of ["Build", "Test", "Lint"]) {
+                    const conclusion = r % 7 ? "success" : "cancelled";
+                    ins.run(r, job, r % 3 ? "s" : "", `sha${r}`, r % 4 ? "pr" : "full", NOW + r, 1000 + r, conclusion);
+                }
+            }
+        };
+        // what the trigger keeps when every row arrives through it
+        rows(1, 30);
+        const expected = summaries();
+        // the same rows, but 1-19 predate the trigger and 20-29 arrive while the backfill runs
+        sqlite.exec(
+            "DELETE FROM duration; DELETE FROM duration_last; DELETE FROM duration_run; DROP TRIGGER duration_summary",
+        );
+        sqlite.exec("DELETE FROM duration_backfill");
+        rows(1, 20);
+        sqlite.exec(migration("0009_duration_summary.sql") + migration("0010_duration_backfill.sql"));
+        // batches of 4 rows (and the rest of the run holding the 4th), not 50,000
+        const batch = readFileSync(new URL("../backfill.sql", import.meta.url), "utf8").replace(
+            "OFFSET 49999",
+            "OFFSET 3",
+        );
+        let batches = 0;
+        let finished = 0;
+        while (!finished) {
+            sqlite.exec(batch);
+            ({ finished } = sqlite.prepare("SELECT done >= last AS finished FROM duration_backfill").get());
+            if (++batches === 3) rows(20, 30);
+            assert.ok(batches < 50);
+        }
+        assert.ok(batches > 3, `${batches} batches`);
+        assert.deepEqual(summaries(), expected);
+        // finished: another batch changes nothing
+        sqlite.exec(batch);
+        assert.deepEqual(summaries(), expected);
     });
 });
 

@@ -405,8 +405,13 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
         kill(browserProcesses(dir));
         await chrome.exited;
         const again = await start(dir, ["--restore-last-session"]);
-        const ra = await reattach(again, tab("a"), mark);
         const rb = await reattach(again, tab("b"), mark);
+        // Chrome restores the tab in front at once and loads a background tab when it judges the
+        // machine idle, which on a busy one is a minute later or never (issue #5440). Bring tab a to
+        // the front, as the reader would by clicking it, so it loads now.
+        const id = await tabId(again, tab("a"));
+        await again.extension(`chrome.tabs.update(${id}, { active: true }).then(() => true)`);
+        const ra = await reattach(again, tab("a"), mark);
         const [ca, cb] = [await check(ra), await check(rb)];
         assert.strictEqual(ca.restored?.entry, fromA.entry, "the restored tab a chose its own entry");
         assert.strictEqual(cb.restored?.entry, fromB.entry, "the restored tab b chose its own entry");

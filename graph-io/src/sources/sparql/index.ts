@@ -20,6 +20,7 @@ import { type GraphSink } from "@graphty/graph-format";
 
 import { throwIfAborted } from "../../common/input.js";
 import { type ImportReport } from "../../types.js";
+import { endpointOrigin } from "../credentials.js";
 import { defineSource } from "../define.js";
 import { failOn } from "../fail.js";
 import { SPARQL_SOURCE_ID } from "../ids.js";
@@ -78,6 +79,7 @@ async function send(ctx: SourceContext, query: string): Promise<Triple[]> {
     if (response.status === 400) {
         const text = (await response.text()).trim().slice(0, 500);
         failOn(ctx.report, "E_SOURCE_QUERY", "the endpoint refused the query", {
+            origin: endpointOrigin(ctx.endpoint),
             serverCode: null,
             line: null,
             column: null,
@@ -87,6 +89,7 @@ async function send(ctx: SourceContext, query: string): Promise<Triple[]> {
     const contentType = response.headers.get("content-type");
     const notTriples = (): never =>
         failOn(ctx.report, "E_SOURCE_RESPONSE", "the endpoint did not answer N-Triples", {
+            origin: endpointOrigin(ctx.endpoint),
             expected: "n-triples",
             contentType,
         });

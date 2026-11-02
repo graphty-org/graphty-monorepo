@@ -375,8 +375,8 @@ export default tseslint.config(
     // tools/eslint-rules/no-test-timing.mjs. Story play functions, their helpers, setup files and
     // the vitest configs (a per-project testTimeout) are covered too.
     // Benchmarks are where a timing check that must exist belongs, so they are left out, and so are
-    // the scripts that drive the source programs to draw the fidelity oracles: they are no tests,
-    // and a desktop program that offers no event to wait on is polled.
+    // the scripts that drive the source programs to draw the fidelity oracles and reference scenes: they
+    // are no tests, and a desktop program that offers no event to wait on is polled.
     {
         files: [
             "**/*.test.{ts,tsx,js,mjs}",
@@ -395,6 +395,7 @@ export default tseslint.config(
             "**/bench/**",
             "graph-io/test/fidelity/oracles/tools/**",
             "graph-io/test/fidelity/generators/specimens/**",
+            "graph-io/test/fidelity/references/*.mjs",
         ],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },
@@ -433,8 +434,11 @@ export default tseslint.config(
     // holds_over_chain), CX properties (applies_to, properties_of), XGMML att names -- and Prettier
     // removes the quotes that used to keep them out of this rule. Names graph-io declares itself
     // are still checked.
+    // tools/pipeline-health reads GitHub's REST and GraphQL payloads (created_at, head_sha, workflow_runs)
+    // and stores metric ids that the page, ci-budgets.json and DynamoDB rows already use
+    // (credential_error_ms, month_to_date), so its property names are those formats' vocabulary too.
     {
-        files: ["graph-io/**/*.ts"],
+        files: ["graph-io/**/*.ts", "tools/pipeline-health/**/*.ts"],
         rules: {
             camelcase: ["error", { properties: "never" }],
         },
@@ -590,6 +594,18 @@ export default tseslint.config(
             },
         },
     })),
+    // tools/pipeline-health's page tests are type-checked with the page (web/tsconfig.json, DOM lib),
+    // not with the package's Node project, which excludes them.
+    {
+        files: ["tools/pipeline-health/test/web/**/*.ts"],
+        languageOptions: {
+            parserOptions: {
+                projectService: false,
+                project: "./tools/pipeline-health/web/tsconfig.json",
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+    },
 
     // ============================================
     // RELAXED RULES FOR JAVASCRIPT FILES

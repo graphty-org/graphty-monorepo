@@ -6,6 +6,7 @@
 import { FORMAT_DESCRIPTORS, formatDescriptor } from "@graphty/graphty-element/catalog";
 import { isGraphtyError, type LoadedSource, type TooLargeDetails } from "@graphty/graphty-element/session";
 
+import { formatCount } from "../settings/numberFormat";
 import type { PageRole } from "./choices";
 
 /** Role menu words, by role and by what a table's rows are (section 2.10, "Sample grid"). */
@@ -42,12 +43,12 @@ export function roleWords(role: PageRole): string {
 }
 
 /**
- * A count with the reader's digit grouping.
+ * A count in the reader's Number format.
  * @param value - the count.
  * @returns "3,000".
  */
 export function count(value: number): string {
-    return value.toLocaleString("en-US");
+    return formatCount(value);
 }
 
 /**

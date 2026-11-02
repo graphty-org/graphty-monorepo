@@ -20,6 +20,7 @@ import {
     getQuarantine,
     getReleaseState,
     lastSeenFor,
+    summariesReady,
     trackedIssues,
     trendFor,
 } from "./queries.js";
@@ -398,6 +399,8 @@ async function postDurations(body, who, db, nowMs) {
     ]);
     if (!values.length) return { stored: 0, kind: who.kind, trend: [], lastSeen: {} };
     await db.batch(inserts(db, "duration", columns, values));
+    // absent, never a guess, until the summary tables are whole (summariesReady)
+    if (!(await summariesReady(db))) return { stored: values.length, kind: who.kind };
     const workflows = [...new Set(rows.map((r) => r.workflow))];
     return {
         stored: values.length,

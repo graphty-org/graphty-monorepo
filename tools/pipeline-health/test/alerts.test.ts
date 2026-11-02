@@ -11,10 +11,10 @@ import {
     SECRETS,
     sendAlerts,
 } from "../src/alerts/index.js";
+import { DAY } from "../src/model/items.js";
 import { MemoryStore } from "../src/model/store.js";
 import { type AlertConfig, type MemberConfig, type SlaConfig, SLAS } from "../src/sla/config.js";
 import type { Episode, Evaluation, MemberStatus } from "../src/sla/engine.js";
-import { DAY } from "../src/model/items.js";
 import { HOUR, MIN, T0 } from "./model/helpers.js";
 /** 13:00 Pacific on T0's day, for the pages that wait for daytime. */
 const DAY_T0 = T0 + 8 * HOUR;
@@ -83,9 +83,9 @@ const keys = { [SECRETS.token]: "tok", [SECRETS.user]: "usr" };
 
 function pushover(status = 200) {
     const calls: URLSearchParams[] = [];
-    const fetch = (async (_url: string, init: { body: URLSearchParams }) => {
+    const fetch = ((_url: string, init: { body: URLSearchParams }) => {
         calls.push(init.body);
-        return new Response("{}", { status });
+        return Promise.resolve(new Response("{}", { status }));
     }) as unknown as typeof globalThis.fetch;
     return { calls, fetch };
 }
@@ -97,7 +97,16 @@ const run = (
     fetch: typeof globalThis.fetch,
     cfg: SlaConfig = PAGES,
     secrets = keys,
-) => sendAlerts({ evaluation: ev, store, now, getSecret: async (n) => secrets[n], fetch, log: () => {}, config: cfg });
+) =>
+    sendAlerts({
+        evaluation: ev,
+        store,
+        now,
+        getSecret: (n) => Promise.resolve(secrets[n]),
+        fetch,
+        log: () => {},
+        config: cfg,
+    });
 
 describe("sendAlerts", () => {
     it("pages a member with an alert, with its words, value, limit, duration, action and page", async () => {
@@ -300,9 +309,7 @@ describe("sendAlerts", () => {
 
     it("reports an error instead of throwing when the table fails", async () => {
         const store = new MemoryStore();
-        store.get = async () => {
-            throw new Error("dynamo down");
-        };
+        store.get = () => Promise.reject(new Error("dynamo down"));
         const r = await run(store, evaluation(member("master_red", "master")), T0, pushover().fetch);
         expect(r).toMatchObject({ state: "error", error: "dynamo down" });
     });
@@ -365,7 +372,9 @@ describe("the policy's conditions", () => {
         // Noon Pacific every day from Oct 20 to Nov 12, and 6 h later, with spend over the limit throughout.
         for (let t = Date.UTC(2026, 9, 20, 19); t < Date.UTC(2026, 10, 12); t += DAY) {
             for (const at of [t, t + 6 * HOUR]) {
-                if ((await run(store, ev, at, p.fetch, SLAS)).sent.length) sentAt.push(at);
+                if ((await run(store, ev, at, p.fetch, SLAS)).sent.length) {
+                    sentAt.push(at);
+                }
             }
         }
         expect(sentAt.map((t) => new Date(t).toISOString().slice(0, 10))).toEqual([
@@ -429,7 +438,9 @@ describe("the policy's conditions", () => {
                 const ev = evaluation(ms);
                 ev.episodes = ev.episodes.map((e) => ({ ...e, start: e.member === "cost.llm" ? start : spendFrom }));
                 const r = await run(store, ev, t, p.fetch, SLAS);
-                if (r.sent.length) sent.push(r.sent.map((x) => x.member).sort());
+                if (r.sent.length) {
+                    sent.push(r.sent.map((x) => x.member).sort());
+                }
             }
             return { sent, p };
         };
@@ -634,7 +645,9 @@ describe("the policy's conditions", () => {
         await run(store, evaluation(stuck({ since: 9 * HOUR })), DAY_T0, p.fetch, cfg);
         expect(p.calls).toHaveLength(1);
         // The collector part that measures the fact fails for two hours: no fact, still red.
-        for (const t of [2, 2.5, 3]) await run(store, evaluation(stuck({})), DAY_T0 + t * HOUR, p.fetch, cfg);
+        for (const t of [2, 2.5, 3]) {
+            await run(store, evaluation(stuck({})), DAY_T0 + t * HOUR, p.fetch, cfg);
+        }
         expect(p.calls).toHaveLength(1);
         expect((await store.get({ pk: "ALERT#stuck", sk: "episode" }))?.endedAt).toBe(0);
     });
@@ -873,7 +886,9 @@ describe("the policy's conditions", () => {
         const titles = async (m: MemberStatus, times: number[]) => {
             const p = pushover();
             const store = new MemoryStore();
-            for (const t of times) await run(store, evaluation(m), t, p.fetch, SLAS);
+            for (const t of times) {
+                await run(store, evaluation(m), t, p.fetch, SLAS);
+            }
             return p.calls.map((c) => c.get("title"));
         };
         expect(await titles(untested(14 * HOUR), [DAY_T0, DAY_T0 + HOUR, DAY_T0 + 6 * HOUR])).toEqual([
@@ -971,8 +986,12 @@ describe("messages", () => {
             for (const k of [...Object.keys(a.facts ?? {}), ...named]) {
                 expect(facts.has(k), `${c.id}: fact ${k}`).toBe(true);
             }
-            if (/\{limit\}/.test(texts)) expect(c.fail, `${c.id} uses {limit}`).toBeDefined();
-            if (/\{(target|over)\}/.test(texts)) expect(c.ok, `${c.id} uses {target}`).toBeDefined();
+            if (/\{limit\}/.test(texts)) {
+                expect(c.fail, `${c.id} uses {limit}`).toBeDefined();
+            }
+            if (/\{(target|over)\}/.test(texts)) {
+                expect(c.ok, `${c.id} uses {target}`).toBeDefined();
+            }
         }
     });
 

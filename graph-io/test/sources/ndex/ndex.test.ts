@@ -122,7 +122,7 @@ describe("ndex: loading", () => {
             loadFromSource(ndexSource, { uuid }, { fetch: replayFetch(recorded("not-found")) }),
         );
         expect(err.issue?.code).toBe("E_SOURCE_NOT_FOUND");
-        expect(err.issue?.params).toEqual({ what: "network", value: uuid });
+        expect(err.issue?.params).toEqual({ origin: NDEX, what: "network", value: uuid });
     });
 
     it("answers a 500 with E_FETCH and keeps its stack trace out of the error", async () => {

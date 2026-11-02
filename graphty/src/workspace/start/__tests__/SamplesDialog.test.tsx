@@ -61,6 +61,26 @@ describe("the Samples dialog", () => {
         assert.include(tile(dialog, "auth-log.csv").textContent, "400 rows");
     });
 
+    it("shows a picture that loads for every graph, dataset and generator, as the start page does", async () => {
+        const dialog = await openSamples();
+
+        const tiles = ["Graphs", "Datasets", "Generated"].flatMap((group) =>
+            within(within(dialog).getByRole("region", { name: group })).getAllByRole("button"),
+        );
+        assert.isNotEmpty(tiles);
+        const missing = tiles.filter((each) => each.querySelector("img") === null).map((each) => each.textContent);
+        assert.deepEqual(missing, [], "tiles with no picture");
+        const broken: string[] = [];
+        for (const each of tiles) {
+            const src = each.querySelector("img")?.src ?? "";
+            const response = await fetch(src);
+            if (!response.ok || !(response.headers.get("content-type") ?? "").startsWith("image/")) {
+                broken.push(`${each.textContent}: ${src}`);
+            }
+        }
+        assert.deepEqual(broken, [], "pictures that do not load");
+    });
+
     it("narrows to what the search box names, and to one group", async () => {
         const dialog = await openSamples();
         const search = within(dialog).getByRole("searchbox", { name: "Search samples" });

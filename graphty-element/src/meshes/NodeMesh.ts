@@ -35,12 +35,14 @@ import {
     outlineSlab,
     projectedVertices,
     ringSlab,
+    setLabelBox,
 } from "./NodeShapeGeometry";
 import {
     borderRing,
     convexHull,
     flatShapeOutline,
     isFlatShape,
+    mitredEdges,
     offsetOutline,
     type Point2,
     type WaveShape,
@@ -634,8 +636,12 @@ export class NodeMesh {
         const type = shape.type ?? "";
 
         const build = type === "none" ? bodilessSlab : outlineSlab;
+        const mesh = build(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
+        if ((shape.rotation ?? 0) % 360 !== 0) {
+            setLabelBox(mesh, this.unturnedFlatOutline(shape, extents));
+        }
 
-        return build(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
+        return mesh;
     }
 
     /**
@@ -743,7 +749,9 @@ export class NodeMesh {
             const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
             const pieces = Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
                 const at = gap + i * step;
-                return borderRing(at > 0 ? offsetOutline(outline, at) : outline, width, outerBorder?.style ?? "solid");
+                // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
+                const base = at > 0 ? mitredEdges(outline, [at])[0] : outline;
+                return borderRing(base, width, outerBorder?.style ?? "solid");
             }).flat();
             const mesh = ringSlab("node-outer-border", pieces, depth, scene);
             placeByZIndex(mesh, shape, options.is2D);
@@ -906,6 +914,19 @@ export class NodeMesh {
     }
 
     private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
+        // turned clockwise (y up) last, once drawn at its width and height (`shape.rotation`)
+        const turn = ((shape.rotation ?? 0) * Math.PI) / 180;
+        const outline = this.unturnedFlatOutline(shape, extents);
+        if (turn === 0) {
+            return outline;
+        }
+
+        const [c, s] = [Math.cos(turn), Math.sin(turn)];
+
+        return outline.map(([x, y]): Point2 => [x * c + y * s, y * c - x * s]);
+    }
+
+    private static unturnedFlatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
         // drawn in units of size, where a polygon's lengths (`-1+24`) and the corner radius are, then in world units
         const perSize = this.extentPerSize(shape);
         const outline = flatShapeOutline(
@@ -915,7 +936,7 @@ export class NodeMesh {
             shape.cornerRadius,
             shape.points,
             shape.stretchPoints !== false,
-            shape.exactCornerRadius === true,
+            { exact: shape.exactCornerRadius === true, fraction: shape.cornerFraction },
         ).map(([x, y]): Point2 => [x * perSize, y * perSize]);
         if (shape.sizeMode !== "diameter" || this.hasExplicitExtent(shape) || outline.length === 0) {
             return outline;

@@ -224,5 +224,7 @@ the reference file.
 - Never create fallbacks if WebGPU isn't supported (root CLAUDE.md): no CPU path, no WebGL path, no silent
   software-adapter acceptance in `src/`; the TEST layer may skip with a printed `E_NO_ADAPTER` reason only
   under the unset policy, and a wrong result is never a skip.
-- Never `git add` / `commit` / `push` (the owner commits from `tmp/commit-p<N>.sh`); never `sudo`; plain
-  ASCII everywhere; no `eslint-disable`, no `@ts-expect-error` outside negative type tests.
+- Changes ship through the pull request flow in the root CLAUDE.md ("Shipping a change"): commit in your own
+  worktree and open the pull request with `tools/pr-open.sh`; never push to master and never commit scratch
+  output (`tmp/`, `benchmarks/out/`). Never `sudo`; plain ASCII everywhere; no `eslint-disable`, no
+  `@ts-expect-error` outside negative type tests.

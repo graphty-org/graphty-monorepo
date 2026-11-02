@@ -332,9 +332,7 @@ export function parseQualifiers(inner: string): Qualifiers | null {
     const n = inner.length;
     let any = false;
     while (i < n) {
-        while (i < n && (inner.charAt(i) === " " || inner.charAt(i) === "\t" || inner.charAt(i) === ",")) {
-            i++;
-        }
+        i = skipChars(inner, i, " \t,");
         if (i >= n) {
             break;
         }
@@ -346,30 +344,63 @@ export function parseQualifiers(inner: string): Qualifiers | null {
         if (name.length === 0 || name.includes('"')) {
             return null;
         }
-        i = eq + 1;
-        while (i < n && (inner.charAt(i) === " " || inner.charAt(i) === "\t")) {
-            i++;
+        const read = readQualifierValue(inner, skipChars(inner, eq + 1, " \t"));
+        if (read === null) {
+            return null;
         }
-        let value: string;
-        if (inner.charAt(i) === '"') {
-            const end = closingQuote(inner, i + 1);
-            if (end < 0) {
-                return null;
-            }
-            value = unescapeObo(inner.slice(i + 1, end));
-            i = end + 1;
-        } else {
-            let end = i;
-            while (end < n && inner.charAt(end) !== ",") {
-                end += inner.charAt(end) === "\\" ? 2 : 1;
-            }
-            value = unescapeObo(inner.slice(i, end).trim());
-            i = end;
-        }
-        addQualifier(out, name, value);
+        i = read.next;
+        addQualifier(out, name, read.value);
         any = true;
     }
     return any ? out : null;
+}
+
+/**
+ * Skip over any of the given characters.
+ * @param text - the text
+ * @param from - the start index
+ * @param chars - the characters to skip
+ * @returns the index of the first other character (or the text's length)
+ */
+function skipChars(text: string, from: number, chars: string): number {
+    let i = from;
+    while (i < text.length && chars.includes(text.charAt(i))) {
+        i++;
+    }
+    return i;
+}
+
+/**
+ * Read one qualifier value: a quoted string, or the unquoted text up to the next unescaped comma.
+ * @param inner - the text between the braces
+ * @param i - the index where the value starts
+ * @returns the unescaped value and the index after it, or null for an unclosed quote
+ */
+function readQualifierValue(inner: string, i: number): { value: string; next: number } | null {
+    if (inner.charAt(i) === '"') {
+        const end = closingQuote(inner, i + 1);
+        if (end < 0) {
+            return null;
+        }
+        return { value: unescapeObo(inner.slice(i + 1, end)), next: end + 1 };
+    }
+    const end = scanUntil(inner, i, ",");
+    return { value: unescapeObo(inner.slice(i, end).trim()), next: end };
+}
+
+/**
+ * Scan forward to the first unescaped character among `stops` (a backslash skips the next character).
+ * @param text - the text
+ * @param from - the start index
+ * @param stops - the stop characters
+ * @returns the index of the stop character, or a value at or past the text's length
+ */
+function scanUntil(text: string, from: number, stops: string): number {
+    let end = from;
+    while (end < text.length && !stops.includes(text.charAt(end))) {
+        end += text.charAt(end) === "\\" ? 2 : 1;
+    }
+    return end;
 }
 
 /**
@@ -419,41 +450,59 @@ export function tokenize(value: string): Token[] {
             i++;
             continue;
         }
+        let read: { token: Token; next: number };
         if (ch === '"') {
-            const end = closingQuote(value, i + 1);
-            const stop = end < 0 ? n : end;
-            // a 1.4 language tag glued to the closing quote ("chat"@fr) is kept with the text, as an
-            // unquoted chat@fr is (research-obo.md 4.1: no language is split out)
-            let after = stop + 1;
-            if (end >= 0 && value.charAt(after) === "@") {
-                while (after < n && value.charAt(after) !== " " && value.charAt(after) !== "\t") {
-                    after++;
-                }
-            }
-            const suffix = end < 0 ? "" : value.slice(stop + 1, after);
-            tokens.push({
-                kind: "quoted",
-                text: unescapeObo(value.slice(i + 1, stop)) + suffix,
-                unterminated: end < 0,
-            });
-            i = after;
-            continue;
+            read = quotedToken(value, i);
+        } else if (ch === "[") {
+            read = listToken(value, i);
+        } else {
+            const end = scanUntil(value, i, " \t");
+            read = {
+                token: { kind: "word", text: unescapeObo(value.slice(i, Math.min(end, n))), unterminated: false },
+                next: end,
+            };
         }
-        if (ch === "[") {
-            const end = closingBracket(value, i + 1);
-            const stop = end < 0 ? n : end;
-            tokens.push({ kind: "list", text: value.slice(i + 1, stop), unterminated: end < 0 });
-            i = stop + 1;
-            continue;
-        }
-        let end = i;
-        while (end < n && value.charAt(end) !== " " && value.charAt(end) !== "\t") {
-            end += value.charAt(end) === "\\" ? 2 : 1;
-        }
-        tokens.push({ kind: "word", text: unescapeObo(value.slice(i, Math.min(end, n))), unterminated: false });
-        i = end;
+        tokens.push(read.token);
+        i = read.next;
     }
     return tokens;
+}
+
+/**
+ * Read a quoted token starting at its opening quote.
+ * @param value - the raw value
+ * @param i - the index of the opening quote
+ * @returns the token and the index after it
+ */
+function quotedToken(value: string, i: number): { token: Token; next: number } {
+    const n = value.length;
+    const end = closingQuote(value, i + 1);
+    const stop = end < 0 ? n : end;
+    // a 1.4 language tag glued to the closing quote ("chat"@fr) is kept with the text, as an
+    // unquoted chat@fr is (research-obo.md 4.1: no language is split out)
+    let after = stop + 1;
+    if (end >= 0 && value.charAt(after) === "@") {
+        while (after < n && value.charAt(after) !== " " && value.charAt(after) !== "\t") {
+            after++;
+        }
+    }
+    const suffix = end < 0 ? "" : value.slice(stop + 1, after);
+    return {
+        token: { kind: "quoted", text: unescapeObo(value.slice(i + 1, stop)) + suffix, unterminated: end < 0 },
+        next: after,
+    };
+}
+
+/**
+ * Read a bracketed list token starting at its `[`.
+ * @param value - the raw value
+ * @param i - the index of `[`
+ * @returns the token and the index after it
+ */
+function listToken(value: string, i: number): { token: Token; next: number } {
+    const end = closingBracket(value, i + 1);
+    const stop = end < 0 ? value.length : end;
+    return { token: { kind: "list", text: value.slice(i + 1, stop), unterminated: end < 0 }, next: stop + 1 };
 }
 
 /**

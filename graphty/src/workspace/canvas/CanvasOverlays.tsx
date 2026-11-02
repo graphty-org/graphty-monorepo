@@ -249,7 +249,7 @@ function useLayoutWarningNotice(): void {
                               action: {
                                   label: "Select",
                                   run: () => {
-                                      void session.selection.apply({ nodes: ids });
+                                      void session.selection.apply({ nodes: ids }, "replace", { cause: "user" });
                                   },
                               },
                           }),

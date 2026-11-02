@@ -90,6 +90,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.width": "mesh",
     "node.height": "mesh",
     "node.depth": "mesh",
+    "node.relativeExtents": "mesh",
     "node.planar": "mesh",
     // Baked into the source mesh's vertices in 2D, like its depth (NodeMesh.placeByZIndex).
     "node.zIndex": "mesh",
@@ -180,8 +181,10 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.borderWavePeriod": "mesh",
     "node.cornerRadius": "mesh",
     "node.exactCornerRadius": "mesh",
+    "node.cornerFraction": "mesh",
     "node.shapePoints": "mesh",
     "node.shapeStretchPoints": "mesh",
+    "node.shapeRotation": "mesh",
     "node.shapeParts": "mesh",
     "node.shapeLines": "mesh",
     // words, like a label: per node, drawn by `Node.syncLabel`

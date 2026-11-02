@@ -250,6 +250,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.width`                  | 0 or more: the width, in the units of `node.size`                                                                                                |
 | `node.height`                 | 0 or more: the height, in the units of `node.size`                                                                                               |
 | `node.depth`                  | 0 or more: the depth (3D), in the units of `node.size`                                                                                           |
+| `node.relativeExtents`        | true or false: read width, height and depth as multiples of `node.size`, so a size change keeps the stretch                                      |
 | `node.planar`                 | true or false: draw the node thin, as a flat shape, even in 3D                                                                                   |
 | `node.zIndex`                 | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes                                                                          |
 | `node.drawOrder`              | 0 to 100: in 2D, which of two overlapping nodes is drawn on top                                                                                  |
@@ -409,7 +410,9 @@ await element.session.styles.add({
 box, an octahedron, a diamond -- is drawn 1.5 units wide (the default icosphere's width), so a
 diamond and a sphere of one size look one size. `node.width`, `node.height` and `node.depth` set
 the extent along one axis in the same units, so a node of width 4 is as wide as a node of size 4;
-an axis left unset keeps the shape's own proportions at `node.size`.
+an axis left unset keeps the shape's own proportions at `node.size`. With `node.relativeExtents` on, the
+three are multiples of `node.size` instead, so changing the size keeps the stretch: a node of width
+2 and height 1 at size 1 is drawn 4 wide and 2 tall at size 2.
 
 The flat shapes -- `rectangle`, `round-rectangle`, `ellipse`, `diamond`, `triangle`, `pentagon`,
 `hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, and Pajek's `cross`, `house`,

@@ -8,6 +8,7 @@ import "@babylonjs/core/Culling/ray.js";
 import "@babylonjs/core/Animations/animatable.js";
 
 import {
+    type AbstractEngine,
     AbstractMesh,
     Animation,
     Camera,
@@ -15,8 +16,10 @@ import {
     EasingFunction,
     Engine,
     type InstancedMesh,
+    type Nullable,
     NullEngine,
     Observable,
+    type Observer,
     PointerEventTypes,
     Quaternion,
     RenderingGroup,
@@ -84,22 +87,9 @@ const EDGE_PICK_TOLERANCE_PX = 6;
  * @returns The points, in order along the line.
  */
 function edgeWorldPoints(edge: Edge): Vector3[] {
-    const curve = edge.drawnCurve;
-    if (curve !== null) {
-        // A curve's points are in graph-root's space, which an XR gesture moves. A patterned
-        // line's pieces are slots in batches parented to graph-root, and it has no mesh of its own.
-        const root =
-            edge.mesh instanceof PatternedLineMesh
-                ? edge.srcNode.mesh.getScene().getTransformNodeByName("graph-root")
-                : edge.mesh;
-        if (root === null) {
-            return curve;
-        }
-        const world = root.getWorldMatrix();
-        return curve.map((point) => Vector3.TransformCoordinates(point, world));
-    }
-
-    return [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()];
+    return (
+        drawnCurveInWorld(edge) ?? [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()]
+    );
 }
 
 /**
@@ -166,6 +156,7 @@ import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema"
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
+import { drawnCurveInWorld } from "./edgeWorldCurve";
 import { GraphtyError } from "./errors";
 import {
     EventCallbackType,
@@ -224,6 +215,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
+import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
@@ -242,7 +234,16 @@ import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js"
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
-import { addsRows, COLUMNS_VALUE, type DataMutation, SOURCE_VALUE, SOURCES_VALUE } from "./session/commands/data";
+import {
+    addsRows,
+    checkMutation,
+    checkRows,
+    COLUMNS_VALUE,
+    type DataMutation,
+    recordFault,
+    SOURCE_VALUE,
+    SOURCES_VALUE,
+} from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
 import { assertViewName } from "./session/commands/view";
@@ -745,6 +746,14 @@ export class Graph implements GraphContext {
     };
 
     /**
+     * A canvas of a new size frames the graph again when `camera.refitOnResize` is on and the camera
+     * is still where a fit left it. Without it, a resize after the picture was final kept a framing
+     * for the old size, so a page whose panel opened before or after that point drew two pictures
+     * (issue #5097). A camera somebody placed is left alone.
+     */
+    #refitOnResize: Nullable<Observer<AbstractEngine>> = null;
+
+    /**
      * Fits the drawing to the canvas's current size and draws it at once, so the frame the page
      * paints after a resize holds the graph rather than the canvas the resize cleared. Called by
      * the element's ResizeObserver.
@@ -1222,6 +1231,10 @@ export class Graph implements GraphContext {
                 this.applyViewRotation(true);
             }
 
+            if (changed("framing")) {
+                this.applyFraming();
+            }
+
             if (changed("selectionStyle") || changed("startingRows")) {
                 for (const node of this.dataManager.nodes.values()) {
                     node.refreshSelectionOverlay();
@@ -1442,7 +1455,11 @@ export class Graph implements GraphContext {
         this.updateManager.pending.watch(
             "style",
             "a style edit has not been repainted yet",
-            () => dispatcherOf(this.session).lane.deriving || this.getStylePainter().isPainting,
+            // A live set a graph change queued for a later frame is a repaint still to come (#3667).
+            () =>
+                dispatcherOf(this.session).lane.deriving ||
+                this.getStylePainter().isPainting ||
+                setsNotifierOfSession(this.session).pending > 0,
             "wait",
             () => this.session.styles.settled(),
         );
@@ -1704,6 +1721,8 @@ export class Graph implements GraphContext {
 
         // Clean up event listeners
         window.removeEventListener("resize", this.resizeHandler);
+        this.engine.onResizeObservable.remove(this.#refitOnResize);
+        this.#refitOnResize = null;
 
         // Mark as not initialized
         this.initialized = false;
@@ -2208,6 +2227,15 @@ export class Graph implements GraphContext {
 
             // Watch for browser/canvas resize events
             window.addEventListener("resize", this.resizeHandler);
+            this.#refitOnResize ??= this.engine.onResizeObservable.add(() => {
+                if (
+                    this.styles.config.behavior.camera.refitOnResize &&
+                    !this.#cameraPlaced &&
+                    this.updateManager.zoomToFitCompleted
+                ) {
+                    this.autoFrame();
+                }
+            });
             // A label drawn while its web font loaded shows the fallback face until it is rebuilt.
             this.#unwatchFonts ??= watchFontLoads(this.scene, (families) => {
                 this.refreshFonts(families);
@@ -3135,31 +3163,56 @@ export class Graph implements GraphContext {
         edges: Record<string | number, unknown>[],
         options?: AddEdgesOptions & QueueableOptions,
     ): Promise<void> {
-        const replace = (): void => {
-            this.dataManager.setEdges(edges, options);
-        };
+        await this.replaceRows(
+            () => {
+                this.dataManager.setEdges(edges, options);
+            },
+            `Replacing the graph's edges with ${edges.length}`,
+            options,
+        );
+    }
 
-        if (options?.skipQueue) {
-            replace();
-            return;
+    /**
+     * Run a replacement of the graph's nodes or edges in its place in the session's load line,
+     * taken when it was asked for (issue #3604): it lands on what a load asked for earlier, still
+     * reading, loaded rather than under it, and at once when none is.
+     * @param replace - The data manager's replacement.
+     * @param description - What the operation queue calls it.
+     * @param options - Queue options.
+     * @returns Once the replacement has landed (and, on the queue, is drawn).
+     */
+    private async replaceRows(replace: () => void, description: string, options?: QueueableOptions): Promise<void> {
+        const line = loadLineOf(dispatcherOf(this.session));
+        const turn = line.join(undefined, "edit");
+        const inTurn = (): void => {
+            line.within(turn, replace);
+        };
+        try {
+            if (options?.skipQueue) {
+                inTurn();
+            } else {
+                await this.operationQueue.queueOperationAsync(
+                    "data-add",
+                    (context) => {
+                        if (context.signal.aborted) {
+                            throw new Error("Operation cancelled");
+                        }
+
+                        inTurn();
+                    },
+                    { description, ...options },
+                );
+            }
+
+            await dataManagerInternals.lastEdit(this.dataManager);
+        } finally {
+            turn.leave();
         }
 
-        await this.operationQueue.queueOperationAsync(
-            "data-add",
-            (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                replace();
-            },
-            {
-                description: `Replacing the graph's edges with ${edges.length}`,
-                ...options,
-            },
-        );
-        // Settled once the pass that derives the replacement has drawn and painted it.
-        await dispatcherOf(this.session).lane.settled();
+        if (!options?.skipQueue) {
+            // Settled once the pass that derives the replacement has drawn and painted it.
+            await dispatcherOf(this.session).lane.settled();
+        }
     }
 
     /**
@@ -3181,31 +3234,13 @@ export class Graph implements GraphContext {
         idPath?: string,
         options?: QueueableOptions,
     ): Promise<void> {
-        const replace = (): void => {
-            this.dataManager.setNodes(nodes, idPath);
-        };
-
-        if (options?.skipQueue) {
-            replace();
-            return;
-        }
-
-        await this.operationQueue.queueOperationAsync(
-            "data-add",
-            (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                replace();
+        await this.replaceRows(
+            () => {
+                this.dataManager.setNodes(nodes, idPath);
             },
-            {
-                description: `Replacing the graph's nodes with ${nodes.length}`,
-                ...options,
-            },
+            `Replacing the graph's nodes with ${nodes.length}`,
+            options,
         );
-        // Settled once the pass that derives the replacement has drawn and painted it.
-        await dispatcherOf(this.session).lane.settled();
     }
 
     /**
@@ -3735,6 +3770,7 @@ export class Graph implements GraphContext {
         updates: { id: string | number; [key: string]: unknown }[],
         options?: QueueableOptions,
     ): Promise<void> {
+        checkRows("update-rows", updates, recordFault);
         await this.applyData(
             { kind: "update-rows", target: "node", rows: updates.map(({ id, ...values }) => ({ id, values })) },
             options,
@@ -3749,6 +3785,7 @@ export class Graph implements GraphContext {
      * @returns Settles once the change is drawn
      */
     async updateEdges(updates: { id: string; [key: string]: unknown }[], options?: QueueableOptions): Promise<void> {
+        checkRows("update-rows", updates, recordFault);
         await this.applyData(
             { kind: "update-rows", target: "edge", rows: updates.map(({ id, ...values }) => ({ id, values })) },
             options,
@@ -3805,8 +3842,20 @@ export class Graph implements GraphContext {
      */
     private async applyData(mutation: DataMutation | BatchCommand, options?: QueueableOptions): Promise<void> {
         const dispatcher = dispatcherOf(this.session);
+        if (!("op" in mutation)) {
+            checkMutation(mutation);
+        }
+
         const command = "op" in mutation ? mutation : { op: "data.apply" as const, mutation };
-        await dispatcher.dispatch(command, options?.skipQueue === true ? { beside: true } : undefined);
+        // In the session's load line (issue #3604): at once when no load asked for earlier still
+        // reads, and otherwise once it has dispatched, queued behind its step rather than beside it.
+        let waited = false;
+        const sent = loadLineOf(dispatcher).edit(
+            () => dispatcher.dispatch(command, options?.skipQueue === true && !waited ? { beside: true } : undefined),
+            undefined,
+        );
+        waited = true;
+        await sent;
         // Settled once the pass that derives it has drawn and painted it: what a caller that
         // awaited the add reads is the graph with the add in it.
         await dispatcher.lane.settled();
@@ -3931,7 +3980,11 @@ export class Graph implements GraphContext {
             const named: DispatcherTransactionOptions = {
                 fact: { code: "transaction", params: { label: label ?? null } },
             };
-            await this.session.transaction(label ?? "Batch of changes", (tx) => fn(tx), named);
+            // An edit in the session's load line (issue #3604): it starts once every load asked
+            // for before it has dispatched, so its writes land on what they loaded.
+            await loadLineOf(dispatcherOf(this.session)).edit(async () => {
+                await this.session.transaction(label ?? "Batch of changes", (tx) => fn(tx), named);
+            }, undefined);
         } finally {
             if (--this.openBatches === 0) {
                 for (const verb of Object.keys(BATCH_VERBS)) {
@@ -4072,19 +4125,7 @@ export class Graph implements GraphContext {
         // the graph's own, dispatched or not, and every session load or edit still waiting in line
         // (issue #3524). The clear itself happens before this returns, as it always has; only
         // while a project open writes does it wait for the open, which it would otherwise land in.
-        this.dataManager.supersedeLoads();
-        loadLineOf(dispatcherOf(this.session))
-            .clear(() => {
-                this.dataManager.clear();
-                return Promise.resolve();
-            })
-            .catch((error: unknown) => {
-                this.eventManager.emitGraphError(
-                    this,
-                    error instanceof Error ? error : new Error(String(error)),
-                    "other",
-                );
-            });
+        this.dataManager.clear();
     }
 
     /**
@@ -4658,6 +4699,14 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Frame the graph as the project setting `framing` says, and frame it again if the element frames on its own.
+     */
+    private applyFraming(): void {
+        this.updateManager.framing = this.session.config.framing;
+        this.autoFrame();
+    }
+
+    /**
      * Turn the 2D view as the project setting `viewRotation` says.
      * @param reframe - Whether to frame the turned drawing again, when the view is 2D and the
      *     element frames on its own initiative.
@@ -4693,13 +4742,15 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Rebuild the labels drawn in font families that have just loaded, so they show and measure the
-     * loaded face rather than its fallback, and frame the graph again for their new size unless the
+     * Rebuild the labels, node glyphs and text annotations drawn in font families that have just
+     * loaded, so they show and measure the loaded face rather than its fallback, and frame the graph again for their new size unless the
      * camera was placed since the element last framed it. Nothing is rebuilt when no label uses them.
      * @param families - The families that loaded, as `fontFamilies` gives them.
      */
     private refreshFonts(families: ReadonlySet<string>): void {
-        let rebuilt = false;
+        // Glyphs are shared by style through the mesh cache: forget them once, and each node builds its own again.
+        forgetGlyphs(this.dataManager.meshCache, families);
+        let rebuilt = this.#annotations?.refreshFonts(families) === true;
         for (const node of this.dataManager.nodes.values()) {
             rebuilt = node.refreshFonts(families) || rebuilt;
         }
@@ -5007,7 +5058,9 @@ export class Graph implements GraphContext {
      * `zoomToFit()`, and the `fitToGraph` view. In 3D the camera also centers what it looks at on
      * the part left free. Does not move the camera by itself; the element's own framing, when on,
      * picks the margins up at its next fit. A fit that landed and whose picture is not final yet
-     * counts as not done: margins set then are framed before `waitForStableFrame()` resolves. A
+     * counts as not done: margins set then are framed before `waitForStableFrame()` resolves; set
+     * after that picture is final, they wait for the next fit. A canvas resize is the one input
+     * that can frame again after that, with `layoutBehavior.camera.refitOnResize` on. A
      * preference of the view, not saved in a project file.
      * @param insets - CSS pixels per side; a side left out, negative or not finite is 0.
      */
@@ -5296,7 +5349,7 @@ export class Graph implements GraphContext {
         if (frame) {
             // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
             // labels are framed by zoom-to-fit, on a data load or a layout change.
-            const box = nodeFramingBox(this.getNodes());
+            const box = nodeFramingBox(this.getNodes(), this.session.config.framing?.extent);
             if (box) {
                 this.camera.zoomToBoundingBox(box.min, box.max, box.spots);
             }
@@ -6643,111 +6696,144 @@ export class Graph implements GraphContext {
         const controller = this.camera.getActiveController();
 
         if (controller && "pivot" in controller && "cameraDistance" in controller) {
-            // OrbitCameraController - work with pivot system
-            const orbitController = controller as unknown as {
-                pivot: {
-                    position: Vector3;
-                    rotation: Vector3;
-                    rotationQuaternion: Quaternion | null;
-                    computeWorldMatrix: (force: boolean) => void;
-                };
-                cameraDistance: number;
-                clampDistance: (distance: number) => number;
-                updateCameraPosition: () => void;
-            };
-
-            // Set pivot position (target)
-            if (state.target) {
-                orbitController.pivot.position.set(state.target.x, state.target.y, state.target.z);
-            }
-
-            // Set pivot rotation if provided (for exact state restoration)
-            // Must use rotationQuaternion because PivotController initializes with quaternion
-            // In Babylon.js, when rotationQuaternion is set (not null), it takes precedence over Euler rotation
-            if (state.pivotRotation) {
-                // Convert Euler angles to quaternion
-                const quat = Quaternion.RotationYawPitchRoll(
-                    state.pivotRotation.y, // yaw
-                    state.pivotRotation.x, // pitch
-                    state.pivotRotation.z, // roll
-                );
-                orbitController.pivot.rotationQuaternion = quat;
-            } else if (state.position && state.target) {
-                // Calculate pivot rotation from position and target
-                // Camera should look from position towards target
-                const direction = new Vector3(
-                    state.position.x - state.target.x,
-                    state.position.y - state.target.y,
-                    state.position.z - state.target.z,
-                );
-                const distance = direction.length();
-
-                // Calculate rotation angles to orient pivot so camera looks at target
-                // Add π to yaw because OrbitController's camera points in the opposite direction
-                const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
-                const pitch = Math.asin(direction.y / distance);
-
-                // Convert Euler angles to quaternion
-                const quat = Quaternion.RotationYawPitchRoll(yaw, pitch, 0);
-                orbitController.pivot.rotationQuaternion = quat;
-            }
-
-            // Set camera distance if provided, floored the way every orbit distance is
-            if (state.cameraDistance !== undefined) {
-                orbitController.cameraDistance = orbitController.clampDistance(state.cameraDistance);
-            } else if (state.position && state.target) {
-                // Calculate distance from position to target
-                const dx = state.position.x - state.target.x;
-                const dy = state.position.y - state.target.y;
-                const dz = state.position.z - state.target.z;
-                orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
-            }
-
-            // Update the pivot's world matrix and camera position
-            orbitController.pivot.computeWorldMatrix(true);
-            orbitController.updateCameraPosition();
+            this.applyOrbitCameraState(controller, state);
         } else if (controller && "velocity" in controller) {
-            // TwoDCameraController - handle zoom and pan
-            const twoDController = controller as unknown as {
-                camera: {
-                    position: Vector3;
-                    orthoLeft: number | null;
-                    orthoRight: number | null;
-                    orthoTop: number | null;
-                    orthoBottom: number | null;
-                };
-                config: {
-                    initialOrthoSize: number;
-                };
-                updateOrtho: (size: number) => void;
-            };
-
-            // Set zoom (ortho bounds)
-            if (state.zoom !== undefined) {
-                const initialSize = twoDController.config.initialOrthoSize;
-                const targetSize = initialSize / state.zoom;
-                twoDController.updateOrtho(targetSize); // Reuse controller method
-            }
-
-            if (controller instanceof TwoDCameraController) {
-                if (state.rotation !== undefined) {
-                    controller.rotation = state.rotation;
-                }
-
-                // Set pan (camera position): the view's center, in world units however the view is turned
-                if (state.pan) {
-                    controller.panTo(state.pan.x, state.pan.y);
-                }
-            }
+            this.applyTwoDCameraState(controller, state);
         } else {
-            // Fallback for other camera types
-            if (state.position && "position" in camera) {
-                camera.position.set(state.position.x, state.position.y, state.position.z);
+            this.applyFallbackCameraState(camera, state);
+        }
+    }
+
+    /**
+     * Apply a camera state to an orbit controller through its pivot: target, rotation, distance.
+     * @param controller - The active orbit camera controller
+     * @param state - Camera state to apply
+     */
+    private applyOrbitCameraState(
+        controller: CameraController,
+        state: import("./screenshot/types.js").CameraState,
+    ): void {
+        // OrbitCameraController - work with pivot system
+        const orbitController = controller as unknown as {
+            pivot: {
+                position: Vector3;
+                rotation: Vector3;
+                rotationQuaternion: Quaternion | null;
+                computeWorldMatrix: (force: boolean) => void;
+            };
+            cameraDistance: number;
+            clampDistance: (distance: number) => number;
+            updateCameraPosition: () => void;
+        };
+
+        // Set pivot position (target)
+        if (state.target) {
+            orbitController.pivot.position.set(state.target.x, state.target.y, state.target.z);
+        }
+
+        // Set pivot rotation if provided (for exact state restoration)
+        // Must use rotationQuaternion because PivotController initializes with quaternion
+        // In Babylon.js, when rotationQuaternion is set (not null), it takes precedence over Euler rotation
+        if (state.pivotRotation) {
+            // Convert Euler angles to quaternion
+            const quat = Quaternion.RotationYawPitchRoll(
+                state.pivotRotation.y, // yaw
+                state.pivotRotation.x, // pitch
+                state.pivotRotation.z, // roll
+            );
+            orbitController.pivot.rotationQuaternion = quat;
+        } else if (state.position && state.target) {
+            // Calculate pivot rotation from position and target
+            // Camera should look from position towards target
+            const direction = new Vector3(
+                state.position.x - state.target.x,
+                state.position.y - state.target.y,
+                state.position.z - state.target.z,
+            );
+            const distance = direction.length();
+
+            // Calculate rotation angles to orient pivot so camera looks at target
+            // Add π to yaw because OrbitController's camera points in the opposite direction
+            const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
+            const pitch = Math.asin(direction.y / distance);
+
+            // Convert Euler angles to quaternion
+            const quat = Quaternion.RotationYawPitchRoll(yaw, pitch, 0);
+            orbitController.pivot.rotationQuaternion = quat;
+        }
+
+        // Set camera distance if provided, floored the way every orbit distance is
+        if (state.cameraDistance !== undefined) {
+            orbitController.cameraDistance = orbitController.clampDistance(state.cameraDistance);
+        } else if (state.position && state.target) {
+            // Calculate distance from position to target
+            const dx = state.position.x - state.target.x;
+            const dy = state.position.y - state.target.y;
+            const dz = state.position.z - state.target.z;
+            orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
+        }
+
+        // Update the pivot's world matrix and camera position
+        orbitController.pivot.computeWorldMatrix(true);
+        orbitController.updateCameraPosition();
+    }
+
+    /**
+     * Apply a camera state to a 2D controller: zoom, then rotation and pan.
+     * @param controller - The active 2D camera controller
+     * @param state - Camera state to apply
+     */
+    private applyTwoDCameraState(
+        controller: CameraController,
+        state: import("./screenshot/types.js").CameraState,
+    ): void {
+        // TwoDCameraController - handle zoom and pan
+        const twoDController = controller as unknown as {
+            camera: {
+                position: Vector3;
+                orthoLeft: number | null;
+                orthoRight: number | null;
+                orthoTop: number | null;
+                orthoBottom: number | null;
+            };
+            config: {
+                initialOrthoSize: number;
+            };
+            updateOrtho: (size: number) => void;
+        };
+
+        // Set zoom (ortho bounds)
+        if (state.zoom !== undefined) {
+            const initialSize = twoDController.config.initialOrthoSize;
+            const targetSize = initialSize / state.zoom;
+            twoDController.updateOrtho(targetSize); // Reuse controller method
+        }
+
+        if (controller instanceof TwoDCameraController) {
+            if (state.rotation !== undefined) {
+                controller.rotation = state.rotation;
             }
 
-            if (state.target && "setTarget" in camera && typeof camera.setTarget === "function") {
-                camera.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
+            // Set pan (camera position): the view's center, in world units however the view is turned
+            if (state.pan) {
+                controller.panTo(state.pan.x, state.pan.y);
             }
+        }
+    }
+
+    /**
+     * Apply a camera state to a camera no known controller drives: position and target.
+     * @param camera - The scene's active camera
+     * @param state - Camera state to apply
+     */
+    private applyFallbackCameraState(camera: Camera, state: import("./screenshot/types.js").CameraState): void {
+        // Fallback for other camera types
+        if (state.position && "position" in camera) {
+            camera.position.set(state.position.x, state.position.y, state.position.z);
+        }
+
+        if (state.target && "setTarget" in camera && typeof camera.setTarget === "function") {
+            camera.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
         }
     }
 
@@ -6830,11 +6916,17 @@ export class Graph implements GraphContext {
         this.applyEasing(distAnim, easing);
 
         return new Promise((resolve) => {
-            // Create observer to update controller during animation
-            const observer = this.scene.onBeforeRenderObservable.add(() => {
-                orbitController.cameraDistance = dummy.value;
-                orbitController.updateCameraPosition();
-            });
+            // Moves the camera, so first of the frame's observers: the passes run before the frame
+            // (the group outlines, the label declutter) read the camera, which must already stand
+            // where this frame draws it from (issue #5562).
+            const observer = this.scene.onBeforeRenderObservable.add(
+                () => {
+                    orbitController.cameraDistance = dummy.value;
+                    orbitController.updateCameraPosition();
+                },
+                undefined,
+                true,
+            );
 
             // Animate the dummy object
             const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1, () => {
@@ -7288,15 +7380,21 @@ export class Graph implements GraphContext {
                 }
             };
 
-            // Create observer to update controller
-            observer = this.scene.onBeforeRenderObservable.add(() => {
-                twoDController.camera.position.x = dummy.posX;
-                twoDController.camera.position.y = dummy.posY;
-                twoDController.camera.orthoLeft = dummy.orthoLeft;
-                twoDController.camera.orthoRight = dummy.orthoRight;
-                twoDController.camera.orthoTop = dummy.orthoTop;
-                twoDController.camera.orthoBottom = dummy.orthoBottom;
-            });
+            // Moves the camera, so first of the frame's observers: the passes run before the frame
+            // (the group outlines, the label declutter) read the camera, which must already stand
+            // where this frame draws it from (issue #5562).
+            observer = this.scene.onBeforeRenderObservable.add(
+                () => {
+                    twoDController.camera.position.x = dummy.posX;
+                    twoDController.camera.position.y = dummy.posY;
+                    twoDController.camera.orthoLeft = dummy.orthoLeft;
+                    twoDController.camera.orthoRight = dummy.orthoRight;
+                    twoDController.camera.orthoTop = dummy.orthoTop;
+                    twoDController.camera.orthoBottom = dummy.orthoBottom;
+                },
+                undefined,
+                true,
+            );
 
             // Animate dummy object
             const animatable = this.scene.beginDirectAnimation(dummy, animations, 0, frameCount, false, 1, () => {
@@ -8431,9 +8529,14 @@ export class Graph implements GraphContext {
         // We just need to call update() every frame for input processing
 
         // Hook into render loop to update XR input
-        const xrUpdateObserver = this.scene.onBeforeRenderObservable.add(() => {
-            xrCameraController.update();
-        });
+        // First of the frame's observers, so every pass reads where the camera stands this frame.
+        const xrUpdateObserver = this.scene.onBeforeRenderObservable.add(
+            () => {
+                xrCameraController.update();
+            },
+            undefined,
+            true,
+        );
 
         // Store for cleanup
         this.scene.metadata.xrCameraController = xrCameraController;

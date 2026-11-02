@@ -459,7 +459,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 0.997,
-            "stray.present": 0.984,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -509,7 +509,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 0.997,
-            "stray.present": 0.984,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -600,7 +600,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.923,
-            "edge.route": 0.911,
+            "edge.route": 0.921,
             "edge.curve": 0.995,
             "edge.color": 0.995,
             "edge.width": 1,
@@ -1305,7 +1305,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -1683,7 +1683,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -2415,7 +2415,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -2441,7 +2441,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -3620,8 +3620,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.945,
-            "stray.extra": 0.938,
+            "stray.present": 0.965,
+            "stray.extra": 0.943,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -3688,8 +3688,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.945,
-            "stray.extra": 0.938,
+            "stray.present": 0.965,
+            "stray.extra": 0.943,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -3737,7 +3737,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.99,
             "edge.arrowShape": 0.981,
@@ -3803,7 +3803,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.99,
             "edge.arrowShape": 0.981,
@@ -4086,25 +4086,25 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.98,
-            "edge.extra": 0.961,
-            "edge.route": 0.912,
-            "edge.curve": 0.986,
-            "edge.color": 0.997,
+            "edge.present": 0.99,
+            "edge.extra": 0.974,
+            "edge.route": 0.923,
+            "edge.curve": 0.99,
+            "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
-            "edge.dash": 0.993,
+            "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.984,
-            "edge.arrowShape": 0.989,
+            "edge.arrow": 0.988,
+            "edge.arrowShape": 0.99,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 0.993,
-            "edge.arrowWidth": 0.996,
-            "edge.arrowToSpacing": 0.996,
+            "edge.arrowWidth": 0.997,
+            "edge.arrowToSpacing": 0.997,
             "group.present": 1,
             "group.extra": 1,
             "group.box": 1,
@@ -4157,25 +4157,25 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.98,
-            "edge.extra": 0.961,
-            "edge.route": 0.912,
-            "edge.curve": 0.986,
-            "edge.color": 0.997,
+            "edge.present": 0.99,
+            "edge.extra": 0.974,
+            "edge.route": 0.923,
+            "edge.curve": 0.99,
+            "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
-            "edge.dash": 0.993,
+            "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.984,
-            "edge.arrowShape": 0.989,
+            "edge.arrow": 0.988,
+            "edge.arrowShape": 0.99,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 0.993,
-            "edge.arrowWidth": 0.996,
-            "edge.arrowToSpacing": 0.996,
+            "edge.arrowWidth": 0.997,
+            "edge.arrowToSpacing": 0.997,
             "group.present": 1,
             "group.extra": 1,
             "group.box": 1,
@@ -4691,7 +4691,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -5069,7 +5069,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -5761,7 +5761,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -5787,7 +5787,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -6921,8 +6921,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.963,
-            "stray.extra": 0.938,
+            "stray.present": 0.965,
+            "stray.extra": 0.943,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -6989,8 +6989,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.963,
-            "stray.extra": 0.938,
+            "stray.present": 0.965,
+            "stray.extra": 0.943,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -7461,15 +7461,15 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.981,
+            "edge.route": 0.994,
             "edge.curve": 1,
-            "edge.color": 0.987,
+            "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.99,
+            "edge.arrow": 0.998,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -7479,7 +7479,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.present": 1,
-            "group.extra": 0.96,
+            "group.extra": 1,
             "group.box": 1,
             "group.fill": 1,
             "group.fillOpacity": 1,
@@ -7492,12 +7492,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.9,
+            "raster.arrowhead": 0.93,
             "raster.canvas": 0.98,
-            "raster.edge": 0.89,
-            "raster.label": 0.92,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.89,
+            "raster.edge": 0.93,
+            "raster.label": 0.95,
+            "raster.nodeBody": 0.95,
+            "raster.nodeOutline": 0.91,
             "edge.wiggle": 1
         },
         "cx2-wp1449-tlr@matched": {
@@ -7532,15 +7532,15 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.981,
+            "edge.route": 0.994,
             "edge.curve": 1,
-            "edge.color": 0.987,
+            "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.99,
+            "edge.arrow": 0.998,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -7550,7 +7550,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.present": 1,
-            "group.extra": 0.96,
+            "group.extra": 1,
             "group.box": 1,
             "group.fill": 1,
             "group.fillOpacity": 1,
@@ -8766,7 +8766,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -9144,7 +9144,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -9876,7 +9876,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -9902,7 +9902,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -11082,7 +11082,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 1,
-            "stray.extra": 0.938,
+            "stray.extra": 0.941,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -11150,7 +11150,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 1,
-            "stray.extra": 0.938,
+            "stray.extra": 0.941,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -11198,7 +11198,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.993,
             "edge.arrowShape": 0.981,
@@ -11264,7 +11264,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.993,
             "edge.arrowShape": 0.981,
@@ -17827,7 +17827,7 @@
         },
         "gexf-hsk-chars": {
             "node.present": 1,
-            "node.extra": 0.999,
+            "node.extra": 1,
             "node.width": 1,
             "node.height": 1,
             "node.shape": 1,
@@ -17852,8 +17852,8 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.999,
-            "edge.extra": 0.999,
+            "edge.present": 1,
+            "edge.extra": 1,
             "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
@@ -17876,7 +17876,7 @@
         },
         "gexf-hsk-chars@matched": {
             "node.present": 1,
-            "node.extra": 0.999,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -17890,8 +17890,8 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "edge.present": 0.999,
-            "edge.extra": 0.999,
+            "edge.present": 1,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
@@ -18181,10 +18181,10 @@
             "background": 1,
             "raster.arrowhead": 0.91,
             "raster.canvas": 0.97,
-            "raster.edge": 0.91,
+            "raster.edge": 0.92,
             "raster.label": 0.89,
             "raster.nodeBody": 0.95,
-            "raster.nodeOutline": 0.92,
+            "raster.nodeOutline": 0.93,
             "edge.wiggle": 1
         },
         "gexf-sigma-ediaspora@matched": {
@@ -26531,10 +26531,10 @@
         },
         "json-cyjs-perf": {
             "node.present": 1,
-            "node.extra": 0.997,
+            "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.995,
-            "node.height": 0.995,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
@@ -26543,9 +26543,9 @@
             "node.gradient": 1,
             "node.stroke": 1,
             "label.present": 1,
-            "edge.present": 0.999,
-            "edge.extra": 0.998,
-            "edge.route": 0.993,
+            "edge.present": 1,
+            "edge.extra": 0.999,
+            "edge.route": 0.996,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 0.996,
@@ -26553,10 +26553,10 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.outline": 0,
-            "edge.arrow": 0.993,
+            "edge.arrow": 1,
             "group.present": 1,
-            "group.extra": 0.94,
-            "group.box": 0.984,
+            "group.extra": 1,
+            "group.box": 1,
             "group.fill": 1,
             "group.fillOpacity": 1,
             "group.stroke": 1,
@@ -26575,8 +26575,8 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.995,
-            "node.height": 0.995,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
@@ -26587,7 +26587,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 0.999,
-            "edge.route": 0.993,
+            "edge.route": 0.996,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 0.996,
@@ -26595,10 +26595,10 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.outline": 0,
-            "edge.arrow": 0.993,
+            "edge.arrow": 1,
             "group.present": 1,
-            "group.extra": 0.956,
-            "group.box": 0.969,
+            "group.extra": 1,
+            "group.box": 1,
             "group.fill": 1,
             "group.fillOpacity": 1,
             "group.stroke": 1,
@@ -27107,10 +27107,10 @@
         },
         "json-cyjs-tokyo": {
             "node.present": 1,
-            "node.extra": 0.986,
+            "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.996,
-            "node.height": 0.997,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
@@ -27130,22 +27130,22 @@
             "label.family": 1,
             "label.lines": 1,
             "label.anchor": 1,
-            "label.alongLine": 0.999,
-            "label.offLine": 0.999,
+            "label.alongLine": 1,
+            "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.999,
-            "edge.extra": 0.999,
-            "edge.route": 0.997,
+            "edge.present": 1,
+            "edge.extra": 1,
+            "edge.route": 1,
             "edge.curve": 1,
-            "edge.color": 0.998,
+            "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.label": 0.981,
+            "edge.label": 1,
             "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
@@ -27161,10 +27161,10 @@
         },
         "json-cyjs-tokyo@matched": {
             "node.present": 1,
-            "node.extra": 0.994,
+            "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.996,
-            "node.height": 0.996,
+            "node.width": 1,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
@@ -27183,15 +27183,15 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.999,
-            "label.alongLine": 0.999,
-            "label.offLine": 0.999,
+            "label.anchor": 1,
+            "label.alongLine": 1,
+            "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.998,
-            "edge.extra": 0.998,
-            "edge.route": 0.997,
+            "edge.present": 1,
+            "edge.extra": 1,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -27199,7 +27199,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.label": 0.992,
+            "edge.label": 1,
             "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
@@ -27599,7 +27599,7 @@
             "label.backgroundBox": 0.5,
             "label.backgroundBorder": 1,
             "edge.present": 1,
-            "edge.extra": 0.976,
+            "edge.extra": 1,
             "edge.route": 0.925,
             "edge.curve": 0.988,
             "edge.color": 1,
@@ -27618,7 +27618,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "edge.label": 1,
-            "stray.present": 0.4,
+            "stray.present": 0.6,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -27626,10 +27626,10 @@
             "background": 1,
             "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
-            "raster.edge": 0.93,
+            "raster.edge": 0.94,
             "raster.label": 0.9,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.96,
+            "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
         },
         "json-vis-synth@matched": {
@@ -27667,7 +27667,7 @@
             "label.backgroundBox": 0.5,
             "label.backgroundBorder": 1,
             "edge.present": 1,
-            "edge.extra": 0.976,
+            "edge.extra": 1,
             "edge.route": 0.925,
             "edge.curve": 0.988,
             "edge.color": 1,
@@ -27686,7 +27686,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "edge.label": 1,
-            "stray.present": 0.4,
+            "stray.present": 0.6,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -28120,7 +28120,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.992,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -28133,10 +28133,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.edge": 0.81,
+            "raster.edge": 0.82,
             "raster.label": 0.85,
             "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.84,
+            "raster.nodeOutline": 0.85,
             "edge.wiggle": 1
         },
         "pajek-c@matched": {
@@ -28171,7 +28171,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.992,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -28341,7 +28341,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.57,
+            "edge.arrowPlace": 0.834,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28353,7 +28353,7 @@
             "background": 1,
             "raster.arrowhead": 0.91,
             "raster.canvas": 0.97,
-            "raster.edge": 0.87,
+            "raster.edge": 0.88,
             "raster.label": 0.86,
             "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.88,
@@ -28401,7 +28401,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.57,
+            "edge.arrowPlace": 0.834,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28676,12 +28676,12 @@
             "frame.rotation": 1,
             "frame.zoom": 0,
             "background": 1,
-            "raster.arrowhead": 0.81,
-            "raster.canvas": 0.91,
-            "raster.edge": 0.81,
+            "raster.arrowhead": 0.82,
+            "raster.canvas": 0.92,
+            "raster.edge": 0.82,
             "raster.label": 0.79,
-            "raster.nodeBody": 0.82,
-            "raster.nodeOutline": 0.81,
+            "raster.nodeBody": 0.83,
+            "raster.nodeOutline": 0.82,
             "edge.wiggle": 1
         },
         "pajek-lin-rel4@matched": {
@@ -28766,7 +28766,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.81,
+            "edge.arrowPlace": 0.905,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28781,7 +28781,7 @@
             "raster.edge": 0.95,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "pajek-specimen-arrows-p2": {
@@ -28812,7 +28812,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.81,
+            "edge.arrowPlace": 0.905,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28857,7 +28857,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.81,
+            "edge.arrowPlace": 0.905,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28887,7 +28887,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.955,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -28897,7 +28897,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.857,
+            "edge.arrowPlace": 0.952,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28912,7 +28912,7 @@
             "raster.edge": 0.94,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "pajek-specimen-arrows-p3@matched": {
@@ -28933,7 +28933,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.955,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -28943,7 +28943,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.857,
+            "edge.arrowPlace": 0.952,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -28983,7 +28983,7 @@
             "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
-            "edge.arrowPlace": 0.81,
+            "edge.arrowPlace": 0.905,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
@@ -29047,7 +29047,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
             "raster.edge": 0.94,
             "raster.label": 0.88,
@@ -29093,7 +29093,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
             "raster.edge": 0.95,
             "raster.label": 0.86,
@@ -29233,9 +29233,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.95,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.95,
@@ -29279,7 +29279,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
             "raster.edge": 0.93,
             "raster.label": 0.86,
@@ -29365,7 +29365,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.92,
             "raster.canvas": 0.99,
             "raster.edge": 0.97,
             "raster.label": 0.86,
@@ -29451,7 +29451,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
             "raster.edge": 0.94,
             "raster.label": 0.86,
@@ -29661,7 +29661,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.88,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "pajek-specimen-labels-p2": {
@@ -30050,7 +30050,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.95
         },
         "pajek-specimen-node-fills-borders-p3@matched": {
             "node.present": 1,
@@ -30099,7 +30099,7 @@
             "node.extra": 1,
             "node.position": 1,
             "node.width": 0.947,
-            "node.height": 0.947,
+            "node.height": 0.974,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 0.921,
@@ -30124,7 +30124,7 @@
             "node.extra": 1,
             "node.position": 1,
             "node.width": 0.947,
-            "node.height": 0.947,
+            "node.height": 0.974,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 0.921,
@@ -30149,7 +30149,7 @@
             "node.extra": 1,
             "node.position": 1,
             "node.width": 0.947,
-            "node.height": 0.947,
+            "node.height": 0.974,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 0.921,
@@ -30170,7 +30170,7 @@
             "node.extra": 1,
             "node.position": 1,
             "node.width": 0.947,
-            "node.height": 0.947,
+            "node.height": 0.974,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 0.921,
@@ -30234,7 +30234,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.93
+            "raster.nodeOutline": 0.94
         },
         "pajek-specimen-node-sizes-opacity-p2@matched": {
             "node.present": 1,
@@ -30470,7 +30470,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.893,
+            "edge.route": 0.964,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -30484,11 +30484,11 @@
             "frame.rotation": 1,
             "frame.zoom": 0,
             "background": 1,
-            "raster.canvas": 0.94,
-            "raster.edge": 0.83,
-            "raster.label": 0.83,
-            "raster.nodeBody": 0.89,
-            "raster.nodeOutline": 0.86,
+            "raster.canvas": 0.96,
+            "raster.edge": 0.89,
+            "raster.label": 0.84,
+            "raster.nodeBody": 0.91,
+            "raster.nodeOutline": 0.9,
             "edge.wiggle": 1
         },
         "pajek-synth-vertices@matched": {
@@ -30523,7 +30523,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.955,
+            "edge.route": 0.982,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -33238,7 +33238,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -33616,7 +33616,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -34348,7 +34348,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -34374,7 +34374,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -35553,8 +35553,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.963,
-            "stray.extra": 0.938,
+            "stray.present": 0.964,
+            "stray.extra": 0.941,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -35621,8 +35621,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.963,
-            "stray.extra": 0.938,
+            "stray.present": 0.964,
+            "stray.extra": 0.941,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -35670,7 +35670,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.993,
             "edge.arrowShape": 0.981,
@@ -35736,7 +35736,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.993,
             "edge.arrowShape": 0.981,
@@ -38304,7 +38304,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.extra": 0,
-            "stray.present": 0.4,
+            "stray.present": 0.5,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -38366,7 +38366,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.extra": 0,
-            "stray.present": 0.4,
+            "stray.present": 0.5,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -38404,11 +38404,11 @@
             "label.background": 0.333,
             "label.backgroundBox": 0,
             "label.backgroundBorder": 0.697,
-            "edge.present": 0.766,
+            "edge.present": 0.85,
             "edge.extra": 0.923,
             "edge.route": 0,
             "edge.curve": 0.476,
-            "edge.color": 0.944,
+            "edge.color": 0.971,
             "edge.width": 0,
             "edge.opacity": 1,
             "edge.dash": 1,
@@ -38423,7 +38423,7 @@
             "edge.arrowWidth": 0,
             "edge.arrowToSpacing": 0,
             "group.extra": 0,
-            "stray.present": 0.478,
+            "stray.present": 0.5,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -38468,11 +38468,11 @@
             "label.background": 0.333,
             "label.backgroundBox": 0,
             "label.backgroundBorder": 0.697,
-            "edge.present": 0.766,
+            "edge.present": 0.85,
             "edge.extra": 0.923,
             "edge.route": 0,
             "edge.curve": 0.476,
-            "edge.color": 0.944,
+            "edge.color": 0.971,
             "edge.width": 0,
             "edge.opacity": 1,
             "edge.dash": 1,
@@ -38487,7 +38487,7 @@
             "edge.arrowWidth": 0,
             "edge.arrowToSpacing": 0,
             "group.extra": 0,
-            "stray.present": 0.478,
+            "stray.present": 0.5,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -38643,7 +38643,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.944,
+            "edge.present": 1,
             "edge.extra": 1,
             "edge.route": 0.824,
             "edge.curve": 0.824,
@@ -38671,7 +38671,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.455,
+            "stray.present": 0.5,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -38680,7 +38680,7 @@
             "raster.canvas": 0.95,
             "raster.edge": 0.79,
             "raster.label": 0.85,
-            "raster.nodeBody": 0.91,
+            "raster.nodeBody": 0.92,
             "raster.nodeOutline": 0.89,
             "edge.wiggle": 1
         },
@@ -38716,7 +38716,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.944,
+            "edge.present": 1,
             "edge.extra": 1,
             "edge.route": 0.824,
             "edge.curve": 0.824,
@@ -38744,7 +38744,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.455,
+            "stray.present": 0.5,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -38800,7 +38800,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.extra": 0,
-            "stray.present": 0.48,
+            "stray.present": 0.5,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -38863,7 +38863,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.extra": 0,
-            "stray.present": 0.48,
+            "stray.present": 0.5,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -39254,7 +39254,7 @@
             "node.extra": 0.972,
             "node.position": 0.986,
             "node.width": 1,
-            "node.height": 0.957,
+            "node.height": 0.971,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 0.838,
@@ -39279,9 +39279,9 @@
             "label.outline": 1,
             "label.background": 0.928,
             "label.backgroundBorder": 0.942,
-            "edge.present": 0.957,
-            "edge.extra": 0.917,
-            "edge.route": 0.909,
+            "edge.present": 1,
+            "edge.extra": 1,
+            "edge.route": 0.917,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -39298,13 +39298,13 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.extra": 0,
-            "stray.present": 0.429,
+            "stray.present": 0.556,
             "stray.extra": 0.6,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.82,
+            "raster.arrowhead": 0.83,
             "raster.canvas": 0.97,
             "raster.edge": 0.83,
             "raster.label": 0.8,
@@ -39317,7 +39317,7 @@
             "node.extra": 0.972,
             "node.position": 1,
             "node.width": 1,
-            "node.height": 0.957,
+            "node.height": 0.971,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 0.838,
@@ -39342,9 +39342,9 @@
             "label.outline": 1,
             "label.background": 0.928,
             "label.backgroundBorder": 0.942,
-            "edge.present": 0.957,
-            "edge.extra": 0.917,
-            "edge.route": 0.909,
+            "edge.present": 1,
+            "edge.extra": 1,
+            "edge.route": 0.917,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -39361,7 +39361,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.extra": 0,
-            "stray.present": 0.385,
+            "stray.present": 0.556,
             "stray.extra": 0.4,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -39422,7 +39422,7 @@
             "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.extra": 0,
-            "stray.present": 0.667,
+            "stray.present": 0.8,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -39488,7 +39488,7 @@
             "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.extra": 0,
-            "stray.present": 0.667,
+            "stray.present": 0.8,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -39716,7 +39716,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.96,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
@@ -39750,7 +39750,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.96,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
@@ -39845,10 +39845,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
-            "raster.label": 0.88,
+            "raster.edge": 0.96,
+            "raster.label": 0.91,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96,
+            "raster.nodeOutline": 0.99,
             "edge.wiggle": 1
         },
         "graphology-specimen-edge-labels-p2": {
@@ -39882,10 +39882,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.92,
             "raster.label": 0.92,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96,
+            "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
         "graphology-specimen-edge-labels-p2@matched": {
@@ -39951,10 +39951,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.91,
             "raster.label": 0.92,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96,
+            "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
         "graphology-specimen-edge-labels-p3@matched": {
@@ -40049,7 +40049,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.93,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
@@ -40083,7 +40083,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
@@ -40168,7 +40168,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.98
+            "raster.nodeOutline": 0.99
         },
         "graphology-specimen-images-charts@matched": {
             "node.present": 1,
@@ -40209,9 +40209,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.85,
+            "raster.label": 0.89,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.97
+            "raster.nodeOutline": 0.98
         },
         "graphology-specimen-labels@matched": {
             "node.present": 1,
@@ -40562,7 +40562,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.98
+            "raster.nodeOutline": 0.99
         },
         "graphology-specimen-node-sizes-opacity-p2@matched": {
             "node.present": 1,
@@ -40738,13 +40738,13 @@
             "stray.extra": 0.667,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.96,
+            "raster.canvas": 0.99,
             "raster.edge": 0.98,
-            "raster.label": 0.94,
-            "raster.nodeBody": 0.96,
-            "raster.nodeOutline": 0.97,
+            "raster.label": 0.95,
+            "raster.nodeBody": 0.99,
+            "raster.nodeOutline": 0.99,
             "edge.wiggle": 1
         },
         "json-graphology-synth@matched": {
@@ -40775,7 +40775,7 @@
             "stray.extra": 0.667,
             "frame.mirror": 1,
             "frame.rotation": 1,
-            "frame.zoom": 0,
+            "frame.zoom": 1,
             "background": 1,
             "edge.wiggle": 1
         },
@@ -40810,7 +40810,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.edge": 0.98,
-            "raster.label": 0.88,
+            "raster.label": 0.91,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
@@ -41143,7 +41143,7 @@
             "node.extra": 1,
             "node.position": 0.97,
             "node.width": 1,
-            "node.height": 0.848,
+            "node.height": 0.97,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
@@ -41160,11 +41160,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0,
+            "label.offset": 0.5,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.375,
+            "label.anchor": 0.875,
             "label.outline": 1,
             "label.background": 0.5,
             "label.backgroundBorder": 1,
@@ -41177,7 +41177,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.857,
+            "stray.present": 0.889,
             "stray.extra": 0.333,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -41190,17 +41190,17 @@
         },
         "yed-graphml-specimen-groups-p2": {
             "node.present": 1,
-            "node.extra": 0.895,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
-            "node.height": 0.529,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.353,
-            "node.stroke": 0.412,
+            "node.gradient": 0.421,
+            "node.stroke": 0.421,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
@@ -41210,11 +41210,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.308,
+            "label.offset": 0.846,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.385,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 0.846,
             "label.backgroundBorder": 1,
@@ -41243,7 +41243,7 @@
             "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
-            "node.height": 0.579,
+            "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
@@ -41260,11 +41260,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.308,
+            "label.offset": 0.846,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.385,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 0.846,
             "label.backgroundBorder": 1,
@@ -41289,7 +41289,7 @@
             "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
-            "node.height": 0.848,
+            "node.height": 0.97,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
@@ -41306,11 +41306,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0,
+            "label.offset": 0.5,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.375,
+            "label.anchor": 0.875,
             "label.outline": 1,
             "label.background": 0.5,
             "label.backgroundBorder": 1,
@@ -41323,7 +41323,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.8,
+            "stray.present": 0.889,
             "stray.extra": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -41825,7 +41825,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.89,
-            "raster.nodeOutline": 0.93
+            "raster.nodeOutline": 0.94
         },
         "yed-graphml-specimen-node-shapes-p5@matched": {
             "node.present": 1,
@@ -43446,19 +43446,19 @@
         },
         "yed-live-graphml-specimen-node-shapes-p6": {
             "node.present": 1,
-            "node.extra": 0.944,
+            "node.extra": 1,
             "node.position": 0.569,
             "node.width": 1,
-            "node.height": 0.529,
+            "node.height": 0.556,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.02,
-            "node.fill": 0.588,
+            "node.shape": 0.074,
+            "node.fill": 0.611,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.078,
+            "node.stroke": 0.13,
             "node.strokeWidth": 1,
-            "node.strokeDash": 0.941,
+            "node.strokeDash": 0.944,
             "label.present": 1,
             "stray.present": 0,
             "frame.mirror": 1,
@@ -43467,23 +43467,23 @@
             "background": 1,
             "raster.canvas": 0.96,
             "raster.nodeBody": 0.89,
-            "raster.nodeOutline": 0.73
+            "raster.nodeOutline": 0.86
         },
         "yed-live-graphml-specimen-node-shapes-p6@matched": {
             "node.present": 1,
-            "node.extra": 0.944,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
-            "node.height": 0.529,
+            "node.height": 0.556,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.02,
-            "node.fill": 0.588,
+            "node.shape": 0.074,
+            "node.fill": 0.611,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.078,
+            "node.stroke": 0.13,
             "node.strokeWidth": 1,
-            "node.strokeDash": 0.941,
+            "node.strokeDash": 0.944,
             "label.present": 1,
             "stray.present": 0,
             "frame.mirror": 1,
@@ -52713,6 +52713,12 @@
                 "to": 0.995,
                 "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
                 "date": "2026-11-01"
+            },
+            "edge.arrowFill": {
+                "floor": 1,
+                "to": 0.985,
+                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "date": "2026-11-01"
             }
         },
         "cx-radiation-bibliography@matched": {
@@ -52727,102 +52733,68 @@
                 "to": 0.99,
                 "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
                 "date": "2026-11-01"
+            },
+            "edge.arrowFill": {
+                "floor": 1,
+                "to": 0.985,
+                "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
+                "date": "2026-11-01"
             }
         },
         "cx-specimen-images-charts": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-images-charts-p2": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-images-charts-p2@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-mappings-bypass": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx-specimen-mappings-bypass-p14": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+            "node.fill": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx-specimen-mappings-bypass-p14@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-mappings-bypass-p15": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-mappings-bypass-p15@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-mappings-bypass@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-syn-bypass": {
-            "stray.present": {
-                "floor": 0.945,
-                "to": 0.8,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-syn-bypass@matched": {
-            "stray.present": {
-                "floor": 0.945,
-                "to": 0.8,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx-syn-mappings": {
@@ -52836,6 +52808,18 @@
                 "floor": 0.985,
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowPlace": {
+                "floor": 1,
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowFill": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
@@ -52851,118 +52835,74 @@
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            }
-        },
-        "cx2-signor-aml": {
-            "edge.curve": {
-                "floor": 0.986,
-                "to": 0.98,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
+            },
+            "edge.arrowPlace": {
+                "floor": 1,
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
-            }
-        },
-        "cx2-signor-aml@matched": {
-            "edge.curve": {
-                "floor": 0.986,
-                "to": 0.98,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
+            },
+            "edge.arrowFill": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
         "cx2-specimen-images-charts": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-images-charts-p2": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-images-charts-p2@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx2-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-mappings-bypass": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx2-specimen-mappings-bypass-p14": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+            "node.fill": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx2-specimen-mappings-bypass-p14@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-mappings-bypass-p15": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-mappings-bypass-p15@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-mappings-bypass@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-syn-bypass": {
-            "stray.present": {
-                "floor": 0.963,
-                "to": 0.8,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-syn-bypass@matched": {
-            "stray.present": {
-                "floor": 0.963,
-                "to": 0.8,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx2-syn-mappings": {
@@ -52976,6 +52916,18 @@
                 "floor": 0.978,
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowPlace": {
+                "floor": 1,
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowFill": {
+                "floor": 0.996,
+                "to": 0.992,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
@@ -52991,102 +52943,74 @@
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
+            },
+            "edge.arrowPlace": {
+                "floor": 1,
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowFill": {
+                "floor": 0.996,
+                "to": 0.992,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
+                "date": "2026-11-01"
             }
         },
         "cys-specimen-images-charts": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-images-charts-p2": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-images-charts-p2@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cys-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-mappings-bypass": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cys-specimen-mappings-bypass-p14": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+            "node.fill": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cys-specimen-mappings-bypass-p14@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-mappings-bypass-p15": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-mappings-bypass-p15@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-mappings-bypass@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-syn-bypass": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.852,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-syn-bypass@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.852,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cys-syn-mappings": {
@@ -53101,6 +53025,18 @@
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
+            },
+            "edge.arrowPlace": {
+                "floor": 1,
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowFill": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
+                "date": "2026-11-01"
             }
         },
         "cys-syn-mappings@matched": {
@@ -53114,6 +53050,18 @@
                 "floor": 0.985,
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowPlace": {
+                "floor": 1,
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowFill": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
@@ -53321,6 +53269,18 @@
                 "to": 0.417,
                 "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
                 "date": "2026-11-01"
+            },
+            "edge.extra": {
+                "floor": 0.923,
+                "to": 0.872,
+                "reason": "comparator (#5387): container outlines, header rules and box top lines are no edges now, so the draw.io stand-in's framed edge stubs (oracles/ISSUES.md I29) pair by their own ends: n0::n19 -> n0::n27 and n0::n23 -> n0::n19 have no stub of their own, and the stubs judged now fail route, curve and width as the stand-in's other stubs do",
+                "date": "2026-11-01"
+            },
+            "edge.arrow": {
+                "floor": 0.944,
+                "to": 0.941,
+                "reason": "comparator (#5387): container outlines, header rules and box top lines are no edges now, so the draw.io stand-in's framed edge stubs (oracles/ISSUES.md I29) pair by their own ends: n0::n19 -> n0::n27 and n0::n23 -> n0::n19 have no stub of their own, and the stubs judged now fail route, curve and width as the stand-in's other stubs do",
+                "date": "2026-11-01"
             }
         },
         "graphml-galaxy-lcms-workflow@matched": {
@@ -53328,6 +53288,18 @@
                 "floor": 0.476,
                 "to": 0.417,
                 "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
+                "date": "2026-11-01"
+            },
+            "edge.extra": {
+                "floor": 0.923,
+                "to": 0.872,
+                "reason": "comparator (#5387): container outlines, header rules and box top lines are no edges now, so the draw.io stand-in's framed edge stubs (oracles/ISSUES.md I29) pair by their own ends: n0::n19 -> n0::n27 and n0::n23 -> n0::n19 have no stub of their own, and the stubs judged now fail route, curve and width as the stand-in's other stubs do",
+                "date": "2026-11-01"
+            },
+            "edge.arrow": {
+                "floor": 0.944,
+                "to": 0.941,
+                "reason": "comparator (#5387): container outlines, header rules and box top lines are no edges now, so the draw.io stand-in's framed edge stubs (oracles/ISSUES.md I29) pair by their own ends: n0::n19 -> n0::n27 and n0::n23 -> n0::n19 have no stub of their own, and the stubs judged now fail route, curve and width as the stand-in's other stubs do",
                 "date": "2026-11-01"
             }
         },
@@ -53399,19 +53371,27 @@
                 "date": "2026-11-01"
             }
         },
+        "graphml-synthetic-nodes": {
+            "stray.extra": {
+                "floor": 0.6,
+                "to": 0.4,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
+                "date": "2026-11-01"
+            }
+        },
         "json-cyjs-perf": {
-            "edge.arrow": {
-                "floor": 0.993,
-                "to": 0.992,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
+            "edge.width": {
+                "floor": 0.996,
+                "to": 0.994,
+                "reason": "comparator (#5196): with n570's own disc found, the haystack lines n464 -> n442 and n464 -> n570 end inside both overlapping nodes alike and are given each other's node (their widths, 1.6 and 5.7 px, say which is which; the reader does not use width)",
                 "date": "2026-11-01"
             }
         },
         "json-cyjs-perf@matched": {
-            "edge.arrow": {
-                "floor": 0.993,
-                "to": 0.992,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
+            "edge.width": {
+                "floor": 0.996,
+                "to": 0.994,
+                "reason": "comparator (#5196): with n570's own disc found, the haystack lines n464 -> n442 and n464 -> n570 end inside both overlapping nodes alike and are given each other's node (their widths, 1.6 and 5.7 px, say which is which; the reader does not use width)",
                 "date": "2026-11-01"
             }
         },
@@ -53429,6 +53409,22 @@
                 "date": "2026-11-01"
             }
         },
+        "json-graphology-synth": {
+            "stray.extra": {
+                "floor": 0.667,
+                "to": 0.286,
+                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
+                "date": "2026-11-01"
+            }
+        },
+        "json-graphology-synth@matched": {
+            "stray.extra": {
+                "floor": 0.667,
+                "to": 0.286,
+                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
+                "date": "2026-11-01"
+            }
+        },
         "json-vis-siblings@matched": {
             "edge.route": {
                 "floor": 0.972,
@@ -53440,6 +53436,34 @@
                 "floor": 0.989,
                 "to": 0.979,
                 "reason": "vis-network dynamic curves, accepted for now by the owner (#4271): #4587 (bb47a56637) bowed them as deep as vis-network does on files it lays out (route 0.972 to 0.968, curve 0.986 to 0.989), and #5317 (8c00d5c5b6, #5299) settles the support points from a fixed start once the nodes stop, so the curves no longer depend on how frames split (route 0.968 to 0.961, curve 0.989 to 0.979); the earlier rates were where frame timing happened to leave them (bisected in #5332)",
+                "date": "2026-11-01"
+            }
+        },
+        "json-vis-synth": {
+            "edge.route": {
+                "floor": 0.925,
+                "to": 0.902,
+                "reason": "comparator (#5387): the lines to node 14, which vis-network draws as no shape the reader finds, are read as 13 -> 14 and 14 -> 15 now; judged, they fail route and their middle and target arrows as this sample's other center-to-center lines do, and the strays after them are renumbered",
+                "date": "2026-11-01"
+            },
+            "edge.arrow": {
+                "floor": 0.971,
+                "to": 0.963,
+                "reason": "comparator (#5387): the lines to node 14, which vis-network draws as no shape the reader finds, are read as 13 -> 14 and 14 -> 15 now; judged, they fail route and their middle and target arrows as this sample's other center-to-center lines do, and the strays after them are renumbered",
+                "date": "2026-11-01"
+            }
+        },
+        "json-vis-synth@matched": {
+            "edge.route": {
+                "floor": 0.925,
+                "to": 0.902,
+                "reason": "comparator (#5387): the lines to node 14, which vis-network draws as no shape the reader finds, are read as 13 -> 14 and 14 -> 15 now; judged, they fail route and their middle and target arrows as this sample's other center-to-center lines do, and the strays after them are renumbered",
+                "date": "2026-11-01"
+            },
+            "edge.arrow": {
+                "floor": 0.971,
+                "to": 0.963,
+                "reason": "comparator (#5387): the lines to node 14, which vis-network draws as no shape the reader finds, are read as 13 -> 14 and 14 -> 15 now; judged, they fail route and their middle and target arrows as this sample's other center-to-center lines do, and the strays after them are renumbered",
                 "date": "2026-11-01"
             }
         },
@@ -53465,6 +53489,12 @@
                 "to": 0.905,
                 "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
                 "date": "2026-11-01"
+            },
+            "edge.arrow": {
+                "floor": 1,
+                "to": 0.985,
+                "reason": "On these 33 px lines the comparator reads Pajek's part-way head, its middle on the source half, as an inverted head at the source, while graphty's head, its tip now where Pajek's is, is read at the target; graphty also draws that head about 2.6 times Pajek's length beside the line (#4514)",
+                "date": "2026-11-01"
             }
         },
         "pajek-synth-lines@matched": {
@@ -53472,6 +53502,12 @@
                 "floor": 0.937,
                 "to": 0.905,
                 "reason": "comparator, not the drawing: comparator round 5 (8ada27c426, merged in #4254) lowered these (bisected in #5332: at the floor on 8ada27c426^, below on 8ada27c426; the drawing commits after it moved nothing here). It newly judges a part-way head from the end it caps and a mirrored head, so a cx-radiation-bibliography middle head, a two-part tee and pajek-synth-lines' two part-way source heads are judged where they were not before",
+                "date": "2026-11-01"
+            },
+            "edge.arrow": {
+                "floor": 1,
+                "to": 0.985,
+                "reason": "On these 33 px lines the comparator reads Pajek's part-way head, its middle on the source half, as an inverted head at the source, while graphty's head, its tip now where Pajek's is, is read at the target; graphty also draws that head about 2.6 times Pajek's length beside the line (#4514)",
                 "date": "2026-11-01"
             }
         },
@@ -53514,99 +53550,59 @@
             }
         },
         "xgmml-specimen-images-charts": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-images-charts-p2": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-images-charts-p2@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "xgmml-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-mappings-bypass": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "xgmml-specimen-mappings-bypass-p14": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+            "node.fill": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "xgmml-specimen-mappings-bypass-p14@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-mappings-bypass-p15": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-mappings-bypass-p15@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-mappings-bypass@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-syn-bypass": {
-            "stray.present": {
-                "floor": 0.963,
-                "to": 0.825,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-syn-bypass@matched": {
-            "stray.present": {
-                "floor": 0.963,
-                "to": 0.825,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "xgmml-syn-mappings": {
@@ -53620,6 +53616,18 @@
                 "floor": 0.985,
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowPlace": {
+                "floor": 1,
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowFill": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
             }
         },
@@ -53635,33 +53643,67 @@
                 "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
+            },
+            "edge.arrowPlace": {
+                "floor": 1,
+                "to": 0.992,
+                "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
+                "date": "2026-11-01"
+            },
+            "edge.arrowFill": {
+                "floor": 1,
+                "to": 0.996,
+                "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
+                "date": "2026-11-01"
+            }
+        },
+        "yed-graphml-specimen-groups": {
+            "stray.extra": {
+                "floor": 0.333,
+                "to": 0,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
+                "date": "2026-11-01"
             }
         },
         "yed-graphml-specimen-groups-p2": {
-            "node.fill": {
-                "floor": 1,
-                "to": 0.941,
-                "reason": "comparator: yEd draws table node table-lane-style-rows as three stacked 30.85 px rows. The twin rule used to take a row drawn one row lower as the outline of the row above, so the node read as two rows merged (61.7 of 92.6 px, light fill). Since #5332, stacked boxes are no twins (the cx2-wp1449-tlr fix), so it reads the gray header row alone. Neither reading is the whole table; reading a table drawn as rows as one body is #5347",
+            "stray.present": {
+                "floor": 0.6,
+                "to": 0,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
                 "date": "2026-11-01"
             },
-            "node.stroke": {
-                "floor": 0.412,
-                "to": 0.353,
-                "reason": "comparator: yEd draws table node table-lane-style-rows as three stacked 30.85 px rows. The twin rule used to take a row drawn one row lower as the outline of the row above, so the node read as two rows merged (61.7 of 92.6 px, light fill). Since #5332, stacked boxes are no twins (the cx2-wp1449-tlr fix), so it reads the gray header row alone. Neither reading is the whole table; reading a table drawn as rows as one body is #5347",
+            "stray.extra": {
+                "floor": 0.273,
+                "to": 0,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
                 "date": "2026-11-01"
             }
         },
         "yed-graphml-specimen-groups-p2@matched": {
-            "node.fill": {
-                "floor": 1,
-                "to": 0.947,
-                "reason": "comparator: yEd draws table node table-lane-style-rows as three stacked 30.85 px rows. The twin rule used to take a row drawn one row lower as the outline of the row above, so the node read as two rows merged (61.7 of 92.6 px, light fill). Since #5332, stacked boxes are no twins (the cx2-wp1449-tlr fix), so it reads the gray header row alone. Neither reading is the whole table; reading a table drawn as rows as one body is #5347",
-                "date": "2026-11-01"
-            },
             "node.stroke": {
                 "floor": 0.474,
                 "to": 0.421,
                 "reason": "comparator: yEd draws table node table-lane-style-rows as three stacked 30.85 px rows. The twin rule used to take a row drawn one row lower as the outline of the row above, so the node read as two rows merged (61.7 of 92.6 px, light fill). Since #5332, stacked boxes are no twins (the cx2-wp1449-tlr fix), so it reads the gray header row alone. Neither reading is the whole table; reading a table drawn as rows as one body is #5347",
+                "date": "2026-11-01"
+            },
+            "stray.present": {
+                "floor": 0.333,
+                "to": 0,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
+                "date": "2026-11-01"
+            },
+            "stray.extra": {
+                "floor": 0.061,
+                "to": 0,
+                "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
+                "date": "2026-11-01"
+            }
+        },
+        "yed-live-graphml-specimen-node-shapes-p6": {
+            "node.position": {
+                "floor": 0.569,
+                "to": 0.556,
+                "reason": "comparator (#5384): the frame refit no longer drops the sheet's corner anchors, so the frame is pinned exactly; three choreography nodes whose oracle bodies are one 20.6 px band of the node miss their centers in it",
                 "date": "2026-11-01"
             }
         }

@@ -1,3 +1,17 @@
+## 0.2.40 (2026-11-02)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.39 (2026-11-01)
+
+### 🩹 Fixes
+
+- **visual-review:** record a story whose play function threw as failed in capture ([#4369](https://github.com/graphty-org/graphty-monorepo/issues/4369))
+- **visual-review:** keep flakyLine private to story-outcomes ([#5156](https://github.com/graphty-org/graphty-monorepo/issues/5156), [#3366](https://github.com/graphty-org/graphty-monorepo/issues/3366))
+- **visual-review:** show state read failures and never fail a saved decision ([#3548](https://github.com/graphty-org/graphty-monorepo/issues/3548))
+- **visual-review:** keep a flaky story's differing first shot and name it ([#3366](https://github.com/graphty-org/graphty-monorepo/issues/3366))
+- **ci:** bound a failed Actions cache restore to one minute, not 10 ([#5098](https://github.com/graphty-org/graphty-monorepo/issues/5098))
+
 ## 0.2.38 (2026-10-31)
 
 ### 🚀 Features

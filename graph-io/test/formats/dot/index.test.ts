@@ -12,6 +12,7 @@ describe("the dot subpath entry", () => {
             "RANK_COLUMN",
             "RANK_SET_COLUMN",
             "dotExporter",
+            "dotFileLayout",
             "dotImporter",
             "graphvizFont",
             "graphvizPosBends",

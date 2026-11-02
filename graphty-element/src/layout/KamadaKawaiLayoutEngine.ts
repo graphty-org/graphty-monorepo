@@ -2,6 +2,7 @@ import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector } from 
 import { kamadaKawai } from "@graphty/layout";
 import { z } from "zod";
 
+import { asStrength } from "../algorithms/input/weight";
 import { defineOptions, type OptionsSchema } from "../config";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
@@ -32,8 +33,10 @@ function edgeWeights(g: GraphSnapshot): NumericVector | null {
 }
 
 /**
- * The graph with one distance per edge, `1 / w` where `w` is the SUM of the weights of every edge
- * between the same two nodes, or null when every such sum is 1 and there is nothing to read.
+ * The graph with one distance per edge, `1 / w` where `w` is the SUM of the strengths of every edge
+ * between the same two nodes, or null when every such sum is 1 and there is nothing to read. A
+ * strength is the weight itself, or `1 / weight` when the weight is a distance, so a single edge
+ * whose weight is a distance is drawn at that distance.
  *
  * Summed first because Kamada-Kawai keeps one distance per pair of nodes: left to itself it would
  * take the shortest of two parallel edges, so the order a file listed them in -- or which of the
@@ -44,9 +47,14 @@ function edgeWeights(g: GraphSnapshot): NumericVector | null {
  * the first edge's weight, so summing after that would drop the other half.
  * @param g - the undirected graph the layout reads
  * @param source - the graph `g` was derived from, with the same node rows; `g` itself when undirected
+ * @param meaning - what the stored weights mean
  * @returns the graph with the distance column, or null
  */
-function withDistances(g: GraphSnapshot, source: GraphSnapshot): GraphSnapshot | null {
+function withDistances(
+    g: GraphSnapshot,
+    source: GraphSnapshot,
+    meaning: "strength" | "distance",
+): GraphSnapshot | null {
     const weights = edgeWeights(source);
     if (weights === null) {
         return null;
@@ -58,7 +66,7 @@ function withDistances(g: GraphSnapshot, source: GraphSnapshot): GraphSnapshot |
     const stored = source.edgeList();
     for (let e = 0; e < source.edgeCount; e++) {
         const key = pairKey(stored.src[e], stored.dst[e]);
-        summed.set(key, (summed.get(key) ?? 0) + weights[e]);
+        summed.set(key, (summed.get(key) ?? 0) + asStrength(weights[e], meaning));
     }
 
     // Decided on the sums, not on the stored weights: a reciprocal pair of weight 1 sums to 2 and
@@ -184,19 +192,22 @@ export class KamadaKawaiLayout extends SnapshotLayoutEngine {
     /**
      * Compute node positions using Kamada-Kawai algorithm
      *
-     * A WEIGHT IS INVERTED ON THE WAY IN, and that is the one thing about this engine a reader
-     * has to know. Kamada-Kawai reads its weight as a graph DISTANCE -- it is fed straight to
-     * Floyd-Warshall and then drawn as a length -- so a heavier edge would push its two nodes
-     * FURTHER APART, the opposite of what a weight means everywhere else in the element, where a
-     * larger number is a stronger connection. Nothing on screen would say which convention was in
-     * force. So the element hands this solver `1 / weight` and the whole package keeps one
-     * reading: heavier means more strongly connected, means drawn closer together.
+     * A STRENGTH IS INVERTED ON THE WAY IN. Kamada-Kawai reads its weight as a graph DISTANCE --
+     * it is fed straight to Floyd-Warshall and then drawn as a length -- so the element hands this
+     * solver `1 / strength`. What the weight means comes from `input.weightMeaning()`: a strength
+     * (or a weight whose meaning nobody stated) is inverted, so heavier is drawn closer; a distance
+     * reaches the solver as the ideal length it already is; a weight that is neither is unread.
      * @param input - the graph to arrange
      * @returns the coordinates, in scene units
      */
     protected compute(input: SnapshotLayoutInput): F32 {
         const dim = layoutDim(this.config.dim);
-        const weighted = this.config.weighted ? withDistances(input.graph, input.stored) : null;
+        let meaning: "strength" | "distance" | null = null;
+        if (this.config.weighted) {
+            meaning = input.weightMeaning === undefined ? "strength" : input.weightMeaning();
+        }
+
+        const weighted = meaning === null ? null : withDistances(input.graph, input.stored, meaning);
         return sceneUnits(
             kamadaKawai(weighted ?? input.graph, {
                 dist: this.distances(),

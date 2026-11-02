@@ -12,7 +12,9 @@ import { DEV_API_PATH, LIVE_API } from "./src/contract";
  */
 export default defineConfig(({ command, isPreview }) => {
     const serving = command === "serve" || isPreview;
-    if (serving && !process.env.PORT) throw new Error("PORT is not set: start it through servherd, which sets PORT");
+    if (serving && !process.env.PORT) {
+        throw new Error("PORT is not set: start it through servherd, which sets PORT");
+    }
     const target = (process.env.VITE_HEALTH_API_URL || LIVE_API).replace(/\/$/, "");
     const server = {
         port: Number(process.env.PORT),

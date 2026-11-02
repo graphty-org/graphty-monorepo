@@ -13,18 +13,27 @@ const none: Cell = { t: "none" };
 const name = (v: string): Cell => ({ t: "name", v });
 const pct = (n: number): number => Math.round(n * 100);
 const jobCell = (workflow: string, job: string): Cell => ({ t: "sub", main: name(job), sub: name(workflow) });
-/** Whole milliseconds, or 3 significant digits under 1 ms (the page shows those in microseconds). */
+/**
+ * Whole milliseconds, or 3 significant digits under 1 ms (the page shows those in microseconds).
+ * @param ms - a duration in milliseconds
+ * @returns the rounded value to show
+ */
 const msValue = (ms: number): number => (ms >= 1 ? Math.round(ms) : Number(ms.toPrecision(3)));
 
 /**
  * Chronically failing jobs: each with its failures in its newest runs, its last pass and its issue; one with no
  * open issue is marked red.
- * @param reads
+ * @param reads - the store and time window this cycle's sections read from
+ * @returns the chronic-jobs table, or an empty or not-collected section
  */
 export async function chronicTable(reads: Reads): Promise<Section> {
     const list = await readSnapshot(reads.store, "chronic-jobs");
-    if (!list) return notCollected("chronic");
-    if (!list.length) return { kind: "empty", id: "chronic", fact: f("ci.no_chronic") };
+    if (!list) {
+        return notCollected("chronic");
+    }
+    if (!list.length) {
+        return { kind: "empty", id: "chronic", fact: f("ci.no_chronic") };
+    }
     const rows: TableRow[] = list.map((j) => ({
         cells: {
             job: jobCell(j.workflow, j.job),
@@ -46,18 +55,23 @@ export async function chronicTable(reads: Reads): Promise<Section> {
 /**
  * Allowed to fail, and failing: every job ci.yml lets fail (job-level continue-on-error) with its pass rate over 7
  * days, in every run kind, worst first; failing in half its runs or more is marked red.
- * @param reads
+ * @param reads - the store and time window this cycle's sections read from
+ * @returns the non-gating jobs table, worst first
  */
 export async function nonGatingTable(reads: Reads): Promise<Section> {
     const jobs = await readSnapshot(reads.store, "non-gating");
-    if (!jobs) return notCollected("non-gating");
+    if (!jobs) {
+        return notCollected("non-gating");
+    }
     const dims = Object.entries((await reads.window("ci.job_outcome", "7d")).total.dims ?? {});
     const rows = jobs.map((pattern) => {
         let n = 0;
         let failed = 0;
         for (const [dim, a] of dims) {
             const [, job] = JSON.parse(dim) as [string, string];
-            if (!isJob(pattern, job)) continue;
+            if (!isJob(pattern, job)) {
+                continue;
+            }
             n += a.n;
             failed += a.sum;
         }
@@ -72,8 +86,11 @@ export async function nonGatingTable(reads: Reads): Promise<Section> {
             const rate: Cell = n ? { t: "num", n: pct((n - failed) / n), unit: "pct" } : none;
             // Red when it fails half its runs, yellow from a quarter: a job allowed to fail still says how often.
             let mark: "bad" | "warn" | undefined;
-            if (n && failed * 2 >= n) mark = "bad";
-            else if (n && failed * 4 >= n) mark = "warn";
+            if (n && failed * 2 >= n) {
+                mark = "bad";
+            } else if (n && failed * 4 >= n) {
+                mark = "warn";
+            }
             return {
                 cells: {
                     job: name(pattern),
@@ -90,11 +107,14 @@ export async function nonGatingTable(reads: Reads): Promise<Section> {
 /**
  * Benchmark trends: each benchmark's newest results, the median of the last 3 against the 10 before them, and its
  * results as a line (one point per run), all from the newest result's machine; a sustained regression is marked red, and listed first.
- * @param reads
+ * @param reads - the store and time window this cycle's sections read from
+ * @returns the benchmark trends table, or an empty section when there are no results
  */
 export async function benchmarksTable(reads: Reads): Promise<Section> {
     const benches = await readBenches(reads.store, reads.now);
-    if (!benches.length) return { kind: "empty", id: "benchmarks", fact: f("ci.no_benchmarks") };
+    if (!benches.length) {
+        return { kind: "empty", id: "benchmarks", fact: f("ci.no_benchmarks") };
+    }
     const rows = benches.map((b) => ({ b, t: trend(b.points) }));
     // Regressed first, then by ratio; those without 13 runs (no ratio yet) last.
     rows.sort(

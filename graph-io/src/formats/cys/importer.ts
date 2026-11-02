@@ -387,21 +387,7 @@ async function networks3(
             });
         }
     }
-    const known = new Set(choices.map((c) => c.graphId));
-    const strayViews = layout.views.filter((v) => !known.has(v.network)).map((v) => v.name);
-    const strayTables = layout.tables.filter(
-        (t) =>
-            !known.has(t.network) &&
-            !layout.networks.some((n) => n.suid === t.network) &&
-            !isGroupTable(t, session, docs),
-    );
-    if (strayViews.length > 0 || strayTables.length > 0) {
-        report.warning(
-            "validation-error",
-            CYS_ISSUE.DANGLING_REFERENCE,
-            `${strayViews.length + strayTables.length} view${plural(strayViews.length + strayTables.length)} or table${plural(strayViews.length + strayTables.length)} ${agree(strayViews.length + strayTables.length, "belongs", "belong")} to a network the session does not hold and were not read: ${listed([...strayViews, ...strayTables.map((t) => t.name)])}`,
-        );
-    }
+    warnStray(session, docs, choices, report);
     if (layout.networkList === null) {
         return choices;
     }
@@ -420,14 +406,7 @@ async function networks3(
         );
         return choices;
     }
-    const order = new Map<string, number>();
-    for (const node of elementsNamed(tree, "network")) {
-        const id = node.attrs.get("id");
-        const position = Number(node.attrs.get("order"));
-        if (id !== undefined && Number.isFinite(position)) {
-            order.set(id, position);
-        }
-    }
+    const order = networkOrder(tree);
     return choices
         .map((choice, index) => ({ choice, index }))
         .sort(
@@ -436,6 +415,54 @@ async function networks3(
                 a.index - b.index,
         )
         .map((c) => c.choice);
+}
+
+/**
+ * Warn about the views and tables of a 3.x session that belong to no network it holds.
+ * @param session - the session
+ * @param docs - the parsed network files
+ * @param choices - the registered subnetworks
+ * @param report - the report
+ */
+function warnStray(
+    session: Session,
+    docs: ReadonlyMap<string, Parsed>,
+    choices: readonly Choice3[],
+    report: ImportReportBuilder,
+): void {
+    const { layout } = session;
+    const known = new Set(choices.map((c) => c.graphId));
+    const strayViews = layout.views.filter((v) => !known.has(v.network)).map((v) => v.name);
+    const strayTables = layout.tables.filter(
+        (t) =>
+            !known.has(t.network) &&
+            !layout.networks.some((n) => n.suid === t.network) &&
+            !isGroupTable(t, session, docs),
+    );
+    if (strayViews.length > 0 || strayTables.length > 0) {
+        report.warning(
+            "validation-error",
+            CYS_ISSUE.DANGLING_REFERENCE,
+            `${strayViews.length + strayTables.length} view${plural(strayViews.length + strayTables.length)} or table${plural(strayViews.length + strayTables.length)} ${agree(strayViews.length + strayTables.length, "belongs", "belong")} to a network the session does not hold and were not read: ${listed([...strayViews, ...strayTables.map((t) => t.name)])}`,
+        );
+    }
+}
+
+/**
+ * The positions `network_list.xml` gives the networks.
+ * @param tree - the parsed list
+ * @returns network id -> its order
+ */
+function networkOrder(tree: XmlNode): Map<string, number> {
+    const order = new Map<string, number>();
+    for (const node of elementsNamed(tree, "network")) {
+        const id = node.attrs.get("id");
+        const position = Number(node.attrs.get("order"));
+        if (id !== undefined && Number.isFinite(position)) {
+            order.set(id, position);
+        }
+    }
+    return order;
 }
 
 /**
@@ -699,7 +726,41 @@ async function applyTables(
             unmatched += await applyTable(ctx, entry, table);
         }
     }
+    await applyGroupCollapsed(doc, layout.tables, tableOf);
     return unmatched;
+}
+
+/** The hidden network column where Cytoscape keeps the SUIDs of the networks a group is collapsed in. */
+const GROUP_COLLAPSED = "__groupCollapsed.SUID";
+
+/**
+ * Give each group's nested graph the networks it is collapsed in, from its own hidden network table. A session
+ * writes the nested graph's atts empty and keeps this state only there (`CyGroupImpl` stores it in the group
+ * network's hidden table); an XGMML file Cytoscape exports writes it as the nested graph's att, which is what the
+ * style reader reads.
+ * @param doc - the network file
+ * @param tables - the session's tables
+ * @param tableOf - reads a table by its path
+ */
+async function applyGroupCollapsed(
+    doc: Parsed["doc"],
+    tables: readonly TableEntry[],
+    tableOf: (path: string) => Promise<CyTable | null>,
+): Promise<void> {
+    for (const graph of doc.graphs) {
+        if (graph.owner === null || graph.id === null || graph.atts.some((a) => a.name === GROUP_COLLAPSED)) {
+            continue;
+        }
+        const entry = tables.find((t) => t.network === graph.id && t.namespace === "HIDDEN" && t.element === "network");
+
+        const table = entry === undefined ? null : await tableOf(entry.tablePath);
+        const at = table?.columns.findIndex((c) => c.name === GROUP_COLLAPSED) ?? -1;
+        const cells = table?.rows.get(graph.id);
+        if (table === null || table === undefined || at < 0 || cells === undefined) {
+            continue;
+        }
+        pushAtt(graph.atts, cellAtt(table.columns[at], cells[at] ?? "", table.lines.get(graph.id) ?? 0, null, true));
+    }
 }
 
 /**
@@ -931,16 +992,7 @@ function applyView(
             target.graphics = { ...target.graphics, ...node.graphics };
         }
     }
-    for (const edge of view.edges) {
-        const target = edge.viewId === null ? undefined : edges.get(edge.viewId);
-        if (target === undefined) {
-            dangling++;
-            continue;
-        }
-        if (edge.graphics !== null) {
-            target.graphics = { ...target.graphics, ...edge.graphics };
-        }
-    }
+    dangling += applyEdgeGraphics(view.edges, edges);
     if (view.root.graphics !== null) {
         graph.graphics = { ...graph.graphics, ...view.root.graphics };
     }
@@ -951,6 +1003,27 @@ function applyView(
             `${entryLabel(entry)}: ${dangling} view element${plural(dangling)} ${agree(dangling, "names", "name")} no node or edge of the network; they are not read`,
         );
     }
+}
+
+/**
+ * Copy the graphics of a view's edge elements onto the network's edge records (by `cy:edgeId`).
+ * @param viewEdges - the view's edge elements
+ * @param edges - the network's edge records by id
+ * @returns how many view edges name no edge of the network
+ */
+function applyEdgeGraphics(viewEdges: readonly EdgeRec[], edges: ReadonlyMap<string, EdgeRec>): number {
+    let dangling = 0;
+    for (const edge of viewEdges) {
+        const target = edge.viewId === null ? undefined : edges.get(edge.viewId);
+        if (target === undefined) {
+            dangling++;
+            continue;
+        }
+        if (edge.graphics !== null) {
+            target.graphics = { ...target.graphics, ...edge.graphics };
+        }
+    }
+    return dangling;
 }
 
 /**
@@ -1216,20 +1289,7 @@ async function networks2(
         return report.fail(CYS_ISSUE.NOT_SESSION, "the session has no cysession.xml");
     }
     const tree = await readXmlTree(await session.read(layout.cysession, report), layout.cysession.name, report, inner);
-    const documentVersion = tree.attrs.get("documentVersion") ?? "";
-    if (documentVersion.length > 0 && !/^\d+(\.\d+)*$/.test(documentVersion.trim())) {
-        report.warning(
-            "validation-error",
-            XGMML_ISSUE.DOCUMENT_VERSION,
-            `${layout.cysession.name}: documentVersion "${documentVersion}" does not parse; the session is read as Cytoscape 2.x`,
-        );
-    }
-    if (documentVersion.startsWith("3")) {
-        report.fail(
-            CYS_ISSUE.VERSION,
-            `cysession.xml has documentVersion ${documentVersion} and no version marker: the 2011 Cytoscape 3.0 pre-release layout, which no released Cytoscape reads`,
-        );
-    }
+    checkDocumentVersion2(tree, layout.cysession.name, report);
     const byDecoded = new Map<string, SessionEntry>();
     for (const [path, entry] of layout.files) {
         byDecoded.set(path, entry);
@@ -1240,49 +1300,10 @@ async function networks2(
     const missing: string[] = [];
     const named = new Set<SessionEntry>();
     for (const record of elementsNamed(tree, "network")) {
-        const given = record.attrs.get("id");
-        const filename = record.attrs.get("filename") ?? (given === undefined ? undefined : `${given}.xgmml`);
-        if (given === "Network Root") {
-            continue;
+        const choice = choice2Of(record, byDecoded, named, missing, report, layout.cysession.name);
+        if (choice !== null) {
+            choices.push(choice);
         }
-        if (filename === undefined) {
-            sessionRecord(
-                report,
-                layout.cysession.name,
-                "a <network> has neither an id nor a filename; it is not read",
-            );
-            continue;
-        }
-        const id = given ?? urlDecode(filename.replace(/\.xgmml$/i, ""));
-        if (given === undefined) {
-            sessionRecord(
-                report,
-                layout.cysession.name,
-                `a <network> for ${filename} has no id; it is named "${id}" after its file`,
-            );
-        }
-        const file = byDecoded.get(filename);
-        if (file === undefined) {
-            missing.push(filename);
-            continue;
-        }
-        if (named.has(file)) {
-            sessionRecord(
-                report,
-                layout.cysession.name,
-                `the <network> "${id}" names ${filename}, which an earlier record already names; it is not read a second time`,
-            );
-            continue;
-        }
-        named.add(file);
-        const parent = record.children.find((c) => c.name === "parent")?.attrs.get("id") ?? null;
-        choices.push({
-            era: "2",
-            file,
-            name: id,
-            record,
-            parent: parent === "Network Root" || parent === "NULL" ? null : parent,
-        });
     }
     if (missing.length > 0) {
         report.warning(
@@ -1300,6 +1321,86 @@ async function networks2(
         );
     }
     return choices.sort((a, b) => order.indexOf(a.file) - order.indexOf(b.file));
+}
+
+/**
+ * The documentVersion checks of networks2(): W_XGMML_DOCUMENT_VERSION for a version that does not parse, and
+ * E_CYS_VERSION for the Cytoscape 3.0 pre-release layout.
+ * @param tree - the cysession.xml tree
+ * @param entry - the cysession.xml entry name
+ * @param report - the report
+ */
+function checkDocumentVersion2(tree: XmlNode, entry: string, report: ImportReportBuilder): void {
+    const documentVersion = tree.attrs.get("documentVersion") ?? "";
+    if (documentVersion.length > 0 && !/^\d+(\.\d+)*$/.test(documentVersion.trim())) {
+        report.warning(
+            "validation-error",
+            XGMML_ISSUE.DOCUMENT_VERSION,
+            `${entry}: documentVersion "${documentVersion}" does not parse; the session is read as Cytoscape 2.x`,
+        );
+    }
+    if (documentVersion.startsWith("3")) {
+        report.fail(
+            CYS_ISSUE.VERSION,
+            `cysession.xml has documentVersion ${documentVersion} and no version marker: the 2011 Cytoscape 3.0 pre-release layout, which no released Cytoscape reads`,
+        );
+    }
+}
+
+/**
+ * The network one cysession.xml `<network>` record names, for networks2(): null for `Network Root`, a record with
+ * neither id nor filename, a file the session does not hold (added to `missing`) or one an earlier record named.
+ * @param record - the `<network>` record
+ * @param byDecoded - the session's entries by path, as written and URL-decoded
+ * @param named - the entries earlier records named; the entry this record names is added
+ * @param missing - the file names the session does not hold; this record's is added
+ * @param report - the report
+ * @param entry - the cysession.xml entry name
+ * @returns the network, or null when the record names none to read
+ */
+function choice2Of(
+    record: XmlNode,
+    byDecoded: ReadonlyMap<string, SessionEntry>,
+    named: Set<SessionEntry>,
+    missing: string[],
+    report: ImportReportBuilder,
+    entry: string,
+): Choice2 | null {
+    const given = record.attrs.get("id");
+    const filename = record.attrs.get("filename") ?? (given === undefined ? undefined : `${given}.xgmml`);
+    if (given === "Network Root") {
+        return null;
+    }
+    if (filename === undefined) {
+        sessionRecord(report, entry, "a <network> has neither an id nor a filename; it is not read");
+        return null;
+    }
+    const id = given ?? urlDecode(filename.replace(/\.xgmml$/i, ""));
+    if (given === undefined) {
+        sessionRecord(report, entry, `a <network> for ${filename} has no id; it is named "${id}" after its file`);
+    }
+    const file = byDecoded.get(filename);
+    if (file === undefined) {
+        missing.push(filename);
+        return null;
+    }
+    if (named.has(file)) {
+        sessionRecord(
+            report,
+            entry,
+            `the <network> "${id}" names ${filename}, which an earlier record already names; it is not read a second time`,
+        );
+        return null;
+    }
+    named.add(file);
+    const parent = record.children.find((c) => c.name === "parent")?.attrs.get("id") ?? null;
+    return {
+        era: "2",
+        file,
+        name: id,
+        record,
+        parent: parent === "Network Root" || parent === "NULL" ? null : parent,
+    };
 }
 
 /**

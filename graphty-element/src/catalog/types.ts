@@ -696,6 +696,7 @@ export type Channel =
     | "node.cornerFraction"
     | "node.shapePoints"
     | "node.shapeStretchPoints"
+    | "node.shapeRotation"
     | "node.shapeParts"
     | "node.shapeLines"
     | "node.shapeTexts"

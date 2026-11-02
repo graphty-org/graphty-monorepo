@@ -3,6 +3,7 @@ import {
     type Camera,
     Color3,
     DynamicTexture,
+    InstancedMesh,
     Mesh,
     MeshBuilder,
     Scene,
@@ -31,6 +32,7 @@ import { fontFamilies, noteLabelFont } from "./labelFonts";
 import { fitToScreen, type LabelPlacement, type PlacementBounds } from "./labelScreenFit";
 import { LabelTexture } from "./LabelTexture";
 import { fitTexturesToScreen } from "./labelTextureFit";
+import { labelBoxOf } from "./NodeShapeGeometry";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser, wrapLines } from "./RichTextParser";
@@ -1873,8 +1875,10 @@ export class RichTextLabel {
             return { min: target.clone(), max: target.clone() };
         }
         if (target && "getBoundingInfo" in target && target instanceof AbstractMesh) {
+            // a turned node shape keeps its label beside its unturned box
+            const own = labelBoxOf(target instanceof InstancedMesh ? target.sourceMesh : (target as Mesh));
             const { boundingBox } = target.getBoundingInfo();
-            return this.ringBounds({ min: boundingBox.minimum, max: boundingBox.maximum });
+            return this.ringBounds(own ?? { min: boundingBox.minimum, max: boundingBox.maximum });
         }
         return null;
     }

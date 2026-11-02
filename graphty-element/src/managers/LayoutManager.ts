@@ -1765,11 +1765,10 @@ export class LayoutManager implements Manager {
         options: { readonly restoring: boolean; readonly signal?: AbortSignal; readonly explicitScope?: boolean },
     ): Promise<void> {
         this.#wanted = choice;
-        const generation = this.#generation;
         const build = this.#applying.then(async () => {
             this.#building++;
             try {
-                await this.build(choice, options, generation);
+                await this.build(choice, options);
             } finally {
                 this.#building--;
                 if (this.#wanted === choice) {
@@ -1788,9 +1787,42 @@ export class LayoutManager implements Manager {
      * @param options.restoring - Whether this is a restore.
      * @param options.signal - The asking command's signal.
      * @param options.explicitScope - Whether the asking command named the scope.
-     * @param generation - The arrangement generation it was asked for under.
      */
     private async build(
+        choice: LayoutChoice,
+        options: { readonly restoring: boolean; readonly signal?: AbortSignal; readonly explicitScope?: boolean },
+    ): Promise<void> {
+        // A RESTORE OF THE ARRANGEMENT LANDING MID-BUILD STARTS THE BUILD OVER; it never fails it.
+        // The restore drops pre-steps computed from the coordinates it replaced (`loadArrangement`),
+        // but the layout is still wanted: only its own command being cancelled or overtaken (the
+        // signal) ends it. Failing it made a `setLayout` reject with an AbortError whenever another
+        // command's rollback -- a queued layout it overtook -- reached the arrangement hook after
+        // this build began, which moved with every microtask between the two (issue #5613).
+        for (;;) {
+            const generation = this.#generation;
+            try {
+                await this.buildOnce(choice, options, generation);
+                return;
+            } catch (error) {
+                const restoredOnly =
+                    options.signal?.aborted !== true && !options.restoring && this.#generation !== generation;
+                if (!restoredOnly || (error as Error | null)?.name !== "AbortError") {
+                    throw error;
+                }
+            }
+        }
+    }
+
+    /**
+     * One attempt at {@link LayoutManager.build}, given up when the arrangement is restored under it.
+     * @param choice - The value.
+     * @param options - How.
+     * @param options.restoring - Whether this is a restore.
+     * @param options.signal - The asking command's signal.
+     * @param options.explicitScope - Whether the asking command named the scope.
+     * @param generation - The arrangement generation the attempt began under.
+     */
+    private async buildOnce(
         choice: LayoutChoice,
         options: { readonly restoring: boolean; readonly signal?: AbortSignal; readonly explicitScope?: boolean },
         generation: number,

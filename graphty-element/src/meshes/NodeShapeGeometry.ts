@@ -1,6 +1,37 @@
-import { Matrix, Mesh, type Scene, VertexBuffer, VertexData } from "@babylonjs/core";
+import { Matrix, Mesh, type Scene, Vector3, VertexBuffer, VertexData } from "@babylonjs/core";
 
 import { earClip, fansFromOrigin, type Point2, type RingPiece } from "./shapeOutlines";
+
+/**
+ * The box a label is placed against, for a node mesh whose turned outline (`shape.rotation`) reaches past it: the
+ * node's own width and height, unturned, in the mesh's local units. A label stays where it is beside its node
+ * however the node's shape is turned, as Pajek places it. A mesh not listed is placed against its bounding box.
+ */
+const LABEL_BOXES = new WeakMap<Mesh, { readonly min: Vector3; readonly max: Vector3 }>();
+
+/**
+ * Record the box a turned node mesh's label is placed against.
+ * @param mesh - The node's source mesh.
+ * @param outline - Its outline before it was turned.
+ */
+export function setLabelBox(mesh: Mesh, outline: readonly Point2[]): void {
+    const xs = outline.map(([x]) => x);
+    const ys = outline.map(([, y]) => y);
+    const { minimum, maximum } = mesh.getBoundingInfo().boundingBox;
+    LABEL_BOXES.set(mesh, {
+        min: new Vector3(Math.min(...xs), Math.min(...ys), minimum.z),
+        max: new Vector3(Math.max(...xs), Math.max(...ys), maximum.z),
+    });
+}
+
+/**
+ * The box a label is placed against on a node mesh, where it is not the mesh's bounding box.
+ * @param mesh - The mesh, or the source of an instance.
+ * @returns The box in the mesh's local units, or undefined.
+ */
+export function labelBoxOf(mesh: Mesh): { readonly min: Vector3; readonly max: Vector3 } | undefined {
+    return LABEL_BOXES.get(mesh);
+}
 
 /**
  * Collects the triangles of a slab: a 2D shape given a depth along z, front face towards -z (where

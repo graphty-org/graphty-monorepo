@@ -428,6 +428,7 @@ export interface ChannelValues {
     "node.overlayCornerRadius": number;
     "node.shapePoints": string;
     "node.shapeStretchPoints": boolean;
+    "node.shapeRotation": number;
     "node.shapeParts": string;
     "node.shapeLines": string;
     "node.shapeTexts": string;
@@ -3518,6 +3519,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "the node's sides (true), or drawn exactly where they say, as fractions of its half width and " +
             "half height (false), so a regular polygon inside the ellipse of the node's box keeps its size. " +
             "Other shapes ignore it.",
+    },
+    "node.shapeRotation": {
+        channel: "node.shapeRotation",
+        target: "node",
+        plainName: "Node Shape Rotation",
+        shortName: "Shape rotation",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "shape.rotation",
+        renderable: true,
+        caveat:
+            "Degrees clockwise a flat shape's outline is turned about the node's center, after it is drawn at " +
+            "its width and height; its fill, border and the edges ending at it turn with it, its label does " +
+            "not. Solids ignore it.",
     },
     "node.shapeParts": {
         channel: "node.shapeParts",

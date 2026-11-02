@@ -23,14 +23,28 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /**
+ * The open workspace, waited for (spec 3.0).
+ * @returns it.
+ */
+async function ws(): Promise<HTMLElement> {
+    return waitFor(() => {
+        const found = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(found, "the workspace is open");
+        return found;
+    });
+}
+
+/**
  * The "Condition..." control: an empty selection's row, else the selected row's pane button.
  * @param scope - where to look.
  * @returns the control.
  */
-function conditionControl(scope: HTMLElement = document.body): HTMLElement {
+function conditionControl(scope?: HTMLElement): HTMLElement {
+    // In the workspace while it is open (spec 3.0), else the sidebar's Condition row, which opens it.
+    const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
     return (
-        within(scope).queryByRole("treeitem", { name: "Condition..." }) ??
-        within(scope).getByRole("button", { name: "Condition..." })
+        within(where).queryByRole("treeitem", { name: "Condition..." }) ??
+        within(where).getByRole("button", { name: "Condition..." })
     );
 }
 
@@ -132,18 +146,18 @@ describe("the import filter's cards as selections", () => {
         assert.lengthOf(session.visibility.conditions, 0);
     });
 
-    it("a new card whose step has no test is kept, folded, across a switch of place", async () => {
+    it("a new card whose step has no test is kept across Done and a switch of place", async () => {
         const session = await openData();
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Degree");
         await userEvent.keyboard("{Enter}");
         await screen.findByRole("textbox", { name: "Degree from, number" });
-        // Escape ends picking, Escape again folds the card.
+        // Escape takes focus from the pane's box to its row; Escape again is Done.
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(document.querySelector(".sel-editor"), "the card folded");
+            assert.isNull(document.querySelector(".sel-ws"), "the workspace closed");
         });
         assert.lengthOf(session.visibility.conditions, 1, "the element holds it");
         assert.strictEqual(session.visibility.nodes.size, 77, "and it removes nothing");
@@ -151,9 +165,9 @@ describe("the import filter's cards as selections", () => {
         await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
         const card = await filterCard(/degree/i);
         await userEvent.click(within(card).getByRole("button", { name: /Degree/ }));
-        await waitFor(() => {
-            assert.lengthOf(document.querySelectorAll(".sel-step-row[data-row]"), 1, "its step came back");
-        });
+        // A card named after its only step is its title row (repolish 2): the step, untested, is back.
+        const title = await within(card).findByRole("treeitem", { name: /^Degree, / });
+        assert.include(title.textContent ?? "", "No test");
     });
 
     it("a new card's Edges switch starts it again on edges", async () => {
@@ -164,8 +178,8 @@ describe("the import filter's cards as selections", () => {
         // A click on the card's title closes the value picker and keeps the card, its title pane open.
         await userEvent.click(within(card).getByRole("treeitem", { name: /^New filter, / }));
         // The segment's radio is visually hidden: a reader clicks its label.
-        await userEvent.click(await within(card).findByText("Edges"));
-        await userEvent.click(await waitFor(() => conditionControl(card)));
+        await userEvent.click(await within(await ws()).findByText("Edges"));
+        await userEvent.click(await waitFor(async () => conditionControl(await ws())));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Self-loops");
         await userEvent.keyboard("{Enter}");
@@ -189,7 +203,7 @@ describe("the import filter's cards as selections", () => {
             assert.isNull(within(filters).queryByText(word), word);
         }
         await userEvent.click(within(card).getByRole("treeitem", { name: /^Degree min 10, / }));
-        await userEvent.click(await within(card).findByRole("button", { name: /^More for / }));
+        await userEvent.click(await within(await ws()).findByRole("button", { name: /^More for / }));
         const items = await screen.findAllByRole("menuitem");
         assert.equal(items[0]?.textContent?.trim().startsWith(`Select ${String(expected)}`), true);
         await userEvent.click(items[0]);
@@ -228,8 +242,7 @@ describe("the import filter's cards as selections", () => {
         });
         assert.strictEqual(session.visibility.summary.visibleNodes, visible, "and is still filtered out");
         assert.equal(session.visibility.conditions[0]?.rule.kind, "range", "selecting it writes nothing");
-        row.focus();
-        await userEvent.keyboard("{Escape}");
+        await userEvent.click(within(await ws()).getByRole("button", { name: "Done" }));
         await waitFor(async () => {
             assert.isFalse(session.styles.showingBranches);
             await session.styles.settled();

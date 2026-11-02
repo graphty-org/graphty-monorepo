@@ -24,10 +24,12 @@ import { Workspace } from "../../Workspace";
  * @param scope - where to look.
  * @returns the control.
  */
-function conditionControl(scope: HTMLElement = document.body): HTMLElement {
+function conditionControl(scope?: HTMLElement): HTMLElement {
+    // In the selection workspace while it is open, else the sidebar's Condition row, which opens it.
+    const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
     return (
-        within(scope).queryByRole("treeitem", { name: "Condition..." }) ??
-        within(scope).getByRole("button", { name: "Condition..." })
+        within(where).queryByRole("treeitem", { name: "Condition..." }) ??
+        within(where).getByRole("button", { name: "Condition..." })
     );
 }
 
@@ -99,8 +101,12 @@ describe("the date condition card", () => {
         const option = await screen.findByRole("option", { name: /^installed(,|$)/ });
         assert.isNotNull(option.querySelector("svg.lucide-calendar"), "listed with the calendar glyph");
         await userEvent.click(option);
-        const list = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", { name: "Filters" });
-        const card = await within(list).findByRole("group", { name: /^installed/ });
+        // The new card's step is edited in the selection workspace (selection spec 3.0).
+        const card = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found);
+            return found;
+        });
         await typeBefore2005(card);
         await userEvent.keyboard("{Enter}");
         // A card says what stays: All nodes, then Keep the range.

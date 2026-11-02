@@ -27,10 +27,12 @@ import { Workspace } from "../../Workspace";
  * @param scope - where to look.
  * @returns the control.
  */
-function conditionControl(scope: HTMLElement = document.body): HTMLElement {
+function conditionControl(scope?: HTMLElement): HTMLElement {
+    // In the workspace while it is open (spec 3.0), else the sidebar's Condition row, which opens it.
+    const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
     return (
-        within(scope).queryByRole("treeitem", { name: "Condition..." }) ??
-        within(scope).getByRole("button", { name: "Condition..." })
+        within(where).queryByRole("treeitem", { name: "Condition..." }) ??
+        within(where).getByRole("button", { name: "Condition..." })
     );
 }
 
@@ -119,6 +121,15 @@ async function openLayer(
     });
     return layer;
 }
+
+/**
+ * A row of the workspace's outline while it is open, else of the sidebar's.
+ * @param id - the row's id.
+ * @returns the row, or null.
+ */
+const wsRow = (id: string): HTMLElement | null =>
+    document.querySelector<HTMLElement>(`.sel-ws [data-row="${id}"]`) ??
+    document.querySelector<HTMLElement>(`[data-row="${id}"]`);
 
 /**
  * A layer's selection as the element holds it.
@@ -329,11 +340,11 @@ describe("the editor's verbs, groups and words", () => {
         await waitFor(() => {
             assert.isTrue(session.styles.showingBranches);
         });
-        await userEvent.hover(document.querySelector<HTMLElement>('[data-row="b"]') ?? document.body);
+        await userEvent.hover(wsRow("b") ?? document.body);
         await waitFor(() => {
             assert.equal(session.styles.shownBranches?.mark, "b", "the hovered group is marked");
         });
-        await userEvent.unhover(document.querySelector<HTMLElement>('[data-row="b"]') ?? document.body);
+        await userEvent.unhover(wsRow("b") ?? document.body);
         await waitFor(() => {
             assert.isUndefined(session.styles.shownBranches?.mark);
         });
@@ -536,8 +547,9 @@ describe("polish round 3", () => {
                 ],
             },
         });
+        await userEvent.click(screen.getByRole("button", { name: /^Edit Which / }));
         const second = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>('[data-row="b"]');
+            const found = document.querySelector<HTMLElement>('.sel-ws [data-row="b"]');
             assert.isNotNull(found);
             return found;
         });

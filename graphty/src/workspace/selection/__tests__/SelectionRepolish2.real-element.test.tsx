@@ -90,7 +90,10 @@ function unionOf(session: GraphSession, id: string): UnionLeaf | undefined {
  * @returns The row.
  */
 function row(id: string): HTMLElement {
-    const found = document.querySelector<HTMLElement>(`[data-row="${id}"]`);
+    // The workspace's row while it is open, else the sidebar's.
+    const found =
+        document.querySelector<HTMLElement>(`.sel-ws [data-row="${id}"]`) ??
+        document.querySelector<HTMLElement>(`[data-row="${id}"]`);
     if (found === null) {
         throw new Error(`no row ${id}`);
     }
@@ -102,7 +105,7 @@ function row(id: string): HTMLElement {
  * @returns "id@top" per row.
  */
 function rowTops(): string[] {
-    return [...document.querySelectorAll<HTMLElement>(".sel-outline [data-row]")].map(
+    return [...document.querySelectorAll<HTMLElement>(".sel-ws .sel-outline [data-row]")].map(
         (each) => `${each.dataset.row ?? ""}@${String(Math.round(each.getBoundingClientRect().top))}`,
     );
 }
@@ -401,7 +404,7 @@ describe("a narrowing step's checklist", () => {
 });
 
 describe("moving between filter cards", () => {
-    it("with one card's pane open, a click on another card's row opens that card", async () => {
+    it("with one card's workspace open, a click on another card's row switches it to that card", async () => {
         const session = await lesMis("data");
         await session.visibility.addCondition({ id: "a", effect: "keep", rule: DEGREE_6_TO_10 });
         await session.visibility.addCondition({ id: "b", effect: "keep", rule: { kind: "isolated" } });
@@ -410,9 +413,7 @@ describe("moving between filter cards", () => {
         await userEvent.click(upper.querySelector(".dp-filter-title") ?? upper);
         const title = await within(upper).findByRole("treeitem", { name: /^Degree 6 to 10, / });
         await userEvent.click(title.querySelector(".sel-title") ?? title);
-        await waitFor(() => {
-            assert.isNotNull(upper.querySelector(".sel-pane-box"), "the upper card's pane is open");
-        });
+        await screen.findByRole("region", { name: "Degree 6 to 10 -- Filters" });
         const lower = await within(list).findByRole("group", { name: /^Isolated/ });
         const count = lower.querySelector<HTMLElement>(".dp-filter-name .sel-count");
         if (count === null) {
@@ -420,6 +421,7 @@ describe("moving between filter cards", () => {
         }
         await userEvent.click(count);
         await within(lower).findByRole("treeitem", { name: /^Isolated, / });
+        await screen.findByRole("region", { name: "Isolated -- Filters" });
     });
 });
 

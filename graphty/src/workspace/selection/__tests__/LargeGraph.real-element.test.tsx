@@ -202,6 +202,70 @@ describe("the selection editor on 50,000 nodes", () => {
         );
     });
 
+    it("a 5,000-value checklist never re-sorts under the pointer; the order changes only on a search (check 43)", async () => {
+        const session = await openGenerated();
+        await openLayer(
+            session,
+            "Still",
+            oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
+        );
+        await selectStep("com");
+        const values = await screen.findByRole("group", { name: "community values" });
+        const boxes = (): HTMLElement[] => within(values).getAllByRole("checkbox");
+        const order = (): string[] =>
+            boxes().map((box) => box.getAttribute("aria-label") ?? box.closest("label")?.textContent ?? "");
+        const tops = (): number[] => boxes().map((box) => Math.round(box.getBoundingClientRect().top));
+        const before = order();
+        const beforeTops = tops();
+        await userEvent.hover(boxes()[2]);
+        for (const at of [2, 3, 4]) {
+            await userEvent.click(boxes()[at]);
+        }
+        await waitFor(() => {
+            assert.lengthOf(
+                boxes().filter((box) => (box as HTMLInputElement).checked),
+                3,
+            );
+        });
+        assert.deepEqual(order(), before, "every row stayed where it was");
+        assert.deepEqual(tops(), beforeTops);
+        const search = screen.getByRole("textbox", { name: "Search community" });
+        await userEvent.type(search, "1");
+        await userEvent.clear(search);
+        await waitFor(() => {
+            assert.notDeepEqual(order(), before, "a search sets the order again: the checked first");
+        });
+        assert.isTrue(
+            boxes()
+                .slice(0, 3)
+                .every((box) => (box as HTMLInputElement).checked),
+        );
+    });
+
+    it("the Links picker lists the edge columns, never values (fix 1 on 50,000 nodes)", async () => {
+        const session = await openGenerated();
+        await openLayer(session, "Linked", oneStep("deg", { kind: "range", attribute: "graphty.degree", min: 3 }));
+        await selectStep("deg");
+        const pane = document.querySelector<HTMLElement>('[data-step-pane="deg"]');
+        if (pane === null) {
+            throw new Error("the pane is drawn");
+        }
+        await userEvent.click(within(pane).getByRole("button", { name: /^Advanced/ }));
+        const links = await within(pane).findByRole("radiogroup", { name: "Links" });
+        await userEvent.click(within(links).getByText("Links where ..."));
+        await userEvent.click(await within(pane).findByRole("button", { name: "Links value: none" }));
+        await screen.findByRole("combobox", { name: "Find edge attributes" });
+        // The generated graph's edges carry no column: the list is the edge columns, here none,
+        // and never a value of the 99,000 edges.
+        assert.isBelow(screen.queryAllByRole("option").length, 50);
+        await userEvent.keyboard("{Escape}");
+        assert.isUndefined(
+            (session.styles.list().find((layer) => layer.name === "Linked")?.selector as { where?: UnionLeaf }).where
+                ?.branches[0]?.steps[0]?.links,
+            "nothing picked, no links written",
+        );
+    });
+
     it("the value picker lists columns and algorithms, never values", async () => {
         const session = await openGenerated();
         await openLayer(session, "Values", oneStep("deg", { kind: "range", attribute: "graphty.degree", min: 3 }));

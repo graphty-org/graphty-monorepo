@@ -29,10 +29,12 @@ import { Workspace } from "../../Workspace";
  * @param scope - where to look.
  * @returns the control.
  */
-function conditionControl(scope: HTMLElement = document.body): HTMLElement {
+function conditionControl(scope?: HTMLElement): HTMLElement {
+    // In the workspace while it is open (spec 3.0), else the sidebar's Condition row, which opens it.
+    const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
     return (
-        within(scope).queryByRole("treeitem", { name: "Condition..." }) ??
-        within(scope).getByRole("button", { name: "Condition..." })
+        within(where).queryByRole("treeitem", { name: "Condition..." }) ??
+        within(where).getByRole("button", { name: "Condition..." })
     );
 }
 
@@ -80,6 +82,19 @@ async function openLayer(session: GraphSession, name: string, selector: Selector
 }
 
 /**
+ * Opens the workspace from the sidebar outline's Edit button (spec 3.0).
+ * @returns the workspace.
+ */
+async function openWs(): Promise<HTMLElement> {
+    await userEvent.click(screen.getByRole("button", { name: /^Edit Which / }));
+    return waitFor(() => {
+        const found = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(found, "the workspace is open");
+        return found;
+    });
+}
+
+/**
  * A layer's selection as the element holds it.
  * @param session - The session.
  * @param id - The layer.
@@ -95,7 +110,8 @@ function unionOf(session: GraphSession, id: string): UnionLeaf | undefined {
  * @returns their accessible names.
  */
 function stepRows(): string[] {
-    return [...document.querySelectorAll<HTMLElement>(".sel-step-row[data-row]")].map(
+    // The sidebar's read-only outline: the summary, with every row's state word (spec 3.0).
+    return [...document.querySelectorAll<HTMLElement>(".sel-rest .sel-step-row[data-row]")].map(
         (row) => row.getAttribute("aria-label") ?? "",
     );
 }
@@ -106,7 +122,10 @@ function stepRows(): string[] {
  * @returns the row.
  */
 function row(id: string): HTMLElement {
-    const found = document.querySelector<HTMLElement>(`[data-row="${id}"]`);
+    // The workspace's row while it is open, else the sidebar's.
+    const found =
+        document.querySelector<HTMLElement>(`.sel-ws [data-row="${id}"]`) ??
+        document.querySelector<HTMLElement>(`[data-row="${id}"]`);
     if (found === null) {
         throw new Error(`no row ${id}`);
     }
@@ -289,6 +308,7 @@ describe("the selection editor in a style layer", () => {
             ],
         };
         const layer = await openLayer(session, "Ordered", { match: "rule", where: rule });
+        await openWs();
         row("deg").focus();
         // Figma's Send backward: Ctrl+[ moves the first step down the list.
         await userEvent.keyboard("{Control>}[[{/Control}");
@@ -381,7 +401,12 @@ describe("the selection editor in a filter card", () => {
         const title = await within(card).findByRole("treeitem", { name: /^Degree 6 to 10, / });
         assert.isNull(card.querySelector(".sel-step-row[data-row]"), "no outline under a card that is its recipe");
         await userEvent.click(title.querySelector(".sel-title") ?? title);
-        const verbs = await within(card).findByRole("radiogroup", { name: "Verb" });
+        const ws = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found);
+            return found;
+        });
+        const verbs = await within(ws).findByRole("radiogroup", { name: "Verb" });
         // The segment's radio is visually hidden: the pointer clicks its label.
         await userEvent.click(within(verbs).getByText("Except"));
         await waitFor(() => {
@@ -391,11 +416,11 @@ describe("the selection editor in a filter card", () => {
             assert.equal((rule as UnionLeaf).branches[0]?.steps[0]?.op, "except");
         });
 
-        await userEvent.click(conditionControl(card));
+        await userEvent.click(conditionControl(ws));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Within hops");
         await userEvent.keyboard("{Enter}");
-        await userEvent.click(await within(card).findByRole("button", { name: "Reference" }));
+        await userEvent.click(await within(ws).findByRole("button", { name: "Reference" }));
         const options = (await screen.findAllByRole("option")).map((each) => each.textContent ?? "");
         assert.notInclude(options, "Hovered or selected");
         assert.include(options, "So far");
@@ -428,31 +453,28 @@ function nodeRows(): number {
 }
 
 describe("the selection editor and the table", () => {
-    it("the title pane's Table item opens the table on Matches only with the Group column, focus kept in the editor", async () => {
+    it("the workspace's strip lists the matches only with the Group column; its Table item hides it, focus kept", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
         const total = session.scope.watchSteps(TWO_GROUPS, () => undefined);
         const expected = total.current.total.count;
         total.end();
-        const editor = document.querySelector<HTMLElement>(".sel-editor");
-        if (editor === null) {
-            throw new Error("the editor is drawn");
-        }
-        await userEvent.click(within(editor).getByRole("treeitem", { name: /^Which nodes, / }));
-        await userEvent.click(within(editor).getByRole("button", { name: /^More for / }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Table/ }));
+        const ws = await openWs();
         await waitFor(() => {
             assert.equal(nodeRows(), expected, "only the rows the selection matches");
         });
-        assert.isNotNull(screen.queryByRole("columnheader", { name: /^Group/ }));
-        const matches = screen.getByRole("radio", { name: "Matches only" });
-        assert.isTrue((matches as HTMLInputElement).checked);
-        assert.isTrue(editor.contains(document.activeElement), "focus stays in the editor");
-        await userEvent.click(within(screen.getByRole("radiogroup", { name: "Rows" })).getByText("All"));
+        assert.isNotNull(within(ws).queryByRole("columnheader", { name: /^Group/ }));
+        assert.isNull(document.querySelector(".ws-dock"), "the main table stays closed");
+        await userEvent.click(within(ws).getByRole("button", { name: /^More for / }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Hide table/ }));
         await waitFor(() => {
-            assert.equal(nodeRows(), 77);
+            assert.equal(nodeRows(), -1, "the strip is hidden");
         });
-        assert.isNotNull(screen.queryByRole("columnheader", { name: /^Group/ }));
+        assert.isTrue(ws.contains(document.activeElement), "focus stays in the workspace");
+        await userEvent.click(within(ws).getByRole("button", { name: "Table" }));
+        await waitFor(() => {
+            assert.equal(nodeRows(), expected);
+        });
     });
 
     it("a style group's count selects exactly its members", async () => {
@@ -472,10 +494,10 @@ describe("the selection editor and the table", () => {
         await session.visibility.addCondition({ id: "deg", effect: "keep", rule: { ...TWO_GROUPS, within: "graph" } });
         const expected = await counted(session, DEGREE_6_TO_10);
         const card = await filterCard(/degree/i);
-        await userEvent.click(within(card).getByRole("button", { name: /^Degree/ }));
+        await userEvent.click(within(card).getByRole("button", { name: /Degree/ }));
         await userEvent.click(await waitFor(() => row("a")));
         await userEvent.click(
-            await within(card).findByRole("button", { name: `Show ${String(expected)} of 77 nodes in the table` }),
+            await screen.findByRole("button", { name: `Show ${String(expected)} of 77 nodes in the table` }),
         );
         await waitFor(() => {
             assert.equal(nodeRows(), expected, "only the rows it counts");
@@ -537,6 +559,7 @@ describe("the selection editor's keys, names and limits", () => {
     it("a group's rename starts with its name selected and keeps what was typed on a click away", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
         row("b").focus();
         await userEvent.keyboard("{F2}");
         const field = await screen.findByRole("textbox", { name: "Rename B" });
@@ -544,7 +567,7 @@ describe("the selection editor's keys, names and limits", () => {
             assert.strictEqual(document.activeElement, field);
         });
         await userEvent.keyboard("Staff");
-        await userEvent.click(screen.getByRole("treeitem", { name: /^Which nodes, / }));
+        await userEvent.click(row("title"));
         await waitFor(() => {
             assert.equal(unionOf(session, layer.id)?.branches[1]?.name, "Staff");
         });
@@ -553,6 +576,7 @@ describe("the selection editor's keys, names and limits", () => {
     it("Space on a step's row switches it off and the row says Off; Enter moves into the pane", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
         row("deg").focus();
         await userEvent.keyboard(" ");
         await waitFor(() => {
@@ -567,7 +591,7 @@ describe("the selection editor's keys, names and limits", () => {
         });
     });
 
-    it("Escape in a pane's box ends picking and keeps the box's text", async () => {
+    it("Escape in a pane's box takes focus to its row and keeps the text; Escape again is Done", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Picked", { match: "rule", where: DEGREE_6_TO_10 });
         await userEvent.click(document.querySelector(".sel-step-row .sel-value") ?? document.body);
@@ -579,7 +603,12 @@ describe("the selection editor's keys, names and limits", () => {
         });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(document.querySelector("[data-step-pane]"), "the pane closed");
+            assert.isNotNull(document.activeElement?.closest(".sel-ws-outline [data-row]"), "focus is on its row");
+        });
+        assert.isTrue(session.styles.showingBranches, "the workspace is still open");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector("[data-step-pane]"), "the workspace closed");
             assert.isFalse(session.styles.showingBranches, "the preview ended");
         });
         const steps = unionOf(session, layer.id)?.branches[0]?.steps;
@@ -589,7 +618,7 @@ describe("the selection editor's keys, names and limits", () => {
     it("Or... is off once the groups use every color, and pressing it changes nothing", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Six", { match: "rule", where: SIX_GROUPS });
-        await userEvent.click(screen.getByRole("treeitem", { name: /^Which nodes, / }));
+        await openWs();
         const or = await screen.findByRole("button", { name: "Or..." });
         assert.equal(or.getAttribute("aria-disabled"), "true");
         // A disabled button takes no click; Enter on it is the press a reader can still make.
@@ -605,17 +634,18 @@ describe("the outline at rest (the owner's review of 2026-11-01)", () => {
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
         // The pointer leaves the editor: nothing is hovered, nothing selected.
         await userEvent.hover(screen.getByRole("tree", { name: "Style layers" }));
-        const editor = document.querySelector<HTMLElement>(".sel-editor");
+        const editor = document.querySelector<HTMLElement>(".sel-rest");
         if (editor === null) {
             throw new Error("the editor is drawn");
         }
+        // The read-only outline's one control is the title row's Edit (spec 3.0).
         await waitFor(() => {
             const shown = [...editor.querySelectorAll<HTMLElement>("button, input, [role=checkbox]")].filter(
                 (each) => each.getClientRects().length > 0,
             );
             assert.deepEqual(
                 shown.map((each) => each.getAttribute("aria-label") ?? each.textContent),
-                [],
+                ["Edit Which nodes"],
             );
         });
         for (const each of editor.querySelectorAll<HTMLElement>(".sel-row")) {
@@ -634,10 +664,11 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
     it("pointing at a group or a step adds no row and moves nothing; the editor keeps its height", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
-        await userEvent.hover(screen.getByRole("tree", { name: "Style layers" }));
-        const editor = document.querySelector<HTMLElement>(".sel-editor");
+        const ws = await openWs();
+        await userEvent.hover(within(ws).getByRole("button", { name: "Done" }));
+        const editor = ws.querySelector<HTMLElement>(".sel-ws-outline");
         if (editor === null) {
-            throw new Error("the editor is drawn");
+            throw new Error("the outline is drawn");
         }
         const boxes = (): string[] =>
             [...editor.querySelectorAll<HTMLElement>("[data-row]")].map((each) => {
@@ -652,12 +683,12 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
             assert.equal(editor.getBoundingClientRect().height, height, `pointing at ${id}`);
         }
         assert.isNull(screen.queryByRole("treeitem", { name: "Condition..." }), "no Condition row on hover");
-        assert.isNull(screen.queryByRole("button", { name: "Or..." }), "no Or... on hover");
     });
 
     it("Enter on a selected step puts focus in its pane; the outline's arrows then stay in the outline", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
         row("a").focus();
         await userEvent.keyboard("{ArrowDown}");
         await waitFor(() => {

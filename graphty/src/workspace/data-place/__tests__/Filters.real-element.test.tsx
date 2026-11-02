@@ -72,11 +72,24 @@ async function card(name: RegExp): Promise<ReturnType<typeof within>> {
  */
 async function addValueCard(session: GraphSession): Promise<void> {
     await columnVerb("edge", "value", "Filter to...");
-    const from = await within(filters()).findByRole("textbox", { name: "value from, number" });
+    // A new card's step is edited in the selection workspace (selection spec 3.0).
+    const from = await screen.findByRole("textbox", { name: "value from, number" });
     await userEvent.clear(from);
     await userEvent.type(from, "9{Enter}");
     await waitFor(() => {
         assert.lengthOf(session.visibility.conditions, 1);
+    });
+}
+
+/**
+ * The open selection workspace (selection spec 3.0), waited for.
+ * @returns it.
+ */
+async function workspace(): Promise<HTMLElement> {
+    return waitFor(() => {
+        const found = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(found, "the workspace is open");
+        return found;
     });
 }
 
@@ -163,7 +176,7 @@ describe("Filter cards on the real element", () => {
         const label = await card(/label/);
         await userEvent.click(label.getByRole("button", { name: /^label/ }));
         await waitFor(() => {
-            assert.lengthOf(document.querySelectorAll(".sel-editor"), 1);
+            assert.lengthOf(document.querySelectorAll(".sel-rest"), 1);
         });
         const resting = await card(/value/);
         assert.equal(resting.getByRole("button", { name: /^value/ }).getAttribute("aria-expanded"), "false");
@@ -176,7 +189,7 @@ describe("Filter cards on the real element", () => {
         await addValueCard(session);
         const valueCard = await card(/value/);
         await userEvent.click(valueCard.getByRole("treeitem", { name: /^value / }));
-        await userEvent.click(await valueCard.findByRole("button", { name: /^More for / }));
+        await userEvent.click(await within(await workspace()).findByRole("button", { name: /^More for / }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete/ }));
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 0);
@@ -190,7 +203,7 @@ describe("Filter cards on the real element", () => {
         await addValueCard(session);
         const valueCard = await card(/value/);
         await userEvent.click(valueCard.getByRole("treeitem", { name: /^value / }));
-        await userEvent.click(await valueCard.findByRole("button", { name: /^More for / }));
+        await userEvent.click(await within(await workspace()).findByRole("button", { name: /^More for / }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Duplicate/ }));
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 2);

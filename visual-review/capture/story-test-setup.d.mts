@@ -6,3 +6,12 @@ export function installVisualStoryTest(options: {
     vi?: unknown;
     commands: unknown;
 }): void;
+
+export function modeGlobals(
+    storyGlobals?: Record<string, unknown>,
+    mode?: Record<string, unknown>,
+    project?: {
+        globalTypes?: Record<string, { defaultValue?: unknown }>;
+        initialGlobals?: Record<string, unknown>;
+    },
+): Record<string, unknown>;

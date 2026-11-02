@@ -97,6 +97,30 @@ function runningClock() {
 }
 
 /**
+ * The globals a mode renders a story with, in Storybook's own order: the project's, then the
+ * mode's, then the story's own `globals`. capture.mjs passes the mode in the story's URL, where
+ * Storybook lets a global the story sets win; overriding it here instead drew a story that pins
+ * `colorScheme: "light"` dark in the dark mode, and capture.mjs's second shot light (#5692).
+ * A composed story's `globals` holds the project's defaults and the story's own together, so the
+ * story's own are the ones that differ from the project's.
+ * ponytail: a story global equal to the project's default reads as the project's, so a mode still
+ * overrides it; read the story's annotations if a story ever pins a global to its default.
+ * @param {Record<string, unknown> | undefined} storyGlobals a composed story's `globals`
+ * @param {Record<string, unknown>} mode the mode's globals
+ * @param {{ globalTypes?: Record<string, { defaultValue?: unknown }>, initialGlobals?: Record<string, unknown> }} [project]
+ *     the project annotations (default: the ones Storybook's Vitest setup installed)
+ * @returns {Record<string, unknown>} the globals to render with
+ */
+export function modeGlobals(storyGlobals = {}, mode = {}, project = globalThis.globalProjectAnnotations ?? {}) {
+    const defaults = {
+        ...Object.fromEntries(Object.entries(project.globalTypes ?? {}).map(([k, t]) => [k, t?.defaultValue])),
+        ...project.initialGlobals,
+    };
+    const own = Object.fromEntries(Object.entries(storyGlobals).filter(([k, v]) => defaults[k] !== v));
+    return { ...storyGlobals, ...mode, ...own };
+}
+
+/**
  * Installs the visual step in the tester page.
  * @param {{ afterEach: Function, beforeEach: Function, vi?: any, commands: any }} options the setup
  *     file's Vitest hooks and `commands` from `vitest/browser` (`vi` is accepted and not used)
@@ -174,11 +198,12 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
 
     const render = async (story, mode) => {
         await fresh();
-        await story.run(mode.globals ? { globals: { ...story.globals, ...mode.globals } } : undefined);
+        await story.run(mode.globals ? { globals: modeGlobals(story.globals, mode.globals) } : undefined);
     };
     // The test's own render is the first mode's when that mode changes no global.
     const rendered = (story, mode, i) =>
-        i === 0 && Object.entries(mode.globals ?? {}).every(([k, v]) => story.globals?.[k] === v);
+        i === 0 &&
+        Object.entries(modeGlobals(story.globals, mode.globals ?? {})).every(([k, v]) => story.globals?.[k] === v);
 
     // The project's wait on every matching element. `settled`: for a story that is not shot (excluded, or
     // already failed), so the wait only lets its scene finish here, not in the next story's test, and its

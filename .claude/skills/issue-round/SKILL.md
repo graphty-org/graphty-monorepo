@@ -69,7 +69,8 @@ gh api graphql -f query='query($q: String!) { search(type: ISSUE, first: 30, que
 ```
 
 **Load-sensitive failures come first, whatever their label.** An issue titled `Load-sensitive test:` or saying a test
-fails under restricted CPU is critical by the owner's rule (2026-10-22): pick it before any high issue. Never lower its
+fails under restricted CPU is critical by the owner's rule (2026-10-22): pick it before any high issue (one already labelled
+`priority:critical` stays pipeline-round's). Never lower its
 label; its job reproduces it under `taskset -c 0`, names the mechanism and never fixes it with a longer wait. On
 2026-11-01 four such issues labelled low (#5438 to #5441) waited all day behind medium refactors.
 

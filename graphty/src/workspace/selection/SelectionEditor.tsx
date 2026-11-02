@@ -326,12 +326,7 @@ export function SelectionEditor({
         }
         // A selection with no step opens on its new step's pane, the value field focused (spec 3.0).
         const only = rule.branches.length === 1 ? rule.branches[0] : undefined;
-        const stepless =
-            add === undefined &&
-            row === TITLE &&
-            titleExtra === undefined &&
-            only !== undefined &&
-            only.steps.length === 0;
+        const stepless = add === undefined && row === TITLE && titleExtra === undefined && only?.steps.length === 0;
         // A rule with steps reopens on the pane of the step last edited, else its first step's; the
         // title's pane holds only the add actions (the owner's review, ws-polish 2).
         const steps = rule.branches.flatMap((branch) => branch.steps);
@@ -408,7 +403,7 @@ export function SelectionEditor({
         } else if (openTitle) {
             // After a side switch its new step's Value field waits under the side, its picker shut:
             // Enter opens it.
-            const shutStep = switchedSide && first !== undefined && first.steps.length === 0 ? first : undefined;
+            const shutStep = switchedSide && first?.steps.length === 0 ? first : undefined;
             openAt(TITLE, TITLE, shutStep, switchedSide, true);
             if (switchedSide) {
                 // The side's segment was replaced with the editor: focus goes back to the side chosen.
@@ -1010,6 +1005,7 @@ export function SelectionEditor({
             }
             return multi && stepId !== undefined ? 3 : 2;
         };
+        const graphWord = host === "filter" ? "full" : "filtered";
         const rowProps = (
             id: string,
             selects: string,
@@ -1085,7 +1081,7 @@ export function SelectionEditor({
                             label={
                                 reading.pending.length > 0
                                     ? `${String(reading.pending.length)} waiting`
-                                    : `${formatNumber(reading.total.count)} of ${formatNumber(of)} in the ${host === "filter" ? "full" : "filtered"} graph`
+                                    : `${formatNumber(reading.total.count)} of ${formatNumber(of)} in the ${graphWord} graph`
                             }
                         >
                             <Text size="sm" className="sel-count" ml="auto">
@@ -1115,7 +1111,7 @@ export function SelectionEditor({
                     const branchId = branch.id ?? "";
                     const newOp = adding?.op ?? newVerb(branch);
                     return (
-                        <div
+                        <div // NOSONAR(S6819): a tree's subtree is an ARIA group of treeitems; a fieldset is not one
                             key={branch.id}
                             role="group"
                             className="sel-group"
@@ -1229,7 +1225,7 @@ export function SelectionEditor({
                             )}
                             {/* Hidden while a step is added to the group: the new step's row says what it starts from. */}
                             {allRow(branch) && !(ws && adding?.branch === branch.id) && (
-                                <div
+                                <div // NOSONAR(S6848): a pointer shortcut; its group's own row above is the keyboard stop
                                     {...(multi
                                         ? { "data-selects": branchId, className: "sel-row sel-all-row" }
                                         : {
@@ -1716,9 +1712,8 @@ export function SelectionEditor({
     const workspace =
         open && frame !== null
             ? createPortal(
-                  <section
+                  <section // NOSONAR(S6847): only catches keys and presses bubbling from its own controls
                       ref={wsBox}
-                      role="region"
                       aria-labelledby={titleId}
                       className="sel-ws sel-editor"
                       data-host={host}
@@ -2108,6 +2103,7 @@ function AddRow({
     return (
         <div
             role="treeitem"
+            aria-selected={false}
             className="sel-row sel-add-row"
             data-row={id}
             data-add={branchId}

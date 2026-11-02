@@ -321,7 +321,7 @@ export function RecordTable({
                 // Pick on canvas is armed: the row clicked is the reference, and the selection stays.
                 const clicked = picked.find((id) => !selected.some((each) => String(each) === String(id)));
                 if (document.body.dataset.pickingNode !== undefined && kind === "node" && clicked !== undefined) {
-                    window.dispatchEvent(new CustomEvent(PICK_NODE_EVENT, { detail: clicked }));
+                    globalThis.dispatchEvent(new CustomEvent(PICK_NODE_EVENT, { detail: clicked }));
                     return;
                 }
                 // The ids come from the page just read, so the element has no reason to refuse them;

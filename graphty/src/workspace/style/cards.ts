@@ -947,9 +947,11 @@ export function cardWords(session: GraphSession, card: Card): string {
             return categoryWords(session, card, name, path);
         case "yes-no":
             // Yes and No as the table and the field write them.
-            return card.match === "unset"
-                ? `${name}: pick yes or no`
-                : `${name}: ${card.match === "yes" ? "Yes" : "No"}`;
+            if (card.match === "unset") {
+                return `${name}: pick yes or no`;
+            }
+
+            return `${name}: ${card.match === "yes" ? "Yes" : "No"}`;
         default: {
             if (card.match === "list") {
                 return pickedWords((card.ids ?? []).length, 0);

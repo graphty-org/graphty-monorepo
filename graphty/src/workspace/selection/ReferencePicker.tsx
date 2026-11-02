@@ -106,7 +106,7 @@ export function ReferencePicker({
             setArming(false);
             take.current({ nodes: [(event as CustomEvent<NodeId>).detail] });
         };
-        window.addEventListener(PICK_NODE_EVENT, fromTable);
+        globalThis.addEventListener(PICK_NODE_EVENT, fromTable);
         const escape = (event: KeyboardEvent): void => {
             if (event.key === "Escape") {
                 event.stopPropagation();
@@ -118,7 +118,7 @@ export function ReferencePicker({
             delete document.body.dataset.pickingNode;
             stop();
             document.removeEventListener("keydown", escape, true);
-            window.removeEventListener(PICK_NODE_EVENT, fromTable);
+            globalThis.removeEventListener(PICK_NODE_EVENT, fromTable);
         };
     }, [arming, session]);
     const typed = search.trim();

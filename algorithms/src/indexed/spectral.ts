@@ -301,7 +301,10 @@ function jacobi(a: Float64Array, p: number): { values: Float64Array; vectors: Fl
     for (let i = 0; i < p; i++) {
         v[i * p + i] = 1;
     }
-    for (let sweep = 0; sweep < 100 && !(offDiagonal(a, p) < 1e-30); sweep++) {
+    for (let sweep = 0; sweep < 100; sweep++) {
+        if (offDiagonal(a, p) < 1e-30) {
+            break;
+        }
         jacobiSweep(a, v, p);
     }
     return { values: Float64Array.from({ length: p }, (_, i) => a[i * p + i]), vectors: v };

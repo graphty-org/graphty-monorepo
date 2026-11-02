@@ -615,6 +615,32 @@ narrows or reverses an entry above; those stay as the record.
   unverified round in 4a3ed7cf1e) is superseded by the workspace; its rows, pickers, caps and pane
   contents carry over into the workspace's columns.
 
+### Workspace built (2026-11-01, studio engineer)
+
+Two-way doors decided while building spec 3.0 and 3.5 (the record of what changed is in the commits):
+
+- **Which panel it covers depends on the host.** The app edits a layer's Which nodes in the
+  inspector and filter cards in the left panel, where the mock had one sidebar for both. A style
+  layer's workspace covers the left panel and the canvas; a filter card's covers the canvas and
+  the inspector, so the sidebar holding the selection always stays. The covered panel is inert
+  (F6 skips it), and the outline and properties columns widen to cover it, so the transparent
+  preview never shows a panel through it. Spec 3.0 says so.
+- **Switching** happens where the other owner is reachable: a click on another filter card's row
+  switches the one workspace to that card; leaving the place (the rail) closes it as Done, after
+  which another place's owner opens it. A style layer's other layers sit under its workspace.
+- **Clear** writes the host's empty state: a layer's one None group with no step, a card's one All
+  group with no step (its name and on box kept).
+- **Search words come from the catalog** where it has them (an algorithm's keywords and technical
+  name, so "k-core" and "core" find Core number); Degree's "links", "connections" and its tooltip
+  words are the app's.
+- **Links** is offered on steps whose value is computed from the links (an algorithm's field,
+  Degree, hops, touching). Its edge condition is one value and its test; the row's tag and
+  Advanced say "Links: <column> <test>". graphty-element computes such a step as the step's own
+  (never a run in Analyze), and its degree bars are drawn from the scoped count.
+- **Not built:** pointing at a sidebar row at rest marks nothing on the canvas (the preview is the
+  workspace's); `watchSteps` reports no links count (the row says the rule, not how many links
+  pass).
+
 ## Waiting for the owner
 
 - Retagging bfs `level`, k-core `value` and dfs `value` as ordinal changes what `fieldMeasurement`

@@ -104,9 +104,12 @@ sidebar: the sidebar outline is the editor's summary, never a second editor.
 **The workspace** is ONE surface that edits every rule tree in graphty -- a style layer's Which
 nodes and Which edges, and a Data filter card -- with the same outline, verbs and controls.
 
-- **Where.** It covers the canvas column (and the left panel, when one is open). **The right sidebar
-  stays visible and usable**: the layer's other properties, the other layers, the other filter
-  cards. **No scrim, no focus trap, nothing behind it inert.**
+- **Where.** It covers the canvas column and the side panel its host does not use: a style layer's
+  (edited from the inspector) covers the left panel too, a filter card's (edited from the Data
+  place's Filters, in the left panel) covers the inspector. **The sidebar that holds the
+  selection stays visible and usable**: the layer's other properties, or the other filter cards.
+  **No scrim, no focus trap, nothing visible behind it inert**; the covered panel takes no focus,
+  and its opaque columns widen to cover it whole, so the preview shows only the canvas.
 - **The canvas is the preview.** The workspace's center is transparent: the reader sees and clicks
   the main canvas there, drawing section 9's preview. The workspace is an overlay: opening, closing
   or resizing it never re-frames, moves or resizes the main drawing (the canvas is the frame). A

@@ -2553,7 +2553,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const editableBase = (): boolean => dispatcher.state.config.get("editableBase") === true;
 
     /**
-     * Everything a reading of the whole stack (`agreement`, `counts`) depends on besides its own
+     * Everything a reading of the whole stack (`agreement`) depends on besides its own
      * arguments: the stack, a branches view, the repaints that landed, the data and runs, the
      * element states, and the settings the walk reads. Equal tokens give equal answers.
      * @returns The token, or null when the session cannot say when element states move.

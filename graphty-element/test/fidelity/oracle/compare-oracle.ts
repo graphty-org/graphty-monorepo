@@ -1252,6 +1252,28 @@ export function lineWidthMiss(o: number, g: number, color: string, opacity: numb
 const turnOf = (deg: number): number => (((deg % 360) + 540) % 360) - 180;
 
 /**
+ * Whether graphty's linear ramp runs the other way from the oracle's, where the oracle's direction is known only up to
+ * a half turn (a ramp read off a picture's pixels): their directions more than a quarter turn apart. A gradient a
+ * program wrote has its direction, and one drawn backwards against it is a miss.
+ * @param o - the oracle's gradient
+ * @param g - graphty's
+ * @param angles - each one's direction as judged
+ * @param angles.o - the oracle's
+ * @param angles.g - graphty's
+ * @returns whether it does
+ */
+function runsBackwards(o: PGradient, g: PGradient, angles: { o: number | null; g: number | null }): boolean {
+    return (
+        o.halfTurn === true &&
+        o.kind === "linear" &&
+        g.kind === "linear" &&
+        angles.o !== null &&
+        angles.g !== null &&
+        Math.abs(turnOf(angles.g - angles.o)) > 90
+    );
+}
+
+/**
  * How far two gradients are from alike: one on each side or on neither; the same kind; their colors at five places
  * along them within the color tolerance; a linear one's direction within its tolerance.
  * @param o - the oracle's gradient, or null
@@ -1262,6 +1284,31 @@ const turnOf = (deg: number): number => (((deg % 360) + 540) % 360) - 180;
  * @returns the miss (0 when alike) and what each side shows
  */
 function gradientMiss(
+    o: PGradient | null,
+    g: PGradient | null,
+    angles: { o: number | null; g: number | null },
+): { miss: number; oracle: unknown; graphty: unknown } {
+    // a linear ramp run the other way from its other end is the same picture (a gradient read off a picture's pixels
+    // has a direction only up to a half turn): graphty's is judged run the way the oracle's runs
+    return o !== null && g !== null && runsBackwards(o, g, angles)
+        ? gradientMissAsRun(
+              o,
+              { ...g, stops: g.stops.map((st) => ({ ...st, offset: 1 - st.offset })).reverse() },
+              { ...angles, g: (angles.g ?? 0) + 180 },
+          )
+        : gradientMissAsRun(o, g, angles);
+}
+
+/**
+ * `gradientMiss` for two gradients run the same way.
+ * @param o - the oracle's gradient, or null
+ * @param g - graphty's, or null
+ * @param angles - each linear gradient's direction as judged
+ * @param angles.o - the oracle's
+ * @param angles.g - graphty's
+ * @returns the miss (0 when alike) and what each side shows
+ */
+function gradientMissAsRun(
     o: PGradient | null,
     g: PGradient | null,
     angles: { o: number | null; g: number | null },
@@ -1953,7 +2000,22 @@ export function compareOracle(
         const oFill = shownFill(o);
         // graphty's fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across
         const gFill = Math.min(g.w, g.h) * lengthScale < 0.5 ? null : g.fill;
-        judgeFill(j, "node.fill", "node", id, oFill, gFill);
+        const gGradAngle = gFill?.gradient?.angle ?? null;
+        const runAngles = {
+            o: oFill?.gradient?.angle ?? null,
+            g: gGradAngle === null ? null : angleToOracle(gGradAngle),
+        };
+        // a linear ramp read off a program's picture runs either way: graphty's fill starts at whichever end the
+        // oracle's starts
+        const gEnd = [...(gFill?.gradient?.stops ?? [])].sort((a, b) => a.offset - b.offset).at(-1);
+        const gRun =
+            oFill?.gradient &&
+            gFill?.gradient &&
+            gEnd !== undefined &&
+            runsBackwards(oFill.gradient, gFill.gradient, runAngles)
+                ? { ...gFill, color: gEnd.color }
+                : gFill;
+        judgeFill(j, "node.fill", "node", id, oFill, gRun);
         if (oFill !== null && gFill !== null) {
             j.add(
                 "node.fillOpacity",

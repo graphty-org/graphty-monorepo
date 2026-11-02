@@ -1305,7 +1305,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -1683,7 +1683,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -2415,7 +2415,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -2441,7 +2441,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -3620,8 +3620,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.945,
-            "stray.extra": 0.938,
+            "stray.present": 0.965,
+            "stray.extra": 0.943,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -3688,8 +3688,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.945,
-            "stray.extra": 0.938,
+            "stray.present": 0.965,
+            "stray.extra": 0.943,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -4691,7 +4691,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -5069,7 +5069,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -5761,7 +5761,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -5787,7 +5787,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -6921,8 +6921,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.963,
-            "stray.extra": 0.938,
+            "stray.present": 0.965,
+            "stray.extra": 0.943,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -6989,8 +6989,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.963,
-            "stray.extra": 0.938,
+            "stray.present": 0.965,
+            "stray.extra": 0.943,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -8766,7 +8766,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -9144,7 +9144,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -9876,7 +9876,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -9902,7 +9902,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -11082,7 +11082,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 1,
-            "stray.extra": 0.938,
+            "stray.extra": 0.941,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -11150,7 +11150,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 1,
-            "stray.extra": 0.938,
+            "stray.extra": 0.941,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -33238,7 +33238,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -33616,7 +33616,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -34348,7 +34348,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -34374,7 +34374,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0.979,
+            "stray.present": 0.99,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -35553,8 +35553,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.963,
-            "stray.extra": 0.938,
+            "stray.present": 0.964,
+            "stray.extra": 0.941,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -35621,8 +35621,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.963,
-            "stray.extra": 0.938,
+            "stray.present": 0.964,
+            "stray.extra": 0.941,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -52742,99 +52742,59 @@
             }
         },
         "cx-specimen-images-charts": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-images-charts-p2": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-images-charts-p2@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-mappings-bypass": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx-specimen-mappings-bypass-p14": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+            "node.fill": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx-specimen-mappings-bypass-p14@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-mappings-bypass-p15": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-mappings-bypass-p15@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-specimen-mappings-bypass@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-syn-bypass": {
-            "stray.present": {
-                "floor": 0.945,
-                "to": 0.8,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx-syn-bypass@matched": {
-            "stray.present": {
-                "floor": 0.945,
-                "to": 0.8,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx-syn-mappings": {
@@ -52890,99 +52850,59 @@
             }
         },
         "cx2-specimen-images-charts": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-images-charts-p2": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-images-charts-p2@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx2-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-mappings-bypass": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx2-specimen-mappings-bypass-p14": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+            "node.fill": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx2-specimen-mappings-bypass-p14@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-mappings-bypass-p15": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-mappings-bypass-p15@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-specimen-mappings-bypass@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-syn-bypass": {
-            "stray.present": {
-                "floor": 0.963,
-                "to": 0.8,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cx2-syn-bypass@matched": {
-            "stray.present": {
-                "floor": 0.963,
-                "to": 0.8,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cx2-syn-mappings": {
@@ -53038,99 +52958,59 @@
             }
         },
         "cys-specimen-images-charts": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-images-charts-p2": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-images-charts-p2@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cys-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-mappings-bypass": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cys-specimen-mappings-bypass-p14": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+            "node.fill": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cys-specimen-mappings-bypass-p14@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-mappings-bypass-p15": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-mappings-bypass-p15@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-specimen-mappings-bypass@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-syn-bypass": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.852,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "cys-syn-bypass@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.852,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "cys-syn-mappings": {
@@ -53670,99 +53550,59 @@
             }
         },
         "xgmml-specimen-images-charts": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-images-charts-p2": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-images-charts-p2@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "xgmml-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-mappings-bypass": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "xgmml-specimen-mappings-bypass-p14": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+            "node.fill": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "xgmml-specimen-mappings-bypass-p14@matched": {
-            "stray.present": {
-                "floor": 0.979,
-                "to": 0.923,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-mappings-bypass-p15": {
-            "stray.present": {
+            "node.fill": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-mappings-bypass-p15@matched": {
-            "stray.present": {
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
+            },
+            "node.gradient": {
                 "floor": 1,
-                "to": 0.905,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-specimen-mappings-bypass@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.857,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-syn-bypass": {
-            "stray.present": {
-                "floor": 0.963,
-                "to": 0.825,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
-        "xgmml-syn-bypass@matched": {
-            "stray.present": {
-                "floor": 0.963,
-                "to": 0.825,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
+                "to": 0.968,
+                "reason": "drawing: Cytoscape desktop's radial gradient custom graphic with its focus off the node's middle (cy_center), which graph-io reads as graphty's radial fill from the middle and notes W_STYLE_APPROXIMATED; graphty's radial fill has no focus or center (#4515)",
+                "date": "2026-11-02"
             }
         },
         "xgmml-syn-mappings": {

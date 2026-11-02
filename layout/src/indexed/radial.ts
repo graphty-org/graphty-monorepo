@@ -61,42 +61,56 @@ function neighboursByEdge(g: GraphSnapshot, u: number): number[] {
 }
 
 /**
- * The breadth-first rings around a root: ring k holds the nodes k hops away (edges taken as undirected, neighbours
- * visited in edge order), and every node the root cannot reach goes on one extra ring after the last.
- * @param g - an undirected snapshot
- * @param root - the root index, or null for the node with the most distinct neighbours
- * @returns node indices per ring, the root's ring first, and each reached node's breadth-first parent (-1 for the root
- * and for nodes the root cannot reach)
+ * The node with the most distinct neighbours (the first on a tie).
+ * @param g - an undirected snapshot with at least one node
+ * @returns its index
  */
-function radialRings(g: GraphSnapshot, root: number | null): { rings: number[][]; parent: Int32Array } {
-    const n = g.nodeCount;
-    const parent = new Int32Array(n).fill(-1);
-    if (n === 0) {
-        return { rings: [], parent };
-    }
-    if (root === null) {
-        let best = 0;
-        let bestDegree = -1;
-        for (let u = 0; u < n; u++) {
-            let degree = 0;
-            for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
-                if (a === g.rowPtr[u] || g.colIdx[a] !== g.colIdx[a - 1]) {
-                    degree++;
-                }
-            }
-            if (degree > bestDegree) {
-                best = u;
-                bestDegree = degree;
+function mostNeighbours(g: GraphSnapshot): number {
+    let best = 0;
+    let bestDegree = -1;
+    for (let u = 0; u < g.nodeCount; u++) {
+        let degree = 0;
+        for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
+            if (a === g.rowPtr[u] || g.colIdx[a] !== g.colIdx[a - 1]) {
+                degree++;
             }
         }
-        root = best;
-    } else if (!Number.isInteger(root) || root < 0 || root >= n) {
+        if (degree > bestDegree) {
+            best = u;
+            bestDegree = degree;
+        }
+    }
+    return best;
+}
+
+/**
+ * The root option, checked, or the node with the most distinct neighbours when it is null.
+ * @param g - an undirected snapshot with at least one node
+ * @param root - the root option
+ * @returns the root index
+ */
+function checkedRoot(g: GraphSnapshot, root: number | null): number {
+    if (root === null) {
+        return mostNeighbours(g);
+    }
+    if (!Number.isInteger(root) || root < 0 || root >= g.nodeCount) {
         throw refusal(new Error(`root node ${String(root)} is not in the graph`), "E_BAD_NODE", {
             option: "root",
             index: root,
         });
     }
-    const visited = new Uint8Array(n);
+    return root;
+}
+
+/**
+ * The breadth-first rings the root reaches, neighbours visited in edge order.
+ * @param g - an undirected snapshot
+ * @param root - the root index
+ * @param parent - all -1 on entry; receives each reached node's breadth-first parent
+ * @returns node indices per ring, the root's first
+ */
+function breadthFirstRings(g: GraphSnapshot, root: number, parent: Int32Array): number[][] {
+    const visited = new Uint8Array(g.nodeCount);
     visited[root] = 1;
     const rings: number[][] = [[root]];
     for (let ring = rings[0]; ring.length > 0;) {
@@ -115,9 +129,27 @@ function radialRings(g: GraphSnapshot, root: number | null): { rings: number[][]
         }
         ring = next;
     }
+    return rings;
+}
+
+/**
+ * The breadth-first rings around a root: ring k holds the nodes k hops away (edges taken as undirected, neighbours
+ * visited in edge order), and every node the root cannot reach goes on one extra ring after the last.
+ * @param g - an undirected snapshot
+ * @param root - the root index, or null for the node with the most distinct neighbours
+ * @returns node indices per ring, the root's ring first, and each reached node's breadth-first parent (-1 for the root
+ * and for nodes the root cannot reach)
+ */
+function radialRings(g: GraphSnapshot, root: number | null): { rings: number[][]; parent: Int32Array } {
+    const n = g.nodeCount;
+    const parent = new Int32Array(n).fill(-1);
+    if (n === 0) {
+        return { rings: [], parent };
+    }
+    const rings = breadthFirstRings(g, checkedRoot(g, root), parent);
     const unreachable: number[] = [];
     for (let u = 0; u < n; u++) {
-        if (visited[u] === 0) {
+        if (parent[u] === -1 && u !== rings[0][0]) {
             unreachable.push(u);
         }
     }

@@ -297,6 +297,37 @@ function recordColumns(records: ChecksumRecords, table: AttributeTable): void {
 // ============================================================ the class
 
 /**
+ * The E_INVALID_SNAPSHOT error for an array modified after freeze.
+ * @param what - what was modified, for the message
+ * @param details - the error details besides the reason
+ * @returns the error
+ */
+function checksumMismatch(what: string, details: Readonly<Record<string, unknown>>): GraphFormatError {
+    return new GraphFormatError("E_INVALID_SNAPSHOT", `checksum mismatch: ${what} was modified after freeze`, {
+        reason: "checksum",
+        ...details,
+    });
+}
+
+/**
+ * Throw E_INVALID_SNAPSHOT when a column of a table no longer matches its recorded digest.
+ * @param records - the recorded digests
+ * @param tableName - the table's name, for the error
+ * @param table - the table
+ */
+function verifyTableChecksums(records: ChecksumRecords, tableName: string, table: AttributeTable): void {
+    for (const column of table) {
+        const recorded = records.columns.get(column);
+        if (recorded !== undefined && hashColumn(column) !== recorded) {
+            throw checksumMismatch(`column "${column.meta.name}" of ${tableName}`, {
+                table: tableName,
+                column: column.meta.name,
+            });
+        }
+    }
+}
+
+/**
  * The frozen graph (design section 3): a CSR core over 4-byte typed arrays, the id map, the
  * attribute tables, the flags and a per-instance view cache. Topology, counts, flags, id map and
  * immutable columns never change after construction (invariant I17); the column SET of `nodes` /
@@ -1157,11 +1188,6 @@ export class GraphSnapshot implements GraphSnapshotContract {
                 reason: "no-checksum",
             });
         }
-        const mismatch = (what: string, details: Readonly<Record<string, unknown>>): GraphFormatError =>
-            new GraphFormatError("E_INVALID_SNAPSHOT", `checksum mismatch: ${what} was modified after freeze`, {
-                reason: "checksum",
-                ...details,
-            });
         const { state } = this;
         const core: readonly [CoreArrayName, ArrayBufferView | null][] = [
             ["rowPtr", this.rowPtr],
@@ -1173,7 +1199,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
         for (const [name, array] of core) {
             const recorded = records.core.get(name);
             if (recorded !== undefined && array !== null && hashTypedArray(array) !== recorded) {
-                throw mismatch(`core array ${name}`, { array: name });
+                throw checksumMismatch(`core array ${name}`, { array: name });
             }
         }
         const tables: readonly [string, AttributeTable][] = [
@@ -1183,25 +1209,25 @@ export class GraphSnapshot implements GraphSnapshotContract {
             ...[...this.extensions].map(([name, table]): [string, AttributeTable] => [`extensions[${name}]`, table]),
         ];
         for (const [tableName, table] of tables) {
-            for (const column of table) {
-                const recorded = records.columns.get(column);
-                if (recorded !== undefined && hashColumn(column) !== recorded) {
-                    throw mismatch(`column "${column.meta.name}" of ${tableName}`, {
-                        table: tableName,
-                        column: column.meta.name,
-                    });
-                }
-            }
+            verifyTableChecksums(records, tableName, table);
         }
+        this.verifyViewChecksums(records);
+    }
+
+    /**
+     * Throw E_INVALID_SNAPSHOT when a materialised view no longer matches its recorded digest.
+     * @param records - the recorded digests
+     */
+    private verifyViewChecksums(records: ChecksumRecords): void {
         for (const name of VIEW_NAMES) {
-            const value = state.views[name];
+            const value = this.state.views[name];
             if (value === null) {
                 continue;
             }
             for (const [member, array] of Object.entries(viewArrays(this, name, value))) {
                 const recorded = records.views.get(`${name}.${member}`);
                 if (recorded !== undefined && hashTypedArray(array) !== recorded) {
-                    throw mismatch(`view ${name}.${member}`, { view: name, member });
+                    throw checksumMismatch(`view ${name}.${member}`, { view: name, member });
                 }
             }
         }

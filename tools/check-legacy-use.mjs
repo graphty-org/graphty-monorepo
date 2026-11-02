@@ -157,6 +157,54 @@ function calleeName(expr) {
 }
 
 /**
+ * Whether an import clause binds a value (not only types), so it counts as a real use.
+ * @param clause - the import declaration's clause, if any
+ * @returns true when at least one value binding is imported
+ */
+function importsValue(clause) {
+    if (clause === undefined || clause.isTypeOnly) {
+        return false;
+    }
+    if (clause.name !== undefined) {
+        return true;
+    }
+    const bindings = clause.namedBindings;
+    return bindings !== undefined && (!ts.isNamedImports(bindings) || bindings.elements.some((el) => !el.isTypeOnly));
+}
+
+/**
+ * The [object, member] pair of `ns.name` or the type `ns.Name`.
+ * @param node - any node
+ * @returns the pair, or undefined when the node is neither
+ */
+function memberOf(node) {
+    if (ts.isPropertyAccessExpression(node)) {
+        return [node.expression, node.name];
+    }
+    if (ts.isQualifiedName(node)) {
+        return [node.left, node.right];
+    }
+    return undefined;
+}
+
+/**
+ * Whether a node declares something whose name looks like a hand-written parser.
+ * @param node - any node
+ * @returns true for a named declaration matching PARSER_NAME
+ */
+function isParserDeclaration(node) {
+    const declares =
+        ts.isFunctionDeclaration(node) ||
+        ts.isClassDeclaration(node) ||
+        ts.isPropertyAssignment(node) ||
+        ts.isShorthandPropertyAssignment(node) ||
+        ts.isMethodDeclaration(node) ||
+        ts.isPropertyDeclaration(node) ||
+        ts.isVariableDeclaration(node);
+    return declares && node.name !== undefined && ts.isIdentifier(node.name) && PARSER_NAME.test(node.name.text);
+}
+
+/**
  * Checks one source file.
  * @param file - the file's path relative to the root, with forward slashes
  * @param text - its contents
@@ -209,93 +257,90 @@ function checkFile(file, text, legacy) {
             : undefined;
     };
 
-    const visit = (node) => {
-        if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-            const spec = node.moduleSpecifier.text;
-            specifierUse(spec);
-            const clause = node.importClause;
-            if (
-                isGraphIo(spec) &&
-                clause !== undefined &&
-                !clause.isTypeOnly &&
-                (clause.name !== undefined ||
-                    (clause.namedBindings !== undefined &&
-                        (!ts.isNamedImports(clause.namedBindings) ||
-                            clause.namedBindings.elements.some((el) => !el.isTypeOnly))))
-            ) {
+    const visitImport = (node) => {
+        const spec = node.moduleSpecifier.text;
+        specifierUse(spec);
+        const clause = node.importClause;
+        if (isGraphIo(spec) && importsValue(clause)) {
+            importsGraphIo = true;
+        }
+        const bindings = clause?.namedBindings;
+        if (bindings !== undefined && ts.isNamedImports(bindings)) {
+            namedLegacy(spec, bindings.elements);
+        } else if (bindings !== undefined && legacy.has(spec)) {
+            namespaces.set(bindings.name.text, legacy.get(spec));
+        }
+    };
+    const visitExport = (node) => {
+        const spec = node.moduleSpecifier.text;
+        specifierUse(spec);
+        if (node.exportClause !== undefined && ts.isNamedExports(node.exportClause)) {
+            namedLegacy(spec, node.exportClause.elements);
+        } else if (legacy.has(spec) && legacy.get(spec).size > 0) {
+            // `export * from` and `export * as ns from` pass every legacy name on
+            report("legacy-import", "*");
+        }
+    };
+    const visitDynamicImport = (node) => {
+        const [arg] = node.arguments;
+        if (arg !== undefined && ts.isStringLiteral(arg)) {
+            specifierUse(arg.text);
+            if (isGraphIo(arg.text)) {
                 importsGraphIo = true;
             }
-            const bindings = clause?.namedBindings;
-            if (bindings !== undefined && ts.isNamedImports(bindings)) {
-                namedLegacy(spec, bindings.elements);
-            } else if (bindings !== undefined && legacy.has(spec)) {
-                namespaces.set(bindings.name.text, legacy.get(spec));
-            }
+        }
+    };
+    // `const { circularLayout } = await import(...)` or `const L = await import(...)`
+    const visitDynamicBinding = (node) => {
+        const spec = dynamicSpecifier(node.initializer);
+        if (ts.isObjectBindingPattern(node.name)) {
+            namedLegacy(spec, node.name.elements);
+        } else if (ts.isIdentifier(node.name)) {
+            namespaces.set(node.name.text, legacy.get(spec));
+        }
+    };
+    const visitCall = (node) => {
+        const name = calleeName(node.expression);
+        // `ns.circularLayout()` on `import * as ns from "@graphty/layout"`
+        const target = node.expression;
+        let info;
+        if (!ts.isPropertyAccessExpression(target)) {
+            info = locals.get(name);
+        } else if (ts.isIdentifier(target.expression)) {
+            info = namespaces.get(target.expression.text)?.get(name);
+        }
+        const isCall = ts.isCallExpression(node);
+        if (isCall && BRIDGE_CALLS.has(name)) {
+            report("legacy-graph-bridge", name);
+        } else if (isCall && info?.positional) {
+            report("positional-layout-call", name);
+        } else if (!isCall && info?.graphClass) {
+            report("legacy-graph-construction", name);
+        }
+    };
+    // the first of the import, export, dynamic import and call checks that applies to the node
+    const visitUse = (node) => {
+        if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+            visitImport(node);
         } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-            specifierUse(node.moduleSpecifier.text);
-            if (node.exportClause !== undefined && ts.isNamedExports(node.exportClause)) {
-                namedLegacy(node.moduleSpecifier.text, node.exportClause.elements);
-            } else if (legacy.has(node.moduleSpecifier.text) && legacy.get(node.moduleSpecifier.text).size > 0) {
-                // `export * from` and `export * as ns from` pass every legacy name on
-                report("legacy-import", "*");
-            }
+            visitExport(node);
         } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-            const [arg] = node.arguments;
-            if (arg !== undefined && ts.isStringLiteral(arg)) {
-                specifierUse(arg.text);
-                if (isGraphIo(arg.text)) {
-                    importsGraphIo = true;
-                }
-            }
+            visitDynamicImport(node);
         } else if (ts.isVariableDeclaration(node) && legacy.has(dynamicSpecifier(node.initializer))) {
-            // `const { circularLayout } = await import(...)` or `const L = await import(...)`
-            const spec = dynamicSpecifier(node.initializer);
-            if (ts.isObjectBindingPattern(node.name)) {
-                namedLegacy(spec, node.name.elements);
-            } else if (ts.isIdentifier(node.name)) {
-                namespaces.set(node.name.text, legacy.get(spec));
-            }
+            visitDynamicBinding(node);
         } else if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
-            const name = calleeName(node.expression);
-            // `ns.circularLayout()` on `import * as ns from "@graphty/layout"`
-            const target = node.expression;
-            let info;
-            if (!ts.isPropertyAccessExpression(target)) {
-                info = locals.get(name);
-            } else if (ts.isIdentifier(target.expression)) {
-                info = namespaces.get(target.expression.text)?.get(name);
-            }
-            if (ts.isCallExpression(node) && BRIDGE_CALLS.has(name)) {
-                report("legacy-graph-bridge", name);
-            } else if (ts.isCallExpression(node) && info?.positional) {
-                report("positional-layout-call", name);
-            } else if (ts.isNewExpression(node) && info?.graphClass) {
-                report("legacy-graph-construction", name);
-            }
+            visitCall(node);
         }
+    };
+
+    const visit = (node) => {
+        visitUse(node);
         // `ns.dijkstra` or the type `ns.Graph` on a namespace import of a legacy package
-        let member;
-        if (ts.isPropertyAccessExpression(node)) {
-            member = [node.expression, node.name];
-        } else if (ts.isQualifiedName(node)) {
-            member = [node.left, node.right];
-        }
+        const member = memberOf(node);
         if (member !== undefined && ts.isIdentifier(member[0]) && namespaces.get(member[0].text)?.has(member[1].text)) {
             report("legacy-import", member[1].text);
         }
-        if (
-            inData &&
-            (ts.isFunctionDeclaration(node) ||
-                ts.isClassDeclaration(node) ||
-                ts.isPropertyAssignment(node) ||
-                ts.isShorthandPropertyAssignment(node) ||
-                ts.isMethodDeclaration(node) ||
-                ts.isPropertyDeclaration(node) ||
-                ts.isVariableDeclaration(node)) &&
-            node.name !== undefined &&
-            ts.isIdentifier(node.name) &&
-            PARSER_NAME.test(node.name.text)
-        ) {
+        if (inData && isParserDeclaration(node)) {
             report("hand-written-parser", node.name.text);
         }
         ts.forEachChild(node, visit);

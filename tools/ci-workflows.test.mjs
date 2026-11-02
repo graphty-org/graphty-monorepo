@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+    chmodSync,
     copyFileSync,
     existsSync,
     mkdirSync,
@@ -115,11 +116,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 25 jobs", () => {
+    it("runs every shard exactly once on a full run, in 27 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 25);
+        assert.equal(include.length, 27);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -193,10 +194,13 @@ describe("the test matrix", () => {
     // decode and every story errors (#4989). The test job pulls a matrix entry's "lfs" (see ci.yml below).
     it("names the Git LFS files a shard reads, alone, in its group and in a light-check bin", () => {
         const oracles = "graph-io/test/fidelity/oracles/*.png";
-        assert.equal(SHARDS.find((s) => s.shard === "graph-io-storybook").lfs, oracles);
-        assert.equal(plan(PACKAGES).find((e) => e.shard === "small-browser").lfs, oracles);
+        for (const n of [1, 2]) {
+            assert.equal(plan(PACKAGES).find((e) => e.shard === `graph-io-storybook-${n}`).lfs, oracles);
+        }
+        const fake = (shard, lfs) => ({ shard, package: shard, "test-command": "true", lfs });
+        assert.equal(groupEntry("g", [fake("a", oracles), fake("b"), fake("c", "x/*.png")]).lfs, `${oracles},x/*.png`);
         assert.equal(plan(["graph-samples"])[0].lfs, "", "a group whose members read no LFS file pulls none");
-        const bin = { name: "graph-io-storybook-1", shard: "graph-io-storybook", command: "true", files: [] };
+        const bin = { name: "graph-io-storybook-9", shard: "graph-io-storybook-1", command: "true", files: [] };
         assert.equal(plan(["graph-io"], undefined, { bins: [bin] }).find((e) => e.shard === bin.name).lfs, oracles);
     });
 
@@ -1756,7 +1760,7 @@ describe("ci.yml", () => {
         assert.equal(build.match(/echo "light=true"/g).length, 2);
         assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 25, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 27, "a full run is every shard");
         // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
         // WRITES pick a token on master; they skip nothing)
         for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
@@ -1874,7 +1878,7 @@ describe("verification runs of ci.yml", () => {
         assert.equal(called.status, 0, called.stderr);
         assert.equal(called.out.full, "true");
         assert.equal(called.out.light, undefined, "a verification run is not light");
-        assert.equal(called.out["test-count"], "25");
+        assert.equal(called.out["test-count"], "27");
         const master = planStep({ EVENT: "push" });
         assert.equal(master.status, 0, master.stderr);
         assert.equal(master.out.light, "true");
@@ -8518,6 +8522,61 @@ describe("the Capture impact job (#5304)", () => {
             assert.equal(changed({ [f]: "x\n" }), "false", f);
         }
         assert.equal(changed({ "pnpm-lock.yaml": "  vite@8.0.0:\n" }), "false", "another version");
+    });
+
+    it("prints only GITHUB_OUTPUT lines from measure, whatever its installs print (#5636)", () => {
+        const dir = mkdtempSync(join(TMP, "capture-impact-measure-"));
+        const repo = join(dir, "repo");
+        const bin = join(dir, "bin");
+        mkdirSync(join(repo, "visual-review"), { recursive: true });
+        mkdirSync(join(repo, "visual-fonts"), { recursive: true });
+        mkdirSync(bin);
+        writeFileSync(
+            join(repo, "visual-review/package.json"),
+            JSON.stringify({ devDependencies: { playwright: "1.0.0" }, dependencies: { pngjs: "1.0.0" } }),
+        );
+        writeFileSync(join(repo, "visual-fonts/fonts.conf"), "x\n");
+        writeFileSync(
+            join(repo, "visual-review.config.json"),
+            JSON.stringify({ projects: { x: { storybook: "x/storybook-static" } } }),
+        );
+        const git = (...a) => assert.equal(spawnSync("git", a, { cwd: repo }).status, 0);
+        git("init", "-q", "-b", "master");
+        git("add", ".");
+        git("commit", "-qm", "base");
+        git("commit", "-q", "--allow-empty", "-m", "head");
+        // the installs, chatty on stdout as the real ones are: git lfs, npm, and playwright install --with-deps
+        const realGit = execFileSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+        writeFileSync(
+            join(bin, "git"),
+            `#!/usr/bin/env bash\nfor a; do [[ "$a" == lfs ]] && { echo "Downloading LFS objects: 100%"; exit 0; }; done\nexec ${realGit} "$@"\n`,
+        );
+        writeFileSync(
+            join(bin, "npm"),
+            [
+                "#!/usr/bin/env bash",
+                'while [[ $# -gt 0 ]]; do [[ "$1" == --prefix ]] && prefix=$2; shift; done',
+                'mkdir -p "$prefix/node_modules/playwright"',
+                `echo 'console.log("Installing dependencies...")' > "$prefix/node_modules/playwright/cli.js"`,
+                "echo 'added 2 packages'",
+                "",
+            ].join("\n"),
+        );
+        chmodSync(join(bin, "git"), 0o755);
+        chmodSync(join(bin, "npm"), 0o755);
+        const r = spawnSync(
+            "bash",
+            [join(process.cwd(), "tools/capture-impact.sh"), "measure", "HEAD^", "HEAD", join(dir, "out")],
+            {
+                cwd: repo,
+                encoding: "utf8",
+                env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, STORYBOOK_ROOT: dir },
+            },
+        );
+        assert.equal(r.status, 0, r.stderr);
+        assert.match(r.stderr, /Installing dependencies\.\.\./, "the install ran and its output went to stderr");
+        assert.deepEqual(r.stdout.trim().split("\n"), ["changed=0", "pictures=0"]);
+        for (const line of r.stdout.trim().split("\n")) assert.match(line, /^[A-Za-z_][\w-]*=/, line);
     });
 
     it("runs only when planned, never fails the run, and holds All Checks Pass while its label is on", () => {

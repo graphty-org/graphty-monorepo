@@ -24,23 +24,20 @@
 --click role=button:Data
 --click Add filter
 --click role=option:telemetry
---click role=checkbox:yes, 7 nodes
+--click role=checkbox:yes
 --click Done
---click role=radio:Filter to
 --click role=button:Graph
 --click Add a layer or a folder
---click Layer
---click Add a step: Keep
+--click role=menuitem:Layer
+--key Control+a
+--type Oldest
+--key Enter
+--click Which nodes
 --click role=option:installed
---click installed before, a date or a year
 --type 2000
 --key Enter
 --click Done
 --click Add to node fill
 --key Control+a
 --type E4572E
---key Enter
---dblclick Layer 1
---key Control+a
---type Oldest
 --key Enter

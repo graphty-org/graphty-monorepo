@@ -5,9 +5,12 @@ The study runs on build <sha> served from <dir>
 Tier 5 studies how a **returning** graphty user chooses which nodes a result applies to, with the
 new selection editor in its two places: a style layer's Which nodes (the **style selector**) and a
 Data place filter card (the **import filter**), as `../../selection-groups/spec.md` sets them out.
-The tasks cover a simple choice in each place, two ways in ("Or"), an exception, everything within
-k hops of a named node, a choice by an algorithm's value and by position, a chain of steps on a big
-network, the landing page's pointing effect, and changing what a colleague built.
+Both are the **workspace UI** (spec section 3.0): a read-only outline in the sidebar at rest, and
+one non-modal workspace over the canvas for every edit. The tasks cover a simple choice in each
+place, two ways in ("Or"), an exception, everything within k hops of a named node, a choice by an
+algorithm's value and by position, a chain of steps on a big network, the landing page's pointing
+effect, changing what a colleague built, a count over just the strong ties (the placement study's
+weak-links task) and one choice in a network of 50,000 nodes.
 
 What this round measures: the **first use of the new editor by people who already know the app**,
 including its data features and tier 4's condition cards. It does not measure the cost of a second
@@ -22,7 +25,7 @@ Tasks: `tasks.md`. Answer key: `answers.md`. Participants: `roster.md`. Binding 
 Each session is graded against the task's success definition in `answers.md`, never from the
 participant's own rating, from what the session recorded: its screenshots (the last one first), its
 step log (`route.jsonl` and the step notes), and its end-state records (`work.json`, `styles.json`,
-`data.json`: each layer's selection and count, each filter card with its effect and count, and the
+`data.json`: each layer's selection and count, each filter card with its steps and count, and the
 node, edge, visible and selected counts).
 
 - **S** -- success on the answer key's path or an equivalent one.
@@ -42,7 +45,7 @@ participant saying it is finished while the screen or the end-state records show
 
 | #   | Bar                           | Target                                                                                                                                                                                                                                                                                        | Counted from                                                                                                                    |
 | --- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Task success                  | At least 75% S or SD of each task's valid pointer sessions, and no dataset half with 0 successes. On a 2-session task that means 2 of 2; on a 4-session task, 3 of 4. Sam's sessions are not counted here                                                                                     | The grades' first lines (`Grade:`)                                                                                              |
+| 1   | Task success                  | At least 75% S or SD of each task's valid pointer sessions, and no dataset half with 0 successes. On a 2-session task (T72, T75 to T79) that means 2 of 2; on a 4-session task, 3 of 4. Sam's sessions are not counted here                                                                   | The grades' first lines (`Grade:`)                                                                                              |
 | 2   | False "done"                  | 0 in the round                                                                                                                                                                                                                                                                                | The grades (`False done:`)                                                                                                      |
 | 3   | Wrong turns                   | Median at most 2 per task                                                                                                                                                                                                                                                                     | The grades (`Wrong turns:`)                                                                                                     |
 | 4   | Severity 3 and 4 open         | 0 confirmed severity 3 or 4 problems                                                                                                                                                                                                                                                          | Grades, the end-state check, expert walkthroughs and the screenshot audit, after both skeptics                                  |
@@ -50,6 +53,7 @@ participant saying it is finished while the screen or the end-state records show
 | 6   | The owner's data rules        | 0 confirmed violations: a sentence on screen where a control would do; a hotkey with no visible button showing its key; configuration reachable only from the table; "links" or "ties" on screen for edges; an approved surface removed or restyled other than as `spec.md` section 13 allows | The content designer's word count, the Figma product designer's and the interaction designer's walkthroughs, confirmed as below |
 | 7   | Figma and graphty consistency | 0 confirmed consistency findings of severity 3 or 4, and at most 5 of severity 2 open, each listed in the report with its fix or its reason                                                                                                                                                   | The Figma product designer's and the interaction designer's walkthroughs, confirmed as below                                    |
 | 8   | Cost on core tasks            | Median steps per core task half (T70, T71, T73, T74) at most the answer key's path plus 3                                                                                                                                                                                                     | The step logs, against each half's "Path steps" in `answers.md` on the frozen build (`tool/steps.mjs`)                          |
+| 9   | The owner's feedback          | Median reported overwhelm at most 2 over the round's valid pointer sessions (1 calm to 7 overwhelming, asked in every task's follow-up), and no task half with a median above 3; and the calm-first check with 0 confirmed findings of severity 3 or 4                                        | The follow-up answers (`Overwhelm:` in each grade, with the reason given); the calm-first expert check, confirmed as below      |
 
 **Severity** (bars 4 and 7): 4 -- a result wrong with no sign (a layer or filter that holds more or
 fewer than its count says, a preview that changes what is saved, styling lost after picking); 3 --
@@ -66,16 +70,19 @@ confirmed finding survives two skeptics before it counts.
 **Bar 7, what consistency means.** Each item is checked in both hosts, and a difference between the
 hosts that `decided.md` does not settle counts as a finding:
 
-- **One editor, one picker**: both hosts list the same value picker entries in the same order
-  (Time window only in the filter), the same verb menu, the same card per kind, the same row
-  anatomy (spec section 3), the same "+" and "Or".
-- **Figma's patterns where Figma solved the problem**: groups as Layers rows and steps as Fill rows,
-  Union / Subtract / Intersect order and glyphs for Add / Except / Keep, the eyedropper-style
-  target, 24 px controls and 11/16 type, hints only in tooltips, Outline-mode-like preview.
+- **One workspace, one picker**: both hosts open the same workspace (header, outline, canvas as
+  the preview, matches strip, properties) with the same value picker entries in the same order
+  (Time window only in the filter), the same Except switch and "..." verb items, the same pane per
+  kind, the same row anatomy (spec section 3.1), the same Condition... and Or..., and "+" only in a
+  section header (spec 4.1).
+- **Figma's patterns where Figma solved the problem**: groups as Layers rows and steps as Fill
+  rows, the outline beside one property pane, Subtract as the Except switch's tooltip, the
+  eyedropper-style target (Pick on canvas), 24 px controls and 11/16 type, hints only in tooltips.
 - **graphty's own patterns**: Mod+] / Mod+[ / Mod+D / Delete / F2 the same on the selection's rows
-  and the style tree's; Escape closes the innermost thing and keeps edits; one Tab stop per list
-  walked with arrows; the same count chip and what its click does per host (spec section 2); the
-  same words (Filtered graph, Full graph, Hovered or selected, Selected (N), So far).
+  and the style tree's; Escape closes the innermost thing and keeps edits (on the workspace it is
+  Done); Cancel undoes the whole edit as one step; one Tab stop per list walked with arrows; the
+  same count and what its click does per host (spec section 2); the same words (Filtered graph,
+  Full graph, Hovered or selected, Selected (N), So far, No match).
 - Graded by the Figma product designer (every editor screen against Figma and against graphty's
   other panels) and the interaction designer (keys, focus, Escape, undo, commit across both
   hosts); a consistency finding is confirmed as any other expert finding.
@@ -95,11 +102,25 @@ itself confirms).
 **Experts and audit, every round** (they feed bars 4 to 7): the Figma product designer, the
 interaction designer, the accessibility specialist (every editor screen by keyboard and with the
 screen-reader text, `real.mjs --read`, at 1440 x 900 and 900 x 700, including the reference picker,
-the verb menu, the Or group and the preview key, which Sam's tasks may not reach), the content
+the Except switch, an Or group, Advanced with Edges where, Clear and Cancel, which Sam's tasks may
+not reach), the content
 designer (words at rest per editor screen: no sentence at rest, the budget in tier 4's
 `words-at-rest.md`), and the design engineer's screenshot audit of every screen the sessions and
 pilots reached, at both sizes. Findings of severity 1 and 2 gate nothing outside bar 7; the report
 lists them by screen.
+
+**The calm-first check** (bar 9), from the owner's words of 2026-11-01
+(`owner-feedback-2026-11-01.md`: "confusing and overwhelming, they make me want to walk away").
+The owner-lens expert opens each workspace screen the tasks reach (a new rule with its picker
+open, a step selected, an Or group, Advanced with Edges where, a reopened colleague's card, the
+50,000-node checklist) and the sidebar outline at rest, at 1440 x 900, and writes for each, in
+this order: where the eye lands first; whether the next step's control is the most prominent
+thing; every control, count or word drawn that the step does not need. A screen fails with
+severity 3 when the eye lands first on something other than the graph, the rule's rows or the next
+step's control, or when two things compete for one job (two tables, two counts of one result);
+severity 2 for anything drawn at rest that nothing on the screen needs. Each finding is confirmed
+as an expert finding about what a screenshot shows (the screenshot audit). It runs in the dry run
+and every round, before the sessions are read, so the reported overwhelm cannot steer it.
 
 ## Before the first session
 
@@ -108,15 +129,17 @@ first two by itself; the dry run owns the rest.
 
 1. The first line of this file names the frozen build.
 2. `answers.md` holds no "pilot to confirm": every value and path is read off the frozen build, and
-   each "Build notes (7ca4cae647)" line is re-read and either kept with the frozen build's name or
+   each "Build notes (fc1d7ee4f6)" line is re-read and either kept with the frozen build's name or
    removed.
-3. Every setup in `roster.md` starts on the frozen build without `SETUP FAILED`.
+3. Every setup in `roster.md` starts on the frozen build without `SETUP FAILED` (the two
+   50,000-node setups after `python3 design/ui/studio/tool/files/big-50k.py`).
 4. `real.mjs --end` writes each layer's selection and each filter card's steps into the end-state
    records, and the end-state check runs on a pilot's folder.
-5. A scripted walk of the tier 5 screens (both hosts' editor at rest and while picking, the value
-   picker, the verb menu, the reference picker, an Or group, the preview key, the table's Group
-   column) passes `wording.mjs` against `tasks.md` with the frozen build's own strings, and runs
-   axe for bar 5, once per theme.
+5. A scripted walk of the tier 5 screens (both hosts' read-only outline at rest, the workspace on
+   a new rule with its picker open, a step pane, the Except switch, the reference picker, an Or
+   group, Advanced with Edges where, No match, the matches strip's Group column, the 50,000-node
+   checklist) passes `wording.mjs` against `tasks.md` with the frozen build's own strings, and
+   runs axe for bar 5, once per theme.
 6. Each core task half's path step count is written in `answers.md` (bar 8), and `tool/steps.mjs`
    counts tier 5's core tasks (it names tier 4's today).
 7. The approved surfaces' new reference screenshots are listed in `decided.md` (bar 6).
@@ -128,8 +151,15 @@ first two by itself; the dry run owns the rest.
   Analyze, the find box, the canvas), and which route each success took.
 - **The owner's two questions**: from T70's follow-up and the step logs, how many style-layer
   readers read the group colors as a preview, and which default they want; from T71's follow-up
-  and the step logs, how many opened the table while picking, from where, and whether they missed
-  it when they did not.
+  and the step logs, how many used the matches strip under the drawing while picking, whether it
+  helped or got in the way, and how many hid it.
+- **Overwhelm** per task half (bar 9's numbers), each with the one reason the participant gave,
+  grouped by screen.
+- **The weak-links task** (T78): the first door each session tried for "just the strong ties"
+  (the step's Advanced, the Data place's filter, Analyze, the table), and how the participant told
+  the scope was applied.
+- **50,000 nodes** (T79): each edit's input delay and busy time from `route.jsonl`, and whether the
+  participant waited, retried or gave up during one.
 - **Algorithms in the editor**: for T74 B and T75, whether the participant understood that picking
   a measure ran it, and whether a run they did not ask for surprised them.
 - **Fix coverage**: for each `decided.md` polish fix a task reaches, the sessions that reached it
@@ -144,8 +174,8 @@ first two by itself; the dry run owns the rest.
   `tasks.md`, keyboard) on the frozen build. The dry run fixes only a crash, a blocked task or a
   result that would spoil a grade on a success path or a listed detour; everything else goes to the
   backlog. At most 2 fix passes; still not ready after two, the studio stops for the owner.
-- **Sessions**: at most **30 in a round**; `roster.md` plans 26. Core tasks (T70, T71, T73, T74)
-  run 4 pointer sessions each (2 per half); the other four run 2 (1 per half); Sam runs 2 more,
+- **Sessions**: at most **30 in a round**; `roster.md` plans 30. Core tasks (T70, T71, T73, T74)
+  run 4 pointer sessions each (2 per half); the other six run 2 (1 per half); Sam runs 2 more,
   keyboard only, counted only in bar 5.
 - At most **4 participants alive at once**.
 - **No step cap.** A session ends when the participant is done, gives up, or repeats without
@@ -159,7 +189,7 @@ first two by itself; the dry run owns the rest.
 
 ## When the studio stops
 
-- All eight bars hold: the study is done; the director writes `report.md`.
+- All nine bars hold: the study is done; the director writes `report.md`.
 - A round with no progress: no bar moved from failing to holding and no confirmed severity 3 or 4
   problem was closed since the round before.
 - A one-way-door decision (a breaking published API change, a compact-mantine change away from
@@ -187,3 +217,18 @@ first two by itself; the dry run owns the rest.
   on), the date card's "how to match" select never leaves Before (so no prompt asks for After or
   Between), and a reference cannot be found by name when no column is designated as the name
   (T73 A keeps this start on purpose and lists the find-box route).
+- 2026-11-02: moved to the workspace UI (spec 3.0: a read-only outline at rest and one non-modal
+  workspace for every edit), with these changes, each with its reason:
+    - Two tasks added: T78, a count over just the strong ties (the placement study's weak-links
+      task, now answered inside the step by Advanced's Edges where), and T79, one choice in a
+      network of 50,000 nodes (the owner's review: "review all your interfaces for what happens
+      with large graphs"). Four sessions more, 30 in all, the round's cap.
+    - Bar 9 is new: the owner's feedback bar (reported overwhelm, median at most 2) and the
+      calm-first expert check, from his review of the cards ("overwhelming, they make me want to
+      walk away"); every task's follow-up asks the rating.
+    - Bar 7 and the walks name the workspace's controls (Except switch, Condition... / Or...,
+      Clear, Cancel, Done, No match) where they named the verb menu, the effect segment and the
+      preview key, which the workspace no longer draws.
+    - The answer key's paths and final screens were re-read on fc1d7ee4f6; its build notes list
+      what the walks saw (`answers.md`, "Build notes (fc1d7ee4f6)"). T75 A is still blocked (no So
+      far on Largest component).

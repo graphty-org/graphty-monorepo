@@ -74,7 +74,9 @@ Files: `S/supply-chain-analyst.md`.
 the start screen, rank which suppliers matter most and export the picture for your report. This
 month and last you have been helping a friend who runs a food bank. She shared her saved projects
 with you, among them her volunteer list, which she had the program work out who matters most in;
-you have opened it from Recent projects and looked around. Last month you narrowed a picture once
+you have opened it from Recent projects and looked around. She also sent a newer copy of the
+volunteer list that records how many shifts each pair of volunteers worked together, which you
+opened with 'Open a file' and looked at. Last month you narrowed a picture once
 with a filter card in the Data place and sent the food bank's lists back out as spreadsheets. You
 have never picked by hand which people get a color. Anything you have not done before is as new to
 you as it was the first day."
@@ -88,7 +90,10 @@ to keep up to date. A colleague first set it up: she put the gauge list and the 
 stretches together into one project here, tidied it, took out a gauge that was not one of the
 team's own, and had each gauge called by its station name. You open that project from Recent
 projects, look at it, and save it. She also set up a second project for the readings work, which
-you have opened and looked at but not changed. Last month you narrowed the drawing once to some of
+you have opened and looked at but not changed. This month the project became part of the state's
+river sensor network; the state sent its file of 50,000 sensors, which you opened with 'Open a
+file', had drawn at random as the state's notes said, and saved without changing anything else.
+Last month you narrowed the drawing once to some of
 the gauges from the Data place, following her notes. You do not change settings you do not
 understand, and you read every confirmation before you press it. You have never colored some of
 the gauges by hand. Anything you have not done before is as new to you as it was the first day."
@@ -116,7 +121,9 @@ and a river project; colleagues set up a saved project for each, and the river o
 which you open from Recent projects. You have the program rank who matters most and find groups,
 color the dots by the results from the Style tab, export the picture, and save the project. A new
 client, a research office, wants the same on a much bigger network, so you have been trying the
-program's own Graph researchers sample from the start screen, and saved it as you left it. You know
+program's own Graph researchers sample from the start screen, and saved it as you left it. This
+week the research office sent its whole staff network, 50,000 people; you opened it with 'Open a
+file', had it drawn at random so it stays quick, and saved it as you left it. You know
 Gephi and NetworkX, so you expect the usual filter chains and 'top N' choices to be in here
 somewhere, and you dislike re-doing the same clicks every week. You have used a filter card in the
 Data place once. Anything you have not done before is as new to you as it was the first day."
@@ -154,10 +161,20 @@ them). A Sam session adds `--keys` after the start (`setup:volunteers.txt --keys
 - `researchers.txt`: the start screen's Graph researchers sample, 549 people, 2,084 ties (369
   repeated), one piece.
 - `yeast.txt`: `yeast-galactose.graphml`, 331 genes, 361 interactions, 26 pieces (the largest 249).
+- `volunteers-shifts.txt`: `volunteers-shifts.graphml` (volunteers.graphml with `shifts` on each
+  tie), no ranking.
+- `staff-50k.txt`, `sensors-50k.txt`: the research office's staff network and the state's sensor
+  network, 50,000 nodes and 100,000 ties each, Layout Random applied. Both files are written by
+  `python3 design/ui/studio/tool/files/big-50k.py` (seeded; git ignores them), run once on the
+  machine before the dry run.
 
-Every setup was started on build 7ca4cae647 on 2026-11-01 without `SETUP FAILED`, and its first
-screenshot looked at (walks under the main checkout's `tmp/design-studio/tier5/prep/pilot/`). The
-dry run starts every one again on the frozen build.
+Every setup was started on build 7ca4cae647 on 2026-11-01 without `SETUP FAILED`. For the
+workspace UI, `volunteers-thanks.txt` and `gauges-telemetry.txt` were rewritten (the colleague's
+card and layer are now built in the workspace) and, with `volunteers-shifts.txt`, `staff-50k.txt`,
+`gauges-clean.txt`, `sources.txt` and `researchers.txt`, started on fc1d7ee4f6 on 2026-11-02
+without `SETUP FAILED` (walks under the main checkout's `tmp/design-studio/tier5/materials/`).
+`volunteers.txt`, `yeast.txt` and `sensors-50k.txt` were not started again on it. The dry run
+starts every one again on the frozen build.
 
 | Task | A starts from           | B starts from          | Why                                                                                  |
 | ---- | ----------------------- | ---------------------- | ------------------------------------------------------------------------------------ |
@@ -168,20 +185,22 @@ dry run starts every one again on the frozen build.
 | T74  | `volunteers.txt`        | `gauges-clean.txt`     | A holds a ranking run already (Results); B has none (a run started from the editor). |
 | T75  | `researchers.txt`       | `yeast.txt`            | The two big networks: one piece (A), 26 pieces (B).                                  |
 | T76  | `sources.txt`           | `gauges-clean.txt`     | The networks shown in a meeting.                                                     |
-| T77  | `volunteers-thanks.txt` | `gauges-telemetry.txt` | A colleague's filter card and layer, built in the editor, to be changed.             |
+| T77  | `volunteers-thanks.txt` | `gauges-telemetry.txt` | A colleague's filter card and layer, built in the workspace, to be changed.          |
+| T78  | `volunteers-shifts.txt` | `gauges-clean.txt`     | A count over the ties, where the weak ones must not count: `shifts` (A), `km` (B).   |
+| T79  | `staff-50k.txt`         | `sensors-50k.txt`      | 50,000 nodes: every list bounded, every edit a wait.                                 |
 
-## Who takes which task (26 sessions)
+## Who takes which task (30 sessions)
 
 Listed by persona first, so `real.mjs --brief` reads each task's start from the table above. Each
 core task (T70, T71, T73, T74) has two pointer sessions per half; every other task one per half;
 Sam's two are on top and count only for the keyboard bar.
 
-| Persona | Tasks                              |
-| ------- | ---------------------------------- |
-| Grace   | T70 A, T71 A, T73 A, T74 A, T77 A  |
-| Dana    | T70 A, T71 A, T73 A, T74 A         |
-| Ruth    | T72 A, T76 A                       |
-| Tom     | T70 B, T71 B, T72 B, T76 B, T77 B  |
-| Maren   | T70 B, T73 B, T74 B, T75 B         |
-| Alex    | T71 B, T73 B, T74 B, T75 A         |
-| Sam     | T70 A (`--keys`), T71 A (`--keys`) |
+| Persona | Tasks                                    |
+| ------- | ---------------------------------------- |
+| Grace   | T70 A, T71 A, T73 A, T74 A, T77 A        |
+| Dana    | T70 A, T71 A, T73 A, T74 A, T78 A        |
+| Ruth    | T72 A, T76 A                             |
+| Tom     | T70 B, T71 B, T72 B, T76 B, T77 B, T79 B |
+| Maren   | T70 B, T73 B, T74 B, T75 B, T78 B        |
+| Alex    | T71 B, T73 B, T74 B, T75 A, T79 A        |
+| Sam     | T70 A (`--keys`), T71 A (`--keys`)       |

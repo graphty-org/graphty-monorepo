@@ -1681,14 +1681,16 @@ function shiftWords(layer: Building, kind: StyleTarget): void {
 
     const words: Channel = `${kind}.labelShiftOf`;
     set[words] = "words";
+    // `set` paints every element the layer paints anything on, shifted or not (a file's bypass that shifts only
+    // some of them, xgmml-syn-bypass): that is where the words shift is drawn, and where it is predicted
     for (const map of [layer.paint, layer.drawn]) {
-        const columns = shifts.map((channel) => map?.get(channel));
-        const length = columns.find((column) => column !== undefined)?.length;
+        const columns = map === null || map === undefined ? [] : [...map.values()];
+        const length = columns[0]?.length;
         if (map !== null && map !== undefined && length !== undefined) {
             map.set(
                 words,
                 Array.from({ length }, (_unused, i) =>
-                    columns.some((column) => column?.[i] !== null && column?.[i] !== undefined) ? "words" : null,
+                    columns.some((column) => column[i] !== null && column[i] !== undefined) ? "words" : null,
                 ),
             );
         }

@@ -2179,22 +2179,11 @@ class CxReader {
             if (!this.inGraph(id)) {
                 continue;
             }
-            let row = this.nodeRows.get(id);
-            let added = false;
-            if (row === undefined) {
-                const original = originals.get(refId(value["@id"]) ?? id);
-                if (original !== undefined) {
-                    this.idType = "mixed";
-                    this.sinkIds.set(id, original);
-                }
-                try {
-                    ({ row, added } = this.addNode(id));
-                } catch (err) {
-                    report.recordError(err, { line, element });
-                    report.counts.skippedNodes++;
-                    continue;
-                }
+            const found = this.nodeRowFor(id, value["@id"], originals, line, element);
+            if (found === null) {
+                continue;
             }
+            const { row, added } = found;
             if (added) {
                 report.counts.nodes++;
             } else {
@@ -2207,6 +2196,40 @@ class CxReader {
             }
             this.writeCore("node", row, "name", value.n, element, line);
             this.writeCore("node", row, "represents", value.r, element, line);
+        }
+    }
+
+    /**
+     * The row of a node element: the row it already has, else a new one (restoring its original id).
+     * @param id - the node id
+     * @param rawId - the element's `@id` as written
+     * @param originals - the original ids to restore
+     * @param line - the element's line
+     * @param element - the element label
+     * @returns the row and whether it was added; null when it could not be added (reported, counted skipped)
+     */
+    private nodeRowFor(
+        id: NodeId,
+        rawId: unknown,
+        originals: ReadonlyMap<NodeId, string>,
+        line: number,
+        element: string,
+    ): { readonly row: number; readonly added: boolean } | null {
+        const row = this.nodeRows.get(id);
+        if (row !== undefined) {
+            return { row, added: false };
+        }
+        const original = originals.get(refId(rawId) ?? id);
+        if (original !== undefined) {
+            this.idType = "mixed";
+            this.sinkIds.set(id, original);
+        }
+        try {
+            return this.addNode(id);
+        } catch (err) {
+            this.report.recordError(err, { line, element });
+            this.report.counts.skippedNodes++;
+            return null;
         }
     }
 

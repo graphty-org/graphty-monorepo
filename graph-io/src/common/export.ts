@@ -1202,8 +1202,10 @@ export function sanitizeIds(snapshot: GraphSnapshot, charset: IdCharset, mode: "
         for (const i of bad) {
             const base = mangleNmtoken(String(ids.idOf(i)));
             let candidate = base;
-            for (let k = 2; used.has(candidate); k++) {
+            let k = 2;
+            while (used.has(candidate)) {
                 candidate = `${base}_${k}`;
+                k++;
             }
             used.add(candidate);
             written.set(i, candidate);

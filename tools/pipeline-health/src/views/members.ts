@@ -2,13 +2,13 @@
 // sparklines and reasons. States are the engine's; this file only translates them and reads values for the range.
 
 import type {
+    CategoryId,
     Cmp,
     Fact,
     Member,
     MemberId,
     MemberState,
     MemberWindow,
-    PageId,
     Range,
     Route,
     Sla,
@@ -18,10 +18,10 @@ import type {
     Value,
     WordValue,
 } from "../../web/src/contract.js";
-import { type Bucket, DAY, floorTo, HOUR, MIN, type Step, STEP_MS } from "../model/items.js";
+import { type Bucket, DAY, floorTo, HOUR, type IssueItem, ISSUES_PK, MIN, type Step, STEP_MS } from "../model/items.js";
 import { loadSeries, type MetricWindow, type WindowName, windowValue } from "../model/rollup.js";
 import { type PrStockPrs, readSnapshot } from "../model/snapshots.js";
-import type { Store } from "../model/store.js";
+import { isLive, type Store } from "../model/store.js";
 import type { Measure, MemberConfig, SlaConfig, Threshold } from "../sla/config.js";
 import {
     type Evaluation,
@@ -208,7 +208,7 @@ export const LOCAL: Record<string, { measure: Measure; spec: Spec }> = {
 };
 
 /** The engine's category ids, which the config spells with underscores. */
-export const CATEGORY: Record<string, Exclude<PageId, "overview" | "runners" | "local-runs">> = {
+export const CATEGORY: Record<string, CategoryId> = {
     master: "master",
     pull_requests: "pull-requests",
     ci: "ci",
@@ -296,6 +296,26 @@ export class Reads {
      */
     prStocks(): Promise<PrStockPrs | undefined> {
         return this.once("snapshot:pr-stocks", () => readSnapshot(this.store, "pr-stocks"));
+    }
+
+    /**
+     * Every stored issue (the ISSUES partition, about 3,000 items), read once.
+     * @returns the issues, in number order
+     */
+    issues(): Promise<IssueItem[]> {
+        return this.once("issues", async () =>
+            (await this.store.query(ISSUES_PK))
+                .filter((i) => isLive(i, this.now))
+                .map((i) => i as unknown as IssueItem),
+        );
+    }
+
+    /**
+     * GitHub's count of open issues as the collector last recorded it this hour, or undefined when it has not.
+     * @returns the count, or undefined
+     */
+    async githubOpen(): Promise<number | undefined> {
+        return (await this.window("issues.open_github", "1h")).total.last;
     }
 
     /**

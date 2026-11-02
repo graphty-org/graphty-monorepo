@@ -20,7 +20,9 @@ const BASE = new URL(process.env.HEALTH_API_URL ?? "https://bsn9dvawxd.execute-a
 const MAX_ROWS = 50;
 const DEFAULT_LIMIT_S = 15 * 60;
 const TIMEOUT_MS = 15_000;
-const PAGES = [...CATEGORY_IDS, "runners", "local-runs"];
+const PAGES = [...CATEGORY_IDS, "runners", "local-runs", "issues"];
+/** Each page's ranges when not 1h, 6h and 24h; the default is the last. */
+const PAGE_RANGES = { costs: ["7d", "28d"], issues: ["all", "28d"] };
 const LEVELS = ["group", "family", "shard", "file", "test"];
 const MEMBER_STATES = ["ok", "warn", "bad", "nodata", "notsetup", "few", "partial", "idle", "slow", "info"];
 
@@ -132,6 +134,12 @@ function oneOf(value, allowed, name, fallback) {
 
 const range = { type: "string", enum: ["1h", "6h", "24h"], description: "Window of the page's values; default 1h." };
 const slowRange = { type: "string", enum: ["7d", "28d"], description: "Window of a slow measure; default 28d." };
+const pageRange = {
+    type: "string",
+    enum: ["1h", "6h", "24h", "7d", "28d", "all"],
+    description:
+        "Window of the page's values: 1h (default), 6h or 24h; costs 7d or 28d (default); issues 28d (default) or all.",
+};
 const schema = (properties = {}, required = []) => ({ type: "object", properties, required });
 
 const TOOLS = [
@@ -147,15 +155,11 @@ const TOOLS = [
     {
         name: "category",
         description: `One page: its state, members (value, SLA, state) and sections. name: ${PAGES.join(", ")}.`,
-        inputSchema: schema({ name: { type: "string", enum: PAGES }, range }, ["name"]),
+        inputSchema: schema({ name: { type: "string", enum: PAGES }, range: pageRange }, ["name"]),
         run: async (a) => {
             const name = oneOf(a.name, PAGES, "name");
-            const r = oneOf(
-                a.range,
-                name === "costs" ? ["7d", "28d"] : ["1h", "6h", "24h"],
-                "range",
-                name === "costs" ? "28d" : "1h",
-            );
+            const ranges = PAGE_RANGES[name] ?? ["1h", "6h", "24h"];
+            const r = oneOf(a.range, ranges, "range", PAGE_RANGES[name] ? ranges.at(-1) : "1h");
             return { data: await page(name, r) };
         },
     },

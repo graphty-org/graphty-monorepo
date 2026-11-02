@@ -4,4 +4,4 @@
 
 export { featuresOf, styleFingerprint } from "./features.js";
 export { MAX_STYLE_RULES, type PlanOptions, planStyles, type StyleValues } from "./plan.js";
-export { matchPredicate, resolveStyles } from "./resolve.js";
+export { matchPredicate, resolveRule, resolveStyles } from "./resolve.js";

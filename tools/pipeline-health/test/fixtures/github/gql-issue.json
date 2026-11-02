@@ -1,6 +1,7 @@
 {
     "data": {
         "repository": {
+            "openTotal": { "totalCount": 510 },
             "recent": {
                 "pageInfo": {
                     "hasNextPage": true,

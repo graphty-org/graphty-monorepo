@@ -84,22 +84,9 @@ const EDGE_PICK_TOLERANCE_PX = 6;
  * @returns The points, in order along the line.
  */
 function edgeWorldPoints(edge: Edge): Vector3[] {
-    const curve = edge.drawnCurve;
-    if (curve !== null) {
-        // A curve's points are in graph-root's space, which an XR gesture moves. A patterned
-        // line's pieces are slots in batches parented to graph-root, and it has no mesh of its own.
-        const root =
-            edge.mesh instanceof PatternedLineMesh
-                ? edge.srcNode.mesh.getScene().getTransformNodeByName("graph-root")
-                : edge.mesh;
-        if (root === null) {
-            return curve;
-        }
-        const world = root.getWorldMatrix();
-        return curve.map((point) => Vector3.TransformCoordinates(point, world));
-    }
-
-    return [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()];
+    return (
+        drawnCurveInWorld(edge) ?? [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()]
+    );
 }
 
 /**
@@ -166,6 +153,7 @@ import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema"
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
+import { drawnCurveInWorld } from "./edgeWorldCurve";
 import { GraphtyError } from "./errors";
 import {
     EventCallbackType,
@@ -6830,11 +6818,17 @@ export class Graph implements GraphContext {
         this.applyEasing(distAnim, easing);
 
         return new Promise((resolve) => {
-            // Create observer to update controller during animation
-            const observer = this.scene.onBeforeRenderObservable.add(() => {
-                orbitController.cameraDistance = dummy.value;
-                orbitController.updateCameraPosition();
-            });
+            // Moves the camera, so first of the frame's observers: the passes run before the frame
+            // (the group outlines, the label declutter) read the camera, which must already stand
+            // where this frame draws it from (issue #5562).
+            const observer = this.scene.onBeforeRenderObservable.add(
+                () => {
+                    orbitController.cameraDistance = dummy.value;
+                    orbitController.updateCameraPosition();
+                },
+                undefined,
+                true,
+            );
 
             // Animate the dummy object
             const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1, () => {
@@ -7288,15 +7282,21 @@ export class Graph implements GraphContext {
                 }
             };
 
-            // Create observer to update controller
-            observer = this.scene.onBeforeRenderObservable.add(() => {
-                twoDController.camera.position.x = dummy.posX;
-                twoDController.camera.position.y = dummy.posY;
-                twoDController.camera.orthoLeft = dummy.orthoLeft;
-                twoDController.camera.orthoRight = dummy.orthoRight;
-                twoDController.camera.orthoTop = dummy.orthoTop;
-                twoDController.camera.orthoBottom = dummy.orthoBottom;
-            });
+            // Moves the camera, so first of the frame's observers: the passes run before the frame
+            // (the group outlines, the label declutter) read the camera, which must already stand
+            // where this frame draws it from (issue #5562).
+            observer = this.scene.onBeforeRenderObservable.add(
+                () => {
+                    twoDController.camera.position.x = dummy.posX;
+                    twoDController.camera.position.y = dummy.posY;
+                    twoDController.camera.orthoLeft = dummy.orthoLeft;
+                    twoDController.camera.orthoRight = dummy.orthoRight;
+                    twoDController.camera.orthoTop = dummy.orthoTop;
+                    twoDController.camera.orthoBottom = dummy.orthoBottom;
+                },
+                undefined,
+                true,
+            );
 
             // Animate dummy object
             const animatable = this.scene.beginDirectAnimation(dummy, animations, 0, frameCount, false, 1, () => {
@@ -8431,9 +8431,14 @@ export class Graph implements GraphContext {
         // We just need to call update() every frame for input processing
 
         // Hook into render loop to update XR input
-        const xrUpdateObserver = this.scene.onBeforeRenderObservable.add(() => {
-            xrCameraController.update();
-        });
+        // First of the frame's observers, so every pass reads where the camera stands this frame.
+        const xrUpdateObserver = this.scene.onBeforeRenderObservable.add(
+            () => {
+                xrCameraController.update();
+            },
+            undefined,
+            true,
+        );
 
         // Store for cleanup
         this.scene.metadata.xrCameraController = xrCameraController;

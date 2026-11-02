@@ -173,7 +173,8 @@ export function dynamoStore(
             );
             const write = async (chunk: typeof all): Promise<void> => {
                 let pending: typeof all | undefined = chunk;
-                for (let tries = 0; pending?.length; tries++) {
+                let tries = 0;
+                while (pending?.length) {
                     if (tries === 8) {
                         throw new Error(`batch write: ${pending.length} items unprocessed`);
                     }
@@ -182,6 +183,7 @@ export function dynamoStore(
                     }
                     const r = await client.send(new BatchWriteCommand({ RequestItems: { [tableName]: pending } }));
                     pending = r.UnprocessedItems?.[tableName] as typeof all | undefined;
+                    tries++;
                 }
             };
             // Eight BatchWriteItem calls at a time (ops on one key are already merged above).

@@ -18,6 +18,8 @@
 //                                      a file's failed and flaky tests by time, for GET /v1/test-history
 //   RUNTESTS#<run id>   <run attempt>#<test id>
 //                                      a CI run's failed and flaky tests, for "Blocked by a flake" (collector/flaky.ts)
+//   ISSUES              <repo>#<number, 7 digits>
+//                                      every issue, so the Issues page reads them all from one partition
 
 import type { Histogram } from "./histogram.js";
 import type { Item, Key } from "./store.js";
@@ -25,6 +27,8 @@ import type { Item, Key } from "./store.js";
 export const MIN = 60_000;
 export const HOUR = 60 * MIN;
 export const DAY = 24 * HOUR;
+/** How far back a fold change or a backfill rebuilds rollups from raw items (recompute.ts). */
+export const REFOLD_MS = 28 * DAY;
 
 export type Step = "5m" | "15m" | "1h" | "1d";
 export const STEP_MS: Record<Step, number> = { "5m": 5 * MIN, "15m": 15 * MIN, "1h": HOUR, "1d": DAY };
@@ -233,10 +237,12 @@ export interface IssueItem extends RawBase {
     kind: "issue";
     repo: string;
     number: number;
+    /** Absent on issues stored before titles were. */
+    title?: string;
     labels: string[];
     createdAt: number;
     closedAt?: number;
-    stateReason?: string; // completed | not_planned
+    stateReason?: string; // completed | not_planned | duplicate
 }
 
 export interface NpmItem extends RawBase {
@@ -329,6 +335,9 @@ export const copyKey = (r: Pick<RawItem, "kind" | "id" | "attempt">, field: stri
     sk: `${r.kind}#${field}#${r.id}#${r.attempt}`,
 });
 
+/** The partition holding a copy of every issue (indexKeys), which the Issues page reads whole. */
+export const ISSUES_PK = "ISSUES";
+
 /**
  * The index copies of a raw item (drill-downs read them), or none for kinds no drill-down indexes.
  * @param r - the raw record
@@ -349,6 +358,9 @@ export function indexKeys(r: RawItem): Item[] {
             keys.push({ pk: `RUNTESTS#${run[1]}`, sk: `${run[2]}#${r.id}` });
         }
         return keys;
+    }
+    if (r.kind === "issue") {
+        return [{ pk: ISSUES_PK, sk: `${r.repo}#${String(r.number).padStart(7, "0")}` }];
     }
     return [];
 }

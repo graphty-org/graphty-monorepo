@@ -12,8 +12,9 @@ import { NoticeSlot } from "./frame/NoticeSlot";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
-import { notReadSentence, openingFile } from "./project/actions";
+import { openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
+import { notReadWords } from "./project/words";
 import { REGISTRATIONS } from "./registrations";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { useDropToOpen } from "./start/open";
@@ -126,7 +127,7 @@ export function Workspace({
             .catch((error: unknown) => {
                 focusLater(false);
                 opening.settle({ error });
-                const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
+                const notice = { message: notReadWords(opening.name, error, "opened"), error: true };
                 store.set((state) =>
                     state.project?.id === project?.id
                         ? { project: null, page: "panels", inspected: null, dialog: null, renaming: false, notice }

@@ -37,7 +37,7 @@
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace layout",
         "typecheck": "tsc --noEmit",
-        "typecheck:consumer": "tsc -p tsconfig.consumer.json",
+        "typecheck:consumer": "node ../tools/require-built.mjs tsconfig.consumer.json && tsc -p tsconfig.consumer.json",
         "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",

@@ -5,7 +5,7 @@
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 
 import { type AlertsResult, sendAlerts } from "./alerts/index.js";
-import { DAY, dirtyKey, floorTo, MIN } from "./model/items.js";
+import { dirtyKey, floorTo, MIN, REFOLD_MS } from "./model/items.js";
 import { FOLD_VERSION } from "./model/metrics.js";
 import { getCursor, recordSource, setCursor } from "./model/raw.js";
 import { recompute } from "./model/rollup.js";
@@ -33,9 +33,6 @@ export async function ssmSecret(name: string): Promise<string | undefined> {
         throw err;
     }
 }
-
-/** How far back a fold change re-marks buckets: the four weeks the dashboard and the backfill cover. */
-export const REFOLD_MS = 28 * DAY;
 
 /**
  * Marks every 5-minute bucket of the last REFOLD_MS dirty once per FOLD_VERSION, so items stored before a fold

@@ -4679,33 +4679,53 @@ export function recordsInRowOrder(
     snapshot: GraphSnapshot,
     target: "node" | "edge",
 ): readonly SessionAttributes[] {
-    const out: SessionAttributes[] = [];
-    if (target === "node") {
-        const ids = snapshot.ids.toArray();
-        for (const id of ids) {
-            const record = slice.nodes.get(id);
-            if (record !== undefined) {
-                out.push(record);
-            }
-        }
+    const out = target === "node" ? nodeRecordsInRowOrder(slice, snapshot) : edgeRecordsInRowOrder(slice, snapshot);
+    return Object.freeze(out);
+}
 
-        const rowed = new Set<unknown>(ids);
-        for (const [id, record] of slice.nodes) {
-            if (!rowed.has(id)) {
-                out.push(record);
-            }
-        }
-    } else {
-        for (let row = 0; row < snapshot.edgeCount; row++) {
-            const counter = snapshot.edges.value(EDGE_ID_COLUMN, row);
-            const record = typeof counter === "number" ? slice.edges.get(edgeIdOf(counter)) : undefined;
-            if (record !== undefined) {
-                out.push(record);
-            }
+/**
+ * The node records in row order, then those with no row.
+ * @param slice - The `graph` slice.
+ * @param snapshot - The snapshot of the same graph.
+ * @returns The records.
+ */
+function nodeRecordsInRowOrder(slice: GraphSlice, snapshot: GraphSnapshot): SessionAttributes[] {
+    const out: SessionAttributes[] = [];
+    const ids = snapshot.ids.toArray();
+    for (const id of ids) {
+        const record = slice.nodes.get(id);
+        if (record !== undefined) {
+            out.push(record);
         }
     }
 
-    return Object.freeze(out);
+    const rowed = new Set<unknown>(ids);
+    for (const [id, record] of slice.nodes) {
+        if (!rowed.has(id)) {
+            out.push(record);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The edge records in row order.
+ * @param slice - The `graph` slice.
+ * @param snapshot - The snapshot of the same graph.
+ * @returns The records.
+ */
+function edgeRecordsInRowOrder(slice: GraphSlice, snapshot: GraphSnapshot): SessionAttributes[] {
+    const out: SessionAttributes[] = [];
+    for (let row = 0; row < snapshot.edgeCount; row++) {
+        const counter = snapshot.edges.value(EDGE_ID_COLUMN, row);
+        const record = typeof counter === "number" ? slice.edges.get(edgeIdOf(counter)) : undefined;
+        if (record !== undefined) {
+            out.push(record);
+        }
+    }
+
+    return out;
 }
 
 /** A JMESPath expression that is nothing but a top-level property name. */

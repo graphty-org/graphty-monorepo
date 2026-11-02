@@ -420,7 +420,8 @@ async function runBatch(
     let levels = 0;
     let overflow = false;
     let endsWords: U32 | null = null;
-    for (let first = true; endsWords === null; first = false) {
+    let first = true;
+    while (endsWords === null) {
         const batch = new CommandBatch(ctx, `${ALGORITHM}/forward`);
         const pass = batch.pass("forward");
         if (first) {
@@ -487,6 +488,7 @@ async function runBatch(
                 message: `the done flag never rose in ${recorded} levels`,
             });
         }
+        first = false;
     }
 
     // the backward phase, planned from ends: depth levels - 1 down to 1, then the gathers

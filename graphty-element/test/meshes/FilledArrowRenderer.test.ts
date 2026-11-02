@@ -200,56 +200,40 @@ describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
         });
     });
 
-    describe("Open-Normal Arrow", () => {
-        test("createOpenNormal creates hollow triangle outline", () => {
-            const mesh = FilledArrowRenderer.createOpenNormal(scene);
+    describe("Open outlines", () => {
+        test.each(Object.keys(FilledArrowRenderer.OPEN_OUTLINES))(
+            "%s is a frame as thick as the stroke it is given, its middle left open",
+            (type) => {
+                for (const stroke of [0.05, 0.1]) {
+                    const mesh = FilledArrowRenderer.createOpenOutline(type, scene, stroke);
+                    const p = mesh.getVerticesData("position") ?? [];
+                    assert.isTrue(
+                        p.every((v, i) => i % 3 !== 1 || v === 0),
+                        "in the XZ plane",
+                    );
+                    // the box's frame: its outer side at z = 0.5, its inner side the stroke in from it
+                    const zs = [...new Set(p.filter((_, i) => i % 3 === 2).map((z) => Math.round(z * 1e6) / 1e6))];
+                    if (type === "open-box") {
+                        assert.sameMembers(zs, [-0.5, 0.5, -(0.5 - stroke), 0.5 - stroke]);
+                    }
+                    assert.isAbove(mesh.getTotalIndices(), 0);
+                    mesh.dispose();
+                }
+            },
+        );
 
-            const positions = mesh.getVerticesData("position");
-            assert.exists(positions);
-            // 6 vertices (3 outer + 3 inner)
-            assert.equal(positions.length, 18);
-
-            // Verify XZ plane geometry
-            for (let i = 1; i < positions.length; i += 3) {
-                assert.equal(positions[i], 0);
-            }
-
+        test("a stroke as thick as the shape is held to half the way to its middle, so it stays open", () => {
+            const mesh = FilledArrowRenderer.createOpenOutline("open-box", scene, 2);
+            const zs = (mesh.getVerticesData("position") ?? []).filter((_, i) => i % 3 === 2);
+            assert.closeTo(Math.min(...zs.filter((z) => z > 0)), 0.25, 1e-9);
             mesh.dispose();
         });
-    });
 
-    describe("Open-Diamond Arrow", () => {
-        test("createOpenDiamond creates hollow diamond outline", () => {
-            const mesh = FilledArrowRenderer.createOpenDiamond(scene);
-
-            const positions = mesh.getVerticesData("position");
-            assert.exists(positions);
-            // 8 vertices (4 outer + 4 inner)
-            assert.equal(positions.length, 24);
-
-            // Verify XZ plane geometry
-            for (let i = 1; i < positions.length; i += 3) {
-                assert.equal(positions[i], 0);
-            }
-
-            mesh.dispose();
-        });
-    });
-
-    describe("Open-Circle Arrow", () => {
-        test("createOpenCircle creates hollow circle outline", () => {
-            const mesh = FilledArrowRenderer.createOpenCircle(scene, 32);
-
-            const positions = mesh.getVerticesData("position");
-            assert.exists(positions);
-            // (segments + 1) * 2 vertices for inner and outer rings
-            assert.isAtLeast(positions.length, 33 * 2 * 3);
-
-            // Verify XZ plane geometry
-            for (let i = 1; i < positions.length; i += 3) {
-                assert.equal(positions[i], 0);
-            }
-
+        test("its width is applied before it is framed, so the frame stays as thick", () => {
+            const mesh = FilledArrowRenderer.createOpenOutline("open-box", scene, 0.1, 2);
+            const zs = (mesh.getVerticesData("position") ?? []).filter((_, i) => i % 3 === 2);
+            assert.closeTo(Math.max(...zs), 1, 1e-9);
+            assert.closeTo(Math.min(...zs.filter((z) => z > 0)), 0.9, 1e-9);
             mesh.dispose();
         });
     });
@@ -356,9 +340,9 @@ describe("FilledArrowRenderer - XZ Plane Geometry Verification (CRITICAL)", () =
         { type: "tee", createFn: (s) => FilledArrowRenderer.createTee(s) },
         { type: "half-open", createFn: (s) => FilledArrowRenderer.createHalfOpen(s) },
         { type: "crow", createFn: (s) => FilledArrowRenderer.createCrow(s) },
-        { type: "open-normal", createFn: (s) => FilledArrowRenderer.createOpenNormal(s) },
-        { type: "open-diamond", createFn: (s) => FilledArrowRenderer.createOpenDiamond(s) },
-        { type: "open-dot", createFn: (s) => FilledArrowRenderer.createOpenCircle(s) },
+        { type: "open-normal", createFn: (s) => FilledArrowRenderer.createOpenOutline("open-normal", s) },
+        { type: "open-diamond", createFn: (s) => FilledArrowRenderer.createOpenOutline("open-diamond", s) },
+        { type: "open-dot", createFn: (s) => FilledArrowRenderer.createOpenOutline("open-dot", s) },
     ];
 
     filledArrowTypes.forEach(({ type, createFn }) => {
@@ -593,7 +577,10 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
      * @returns the extents
      */
     function extents(type: string): { x0: number; x1: number; z0: number; z1: number; triangles: number } {
-        const mesh = FilledArrowRenderer.createPolygonArrow(type, scene);
+        const mesh =
+            type in FilledArrowRenderer.OPEN_OUTLINES
+                ? FilledArrowRenderer.createOpenOutline(type, scene)
+                : FilledArrowRenderer.createPolygonArrow(type, scene);
         const p = mesh.getVerticesData("position") ?? [];
         const xs = p.filter((_, i) => i % 3 === 0);
         const ys = p.filter((_, i) => i % 3 === 1);
@@ -608,7 +595,13 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
     }
 
     test("every one reaches from its tip at the origin back to x = -1", () => {
-        for (const type of Object.keys(FilledArrowRenderer.POLYGON_ARROWS)) {
+        for (const type of [
+            ...Object.keys(FilledArrowRenderer.POLYGON_ARROWS),
+            "open-normal",
+            "open-diamond",
+            "open-inverted",
+            "open-box",
+        ]) {
             const e = extents(type);
             assert.closeTo(e.x1, 0, 1e-9, `${type} tip`);
             assert.closeTo(e.x0, -1, 1e-9, `${type} back`);
@@ -727,7 +720,7 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
         const e = extents("open-box");
         assert.closeTo(e.z0, -0.5, 1e-9);
         assert.closeTo(e.z1, 0.5, 1e-9);
-        const mesh = FilledArrowRenderer.createPolygonArrow("open-box", scene);
+        const mesh = FilledArrowRenderer.createOpenOutline("open-box", scene);
         const p = mesh.getVerticesData("position") ?? [];
         const idx = mesh.getIndices() ?? [];
         // no triangle covers the box's center (-0.5, 0)
@@ -745,7 +738,7 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
         const e = extents("open-inverted");
         assert.closeTo(e.z0, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2, 1e-9);
         assert.closeTo(e.z1, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2, 1e-9);
-        const mesh = FilledArrowRenderer.createPolygonArrow("open-inverted", scene);
+        const mesh = FilledArrowRenderer.createOpenOutline("open-inverted", scene);
         const p = mesh.getVerticesData("position") ?? [];
         // the widest point is the base at the tip (x = 0), the point at x = -1
         const at = (x: number): number[] =>
@@ -765,7 +758,10 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
     });
 
     test("2D builds each one by its type", () => {
-        for (const type of Object.keys(FilledArrowRenderer.POLYGON_ARROWS)) {
+        for (const type of [
+            ...Object.keys(FilledArrowRenderer.POLYGON_ARROWS),
+            ...Object.keys(FilledArrowRenderer.OPEN_OUTLINES),
+        ]) {
             const mesh = FilledArrowRenderer.create2DArrow(type, 0.5, 0.3, "#ff0000", 1, scene);
             assert.isAbove(mesh.getTotalVertices(), 2, type);
             assert.strictEqual(mesh.name, `arrow-2d-${type}`);

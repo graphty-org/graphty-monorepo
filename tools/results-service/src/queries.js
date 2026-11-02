@@ -473,25 +473,37 @@ export async function getMedians(query, _who, db, now) {
  * @returns key, kind, recent, earlier, alarm and range for each key with at least 5 runs
  */
 export async function trendFor(db, kind, posted, budgets, now) {
-    const workflows = [...new Set(posted.map((r) => r.workflow))];
-    const keys = new Set(posted.map((r) => keyOf({ step: "", task: "", ...r })));
-    // ponytail: 30-day window scanned per post; a per-key summary table if D1 reads get slow
-    const rows = await all(
-        db,
-        `SELECT workflow, job, step, task, sha, ms FROM (SELECT d.*, row_number() OVER
-           (PARTITION BY workflow, job, step, task ORDER BY started_at DESC) AS n FROM duration d
-           WHERE kind = ? AND workflow IN (${placeholders(workflows)}) AND started_at >= ?
-             AND coalesce(conclusion, '') != 'cancelled')
-         WHERE n <= 15 ORDER BY started_at`,
-        kind,
-        ...workflows,
-        now - 30 * DAY,
-    );
-    const byKey = Map.groupBy(rows, keyOf);
-    return [...byKey]
-        .filter(([key, rs]) => keys.has(key) && rs.length >= 5)
+    const since = now - 30 * DAY;
+    const rows = [];
+    // Each posted key's newest 15 samples, sought through an index (#5597): a window over the whole 30 days held D1
+    // past 10 s once the table grew, and every other read queued behind it. A task key is its newest 15 over
+    // every job that ran it, which is all of them judgeTrend reads. The keys are one JSON parameter (D1 binds 100).
+    const keys = (r) => (r.task ? [r.workflow, r.task] : [r.workflow, r.job, r.step ?? ""]);
+    const tasks = posted.filter((r) => r.task).map(keys);
+    const steps = posted.filter((r) => !r.task).map(keys);
+    if (steps.length) rows.push(...(await all(db, NEWEST_STEPS, kind, JSON.stringify(steps), since)));
+    if (tasks.length) rows.push(...(await all(db, NEWEST_TASKS, kind, JSON.stringify(tasks), since)));
+    rows.sort((a, b) => a.started_at - b.started_at);
+    return [...Map.groupBy(rows, keyOf)]
+        .filter(([, rs]) => rs.length >= 5)
         .map(([key, rs]) => ({ key, kind, ...judgeTrend(rs, budgets?.[key]) }));
 }
+
+// A key's samples from its 15th newest on (ties on the start may add a few older ones, which judgeTrend drops)
+const NEWEST_STEPS = `WITH k AS (SELECT DISTINCT json_extract(value, '$[0]') AS workflow, json_extract(value, '$[1]') AS job,
+      json_extract(value, '$[2]') AS step FROM json_each(?2))
+    SELECT e.workflow, e.job, e.step, e.task, e.sha, e.ms, e.started_at FROM k JOIN duration e INDEXED BY duration_key
+      ON e.kind = ?1 AND e.workflow = k.workflow AND e.job = k.job AND e.step = k.step AND e.task = ''
+     WHERE coalesce(e.conclusion, '') != 'cancelled' AND e.started_at >= coalesce((SELECT x.started_at FROM duration x INDEXED BY duration_key
+       WHERE x.kind = ?1 AND x.workflow = k.workflow AND x.job = k.job AND x.step = k.step AND x.task = ''
+         AND x.started_at >= ?3 AND coalesce(x.conclusion, '') != 'cancelled' ORDER BY x.started_at DESC LIMIT 1 OFFSET 14), ?3)`;
+const NEWEST_TASKS = `WITH k AS (SELECT DISTINCT json_extract(value, '$[0]') AS workflow, json_extract(value, '$[1]') AS task
+      FROM json_each(?2))
+    SELECT e.workflow, e.job, e.step, e.task, e.sha, e.ms, e.started_at FROM k JOIN duration e INDEXED BY duration_task
+      ON e.kind = ?1 AND e.workflow = k.workflow AND e.task = k.task
+     WHERE coalesce(e.conclusion, '') != 'cancelled' AND e.started_at >= coalesce((SELECT x.started_at FROM duration x INDEXED BY duration_task
+       WHERE x.kind = ?1 AND x.workflow = k.workflow AND x.task = k.task
+         AND x.started_at >= ?3 AND coalesce(x.conclusion, '') != 'cancelled' ORDER BY x.started_at DESC LIMIT 1 OFFSET 14), ?3)`;
 
 /**
  * Each key's last sample within a run kind, and how many runs of its workflow and kind came after it (#5176): a
@@ -505,18 +517,16 @@ export async function trendFor(db, kind, posted, budgets, now) {
  * @returns `{ [key]: { runId, sha, at, runsSince } }`
  */
 export async function lastSeenFor(db, kind, workflows, now) {
-    const where = `kind = ? AND workflow IN (${placeholders(workflows)}) AND started_at >= ?
-        AND coalesce(conclusion, '') != 'cancelled'`;
+    // from the summary tables a trigger keeps (migrations/0009), never a scan of the duration table (#5597)
     const args = [kind, ...workflows, now - 30 * DAY];
-    // SQLite answers the bare columns (sha, started_at) from the row holding max(run_id)
+    const where = `kind = ? AND workflow IN (${placeholders(workflows)}) AND started_at >= ?`;
     const last = await all(
         db,
-        `SELECT workflow, job, step, task, max(run_id) AS run_id, sha, started_at FROM duration WHERE ${where}
-         GROUP BY workflow, job, step, task`,
+        `SELECT workflow, job, step, task, run_id, sha, started_at FROM duration_last WHERE ${where}`,
         ...args,
     );
     const runs = Map.groupBy(
-        await all(db, `SELECT DISTINCT workflow, run_id FROM duration WHERE ${where}`, ...args),
+        await all(db, `SELECT workflow, run_id FROM duration_run WHERE ${where}`, ...args),
         (r) => r.workflow,
     );
     const out = {};

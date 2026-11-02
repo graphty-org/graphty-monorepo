@@ -1235,14 +1235,33 @@ class GraphmlReader implements XmlHandler {
         if (graphId !== undefined && graphId.length > 0) {
             this.graphIds.add(graphId);
         }
-        const edgedefault = attrs.get("edgedefault");
-        let directed: boolean;
+        const directed = this.graphDirection(attrs.get("edgedefault"), top, line);
+        let hints: GraphState["hints"] = null;
+        if (top && this.graphSeen) {
+            this.reportSecondGraph(attrs, line);
+        } else if (top) {
+            hints = this.beginTopGraph(attrs, line, directed);
+        }
+        this.graphs.push({ directed, parent, hints, nodes: 0, edges: 0, line });
+        this.ctx.push(Ctx.Graph);
+    }
+
+    /**
+     * The direction of a `<graph>` from its edgedefault; a missing or invalid one is reported and
+     * read as the default (top level) or its container's (nested).
+     * @param edgedefault - the edgedefault attribute, or undefined
+     * @param top - whether the graph is top-level
+     * @param line - the line
+     * @returns true when directed
+     */
+    private graphDirection(edgedefault: string | undefined, top: boolean, line: number): boolean {
         if (edgedefault === "directed" || edgedefault === "undirected") {
-            directed = edgedefault === "directed";
-        } else if (edgedefault === undefined) {
-            directed = top ? this.options.defaultDirected : this.graphs[this.graphs.length - 1].directed;
+            return edgedefault === "directed";
+        }
+        const directed = top ? this.options.defaultDirected : this.graphs.at(-1)?.directed === true;
+        const direction = directed ? "directed" : "undirected";
+        if (edgedefault === undefined) {
             // once per kind: a file of thousands of nested graphs without edgedefault is one finding
-            const direction = directed ? "directed" : "undirected";
             this.report.warnOnce(
                 "validation-error",
                 GRAPHML_ISSUE.EDGEDEFAULT_MISSING,
@@ -1253,61 +1272,70 @@ class GraphmlReader implements XmlHandler {
                 `${GRAPHML_ISSUE.EDGEDEFAULT_MISSING}:${top ? "top" : "nested"}`,
             );
         } else {
-            directed = top ? this.options.defaultDirected : this.graphs[this.graphs.length - 1].directed;
             this.report.error(
                 "validation-error",
                 GRAPHML_ISSUE.INVALID_EDGEDEFAULT,
-                `edgedefault "${edgedefault}" is neither directed nor undirected; read as ${directed ? "directed" : "undirected"}`,
+                `edgedefault "${edgedefault}" is neither directed nor undirected; read as ${direction}`,
                 { line },
             );
         }
-        let hints: GraphState["hints"] = null;
-        if (top && this.graphSeen) {
-            this.report.warnOnce(
-                "unsupported",
-                GRAPHML_ISSUE.MULTIPLE_GRAPHS,
-                "the document holds more than one top-level <graph>; their nodes and edges are merged into one graph",
-                { line, element: attrs.get("id") ?? null },
-            );
-            for (const name of ["parse.nodes", "parse.edges"]) {
-                if (attrs.has(name)) {
-                    this.report.warnOnce(
-                        "unsupported",
-                        GRAPHML_ISSUE.PARSE_HINT_IGNORED,
-                        `the ${name} hint of a second top-level <graph> is ignored`,
-                        { line, element: name },
-                        `${GRAPHML_ISSUE.PARSE_HINT_IGNORED}:second:${name}`,
-                    );
-                }
-            }
-        } else if (top) {
-            this.graphSeen = true;
-            this.graphId = attrs.get("id") ?? null;
-            this.edgedefault = directed ? "directed" : "undirected";
-            this.direction.setHeader(directed, { line });
-            const nodes = this.hint(attrs.get("parse.nodes"), "parse.nodes", line);
-            const edges = this.hint(attrs.get("parse.edges"), "parse.edges", line);
-            hints = nodes === null && edges === null ? null : { nodes, edges };
-            if (nodes !== null || edges !== null) {
-                try {
-                    this.sink.reserve(nodes ?? undefined, edges ?? undefined);
-                } catch (err) {
-                    if (!(err instanceof GraphFormatError)) {
-                        throw err;
-                    }
-                    this.report.warning(
-                        "validation-error",
-                        GRAPHML_ISSUE.COUNT_HINT,
-                        `count hint refused: ${err.message}`,
-                        {
-                            line,
-                        },
-                    );
-                }
+        return directed;
+    }
+
+    /**
+     * Report a second top-level `<graph>`: it is merged into the first and its count hints are ignored.
+     * @param attrs - the graph attributes
+     * @param line - the line
+     */
+    private reportSecondGraph(attrs: ReadonlyMap<string, string>, line: number): void {
+        this.report.warnOnce(
+            "unsupported",
+            GRAPHML_ISSUE.MULTIPLE_GRAPHS,
+            "the document holds more than one top-level <graph>; their nodes and edges are merged into one graph",
+            { line, element: attrs.get("id") ?? null },
+        );
+        for (const name of ["parse.nodes", "parse.edges"]) {
+            if (attrs.has(name)) {
+                this.report.warnOnce(
+                    "unsupported",
+                    GRAPHML_ISSUE.PARSE_HINT_IGNORED,
+                    `the ${name} hint of a second top-level <graph> is ignored`,
+                    { line, element: name },
+                    `${GRAPHML_ISSUE.PARSE_HINT_IGNORED}:second:${name}`,
+                );
             }
         }
-        this.graphs.push({ directed, parent, hints, nodes: 0, edges: 0, line });
-        this.ctx.push(Ctx.Graph);
+    }
+
+    /**
+     * Open the first top-level `<graph>`: it sets the sink's direction, and its count hints are
+     * reserved in the sink.
+     * @param attrs - the graph attributes
+     * @param line - the line
+     * @param directed - the graph's direction
+     * @returns the count hints, or null when it has none
+     */
+    private beginTopGraph(attrs: ReadonlyMap<string, string>, line: number, directed: boolean): GraphState["hints"] {
+        this.graphSeen = true;
+        this.graphId = attrs.get("id") ?? null;
+        this.edgedefault = directed ? "directed" : "undirected";
+        this.direction.setHeader(directed, { line });
+        const nodes = this.hint(attrs.get("parse.nodes"), "parse.nodes", line);
+        const edges = this.hint(attrs.get("parse.edges"), "parse.edges", line);
+        if (nodes === null && edges === null) {
+            return null;
+        }
+        try {
+            this.sink.reserve(nodes ?? undefined, edges ?? undefined);
+        } catch (err) {
+            if (!(err instanceof GraphFormatError)) {
+                throw err;
+            }
+            this.report.warning("validation-error", GRAPHML_ISSUE.COUNT_HINT, `count hint refused: ${err.message}`, {
+                line,
+            });
+        }
+        return { nodes, edges };
     }
 
     /** Close a `<graph>`: a top-level graph's count hints are checked against what it held. */
@@ -1459,20 +1487,50 @@ class GraphmlReader implements XmlHandler {
                 where,
             );
         }
+        const columns = this.declareKeyColumns(key, key.id, name, skipped ? [] : key.domains);
+        this.keys.set(key.id, [
+            ...declared,
+            {
+                id: key.id,
+                name,
+                node: columns.node,
+                edge: columns.edge,
+                graph: columns.graph,
+                weight: columns.weight,
+                originalId: columns.originalId,
+                yfiles,
+                skipped,
+                domains: key.domains,
+            },
+        ]);
+    }
+
+    /**
+     * Declare the columns of a `<key>` in each of its domains: an edge key titled like the weight
+     * is THE weight, a node key titled like the original-id attribute restores mangled ids.
+     * @param key - the key
+     * @param id - the key id
+     * @param name - the resolved attribute name
+     * @param domains - the domains to declare (none for a skipped key)
+     * @returns the column targets and the weight and original-id flags
+     */
+    private declareKeyColumns(
+        key: PendingKey,
+        id: string,
+        name: string,
+        domains: readonly Domain[],
+    ): Pick<KeyEntry, "node" | "edge" | "graph" | "weight" | "originalId"> {
+        const yfiles = key.yfilesType !== null;
+        const where = { line: key.line, element: key.id };
         let weight = false;
         let originalId = false;
-        let node: ColumnTarget | null = null;
-        let edge: ColumnTarget | null = null;
-        let graph: ColumnTarget | null = null;
-        for (const domain of key.domains) {
-            if (skipped) {
-                continue;
-            }
+        const targets: Record<Domain, ColumnTarget | null> = { node: null, edge: null, graph: null };
+        for (const domain of domains) {
             if (domain === "edge" && !yfiles && isWeightField(name, this.options.weightFrom)) {
                 // networkx writes one weight key per value type (long and double): every key of
                 // that name is the weight; two of them on one edge are reported in finishData
                 weight = true;
-                this.weightOrigin ??= { id: key.id, title: key.attrName, type: key.attrType };
+                this.weightOrigin ??= { id, title: key.attrName, type: key.attrType };
                 continue;
             }
             if (domain === "node" && !yfiles && name === ORIGINAL_ID_ATTRIBUTE) {
@@ -1480,37 +1538,16 @@ class GraphmlReader implements XmlHandler {
                     originalId = true;
                     continue;
                 }
-                node = this.declareOriginalIdColumn(key);
+                targets.node = this.declareOriginalIdColumn(key);
                 continue;
             }
             try {
-                const target = yfiles ? this.declareYfiles(key, name, domain) : this.declareTyped(key, name, domain);
-                if (domain === "node") {
-                    node = target;
-                } else if (domain === "edge") {
-                    edge = target;
-                } else {
-                    graph = target;
-                }
+                targets[domain] = yfiles ? this.declareYfiles(key, name, domain) : this.declareTyped(key, name, domain);
             } catch (err) {
                 this.report.recordError(err, where);
             }
         }
-        this.keys.set(key.id, [
-            ...declared,
-            {
-                id: key.id,
-                name,
-                node,
-                edge,
-                graph,
-                weight,
-                originalId,
-                yfiles,
-                skipped,
-                domains: key.domains,
-            },
-        ]);
+        return { node: targets.node, edge: targets.edge, graph: targets.graph, weight, originalId };
     }
 
     /**
@@ -2539,8 +2576,10 @@ class GraphmlReader implements XmlHandler {
         this.hyperedgeCount++;
         const baseId = hyperedge.id ?? `hyperedge${this.hyperedgeCount}`;
         let hubId = baseId;
-        for (let n = 2; this.sink.indexOf(hubId) !== INVALID_INDEX; n++) {
+        let n = 2;
+        while (this.sink.indexOf(hubId) !== INVALID_INDEX) {
             hubId = `${baseId}#${n}`;
+            n++;
         }
         const hub = this.sink.addNode(hubId);
         this.declared.add(hub);

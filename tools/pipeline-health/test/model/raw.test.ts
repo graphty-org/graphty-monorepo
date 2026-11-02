@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { DAILY_ROW_LIMIT, homeKey, HOUR, type RawItem, rollKey, skTime } from "../../src/model/items.js";
+import {
+    DAILY_ROW_LIMIT,
+    DAY,
+    floorTo,
+    homeKey,
+    HOUR,
+    type IssueItem,
+    ISSUES_PK,
+    type RawItem,
+    rollKey,
+    skTime,
+} from "../../src/model/items.js";
 import { getCursor, oldestAt, putRaw, quotaUsed, recordSource, setCursor, takeQuota } from "../../src/model/raw.js";
 import { recompute, windowValue } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
@@ -50,6 +61,42 @@ describe("raw writes", () => {
         expect(stored.cause).toBe("infrastructure");
         expect(stored.tested).toBe(true);
         expect(stored.conclusion).toBeUndefined();
+    });
+
+    it("keeps a copy of every issue in the ISSUES partition, replaced when the issue is written again", async () => {
+        const store = new MemoryStore();
+        const issue: IssueItem = {
+            kind: "issue",
+            id: "o/r#42",
+            attempt: 1,
+            repo: "o/r",
+            number: 42,
+            labels: ["bug"],
+            createdAt: T0 - HOUR,
+        };
+        await putRaw(store, [issue], T0);
+        await putRaw(store, [{ ...issue, closedAt: T0, stateReason: "completed" }], T0 + MIN);
+        const index = await store.query(ISSUES_PK);
+        expect(index.map((i) => i.sk)).toEqual(["o/r#0000042"]);
+        expect(index[0]).toMatchObject({ number: 42, closedAt: T0, stateReason: "completed" });
+    });
+
+    it("marks no bucket older than markSince dirty, and still writes the item's time copies", async () => {
+        const store = new MemoryStore();
+        const old = T0 - 200 * DAY;
+        const issue: IssueItem = {
+            kind: "issue",
+            id: "o/r#7",
+            attempt: 1,
+            repo: "o/r",
+            number: 7,
+            labels: [],
+            createdAt: old,
+            closedAt: T0 - HOUR,
+        };
+        await putRaw(store, [issue], T0, { markSince: T0 - 28 * DAY });
+        expect((await store.query("DIRTY")).map((m) => m.sk)).toEqual([skTime(floorTo(T0 - HOUR, "5m"))]);
+        expect(await store.query(`T#${skTime(floorTo(old, "5m"))}`)).toHaveLength(1);
     });
 
     it("refuses an item without an id", async () => {

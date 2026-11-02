@@ -395,6 +395,7 @@ export interface ChannelValues {
     "node.width": number;
     "node.height": number;
     "node.depth": number;
+    "node.relativeExtents": boolean;
     "node.planar": boolean;
     "node.zIndex": number;
     "node.drawOrder": number;
@@ -414,6 +415,7 @@ export interface ChannelValues {
     "node.outerBorderCount": number;
     "node.cornerRadius": number;
     "node.exactCornerRadius": boolean;
+    "node.cornerFraction": number;
     "node.underlayColor": ColorValue;
     "node.underlayOpacity": number;
     "node.underlayPadding": number;
@@ -2466,6 +2468,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     "node.width": extentChannel("width", "x"),
     "node.height": extentChannel("height", "y"),
     "node.depth": extentChannel("depth", "z"),
+    "node.relativeExtents": {
+        channel: "node.relativeExtents",
+        target: "node",
+        plainName: "Node Relative Extents",
+        shortName: "Relative extents",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.relativeExtents",
+        renderable: true,
+        caveat:
+            "When on, `node.width`, `node.height` and `node.depth` are multiples of `node.size`, so " +
+            "a node 2 wide and 1 tall at size 1 is 4 wide and 2 tall at size 2: changing the size " +
+            "keeps the stretch. Off (the default), they are extents in the units of `node.size`.",
+    },
     "node.planar": {
         channel: "node.planar",
         target: "node",
@@ -3449,6 +3466,24 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "Whether `node.cornerRadius` is drawn as given, up to half the shorter side, so a large radius " +
             "draws a pill (true), or capped at a quarter of the shorter side on a round-rectangle and a " +
             "tenth on the round-* polygons (false). Other shapes ignore it.",
+    },
+    "node.cornerFraction": {
+        channel: "node.cornerFraction",
+        target: "node",
+        plainName: "Node Corner Fraction",
+        shortName: "Corner fraction",
+        group: "shape",
+        default: 0.25,
+        accepts: "number",
+        min: 0,
+        max: 0.5,
+        stylePath: "shape.cornerFraction",
+        renderable: true,
+        caveat:
+            "The share of a round-rectangle's shorter side its corners are rounded by, never more than " +
+            "`node.cornerRadius`: a quarter by default, as Cytoscape.js rounds; an eighth, as Cytoscape " +
+            "desktop rounds, with no `node.cornerRadius` keeps large boxes round. Ignored when " +
+            "`node.exactCornerRadius` is on. Other shapes ignore it.",
     },
     "node.shapePoints": {
         channel: "node.shapePoints",

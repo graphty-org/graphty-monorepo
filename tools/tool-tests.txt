@@ -59,6 +59,7 @@ tools/release-dry-run.test.mjs
 tools/release-rerun.test.mjs
 tools/release-scheduler/test/index.test.mjs
 tools/release-status.test.mjs
+tools/require-built.test.mjs
 tools/restricted-cpu-stress.test.mjs
 tools/results-service/test/index.test.mjs
 tools/results/results.test.mjs

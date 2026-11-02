@@ -1,11 +1,13 @@
 // Every payload the page fetches (web/src/contract.ts), built from the rollups and one evaluate() result: the
-// status, the overview and each page at 1 h, 6 h and 24 h, Costs at 7 d and 28 d, and the slow sections at 7 d and
-// 28 d. States, setters and episodes are the engine's; this only lays them out and reads values for each range.
+// status, the overview and each page at 1 h, 6 h and 24 h, Costs at 7 d and 28 d, the slow sections at 7 d and
+// 28 d, and Issues at 28 d and all (from the stored issues themselves). States, setters and episodes are the
+// engine's; this only lays them out and reads values for each range.
 
 import type {
     CategoryStatus,
     Episode,
     Fact,
+    IssueRange,
     Member,
     MemberId,
     MemberRef,
@@ -23,6 +25,7 @@ import type {
 import type { Store } from "../model/store.js";
 import { type SlaConfig, SLAS } from "../sla/config.js";
 import { categoryOf, type Evaluation, type MemberStatus, type SourceStatus } from "../sla/engine.js";
+import { issuesPage } from "./issue-sections.js";
 import { benchmarksTable, chronicTable, nonGatingTable } from "./job-sections.js";
 import type { ViewRoute } from "./keys.js";
 import { CATEGORY, iso, LOCAL, localMember, memberAt, Reads, sourceState, SPEC } from "./members.js";
@@ -66,6 +69,9 @@ export interface View {
 export const RANGES: Range[] = ["1h", "6h", "24h"];
 export const SLOW_RANGES: SlowRange[] = ["7d", "28d"];
 type CategoryPage = (typeof CATEGORY)[string];
+/** The pages built from members and their sections at 1 h, 6 h and 24 h (not Costs, not Issues). */
+type JudgedPage = Exclude<PageId, "overview" | "costs" | "issues">;
+export const ISSUE_RANGES: IssueRange[] = ["28d", "all"];
 
 /** The members of Runners (section 2.6): the runner rows of CI. */
 /**
@@ -299,7 +305,7 @@ class Builder {
      * @param range - the page range to build for
      * @returns the page's sections, in display order
      */
-    async sections(page: Exclude<PageId, "overview" | "costs">, range: Range): Promise<Section[]> {
+    async sections(page: JudgedPage, range: Range): Promise<Section[]> {
         const empty = (NOT_COLLECTED[page] ?? []).map(notCollected);
         switch (page) {
             case "master": {
@@ -352,7 +358,7 @@ class Builder {
      * @param range - the page range to build for
      * @returns the page payload
      */
-    async page(page: Exclude<PageId, "overview" | "costs">, range: Range): Promise<PageResponse> {
+    async page(page: JudgedPage, range: Range): Promise<PageResponse> {
         const base = { page, range, generated: iso(this.reads.now), notes: [] as Fact[] };
         if (page === "local-runs") {
             const l = await this.local(range);
@@ -428,7 +434,7 @@ export async function buildViews(store: Store, nowMs: number, ev: Evaluation, cf
     const status = await b.status();
     const channels = await channelTiles(b.reads);
     const out: View[] = [{ route: { kind: "status" }, body: status }];
-    const pages: Exclude<PageId, "overview" | "costs">[] = [
+    const pages: JudgedPage[] = [
         "master",
         "pull-requests",
         "ci",
@@ -463,6 +469,13 @@ export async function buildViews(store: Store, nowMs: number, ev: Evaluation, cf
         out.push({
             route: { kind: "section", page: "flaky", section: "hotspots", range },
             body: { page: "flaky", range, generated, section: await hotspots(b.reads, range) },
+        });
+    }
+    const [issues, githubOpen] = await Promise.all([b.reads.issues(), b.reads.githubOpen()]);
+    for (const range of ISSUE_RANGES) {
+        out.push({
+            route: { kind: "page", page: "issues", range },
+            body: issuesPage(issues, range, nowMs, githubOpen),
         });
     }
     return out;

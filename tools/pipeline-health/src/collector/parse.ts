@@ -881,6 +881,7 @@ export function toIssueItem(i: GqlIssue, repo: string): IssueItem {
         attempt: 1,
         repo,
         number: i.number,
+        title: i.title,
         labels: i.labels.nodes.map((l) => l.name),
         createdAt: Date.parse(i.createdAt),
         ...opt("closedAt", ms(i.closedAt)),

@@ -1,0 +1,1843 @@
+{
+    "page": "issues",
+    "range": "28d",
+    "generated": "2026-10-25T23:30:00.000Z",
+    "state": "idle",
+    "others": [],
+    "notes": [
+        {
+            "code": "issues.labels_now"
+        },
+        {
+            "code": "issues.production"
+        }
+    ],
+    "members": [],
+    "sections": [
+        {
+            "kind": "table",
+            "id": "open",
+            "rows": [
+                {
+                    "cells": {
+                        "type": {
+                            "t": "label",
+                            "code": "issues.type.bug"
+                        },
+                        "critical": {
+                            "t": "num",
+                            "n": 16
+                        },
+                        "high": {
+                            "t": "num",
+                            "n": 33
+                        },
+                        "medium": {
+                            "t": "num",
+                            "n": 42
+                        },
+                        "low": {
+                            "t": "num",
+                            "n": 41
+                        },
+                        "none": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "total": {
+                            "t": "num",
+                            "n": 132,
+                            "bold": true
+                        }
+                    },
+                    "link": "https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue%20is%3Aopen%20label%3Abug"
+                },
+                {
+                    "cells": {
+                        "type": {
+                            "t": "label",
+                            "code": "issues.type.enhancement"
+                        },
+                        "critical": {
+                            "t": "num",
+                            "n": 2
+                        },
+                        "high": {
+                            "t": "num",
+                            "n": 40
+                        },
+                        "medium": {
+                            "t": "num",
+                            "n": 120
+                        },
+                        "low": {
+                            "t": "num",
+                            "n": 99
+                        },
+                        "none": {
+                            "t": "num",
+                            "n": 1
+                        },
+                        "total": {
+                            "t": "num",
+                            "n": 262,
+                            "bold": true
+                        }
+                    },
+                    "link": "https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue%20is%3Aopen%20label%3Aenhancement%20-label%3Abug"
+                },
+                {
+                    "cells": {
+                        "type": {
+                            "t": "label",
+                            "code": "issues.type.documentation"
+                        },
+                        "critical": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "high": {
+                            "t": "num",
+                            "n": 3
+                        },
+                        "medium": {
+                            "t": "num",
+                            "n": 10
+                        },
+                        "low": {
+                            "t": "num",
+                            "n": 12
+                        },
+                        "none": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "total": {
+                            "t": "num",
+                            "n": 25,
+                            "bold": true
+                        }
+                    },
+                    "link": "https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue%20is%3Aopen%20label%3Adocumentation%20-label%3Abug%20-label%3Aenhancement"
+                },
+                {
+                    "cells": {
+                        "type": {
+                            "t": "label",
+                            "code": "issues.type.research"
+                        },
+                        "critical": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "high": {
+                            "t": "num",
+                            "n": 6
+                        },
+                        "medium": {
+                            "t": "num",
+                            "n": 12
+                        },
+                        "low": {
+                            "t": "num",
+                            "n": 12
+                        },
+                        "none": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "total": {
+                            "t": "num",
+                            "n": 30,
+                            "bold": true
+                        }
+                    },
+                    "link": "https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue%20is%3Aopen%20label%3Aresearch%20-label%3Abug%20-label%3Aenhancement%20-label%3Adocumentation"
+                },
+                {
+                    "cells": {
+                        "type": {
+                            "t": "label",
+                            "code": "issues.type.infrastructure"
+                        },
+                        "critical": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "high": {
+                            "t": "num",
+                            "n": 14
+                        },
+                        "medium": {
+                            "t": "num",
+                            "n": 14
+                        },
+                        "low": {
+                            "t": "num",
+                            "n": 12
+                        },
+                        "none": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "total": {
+                            "t": "num",
+                            "n": 40,
+                            "bold": true
+                        }
+                    },
+                    "link": "https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue%20is%3Aopen%20label%3Ainfrastructure%20-label%3Abug%20-label%3Aenhancement%20-label%3Adocumentation%20-label%3Aresearch"
+                },
+                {
+                    "cells": {
+                        "type": {
+                            "t": "label",
+                            "code": "issues.type.tracking"
+                        },
+                        "critical": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "high": {
+                            "t": "num",
+                            "n": 3
+                        },
+                        "medium": {
+                            "t": "num",
+                            "n": 4
+                        },
+                        "low": {
+                            "t": "num",
+                            "n": 5
+                        },
+                        "none": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "total": {
+                            "t": "num",
+                            "n": 12,
+                            "bold": true
+                        }
+                    },
+                    "link": "https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue%20is%3Aopen%20label%3Atracking%20-label%3Abug%20-label%3Aenhancement%20-label%3Adocumentation%20-label%3Aresearch%20-label%3Ainfrastructure"
+                },
+                {
+                    "cells": {
+                        "type": {
+                            "t": "label",
+                            "code": "issues.type.sonarqube"
+                        },
+                        "critical": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "high": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "medium": {
+                            "t": "num",
+                            "n": 4
+                        },
+                        "low": {
+                            "t": "num",
+                            "n": 2
+                        },
+                        "none": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "total": {
+                            "t": "num",
+                            "n": 6,
+                            "bold": true
+                        }
+                    },
+                    "link": "https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue%20is%3Aopen%20label%3Asonarqube%20-label%3Abug%20-label%3Aenhancement%20-label%3Adocumentation%20-label%3Aresearch%20-label%3Ainfrastructure%20-label%3Atracking"
+                },
+                {
+                    "cells": {
+                        "type": {
+                            "t": "label",
+                            "code": "issues.type.dead-links"
+                        },
+                        "critical": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "high": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "medium": {
+                            "t": "num",
+                            "n": 1
+                        },
+                        "low": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "none": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "total": {
+                            "t": "num",
+                            "n": 1,
+                            "bold": true
+                        }
+                    },
+                    "link": "https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue%20is%3Aopen%20label%3Adead-links%20-label%3Abug%20-label%3Aenhancement%20-label%3Adocumentation%20-label%3Aresearch%20-label%3Ainfrastructure%20-label%3Atracking%20-label%3Asonarqube"
+                },
+                {
+                    "cells": {
+                        "type": {
+                            "t": "label",
+                            "code": "issues.type.intermittent"
+                        },
+                        "critical": {
+                            "t": "num",
+                            "n": 1
+                        },
+                        "high": {
+                            "t": "num",
+                            "n": 1
+                        },
+                        "medium": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "low": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "none": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "total": {
+                            "t": "num",
+                            "n": 2,
+                            "bold": true
+                        }
+                    },
+                    "link": "https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue%20is%3Aopen%20label%3Aintermittent%20-label%3Abug%20-label%3Aenhancement%20-label%3Adocumentation%20-label%3Aresearch%20-label%3Ainfrastructure%20-label%3Atracking%20-label%3Asonarqube%20-label%3Adead-links%20-label%3Aci-budget"
+                },
+                {
+                    "cells": {
+                        "type": {
+                            "t": "label",
+                            "code": "issues.type.none"
+                        },
+                        "critical": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "high": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "medium": {
+                            "t": "num",
+                            "n": 1
+                        },
+                        "low": {
+                            "t": "num",
+                            "n": 1
+                        },
+                        "none": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "total": {
+                            "t": "num",
+                            "n": 2,
+                            "bold": true
+                        }
+                    },
+                    "link": "https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue%20is%3Aopen%20-label%3Abug%20-label%3Aenhancement%20-label%3Adocumentation%20-label%3Aresearch%20-label%3Ainfrastructure%20-label%3Atracking%20-label%3Asonarqube%20-label%3Adead-links%20-label%3Aci-budget%20-label%3Aintermittent%20-label%3Aflaky"
+                },
+                {
+                    "cells": {
+                        "type": {
+                            "t": "label",
+                            "code": "issues.total"
+                        },
+                        "critical": {
+                            "t": "num",
+                            "n": 19
+                        },
+                        "high": {
+                            "t": "num",
+                            "n": 100
+                        },
+                        "medium": {
+                            "t": "num",
+                            "n": 208
+                        },
+                        "low": {
+                            "t": "num",
+                            "n": 184
+                        },
+                        "none": {
+                            "t": "num",
+                            "n": 1
+                        },
+                        "total": {
+                            "t": "num",
+                            "n": 512,
+                            "bold": true
+                        }
+                    },
+                    "total": true,
+                    "link": "https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue%20is%3Aopen"
+                }
+            ]
+        },
+        {
+            "kind": "series",
+            "id": "bugs",
+            "chart": "area",
+            "step": "1d",
+            "start": "2026-09-28T00:00:00.000Z",
+            "series": [
+                {
+                    "key": "issues.prio.critical",
+                    "values": [
+                        2, 12, 14, 22, 26, 23, 22, 16, 19, 17, 19, 15, 16, 21, 18, 21, 23, 24, 33, 27, 33, 37, 33, 35,
+                        35, 29, 28, 27, 16
+                    ]
+                },
+                {
+                    "key": "issues.prio.high",
+                    "values": [
+                        2, 10, 7, 8, 15, 14, 17, 17, 19, 27, 26, 22, 23, 21, 21, 22, 24, 30, 31, 31, 32, 38, 39, 41, 45,
+                        44, 41, 40, 33
+                    ]
+                },
+                {
+                    "key": "issues.prio.medium",
+                    "values": [
+                        0, 11, 15, 18, 16, 12, 10, 14, 18, 16, 18, 18, 19, 19, 22, 24, 26, 25, 33, 36, 41, 41, 50, 47,
+                        46, 48, 47, 50, 42
+                    ]
+                },
+                {
+                    "key": "issues.prio.low",
+                    "values": [
+                        1, 6, 12, 10, 12, 13, 15, 14, 16, 17, 15, 18, 15, 12, 13, 21, 20, 25, 28, 32, 31, 33, 30, 33,
+                        40, 37, 43, 40, 41
+                    ]
+                }
+            ],
+            "sub": {
+                "code": "issues.sub.bugs",
+                "params": {
+                    "open": 132,
+                    "change": 127,
+                    "critical": 16,
+                    "criticalChange": 14,
+                    "range": "28d"
+                }
+            }
+        },
+        {
+            "kind": "series",
+            "id": "bug-flow",
+            "chart": "flow",
+            "step": "1d",
+            "start": "2026-09-28T00:00:00.000Z",
+            "series": [
+                {
+                    "key": "issues.series.opened",
+                    "values": [
+                        41, 35, 32, 49, 28, 37, 27, 39, 40, 38, 47, 35, 35, 32, 40, 25, 37, 45, 34, 39, 37, 35, 44, 46,
+                        35, 40, 41, 34
+                    ]
+                },
+                {
+                    "key": "issues.series.closed_completed",
+                    "values": [
+                        7, 20, 17, 31, 31, 24, 27, 23, 32, 33, 43, 29, 29, 25, 21, 18, 21, 21, 26, 25, 18, 30, 38, 32,
+                        33, 28, 34, 47
+                    ]
+                },
+                {
+                    "key": "issues.series.closed_not_planned",
+                    "values": [0, 6, 5, 7, 4, 11, 3, 5, 3, 4, 9, 6, 6, 6, 5, 2, 5, 3, 7, 3, 7, 2, 2, 4, 10, 11, 9, 12]
+                },
+                {
+                    "key": "issues.series.net",
+                    "values": [
+                        34, 9, 10, 11, -7, 2, -3, 11, 5, 1, -5, 0, 0, 1, 14, 5, 11, 21, 1, 11, 12, 3, 4, 10, -8, 1, -2,
+                        -25
+                    ]
+                }
+            ],
+            "sub": {
+                "code": "issues.sub.flow",
+                "params": {
+                    "opened": 1047,
+                    "closed": 920,
+                    "net": 127,
+                    "range": "28d"
+                }
+            }
+        },
+        {
+            "kind": "series",
+            "id": "flow",
+            "chart": "flow",
+            "step": "1d",
+            "start": "2026-09-28T00:00:00.000Z",
+            "series": [
+                {
+                    "key": "issues.series.opened",
+                    "values": [
+                        84, 80, 85, 91, 70, 81, 63, 89, 72, 77, 92, 85, 89, 79, 113, 75, 82, 97, 81, 89, 82, 68, 84, 85,
+                        84, 83, 101, 79
+                    ]
+                },
+                {
+                    "key": "issues.series.closed_completed",
+                    "values": [
+                        10, 28, 26, 55, 45, 44, 42, 43, 53, 66, 64, 63, 60, 45, 54, 54, 63, 46, 56, 59, 41, 74, 66, 65,
+                        74, 73, 81, 137
+                    ]
+                },
+                {
+                    "key": "issues.series.closed_not_planned",
+                    "values": [
+                        0, 10, 7, 7, 5, 13, 9, 12, 10, 9, 12, 7, 8, 13, 10, 5, 8, 9, 14, 7, 12, 10, 9, 12, 18, 19, 17,
+                        30
+                    ]
+                },
+                {
+                    "key": "issues.series.net",
+                    "values": [
+                        74, 42, 52, 29, 20, 24, 12, 34, 9, 2, 16, 15, 21, 21, 49, 16, 11, 42, 11, 23, 29, -16, 9, 8, -8,
+                        -9, 3, -88
+                    ]
+                }
+            ],
+            "sub": {
+                "code": "issues.sub.flow",
+                "params": {
+                    "opened": 2340,
+                    "closed": 1889,
+                    "net": 451,
+                    "range": "28d"
+                }
+            }
+        },
+        {
+            "kind": "series",
+            "id": "backlog",
+            "chart": "lines",
+            "step": "1d",
+            "start": "2026-09-28T00:00:00.000Z",
+            "series": [
+                {
+                    "key": "issues.series.open",
+                    "values": [
+                        61, 135, 177, 229, 258, 278, 302, 314, 348, 357, 359, 375, 390, 411, 432, 481, 497, 508, 550,
+                        561, 584, 613, 597, 606, 614, 606, 597, 600, 512
+                    ]
+                },
+                {
+                    "key": "issues.type.bug",
+                    "values": [
+                        5, 39, 48, 58, 69, 62, 64, 61, 72, 77, 78, 73, 73, 73, 74, 88, 93, 104, 125, 126, 137, 149, 152,
+                        156, 166, 158, 159, 157, 132
+                    ]
+                },
+                {
+                    "key": "issues.type.enhancement",
+                    "values": [
+                        36, 69, 86, 125, 137, 155, 171, 183, 198, 197, 198, 214, 224, 237, 245, 266, 275, 282, 300, 302,
+                        306, 318, 308, 317, 310, 316, 307, 311, 262
+                    ]
+                },
+                {
+                    "key": "issues.group.rest",
+                    "values": [
+                        20, 27, 43, 46, 52, 61, 67, 70, 78, 83, 83, 88, 93, 101, 113, 127, 129, 122, 125, 133, 141, 146,
+                        137, 133, 138, 132, 131, 132, 118
+                    ]
+                }
+            ],
+            "sub": {
+                "code": "issues.sub.open",
+                "params": {
+                    "open": 512,
+                    "change": 451,
+                    "enhancements": 262,
+                    "enhancementsChange": 226,
+                    "range": "28d"
+                }
+            }
+        },
+        {
+            "kind": "series",
+            "id": "types",
+            "chart": "stacked",
+            "step": "1d",
+            "start": "2026-09-28T00:00:00.000Z",
+            "series": [
+                {
+                    "key": "issues.type.bug",
+                    "values": [
+                        41, 35, 32, 49, 28, 37, 27, 39, 40, 38, 47, 35, 35, 32, 40, 25, 37, 45, 34, 39, 37, 35, 44, 46,
+                        35, 40, 41, 34
+                    ]
+                },
+                {
+                    "key": "issues.type.enhancement",
+                    "values": [
+                        35, 25, 42, 32, 27, 34, 27, 33, 23, 25, 32, 33, 37, 30, 46, 35, 36, 38, 30, 30, 31, 21, 33, 25,
+                        38, 25, 43, 29
+                    ]
+                },
+                {
+                    "key": "issues.type.documentation",
+                    "values": [3, 2, 2, 3, 2, 2, 1, 3, 2, 3, 5, 4, 5, 1, 10, 2, 2, 5, 3, 5, 3, 2, 2, 3, 3, 3, 1, 6]
+                },
+                {
+                    "key": "issues.type.infrastructure",
+                    "values": [1, 7, 2, 4, 6, 3, 1, 5, 5, 6, 2, 6, 3, 5, 7, 3, 2, 6, 6, 6, 4, 3, 2, 9, 3, 3, 4, 2]
+                },
+                {
+                    "key": "issues.type.research",
+                    "values": [2, 5, 1, 2, 4, 3, 3, 4, 1, 4, 2, 3, 4, 2, 2, 2, 0, 1, 3, 3, 2, 2, 3, 1, 1, 5, 4, 3]
+                },
+                {
+                    "key": "issues.group.other",
+                    "values": [2, 5, 6, 0, 3, 2, 4, 5, 1, 1, 4, 3, 5, 9, 8, 8, 5, 2, 5, 6, 4, 5, 0, 1, 4, 7, 8, 4]
+                },
+                {
+                    "key": "issues.type.none",
+                    "values": [0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1]
+                }
+            ],
+            "sub": {
+                "code": "issues.sub.types",
+                "params": {
+                    "opened": 2340,
+                    "range": "28d"
+                }
+            }
+        },
+        {
+            "kind": "table",
+            "id": "oldest",
+            "rows": [
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3121
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Flaky: graphty-element-browser layout story #3121"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-10T07:33:50.506Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "blocked"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3147
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Airline sample renders #3147"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-10T10:25:05.136Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "needs-decision"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3873
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Flaky: graphty-element-browser layout story #3873"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-14T14:08:48.336Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "blocked"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3885
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Shard over budget: #3885"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-14T15:21:37.772Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3993
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #3993"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-15T09:12:48.371Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "in-progress"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4205
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Shard over budget: #4205"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-16T09:52:53.091Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4425
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #4425"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-17T15:30:17.032Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4469
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Load-sensitive test in #4469"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-17T23:17:45.256Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4651
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Airline sample renders #4651"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-19T01:04:33.635Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4841
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #4841"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-20T10:13:18.114Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4859
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Airline sample renders #4859"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-20T11:25:00.830Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "in-progress"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4885
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Load-sensitive test in #4885"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-20T14:24:00.844Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4939
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Airline sample renders #4939"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-20T22:20:04.577Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5307
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Airline sample renders #5307"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-23T04:06:09.092Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5321
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #5321"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-23T06:16:07.739Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5531
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.critical"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Airline sample renders #5531"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-24T09:14:18.352Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "blocked"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 2571
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Airline sample renders #2571"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-07T01:58:26.441Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 2623
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Dataset download fails in #2623"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-07T09:33:08.468Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "needs-decision"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 2665
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #2665"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-07T17:05:53.023Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 2679
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Style panel loses #2679"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-07T19:52:09.572Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 2949
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Load-sensitive test in #2949"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-09T06:59:58.946Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 2957
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Shard over budget: #2957"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-09T07:42:11.570Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 2981
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Load-sensitive test in #2981"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-09T10:49:09.273Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "needs-decision"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3225
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #3225"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-10T21:04:08.857Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "needs-decision"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3331
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Full run red: ci on #3331"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-11T14:03:04.057Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "needs-info"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3335
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Style panel loses #3335"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-11T14:18:44.615Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "needs-decision"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3605
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Load-sensitive test in #3605"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-12T21:22:48.417Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3663
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Dataset download fails in #3663"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-13T06:27:22.006Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3773
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Shard over budget: #3773"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-13T23:51:39.223Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3883
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Airline sample renders #3883"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-14T14:58:06.680Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 3913
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #3913"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-14T18:55:34.552Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4033
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Flaky: graphty-element-browser layout story #4033"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-15T14:34:04.037Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4089
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #4089"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-15T19:32:40.658Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4159
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Dataset download fails in #4159"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-16T02:54:57.031Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4345
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #4345"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-17T07:30:27.721Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "needs-info"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4515
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Full run red: ci on #4515"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-18T07:13:48.916Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4565
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Load-sensitive test in #4565"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-18T16:28:53.337Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4615
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Style panel loses #4615"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-18T21:36:28.904Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4741
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Load-sensitive test in #4741"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-19T16:11:06.637Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 4985
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #4985"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-21T06:34:12.539Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5015
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Style panel loses #5015"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-21T11:56:45.795Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5033
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #5033"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-21T14:35:24.212Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5299
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Full run red: ci on #5299"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-23T02:41:14.777Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5303
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Style panel loses #5303"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-23T02:42:45.585Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5373
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Shard over budget: #5373"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-23T11:54:25.422Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5641
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Release held: publish failed on #5641"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-24T23:06:23.600Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5677
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Shard over budget: #5677"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-25T03:50:46.486Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5767
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Style panel loses #5767"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-25T15:45:04.660Z"
+                        },
+                        "status": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "issue": {
+                            "t": "issue",
+                            "n": 5797
+                        },
+                        "priority": {
+                            "t": "label",
+                            "code": "issues.prio.high"
+                        },
+                        "title": {
+                            "t": "name",
+                            "v": "Load-sensitive test in #5797"
+                        },
+                        "opened": {
+                            "t": "ago",
+                            "at": "2026-10-25T20:22:33.507Z"
+                        },
+                        "status": {
+                            "t": "list",
+                            "items": [
+                                {
+                                    "t": "name",
+                                    "v": "blocked"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

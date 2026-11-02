@@ -1547,34 +1547,60 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
     }
     let root: unknown;
     let syntaxError: string | null = null;
-    // the text the syntax error was found in: the rewrite's when it parsed further than the original
-    let errorText = text;
     try {
         root = JSON.parse(text) as unknown;
     } catch (err) {
-        syntaxError = err instanceof Error ? err.message : String(err);
+        syntaxError = errorMessage(err);
     }
     // the fast path: strict JSON without a digit run long enough to be an unsafe integer
     if (syntaxError === null && !MAYBE_UNSAFE_INTEGER.test(text) && !MAYBE_INEXACT_EXPONENT.test(text)) {
         reportDuplicateKeys(text, report);
         return root;
     }
-    let scan: ReturnType<typeof rewriteNumbers>;
+    const parsed = rewriteAndReparse(text, report, { root, syntaxError, errorText: text });
+    if (parsed.syntaxError !== null) {
+        return report.fail(JSON_ISSUE.SYNTAX, syntaxMessage(text, parsed.syntaxError), {
+            line: syntaxLine(parsed.errorText, parsed.syntaxError),
+        });
+    }
+    reportDuplicateKeys(text, report);
+    reportRewrites(parsed.scan, report);
+    return parsed.root;
+}
+
+/** A parse of the document: its value, or the syntax error and the text it was found in. */
+interface ParseAttempt {
+    root: unknown;
+    syntaxError: string | null;
+    /** The text the syntax error was found in: the rewrite's when it parsed further than the original. */
+    errorText: string;
+}
+
+/**
+ * The message of a thrown value.
+ * @param err - the thrown value
+ * @returns its message
+ */
+function errorMessage(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Rewrite the document's non-standard and big numbers and parse the rewrite when it changed
+ * anything; a rewrite longer than one string can hold aborts the import.
+ * @param text - the decoded text
+ * @param report - the report
+ * @param first - the parse of the original text
+ * @returns the scan and the parse that stands
+ */
+function rewriteAndReparse(
+    text: string,
+    report: ImportReportBuilder,
+    first: ParseAttempt,
+): ParseAttempt & { scan: ReturnType<typeof rewriteNumbers> } {
     try {
-        scan = rewriteNumbers(text);
-        if (scan.tokens.size > 0 || scan.bigIntegers.length > 0) {
-            try {
-                root = JSON.parse(scan.text, scan.tokens.size > 0 ? scan.revive : undefined) as unknown;
-                syntaxError = null;
-            } catch (err) {
-                if (err instanceof RangeError) {
-                    throw err;
-                }
-                // the rewrite read past the non-standard tokens: its error is the real one
-                syntaxError = err instanceof Error ? err.message : String(err);
-                errorText = scan.text;
-            }
-        }
+        const scan = rewriteNumbers(text);
+        return { ...reparse(scan, first), scan };
     } catch (err) {
         if (!(err instanceof RangeError)) {
             throw err;
@@ -1584,12 +1610,37 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
         report.error("unsupported", JSON_ISSUE.TOO_LARGE, message);
         throw report.abort(message, { code: JSON_ISSUE.TOO_LARGE });
     }
-    if (syntaxError !== null) {
-        return report.fail(JSON_ISSUE.SYNTAX, syntaxMessage(text, syntaxError), {
-            line: syntaxLine(errorText, syntaxError),
-        });
+}
+
+/**
+ * Parse the rewritten text when the rewrite changed anything.
+ * @param scan - the rewrite
+ * @param first - the parse of the original text
+ * @returns the parse that stands
+ */
+function reparse(scan: ReturnType<typeof rewriteNumbers>, first: ParseAttempt): ParseAttempt {
+    if (scan.tokens.size === 0 && scan.bigIntegers.length === 0) {
+        return first;
     }
-    reportDuplicateKeys(text, report);
+    try {
+        const root = JSON.parse(scan.text, scan.tokens.size > 0 ? scan.revive : undefined) as unknown;
+        return { root, syntaxError: null, errorText: first.errorText };
+    } catch (err) {
+        if (err instanceof RangeError) {
+            throw err;
+        }
+        // the rewrite read past the non-standard tokens: its error is the real one
+        return { root: first.root, syntaxError: errorMessage(err), errorText: scan.text };
+    }
+}
+
+/**
+ * Report what the rewrite changed: non-standard tokens read as numbers, big integers kept as
+ * text, and literals no double holds exactly.
+ * @param scan - the rewrite
+ * @param report - the report
+ */
+function reportRewrites(scan: ReturnType<typeof rewriteNumbers>, report: ImportReportBuilder): void {
     if (scan.tokens.size > 0) {
         report.warning(
             "coercion",
@@ -1611,7 +1662,6 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
             `${scan.inexact.length} number literal${plural(scan.inexact.length)} no double holds exactly, read as the nearest double (an infinity beyond the range, 0 below it): ${listed(scan.inexact)}`,
         );
     }
-    return root;
 }
 
 /**

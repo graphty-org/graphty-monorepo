@@ -5216,11 +5216,13 @@ export const NodeStyle: z.ZodObject<{
         width: z.ZodOptional<z.ZodNumber>;
         height: z.ZodOptional<z.ZodNumber>;
         depth: z.ZodOptional<z.ZodNumber>;
+        relativeExtents: z.ZodOptional<z.ZodBoolean>;
         planar: z.ZodOptional<z.ZodBoolean>;
         zIndex: z.ZodOptional<z.ZodNumber>;
         drawOrder: z.ZodOptional<z.ZodNumber>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
         exactCornerRadius: z.ZodOptional<z.ZodBoolean>;
+        cornerFraction: z.ZodOptional<z.ZodNumber>;
         points: z.ZodOptional<z.ZodString>;
         stretchPoints: z.ZodOptional<z.ZodBoolean>;
         parts: z.ZodOptional<z.ZodString>;

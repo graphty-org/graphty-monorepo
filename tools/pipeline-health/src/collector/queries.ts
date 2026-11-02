@@ -34,8 +34,10 @@ export const PR_QUERY = `query($owner: String!, $name: String!, $cursor: String,
 
 const ISSUE_FIELDS = `number title state stateReason createdAt updatedAt closedAt labels(first: 20) { nodes { name } }`;
 
+/** Issues by update time, GitHub's open count (the Issues page checks its own against it), and the held releases. */
 export const ISSUE_QUERY = `query($owner: String!, $name: String!, $cursor: String, $held: String!, $nightly: String!) {
   repository(owner: $owner, name: $name) {
+    openTotal: issues(states: OPEN) { totalCount }
     recent: issues(first: 100, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}) {
       pageInfo { hasNextPage endCursor } nodes { ${ISSUE_FIELDS} } }
   }

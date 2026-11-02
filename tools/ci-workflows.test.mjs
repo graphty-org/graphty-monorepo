@@ -8515,6 +8515,39 @@ describe("the Capture impact job (#5304)", () => {
     });
 });
 
+describe("the Many changed pictures job (#5465)", () => {
+    const jobs = parseYaml(workflow("ci.yml")).jobs;
+
+    it("counts the changed pictures of each project's newest attempt", () => {
+        const dir = mkdtempSync(join(TMP, "many-pictures-"));
+        const capture = (name, project, statuses) => {
+            mkdirSync(join(dir, name));
+            const items = statuses.map((status, i) => ({ id: `s${i}`, status }));
+            writeFileSync(join(dir, name, "results.json"), JSON.stringify({ project, items }));
+        };
+        capture("visual-graphty-1", "graphty", ["changed", "changed", "unchanged"]);
+        capture("visual-graphty-2", "graphty", ["changed", "unchanged", "unchanged"]);
+        capture("visual-graph-io-fidelity-1", "graph-io-fidelity", ["changed", "new", "removed", "changed"]);
+        mkdirSync(join(dir, "visual-layout-1"));
+        writeFileSync(join(dir, "visual-layout-1", "skipped.json"), "{}");
+        const out = join(dir, "summary.md");
+        const r = spawnSync("bash", ["tools/many-pictures.sh", dir, out], { encoding: "utf8" });
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(r.stdout.trim(), "changed=3");
+        const md = readFileSync(out, "utf8");
+        assert.match(md, /\| graphty \| 1 \| 0 \| 0 \| 3 \|/);
+        assert.match(md, /\| graph-io-fidelity \| 2 \| 1 \| 1 \| 4 \|/);
+        assert.doesNotMatch(md, /layout/);
+    });
+
+    it("only informs: never fails the run and is not needed by All Checks Pass", () => {
+        assert.equal(jobs["many-pictures"]["continue-on-error"], true);
+        assert.match(jobs["many-pictures"].if, /github\.event_name == 'pull_request'/);
+        assert.ok(!jobs["all-checks"].needs.includes("many-pictures"));
+        assert.ok(Number(jobs["many-pictures"].env.MANY_PICTURES_THRESHOLD) > 0);
+    });
+});
+
 describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () => {
     const ci = workflow("ci.yml");
     const jobs = parseYaml(ci).jobs;

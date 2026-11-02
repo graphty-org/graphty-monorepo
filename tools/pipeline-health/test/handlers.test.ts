@@ -675,6 +675,15 @@ describe("recompute and read", () => {
         ]);
     });
 
+    it("routes Issues at 28d by default or all, and refuses its page any other range", async () => {
+        const { routeOf } = await import("../src/handlers/read.ts");
+        expect(routeOf("/v1/page/issues", {})).toEqual({ kind: "page", page: "issues", range: "28d" });
+        expect(routeOf("/v1/page/issues", { range: "all" })).toEqual({ kind: "page", page: "issues", range: "all" });
+        expect(routeOf("/v1/page/issues", { range: "1h" })).toEqual({ status: 400, code: "bad_range" });
+        expect(routeOf("/v1/page/costs", {})).toEqual({ kind: "page", page: "costs", range: "7d" });
+        expect(routeOf("/v1/page/master", { range: "all" })).toEqual({ status: 400, code: "bad_range" });
+    });
+
     it("answers no_data before the first recompute, and 4xx for unknown routes", async () => {
         const { handler: read } = await import("../src/handlers/read.ts");
         const none = await read(event("/v1/page/master", "", {}));

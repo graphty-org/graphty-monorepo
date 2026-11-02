@@ -566,7 +566,6 @@ function exactFromBlock(
             // a native value the writer made from the block's other values (vis.js's one size for a width) is the
             // block's own value, none included
             readBack: (i, want) => (property) => writes[property](want, i, snapshot),
-            take: (_property, _wanted, native) => native !== null,
         };
     });
 }

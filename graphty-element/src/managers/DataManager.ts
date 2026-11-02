@@ -13,6 +13,7 @@ import type { ImportReport, LoadReport } from "../data/report";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
+import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { SupportPoints } from "../meshes/supportPoints";
@@ -217,10 +218,10 @@ function collectDoomed(nodes: Iterable<Node>, edges: Iterable<Edge>, doomed: Set
     }
 
     for (const edge of edges) {
-        // A line drawn as a slot in a shared batch points `edge.mesh` at the batch, which still
-        // draws every other edge in it: the batch disposes itself with its last slot. Arrowheads
+        // A line drawn as a slot in a shared batch (instanced, or one plain mesh on a software
+        // renderer) points `edge.mesh` at the batch, which still draws every other edge in it: the batch disposes itself with its last slot. Arrowheads
         // are always such slots (ArrowCap), so they own no mesh here.
-        if (!(edge.mesh instanceof AbstractMesh && edge.mesh.hasThinInstances)) {
+        if (!(edge.mesh instanceof AbstractMesh && (edge.mesh.hasThinInstances || isEdgeLineBatchMesh(edge.mesh)))) {
             add(edge.mesh);
         }
     }

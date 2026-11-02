@@ -32,7 +32,6 @@ export const MUTATING: readonly string[] = [
     "DataManager.addEdges",
     "DataManager.addNode",
     "DataManager.addNodes",
-    "DataManager.bindSession",
     "DataManager.clear",
     "DataManager.dispose",
     "DataManager.init",
@@ -40,7 +39,6 @@ export const MUTATING: readonly string[] = [
     "DataManager.removeEdge",
     "DataManager.removeNodeAndIncidentEdges",
     "DataManager.setEdges",
-    "DataManager.setGraphContext",
     "DataManager.setLayoutEngine",
     "DataManager.setNodes",
     "DataManager.startLabelAnimations",
@@ -162,7 +160,6 @@ export const MUTATING: readonly string[] = [
     "LayoutManager.dispose",
     "LayoutManager.init",
     "LayoutManager.loadArrangement",
-    "LayoutManager.setGraphContext",
     "LayoutManager.placeGroups",
     "LayoutManager.step",
     "LayoutManager.stepBatch",
@@ -494,6 +491,10 @@ export const READ_ONLY: readonly string[] = [
     "DataManager.supersedeLoads",
     "DataManager.throwIfSuperseded",
     "DataManager.undirected",
+    // Wiring the graph's constructor does before the graph can hold data: each stores a reference
+    // (the dispatcher and the services it calls back, the graph context) and changes no graph state.
+    "DataManager.bindSession",
+    "DataManager.setGraphContext",
     "DataSource.chunkData",
     "DataSource.dataValidator",
     "DataSource.declareDirection",
@@ -849,6 +850,8 @@ export const READ_ONLY: readonly string[] = [
     "LayoutManager.hasLayoutEngine",
     "LayoutManager.isCurrent",
     "LayoutManager.setPaused",
+    // Wiring: stores the graph context and listens to its acceleration; changes no graph state.
+    "LayoutManager.setGraphContext",
     "LlmProvider.configure",
     "LlmProvider.generate",
     "LlmProvider.generateStream",

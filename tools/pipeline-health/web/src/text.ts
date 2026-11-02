@@ -10,6 +10,7 @@ import type {
     Cmp,
     Fact,
     Iso,
+    IssueRange,
     Member,
     MemberId,
     MemberState,
@@ -265,7 +266,10 @@ export function fmtAgo(at: Iso): string {
     return `${fmtDur(Math.max(0, (clock.now() - Date.parse(at)) / 1000))} ago`;
 }
 
-export const rangeLabel = (r: Range | SlowRange): string => r.replace(/(\d+)/, "$1 ");
+/** Any range a page or a slow measure can show. */
+type AnyRange = Range | SlowRange | IssueRange;
+
+export const rangeLabel = (r: AnyRange): string => r.replace(/(\d+)/, "$1 ");
 
 // ---------------------------------------------------------------- links
 
@@ -333,7 +337,7 @@ export const isMuted = (s: MemberState): boolean =>
  */
 export function showsRangeValue(
     m: Pick<Member, "n" | "minN"> & Partial<Pick<Member, "window" | "value">>,
-    range: Range | SlowRange | undefined,
+    range: AnyRange | undefined,
 ): boolean {
     return (
         range !== undefined &&
@@ -353,7 +357,7 @@ export function showsRangeValue(
  */
 export function fewText(
     m: Pick<Member, "n" | "minN"> & Partial<Pick<Member, "id" | "window">>,
-    range?: Range | SlowRange,
+    range?: AnyRange,
 ): string {
     const nOf = m.id ? MEMBER[m.id].nOf : undefined;
     // A 7- or 28-day measure counts its own days, whatever the picker shows.
@@ -388,7 +392,7 @@ export const OK_CHIP = `<span class="sw okl">OK</span>`;
  */
 export function stateChip(
     m: Pick<Member, "state" | "n" | "minN" | "covered"> & Partial<Pick<Member, "id" | "window" | "value">>,
-    range?: Range | SlowRange,
+    range?: AnyRange,
 ): string {
     switch (m.state) {
         case "ok":
@@ -971,6 +975,31 @@ export const LABEL: Record<string, string> = {
     "page.costs": "Costs",
     "page.flaky": "Flaky tests",
     "page.releases": "Releases",
+    "issues.type.bug": "bugs",
+    "issues.type.enhancement": "enhancements",
+    "issues.type.documentation": "documentation",
+    "issues.type.research": "research",
+    "issues.type.infrastructure": "infrastructure",
+    "issues.type.tracking": "tracking",
+    "issues.type.sonarqube": "SonarQube",
+    "issues.type.dead-links": "dead links",
+    "issues.type.ci-budget": "CI budget",
+    "issues.type.intermittent": "intermittent",
+    "issues.type.flaky": "flaky",
+    "issues.type.none": "no type label",
+    "issues.group.other": "other types",
+    "issues.group.rest": "all others",
+    "issues.total": "<b>Total</b>",
+    "issues.prio.critical": "critical",
+    "issues.prio.high": "high",
+    "issues.prio.medium": "medium",
+    "issues.prio.low": "low",
+    "issues.prio.none": "no priority label",
+    "issues.series.open": "open",
+    "issues.series.opened": "opened",
+    "issues.series.closed_completed": "closed, completed",
+    "issues.series.closed_not_planned": "closed, not planned",
+    "issues.series.net": "opened less closed",
 };
 
 const LANE: Record<string, [string, string]> = {
@@ -1329,7 +1358,60 @@ const S: Record<string, (p: P) => string> = {
         `no local gate since ${typeof p.since === "string" ? esc(p.since.slice(5, 10)) : ""}`,
     "notsetup.channels.what": () => "canary, nightly and production age; change failure rate",
     "notsetup.flaky_feed.what": () => "quarantine counts",
+
+    // the Issues page
+    "issues.sub.bugs": (p) =>
+        `${plural(num(p, "open"), "open bug")}, ${change(num(p, "change"))} ${issueSpan(p)}; ${fmtN(num(p, "critical"))} critical, ${change(num(p, "criticalChange"))}`,
+    "issues.sub.open": (p) =>
+        `${plural(num(p, "open"), "open issue")}, ${change(num(p, "change"))} ${issueSpan(p)}; ${plural(num(p, "enhancements"), "enhancement")}, ${change(num(p, "enhancementsChange"))}`,
+    "issues.sub.flow": (p) =>
+        `${fmtN(num(p, "opened"))} opened and ${fmtN(num(p, "closed"))} closed ${issueSpan(p)}: ${netText(num(p, "net"))}`,
+    "issues.sub.types": (p) => `${fmtN(num(p, "opened"))} opened ${issueSpan(p)}`,
+    "issues.labels_now": () =>
+        "Types and priorities are each issue's labels now, applied to its whole history; an issue without a type or priority label is counted under no type or no priority.",
+    "issues.production": () =>
+        "No label marks production issues: the nearest is priority:critical (visibly broken to a user), and on a bug it also marks red full runs, flaky and load-sensitive tests and held releases, so critical bugs are not all user-facing.",
+    "issues.github_open": (p) =>
+        `GitHub counts ${plural(num(p, "github"), "open issue")}, this page ${fmtN(num(p, "stored"))}: ${
+            num(p, "stored") < num(p, "github")
+                ? "the stored history is missing issues until the all-issues backfill has run."
+                : "some stored issues are no longer in the repository (deleted or transferred)."
+        }`,
+    "issues.none_collected": () =>
+        "No issues are stored yet. The collector stores each issue when it changes; the all-issues backfill loads the rest.",
+    "issues.no_urgent": () => "No open critical or high bug.",
 };
+
+/**
+ * A change in a count over the range: "up 3", "down 12", "unchanged".
+ * @param n The change.
+ * @returns The words.
+ */
+function change(n: number): string {
+    if (n === 0) {
+        return "unchanged";
+    }
+    return n > 0 ? `up ${fmtN(n)}` : `down ${fmtN(-n)}`;
+}
+
+/**
+ * Opened less closed, so "are we adding more than we remove" reads at once.
+ * @param n Opened less closed.
+ * @returns The words.
+ */
+function netText(n: number): string {
+    if (n === 0) {
+        return "as many closed as opened";
+    }
+    return n > 0 ? `${fmtN(n)} more opened than closed` : `${fmtN(-n)} more closed than opened`;
+}
+
+/**
+ * The span an Issues count covers: the last 28 days, or every issue's history.
+ * @param p The fact's parameters, with `range`.
+ * @returns The words.
+ */
+const issueSpan = (p: P): string => (p.range === "all" ? "since the first issue" : "over the last 28 days");
 
 /**
  * The words for a fact; an unknown code is drawn as its code and parameters, never dropped.
@@ -1349,7 +1431,7 @@ export const capital = (s: string): string => s.charAt(0).toUpperCase() + s.slic
  * @param range The range the reader picked.
  * @returns The label as HTML.
  */
-export function windowLabel(m: Member, range: Range | SlowRange): string {
+export function windowLabel(m: Member, range: AnyRange): string {
     if (m.window === "now") {
         return "now";
     }

@@ -13,9 +13,11 @@
         "noUnusedParameters": false,
         // The docs' examples (docs/examples/) import the package by its published name, exactly as
         // a reader copies them; inside the package that name is its own source.
+        // Every entry point is mapped, so the name never falls through to node_modules: there it
+        // finds whichever checkout's dist/ is nearest, which in a worktree is the main checkout's.
         "paths": {
-            "@graphty/graphty-element/extend": ["./extend.ts"],
-            "@graphty/graphty-element/logging": ["./logging.ts"]
+            "@graphty/graphty-element": ["./index.ts"],
+            "@graphty/graphty-element/*": ["./*.ts"]
         }
     },
     "include": ["**/*.ts", ".storybook/**/*.ts"],

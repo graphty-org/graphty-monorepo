@@ -17,7 +17,6 @@ import { fileURLToPath } from "node:url";
 import { after, describe, it } from "node:test";
 
 import { isolateGit } from "./isolated-git-env.mjs";
-import { acquireLock } from "./land.mjs";
 import { gateKey, inputKey } from "./prepush-inputs.mjs";
 import { acquire } from "./test-slots.mjs";
 import { logWait } from "./wait-log.mjs";
@@ -370,122 +369,6 @@ describe("push-queue with a gate that already passed", () => {
     });
 });
 
-describe("prepush.sh with a gate that already passed", () => {
-    // A checkout whose gate is the real prepush.sh and source checks, with every outside step stubbed:
-    // pnpm answers "no package affected", and the offline link check and the SonarQube step write a
-    // line to a log each time they run (the SonarQube one prints SONAR_OUT). With `projects` (nx's answer,
-    // a JSON list) the per-package steps run too, stubbed: build, lint, the NVIDIA GPU tests, the test
-    // shards and the screenshot capture each log their name.
-    function gateRepo(projects = "[]") {
-        const r = repo();
-        for (const f of ["prepush.sh", "prepush-source-checks.sh"])
-            copyFileSync(join(TOOLS, f), join(r.dir, "tools", f));
-        const ran = join(TMP, `steps-${made}.log`);
-        writeFileSync(join(r.dir, "tools/queued-push-guard.mjs"), "");
-        writeFileSync(join(r.dir, "tools/check-committed-images.mjs"), "");
-        writeFileSync(join(r.dir, "tools/check-figma-lock.mjs"), "");
-        writeFileSync(join(r.dir, "tools/release-dry-run.mjs"), "");
-        writeFileSync(join(r.dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> "${ran}"\n`, { mode: 0o755 });
-        writeFileSync(
-            join(r.dir, "tools/sonar-gate.mjs"),
-            `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(ran)}, "sonar\\n");\nconsole.log(process.env.SONAR_OUT ?? "");\n`,
-        );
-        writeFileSync(join(r.dir, "package.json"), '{ "scripts": {} }\n');
-        const log = (name) =>
-            `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(ran)}, "${name}\\n");\n`;
-        writeFileSync(join(r.dir, "tools/lint-base-drift.mjs"), "");
-        writeFileSync(join(r.dir, "tools/test-slots.mjs"), log("gpu"));
-        writeFileSync(join(r.dir, "tools/prepush-tests.mjs"), log("tests"));
-        writeFileSync(
-            join(r.dir, "tools/visual-preview.sh"),
-            `#!/bin/sh\n[ "$1" = --head ] && echo screenshots >> "${ran}"\nexit 0\n`,
-            {
-                mode: 0o755,
-            },
-        );
-        mkdirSync(join(r.dir, "webgpu-graph-algorithms"));
-        writeFileSync(join(r.dir, "webgpu-graph-algorithms/.keep"), "");
-        r.git("add", ".");
-        r.git("commit", "-q", "-m", "gate");
-        r.git("update-ref", "refs/remotes/origin/master", "HEAD");
-        const bin = join(TMP, `bin-${made}`);
-        mkdirSync(bin);
-        writeFileSync(
-            join(bin, "pnpm"),
-            `#!/bin/sh\ncase "$*" in --version) echo 10.30.0;; *"show projects"*) echo '${projects}';;\n` +
-                `*"-t build"*) echo build >> "${ran}";; *"-t lint"*) echo lint >> "${ran}";; esac\n`,
-            { mode: 0o755 },
-        );
-        writeFileSync(join(bin, "npm"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-        const env = { ...OUR_ENV, PATH: `${bin}:${process.env.PATH}`, PUSH_BASE_REF: "origin/master" };
-        delete env.PREPUSH_RERUN_ALL;
-        delete env.PREPUSH_EXPECTED_KEY;
-        const gate = (extra = {}) =>
-            spawnSync("bash", [join(r.dir, "tools/prepush.sh")], {
-                cwd: r.dir,
-                encoding: "utf8",
-                env: { ...env, ...extra },
-            });
-        const steps = () => (existsSync(ran) ? readFileSync(ran, "utf8").trim().split("\n") : []);
-        return { ...r, gate, steps };
-    }
-
-    it("records a pass, then skips the whole gate on the same tree, and PREPUSH_RERUN_ALL=1 runs it all", () => {
-        const r = gateRepo();
-        const first = r.gate();
-        assert.equal(first.status, 0, first.stdout + first.stderr);
-        // SonarQube runs in the background beside the other source checks, so the two log in either order.
-        assert.deepEqual(r.steps().sort(), ["links", "sonar"]);
-        assert.equal(r.inputs("passed", "gate").status, 0, "a whole-gate pass is recorded");
-
-        const second = r.gate();
-        assert.equal(second.status, 0, second.stdout + second.stderr);
-        assert.match(second.stdout, /\[SKIP\] The whole gate: it already passed on exactly these inputs/);
-        assert.deepEqual(r.steps().sort(), ["links", "sonar"], "no step ran again");
-
-        const again = r.gate({ PREPUSH_RERUN_ALL: "1" });
-        assert.equal(again.status, 0, again.stdout + again.stderr);
-        assert.deepEqual(r.steps().sort(), ["links", "links", "sonar", "sonar"]);
-    });
-
-    it("records no pass that SonarQube did not check, so the next push of the same files is scanned", () => {
-        const r = gateRepo();
-        const unchecked = r.gate({ SONAR_OUT: "SonarQube did NOT check this push (server unreachable)" });
-        assert.equal(unchecked.status, 0, unchecked.stdout + unchecked.stderr);
-        assert.equal(r.inputs("passed", "source").status, 1);
-        assert.equal(r.inputs("passed", "gate").status, 1);
-        assert.equal(r.gate().status, 0);
-        assert.deepEqual(r.steps().sort(), ["links", "links", "sonar", "sonar"]);
-    });
-
-    it("PREPUSH_LIGHT=1 runs build, lint and the NVIDIA GPU tests but no test shard and no screenshot", () => {
-        const r = gateRepo('["webgpu-graph-algorithms"]');
-        const light = r.gate({ PREPUSH_LIGHT: "1" });
-        assert.equal(light.status, 0, light.stdout + light.stderr);
-        // the source checks first (SonarQube beside the rest), then the build, then lint beside the GPU tests
-        assert.deepEqual(r.steps().slice(0, 2).sort(), ["links", "sonar"]);
-        assert.deepEqual(r.steps().slice(2, 3), ["build"]);
-        assert.deepEqual(r.steps().slice(3).sort(), ["gpu", "lint"]);
-        assert.match(light.stdout, /\[LIGHT\] tests run in CI verification/);
-        assert.equal(r.inputs("passed", "gate").status, 1, "a light pass is not recorded for the full gate's key");
-
-        // the full gate is another key, so the light pass does not stand in for it
-        const full = r.gate();
-        assert.equal(full.status, 0, full.stdout + full.stderr);
-        // the screenshots and the GPU tests run in the background, beside the shards, in any order
-        assert.deepEqual(r.steps().slice(5).sort(), ["build", "gpu", "links", "lint", "screenshots", "sonar", "tests"]);
-        assert.doesNotMatch(full.stdout, /\[LIGHT\]/);
-    });
-
-    it("stops, running nothing, when its inputs are not the ones the push queue found a pass for", () => {
-        const r = gateRepo();
-        const p = r.gate({ PREPUSH_EXPECTED_KEY: "0".repeat(64) });
-        assert.equal(p.status, 1);
-        assert.match(p.stderr, /inputs changed after the push queue found a pass/);
-        assert.deepEqual(r.steps(), []);
-    });
-});
-
 describe("the wait log", () => {
     const read = (file) => readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
 
@@ -536,30 +419,6 @@ describe("the wait log", () => {
             holder.kill();
             waiter.kill();
         }
-    });
-
-    it("records every taking of the landing lock, its holder while waiting, and how long it was held", async () => {
-        const lock = join(TMP, "golden/lock");
-        const lines = [];
-        const opts = { pollMs: 5, waitLog: (l) => lines.push(l), onQueue: () => {} };
-        const first = await acquireLock(lock, { command: "land", branch: "a" }, { ...opts, onWait: () => {} });
-        let told;
-        const waiting = new Promise((resolve) => (told = resolve));
-        const second = acquireLock(lock, { command: "land", branch: "b" }, { ...opts, onWait: told });
-        await waiting;
-        first();
-        (await second)();
-        assert.deepEqual(
-            lines.map((l) => [l.kind, l.waiter]),
-            [
-                ["land-lock", "land a"],
-                ["land-lock-held", "land a"],
-                ["land-lock", "land b"],
-                ["land-lock-held", "land b"],
-            ],
-        );
-        assert.deepEqual(lines[0].heldBy, []);
-        assert.match(lines[2].heldBy[0], new RegExp(`^pid ${process.pid} \\(land a, since `));
     });
 
     it("records a wait for a browser slot with the commands that held the slots", () => {

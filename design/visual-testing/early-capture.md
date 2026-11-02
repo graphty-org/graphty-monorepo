@@ -601,17 +601,17 @@ gate step and story-test jobs.
    alert, so a trial week of busy runners does not page the owner. After the 7-day trial, the set's age
    may become a judged state.
 
-    | Page     | Member                                 | Value                                                                                                    | Target, red      | Source       |
-    | -------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------- | ------------ |
-    | CI       | Screenshot set age                     | newest value: the oldest of every rotation unit's newest capture                                         | <= 6 h, > 12 h   | story-slices |
-    | CI       | Base / idle slices, share of daily cap | today's (UTC) runner-minutes of the share / its cap in `config/slices.json`                              | <= 100%, > 125%  | collector    |
-    | CI       | Idle slices, share of hourly cap       | idle runner-minutes in the last hour / the hourly cap                                                    | <= 100%, > 125%  | collector    |
-    | CI       | Slice minutes held while contended     | 7-day sum of slice jobs running x cycle minutes, in cycles that were saturated or had another job queued | <= 35 min, > 105 | collector    |
-    | CI       | Queue wait during slices               | 7-day sum of other jobs queued x cycle minutes, in cycles where a slice job ran                          | <= 35 min, > 105 | collector    |
-    | Releases | Screenshot review lag                  | 7-day median, first rolling capture of a changed or new picture to the approval merge that took it in    | <= 6 h, > 24 h   | story-slices |
-    | Releases | Slots meeting an unapproved picture    | green-images / (green-clean + green-images) full-run verdicts, 7 days                                    | <= 25%, > 75%    | release      |
-    | Releases | Green-clean full runs                  | green-clean / every full-run verdict, 7 days (a same-commit re-run replaces)                             | >= 50%, < 25%    | release      |
-    | Releases | Nightly promotions per day             | channel/nightly moving to a new commit, 7-day count / 7                                                  | >= 2, < 1        | collector    |
+    | Page     | Member                                 | Value                                                                                                 | Target, red      | Source       |
+    | -------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------- | ------------ |
+    | CI       | Screenshot set age                     | newest value: the oldest of every rotation unit's newest capture                                      | <= 6 h, > 12 h   | story-slices |
+    | CI       | Base / idle slices, share of daily cap | today's (UTC) runner-minutes of the share / its cap in `config/slices.json`                           | <= 100%, > 125%  | collector    |
+    | CI       | Idle slices, share of hourly cap       | idle runner-minutes in the last hour / the hourly cap                                                 | <= 100%, > 125%  | collector    |
+    | CI       | Slice minutes held while contended     | 7-day sum of slice jobs running x cycle minutes, in cycles that were saturated                        | <= 35 min, > 105 | collector    |
+    | CI       | Queue wait during slices               | 7-day sum of other jobs' minutes waiting for a runner, in saturated cycles where a slice job ran      | <= 35 min, > 105 | collector    |
+    | Releases | Screenshot review lag                  | 7-day median, first rolling capture of a changed or new picture to the approval merge that took it in | <= 6 h, > 24 h   | story-slices |
+    | Releases | Slots meeting an unapproved picture    | green-images / (green-clean + green-images) full-run verdicts, 7 days                                 | <= 25%, > 75%    | release      |
+    | Releases | Green-clean full runs                  | green-clean / every full-run verdict, 7 days (a same-commit re-run replaces)                          | >= 50%, < 25%    | release      |
+    | Releases | Nightly promotions per day             | channel/nightly moving to a new commit, 7-day count / 7                                               | >= 2, < 1        | collector    |
 
     How each is measured, and why:
 
@@ -673,8 +673,10 @@ A replay of the quiet rule over the health API's 15-minute runner series (2026-1
 allows an idle slice in 13.3% of buckets, about 3.2 hours a day, and a base slice in 16.7%. Found: since
 the move to the Enterprise plan the health stack's runner limit is 500, and on the evening of 2026-10-29
 only 15 to 30 jobs ran while 150 to 700 waited, so `ci.saturated` read 0 throughout. The quiet rule still
-yields, because it also needs nothing queued, but "slice minutes held while contended" must be read from
-its queued half while jobs wait without the pool being full.
+yields, because it also needs nothing queued. A hosted slice runner holds back another job only through
+the concurrency limit, so both cost members count only saturated cycles (#5398): from 2026-10-30 to
+2026-11-02 every wait they had charged to slices came with at most 180 of 500 runners busy, which
+is GitHub's assignment delay (`ci.unassigned_ms`), not the slices.
 
 ## 6. Review answers
 

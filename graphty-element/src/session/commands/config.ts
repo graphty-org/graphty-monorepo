@@ -282,16 +282,7 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
                 ctx.draft.config.set(path, value);
             }
 
-            restore ||= (path === "startingRows" || path === "editableBase") && value === true;
-            // Designating or clearing a time field adds or takes away the Ghost row, and setting or
-            // clearing the pinned look the Pinned row. Only a change does: writing the value already
-            // in effect (a project opened over the same settings) adds nothing, so a project read
-            // into a cleared tree gets exactly the rows it saved.
-            restore ||=
-                !same &&
-                (path === "data.knownFields.nodeTimePath" ||
-                    path === "data.knownFields.edgeTimePath" ||
-                    path === "pinnedStyle");
+            restore ||= restoresStartingRows(path, value, same);
         }
 
         // The starting rows arrive with the setting, in its step: undo takes both back. Added once
@@ -301,6 +292,28 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
         }
     },
 };
+
+/**
+ * Whether writing a config key asks for the starting rows to be restored.
+ * @param path - The key.
+ * @param value - The value written (undefined to clear it).
+ * @param same - Whether the write leaves the value the key already reads as.
+ * @returns True when the starting rows are to be restored.
+ */
+function restoresStartingRows(path: string, value: unknown, same: boolean): boolean {
+    if ((path === "startingRows" || path === "editableBase") && value === true) {
+        return true;
+    }
+
+    // Designating or clearing a time field adds or takes away the Ghost row, and setting or
+    // clearing the pinned look the Pinned row. Only a change does: writing the value already
+    // in effect (a project opened over the same settings) adds nothing, so a project read
+    // into a cleared tree gets exactly the rows it saved.
+    return (
+        !same &&
+        (path === "data.knownFields.nodeTimePath" || path === "data.knownFields.edgeTimePath" || path === "pinnedStyle")
+    );
+}
 
 /**
  * The project settings a slice holds, with every absent key at its default.

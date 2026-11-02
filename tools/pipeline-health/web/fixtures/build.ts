@@ -1851,25 +1851,37 @@ function costSections(range: SlowRange): Section[] {
     ];
 }
 
-function srcRow(
-    code: string,
-    what: Fact,
-    write: string | null,
-    limit: TableRow["cells"][string],
-    volume: TableRow["cells"][string],
-    error: TableRow["cells"][string],
-    state: TableRow["cells"][string],
-    past = false,
-): TableRow {
+type SrcCell = TableRow["cells"][string];
+
+/** A row of the Data sources table; a cell left out is empty. */
+interface SrcRow {
+    /** The source's label code; its description is `<code>.what`. */
+    code: string;
+    /** When it last wrote, "HH:MM". */
+    write: string;
+    limit?: SrcCell;
+    volume?: SrcCell;
+    error?: SrcCell;
+    state?: SrcCell;
+    /** True when the row is past (folded). */
+    past?: boolean;
+}
+
+/**
+ * A row of the Data sources table.
+ * @param r - The row's source, last write and cells.
+ * @returns The row.
+ */
+function srcRow(r: SrcRow): TableRow {
     return {
-        ...(past ? { past } : {}),
+        ...(r.past ? { past: r.past } : {}),
         cells: {
-            source: cell.sub({ t: "label", code }, { t: "fact", fact: what }),
-            write: write ? { t: "ago", at: t(write) } : { t: "none" },
-            limit,
-            volume,
-            error,
-            state,
+            source: cell.sub({ t: "label", code: r.code }, { t: "fact", fact: f(`${r.code}.what`) }),
+            write: { t: "ago", at: t(r.write) },
+            limit: r.limit ?? none,
+            volume: r.volume ?? none,
+            error: r.error ?? none,
+            state: r.state ?? none,
         },
     };
 }
@@ -1917,64 +1929,47 @@ const dataSections: Section[] = [
         kind: "table",
         id: "sources",
         rows: [
-            srcRow(
-                "source.collector",
-                f("source.collector.what"),
-                "23:28",
-                { t: "dur", s: 900 },
-                { t: "num", n: 100, unit: "pct" },
-                none,
-                none,
-            ),
-            srcRow(
-                "source.ci-results",
-                f("source.ci-results.what"),
-                "23:26",
-                cell.fact("source.limit_runs", { h: 2 }),
-                cell.fact("source.since_no_history", { since: t("20:42") }),
-                none,
-                none,
-            ),
-            srcRow(
-                "source.ci-timings",
-                f("source.ci-timings.what"),
-                "23:26",
-                cell.fact("source.limit_runs", { h: 2 }),
-                { t: "num", n: 96, unit: "pct" },
-                none,
-                none,
-            ),
-            srcRow(
-                "source.releases",
-                f("source.releases.what"),
-                "18:24",
-                { t: "dur", s: 25200 },
-                cell.fact("source.trains", { got: 4, of: 4 }),
-                none,
-                none,
-            ),
-            srcRow("source.npm", f("source.npm.what"), "22:52", { t: "dur", s: 10800 }, none, none, none),
-            srcRow(
-                "source.stress",
-                f("source.stress.what"),
-                "09:30",
-                { t: "dur", s: 691200 },
-                none,
-                cell.fact("source.error.filing"),
-                { t: "state", state: "bad" },
-            ),
-            srcRow("source.hosts", f("source.hosts.what"), "04:30", { t: "dur", s: 108000 }, none, none, none),
-            srcRow("source.billing", f("source.billing.what"), "13:30", { t: "dur", s: 129600 }, none, none, none),
-            srcRow(
-                "source.local",
-                f("source.local.what"),
-                "14:30",
-                none,
-                cell.fact("source.no_local_gate", { since: t("10-25 00:00") }),
-                none,
-                { t: "state", state: "idle" },
-                true,
-            ),
+            srcRow({
+                code: "source.collector",
+                write: "23:28",
+                limit: { t: "dur", s: 900 },
+                volume: { t: "num", n: 100, unit: "pct" },
+            }),
+            srcRow({
+                code: "source.ci-results",
+                write: "23:26",
+                limit: cell.fact("source.limit_runs", { h: 2 }),
+                volume: cell.fact("source.since_no_history", { since: t("20:42") }),
+            }),
+            srcRow({
+                code: "source.ci-timings",
+                write: "23:26",
+                limit: cell.fact("source.limit_runs", { h: 2 }),
+                volume: { t: "num", n: 96, unit: "pct" },
+            }),
+            srcRow({
+                code: "source.releases",
+                write: "18:24",
+                limit: { t: "dur", s: 25200 },
+                volume: cell.fact("source.trains", { got: 4, of: 4 }),
+            }),
+            srcRow({ code: "source.npm", write: "22:52", limit: { t: "dur", s: 10800 } }),
+            srcRow({
+                code: "source.stress",
+                write: "09:30",
+                limit: { t: "dur", s: 691200 },
+                error: cell.fact("source.error.filing"),
+                state: { t: "state", state: "bad" },
+            }),
+            srcRow({ code: "source.hosts", write: "04:30", limit: { t: "dur", s: 108000 } }),
+            srcRow({ code: "source.billing", write: "13:30", limit: { t: "dur", s: 129600 } }),
+            srcRow({
+                code: "source.local",
+                write: "14:30",
+                volume: cell.fact("source.no_local_gate", { since: t("10-25 00:00") }),
+                state: { t: "state", state: "idle" },
+                past: true,
+            }),
         ],
     },
     {

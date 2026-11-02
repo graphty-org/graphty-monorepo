@@ -85,6 +85,34 @@ function UseButton({ what, onUse }: Readonly<{ what: string; onUse: () => void }
 }
 
 /**
+ * An edge file's counts: edges added, new nodes and nodes updated, each drawn when not zero.
+ * @param props - Component props
+ * @param props.report - The element's counts
+ * @returns the chips
+ */
+function EdgeFileChips({ report }: Readonly<{ report: JoinReport }>): React.JSX.Element {
+    return (
+        <>
+            {report.newEdges > 0 ? (
+                <li>
+                    <EntityChip kind="edge">{counted(report.newEdges, "edge added", "edges added")}</EntityChip>
+                </li>
+            ) : null}
+            {report.newNodes > 0 ? (
+                <li>
+                    <EntityChip kind="node">{counted(report.newNodes, "new node", "new nodes")}</EntityChip>
+                </li>
+            ) : null}
+            {report.updatedNodes > 0 ? (
+                <li>
+                    <EntityChip kind="node">{counted(report.updatedNodes, "node updated", "nodes updated")}</EntityChip>
+                </li>
+            ) : null}
+        </>
+    );
+}
+
+/**
  * The join screen's live counts (spec section 3.6), every number from graphty-element's join
  * report: matched, not in graph, nodes with no value (each with Show), a repeated key (its menu:
  * Keep first, Keep both, Ignore), and the matches ignoring case or spaces would add (with Use). An
@@ -114,25 +142,7 @@ export function MatchChips({
     return (
         <ul className="jn-chips" aria-label="Matches">
             {edges ? (
-                <>
-                    {report.newEdges > 0 ? (
-                        <li>
-                            <EntityChip kind="edge">{counted(report.newEdges, "edge added", "edges added")}</EntityChip>
-                        </li>
-                    ) : null}
-                    {report.newNodes > 0 ? (
-                        <li>
-                            <EntityChip kind="node">{counted(report.newNodes, "new node", "new nodes")}</EntityChip>
-                        </li>
-                    ) : null}
-                    {report.updatedNodes > 0 ? (
-                        <li>
-                            <EntityChip kind="node">
-                                {counted(report.updatedNodes, "node updated", "nodes updated")}
-                            </EntityChip>
-                        </li>
-                    ) : null}
-                </>
+                <EdgeFileChips report={report} />
             ) : (
                 <li>
                     <EntityChip kind={kind}>{formatNumber(report.matched)} matched</EntityChip>

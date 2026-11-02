@@ -79,6 +79,72 @@ function references(file, text) {
 }
 
 /**
+ * The problems with a file's flag references; each declared flag it names gets the file added to its list.
+ * @param file - The file, relative to the root.
+ * @param text - Its text.
+ * @param declared - The declared flag ids.
+ * @param files - Each declared flag's referencing files, added to here.
+ * @returns The problems found.
+ */
+function referenceProblems(file, text, declared, files) {
+    const problems = [];
+    const lines = text.split("\n");
+    for (const ref of references(file, text)) {
+        if (declared.has(ref.id)) files.get(ref.id).add(file);
+        else if (ref.kind === "unreadable site configuration") problems.push(`${file}: not valid JSON`);
+        else if (ref.id === "") problems.push(`${file}:${ref.line}: @experimental names no feature id`);
+        else problems.push(`${file}:${ref.line}: ${ref.kind} names "${ref.id}", which is not in FEATURES`);
+        // ponytail: "its tag" means within the 30 lines above the field; a real AST walk if that misfires.
+        if (
+            ref.kind === "feature field" &&
+            !lines
+                .slice(Math.max(0, ref.line - 31), ref.line)
+                .join("\n")
+                .includes(`@experimental ${ref.id}`)
+        ) {
+            problems.push(
+                `${file}:${ref.line}: feature field "${ref.id}" has no @experimental ${ref.id} tag in its doc comment`,
+            );
+        }
+    }
+    return problems;
+}
+
+/**
+ * The places a file still names a graduated flag.
+ * @param file - The file, relative to the root.
+ * @param text - Its text.
+ * @param graduated - The graduated flag ids.
+ * @returns The problems found.
+ */
+function graduatedProblems(file, text, graduated) {
+    const problems = [];
+    for (const id of graduated) {
+        const escaped = id.replaceAll(/[.*+?^${}()|[\]\\-]/g, String.raw`\$&`);
+        const at = text.search(new RegExp(`["'\`]${escaped}["'\`]`));
+        if (at >= 0) problems.push(`${file}:${lineOf(text, at)}: graduated feature "${id}" is still named`);
+    }
+    return problems;
+}
+
+/**
+ * The host state a file of the features module reads; it must read none.
+ * @param file - The file, relative to the root.
+ * @param text - Its text.
+ * @returns The problems found.
+ */
+function moduleProblems(file, text) {
+    if (!file.startsWith(`${FEATURES_DIR}/`)) return [];
+    const code = stripCommentsAndStrings(text);
+    return [
+        ...code.matchAll(/\blocation\b|\blocalStorage\b|\bsessionStorage\b|\bprocess\.env\b|\bimport\.meta\.env\b/g),
+    ].map(
+        (m) =>
+            `${file}: the features module reads ${m[0]}; the page passes feature ids, the element never reads them from the host`,
+    );
+}
+
+/**
  * Runs every rule over a checkout.
  * @param root - The repository root.
  * @returns Every problem found, and each declared flag with the files that reference it.
@@ -99,40 +165,11 @@ export function checkFeatures(root) {
     for (const file of SCAN_DIRS.flatMap((dir) => walk(root, dir))) {
         if (file === REGISTRY) continue;
         const text = readFileSync(join(root, file), "utf8");
-        const lines = text.split("\n");
-        for (const ref of references(file, text)) {
-            if (declared.has(ref.id)) files.get(ref.id).add(file);
-            else if (ref.kind === "unreadable site configuration") problems.push(`${file}: not valid JSON`);
-            else if (ref.id === "") problems.push(`${file}:${ref.line}: @experimental names no feature id`);
-            else problems.push(`${file}:${ref.line}: ${ref.kind} names "${ref.id}", which is not in FEATURES`);
-            // ponytail: "its tag" means within the 30 lines above the field; a real AST walk if that misfires.
-            if (
-                ref.kind === "feature field" &&
-                !lines
-                    .slice(Math.max(0, ref.line - 31), ref.line)
-                    .join("\n")
-                    .includes(`@experimental ${ref.id}`)
-            ) {
-                problems.push(
-                    `${file}:${ref.line}: feature field "${ref.id}" has no @experimental ${ref.id} tag in its doc comment`,
-                );
-            }
-        }
-        for (const id of graduated) {
-            const escaped = id.replaceAll(/[.*+?^${}()|[\]\\-]/g, String.raw`\$&`);
-            const at = text.search(new RegExp(`["'\`]${escaped}["'\`]`));
-            if (at >= 0) problems.push(`${file}:${lineOf(text, at)}: graduated feature "${id}" is still named`);
-        }
-        if (file.startsWith(`${FEATURES_DIR}/`)) {
-            const code = stripCommentsAndStrings(text);
-            for (const m of code.matchAll(
-                /\blocation\b|\blocalStorage\b|\bsessionStorage\b|\bprocess\.env\b|\bimport\.meta\.env\b/g,
-            )) {
-                problems.push(
-                    `${file}: the features module reads ${m[0]}; the page passes feature ids, the element never reads them from the host`,
-                );
-            }
-        }
+        problems.push(
+            ...referenceProblems(file, text, declared, files),
+            ...graduatedProblems(file, text, graduated),
+            ...moduleProblems(file, text),
+        );
     }
 
     return { problems, flags: rows.map((r) => ({ ...r, files: [...files.get(r.id)].sort() })) };

@@ -65,20 +65,27 @@ describe("what slices cost other work (design section 6)", () => {
     const ci = { run: run(2, "ci.yml"), jobs: [job("in_progress"), job("queued"), job("queued", undefined, 3)] };
     const gpu = { run: run(3, "gpu.yml"), jobs: [job("queued", ["machine.dev"])] };
 
-    it("counts slice runner-minutes held while other jobs waited for a runner, and their minutes queued in the cycle", () => {
-        expect(contention([slice, ci, gpu], "story-slices.yml", false, 5, T)).toEqual({
+    it("counts slice runner-minutes held while saturated, and other jobs' minutes queued in the cycle", () => {
+        expect(contention([slice, ci, gpu], "story-slices.yml", true, 5, T)).toEqual({
             contendedMin: 10,
             queueWaitMin: 5 + 3,
         });
     });
 
-    it("counts nothing for jobs not waiting for a runner: created under 2 minutes ago, concurrency or approval", () => {
+    it("counts nothing for jobs waiting while the pool is below its limit: the slices held no one back (#5398)", () => {
+        expect(contention([slice, ci, gpu], "story-slices.yml", false, 5, T)).toEqual({
+            contendedMin: 0,
+            queueWaitMin: 0,
+        });
+    });
+
+    it("counts no queue wait for jobs not waiting for a runner: created under 2 minutes ago, concurrency or approval", () => {
         const notWaiting = {
             run: run(2, "ci.yml"),
             jobs: [job("queued", undefined, 1), job("pending"), job("waiting"), job("queued", ["macos-latest"])],
         };
-        expect(contention([slice, notWaiting], "story-slices.yml", false, 5, T)).toEqual({
-            contendedMin: 0,
+        expect(contention([slice, notWaiting], "story-slices.yml", true, 5, T)).toEqual({
+            contendedMin: 10,
             queueWaitMin: 0,
         });
     });

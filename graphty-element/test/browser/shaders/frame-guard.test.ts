@@ -76,9 +76,12 @@ beforeAll(() => {
         }`,
     });
     // Enough work per pixel that SwiftShader takes well over 50 ms a frame on a canvas this size.
+    // An effect drawn around its node and see-through, so sprites over one another all shade:
+    // none is hidden from the GPU's work by the one in front of it.
     defineShader({
         id: "e4/slow",
-        place: "replace",
+        place: "around",
+        reach: 2,
         motion: "loop",
         glsl: `vec4 shade(NodeInput n) {
             float v = n.time;
@@ -87,7 +90,7 @@ beforeAll(() => {
                     v = fract(sin(v + 1.7) * 43.5);
                 }
             }
-            return vec4(vec3(v), 1.0);
+            return vec4(vec3(v), 0.5);
         }`,
     });
     registerShader({
@@ -254,11 +257,14 @@ describe("the frame guard", () => {
     });
 
     it("steps quality down when a heavy shader really keeps the GPU behind, with no fence simulated", async () => {
-        // Three sprites drawn over one another: each frame shades the canvas about three times
-        // over, with almost none of it on the CPU. How long that takes is the machine's: over the
-        // slow-frame line (50 ms) the guard steps the quality down, over the long-frame line
-        // (250 ms, a slower software rasterizer) it steps heavy shaders off. Either is the GPU
-        // really being behind; which one depends on the runner, not on the guard.
+        // See-through sprites drawn over one another, all of the frame's work on the GPU. How long
+        // that takes is the machine's (issue #5575: three stayed under the 50 ms slow-frame line on
+        // the dev machine's card, so the guard rightly never stepped), so the test does not hope
+        // one count is slow enough: it doubles the sprites every 40 frames drawn until the guard's
+        // own measurement says the GPU is behind (768 on that card, three under SwiftShader).
+        // Over the slow-frame line the guard steps the quality down, over the long-frame line
+        // (250 ms, a slow software rasterizer) it steps heavy shaders off. Either is the GPU really
+        // being behind; which one depends on the runner, not on the guard.
         const element = await mounted(
             [
                 { id: "a", x: 0, y: 0 },
@@ -275,9 +281,26 @@ describe("the frame guard", () => {
         cleanups.unshift(() => {
             scene.onBeforeRenderObservable.remove(timing);
         });
-        await until(element, "the guard stepped down", () => seen.length > 0 || starts.length > 40);
+        const { ticks } = renderManagerOf(element);
+        let sprites = 3;
+        for (let round = 0; round < 12 && seen.length === 0; round++) {
+            if (round > 0) {
+                await element.session.data.addNodes(
+                    Array.from({ length: sprites }, (_, i) => ({
+                        id: `more-${String(sprites + i)}`,
+                        position: { x: 0.001 * (i % 32), y: 0.001 * Math.floor(i / 32), z: 0 },
+                    })),
+                );
+                sprites *= 2;
+            }
+
+            starts.length = 0;
+            const from = ticks.drawn;
+            await until(element, "40 frames drawn", () => seen.length > 0 || ticks.drawn - from >= 40);
+        }
+
         const gaps = starts.slice(1).map((at, i) => Math.round(at - starts[i]));
-        assert.isAbove(seen.length, 0, `frame intervals ${gaps.join(" ")}`);
+        assert.isAbove(seen.length, 0, `${String(sprites)} sprites, last frame intervals ${gaps.join(" ")}`);
         assert.oneOf(seen[0].code, ["guard.slow-gpu", "guard.long-frame"]);
         if (seen[0].code === "guard.slow-gpu") {
             assert.strictEqual(element.renderQuality.level, "medium");

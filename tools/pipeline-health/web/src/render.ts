@@ -478,59 +478,52 @@ function memberRows(members: Member[]): string {
 const SOURCES_LINK = `<a class="ln" href="#/data-sources/sources">See Data sources</a>`;
 
 /**
- * The page's state sentence: the member that set it, the others not OK, and the page's notes.
- * @param p The page.
+ * The sentence for the member that set the page's state.
+ * @param setBy The member that set the state.
+ * @param m That member, when the page lists it.
  * @returns The sentence as HTML.
  */
-function pageState(p: PageResponse): string {
-    const word = p.state === "idle" ? "IDLE" : STATE_WORD[p.state];
-    const chip = `<span class="chips"><span class="sw ${p.state === "idle" ? "idle" : stateClass(p.state)}">${word}</span></span>`;
-    const find = (r: MemberRef): Member | undefined => p.members.find((m) => m.id === r.member);
-    const parts: string[] = [];
-    if (p.setBy) {
-        const m = find(p.setBy);
-        if (p.setBy.fact && p.setBy.state !== "nodata") {
-            parts.push(`${capital(sentence(p.setBy.fact))}.`);
-        } else if (m && p.setBy.state === "nodata") {
-            const why = m.reason ? `: ${sentence(m.reason)}` : "";
-            parts.push(`${capital(MEMBER[m.id].short)} has NO DATA${why}. ${SOURCES_LINK}.`);
-        } else if (
-            m &&
-            p.setBy.member === "ci.chronic_jobs" &&
-            p.setBy.state === "bad" &&
-            m.note?.code === "note.chronic_no_issue"
-        ) {
-            parts.push(`Because ${sentence({ code: "chronic.no_issue_jobs", params: m.note.params })}.`);
-        } else if (m) {
-            const win = MEMBER[m.id].when ?? WINDOW_PHRASE[m.window] ?? "";
-            const v6 = m.value6h ? ` (6 h: ${fmtValue(m.value6h)})` : "";
-            // A word value ("found nothing 3 weeks running") reads after a colon, never as "is found nothing", and
-            // is followed by what that state means rather than a target phrase.
-            const word = m.value !== null && "word" in m.value;
-            const meaning = p.setBy.state === "warn" && MEMBER[m.id].yellow ? MEMBER[m.id].yellow : MEMBER[m.id].red;
-            parts.push(
-                word
-                    ? `${capital(MEMBER[m.id].short)}: ${fmtValue(m.value)}. ${esc(meaning)}`
-                    : `${capital(MEMBER[m.id].short)} is ${fmtValue(m.value)}${win}${v6}, ${slaText(m.sla)}.`,
-            );
-        } else {
-            parts.push(`${capital(refText(p.setBy))}.`);
-        }
-    } else if (p.state === "ok") {
-        parts.push(
-            isPickerRange(p.range) && p.range !== "1h"
-                ? `Every judged member is within its target now; rates are judged on the last 1 h, while the values show the last ${rangeLabel(p.range)}.`
-                : "Every judged member is within its target.",
-        );
+function setByText(setBy: MemberRef, m: Member | undefined): string {
+    if (setBy.fact && setBy.state !== "nodata") {
+        return `${capital(sentence(setBy.fact))}.`;
     }
+    if (!m) {
+        return `${capital(refText(setBy))}.`;
+    }
+    const t = MEMBER[m.id];
+    if (setBy.state === "nodata") {
+        const why = m.reason ? `: ${sentence(m.reason)}` : "";
+        return `${capital(t.short)} has NO DATA${why}. ${SOURCES_LINK}.`;
+    }
+    if (setBy.member === "ci.chronic_jobs" && setBy.state === "bad" && m.note?.code === "note.chronic_no_issue") {
+        return `Because ${sentence({ code: "chronic.no_issue_jobs", params: m.note.params })}.`;
+    }
+    // A word value ("found nothing 3 weeks running") reads after a colon, never as "is found nothing", and
+    // is followed by what that state means rather than a target phrase.
+    if (m.value !== null && "word" in m.value) {
+        const meaning = setBy.state === "warn" && t.yellow ? t.yellow : t.red;
+        return `${capital(t.short)}: ${fmtValue(m.value)}. ${esc(meaning)}`;
+    }
+    const win = t.when ?? WINDOW_PHRASE[m.window] ?? "";
+    const v6 = m.value6h ? ` (6 h: ${fmtValue(m.value6h)})` : "";
+    return `${capital(t.short)} is ${fmtValue(m.value)}${win}${v6}, ${slaText(m.sla)}.`;
+}
+
+/**
+ * The sentences naming the page's other members that are not OK.
+ * @param p The page.
+ * @returns One sentence per state that has members, failing first.
+ */
+function othersText(p: PageResponse): string[] {
     const named = (state: MemberRef["state"]): string[] =>
         p.others
             .filter((r) => r.state === state)
             .map((r) => {
-                const m = find(r);
+                const m = p.members.find((x) => x.id === r.member);
                 const v6 = m?.value6h && !r.fact ? ` (6 h: ${fmtValue(m.value6h)})` : "";
                 return refText(r) + v6;
             });
+    const parts: string[] = [];
     const bad = named("bad");
     const warn = named("warn");
     const nodata = named("nodata");
@@ -543,7 +536,34 @@ function pageState(p: PageResponse): string {
     if (nodata.length) {
         parts.push(`Also NO DATA: ${nodata.join(", ")}. ${SOURCES_LINK}.`);
     }
-    parts.push(...p.notes.map(sentence));
+    return parts;
+}
+
+/**
+ * The page's state sentence: the member that set it, the others not OK, and the page's notes.
+ * @param p The page.
+ * @returns The sentence as HTML.
+ */
+function pageState(p: PageResponse): string {
+    const word = p.state === "idle" ? "IDLE" : STATE_WORD[p.state];
+    const chip = `<span class="chips"><span class="sw ${p.state === "idle" ? "idle" : stateClass(p.state)}">${word}</span></span>`;
+    const parts: string[] = [];
+    if (p.setBy) {
+        const { setBy } = p;
+        parts.push(
+            setByText(
+                setBy,
+                p.members.find((m) => m.id === setBy.member),
+            ),
+        );
+    } else if (p.state === "ok") {
+        parts.push(
+            isPickerRange(p.range) && p.range !== "1h"
+                ? `Every judged member is within its target now; rates are judged on the last 1 h, while the values show the last ${rangeLabel(p.range)}.`
+                : "Every judged member is within its target.",
+        );
+    }
+    parts.push(...othersText(p), ...p.notes.map(sentence));
     if (p.page === "costs") {
         parts.push(...budgetLine(p.sections));
     }
@@ -927,6 +947,8 @@ function holderName(i: BarsSection["groups"][number]["items"][number]): BarsSect
     return m && EVENT[m[2]] ? { ...i, label: { t: "name", v: `${m[1]}, ${EVENT[m[2]]}` } } : i;
 }
 
+const h3 = (html: string): string => `<h3>${html}</h3>`;
+
 function bars(s0: BarsSection): string {
     const s =
         s0.id === "holders" ? { ...s0, groups: s0.groups.map((g) => ({ ...g, items: g.items.map(holderName) })) } : s0;
@@ -934,22 +956,19 @@ function bars(s0: BarsSection): string {
     if (s.groups.length === 1) {
         return barList(s.groups[0].items, caption);
     }
-    const list = (g: BarsSection["groups"][number]): string =>
-        g.items.length
-            ? barList(g.items, g.head ? sentence(g.head) : caption)
-            : `<p class="empty">none in this range</p>`;
-    return `<div class="two">${s.groups
-        .map((g) => `<div>${g.head ? `<h3>${sentence(g.head)}</h3>` : ""}${list(g)}</div>`)
-        .join("")}</div>`;
+    const group = (g: BarsSection["groups"][number]): string => {
+        const title = g.head ? sentence(g.head) : null;
+        const heading = title === null ? "" : h3(title);
+        const list = g.items.length ? barList(g.items, title ?? caption) : `<p class="empty">none in this range</p>`;
+        return `<div>${heading}${list}</div>`;
+    };
+    return `<div class="two">${s.groups.map(group).join("")}</div>`;
 }
 
 function seg(key: string, on: string, options: [string, string][]): string {
-    return `<span class="seg">${options
-        .map(
-            ([v, label]) =>
-                `<a href="${hereWith({ [key]: v })}"${v === on ? ' class="on" aria-current="true"' : ""}>${esc(label)}</a>`,
-        )
-        .join("")}</span>`;
+    const link = ([v, label]: [string, string]): string =>
+        `<a href="${hereWith({ [key]: v })}"${v === on ? ' class="on" aria-current="true"' : ""}>${esc(label)}</a>`;
+    return `<span class="seg">${options.map(link).join("")}</span>`;
 }
 
 /**
@@ -991,9 +1010,12 @@ function shards(s: ShardsSection): string {
             return `<details class="sd" data-key="shard-${esc(r.shard)}"><summary class="srow">${cols(chev())}</summary><div class="files">${files}${more}</div></details>`;
         })
         .join("");
-    const more = s.more
-        ? `<p class="more">${fmtN(s.more.count)} more ${s.runKind === "full" ? "shards" : "families"}${s.more.allWithin ? ", all within budget" : ""}</p>`
-        : "";
+    let more = "";
+    if (s.more) {
+        const what = s.runKind === "full" ? "shards" : "families";
+        const within = s.more.allWithin ? ", all within budget" : "";
+        more = `<p class="more">${fmtN(s.more.count)} more ${what}${within}</p>`;
+    }
     const table = hiddenTable(
         "shard times in minutes",
         ["shard", "runs", "median", "p90", "budget"],
@@ -1030,6 +1052,8 @@ function sectionHead(s: Section): string {
     const widened = s.widened
         ? `only ${fmtN(s.widened.n)} in the last ${rangeLabel(s.widened.from)}, so the last ${rangeLabel(s.widened.to)} (${fmtN(s.widened.nTo)}); `
         : "";
+    // What the time section's medians cover: the widened window, else the pull requests merged in the range.
+    const timeScope = widened || `pull requests merged in the ${last}; `;
     switch (s.id) {
         case "red":
             return h(
@@ -1044,10 +1068,7 @@ function sectionHead(s: Section): string {
                 "a check failing in 3 or more pull requests, or failing alone where every check it summarizes passed; ongoing first",
             );
         case "time":
-            return h(
-                "Where the time goes",
-                `${widened || `pull requests merged in the ${last}; `}median minutes per stage; owner waits left out`,
-            );
+            return h("Where the time goes", `${timeScope}median minutes per stage; owner waits left out`);
         case "runs":
             return h("Local runs", `by kind, ${last}`);
         case "shard-time":

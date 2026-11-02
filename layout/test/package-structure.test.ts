@@ -7,7 +7,10 @@ import { assert, describe, expect, it } from "vitest";
 
 describe("Package Structure", () => {
     it("should have dist/layout.js as the main entry point", async () => {
-        const packageJson = JSON.parse(await readFile(join(process.cwd(), "package.json"), "utf-8"));
+        const packageJson = JSON.parse(await readFile(join(process.cwd(), "package.json"), "utf-8")) as {
+            main: string;
+            exports: Record<string, { import: string }>;
+        };
 
         expect(packageJson.main).toBe("dist/layout.js");
         expect(packageJson.exports["."].import).toBe("./dist/layout.js");

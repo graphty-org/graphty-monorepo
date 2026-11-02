@@ -70,7 +70,8 @@ interface Resolved {
  * @returns the node count, dim, scale and a `dim`-component centre
  */
 export function resolve(s: GraphSnapshot, options: CommonLayoutOptions): Resolved {
-    const dim = options.dim ?? 2;
+    // a number, not the option type: a JavaScript caller may pass any value
+    const dim: number = options.dim ?? 2;
     if (dim !== 2 && dim !== 3) {
         throw refusal(new Error(`dim must be 2 or 3, got ${String(dim)}`), "E_BAD_OPTION", {
             option: "dim",

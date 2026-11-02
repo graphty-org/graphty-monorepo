@@ -6,6 +6,7 @@ import { kargerMinCut, stoerWagner } from "../../../src/indexed/min-cut.js";
 import { mulberry32 } from "../../../src/utils/math-utilities.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
+import type { LegacyMinCutResult } from "../../helpers/legacy-types.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { gnm, undirectedFixtures } from "./port-fixtures.js";
 
@@ -99,7 +100,7 @@ describe("indexed.stoerWagner against legacy", () => {
     for (const { name, graph } of fixtures()) {
         it(name, () => {
             const s = toSnapshot(graph, { checksum: true });
-            const expected = legacyResult() as MinCutResult;
+            const expected = legacyResult() as LegacyMinCutResult;
             const r = stoerWagner(s, { weights: exactWeights(s) });
             expect(r.cutValue).toBe(expected.cutValue);
             expect(sideIds(s, r.side, true)).toEqual([...expected.partition1].sort());
@@ -171,7 +172,7 @@ describe("indexed.kargerMinCut", () => {
             // Legacy draws from Math.random; a seeded stand-in makes its run repeatable.
             const random = vi.spyOn(Math, "random").mockImplementation(mulberry32(1));
             try {
-                expect((legacyResult() as MinCutResult).cutValue).toBe(r.cutValue);
+                expect((legacyResult() as LegacyMinCutResult).cutValue).toBe(r.cutValue);
             } finally {
                 random.mockRestore();
             }

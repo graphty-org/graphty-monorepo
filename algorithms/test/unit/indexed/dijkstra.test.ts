@@ -5,6 +5,7 @@ import { PathWalkError } from "../../../src/errors.js";
 import { dijkstra, walkPredArcs, walkPredEdges } from "../../../src/indexed/dijkstra.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
+import type { NodeId, ShortestPathResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 
 // a = 0, b = 1, c = 2, d = 3 (insertion order, invariant I14); z = 4 when isolated.

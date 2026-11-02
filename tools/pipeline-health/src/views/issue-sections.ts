@@ -6,16 +6,18 @@
 // and priority are its labels now, applied to its whole history, and an issue reopened after a close counts as open
 // over its whole life (GitHub keeps only its last closedAt).
 
-import type {
-    Cell,
-    Fact,
-    IssueRange,
-    IssuesSummary,
-    PageResponse,
-    Section,
-    SeriesSection,
-    TableRow,
-    TableSection,
+import {
+    type Cell,
+    type Fact,
+    type IssueRange,
+    type IssuesSummary,
+    type PageResponse,
+    type Section,
+    SERIES_STEP_MS,
+    type SeriesSection,
+    type SeriesStep,
+    type TableRow,
+    type TableSection,
 } from "../../web/src/contract.js";
 import { DAY, type IssueItem } from "../model/items.js";
 
@@ -76,31 +78,44 @@ const groupOf = (t: IssueType): Group => ((GROUPS as readonly string[]).includes
 export const openAt = (i: Issue, t: number): boolean =>
     i.createdAt < t && (i.closedAt === undefined || i.closedAt >= t);
 
+/** Each range's bucket size and count; `all` counts weeks from the first issue. */
+const RANGE_BUCKETS: Record<IssueRange, [SeriesStep, number?]> = {
+    "1h": ["5m", 12],
+    "6h": ["15m", 24],
+    "1d": ["1h", 24],
+    "7d": ["6h", 28],
+    "28d": ["1d", 28],
+    all: ["1w"],
+};
+
 /** The time buckets of a range: their starts, and each one's end (the last ends now). */
 export interface Buckets {
-    step: "1d" | "1w";
+    step: SeriesStep;
     starts: number[];
     ends: number[];
 }
 
 /**
- * The buckets of a range: the last 28 UTC days, or weeks from the Monday of the first issue's week; the last bucket
- * holds now and ends there (a millisecond after it).
- * @param range - 28d or all
+ * The buckets of a range: a fixed count of UTC-aligned buckets ending with the one that holds now, or for `all` weeks
+ * from the Monday of the first issue's week; the last bucket holds now and ends there (a millisecond after it).
+ * @param range - the page's range
  * @param now - the current time, epoch ms
  * @param first - the first issue's creation time, epoch ms
  * @returns the buckets, oldest first
  */
 export function buckets(range: IssueRange, now: number, first: number): Buckets {
-    const size = range === "28d" ? DAY : WEEK;
+    const [step, count] = RANGE_BUCKETS[range];
+    const size = SERIES_STEP_MS[step];
     const start =
-        range === "28d" ? Math.floor(now / DAY) * DAY - 27 * DAY : Math.floor((first - MONDAY) / WEEK) * WEEK + MONDAY;
+        count === undefined
+            ? Math.floor((first - MONDAY) / WEEK) * WEEK + MONDAY
+            : Math.floor(now / size) * size - (count - 1) * size;
     const starts: number[] = [];
     for (let s = start; s <= now; s += size) {
         starts.push(s);
     }
     // The last bucket ends just after now, so an issue opened at this very moment is open at its end.
-    return { step: range === "28d" ? "1d" : "1w", starts, ends: starts.map((s) => Math.min(s + size, now + 1)) };
+    return { step, starts, ends: starts.map((s) => Math.min(s + size, now + 1)) };
 }
 
 /** Opened and closed per bucket, closed split by why. */
@@ -120,7 +135,7 @@ interface Flow {
 function flowOf(issues: IssueItem[], b: Buckets, keep: (i: IssueItem) => boolean): Flow {
     const zero = (): number[] => b.starts.map(() => 0);
     const out: Flow = { opened: zero(), completed: zero(), notPlanned: zero() };
-    const size = b.step === "1d" ? DAY : WEEK;
+    const size = SERIES_STEP_MS[b.step];
     const at = (t: number): number => (t < b.starts[0] ? -1 : Math.floor((t - b.starts[0]) / size));
     for (const i of issues.filter(keep)) {
         const k = at(i.createdAt);
@@ -404,7 +419,7 @@ export function issuesSummary(issues: IssueItem[], now: number): IssuesSummary |
 /**
  * The Issues page at a range.
  * @param issues - every stored issue
- * @param range - 28d (by day) or all (by week)
+ * @param range - the history to cover
  * @param now - the current time, epoch ms
  * @param githubOpen - GitHub's count of open issues, when the collector recorded it
  * @returns the page payload

@@ -3,16 +3,17 @@
  * minute strip, tree rows, and the jobs chart. Each chart carries its values as a visually hidden
  * table, so a screen reader gets the numbers the picture shows.
  */
-import type {
-    BarsSection,
-    Cell,
-    Iso,
-    JobsSection,
-    SeriesSection,
-    ShardRow,
-    Spark,
-    StripSection,
-    TreeNode,
+import {
+    type BarsSection,
+    type Cell,
+    type Iso,
+    type JobsSection,
+    SERIES_STEP_MS,
+    type SeriesSection,
+    type ShardRow,
+    type Spark,
+    type StripSection,
+    type TreeNode,
 } from "./contract";
 import { esc, fmtN, fmtTime, fmtUnit, sentence, stripTags } from "./text";
 
@@ -318,17 +319,25 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 /**
- * The step between ticks and how a tick reads: hours ("14:00") on a chart of a day or less, days ("10-25") on a
- * longer one, every 7 days up to two months and every 28 days past that.
+ * The step between ticks and how a tick reads: times ("14:00") on a chart of three days or less (every 15 minutes up to
+ * two hours), days ("10-25") on a longer one: daily up to ten days, every 7 up to two months and every 28 past that.
  * @param span - The chart's span, in milliseconds.
  * @returns The step in milliseconds and the label of a tick.
  */
 function tickStep(span: number): { every: number; label: (t: number) => string } {
     if (span > 3 * DAY) {
-        return { every: span > 60 * DAY ? 28 * DAY : 7 * DAY, label: (t) => new Date(t).toISOString().slice(5, 10) };
+        let every = span > 60 * DAY ? 28 * DAY : 7 * DAY;
+        if (span <= 10 * DAY) {
+            every = DAY;
+        }
+        return { every, label: (t) => new Date(t).toISOString().slice(5, 10) };
+    }
+    let every = span > 12 * HOUR ? 3 * HOUR : HOUR;
+    if (span <= 2 * HOUR) {
+        every = 15 * 60_000;
     }
     return {
-        every: span > 12 * HOUR ? 3 * HOUR : HOUR,
+        every,
         label: (t) => fmtTime(new Date(t).toISOString()).slice(-5),
     };
 }
@@ -531,7 +540,7 @@ function bucketsOf(s: SeriesSection): { from: number; size: number; n: number } 
     const len = s.series[0]?.values.length ?? 0;
     return {
         from: Date.parse(s.start),
-        size: s.step === "1w" ? 7 * DAY : DAY,
+        size: SERIES_STEP_MS[s.step],
         n: isStock(s) ? Math.max(0, len - 1) : len,
     };
 }
@@ -540,14 +549,16 @@ function bucketsOf(s: SeriesSection): { from: number; size: number; n: number } 
  * The moment of a stock's value, or the bucket of a count, as a row or a tooltip reads it.
  * @param s - The series section.
  * @param i - The value's index.
- * @returns "2026-10-05", "week of 2026-10-05" or "now".
+ * @returns "2026-10-05", "2026-10-05 14:15" (buckets shorter than a day, UTC), "week of 2026-10-05" or "now".
  */
 function whenOf(s: SeriesSection, i: number): string {
     const { from, size, n } = bucketsOf(s);
+    const at = new Date(from + i * size).toISOString().replace("T", " ");
+    const when = at.slice(0, size < DAY ? 16 : 10);
     if (isStock(s)) {
-        return i === n ? "now" : new Date(from + i * size).toISOString().slice(0, 10);
+        return i === n ? "now" : when;
     }
-    return `${s.step === "1w" ? "week of " : ""}${new Date(from + i * size).toISOString().slice(0, 10)}`;
+    return `${s.step === "1w" ? "week of " : ""}${when}`;
 }
 
 /**
@@ -567,7 +578,12 @@ const total = (list: SeriesSection["series"], i: number): number => list.reduce(
  */
 function seriesTable(s: SeriesSection, name: (key: string) => string, caption: string): string {
     const len = s.series[0]?.values.length ?? 0;
-    let first = s.step === "1w" ? "week starting" : "day";
+    let first = "time (UTC)";
+    if (s.step === "1w") {
+        first = "week starting";
+    } else if (s.step === "1d") {
+        first = "day";
+    }
     if (isStock(s)) {
         first = "at the start of";
     }

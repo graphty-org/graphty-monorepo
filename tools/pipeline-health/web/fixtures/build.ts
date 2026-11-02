@@ -2410,7 +2410,7 @@ function fixtureIssues(): IssueItem[] {
 {
     const issues = fixtureIssues();
     const open = issues.filter((i) => i.closedAt === undefined).length;
-    for (const range of ["28d", "all"] as IssueRange[]) {
+    for (const range of ["1h", "6h", "1d", "7d", "28d", "all"] as IssueRange[]) {
         write(`issues.${range}`, issuesPage(issues, range, Date.parse(GEN), open) satisfies PageResponse);
     }
 }

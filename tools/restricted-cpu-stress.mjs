@@ -20,6 +20,9 @@
 
 import { readdirSync, readFileSync, appendFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { packageIn, readWorkspace } from "../githerd/lib/flakes.mjs";
 
 /** The tracker's marker line prefix (githerd/lib/flakes.mjs MARKER). */
 export const MARKER = "githerd-flaky-test: ";
@@ -46,15 +49,19 @@ const attr = (attrs, name) => {
     return m ? unescapeXml(m[1]) : null;
 };
 
+const WORKSPACE_PACKAGES = readWorkspace(fileURLToPath(new URL("..", import.meta.url))).packages;
+
 /**
- * The package a junit file belongs to: vitest.ci-junit.mjs names it junit-<package dir>-<pid>.xml.
+ * The package a junit file belongs to: vitest.ci-junit.mjs names it junit-<package dir>-[<run id>-]<pid>.xml,
+ * and the run id carries the shard and, for the quarantine's retry, `.retry`
+ * (`junit-graph-io-1793531502638-55006-graph-io-storybook.retry-77.xml`). The package is the longest workspace
+ * package the name starts with, as the flaky tracker finds it, so every run and retry of a test has one key.
  * @param path - the file
+ * @param packages - the workspace's package directories
  * @returns the package directory
  */
-export const packageOf = (path) =>
-    basename(path)
-        .replace(/^junit-/, "")
-        .replace(/-\d+\.xml$/, "");
+export const packageOf = (path, packages = WORKSPACE_PACKAGES) =>
+    packageIn(basename(path).replace(/^junit-/, ""), packages) ?? "unknown";
 
 /**
  * Every test one vitest junit report ran, failed or passed; a skipped test is left out. A failed test

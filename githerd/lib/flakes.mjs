@@ -171,12 +171,13 @@ export function readWorkspace(root) {
 }
 
 /**
- * The workspace package a name starts with (`graphty-element-browser-1` -> `graphty-element`).
+ * The workspace package a name starts with (`graphty-element-browser-1` -> `graphty-element`). The
+ * restricted-CPU stress run (tools/restricted-cpu-stress.mjs) names a JUnit report's package with it too.
  * @param {string | undefined} name a shard or section name
  * @param {string[]} packages the package directories
  * @returns {string | null} the longest match
  */
-function packageIn(name, packages) {
+export function packageIn(name, packages) {
     if (!name) return null;
     const hits = packages.filter((p) => name === p || name.startsWith(`${p}-`));
     return hits.reduce((/** @type {string | null} */ best, p) => (best && best.length >= p.length ? best : p), null);

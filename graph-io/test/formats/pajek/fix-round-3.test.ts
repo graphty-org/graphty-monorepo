@@ -52,8 +52,9 @@ describe("Pajek outlines (diamond q, phi)", () => {
         expect(points[1]).toBe("1,1 -1,0 1,-1");
         // 40 wide and 20 tall, turned upright: 20 wide and 40 tall in a box 40 by 20
         expect(points[2]).toBe("-0.5,-2 -0.5,2 0.5,2 0.5,-2");
-        // a turned ellipse stays an ellipse, drawn unturned
+        // a turned ellipse stays an ellipse, turned whole: phi counterclockwise is shapeRotation clockwise
         expect(points[3]).toBeNull();
+        expect(get("node", "shapeRotation")).toEqual([null, null, null, -30]);
     });
 
     it("writes Pajek's diamond back as the diamond keyword with its q", async () => {

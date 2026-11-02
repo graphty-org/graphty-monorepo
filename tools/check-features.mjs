@@ -30,7 +30,7 @@ function walk(root, dir) {
 
 // Comments and string literals blanked out, so a word in a doc comment or a string is not code.
 const stripCommentsAndStrings = (text) =>
-    text.replace(/\/\*[\s\S]*?\*\/|\/\/.*$|`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/gm, "");
+    text.replaceAll(/\/\*[\s\S]*?\*\/|\/\/.*$|`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/gm, "");
 
 const quoted = (text) => [...text.matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
 const lineOf = (text, index) => text.slice(0, index).split("\n").length;
@@ -42,7 +42,7 @@ const lineOf = (text, index) => text.slice(0, index).split("\n").length;
  */
 export function readRegistry(text) {
     const block = (name) =>
-        text.match(new RegExp(`export const ${name}\\b[^=]*=\\s*Object\\.freeze\\(\\[([\\s\\S]*?)\\]\\)`))?.[1];
+        text.match(new RegExp(String.raw`export const ${name}\b[^=]*=\s*Object\.freeze\(\[([\s\S]*?)\]\)`))?.[1];
     const rows = [...(block("FEATURES") ?? "").matchAll(/\{[^{}]*\}/g)].map((m) => ({
         id: m[0].match(/\bid:\s*["']([^"']+)["']/)?.[1],
         issue: Number(m[0].match(/\bissue:\s*(\d+)/)?.[1] ?? 0),
@@ -92,7 +92,7 @@ export function checkFeatures(root) {
     const files = new Map(rows.map((r) => [r.id, new Set()]));
 
     for (const row of rows) {
-        if (!(row.issue > 0))
+        if (row.issue <= 0)
             problems.push(`${REGISTRY}: FEATURES row "${row.id}" names no tracking issue (issue: <number>)`);
     }
 
@@ -119,7 +119,8 @@ export function checkFeatures(root) {
             }
         }
         for (const id of graduated) {
-            const at = text.search(new RegExp(`["'\`]${id.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&")}["'\`]`));
+            const escaped = id.replaceAll(/[.*+?^${}()|[\]\\-]/g, String.raw`\$&`);
+            const at = text.search(new RegExp(`["'\`]${escaped}["'\`]`));
             if (at >= 0) problems.push(`${file}:${lineOf(text, at)}: graduated feature "${id}" is still named`);
         }
         if (file.startsWith(`${FEATURES_DIR}/`)) {
@@ -137,7 +138,7 @@ export function checkFeatures(root) {
     return { problems, flags: rows.map((r) => ({ ...r, files: [...files.get(r.id)].sort() })) };
 }
 
-const ageDays = (since, now) => (since ? Math.floor((now - Date.parse(since)) / 86_400_000) : NaN);
+const ageDays = (since, now) => (since ? Math.floor((now - Date.parse(since)) / 86_400_000) : Number.NaN);
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -152,7 +153,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         }
     }
     if (problems.length > 0) {
-        console.error(`check-features: ${problems.length} problem(s)\n${problems.map((p) => `  ${p}`).join("\n")}`);
+        const indent = (p) => `  ${p}`;
+        const listed = problems.map(indent).join("\n");
+        console.error(`check-features: ${problems.length} problem(s)\n${listed}`);
         process.exit(1);
     }
     if (!process.argv.includes("--list")) console.log(`check-features: ok (${flags.length} experiments declared)`);

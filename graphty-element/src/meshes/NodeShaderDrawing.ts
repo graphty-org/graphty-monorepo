@@ -682,11 +682,13 @@ export class NodeShaderDrawing {
 
     /**
      * What the drawing holds now, for tests and tools: entrances playing per shader, slots per
-     * batch, the nodes drawn on the mesh path, and whether a frame claim is held for the mesh path.
+     * shader that were given an entrance when they were made (whether or not it has finished), slots
+     * per batch, the nodes drawn on the mesh path, and whether a frame claim is held for the mesh path.
      * @returns The counts.
      */
     stats(): {
         readonly entrances: ReadonlyMap<string, number>;
+        readonly entered: ReadonlyMap<string, number>;
         readonly slots: ReadonlyMap<string, number>;
         readonly meshPath: number;
     } {
@@ -702,11 +704,17 @@ export class NodeShaderDrawing {
         }
 
         let meshPath = 0;
+        const entered = new Map<string, number>();
         for (const entry of this.entries.values()) {
             meshPath += entry.meshShader === null ? 0 : 1;
+            for (const slot of [entry.surface, ...entry.effects.values()]) {
+                if (slot !== null && slot.entered !== NEVER) {
+                    entered.set(slot.id, (entered.get(slot.id) ?? 0) + 1);
+                }
+            }
         }
 
-        return { entrances, slots, meshPath };
+        return { entrances, entered, slots, meshPath };
     }
 
     /**

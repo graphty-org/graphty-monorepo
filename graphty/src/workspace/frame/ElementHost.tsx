@@ -74,7 +74,9 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
             node: { depthIndependentSize: sameSize, ...(outlineWidth === null ? {} : { outlineWidth }) },
             rendering: { onDemand: true },
-            camera: { pivotOnSelection: true },
+            // The inspector opens beside the canvas and narrows it, before or after the first
+            // framing is final; framing again on a resize draws the same picture either way (#5097).
+            camera: { pivotOnSelection: true, refitOnResize: true },
         }),
         [allLabelsShown, labelsAvoid, sameSize, outlineWidth],
     );

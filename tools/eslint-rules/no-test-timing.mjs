@@ -725,27 +725,44 @@ const rule = {
         const isGuard = (v) =>
             (v?.type === "Identifier" && GUARD_NAMES.has(v.name)) ||
             (v?.type === "MemberExpression" && GUARD_NAMES.has(propName(v)));
-        // A timeout or interval option on a call that is not a wait the checks above know.
-        const checkDeadlineOptions = (node, name) => {
+        // Whether a call's timeout and interval options are not this check's: it is not a wait or a process
+        // call, or it is one the checks above report (a test's, a hook's and setConfig's own timeout).
+        const notDeadlineCall = (node, name) => {
             const base = baseName(node.callee);
             if (!WAITING_CALL.test(name ?? "") && !PROCESS_CALLS.has(name)) {
-                return;
+                return true;
             }
-            // The checks above report a test's, a hook's and setConfig's own timeout.
-            if (
+            return (
                 VALUE_MATCHER.test(name ?? "") ||
                 base === "expect" ||
                 TEST_NAMES.has(base) ||
                 HOOK_NAMES.has(base) ||
                 HOOK_NAMES.has(name) ||
                 name === "setConfig"
-            ) {
+            );
+        };
+        const isDeadline = (p) => {
+            const key = keyName(p);
+            return key && DEADLINE_KEY.test(key) && !CONFIG_DEADLINE_KEYS.has(key) && !isGuard(p.value);
+        };
+        // Each deadline property of an object literal argument, with a fix that removes it.
+        const reportDeadlineProps = (node, arg) => {
+            const args = node.arguments;
+            for (const p of arg.properties) {
+                if (isDeadline(p)) {
+                    context.report({
+                        node: p,
+                        messageId: "deadline",
+                        fix: (fixer) => removeProps(fixer, args, args.indexOf(arg), [p]),
+                    });
+                }
+            }
+        };
+        // A timeout or interval option on a call that is not a wait the checks above know.
+        const checkDeadlineOptions = (node, name) => {
+            if (notDeadlineCall(node, name)) {
                 return;
             }
-            const isDeadline = (p) => {
-                const key = keyName(p);
-                return key && DEADLINE_KEY.test(key) && !CONFIG_DEADLINE_KEYS.has(key) && !isGuard(p.value);
-            };
             for (const arg of node.arguments) {
                 // A const holding the options: `const opts = { timeoutMs: 1 }; el.waitForStableFrame(opts)`.
                 const def = arg.type === "Identifier" ? resolve(arg)?.defs[0] : undefined;
@@ -753,18 +770,8 @@ const rule = {
                 if (init?.type === "ObjectExpression" && init.properties.some(isDeadline)) {
                     context.report({ node: arg, messageId: "deadline" });
                 }
-                if (arg.type !== "ObjectExpression") {
-                    continue;
-                }
-                for (const p of arg.properties) {
-                    if (isDeadline(p)) {
-                        const args = node.arguments;
-                        context.report({
-                            node: p,
-                            messageId: "deadline",
-                            fix: (fixer) => removeProps(fixer, args, args.indexOf(arg), [p]),
-                        });
-                    }
+                if (arg.type === "ObjectExpression") {
+                    reportDeadlineProps(node, arg);
                 }
             }
         };

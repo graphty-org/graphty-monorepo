@@ -28,7 +28,8 @@ export const chev = (): string => CHEV;
  */
 export function hiddenTable(caption: string, head: string[], rows: (string | number)[][]): string {
     const th = head.map((h) => `<th scope="col">${esc(h)}</th>`).join("");
-    const tr = rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("");
+    const td = (c: string | number): string => `<td>${esc(c)}</td>`;
+    const tr = rows.map((r) => `<tr>${r.map(td).join("")}</tr>`).join("");
     return `<span class="vh"><table><caption>${esc(caption)}</caption><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></span>`;
 }
 
@@ -138,7 +139,7 @@ export function sparkline(s: Spark, generated: Iso, caption: string): string {
         }
         parts.push(`<circle class="pt ${bi}" cx="${xT(i)}" cy="${y(v)}" r="2.6" />`);
     }
-    const last = s.trend[s.trend.length - 1];
+    const last = s.trend.at(-1);
     if (last !== null && last !== undefined) {
         parts.push(`<circle class="now" cx="${xT(s.trend.length - 1)}" cy="${y(last)}" r="2.4" />`);
     }
@@ -174,10 +175,14 @@ export function budgetBar(r: ShardRow, maxS: number): { svg: string; note: strin
     const judged = r.runs >= r.minRuns;
     const medOver = judged && r.medianS > r.budgetS;
     const p90Over = judged && !medOver && r.p90S > r.budgetS;
+    let medCls = "p90";
+    if (judged) {
+        medCls = medOver ? "med bad" : "med";
+    }
     const svg =
         `<svg class="sbar" viewBox="0 0 ${W} 14" width="${W}" height="14" aria-hidden="true">` +
         `<rect class="p90${p90Over ? " warn" : ""}" x="0" y="3" width="${x(r.p90S)}" height="8" />` +
-        `<rect class="${judged ? `med${medOver ? " bad" : ""}` : "p90"}" x="0" y="3" width="${x(r.medianS)}" height="8" />` +
+        `<rect class="${medCls}" x="0" y="3" width="${x(r.medianS)}" height="8" />` +
         `<line class="bud" x1="${x(r.budgetS)}" y1="0" x2="${x(r.budgetS)}" y2="14" /></svg>`;
     // The budget is printed, not only drawn, so "over budget" says over what.
     const budget = `budget ${fmtN(Math.round((r.budgetS / 60) * 10) / 10)} min`;
@@ -233,7 +238,7 @@ export function sortedBars(
     return `<div class="bars">${rows}</div>${table}`;
 }
 
-const HOUR = 3600_000;
+const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 /**

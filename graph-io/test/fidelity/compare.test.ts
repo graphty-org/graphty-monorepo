@@ -281,6 +281,19 @@ describe("fill of opacity 0", () => {
         const sub = scene("graphty", [node("a", 0, 0, { fill: "#ffcc00" }), node("b", 10, 0)]);
         expect(compareScenes(ref, sub).properties.fill).toMatchObject({ passRate: 1, n: 1 });
     });
+
+    it("is not judged on a node the program paints a gradient over, whose fill colour is hidden", () => {
+        // Cytoscape desktop's gradient custom graphic over a purple NODE_FILL_COLOR; graphty draws the gradient
+        const ref = scene("cytoscape-desktop", [
+            node("a", 0, 0, { fill: "#984ea3", paintedOver: true }),
+            node("b", 10, 0, { fill: "#00ff00" }),
+        ]);
+        const sub = scene("graphty", [node("a", 0, 0, { fill: "#ffffff" }), node("b", 10, 0, { fill: "#00ff00" })]);
+        const c = compareScenes(ref, sub);
+        expect(c.properties.fill).toMatchObject({ passRate: 1, n: 1 });
+        // the gradient is drawn at the node's opacity: that is still judged
+        expect(c.properties.fillOpacity).toMatchObject({ n: 2 });
+    });
 });
 
 describe("scene comparison", () => {

@@ -178,6 +178,7 @@ const DECLARED = [
     "node.cornerFraction",
     "node.shapePoints",
     "node.shapeStretchPoints",
+    "node.shapeRotation",
     "node.shapeParts",
     "node.shapeLines",
     "node.shapeTexts",
@@ -389,8 +390,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty-four node channels and one hundred and fifty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 184);
+    it("splits into one hundred and eighty-five node channels and one hundred and fifty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 185);
         assert.strictEqual(channelsFor("edge").length, 151);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

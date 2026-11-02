@@ -122,6 +122,26 @@ function weightsInUse(s: GraphSnapshot, options: ApspOptions): { w: NumericVecto
  * @returns True when a negative cycle was found; `d` is then partial
  */
 function floydWarshall(s: GraphSnapshot, w: NumericVector | null, negative: boolean, d: F64, p: U32 | null): boolean {
+    const n = s.nodeCount;
+    seedDistances(s, w, d, p);
+    for (let k = 0; k < n; k++) {
+        relaxThrough(d, p, n, k);
+        if (negative && hasNegativeDiagonal(d, n)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Fill the matrix with the direct arcs: +Infinity everywhere, the lightest arc per ordered pair (self-loops
+ * skipped), 0 on the diagonal.
+ * @param s - The snapshot
+ * @param w - The weights in use, or `null` for 1 per arc
+ * @param d - The n x n output, overwritten
+ * @param p - The n x n predecessor arcs, or `null` when paths are off
+ */
+function seedDistances(s: GraphSnapshot, w: NumericVector | null, d: F64, p: U32 | null): void {
     const { nodeCount: n, rowPtr, colIdx } = s;
     d.fill(Infinity);
     for (let u = 0; u < n; u++) {
@@ -138,43 +158,78 @@ function floydWarshall(s: GraphSnapshot, w: NumericVector | null, negative: bool
         }
         d[ur + u] = 0;
     }
-    for (let k = 0; k < n; k++) {
-        const kr = k * n;
-        // Row views, not d[kr + j]: 12 to 19 percent faster at every measured size (design section 12).
-        const dk = d.subarray(kr, kr + n);
-        for (let i = 0; i < n; i++) {
-            const ir = i * n;
-            const dik = d[ir + k];
-            if (dik === Infinity) {
-                continue;
-            }
-            const di = d.subarray(ir, ir + n);
-            // two copies of the j loop so the common no-paths sweep carries no per-cell branch
-            if (p === null) {
-                for (let j = 0; j < di.length; j++) {
-                    const via = dik + dk[j];
-                    if (via < di[j]) {
-                        di[j] = via;
-                    }
-                }
-            } else {
-                const pk = p.subarray(kr, kr + n);
-                const pi = p.subarray(ir, ir + n);
-                for (let j = 0; j < di.length; j++) {
-                    const via = dik + dk[j];
-                    if (via < di[j]) {
-                        di[j] = via;
-                        pi[j] = pk[j];
-                    }
-                }
-            }
+}
+
+/**
+ * One Floyd-Warshall round: every row relaxed through pivot `k`, a row skipped when `d[i][k]` is +Infinity.
+ * @param d - The n x n distances, updated in place
+ * @param p - The n x n predecessor arcs, updated in place, or `null` when paths are off
+ * @param n - The node count
+ * @param k - The pivot
+ */
+function relaxThrough(d: F64, p: U32 | null, n: number, k: number): void {
+    const kr = k * n;
+    // Row views, not d[kr + j]: 12 to 19 percent faster at every measured size (design section 12).
+    const dk = d.subarray(kr, kr + n);
+    for (let i = 0; i < n; i++) {
+        const ir = i * n;
+        const dik = d[ir + k];
+        if (dik === Infinity) {
+            continue;
         }
-        if (negative) {
-            for (let i = 0; i < n; i++) {
-                if (d[i * n + i] < 0) {
-                    return true;
-                }
-            }
+        const di = d.subarray(ir, ir + n);
+        // two copies of the j loop so the common no-paths sweep carries no per-cell branch
+        if (p === null) {
+            relaxRow(di, dk, dik);
+        } else {
+            relaxRowWithPaths(di, dk, dik, p.subarray(ir, ir + n), p.subarray(kr, kr + n));
+        }
+    }
+}
+
+/**
+ * Relax one row through the pivot: `di[j] = min(di[j], dik + dk[j])`, strict `<` so the smallest pivot wins ties.
+ * @param di - Row i of the distances
+ * @param dk - Row k (the pivot's) of the distances
+ * @param dik - The distance from i to the pivot
+ */
+function relaxRow(di: F64, dk: F64, dik: number): void {
+    for (let j = 0; j < di.length; j++) {
+        const via = dik + dk[j];
+        if (via < di[j]) {
+            di[j] = via;
+        }
+    }
+}
+
+/**
+ * {@link relaxRow}, carrying the pivot row's predecessor arc into every cell it improves.
+ * @param di - Row i of the distances
+ * @param dk - Row k (the pivot's) of the distances
+ * @param dik - The distance from i to the pivot
+ * @param pi - Row i of the predecessor arcs
+ * @param pk - Row k of the predecessor arcs
+ */
+function relaxRowWithPaths(di: F64, dk: F64, dik: number, pi: U32, pk: U32): void {
+    for (let j = 0; j < di.length; j++) {
+        const via = dik + dk[j];
+        if (via < di[j]) {
+            di[j] = via;
+            pi[j] = pk[j];
+        }
+    }
+}
+
+/**
+ * Whether some diagonal entry has gone negative, the sign of a negative cycle through it (design section 3.3).
+ * @param d - The n x n distances
+ * @param n - The node count
+ * @returns True on the first negative diagonal entry
+ */
+function hasNegativeDiagonal(d: F64, n: number): boolean {
+    for (let i = 0; i < n; i++) {
+        if (d[i * n + i] < 0) {
+            return true;
         }
     }
     return false;

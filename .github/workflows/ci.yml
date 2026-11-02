@@ -1692,10 +1692,50 @@ jobs:
               if: matrix.browsers
               run: pnpm exec playwright install ${{ matrix.browsers }}
 
-            # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled
+            # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled.
+            # The .deb files apt chose are cached per runner image, as playwright-system-deps does for Chromium's,
+            # so a hit installs with dpkg and never touches the network: in run 41256221732 both no-subgroups jobs
+            # sat in `apt-get update` for 29 minutes after Ubuntu's mirror stopped answering mid-fetch (a trickle
+            # apt's 20 s idle timeout never ends) and hit the job's limit before a test ran (#5343).
+            - name: Key the Mesa lavapipe packages by runner image
+              id: lavapipe-key
+              if: matrix.needs-lavapipe
+              run: echo "key=lavapipe-debs-${ImageOS:?}-${ImageVersion:?}" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the Mesa lavapipe packages
+              id: lavapipe-debs
+              if: matrix.needs-lavapipe
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/lavapipe-debs
+                  key: ${{ steps.lavapipe-key.outputs.key }}
+
             - name: Install Mesa lavapipe
               if: matrix.needs-lavapipe
-              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
+              env:
+                  HIT: ${{ steps.lavapipe-debs.outputs.cache-hit }}
+                  PACKAGES: mesa-vulkan-drivers libvulkan1 vulkan-tools
+              run: |
+                  dir="$HOME/.cache/lavapipe-debs"
+                  if [ "$HIT" = true ]; then
+                      sudo dpkg -i "$dir"/*.deb
+                  else
+                      # apt downloads into $dir and keeps the files there for the save step below
+                      mkdir -p "$dir/partial"
+                      sudo apt-get update
+                      sudo apt-get install -y --no-install-recommends -o Dir::Cache::Archives="$dir" $PACKAGES
+                      sudo rm -rf "$dir/partial" "$dir/lock"
+                  fi
+                  # a hit that held too little fails here, not later as a missing Vulkan ICD
+                  missing=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' $PACKAGES 2>&1 | grep -v '^ii ' || true)
+                  if [ -n "$missing" ]; then echo "::error::Mesa lavapipe's packages are not all installed: $missing"; exit 1; fi
+
+            - name: Save the Mesa lavapipe packages
+              if: matrix.needs-lavapipe && steps.lavapipe-debs.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/lavapipe-debs
+                  key: ${{ steps.lavapipe-key.outputs.key }}
 
             # The software rasteriser this lane judges every kernel on is whatever apt resolves on the day, and it
             # moved two major Mesa versions (23.2.1 / LLVM 15 -> 25.2.8 / LLVM 20) without anything recording it.

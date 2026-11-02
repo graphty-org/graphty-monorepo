@@ -290,6 +290,125 @@ function mergeAt<R extends { readonly index: number }>(list: readonly Row<R>[], 
 }
 
 /**
+ * The graph a rebuild starts from: the builder now, frozen (with the walk from its rows to the
+ * frozen ones), the kept graph a restore puts back, or none for a replace that empties it.
+ * @param old - The builder now.
+ * @param replace - The replace the rebuild starts from, or null to start from the builder now.
+ * @param nodeBound - The builder's node row bound.
+ * @param edgeBound - The builder's edge row bound.
+ * @returns The base snapshot, and the builder's rows in it when it was frozen from the builder.
+ */
+function rebuildBase(
+    old: GraphBuilder,
+    replace: Extract<Structural, { kind: "replace" }> | null,
+    nodeBound: number,
+    edgeBound: number,
+): { base: GraphSnapshot | null; oldNodes: U32 | null; oldEdges: U32 | null } {
+    if (replace === null) {
+        const frozen = old.freezeWithReport({ label: "graphty-element rebuild" });
+        return {
+            base: frozen.snapshot,
+            oldNodes: frozen.report.nodeRemap ?? Uint32Array.from({ length: nodeBound }, (_, row) => row),
+            oldEdges: frozen.report.edgeRemap ?? Uint32Array.from({ length: edgeBound }, (_, row) => row),
+        };
+    }
+
+    return { base: replace.restore ? replace.kept.snapshot : null, oldNodes: null, oldEdges: null };
+}
+
+/**
+ * A rebuild row's node id.
+ * @param base - The graph the rebuild starts from.
+ * @param row - A base row or a recorded row.
+ * @returns The id.
+ */
+function nodeIdOfRow(base: GraphSnapshot | null, row: Row<RemovedNode>): NodeId {
+    return typeof row === "number" ? (base as GraphSnapshot).ids.idOf(row) : row.id;
+}
+
+/**
+ * A rebuild row's edge id.
+ * @param base - The graph the rebuild starts from.
+ * @param row - A base row or a recorded row.
+ * @returns The id.
+ */
+function edgeIdOfRow(base: GraphSnapshot | null, row: Row<RemovedEdge>): unknown {
+    return typeof row === "number" ? (base as GraphSnapshot).edges.value(EDGE_ID_COLUMN, row) : row.edgeId;
+}
+
+/**
+ * The rows a rebuild writes: every row of its base, with the waiting inserts merged in at their
+ * recorded rows and the waiting drops taken out, in order.
+ * @param base - The graph the rebuild starts from, or null for none.
+ * @param changes - The inserts and removals after it, in order.
+ * @returns The node rows and the edge rows.
+ */
+function pendingRows(
+    base: GraphSnapshot | null,
+    changes: readonly Structural[],
+): { nodeRows: Row<RemovedNode>[]; edgeRows: Row<RemovedEdge>[] } {
+    let nodeRows: Row<RemovedNode>[] = Array.from({ length: base?.nodeCount ?? 0 }, (_, row) => row);
+    let edgeRows: Row<RemovedEdge>[] = Array.from({ length: base?.edgeCount ?? 0 }, (_, row) => row);
+    for (const change of changes) {
+        if (change.kind === "insert") {
+            nodeRows = mergeAt(nodeRows, change.rows.nodes);
+            edgeRows = mergeAt(edgeRows, change.rows.edges);
+        } else if (change.kind === "drop") {
+            const nodes = new Set(change.rows.nodes.map((each) => each.id));
+            const edges = new Set(change.rows.edges.map((each) => each.edgeId));
+            nodeRows = nodeRows.filter((row) => !nodes.has(nodeIdOfRow(base, row)));
+            edgeRows = edgeRows.filter((row) => !edges.has(edgeIdOfRow(base, row) as number));
+        }
+    }
+
+    return { nodeRows, edgeRows };
+}
+
+/**
+ * Copy every set cell of one base node row into a builder row.
+ * @param builder - The builder written.
+ * @param columns - The base's node columns.
+ * @param row - The base row.
+ * @param index - The builder row.
+ */
+function copyNodeCells(builder: GraphBuilder, columns: Iterable<Column>, row: number, index: number): void {
+    for (const column of columns) {
+        if (column.isSet(row)) {
+            builder.setNodeValue(column.meta.name, index, column.value(row));
+        }
+    }
+}
+
+/**
+ * Copy every set cell of one base edge row into a builder row, except the weight and the edge id,
+ * which the row writes itself.
+ * @param builder - The builder written.
+ * @param columns - The base's edge columns.
+ * @param row - The base row.
+ * @param index - The builder row.
+ */
+function copyEdgeCells(builder: GraphBuilder, columns: Iterable<Column>, row: number, index: number): void {
+    for (const column of columns) {
+        if (column.meta.role !== "weight" && column.meta.name !== EDGE_ID_COLUMN && column.isSet(row)) {
+            builder.setEdgeValue(column.meta.name, index, column.value(row));
+        }
+    }
+}
+
+/**
+ * Compose two walks: `target[row] = second[first[row]]`, INVALID_INDEX wherever either has none.
+ * @param target - The composed walk, written in place.
+ * @param first - The first walk.
+ * @param second - The second walk.
+ */
+function chainWalk(target: U32, first: U32, second: U32): void {
+    for (let row = 0; row < target.length; row++) {
+        const at = first[row] ?? INVALID_INDEX;
+        target[row] = at === INVALID_INDEX ? INVALID_INDEX : (second[at] ?? INVALID_INDEX);
+    }
+}
+
+/**
  * The builder rows a run of removals has taken out, as a Fenwick tree over the rows the builder
  * had when the run began: marking a row and counting the marked rows below one are both
  * O(log rows), so a run of k one-row removals costs O(k log rows) rather than the O(k^2) of
@@ -1632,40 +1751,36 @@ export class GraphStore {
         const old = this.current;
         const node = new Uint32Array(old.nodeBound).fill(INVALID_INDEX);
         const edge = new Uint32Array(old.edgeBound).fill(INVALID_INDEX);
-        let base: GraphSnapshot | null = null;
-        let oldNodes: U32 | null = null;
-        let oldEdges: U32 | null = null;
-        if (replace === null) {
-            const frozen = old.freezeWithReport({ label: "graphty-element rebuild" });
-            base = frozen.snapshot;
-            oldNodes = frozen.report.nodeRemap ?? Uint32Array.from({ length: node.length }, (_, row) => row);
-            oldEdges = frozen.report.edgeRemap ?? Uint32Array.from({ length: edge.length }, (_, row) => row);
-        } else if (replace.restore) {
-            base = replace.kept.snapshot;
-        }
-
-        let nodeRows: Row<RemovedNode>[] = Array.from({ length: base?.nodeCount ?? 0 }, (_, row) => row);
-        let edgeRows: Row<RemovedEdge>[] = Array.from({ length: base?.edgeCount ?? 0 }, (_, row) => row);
-        const nodeIdOf = (row: Row<RemovedNode>): NodeId =>
-            typeof row === "number" ? (base as GraphSnapshot).ids.idOf(row) : row.id;
-        const edgeIdOf = (row: Row<RemovedEdge>): unknown =>
-            typeof row === "number" ? (base as GraphSnapshot).edges.value(EDGE_ID_COLUMN, row) : row.edgeId;
-        for (const change of changes) {
-            if (change.kind === "insert") {
-                nodeRows = mergeAt(nodeRows, change.rows.nodes);
-                edgeRows = mergeAt(edgeRows, change.rows.edges);
-            } else if (change.kind === "drop") {
-                const nodes = new Set(change.rows.nodes.map((each) => each.id));
-                const edges = new Set(change.rows.edges.map((each) => each.edgeId));
-                nodeRows = nodeRows.filter((row) => !nodes.has(nodeIdOf(row)));
-                edgeRows = edgeRows.filter((row) => !edges.has(edgeIdOf(row) as number));
-            }
-        }
-
+        const { base, oldNodes, oldEdges } = rebuildBase(old, replace, node.length, edge.length);
+        const { nodeRows, edgeRows } = pendingRows(base, changes);
         if (replace !== null && !replace.restore) {
             this.setAsideIfRestored(replace.kept, old);
         }
 
+        const builder = this.startRebuild(replace, base, directed);
+        const baseNode = this.copyNodeRows(builder, base, nodeRows);
+        const baseEdge = this.copyEdgeRows(builder, base, edgeRows);
+        if (oldNodes !== null && oldEdges !== null) {
+            chainWalk(node, oldNodes, baseNode);
+            chainWalk(edge, oldEdges, baseEdge);
+        }
+
+        this.rebuilds++;
+        return { node, edge };
+    }
+
+    /**
+     * Make the rebuild's new builder current, with the pairs-ordered latch and fresh edge-id maps.
+     * @param replace - The replace it starts from, or null.
+     * @param base - The graph it starts from, or null for none.
+     * @param directed - The direction to build it with; the graph's own when absent.
+     * @returns The new builder.
+     */
+    private startRebuild(
+        replace: Extract<Structural, { kind: "replace" }> | null,
+        base: GraphSnapshot | null,
+        directed: boolean | undefined,
+    ): GraphBuilder {
         const builder = this.createBuilder(directed ?? base?.directed ?? this.emptyDirected());
         this.current = builder;
         if (replace !== null) {
@@ -1682,57 +1797,67 @@ export class GraphStore {
         this.edgeIdByIndex = [];
         // A new map, not cleared: a builder set aside for an undo keeps the one it had.
         this.indexByEdgeId = new Map();
+        return builder;
+    }
+
+    /**
+     * Add the rebuild's node rows to the new builder: a base row with its set cells, a recorded
+     * row with its recorded values.
+     * @param builder - The new builder.
+     * @param base - The graph the rebuild starts from, or null.
+     * @param nodeRows - The rows, in order.
+     * @returns Each base row's row in the new builder, INVALID_INDEX for a row dropped.
+     */
+    private copyNodeRows(
+        builder: GraphBuilder,
+        base: GraphSnapshot | null,
+        nodeRows: readonly Row<RemovedNode>[],
+    ): U32 {
         const baseNode = new Uint32Array(base?.nodeCount ?? 0).fill(INVALID_INDEX);
-        const baseEdge = new Uint32Array(base?.edgeCount ?? 0).fill(INVALID_INDEX);
         for (const row of nodeRows) {
-            const index = builder.addNode(nodeIdOf(row));
+            const index = builder.addNode(nodeIdOfRow(base, row));
             if (typeof row === "number") {
                 baseNode[row] = index;
-                for (const column of (base as GraphSnapshot).nodes) {
-                    if (column.isSet(row)) {
-                        builder.setNodeValue(column.meta.name, index, column.value(row));
-                    }
-                }
+                copyNodeCells(builder, (base as GraphSnapshot).nodes, row, index);
             } else {
                 this.writeNode(index, row.values);
             }
         }
 
+        return baseNode;
+    }
+
+    /**
+     * Add the rebuild's edge rows to the new builder: a base row with its endpoints, weight, set
+     * cells and edge id, a recorded row with its recorded ones.
+     * @param builder - The new builder.
+     * @param base - The graph the rebuild starts from, or null.
+     * @param edgeRows - The rows, in order.
+     * @returns Each base row's row in the new builder, INVALID_INDEX for a row dropped.
+     */
+    private copyEdgeRows(
+        builder: GraphBuilder,
+        base: GraphSnapshot | null,
+        edgeRows: readonly Row<RemovedEdge>[],
+    ): U32 {
+        const baseEdge = new Uint32Array(base?.edgeCount ?? 0).fill(INVALID_INDEX);
         const list = base?.edgeList() ?? null;
         for (const row of edgeRows) {
-            if (typeof row === "number" && base !== null && list !== null) {
+            if (typeof row !== "number") {
+                this.writeEdge(builder.addEdge(row.source, row.target, row.weight), row.edgeId, row.values);
+            } else if (base !== null && list !== null) {
                 const index = builder.addEdge(
                     base.ids.idOf(list.src[row]),
                     base.ids.idOf(list.dst[row]),
                     list.weights === null ? undefined : list.weights[row],
                 );
                 baseEdge[row] = index;
-                for (const column of base.edges) {
-                    if (column.meta.role !== "weight" && column.meta.name !== EDGE_ID_COLUMN && column.isSet(row)) {
-                        builder.setEdgeValue(column.meta.name, index, column.value(row));
-                    }
-                }
-
+                copyEdgeCells(builder, base.edges, row, index);
                 this.stampEdgeId(index, base.edges.value(EDGE_ID_COLUMN, row) as number);
-            } else if (typeof row !== "number") {
-                this.writeEdge(builder.addEdge(row.source, row.target, row.weight), row.edgeId, row.values);
             }
         }
 
-        if (oldNodes !== null && oldEdges !== null) {
-            for (let row = 0; row < node.length; row++) {
-                const at = oldNodes[row] ?? INVALID_INDEX;
-                node[row] = at === INVALID_INDEX ? INVALID_INDEX : (baseNode[at] ?? INVALID_INDEX);
-            }
-
-            for (let row = 0; row < edge.length; row++) {
-                const at = oldEdges[row] ?? INVALID_INDEX;
-                edge[row] = at === INVALID_INDEX ? INVALID_INDEX : (baseEdge[at] ?? INVALID_INDEX);
-            }
-        }
-
-        this.rebuilds++;
-        return { node, edge };
+        return baseEdge;
     }
 
     /**

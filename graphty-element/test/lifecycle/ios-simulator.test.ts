@@ -162,15 +162,16 @@ interface SafariLog {
 /**
  * Follow Safari's log in the Simulator for the facts a page cannot report: that Safari became active
  * (UIKit's "deactivation reasons: N -> 0"), that a URL reached it ("UIOpenURLAction"), that Safari's
- * scene went to the background, and that
+ * scene went to the background, that
  * WebKit terminated a page's web process (after the GPU process crashed too many times, Safari shows
- * its own error page in place of the page).
+ * its own error page in place of the page), and that Safari started a new network process
+ * ("NetworkProcessProxy::NetworkProcessProxy"), which holds the tabs' session storage.
  * @param udid - The Simulator.
  * @returns The log.
  */
 function followSafari(udid: string): SafariLog {
     const predicate =
-        'process == "MobileSafari" AND (eventMessage CONTAINS "UISceneDidEnterBackground" OR eventMessage CONTAINS "processDidTerminate" OR eventMessage CONTAINS "deactivation reasons" OR eventMessage CONTAINS "UIOpenURLAction")';
+        'process == "MobileSafari" AND (eventMessage CONTAINS "UISceneDidEnterBackground" OR eventMessage CONTAINS "processDidTerminate" OR eventMessage CONTAINS "deactivation reasons" OR eventMessage CONTAINS "UIOpenURLAction" OR eventMessage CONTAINS "NetworkProcessProxy::NetworkProcessProxy")';
     const child: ChildProcess = ownChild(
         spawn("xcrun", ["simctl", "spawn", udid, "log", "stream", "--style", "compact", "--predicate", predicate], {
             stdio: ["ignore", "pipe", "pipe"],
@@ -485,6 +486,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         assert.strictEqual(saved.state, "saved", "the page saved its edits");
         const entry = saved.entry as string | undefined;
         assert.isString(entry, "the page reported the entry it writes");
+        const stored = safariLog.lines.length;
 
         // Discard: switch away, then kill the page's web content process, as iOS does to a
         // background tab. Returning to Safari loads the tab again, in the same tab.
@@ -497,8 +499,16 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const returned = launchSafari();
         const listed = await fx.waitFor((e) => e.seq >= mark && e.tab === tab && e.type === "listed");
         const entries = listed.entries as { id: string; own?: boolean }[];
+        // WebKit keeps session storage in Safari's network process, not in Safari's own. Safari may end
+        // that process while it is in the background and start a new one (run 41344334606: "NetworkProcess
+        // with PID 10572 became unresponsive, terminating it" once it was suspended), and session storage is
+        // gone with it although Safari is the same process: then the returned tab's session storage was not
+        // what the discard tested.
+        const newNetwork = safariLog.lines
+            .slice(stored)
+            .some((l) => l.includes("NetworkProcessProxy::NetworkProcessProxy"));
         let line: string;
-        if (returned === safari) {
+        if (returned === safari && !newNetwork) {
             assert.strictEqual(listed.item, entry, "session storage survived the discard");
             assert.deepEqual(
                 entries.filter((e) => e.own === true).map((e) => e.id),
@@ -518,7 +528,11 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
                 entry,
                 "the entry survived Safari's exit",
             );
-            line = `iOS Simulator, discard and return (${pages.length} web content processes killed): Safari ${safari} exited in the background and Safari ${returned} reopened the tab, so session storage was not tested; entry kept`;
+            const why =
+                returned === safari
+                    ? `Safari ${safari} replaced its network process in the background, which held session storage`
+                    : `Safari ${safari} exited in the background and Safari ${returned} reopened the tab`;
+            line = `iOS Simulator, discard and return (${pages.length} web content processes killed): ${why}, so session storage was not tested; entry kept`;
             // Loud in the run, so a lane where Safari always exits is seen: the discard check did not run.
             console.log(`::warning::${line}`);
         }

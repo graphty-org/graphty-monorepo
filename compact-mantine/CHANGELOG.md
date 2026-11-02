@@ -1,3 +1,13 @@
+## 0.9.38 (2026-11-02)
+
+### 🩹 Fixes
+
+- **workspace:** bundle storybook test dependencies afresh every run ([#5240](https://github.com/graphty-org/graphty-monorepo/issues/5240))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.40
+
 ## 0.9.37 (2026-11-01)
 
 ### 🚀 Features

@@ -5228,6 +5228,7 @@ export const NodeStyle: z.ZodObject<{
         cornerFraction: z.ZodOptional<z.ZodNumber>;
         points: z.ZodOptional<z.ZodString>;
         stretchPoints: z.ZodOptional<z.ZodBoolean>;
+        rotation: z.ZodOptional<z.ZodNumber>;
         parts: z.ZodOptional<z.ZodString>;
         lines: z.ZodOptional<z.ZodString>;
         lineWidth: z.ZodOptional<z.ZodNumber>;

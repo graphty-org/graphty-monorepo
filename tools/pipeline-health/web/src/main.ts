@@ -216,7 +216,7 @@ async function load(h: Here): Promise<Loaded> {
         status: own,
         html: pageView(p),
         generated: p.generated,
-        title: `${cat ? `${stateWord(cat.state)} ` : ""}${PAGE_TITLE[page]}`,
+        title: cat ? `${stateWord(cat.state)} ${PAGE_TITLE[page]}` : PAGE_TITLE[page],
     };
 }
 
@@ -431,14 +431,13 @@ app.addEventListener("click", (ev) => {
     }
 });
 
-window.addEventListener("hashchange", () => {
+globalThis.addEventListener("hashchange", () => {
     current = parse(location.hash);
     void show(true);
 });
 setInterval(() => void show(false), REFRESH_MS);
-void show(false).then(() => {
-    const target = current.section ? document.getElementById(`s-${current.section}`) : null;
-    if (target) {
-        mark(target);
-    }
-});
+await show(false);
+const target = current.section ? document.getElementById(`s-${current.section}`) : null;
+if (target) {
+    mark(target);
+}

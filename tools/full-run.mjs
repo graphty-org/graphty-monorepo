@@ -777,6 +777,9 @@ async function rollingInputs(cfg, env) {
     return { on: env.PICK_RULE === "rolling", tree, captures: answer?.captures ?? null };
 }
 
+// The listing's `since` query parameter, or nothing.
+const sinceParam = (since) => (since ? `&since=${since}` : "");
+
 /**
  * The "Full run red" issues, newest first, as `{ number, title, state, closedAt }` (state OPEN or CLOSED). A plain
  * listing, not GitHub search, which indexes a new issue a while later: the verdict that follows a lane's early red
@@ -788,7 +791,7 @@ async function rollingInputs(cfg, env) {
 export const listRedIssues = (state = "open", since = "") =>
     sh("gh", [
         "api",
-        `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100${since ? `&since=${since}` : ""}`,
+        `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100${sinceParam(since)}`,
         "--jq",
         String.raw`.[] | select(.title | startswith("${RED_TITLE}")) | {number, title, state: (.state // "open" | ascii_upcase), createdAt: .created_at, closedAt: .closed_at, stateReason: .state_reason} | tojson`,
         // every page: an issue left open for weeks must not drop out of the listing

@@ -124,6 +124,18 @@ const CameraBehaviorOpts = z
          * corners of its box. 2D always fits the box.
          */
         fitBounds: z.enum(["box", "turning"]).default("box"),
+        /*
+         * Whether a canvas resize frames the graph again.
+         *
+         * OFF BY DEFAULT: a resize that lands after the picture was reported final leaves the camera
+         * where it is, and only one that lands before it is framed again. On, every resize frames
+         * the graph again for the new canvas while the camera is still where the element's own
+         * framing or `zoomToFit()` left it, so the picture is the same whenever the resize lands --
+         * for a page whose own panels open beside the canvas and shrink it. A camera the reader
+         * zoomed, turned or panned, or that was placed with `setCameraState`, is never moved; the
+         * next load or layout hands framing back. Nothing happens with `autoFrame` off.
+         */
+        refitOnResize: z.boolean().default(false),
     })
     .prefault({});
 

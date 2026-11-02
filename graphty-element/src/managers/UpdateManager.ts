@@ -492,7 +492,9 @@ export class UpdateManager implements Manager {
      * schedule -- left the picture called final on a framing of stale inputs, and whether the
      * write came before or after the fit depended on the machine's speed (issues #3372, #4218).
      * A change to one of them in that window owes the fit again. Once the picture was final, an
-     * input change moves nothing, as `setViewInsets` documents.
+     * input change moves nothing, as `setViewInsets` documents -- except a canvas resize with
+     * `camera.refitOnResize` on, which the graph frames again itself while the camera is still
+     * where a fit left it (issue #5097).
      */
     private fitRead: string | null = null;
 

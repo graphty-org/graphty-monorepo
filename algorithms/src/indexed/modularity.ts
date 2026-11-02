@@ -11,6 +11,75 @@ export interface ModularityOptions {
 }
 
 /**
+ * Throws when `labels` or `weights` does not fit the snapshot.
+ * @param s - The snapshot
+ * @param labels - The community of every node
+ * @param weights - Per-arc weights, or null for all ones
+ */
+function checkModularityInputs(s: AdjacencyView, labels: U32, weights: NumericVector | null): void {
+    if (labels.length !== s.nodeCount) {
+        throw withCode(
+            new RangeError(`labels has ${labels.length} entries; the snapshot has ${s.nodeCount} nodes`),
+            "E_BAD_OPTION",
+        );
+    }
+    if (weights !== null && weights.length !== s.arcCount) {
+        throw withCode(
+            new RangeError(`weights has ${weights.length} entries; the snapshot has ${s.arcCount} arcs`),
+            "E_BAD_OPTION",
+        );
+    }
+}
+
+/**
+ * Adds `w` to `label`'s entry, unless the label is `INVALID_INDEX`.
+ * @param map - The per-community totals
+ * @param label - The community
+ * @param w - The weight
+ */
+function addTo(map: Map<number, number>, label: number, w: number): void {
+    if (label !== INVALID_INDEX) {
+        map.set(label, (map.get(label) ?? 0) + w);
+    }
+}
+
+/** Per-community degree and inside weight, and twice the total edge weight. */
+interface CommunitySums {
+    readonly tot: Map<number, number>;
+    readonly inside: Map<number, number>;
+    m2: number;
+}
+
+/**
+ * Adds the arcs of row `u` to `sums`.
+ * @param s - The snapshot
+ * @param labels - The community of every node
+ * @param weights - Per-arc weights, or null for all ones
+ * @param u - The node whose row is read
+ * @param sums - The running totals, updated in place
+ */
+function addRow(s: AdjacencyView, labels: U32, weights: NumericVector | null, u: number, sums: CommunitySums): void {
+    const end = s.rowPtr[u + 1];
+    for (let a = s.rowPtr[u]; a < end; a++) {
+        const v = s.colIdx[a];
+        const w = weights === null ? 1 : weights[a];
+        // An undirected edge between two nodes is read from both rows; a self-loop and a
+        // directed arc only once, so they count double here.
+        const twice = s.directed || v === u ? 2 * w : w;
+        sums.m2 += twice;
+        if (s.directed) {
+            addTo(sums.tot, labels[u], w);
+            addTo(sums.tot, labels[v], w);
+        } else {
+            addTo(sums.tot, labels[u], twice);
+        }
+        if (labels[u] === labels[v]) {
+            addTo(sums.inside, labels[u], twice);
+        }
+    }
+}
+
+/**
  * Newman's modularity of a partition: `sum_c in_c / 2m - gamma * (tot_c / 2m)^2`, where `2m` is
  * twice the total edge weight, `in_c` counts every edge inside community c twice and `tot_c` sums
  * its nodes' weighted degrees. Degrees follow graph-format's `weightedDegree()` convention -- a
@@ -37,46 +106,12 @@ export interface ModularityOptions {
 export function modularity(s: AdjacencyView, labels: U32, options: ModularityOptions = {}): number {
     const resolution = options.resolution ?? 1;
     const weights = options.weights ?? s.weights;
-    if (labels.length !== s.nodeCount) {
-        throw withCode(
-            new RangeError(`labels has ${labels.length} entries; the snapshot has ${s.nodeCount} nodes`),
-            "E_BAD_OPTION",
-        );
-    }
-    if (weights !== null && weights.length !== s.arcCount) {
-        throw withCode(
-            new RangeError(`weights has ${weights.length} entries; the snapshot has ${s.arcCount} arcs`),
-            "E_BAD_OPTION",
-        );
-    }
-    const tot = new Map<number, number>();
-    const inside = new Map<number, number>();
-    const addTo = (map: Map<number, number>, label: number, w: number): void => {
-        if (label !== INVALID_INDEX) {
-            map.set(label, (map.get(label) ?? 0) + w);
-        }
-    };
-    let m2 = 0;
+    checkModularityInputs(s, labels, weights);
+    const sums: CommunitySums = { tot: new Map(), inside: new Map(), m2: 0 };
     for (let u = 0; u < s.nodeCount; u++) {
-        const end = s.rowPtr[u + 1];
-        for (let a = s.rowPtr[u]; a < end; a++) {
-            const v = s.colIdx[a];
-            const w = weights === null ? 1 : weights[a];
-            // An undirected edge between two nodes is read from both rows; a self-loop and a
-            // directed arc only once, so they count double here.
-            const twice = s.directed || v === u ? 2 * w : w;
-            m2 += twice;
-            if (s.directed) {
-                addTo(tot, labels[u], w);
-                addTo(tot, labels[v], w);
-            } else {
-                addTo(tot, labels[u], twice);
-            }
-            if (labels[u] === labels[v]) {
-                addTo(inside, labels[u], twice);
-            }
-        }
+        addRow(s, labels, weights, u, sums);
     }
+    const { tot, inside, m2 } = sums;
     if (m2 === 0) {
         return 0;
     }

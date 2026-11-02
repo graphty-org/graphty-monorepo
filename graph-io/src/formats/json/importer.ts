@@ -2536,7 +2536,11 @@ function importVisEdges(
         sourceKey ??= source.key;
         targetKey ??= target.key;
         try {
-            pushVisEdge(ctx, record, ids, kind, element, source.value, target.value, [source.key, target.key, "id"]);
+            pushVisEdge(ctx, record, ids, kind, element, {
+                from: source.value,
+                to: target.value,
+                read: [source.key, target.key, "id"],
+            });
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
@@ -2551,9 +2555,10 @@ function importVisEdges(
  * @param ids - the edge id column, or null
  * @param kind - the edge kind
  * @param element - the element name
- * @param from - the raw source value
- * @param to - the raw target value
- * @param read - the keys already read (endpoints, id), not written as attributes
+ * @param ends - the endpoints and the keys already read
+ * @param ends.from - the raw source value
+ * @param ends.to - the raw target value
+ * @param ends.read - the keys already read (endpoints, id), not written as attributes
  */
 function pushVisEdge(
     ctx: ImportContext,
@@ -2561,10 +2566,9 @@ function pushVisEdge(
     ids: EdgeIdColumn | null,
     kind: EdgeKind,
     element: string,
-    from: unknown,
-    to: unknown,
-    read: readonly string[],
+    ends: { readonly from: unknown; readonly to: unknown; readonly read: readonly string[] },
 ): void {
+    const { from, to, read } = ends;
     const u = ctx.coerceId(from, `${element}.from`);
     const v = ctx.coerceId(to, `${element}.to`);
     if (u === null || v === null) {

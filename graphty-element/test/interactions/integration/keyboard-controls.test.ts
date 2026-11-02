@@ -9,7 +9,7 @@ import { assert } from "chai";
 import { afterEach, beforeEach, describe, test } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
-import { holdKey, releaseHeldKeys } from "../../helpers/real-input";
+import { holdKey, releaseHeldKeys, releaseKey } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [{ id: 1 }, { id: 2 }, { id: 3 }];
@@ -274,7 +274,7 @@ describe("Keyboard Controls Integration", () => {
                 anyInput.enable();
             }
         });
-        test("a key still down when focus leaves the canvas stops panning", () => {
+        test("a key still down when focus leaves the canvas stops panning", async () => {
             const inputController = get2DInputController(graph);
             const cameraController = get2DCameraController(graph);
             assert.isDefined(inputController);
@@ -283,7 +283,7 @@ describe("Keyboard Controls Integration", () => {
             container.appendChild(button);
 
             graph.canvas.focus();
-            graph.canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
+            await holdKey("a");
             button.focus();
             cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
             inputController.applyKeyboardInertia();
@@ -291,14 +291,16 @@ describe("Keyboard Controls Integration", () => {
             assert.equal(cameraController.velocity.x, 0, "a released off the canvas should not keep panning");
         });
 
-        test("Ctrl+D is a page shortcut, not a pan", () => {
+        test("Ctrl+D is a page shortcut, not a pan", async () => {
             const inputController = get2DInputController(graph);
             const cameraController = get2DCameraController(graph);
             assert.isDefined(inputController);
             assert.isDefined(cameraController);
 
+            graph.canvas.focus();
             cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-            graph.canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "d", ctrlKey: true }));
+            await holdKey("Control");
+            await holdKey("d");
             inputController.applyKeyboardInertia();
 
             assert.equal(cameraController.velocity.x, 0);
@@ -369,24 +371,27 @@ describe("Keyboard Controls Integration", () => {
         });
 
         /**
-         * Count the camera spins the 3D input handler makes over a few frames.
-         * @param press - What to do to the focused canvas before the frames run
+         * Count the camera spins the 3D input handler makes over a few frames, after real key
+         * presses on the focused canvas. Counting starts once the presses are done, so frames the
+         * render loop draws while the keys travel do not count.
+         * @param press - The real key presses to make on the focused canvas before the frames run
          * @returns The number of spin calls
          */
-        function spinsAfter(press: (canvas: HTMLCanvasElement) => void): number {
+        async function spinsAfter(press: () => Promise<void>): Promise<number> {
             const handler = (graph.camera as any).activeInputHandler;
             const { controller } = handler;
+
+            const { canvas } = graph;
+            canvas.focus();
+            assert.strictEqual(document.activeElement, canvas, "canvas should take focus");
+            await press();
+
             const original = controller.spin.bind(controller);
             let spins = 0;
             controller.spin = (dz: number): void => {
                 spins++;
                 original(dz);
             };
-
-            const { canvas } = graph;
-            canvas.focus();
-            assert.strictEqual(document.activeElement, canvas, "canvas should take focus");
-            press(canvas);
             for (let i = 0; i < 5; i++) {
                 handler.update();
             }
@@ -395,28 +400,29 @@ describe("Keyboard Controls Integration", () => {
             return spins;
         }
 
-        test("A held on the focused canvas spins the camera", () => {
-            const spins = spinsAfter((canvas) => {
-                canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+        test("A held on the focused canvas spins the camera", async () => {
+            const spins = await spinsAfter(async () => {
+                await holdKey("a");
             });
             assert.isAbove(spins, 0);
         });
 
-        test("Shift+A is a page shortcut, not a camera spin", () => {
-            const spins = spinsAfter((canvas) => {
-                canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "A", shiftKey: true, bubbles: true }));
+        test("Shift+A is a page shortcut, not a camera spin", async () => {
+            const spins = await spinsAfter(async () => {
+                await holdKey("Shift");
+                await holdKey("a");
             });
             assert.equal(spins, 0);
         });
 
-        test("a key still down when focus leaves the canvas stops spinning", () => {
+        test("a key still down when focus leaves the canvas stops spinning", async () => {
             const button = document.createElement("button");
             container.appendChild(button);
-            const spins = spinsAfter((canvas) => {
-                canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+            const spins = await spinsAfter(async () => {
+                await holdKey("a");
                 // Focus moves away; the keyup lands on the button, never on the canvas
                 button.focus();
-                button.dispatchEvent(new KeyboardEvent("keyup", { key: "a", bubbles: true }));
+                await releaseKey("a");
             });
             assert.equal(spins, 0);
         });

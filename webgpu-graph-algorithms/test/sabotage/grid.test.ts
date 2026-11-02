@@ -63,7 +63,7 @@ interface Measure {
 }
 
 /** The rows' fixtures and stages (the comments of test/helpers/sabotage.ts, made executable). */
-const MEASURE: Readonly<Record<string, Measure>> = Object.freeze({
+const MEASURE: Readonly<Partial<Record<string, Measure>>> = Object.freeze({
     "pseudo-cell-term-dropped": { fixtures: ["outside5"], stages: ["farField"] },
     "softening-dropped": { fixtures: ["random20k"], stages: ["farField"] },
     "own-neighbourhood-double-counted": { fixtures: ["random20k"], stages: ["farField"] },

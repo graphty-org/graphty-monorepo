@@ -396,6 +396,7 @@ export async function getReleaseState(q, who, db, now) {
     if (hold) offered = heldHead?.state === "green-images" ? heldHead : null;
     let blocking = unpromoted ? (BLOCKING[canaryState] ?? "unjudged") : null;
     if (hold) blocking = "held";
+    const ageNightlyMs = unpromoted ? now - start : 0;
     return {
         nightly,
         red: last?.state === "red" ? last : null,
@@ -405,7 +406,7 @@ export async function getReleaseState(q, who, db, now) {
         offered,
         canary,
         // null while nightly has never moved: not started, so the stall alarm has nothing to count from
-        ageNightlyMs: nightly ? (unpromoted ? now - start : 0) : null,
+        ageNightlyMs: nightly ? ageNightlyMs : null,
         blocking,
         hold,
     };

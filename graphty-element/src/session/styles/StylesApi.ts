@@ -4038,6 +4038,118 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return { index, spec };
     };
 
+    /** What {@link planStartingRows} builds up as it adds and drops rows. */
+    interface StartingRowsWork {
+        stack: readonly CompiledLayer[];
+        rows: Rows;
+        readonly added: RowParts[];
+        readonly layers: LayerId[];
+        readonly pins: [LayerId, "top" | "bottom"][];
+    }
+
+    /**
+     * Whether a layer is a part of the Pinned row.
+     * @param entry - The layer.
+     * @returns True for a Pinned part.
+     */
+    const isPinnedRow = (entry: CompiledLayer): boolean => startingRowOf(entry) === PINNED_ROW_ID;
+
+    /**
+     * Adds a row's parts to the work's stack at an index, keeping its pin for later.
+     * @param work - The plan being built.
+     * @param spec - The row's spec.
+     * @param pin - Where the row is pinned.
+     * @param index - Where its parts go in the stack.
+     */
+    const addStartingRow = (work: StartingRowsWork, spec: RowSpec, pin: "top" | "bottom", index: number): void => {
+        const plan = planAddRow(spec, undefined, { stack: work.stack, index });
+        work.stack = plan.stack;
+        work.rows = reconcile(work.rows, work.stack);
+        work.pins.push([plan.result.id, pin]);
+        work.added.push(plan.result);
+        work.layers.push(...plan.layers);
+    };
+
+    /**
+     * Takes a row's parts out of the work's stack.
+     * @param work - The plan being built.
+     * @param isPart - Whether a layer is one of the row's parts.
+     * @param parts - The row's parts, as the stack holds them now.
+     */
+    const dropStartingRow = (
+        work: StartingRowsWork,
+        isPart: (entry: CompiledLayer) => boolean,
+        parts: readonly CompiledLayer[],
+    ): void => {
+        work.stack = work.stack.filter((entry) => !isPart(entry));
+        work.rows = reconcile(work.rows, work.stack);
+        work.layers.push(...parts.map((entry) => entry.layer.id));
+    };
+
+    /**
+     * Adds one starting row back when the stack lacks it; an Everything row that writes nothing
+     * takes the base look while `editableBase` is on.
+     * @param work - The plan being built.
+     * @param starting - The starting row.
+     * @param base - Whether `editableBase` is on.
+     */
+    const syncStartingRow = (work: StartingRowsWork, starting: StartingRow, base: boolean): void => {
+        const parts = work.stack.filter((entry) => startingRowOf(entry) === starting.templateId);
+        if (parts.length === 0) {
+            const { index, spec } = startingPlacement(work.stack, starting, base);
+            addStartingRow(work, spec, starting.pin, index);
+            return;
+        }
+
+        // An Everything row that writes nothing takes the base look, so turning
+        // `editableBase` on never leaves the graph unpainted.
+        const empty = parts.every((entry) => entry.layer.set === undefined && entry.layer.encode === undefined);
+        if (base && starting.templateId === "graphty:starting-everything" && empty) {
+            work.stack = fillBaseLook(parts, work.stack, work.layers);
+            work.rows = reconcile(work.rows, work.stack);
+        }
+    };
+
+    /**
+     * The Pinned row exists while the pinned look is set: added directly below Selected, and taken
+     * away when the look is cleared.
+     * @param work - The plan being built.
+     */
+    const syncPinnedRow = (work: StartingRowsWork): void => {
+        const pinnedLook = dispatcher.services.config?.().pinnedStyle;
+        const pinnedParts = work.stack.filter(isPinnedRow);
+        if (pinnedLook !== undefined && pinnedParts.length === 0) {
+            const selected = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
+            const hovered = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
+            const below = selected === -1 ? hovered : selected;
+            const row = pinnedRow(pinnedLook);
+            addStartingRow(work, row.spec, row.pin, below === -1 ? work.stack.length : below);
+        } else if (pinnedLook === undefined && pinnedParts.length > 0) {
+            dropStartingRow(work, isPinnedRow, pinnedParts);
+        }
+    };
+
+    /**
+     * The Ghost row exists while a time field is designated: added directly below Selected (and
+     * below Pinned), and taken away when the field is cleared.
+     * @param work - The plan being built.
+     */
+    const syncGhostRow = (work: StartingRowsWork): void => {
+        const known = dispatcher.services.config?.().data.knownFields;
+        const timed = (known?.nodeTimePath ?? null) !== null || (known?.edgeTimePath ?? null) !== null;
+        const ghosts = work.stack.filter(isGhostRow);
+        if (timed && ghosts.length === 0) {
+            const pinned = work.stack.findIndex(isPinnedRow);
+            const selected = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
+            const hovered = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
+            const below = [pinned, selected, hovered].find((index) => index !== -1) ?? -1;
+            const ghost = ghostRow();
+            addStartingRow(work, ghost.spec, ghost.pin, below === -1 ? work.stack.length : below);
+        } else if (!timed && ghosts.length > 0) {
+            dropStartingRow(work, isGhostRow, ghosts);
+        }
+    };
+
     /**
      * The plan that adds back whichever starting rows the stack lacks, each pinned where it
      * belongs: Everything at the very bottom of the reader's rows, Selected just below Hovered.
@@ -4045,82 +4157,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      */
     const planStartingRows = (): EditPlan<readonly RowParts[]> => {
         const look = dispatcher.services.config?.().selectionStyle ?? DEFAULT_SELECTION_STYLE;
-        let stack = current();
-        let rows = rowsOf(stack);
-        const added: RowParts[] = [];
-        const layers: LayerId[] = [];
-        const pins: [LayerId, "top" | "bottom"][] = [];
+        const stack = current();
+        const work: StartingRowsWork = { stack, rows: rowsOf(stack), added: [], layers: [], pins: [] };
 
         const base = editableBase();
 
         for (const starting of startingRows(look)) {
-            const parts = stack.filter((entry) => startingRowOf(entry) === starting.templateId);
-            if (parts.length > 0) {
-                // An Everything row that writes nothing takes the base look, so turning
-                // `editableBase` on never leaves the graph unpainted.
-                const empty = parts.every((entry) => entry.layer.set === undefined && entry.layer.encode === undefined);
-                if (base && starting.templateId === "graphty:starting-everything" && empty) {
-                    stack = fillBaseLook(parts, stack, layers);
-                    rows = reconcile(rows, stack);
-                }
-
-                continue;
-            }
-
-            const { index, spec } = startingPlacement(stack, starting, base);
-            const plan = planAddRow(spec, undefined, { stack, index });
-            ({ stack } = plan);
-            rows = reconcile(rows, stack);
-            pins.push([plan.result.id, starting.pin]);
-            added.push(plan.result);
-            layers.push(...plan.layers);
+            syncStartingRow(work, starting, base);
         }
 
-        // The Pinned row exists while the pinned look is set: added directly below Selected, and
-        // taken away when the look is cleared.
-        const pinnedLook = dispatcher.services.config?.().pinnedStyle;
-        const isPinnedRow = (entry: CompiledLayer): boolean => startingRowOf(entry) === PINNED_ROW_ID;
-        const pinnedParts = stack.filter(isPinnedRow);
-        if (pinnedLook !== undefined && pinnedParts.length === 0) {
-            const selected = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
-            const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-            const below = selected === -1 ? hovered : selected;
-            const row = pinnedRow(pinnedLook);
-            const plan = planAddRow(row.spec, undefined, { stack, index: below === -1 ? stack.length : below });
-            ({ stack } = plan);
-            rows = reconcile(rows, stack);
-            pins.push([plan.result.id, row.pin]);
-            added.push(plan.result);
-            layers.push(...plan.layers);
-        } else if (pinnedLook === undefined && pinnedParts.length > 0) {
-            stack = stack.filter((entry) => !isPinnedRow(entry));
-            rows = reconcile(rows, stack);
-            layers.push(...pinnedParts.map((entry) => entry.layer.id));
-        }
+        syncPinnedRow(work);
+        syncGhostRow(work);
 
-        // The Ghost row exists while a time field is designated: added directly below Selected
-        // (and below Pinned), and taken away when the field is cleared.
-        const known = dispatcher.services.config?.().data.knownFields;
-        const timed = (known?.nodeTimePath ?? null) !== null || (known?.edgeTimePath ?? null) !== null;
-        const ghosts = stack.filter(isGhostRow);
-        if (timed && ghosts.length === 0) {
-            const pinned = stack.findIndex(isPinnedRow);
-            const selected = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
-            const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-            const below = [pinned, selected, hovered].find((index) => index !== -1) ?? -1;
-            const ghost = ghostRow();
-            const plan = planAddRow(ghost.spec, undefined, { stack, index: below === -1 ? stack.length : below });
-            ({ stack } = plan);
-            rows = reconcile(rows, stack);
-            pins.push([plan.result.id, ghost.pin]);
-            added.push(plan.result);
-            layers.push(...plan.layers);
-        } else if (!timed && ghosts.length > 0) {
-            stack = stack.filter((entry) => !isGhostRow(entry));
-            rows = reconcile(rows, stack);
-            layers.push(...ghosts.map((entry) => entry.layer.id));
-        }
-
+        let { rows } = work;
+        const { added, layers, pins } = work;
         // Pinned once every row is placed: a pin taken earlier would band a row before the next
         // one is placed by its stack neighbors, and Hovered would land below Selected.
         for (const [id, pin] of pins) {
@@ -4128,7 +4178,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         return {
-            stack,
+            stack: work.stack,
             rows: normalize(rows),
             result: Object.freeze(added),
             layers,
@@ -5682,6 +5732,51 @@ function groupKeyOf(value: unknown): GroupKey | undefined {
 }
 
 /**
+ * The shader uses a node carries once a stack's `node.shaders` lists are merged.
+ * @param layers - The stack's enabled node layers that list shaders, bottom first.
+ * @param index - The node's index.
+ * @returns The merged uses.
+ */
+function shaderUsesAt(layers: readonly CompiledLayer[], index: number): readonly ShaderUse[] {
+    let uses: readonly ShaderUse[] = [];
+    for (const { layer, selector } of layers) {
+        if (selector.test === null || selector.test(index)) {
+            uses = mergeShaderUses(uses, layer.set?.["node.shaders"]);
+        }
+    }
+
+    return uses;
+}
+
+/**
+ * Adds a node to the group of each of its uses that draws at `group`.
+ * @param members - Per use, its members by group.
+ * @param uses - The node's shader uses.
+ * @param id - The node's id.
+ * @param index - The node's index.
+ * @param sources - The stack's sources, for the node's values.
+ */
+function addToGroups(
+    members: Map<ShaderUse, Map<GroupKey, NodeId[]>>,
+    uses: readonly ShaderUse[],
+    id: NodeId,
+    index: number,
+    sources: StylesSources,
+): void {
+    for (const use of uses) {
+        const groups = members.get(use);
+        const key = use.groupBy === undefined ? null : groupKeyOf(sources.elements.nodeValue(index, use.groupBy));
+        if (groups === undefined || key === undefined) {
+            continue;
+        }
+
+        const list = groups.get(key) ?? [];
+        list.push(id);
+        groups.set(key, list);
+    }
+}
+
+/**
  * The group outlines of a painting stack.
  * @param stack - The stack as it paints, bottom first.
  * @param sources - The stack's sources, for the graph's nodes and their values.
@@ -5720,24 +5815,7 @@ function groupOutlineSets(
             continue;
         }
 
-        let uses: readonly ShaderUse[] = [];
-        for (const { layer, selector } of layers) {
-            if (selector.test === null || selector.test(index)) {
-                uses = mergeShaderUses(uses, layer.set?.["node.shaders"]);
-            }
-        }
-
-        for (const use of uses) {
-            const groups = members.get(use);
-            const key = use.groupBy === undefined ? null : groupKeyOf(sources.elements.nodeValue(index, use.groupBy));
-            if (groups === undefined || key === undefined) {
-                continue;
-            }
-
-            const list = groups.get(key) ?? [];
-            list.push(id);
-            groups.set(key, list);
-        }
+        addToGroups(members, shaderUsesAt(layers, index), id, index, sources);
     }
 
     let room = GROUP_OUTLINE_CAP;

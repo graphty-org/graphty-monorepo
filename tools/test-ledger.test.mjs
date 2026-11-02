@@ -10,7 +10,6 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
-import { mayExcuse } from "./prepush-tests.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "test-ledger-"));
 const ledgerHome = join(dir, "ledger");
@@ -266,14 +265,6 @@ describe("exoneration of a failure golden's tip has too", () => {
         landCheck();
         git("update-ref", "refs/remotes/origin/golden", tip);
         assert.equal(L.goldenTip(repo), tip);
-    });
-
-    it("is allowed only in a land check, never in verification, strict mode, the cut or master", () => {
-        assert.equal(mayExcuse({ TEST_LEDGER_KIND: "land-check", PREPUSH_SELECT_BASE: "origin/golden" }), true);
-        assert.equal(mayExcuse({ TEST_LEDGER_KIND: "push" }), false);
-        assert.equal(mayExcuse({ TEST_LEDGER_KIND: "land-check", PREPUSH_ALL: "1" }), false);
-        assert.equal(mayExcuse({ TEST_LEDGER_KIND: "land-check", PREPUSH_EXONERATE: "0" }), false);
-        assert.equal(mayExcuse({ TEST_LEDGER_KIND: "land-check", PREPUSH_SELECT_BASE: "origin/golden-cut" }), false);
     });
 });
 

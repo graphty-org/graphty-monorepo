@@ -34,6 +34,7 @@ import { formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { isCanonicalIntegerText } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
+import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
@@ -156,7 +157,7 @@ const DEFAULT_WEIGHT_NAME = "weight";
 type NoteFn = (code: string, message: string, column?: string | null, count?: number | null) => void;
 
 /** The GraphML attr.type values and the dtype each maps to, for restoring origin.type. */
-const TYPE_DTYPES: Readonly<Record<string, string>> = {
+const TYPE_DTYPES: Readonly<Partial<Record<string, string>>> = {
     boolean: "bool",
     int: "i32",
     long: "f64",
@@ -266,7 +267,8 @@ function resolveFormatOptions(options: GraphmlExportOptions | undefined): Format
             found: typeof pretty,
         });
     }
-    const edgedefault = options?.edgedefault ?? null;
+    // a JavaScript caller can pass any value
+    const edgedefault: unknown = options?.edgedefault ?? null;
     if (edgedefault !== null && edgedefault !== "directed" && edgedefault !== "undirected") {
         throw new GraphFormatError(
             "E_UNSUPPORTED",
@@ -1176,7 +1178,7 @@ function cellText(column: Column, row: number, attrType: string | null): string 
         case "list":
             return JSON.stringify(Array.from(column.sliceOf(row)));
         case "json":
-            return JSON.stringify(column.values[row]) ?? "";
+            return jsonText(column.values[row]) ?? "";
         default: {
             const dtype: never = column;
             throw new GraphFormatError("E_UNSUPPORTED", `unknown dtype ${String(dtype)}`, {});
@@ -1208,7 +1210,7 @@ function defaultText(column: Column, attrType: string | null): string | null {
         case "string":
             return value;
         default:
-            return JSON.stringify(value) ?? "";
+            return jsonText(value) ?? "";
     }
 }
 
@@ -1439,7 +1441,7 @@ function rootElement(plan: Plan): string {
         (yfilesColumns &&
             !Object.values(namespaces).includes(YFILES_NAMESPACE) &&
             // a yFiles 3 file binds `y` to its own namespace, which its kept trees are written in
-            namespaces.y === undefined)
+            !("y" in namespaces))
     ) {
         namespaces.y = YFILES_NAMESPACE;
     }

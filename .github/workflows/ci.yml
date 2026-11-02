@@ -1138,7 +1138,7 @@ jobs:
 
     # The repository checks that read source or the built packages: the CI workflow tests, knip,
     # formatting, the bundle sizes, the public API report and the rest. The same checks run in
-    # tools/prepush.sh. On a pull request, a step that reads one package's files runs only when that package
+    # tools/check-quick.sh. On a pull request, a step that reads one package's files runs only when that package
     # is affected (the packages job's affected list); every other run (push, workflow_call, the full run) runs all.
     checks:
         name: Checks
@@ -1206,7 +1206,7 @@ jobs:
             # Every package's dist is downloaded above (the packages job builds every project on both
             # paths). knip reads source; the production pass counts only published entry points. The published-deps
             # check packs each package and compares what it ships with what it declares, so it
-            # must run after the build. The same three steps run in tools/prepush.sh.
+            # must run after the build. The same three steps run in tools/check-quick.sh.
             # The two knip passes share nothing and each is mostly single-threaded, so they run side by side
             # (47 s + 16 s in a row on a runner); the step fails when either does.
             - name: Knip (dead code detection and production dependencies)
@@ -1220,7 +1220,7 @@ jobs:
             - name: Published dependencies
               run: pnpm run check:published-deps
 
-            # The same three checks run in tools/prepush.sh. The first two read no build output; the
+            # The same three checks run in tools/check-quick.sh. The first two read no build output; the
             # bundle size check measures graphty-element's dist/ against graphty-element/size-budgets.json.
             - name: ESLint root config
               run: pnpm run lint:eslint-root
@@ -1278,14 +1278,14 @@ jobs:
             # (graphty-element/api/*.api.md, one per typed entry point in its package.json "exports").
             # A change fails here until `npm run api:report` in graphty-element regenerates the report,
             # so every API change shows up in the pull request as a diff of that report.
-            # The same check runs in tools/prepush.sh.
+            # The same check runs in tools/check-quick.sh.
             - name: Public API report (graphty-element)
               if: steps.scope.outputs.api == 'true'
               run: pnpm run check:api-report
 
             # Experiment flags (graphty-element's FEATURES): every id the code, stories and site configurations
             # name is declared, every row has its issue, the features module reads nothing from the host, and
-            # no experimental item is in the public API report. The same check runs in tools/prepush.sh.
+            # no experimental item is in the public API report. The same check runs in tools/check-quick.sh.
             - name: Feature flags
               run: pnpm run check:features
 
@@ -1298,12 +1298,12 @@ jobs:
               run: pnpm run check:dry-run-checks
 
             # release-hold.json names only real nx projects, each with a reason and a date, so a typo
-            # cannot silently release a package someone meant to hold. The same check runs in tools/prepush.sh.
+            # cannot silently release a package someone meant to hold. The same check runs in tools/check-quick.sh.
             - name: Release hold list
               run: pnpm run check:release-hold
 
             # Element data sources read files through @graphty/graph-io importers, not their own
-            # parsers. The same check runs in tools/prepush.sh.
+            # parsers. The same check runs in tools/check-quick.sh.
             - name: Element data sources on graph-io
               if: steps.scope.outputs.datasource == 'true'
               run: pnpm run check:data-source-migration
@@ -1314,7 +1314,7 @@ jobs:
 
             # Reads source only. Any use of the legacy graph API (a legacy algorithms or layout
             # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails.
-            # The same check runs in tools/prepush.sh.
+            # The same check runs in tools/check-quick.sh.
             - name: Legacy graph API use
               run: pnpm run check:legacy-use
 
@@ -1834,8 +1834,8 @@ jobs:
                   if-no-files-found: ignore
                   overwrite: true
 
-            # The shard's JUnit reports, so verification of golden (tools/verify.mjs) can name the exact
-            # failing test files and run only those on this machine. continue-on-error: a report that did
+            # The shard's JUnit reports, so the exact failing test files can be named and run on their
+            # own. continue-on-error: a report that did
             # not upload never changes the shard's verdict.
             - name: Upload JUnit results
               if: ${{ !cancelled() }}

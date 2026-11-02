@@ -964,7 +964,8 @@ function readElement(
     put: Put,
     at: At,
 ): void {
-    let text = false;
+    // set by putLabel, which TypeScript does not see change it
+    let text = false as boolean;
     const putLabel: Put = (property, value) => {
         text ||= property === "label" && value !== null;
         put(property, value);
@@ -1772,7 +1773,7 @@ function merged(old: unknown, owned: ReadonlySet<string>, written: Rec): Rec | u
  * @returns the value, or undefined (an unset cell)
  */
 function mergedLabels(old: unknown, written: Rec | null): unknown {
-    const labels = Array.isArray(old) ? old : [old];
+    const labels: unknown[] = Array.isArray(old) ? old : [old];
     const head = merged(labels[0], OWNED.label, written ?? {});
     const rest = labels.slice(1).filter((l) => l !== null && l !== undefined);
     if (rest.length === 0) {

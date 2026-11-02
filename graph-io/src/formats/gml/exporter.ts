@@ -238,7 +238,8 @@ interface WrittenColumn {
  */
 function planOf(snapshot: GraphSnapshot, options: (GmlExportOptions & CommonExportOptions) | undefined): GmlExportPlan {
     const common = resolveExportOptions(options);
-    const mode = options?.sanitizeKeys ?? "error";
+    // a JavaScript caller can pass any value
+    const mode: unknown = options?.sanitizeKeys ?? "error";
     if (mode !== "error" && mode !== "mangle") {
         throw new GraphFormatError(
             "E_UNSUPPORTED",

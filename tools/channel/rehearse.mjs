@@ -94,6 +94,79 @@ const bodyOf = (a) => {
     return file ? readFileSync(file, "utf8") : (a.one("--body", "-b", "--comment", "-c") ?? "");
 };
 
+const issueOf = (s, n) => s.issues.find((i) => i.number === Number(n)) ?? fail(`no issue #${n}`);
+
+/**
+ * Closes or reopens an issue, with its optional comment.
+ * @param c the call
+ * @param c.s the state
+ * @param c.a the parsed arguments
+ * @param c.touch marks an issue updated now
+ * @param c.now the time
+ * @param close true to close, false to reopen
+ * @returns what gh prints
+ */
+function setIssueState({ s, a, touch, now }, close) {
+    const i = touch(issueOf(s, a.pos[1]));
+    if (a.one("--comment", "-c")) i.comments.push(a.one("--comment", "-c"));
+    i.state = close ? "closed" : "open";
+    i.closedAt = close ? now : null;
+    i.stateReason = close ? (a.one("--reason", "-r") ?? "completed") : null;
+    return "";
+}
+
+/** The scratch gh's commands, by `<command> <subcommand>`; each takes the call and returns what gh prints. */
+const GH = {
+    "issue list": ({ s, a }) => {
+        const state = a.one("--state", "-s") ?? "open";
+        const q = /in:title "(.*)"/.exec(a.one("--search", "-S") ?? "")?.[1] ?? "";
+        const label = a.flags["--label"] ?? [];
+        const found = s.issues
+            .filter((i) => state === "all" || i.state === state)
+            .filter((i) => i.title.includes(q) && label.every((l) => i.labels.includes(l)))
+            .slice(0, Number(a.one("--limit", "-L") ?? 30))
+            .map(cliIssue);
+        return jq(found, a.one("--jq", "-q"));
+    },
+    "issue create": ({ s, a, touch, now }) => {
+        const number = s.issues.reduce((m, i) => Math.max(m, i.number), 0) + 1;
+        const labels = (a.flags["--label"] ?? a.flags["-l"] ?? []).flatMap((l) => l.split(","));
+        const title = a.one("--title", "-t");
+        s.issues.push({ number, title, labels, body: bodyOf(a), state: "open", comments: [], createdAt: now });
+        touch(s.issues.at(-1));
+        return `https://github.com/${REPO}/issues/${number}`;
+    },
+    "issue comment": ({ s, a, touch }) => {
+        touch(issueOf(s, a.pos[1])).comments.push(bodyOf(a));
+        return "";
+    },
+    "issue edit": ({ s, a, touch }) => {
+        const i = touch(issueOf(s, a.pos[1]));
+        if (a.one("--title", "-t")) i.title = a.one("--title", "-t");
+        if (a.one("--body-file", "--body")) i.body = bodyOf(a);
+        i.labels.push(...(a.flags["--add-label"] ?? []).flatMap((l) => l.split(",")));
+        return "";
+    },
+    "issue close": (c) => setIssueState(c, true),
+    "issue reopen": (c) => setIssueState(c, false),
+    "workflow run": ({ s, a }) => {
+        s.dispatches.push({ workflow: a.pos[1], ref: a.one("--ref", "-r"), fields: a.flags["-f"] ?? [] });
+        return "";
+    },
+    "run rerun": ({ s, a, argv }) => {
+        s.reruns.push({ run: a.pos[1], failed: argv.includes("--failed") });
+        return "";
+    },
+    "run download": ({ s, a }) => {
+        const name = a.one("-n", "--name");
+        const file = s.artifacts[`${a.pos[1]}/${name}`] ?? fail(`no artifact ${name} on run ${a.pos[1]}`);
+        const dir = a.one("-D", "--dir") ?? ".";
+        mkdirSync(dir, { recursive: true });
+        cpSync(file, join(dir, `${name}.json`));
+        return "";
+    },
+};
+
 /**
  * One scratch gh call against a state object (mutated).
  * @param s the state
@@ -105,65 +178,10 @@ export function ghCall(s, argv, now = new Date().toISOString()) {
     s.calls.push(argv.join(" "));
     const a = argsOf(argv.slice(1));
     const [cmd] = argv;
-    const sub = a.pos[0];
-    const issue = (n) => s.issues.find((i) => i.number === Number(n)) ?? fail(`no issue #${n}`);
-    const touch = (i) => Object.assign(i, { updatedAt: now });
     if (cmd === "api") return api(s, a);
-    if (cmd === "issue" && sub === "list") {
-        const state = a.one("--state", "-s") ?? "open";
-        const q = /in:title "(.*)"/.exec(a.one("--search", "-S") ?? "")?.[1] ?? "";
-        const label = a.flags["--label"] ?? [];
-        const found = s.issues
-            .filter((i) => state === "all" || i.state === state)
-            .filter((i) => i.title.includes(q) && label.every((l) => i.labels.includes(l)))
-            .slice(0, Number(a.one("--limit", "-L") ?? 30))
-            .map(cliIssue);
-        return jq(found, a.one("--jq", "-q"));
-    }
-    if (cmd === "issue" && sub === "create") {
-        const number = s.issues.reduce((m, i) => Math.max(m, i.number), 0) + 1;
-        const labels = (a.flags["--label"] ?? a.flags["-l"] ?? []).flatMap((l) => l.split(","));
-        const title = a.one("--title", "-t");
-        s.issues.push({ number, title, labels, body: bodyOf(a), state: "open", comments: [], createdAt: now });
-        touch(s.issues.at(-1));
-        return `https://github.com/${REPO}/issues/${number}`;
-    }
-    if (cmd === "issue" && sub === "comment") {
-        touch(issue(a.pos[1])).comments.push(bodyOf(a));
-        return "";
-    }
-    if (cmd === "issue" && sub === "edit") {
-        const i = touch(issue(a.pos[1]));
-        if (a.one("--title", "-t")) i.title = a.one("--title", "-t");
-        if (a.one("--body-file", "--body")) i.body = bodyOf(a);
-        i.labels.push(...(a.flags["--add-label"] ?? []).flatMap((l) => l.split(",")));
-        return "";
-    }
-    if (cmd === "issue" && (sub === "close" || sub === "reopen")) {
-        const i = touch(issue(a.pos[1]));
-        if (a.one("--comment", "-c")) i.comments.push(a.one("--comment", "-c"));
-        i.state = sub === "close" ? "closed" : "open";
-        i.closedAt = sub === "close" ? now : null;
-        i.stateReason = sub === "close" ? (a.one("--reason", "-r") ?? "completed") : null;
-        return "";
-    }
-    if (cmd === "workflow" && sub === "run") {
-        s.dispatches.push({ workflow: a.pos[1], ref: a.one("--ref", "-r"), fields: a.flags["-f"] ?? [] });
-        return "";
-    }
-    if (cmd === "run" && sub === "rerun") {
-        s.reruns.push({ run: a.pos[1], failed: argv.includes("--failed") });
-        return "";
-    }
-    if (cmd === "run" && sub === "download") {
-        const name = a.one("-n", "--name");
-        const file = s.artifacts[`${a.pos[1]}/${name}`] ?? fail(`no artifact ${name} on run ${a.pos[1]}`);
-        const dir = a.one("-D", "--dir") ?? ".";
-        mkdirSync(dir, { recursive: true });
-        cpSync(file, join(dir, `${name}.json`));
-        return "";
-    }
-    return fail(`the scratch gh does not know: gh ${argv.join(" ")}`);
+    const run = Object.hasOwn(GH, `${cmd} ${a.pos[0]}`) ? GH[`${cmd} ${a.pos[0]}`] : undefined;
+    if (!run) return fail(`the scratch gh does not know: gh ${argv.join(" ")}`);
+    return run({ s, a, argv, now, touch: (i) => Object.assign(i, { updatedAt: now }) });
 }
 
 function api(s, a) {

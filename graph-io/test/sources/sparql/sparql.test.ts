@@ -324,7 +324,7 @@ describe("the sparql source against a local endpoint", () => {
         expect(err.issue?.code).toBe("E_SOURCE_QUERY");
         expect(err.issue?.params).toMatchObject({
             origin: new URL(fixture.endpoint).origin,
-            serverMessage: expect.stringContaining("BROKEN"),
+            serverMessage: expect.stringContaining("BROKEN") as unknown,
         });
     });
 

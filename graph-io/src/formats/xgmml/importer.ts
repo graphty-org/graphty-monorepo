@@ -130,7 +130,8 @@ const XGMML_DOCTYPE = /<!DOCTYPE\s+graph\s[^<>]*xgmml\.dtd/i;
  * @category Plugin helpers
  */
 export function resolveSettings(options: XgmmlImportOptions | undefined, cytoscape: boolean): XgmmlSettings {
-    const zAs = options?.zAs ?? "column";
+    // a JavaScript caller can pass any value
+    const zAs: unknown = options?.zAs ?? "column";
     if (zAs !== "column" && zAs !== "position") {
         throw new GraphFormatError(
             "E_UNSUPPORTED",
@@ -445,7 +446,8 @@ async function listXgmmlGraphs(
  * @returns the name, or null
  */
 function graphName(graph: GraphRec, doc: XgmmlDocument): string | null {
-    return graph.label ?? (graph === doc.root ? (doc.rdf.title ?? null) : null) ?? graph.id ?? null;
+    const metadata: Partial<Record<string, string>> = doc.rdf;
+    return graph.label ?? (graph === doc.root ? (metadata.title ?? null) : null) ?? graph.id ?? null;
 }
 
 /**

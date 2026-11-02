@@ -7,6 +7,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { itemAt } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
@@ -136,7 +137,9 @@ export function canonVizColor(hex: string): [number, number, number, number] | n
     if (m === null) {
         return null;
     }
-    const [, sign, , hexDigits, octal, decimal] = m;
+    const [, sign, , , , decimal] = m;
+    const hexDigits = itemAt(m, 3);
+    const octal = itemAt(m, 4);
     let v: number;
     if (hexDigits !== undefined) {
         v = Number.parseInt(hexDigits, 16);

@@ -1176,8 +1176,8 @@ export class Graph implements GraphContext {
             suspend: () => {
                 this.layoutManager.running = false;
             },
-            loadArrangement: (restoring, wrote) => {
-                this.layoutManager.loadArrangement(restoring, wrote);
+            loadArrangement: (restoring, wrote, byReader) => {
+                this.layoutManager.loadArrangement(restoring, wrote, byReader);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }

@@ -19,7 +19,7 @@ const JAVA = {
 } as const;
 
 /** `ColorGradient`'s gradients as `[down, zero, up]` (zero null where it has none), keyed by their normalized name. */
-const GRADIENTS: Readonly<Record<string, readonly [string, string | null, string]>> = {
+const GRADIENTS: Readonly<Partial<Record<string, readonly [string, string | null, string]>>> = {
     CYANYELLOW: [JAVA.cyan, null, JAVA.yellow],
     CYANWHITEYELLOW: [JAVA.cyan, JAVA.white, JAVA.yellow],
     CYANBLACKYELLOW: [JAVA.cyan, JAVA.black, JAVA.yellow],

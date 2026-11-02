@@ -69,10 +69,10 @@ export type MemberState = SlaState | "notsetup" | "few" | "partial" | "idle" | "
 export type CategoryState = SlaState | "idle";
 
 /** An ISO 8601 time in UTC. */
-export type Iso = string;
+export type Iso = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
 
 /** A hash route of the page, such as `/ci/runners` or `/master/red`, or an absolute https URL. */
-export type Route = string;
+export type Route = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
 
 /** A parameter of a {@link Fact}: numbers in the unit its code names, ids, names of data, ISO times. */
 export type Param = string | number | boolean | null | readonly (string | number)[];

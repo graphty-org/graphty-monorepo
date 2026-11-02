@@ -10,9 +10,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";

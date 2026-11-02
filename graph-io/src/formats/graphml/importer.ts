@@ -1483,7 +1483,7 @@ class GraphmlReader implements XmlHandler {
             this.report.warning(
                 "unsupported",
                 GRAPHML_ISSUE.YFILES_SKIPPED,
-                `yFiles key "${key.id}" (${key.yfilesType ?? ""}) skipped per the yfiles option`,
+                `yFiles key "${key.id}" (${key.yfilesType}) skipped per the yfiles option`,
                 where,
             );
         }

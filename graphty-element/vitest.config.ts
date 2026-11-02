@@ -310,6 +310,40 @@ const heldRequestCommands: {
 };
 
 /**
+ * The pictures the style fidelity samples name by a URL on the internet (a Cytoscape custom graphic or image
+ * annotation pointing at the cytoscape.js logo), each answered from a copy committed beside the samples
+ * (graph-io/test/fidelity/pictures/), so what graphty draws, and how it scores, never depends on the network.
+ */
+const SAMPLE_PICTURES: Readonly<Record<string, string>> = {
+    "https://raw.githubusercontent.com/cytoscape/cytoscape.js/master/documentation/img/cytoscape-logo.png":
+        "../graph-io/test/fidelity/pictures/cytoscape-logo.png",
+};
+
+/** The browser contexts the sample pictures are served in. */
+const servingPictures = new WeakSet<object>();
+
+/**
+ * The command the style fidelity harness (test/fidelity/mount.ts) runs before it loads a sample, in the `fidelity`
+ * and `browser` projects' `commands`.
+ */
+const samplePictureCommands: { serveSamplePictures: BrowserCommand<[]> } = {
+    /**
+     * Answers every sample picture's URL from its committed copy, once per browser context.
+     * @param ctx - the browser command context.
+     */
+    async serveSamplePictures(ctx) {
+        if (servingPictures.has(ctx.context)) {
+            return;
+        }
+        servingPictures.add(ctx.context);
+        for (const [url, file] of Object.entries(SAMPLE_PICTURES)) {
+            const body = readFileSync(path.resolve(dirname, file));
+            await ctx.context.route(url, (route) => route.fulfill({ status: 200, contentType: "image/png", body }));
+        }
+    },
+};
+
+/**
  * The package's published names, resolved to its own source. The docs' examples
  * (docs/examples/) import `@graphty/graphty-element`, `/extend` and `/logging` exactly as a reader
  * copies them, and the tests that run those examples must run the code under test, not a stale
@@ -852,7 +886,7 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: mapTileCommands,
+                        commands: { ...mapTileCommands, ...samplePictureCommands },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -1001,7 +1035,7 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: mapTileCommands,
+                        commands: { ...mapTileCommands, ...samplePictureCommands },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),

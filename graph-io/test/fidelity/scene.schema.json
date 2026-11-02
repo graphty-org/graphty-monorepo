@@ -160,6 +160,7 @@
                     },
                     "visible": { "type": "boolean" },
                     "z": { "type": "number" },
+                    "paintedOver": { "enum": [true] },
                     "requested": { "type": "object" },
                     "drawn": { "type": "object" }
                 }

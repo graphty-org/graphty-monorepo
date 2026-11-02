@@ -1095,7 +1095,8 @@ export class XmlTokenizer {
      */
     private scanDoctype(pending: Pending, text: string, from: number): number {
         for (let i = from; i < text.length; i++) {
-            if (doctypeStep(pending, text.charCodeAt(i))) {
+            const c = text.charCodeAt(i); // NOSONAR(S7758): steps UTF-16 code units on purpose
+            if (doctypeStep(pending, c)) {
                 pending.quote = 0;
                 pending.depth = 0;
                 pending.comment = false;
@@ -1522,8 +1523,11 @@ export class XmlTokenizer {
         const { buffer } = this;
         const { length } = buffer;
         let j = i;
-        while (j < length && isSpace(buffer.charCodeAt(j))) {
-            j++;
+        for (; j < length; j++) {
+            const c = buffer.charCodeAt(j); // NOSONAR(S7758): reads UTF-16 code units on purpose
+            if (!isSpace(c)) {
+                break;
+            }
         }
         return j;
     }
@@ -1545,7 +1549,8 @@ export class XmlTokenizer {
         declaresNamespace: boolean,
     ): StartTag | null {
         const { buffer } = this;
-        if (buffer.charCodeAt(i) === GT) {
+        const c = buffer.charCodeAt(i); // NOSONAR(S7758): reads UTF-16 code units on purpose
+        if (c === GT) {
             return { name, attrs, selfClosing: false, declaresNamespace, end: i + 1 };
         }
         if (i + 1 >= buffer.length) {

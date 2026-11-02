@@ -378,13 +378,13 @@ function testItem(
     };
 }
 
-async function invocationItems(
-    b: Record<string, unknown>,
-    who: Who,
-    db: Store,
-    now: number,
-): Promise<{ items: RawItem[]; extra: Extra[] }> {
-    const id = ownId(b.id, who);
+/**
+ * Refuse a shard run post whose fields are missing or wrong, or whose sha is not the pull request's own.
+ * @param b - the post's body
+ * @param who - who posted it
+ * @returns the post's file rows
+ */
+function checkInvocation(b: Record<string, unknown>, who: Who): unknown[] {
     need(b, { sha: "string", variant: "string", try: "number", startedAt: "number", secs: "number" });
     if (!Number.isInteger(b.try)) {
         refuse(400, "bad_field", { field: "try", type: "integer" });
@@ -399,6 +399,60 @@ async function invocationItems(
     if (!Array.isArray(files) || !files.every((f) => Array.isArray(f) && f.length === 5)) {
         refuse(400, "bad_field", { field: "files", type: "file rows" });
     }
+    return files;
+}
+
+/**
+ * The earlier tries' failures of a CI shard that has now passed, as flaky rows: the tests this try did not
+ * itself report.
+ * @param db - the store
+ * @param id - the passing try's invocation id
+ * @param tryNo - the passing try's number
+ * @param items - this try's own rows
+ * @param family - the passing run's family
+ * @returns the flaky rows
+ */
+async function earlierTryFlakes(
+    db: Store,
+    id: string,
+    tryNo: number,
+    items: RawItem[],
+    family: string,
+): Promise<RawItem[]> {
+    // This try's own failures are recorded already; the lookback marks only the earlier tries' other tests.
+    const own = new Set(items.flatMap((i) => (i.kind === "test" ? [`${i.file}#${i.name}`] : [])));
+    // The CI writers give each try its own id, `<base>.<try>` (tools/results/run-group.mjs): the failures
+    // of the earlier tries are under their ids.
+    const tryOf = /^(.*)\.(\d+)$/.exec(id);
+    const invs = [id];
+    // The poster sets try: bounded to the few retries CI makes, so it cannot drive unbounded queries.
+    if (tryOf && Number(tryOf[2]) === tryNo) {
+        for (let k = Math.max(1, tryNo - MAX_TRIES); k < tryNo; k++) {
+            invs.push(`${tryOf[1]}.${k}`);
+        }
+    }
+    const flaky: RawItem[] = [];
+    for (const inv of invs) {
+        for (const t of await db.query(INV_TESTS(inv))) {
+            const { pk: _pk, sk: _sk, ttl: _ttl, ...test } = t;
+            if (own.has(`${String(test.file)}#${String(test.name)}`)) {
+                continue;
+            }
+            // The passing run's family: an early failure post only guessed it from the id.
+            flaky.push({ ...(test as unknown as TestItem), family, outcome: "flaky" });
+        }
+    }
+    return flaky;
+}
+
+async function invocationItems(
+    b: Record<string, unknown>,
+    who: Who,
+    db: Store,
+    now: number,
+): Promise<{ items: RawItem[]; extra: Extra[] }> {
+    const id = ownId(b.id, who);
+    const files = checkInvocation(b, who);
     const variant = b.variant as string;
     const family = familyOf(variant);
     const source = who.kind === "local" ? "local" : "ci";
@@ -432,28 +486,7 @@ async function invocationItems(
         items.push(testItem(id, f, family, source, passed, endedAt, isBump(who)));
     }
     if (passed && source === "ci") {
-        // This try's own failures are recorded above; the lookback marks only the earlier tries' other tests.
-        const own = new Set(items.flatMap((i) => (i.kind === "test" ? [`${i.file}#${i.name}`] : [])));
-        // The CI writers give each try its own id, `<base>.<try>` (tools/results/run-group.mjs): the failures
-        // of the earlier tries are under their ids.
-        const tryOf = /^(.*)\.(\d+)$/.exec(id);
-        const invs = [id];
-        // The poster sets try: bounded to the few retries CI makes, so it cannot drive unbounded queries.
-        if (tryOf && Number(tryOf[2]) === b.try) {
-            for (let k = Math.max(1, b.try - MAX_TRIES); k < b.try; k++) {
-                invs.push(`${tryOf[1]}.${k}`);
-            }
-        }
-        for (const inv of invs) {
-            for (const t of await db.query(INV_TESTS(inv))) {
-                const { pk: _pk, sk: _sk, ttl: _ttl, ...test } = t;
-                if (own.has(`${String(test.file)}#${String(test.name)}`)) {
-                    continue;
-                }
-                // The passing run's family: an early failure post only guessed it from the id.
-                items.push({ ...(test as unknown as TestItem), family, outcome: "flaky" });
-            }
-        }
+        items.push(...(await earlierTryFlakes(db, id, b.try as number, items, family)));
     }
     // The two tries' posts are not ordered: putRaw never lets a failed result replace a flaky one. A failing CI try
     // remembers its failures itself (written before its test rows), so a passing try can find them even when the

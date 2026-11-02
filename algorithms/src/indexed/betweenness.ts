@@ -166,67 +166,158 @@ function accumulate(
     alive: EdgeMask | null,
     endpoints: boolean,
 ): void {
-    const { nodeCount: n, rowPtr, colIdx, arcToEdge } = s;
-    const depth = new Int32Array(n).fill(-1);
-    const sigma = new Float64Array(n);
-    const delta = new Float64Array(n);
-    const order = new Uint32Array(n);
+    const n = s.nodeCount;
+    const scratch: BrandesScratch = {
+        depth: new Int32Array(n).fill(-1),
+        sigma: new Float64Array(n),
+        delta: new Float64Array(n),
+        order: new Uint32Array(n),
+    };
     for (const source of sources) {
-        let head = 0;
-        let tail = 0;
-        depth[source] = 0;
-        sigma[source] = 1;
-        order[tail++] = source;
-        while (head < tail) {
-            const v = order[head++];
-            const next = depth[v] + 1;
-            let prev = -1;
-            for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
-                const w = colIdx[a];
-                if (w === prev || (alive !== null && !maskTest(alive, arcToEdge[a]))) {
-                    continue;
-                }
-                prev = w;
-                if (depth[w] < 0) {
-                    depth[w] = next;
-                    order[tail++] = w;
-                }
-                if (depth[w] === next) {
-                    sigma[w] += sigma[v];
-                }
-            }
-        }
+        const tail = countPaths(s, alive, scratch, source);
         for (let i = tail - 1; i >= 0; i--) {
-            const v = order[i];
-            const next = depth[v] + 1;
-            let prev = -1;
-            for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
-                const w = colIdx[a];
-                if (w === prev || (alive !== null && !maskTest(alive, arcToEdge[a]))) {
-                    continue;
-                }
-                prev = w;
-                if (depth[w] === next) {
-                    const c = (sigma[v] / sigma[w]) * (1 + delta[w]);
-                    delta[v] += c;
-                    if (edge !== null) {
-                        edge[arcToEdge[a]] += c;
-                    }
-                }
-            }
+            const v = scratch.order[i];
+            pullDependencies(s, alive, scratch, v, edge);
             if (node !== null && v !== source) {
-                node[v] += endpoints ? delta[v] + 1 : delta[v];
+                node[v] += endpoints ? scratch.delta[v] + 1 : scratch.delta[v];
             }
         }
         if (node !== null && endpoints) {
             node[source] += tail - 1;
         }
-        for (let i = 0; i < tail; i++) {
-            const v = order[i];
-            depth[v] = -1;
-            sigma[v] = 0;
-            delta[v] = 0;
+        clearScratch(scratch, tail);
+    }
+}
+
+/** The per-node arrays one Brandes pass reuses for every source; all at rest between sources. */
+interface BrandesScratch {
+    /** Breadth-first depth from the source, -1 when unreached. */
+    readonly depth: Int32Array;
+    /** Shortest-path counts from the source. */
+    readonly sigma: Float64Array;
+    /** Dependency sums. */
+    readonly delta: Float64Array;
+    /** The nodes reached, in visit order. */
+    readonly order: Uint32Array;
+}
+
+/**
+ * Whether arc `a` is skipped: a repeat of the neighbour before it in the row (a parallel edge), or a dead edge.
+ * @param s - The snapshot
+ * @param alive - Kept edges, or null for all
+ * @param a - The arc
+ * @param prev - The neighbour of the last arc kept in this row, or -1
+ * @returns True when the arc takes no part
+ */
+function skipArc(s: GraphSnapshot, alive: EdgeMask | null, a: number, prev: number): boolean {
+    return s.colIdx[a] === prev || (alive !== null && !maskTest(alive, s.arcToEdge[a]));
+}
+
+/**
+ * The breadth-first sweep from one source: depths, visit order and shortest-path counts.
+ * @param s - The snapshot
+ * @param alive - Kept edges, or null for all
+ * @param scratch - The arrays, at rest
+ * @param source - The source node
+ * @returns The number of nodes reached, the source included
+ */
+function countPaths(s: GraphSnapshot, alive: EdgeMask | null, scratch: BrandesScratch, source: number): number {
+    const { depth, sigma, order } = scratch;
+    let head = 0;
+    let tail = 0;
+    depth[source] = 0;
+    sigma[source] = 1;
+    order[tail++] = source;
+    while (head < tail) {
+        tail = visitNeighbours(s, alive, scratch, order[head++], tail);
+    }
+    return tail;
+}
+
+/**
+ * Expand one node of the sweep: queue its undiscovered neighbours and add its path count to the ones a level down.
+ * @param s - The snapshot
+ * @param alive - Kept edges, or null for all
+ * @param scratch - The arrays
+ * @param v - The node expanded
+ * @param tail - The queue's length now
+ * @returns The queue's length after
+ */
+function visitNeighbours(
+    s: GraphSnapshot,
+    alive: EdgeMask | null,
+    scratch: BrandesScratch,
+    v: number,
+    tail: number,
+): number {
+    const { rowPtr, colIdx } = s;
+    const { depth, sigma, order } = scratch;
+    const next = depth[v] + 1;
+    let prev = -1;
+    for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
+        if (skipArc(s, alive, a, prev)) {
+            continue;
         }
+        const w = colIdx[a];
+        prev = w;
+        if (depth[w] < 0) {
+            depth[w] = next;
+            order[tail++] = w;
+        }
+        if (depth[w] === next) {
+            sigma[w] += sigma[v];
+        }
+    }
+    return tail;
+}
+
+/**
+ * Pull the dependencies of `v`'s successors one level down into `delta[v]`, and each arc's share into `edge`.
+ * @param s - The snapshot
+ * @param alive - Kept edges, or null for all
+ * @param scratch - The arrays
+ * @param v - The node
+ * @param edge - Edge sums, or null
+ */
+function pullDependencies(
+    s: GraphSnapshot,
+    alive: EdgeMask | null,
+    scratch: BrandesScratch,
+    v: number,
+    edge: F64 | null,
+): void {
+    const { rowPtr, colIdx, arcToEdge } = s;
+    const { depth, sigma, delta } = scratch;
+    const next = depth[v] + 1;
+    let prev = -1;
+    for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
+        if (skipArc(s, alive, a, prev)) {
+            continue;
+        }
+        const w = colIdx[a];
+        prev = w;
+        if (depth[w] === next) {
+            const c = (sigma[v] / sigma[w]) * (1 + delta[w]);
+            delta[v] += c;
+            if (edge !== null) {
+                edge[arcToEdge[a]] += c;
+            }
+        }
+    }
+}
+
+/**
+ * Put back to rest the entries one source's sweep touched.
+ * @param scratch - The arrays
+ * @param tail - The number of nodes the sweep reached
+ */
+function clearScratch(scratch: BrandesScratch, tail: number): void {
+    const { depth, sigma, delta, order } = scratch;
+    for (let i = 0; i < tail; i++) {
+        const v = order[i];
+        depth[v] = -1;
+        sigma[v] = 0;
+        delta[v] = 0;
     }
 }
 

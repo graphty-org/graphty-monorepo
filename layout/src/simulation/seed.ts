@@ -172,27 +172,29 @@ function fitDrawBox(
     }
 }
 
+/** What {@link seedRow} draws with. */
+interface SeedDraw {
+    /** The generator. */
+    readonly rng: Lcg;
+    /** The draw box's low corner (layout units). */
+    readonly boxLo: readonly number[];
+    /** The draw box's high corner. */
+    readonly boxHi: readonly number[];
+    /** The scene scale. */
+    readonly scale: number;
+    /** The scene center. */
+    readonly c: readonly number[];
+}
+
 /**
  * Draw every non-finite component of row i, in axis order, inside the draw box; in 2D write center[2] as z.
  * @param positions - the stride-3 array
  * @param i - the row
  * @param dim - 2 or 3
- * @param rng - the generator
- * @param boxLo - the draw box's low corner (layout units)
- * @param boxHi - the draw box's high corner
- * @param scale - the scene scale
- * @param c - the scene center
+ * @param draw - the generator, the box and the scene transform
  */
-function seedRow(
-    positions: F32 | F64,
-    i: number,
-    dim: number,
-    rng: Lcg,
-    boxLo: readonly number[],
-    boxHi: readonly number[],
-    scale: number,
-    c: readonly number[],
-): void {
+function seedRow(positions: F32 | F64, i: number, dim: number, draw: SeedDraw): void {
+    const { rng, boxLo, boxHi, scale, c } = draw;
     for (let axis = 0; axis < dim; axis++) {
         const at = 3 * i + axis;
         if (!Number.isFinite(positions[at])) {
@@ -259,10 +261,10 @@ export function seedPositions(
         fitDrawBox(lo, hi, c, scale, dim, boxLo, boxHi);
     }
 
-    const rng = new Lcg(seed);
+    const draw: SeedDraw = { rng: new Lcg(seed), boxLo, boxHi, scale, c };
     for (let i = 0; i < n; i++) {
         if (!rowFinite(positions, i, dim)) {
-            seedRow(positions, i, dim, rng, boxLo, boxHi, scale, c);
+            seedRow(positions, i, dim, draw);
         }
     }
 }

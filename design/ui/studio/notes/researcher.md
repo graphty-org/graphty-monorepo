@@ -10,6 +10,17 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-11-02) Tier 5 criteria review: bar 9's overwhelm rating did not separate three placements
+  in the placement study (2-3 everywhere) while the owner said "walk away": calibrate it against the
+  rejected in-sidebar build in the dry run before it gates anything.
+- (2026-11-02) Known severity 3 candidates (two count bases, false "Covered by" warning, table and
+  strip drawn together) and T75 A's blocked step must be closed or confirmed before round 1, or the
+  round fails bars 1, 4 and 9 by construction and teaches nothing new.
+- (2026-11-02) Echo check on tier 5: grep prompts against the catalog's search keywords too (Degree's
+  "neighbors" hits T78 B's "neighboring"), and against detour labels ("Add instead", Analyze's
+  "Either direction").
+- (2026-11-02) A task whose success path never opens the feature (T76's preset) measures nothing
+  about it; spend its sessions where the placement study was weakest (T78, weak links).
 - (2026-10-30) The studio stopped at its 1-round cap with bars 2, 3, 5, 6 and 7 failing as frozen.
   One round cannot both find and confirm fixes: plan the cap so a fix round and a re-test round
   fit, and fix the study tool (popover-on-hover) and the bar definitions (bar 2 key, bar 3 hover
@@ -81,6 +92,22 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-11-02 (tier 5 criteria review, before any session):** Proposed eight changes, applied
+  none (the Director freezes): (1) calibrate bar 9's rating with 2 dry-run sessions on the
+  owner-rejected build 7dfd51c277 and ask the rating before the owner's preview/table question;
+  gate on it only if it separates the builds; (2) calm-first: cap open severity 2 clutter, add
+  blank columns, row breaks and misalignment (the owner's own words), run at 1280 x 800 too;
+  (3) the reference picker on 50,000 nodes in the scripted walk and calm-first (the owner's named
+  example); (4) close or confirm the known severity 3 candidates in the dry run; (5) "no task
+  blocked" as a start gate (T75 A); (6) move T76's 2 sessions to T78 and count fix 1 re-tested only
+  on the Edges where route; (7) reword T78 B "neighboring", T73 B / T78 B "either direction", T77 A
+  "instead of"; (8) wrong turns before success only, hovers not turns, and a table of which expert
+  feeds which bar (the accessibility walk's keyboard blocks into bar 5). Reason: each either lets a
+  bar pass or fail for a reason that is not the design, or leaves the owner's complaint ungated.
+  Evidence: criteria.md, tasks.md, answers.md build notes, placement-study.md, decided.md,
+  graphty-element/src/catalog/algorithms.ts (Degree keywords), graphty/src/workspace/selection/
+  StepPane.tsx ("Add instead"), graphty/src/workspace/analyze/words.ts ("Either direction").
+
 - **2026-10-30 (studio stopped after tier 4 round 1):** Record the round as findings, not a
   verdict on the design: two failing bars (2, 3) are partly study artifacts (key definition, tool
   hover line, inconsistent hover counting). Reason: a stop at the cap leaves no re-test, so the
@@ -136,6 +163,9 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (tier 5 criteria) -- Worked: grepping prompt words against the catalog's
+  `keywords` and the selection's value labels, not only rendered text; found one fix-alias echo and
+  two detour echoes. Did not work: grepping whole source trees for common words (mostly comments).
 - 2026-10-30 (insights) -- Worked: viewing each owner screenshot before citing it (r1-s03/20.png
   showed "deliveri...", not one letter: wording corrected). Did not work: my scoring trusted the
   tool's `tooltip: null` and grader wrong-turn counts that included post-success checks.
@@ -162,6 +192,10 @@ logged). Their reasons, in short:
 
 ## Thinking
 
+- 2026-11-02 -- A self-rating that does not move between designs the owner rates very
+  differently cannot stand in for the owner. Prove a measure discriminates before it gates.
+- 2026-11-02 -- When a bar's severity scale puts the owner's actual complaint (clutter) at 2 and
+  only 3s gate, the bar can hold while the complaint stands.
 - 2026-10-30 -- Simulated participants trust the tool's text over the picture. Every tool line
   that says "nothing" is a claim to verify against the screenshot, before it becomes a finding.
 - 2026-10-30 -- A trap that a task's order guarantees (filter first, then mark) measures the task

@@ -8,6 +8,7 @@
  *
  * Test code only; nothing here is graphty-element API.
  */
+import { pictureGradient, type Pixels } from "./picture-gradient";
 import {
     boxOfPoints,
     dashClassOf,
@@ -917,9 +918,10 @@ export interface SvgPrimitives {
 /**
  * Reads every visible drawing primitive of an SVG document.
  * @param svgText - the SVG file's text
+ * @param pictures - the pictures it embeds, decoded, by their `href`: an image whose pixels are a gradient carries it
  * @returns its rendered size and its primitives
  */
-export function readSvgPrimitives(svgText: string): SvgPrimitives {
+export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string, Pixels> = new Map()): SvgPrimitives {
     const parsed = new DOMParser().parseFromString(svgText, "image/svg+xml");
     const error = parsed.querySelector("parsererror");
     if (error !== null) {
@@ -1023,7 +1025,11 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 continue;
             }
             if (tag === "image") {
+                const href = el.getAttribute("href") ?? el.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+                const pixels = href === null ? undefined : pictures.get(href.replace(/\s+/g, ""));
+                const gradient = pixels === undefined ? null : pictureGradient(pixels);
                 prims.push({
+                    ...(gradient === null ? {} : { gradient }),
                     index: i,
                     tag,
                     kind: "image",

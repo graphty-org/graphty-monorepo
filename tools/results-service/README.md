@@ -71,9 +71,11 @@ A record id names the run that wrote it: `<run_id>.<run_attempt>.<job>.<group>.<
 
 `.github/workflows/results-service.yml` deploys from master on every push that touches this directory
 or `tools/release-scheduler/`: it runs both Workers' tests, creates the D1 database on its first run,
-applies `migrations/`, runs `backfill.sql` until it answers `finished = 1`, and deploys both Workers. It needs the repository secrets
-`CLOUDFLARE_API_TOKEN` (Workers Scripts edit and D1 edit) and `CLOUDFLARE_ACCOUNT_ID`, and checks
-`/v1/health` at the repository variable `RESULTS_URL`.
+deploys the results Worker, applies `migrations/`, runs `backfill.sql` until it answers `finished = 1`
+(retrying what D1 refuses), and deploys the release scheduler. Until the backfill finishes,
+`POST /v1/durations` stores rows but answers no `trend` or `lastSeen`. It needs the repository
+secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts edit and D1 edit) and `CLOUDFLARE_ACCOUNT_ID`,
+and checks `/v1/health` at the repository variable `RESULTS_URL`.
 
 Once, after the first deploy:
 

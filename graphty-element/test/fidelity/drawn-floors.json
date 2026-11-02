@@ -117,7 +117,7 @@
             "position": 1,
             "size": 1,
             "shape": 1,
-            "fill": 1,
+            "fill": 0.8793,
             "fillOpacity": 0.9508196721311475,
             "borderColor": 0.9508196721311475,
             "borderWidth": 0.9508196721311475,
@@ -908,6 +908,12 @@
         "xgmml-syn-bypass/annotations": "Not a merge loss: fails the same way on the base and on every fix branch (0.25 against 0.273); not investigated in this merge (2026-10-18)."
     },
     "lowered": {
+        "xgmml-syn-bypass/fill": {
+            "from": 1,
+            "to": 0.8793,
+            "reason": "reference, not the drawing: the XGMML reference reads a node's fill from its graphics fill attribute, Cytoscape's NODE_FILL_COLOR, which Cytoscape desktop paints over with the node's gradient custom graphic; graphty draws those gradients now (#4515), starting at their first color, and the oracle scorecard against Cytoscape's own SVG reads the same gradients off its pictures (xgmml-syn-bypass node.fill and node.gradient pass there)",
+            "date": "2026-11-01"
+        },
         "xgmml-syn-bypass/edgeWidth": {
             "from": 1,
             "to": 0.9884,

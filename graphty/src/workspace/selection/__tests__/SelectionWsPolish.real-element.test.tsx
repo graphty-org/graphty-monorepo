@@ -117,20 +117,22 @@ const COVERED: UnionLeaf = {
 };
 
 describe("a selection with no step", () => {
-    it("opens on its new step's pane with the value field focused, and the picker opens beside it", async () => {
+    it("opens on its new step's pane with the value picker open beside it, its search focused", async () => {
         const { session } = await openSample();
         await openLayer(session, "Fresh");
         const ws = await edit();
         const field = await waitFor(() => {
             const found = ws.querySelector<HTMLElement>(".sel-ws-props [data-first-focus]");
             assert.isNotNull(found, "the new step's value field");
-            assert.strictEqual(document.activeElement, found, "has focus");
             return found;
         });
         // The outline has no Condition row under All nodes.
         assert.isNull(ws.querySelector(".sel-ws-outline .sel-add-row"));
-        await userEvent.keyboard("{Enter}");
+        // The picker is open at once (ws-polish 3), and typing goes to its search.
         const list = await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, list);
+        });
         const props = ws.querySelector(".sel-ws-props")?.getBoundingClientRect();
         const box = list.getBoundingClientRect();
         assert.isAtLeast(box.left, (props?.left ?? 0) - 1, "the picker opens in the properties column");

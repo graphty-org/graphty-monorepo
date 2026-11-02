@@ -162,8 +162,8 @@ function link(g: Aggregates, x: number, y: number): number {
  * @returns The stored distance
  */
 function pairDistance(g: Aggregates, x: number, y: number): number {
-    const early = x < y ? x : y;
-    const late = x < y ? y : x;
+    const early = Math.min(x, y);
+    const late = Math.max(x, y);
     return late < g.n ? link(g, early, late) : link(g, late, early);
 }
 

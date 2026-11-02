@@ -114,6 +114,20 @@ function tallyOf(n: number): Tally {
 }
 
 /** The local-moving work queue: a ring of node ids, with `queued` marking the nodes in it. */
+/** The communities of a fast local move, with the modularity gain's constants. */
+interface Communities {
+    /** Total degree of every community. */
+    readonly tot: F64;
+    /** Size of every community. */
+    readonly size: U32;
+    /** Empty communities, the next to use last. */
+    readonly empty: number[];
+    /** Resolution gamma. */
+    readonly resolution: number;
+    /** Twice the total edge weight. */
+    readonly m2: number;
+}
+
 interface Ring {
     readonly queue: U32;
     readonly queued: Uint8Array;
@@ -158,27 +172,13 @@ function tallyNeighbourCommunities(level: Level, comm: U32, t: Tally, u: number,
  * @param cnt - Communities in the tally
  * @param cu - u's community
  * @param ku - u's weighted degree
- * @param tot - Total degree of every community, without u
- * @param size - Size of every community, without u
- * @param empty - Empty communities, the next to use last
+ * @param cs - The communities without u, and the gain's constants
  * @param visit - The visit number
- * @param resolution - Resolution gamma
- * @param m2 - Twice the total edge weight
  * @returns The chosen community
  */
-function chooseCommunity(
-    t: Tally,
-    cnt: number,
-    cu: number,
-    ku: number,
-    tot: F64,
-    size: U32,
-    empty: number[],
-    visit: number,
-    resolution: number,
-    m2: number,
-): number {
+function chooseCommunity(t: Tally, cnt: number, cu: number, ku: number, cs: Communities, visit: number): number {
     const { acc, stamp, touched } = t;
+    const { tot, size, empty, resolution, m2 } = cs;
     let best = cu;
     let bestGain = (stamp[cu] === visit ? acc[cu] : 0) - (resolution * ku * tot[cu]) / m2;
     for (let i = 0; i < cnt; i++) {
@@ -255,6 +255,7 @@ function moveNodesFast(level: Level, comm: U32, rand: () => number, resolution: 
         size[comm[u]]++;
     }
     const empty = emptyCommunities(size);
+    const cs: Communities = { tot, size, empty, resolution, m2 };
     const t = tallyOf(n);
     const capacity = n + 1;
     const queue = new Uint32Array(capacity);
@@ -271,7 +272,7 @@ function moveNodesFast(level: Level, comm: U32, rand: () => number, resolution: 
         tot[cu] -= ku;
         size[cu]--;
         const cnt = tallyNeighbourCommunities(level, comm, t, u, visit);
-        const best = chooseCommunity(t, cnt, cu, ku, tot, size, empty, visit, resolution, m2);
+        const best = chooseCommunity(t, cnt, cu, ku, cs, visit);
         tot[best] += ku;
         size[best]++;
         if (best === cu) {

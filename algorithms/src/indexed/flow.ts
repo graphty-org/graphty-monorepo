@@ -179,7 +179,6 @@ interface Residual {
  * @param r - The doubled graph: the edges, then the same edges reversed
  * @param u - The row
  * @param directed - Whether the original snapshot is directed (a reverse arc is then not real)
- * @param E - The original edge count
  * @param capacity - Per-edge capacities
  * @param groupOf - Receives the group of every arc of the row
  * @param real - Receives 1 for a group with a real arc
@@ -189,13 +188,14 @@ function groupRow(
     r: GraphSnapshot,
     u: number,
     directed: boolean,
-    E: number,
     capacity: Float64Array,
     groupOf: U32,
     real: Uint8Array,
     residual: Float64Array,
 ): void {
     const { rowPtr, colIdx, arcToEdge } = r;
+    // r holds each original edge twice: edge e as e, its reverse as e + E.
+    const E = r.edgeCount / 2;
     for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
         const g = a > rowPtr[u] && colIdx[a] === colIdx[a - 1] ? groupOf[a - 1] : a;
         groupOf[a] = g;
@@ -233,7 +233,7 @@ function buildResidual(s: GraphSnapshot, capacity: Float64Array): Residual {
     const groupOf = new Uint32Array(A);
     const real = new Uint8Array(A);
     for (let u = 0; u < n; u++) {
-        groupRow(r, u, s.directed, E, capacity, groupOf, real, residual);
+        groupRow(r, u, s.directed, capacity, groupOf, real, residual);
     }
     const twin = new Uint32Array(A);
     for (let a = 0; a < A; a++) {

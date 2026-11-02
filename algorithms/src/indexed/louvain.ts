@@ -160,6 +160,7 @@ function localMove(level: Level, comm: Uint32Array, resolution: number, m2: numb
     // value left in acc by an earlier visit is never mistaken for this one's.
     const stamp = new Int32Array(n).fill(-1);
     const touched = new Uint32Array(n);
+    const g: Gains = { tot, acc, stamp, touched, resolution, m2 };
     // A ring of n + 1 slots: `queued` keeps a node out of the queue twice, so n entries is the most
     // that can be waiting.
     const capacity = n + 1;
@@ -185,7 +186,7 @@ function localMove(level: Level, comm: Uint32Array, resolution: number, m2: numb
         tot[cu] -= ku;
         mark++;
         const cnt = tallyCommunities(level, comm, u, mark, acc, stamp, touched);
-        const best = bestCommunity(cnt, cu, ku, tot, mark, acc, stamp, touched, resolution, m2);
+        const best = bestCommunity(g, cnt, cu, ku, mark);
         tot[best] += ku;
         if (best === cu) {
             continue;
@@ -265,32 +266,33 @@ function tallyCommunities(
     return cnt;
 }
 
+/** What a modularity gain is computed from during a local move. */
+interface Gains {
+    /** Total degree of every community, without the node being moved. */
+    readonly tot: Float64Array;
+    /** Weight from u per community, valid where `stamp` is the visit's mark. */
+    readonly acc: Float64Array;
+    /** Visit that last wrote each community. */
+    readonly stamp: Int32Array;
+    /** The communities met. */
+    readonly touched: Uint32Array;
+    /** Resolution gamma. */
+    readonly resolution: number;
+    /** Twice the total edge weight. */
+    readonly m2: number;
+}
+
 /**
  * The community with the largest modularity gain for u, its own (cu) unless another gains more.
+ * @param g - The gain inputs
  * @param cnt - Communities in `touched`
  * @param cu - u's community
  * @param ku - u's weighted degree
- * @param tot - Total degree of every community, without u
  * @param mark - The visit stamp
- * @param acc - Weight from u per community
- * @param stamp - Visit that last wrote each community
- * @param touched - The communities met
- * @param resolution - Resolution gamma
- * @param m2 - Twice the total edge weight
  * @returns The chosen community
  */
-function bestCommunity(
-    cnt: number,
-    cu: number,
-    ku: number,
-    tot: Float64Array,
-    mark: number,
-    acc: Float64Array,
-    stamp: Int32Array,
-    touched: Uint32Array,
-    resolution: number,
-    m2: number,
-): number {
+function bestCommunity(g: Gains, cnt: number, cu: number, ku: number, mark: number): number {
+    const { tot, acc, stamp, touched, resolution, m2 } = g;
     let best = cu;
     let bestGain = (stamp[cu] === mark ? acc[cu] : 0) - (resolution * ku * tot[cu]) / m2;
     for (let i = 0; i < cnt; i++) {

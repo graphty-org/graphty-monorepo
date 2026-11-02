@@ -219,7 +219,8 @@ export const FilterCards: Story = {
 
         // Group 2 or more, typed in its From box and committed.
         await addFilter(canvasElement, "group");
-        const from = await place.findByRole("textbox", { name: "group from, number" });
+        // The new card opens in the selection workspace, beside the Data place.
+        const from = await within(document.body).findByRole("textbox", { name: "group from, number" });
         await userEvent.clear(from);
         await userEvent.type(from, "2{Enter}");
         await holds(element, 1);

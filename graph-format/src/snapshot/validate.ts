@@ -879,13 +879,25 @@ function columnArrays(column: Column): readonly [string, ArrayBufferView | null]
  * @param s - the snapshot (for the referenced row counts)
  */
 export function checkColumnRules(table: string, column: Column, rows: number, s: GraphSnapshot): void {
+    checkColumnFrame(table, column, rows);
+    checkColumnPayload(table, column, rows, s);
+}
+
+/**
+ * The dtype-independent rules of {@link checkColumnRules}: the row count, the validity length, the
+ * recorded nullCount and the plain ArrayBuffer rule.
+ * @param table - the table name for the message
+ * @param column - the column
+ * @param rows - the table's row count
+ */
+function checkColumnFrame(table: string, column: Column, rows: number): void {
     if (column.length !== rows) {
         throw columnViolation(table, column, `has ${column.length} rows, expected ${rows}`, {
             expected: rows,
             found: column.length,
         });
     }
-    const { validity, meta } = column;
+    const { validity } = column;
     const validityWords = Math.ceil(rows / 32);
     if (validity !== null && validity.length !== validityWords) {
         throw columnViolation(table, column, `validity has ${validity.length} words, expected ${validityWords}`, {
@@ -914,6 +926,18 @@ export function checkColumnRules(table: string, column: Column, rows: number, s:
             });
         }
     }
+}
+
+/**
+ * The per-dtype length, code and reference rules of {@link checkColumnRules}.
+ * @param table - the table name for the message
+ * @param column - the column
+ * @param rows - the table's row count
+ * @param s - the snapshot (for the referenced row counts)
+ */
+function checkColumnPayload(table: string, column: Column, rows: number, s: GraphSnapshot): void {
+    const { meta } = column;
+    const validityWords = Math.ceil(rows / 32);
     const refBound = meta.refersTo === "node" ? s.nodeCount : s.edgeCount;
     const { dtype } = column;
     switch (dtype) {
@@ -921,19 +945,9 @@ export function checkColumnRules(table: string, column: Column, rows: number, s:
         case "f64":
         case "i32":
         case "u32":
-        case "u8": {
-            const expected = rows * meta.components;
-            if (column.data.length !== expected) {
-                throw columnViolation(table, column, `data has ${column.data.length} values, expected ${expected}`, {
-                    expected,
-                    found: column.data.length,
-                });
-            }
-            if (meta.refersTo !== null) {
-                checkColumnReferences(table, column, refBound);
-            }
+        case "u8":
+            checkNumericData(table, column, rows, refBound);
             break;
-        }
         case "bool":
             if (column.data.length !== validityWords) {
                 throw columnViolation(
@@ -954,15 +968,7 @@ export function checkColumnRules(table: string, column: Column, rows: number, s:
                     found: column.codes.length,
                 });
             }
-            const size = column.dictionary.length;
-            for (let r = 0; r < rows; r++) {
-                if (column.codes[r] >= size && (validity === null || bitmapGet(validity, r))) {
-                    throw columnViolation(table, column, `code ${column.codes[r]} at row ${r} is not below ${size}`, {
-                        row: r,
-                        found: column.codes[r],
-                    });
-                }
-            }
+            checkDictCodes(table, column, rows);
             break;
         }
         case "string":
@@ -990,6 +996,51 @@ export function checkColumnRules(table: string, column: Column, rows: number, s:
         default: {
             const unknown: never = dtype;
             throw columnViolation(table, column, `unknown dtype ${String(unknown)}`);
+        }
+    }
+}
+
+/**
+ * A numeric column holds `components` values per row, and its references are in range.
+ * @param table - the table name for the message
+ * @param column - the numeric column
+ * @param rows - the table's row count
+ * @param refBound - the referenced table's row count
+ */
+function checkNumericData(
+    table: string,
+    column: Extract<Column, { dtype: "f32" | "f64" | "i32" | "u32" | "u8" }>,
+    rows: number,
+    refBound: number,
+): void {
+    const { meta } = column;
+    const expected = rows * meta.components;
+    if (column.data.length !== expected) {
+        throw columnViolation(table, column, `data has ${column.data.length} values, expected ${expected}`, {
+            expected,
+            found: column.data.length,
+        });
+    }
+    if (meta.refersTo !== null) {
+        checkColumnReferences(table, column, refBound);
+    }
+}
+
+/**
+ * Every set row of a dict column has a code below the dictionary size.
+ * @param table - the table name for the message
+ * @param column - the dict column
+ * @param rows - the table's row count
+ */
+function checkDictCodes(table: string, column: Extract<Column, { dtype: "dict" }>, rows: number): void {
+    const { validity } = column;
+    const size = column.dictionary.length;
+    for (let r = 0; r < rows; r++) {
+        if (column.codes[r] >= size && (validity === null || bitmapGet(validity, r))) {
+            throw columnViolation(table, column, `code ${column.codes[r]} at row ${r} is not below ${size}`, {
+                row: r,
+                found: column.codes[r],
+            });
         }
     }
 }

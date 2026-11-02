@@ -553,7 +553,9 @@ function writeColumn(
  */
 function testsOf(e: Emit, target: StyleTarget, where: Predicate): string[] | null {
     if ("all" in where) {
-        return where.all ? [""] : null;
+        // the rule is the caller's, so `all` can be any value
+        const { all }: { all: unknown } = where;
+        return all ? [""] : null;
     }
     if ("has" in where) {
         const k = keyOf(e, target, where.has);

@@ -88,6 +88,7 @@ import {
 import { rerunnable } from "./release-rerun.mjs";
 import { reportsFailure as releaseReportsFailure } from "./release-status.mjs";
 import { strayChanges } from "./release-diff.mjs";
+import { trackedFiles } from "./tracked-files.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
 // The temporary directories this file makes go inside this one, removed when the file finishes.
@@ -2081,10 +2082,9 @@ jobs:
             assert.ok(inputs.includes(`{workspaceRoot}/${dir}/**/*`), dir);
         }
         const root = new URL("../", import.meta.url);
-        for (const dir of readdirSync(root)) {
-            const file = new URL(`${dir}/project.json`, root);
-            const own = existsSync(file) && JSON.parse(readFileSync(file, "utf8")).targets?.lint?.inputs;
-            if (own) assert.ok(own.includes("^production"), dir);
+        for (const file of trackedFiles(/^[^/]+\/project\.json$/)) {
+            const own = JSON.parse(readFileSync(new URL(file, root), "utf8")).targets?.lint?.inputs;
+            if (own) assert.ok(own.includes("^production"), file);
         }
     });
 

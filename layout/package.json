@@ -33,7 +33,7 @@
         "test:coverage": "vitest run --coverage",
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
-        "lint": "eslint && tsc --noEmit && npm run typecheck:consumer",
+        "lint": "eslint && tsc --noEmit && npm run typecheck:consumer && node ../tools/require-built.mjs tsconfig.eslint.json && tsc -p tsconfig.eslint.json",
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace layout",
         "typecheck": "tsc --noEmit",

@@ -12,6 +12,8 @@
 
 import { type ColumnDecl, type ColumnRole, GraphFormatError } from "@graphty/graph-format";
 
+import { itemAt } from "./text.js";
+
 /**
  * The temporal kinds a declared type can map to; each fixes the parse grammar and the canonical text.
  * @category Plugin helpers
@@ -218,10 +220,11 @@ function parseDateTime(text: string, kind: "date" | "dateTime" | "localDateTime"
     const y = Number(m[1]);
     const month = Number(m[2]);
     const day = Number(m[3]);
-    const hour = m[4] === undefined ? 0 : Number(m[4]);
-    const minute = m[5] === undefined ? 0 : Number(m[5]);
-    const second = m[6] === undefined ? 0 : Number(m[6]);
-    const ms = m[7] === undefined ? 0 : fractionMs(m[7]);
+    const hour = Number(itemAt(m, 4) ?? 0);
+    const minute = Number(itemAt(m, 5) ?? 0);
+    const second = Number(itemAt(m, 6) ?? 0);
+    const fraction = itemAt(m, 7);
+    const ms = fraction === undefined ? 0 : fractionMs(fraction);
     if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 24 || minute > 59 || second > 60) {
         throw new GraphFormatError("E_COLUMN_TYPE", `"${text}" is out of range for a ${kind}`, { value: text, kind });
     }
@@ -232,7 +235,8 @@ function parseDateTime(text: string, kind: "date" | "dateTime" | "localDateTime"
     if (d.getUTCDate() !== day && hour !== 24) {
         throw new GraphFormatError("E_COLUMN_TYPE", `"${text}" is not a calendar date`, { value: text, kind });
     }
-    const offset = m[8] === undefined ? 0 : offsetMinutes(m[8]);
+    const zone = itemAt(m, 8);
+    const offset = zone === undefined ? 0 : offsetMinutes(zone);
     return d.getTime() - offset * MS_PER_MINUTE;
 }
 
@@ -249,13 +253,15 @@ function parseTime(text: string, kind: "time" | "localTime"): number {
     }
     const hour = Number(m[1]);
     const minute = Number(m[2]);
-    const second = m[3] === undefined ? 0 : Number(m[3]);
-    const ms = m[4] === undefined ? 0 : fractionMs(m[4]);
+    const second = Number(itemAt(m, 3) ?? 0);
+    const fraction = itemAt(m, 4);
+    const ms = fraction === undefined ? 0 : fractionMs(fraction);
     if (hour > 24 || minute > 59 || second > 60) {
         throw new GraphFormatError("E_COLUMN_TYPE", `"${text}" is out of range for a ${kind}`, { value: text, kind });
     }
     const local = ((hour * 60 + minute) * 60 + second) * 1000 + ms;
-    const offset = m[5] === undefined ? 0 : offsetMinutes(m[5]);
+    const zone = itemAt(m, 5);
+    const offset = zone === undefined ? 0 : offsetMinutes(zone);
     const utc = local - offset * MS_PER_MINUTE;
     return ((utc % MS_PER_DAY) + MS_PER_DAY) % MS_PER_DAY;
 }

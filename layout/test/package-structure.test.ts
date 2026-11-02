@@ -3,26 +3,29 @@ import { readFileSync } from "node:fs";
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
-import { assert, describe, expect, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 describe("Package Structure", () => {
     it("should have dist/layout.js as the main entry point", async () => {
-        const packageJson = JSON.parse(await readFile(join(process.cwd(), "package.json"), "utf-8"));
+        const packageJson = JSON.parse(await readFile(join(process.cwd(), "package.json"), "utf-8")) as {
+            main: string;
+            exports: Record<string, { import: string }>;
+        };
 
-        expect(packageJson.main).toBe("dist/layout.js");
-        expect(packageJson.exports["."].import).toBe("./dist/layout.js");
+        assert.strictEqual(packageJson.main, "dist/layout.js");
+        assert.strictEqual(packageJson.exports["."].import, "./dist/layout.js");
     });
 
     it("should have dist/layout.js file after build", () => {
         const layoutPath = join(process.cwd(), "dist/layout.js");
         const exists = existsSync(layoutPath);
 
-        expect(exists).toBe(true);
+        assert.strictEqual(exists, true);
     });
 
     it("should export all expected functions from bundle", async () => {
         // Dynamically import the bundle
-        const bundle = await import("../dist/layout.js");
+        const bundle: Record<string, unknown> = await import("../dist/layout.js");
 
         // Check key exports exist
         const expectedExports = [
@@ -45,13 +48,13 @@ describe("Package Structure", () => {
         ];
 
         for (const exportName of expectedExports) {
-            expect(bundle[exportName]).toBeDefined();
-            expect(typeof bundle[exportName]).toBe("function");
+            assert.isDefined(bundle[exportName]);
+            assert.strictEqual(typeof bundle[exportName], "function");
         }
     });
 
     it("exports the simulation seam (design 9.3)", async () => {
-        const layout = await import("../dist/layout.js");
+        const layout: Record<string, unknown> = await import("../dist/layout.js");
         for (const name of [
             "createSimulation",
             "ForceAtlas2Simulation",
@@ -72,8 +75,10 @@ describe("Package Structure", () => {
 
     it("keeps the indexed namespace as an alias of the top-level layouts", async () => {
         const layout = await import("../dist/layout.js");
+        const top: Record<string, unknown> = layout;
+        const { indexed }: { indexed: Record<string, unknown> } = layout;
         for (const name of ["kamadaKawai", "forceAtlas2", "fruchtermanReingold", "arf"]) {
-            assert.equal(layout.indexed[name], layout[name], `indexed.${name} is ${name}`);
+            assert.equal(indexed[name], top[name], `indexed.${name} is ${name}`);
         }
     });
 

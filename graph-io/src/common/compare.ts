@@ -6,6 +6,8 @@
 
 import { type Column, type GraphSnapshot } from "@graphty/graph-format";
 
+import { jsonText } from "./text.js";
+
 /**
  * One difference between two snapshots.
  * @category Plugin helpers
@@ -454,8 +456,7 @@ function show(v: unknown): string {
         return `[${items.slice(0, 8).join(", ")}${items.length > 8 ? ", ..." : ""}]`;
     }
     try {
-        const text = JSON.stringify(v);
-        return text ?? String(v);
+        return jsonText(v) ?? String(v);
     } catch {
         return String(v);
     }

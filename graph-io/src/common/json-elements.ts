@@ -36,7 +36,7 @@ import {
 } from "./codes.js";
 import { agree, plural } from "./plural.js";
 import { type ImportReportBuilder } from "./report.js";
-import { trimTrailingZeros } from "./text.js";
+import { itemAt, jsonText, trimTrailingZeros } from "./text.js";
 
 // ============================================================ exact integers
 
@@ -191,8 +191,9 @@ function isInexactLiteral(literal: string): boolean {
     if (m === null) {
         return false;
     }
-    const digits = trimTrailingZeros(m[2] + (m[3] ?? ""));
-    const exponent = Number(m[4] ?? "0") - (m[3] ?? "").length + ((m[2] + (m[3] ?? "")).length - digits.length);
+    const fraction = itemAt(m, 3) ?? "";
+    const digits = trimTrailingZeros(m[2] + fraction);
+    const exponent = Number(itemAt(m, 4) ?? "0") - fraction.length + ((m[2] + fraction).length - digits.length);
     if (digits.replace(/^0+/, "").length <= 15 || exponent < 0) {
         // up to 15 significant digits the nearest double reads back as the same text (1e39 is the
         // float it says); a fraction that rounds to an integer is ordinary floating-point rounding
@@ -2087,7 +2088,7 @@ export class CxStructure {
             this.report.warning(
                 "validation-error",
                 COUNT_MISMATCH_CODE,
-                `a metaData element declares the elementCount ${shownCount} for the name ${JSON.stringify(value.name) ?? "undefined"}; not a count of a named aspect, not checked`,
+                `a metaData element declares the elementCount ${shownCount} for the name ${jsonText(value.name) ?? "undefined"}; not a count of a named aspect, not checked`,
                 { line, element: "metaData" },
             );
             return;

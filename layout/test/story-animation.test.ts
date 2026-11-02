@@ -42,6 +42,8 @@ describe("layout story animation", () => {
         });
 
         let done = false;
+        // read through a call: the callback below sets `done` during the awaits, which narrowing cannot see
+        const finished = (): boolean => done;
         void Promise.resolve(updatePositions(svg, graph, final)).then(() => {
             done = true;
         });
@@ -50,7 +52,7 @@ describe("layout story animation", () => {
         let frames = 0;
         let midFrames = 0;
         let end = start;
-        while (!done) {
+        while (!finished()) {
             await new Promise((resolve) => requestAnimationFrame(resolve));
             frames++;
             assert.isBelow(frames, 1000, "the animation never finished");
@@ -69,7 +71,7 @@ describe("layout story animation", () => {
                 );
             }
             const now = center(svg, "0");
-            if (!done && (now.x !== start.x || now.y !== start.y)) {
+            if (!finished() && (now.x !== start.x || now.y !== start.y)) {
                 midFrames++;
             }
             end = now;

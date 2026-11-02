@@ -51,7 +51,7 @@ export const META_KEYS: ReadonlySet<string> = new Set([
  * The OBO frame type of an OBO Graphs node type.
  * @category Plugin helpers
  */
-export const FRAME_TYPES: Readonly<Record<string, string>> = Object.freeze({
+export const FRAME_TYPES: Readonly<Partial<Record<string, string>>> = Object.freeze({
     CLASS: "Term",
     INDIVIDUAL: "Instance",
     PROPERTY: "Typedef",
@@ -61,7 +61,7 @@ export const FRAME_TYPES: Readonly<Record<string, string>> = Object.freeze({
  * The OBO name of the predicates OBO Graphs writes without an IRI.
  * @category Plugin helpers
  */
-export const BUILTIN_PREDICATES: Readonly<Record<string, string>> = Object.freeze({
+export const BUILTIN_PREDICATES: Readonly<Partial<Record<string, string>>> = Object.freeze({
     is_a: "is_a",
     subPropertyOf: "is_a",
     type: "instance_of",

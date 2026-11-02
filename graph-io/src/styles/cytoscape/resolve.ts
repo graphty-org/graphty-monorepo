@@ -7,6 +7,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { itemAt } from "../../common/text.js";
 import { num6 } from "../canon/number.js";
 import { type CanonSite, noteAt } from "../canon/site.js";
 import { STYLE_ISSUE } from "../codes.js";
@@ -627,7 +628,7 @@ function labelDress(
     ends: CytoscapeElements["ends"],
 ): void {
     const vp = (name: string): string => `${target === "node" ? "NODE" : "EDGE"}_LABEL_${name}`;
-    const columns: Record<string, (StyleValue | null)[]> = {};
+    const columns: Partial<Record<string, (StyleValue | null)[]>> = {};
     const put = (property: string, i: number, v: StyleValue | null): void => {
         let column = columns[property];
         if (column === undefined) {
@@ -653,7 +654,7 @@ function labelDress(
     const kept = (property: string, v: StyleValue | null): boolean =>
         v !== null && v !== 0 && (v !== "center" || (property === "labelPosition" && target === "edge"));
     for (const [property, values] of Object.entries(columns)) {
-        if (values.some((v) => kept(property, v))) {
+        if (values?.some((v) => kept(property, v)) === true) {
             out[property] = values;
         }
     }
@@ -1012,7 +1013,7 @@ function fanAnchors(
     let changed = false;
     for (const [i, k] of place) {
         const [s, t] = [source[i], target[i]];
-        const [ps, pt, f] = [nodeAt[s], nodeAt[t], spacing[i]];
+        const [ps, pt, f] = [itemAt(nodeAt, s), itemAt(nodeAt, t), spacing[i]];
         if (ps === null || ps === undefined || pt === null || pt === undefined || typeof f !== "number") {
             continue;
         }
@@ -1068,7 +1069,7 @@ function loopHandles(
     let changed = false;
     for (let i = ends.source.length - 1; i >= 0; i--) {
         const node = ends.source[i];
-        const b = box[node];
+        const b = itemAt(box, node);
         if (node !== ends.target[i] || bends[i] !== null) {
             continue;
         }

@@ -8,6 +8,7 @@
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { itemAt } from "../../src/common/text.js";
 import { importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/registry.js";
 import { readCorpusBytes, readCorpusText } from "../helpers/corpus.js";
 
@@ -60,7 +61,7 @@ function walk(text: string): RawNet {
                 throw new Error(`unparsed vertex line ${line}`);
             }
             const coords = m[3].trim().length === 0 ? [] : m[3].trim().split(/\s+/).map(Number);
-            vertices.push({ number: Number(m[1]), label: m[2] ?? null, coords });
+            vertices.push({ number: Number(m[1]), label: itemAt(m, 2) ?? null, coords });
         } else if (section === "arcs" || section === "edges") {
             const parts = line.split(/\s+/);
             lines.push({

@@ -24,7 +24,8 @@ function httpGet(
 }
 
 describe("GET /remote-logger.js endpoint", () => {
-    let dualServer: DualServerResult;
+    // undefined until a test starts a server, and again after the test's cleanup
+    let dualServer: DualServerResult | undefined;
     let port: number;
 
     beforeEach(() => {
@@ -36,9 +37,8 @@ describe("GET /remote-logger.js endpoint", () => {
     });
 
     afterEach(async () => {
-        if (dualServer) {
-            await dualServer.shutdown();
-        }
+        await dualServer?.shutdown();
+        dualServer = undefined;
     });
 
     test("returns 200 with JavaScript content type", async () => {

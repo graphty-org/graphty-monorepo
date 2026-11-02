@@ -11,6 +11,33 @@ import { seedPositions } from "../../src/simulation/seed";
 
 type NodeColumns = NonNullable<Parameters<typeof fromEdgeArrays>[0]["nodeColumns"]>;
 
+/** A networkx ForceAtlas2 fixture of test/simulation/fixtures/networkx, as its generator writes it. */
+interface NetworkxFixture {
+    graph: {
+        name: string;
+        directed: boolean;
+        nodeCount: number;
+        src: number[];
+        dst: number[];
+        weights: number[] | null;
+    };
+    options: {
+        max_iter: number;
+        jitter_tolerance: number;
+        scaling_ratio: number;
+        gravity: number;
+        distributed_action: boolean;
+        strong_gravity: boolean;
+        linlog: boolean;
+        dissuade_hubs: boolean;
+        weight: string | null;
+        dim: number;
+    };
+    initialPositions: number[][];
+    positions: number[][];
+    rescaled: boolean;
+}
+
 function grid(w: number, h: number, nodeColumns?: NodeColumns) {
     const src: number[] = [];
     const dst: number[] = [];
@@ -154,7 +181,7 @@ describe("ForceAtlas2Simulation", () => {
             // layout's vitest environment is happy-dom, which rewrites import.meta.url, so the fixtures are located
             // from the package root like every other file-reading test of this package (test/package-structure.test.ts)
             const file = resolve(process.cwd(), "test/simulation/fixtures/networkx", `${name}.json`);
-            const f = JSON.parse(readFileSync(file, "utf8"));
+            const f = JSON.parse(readFileSync(file, "utf8")) as NetworkxFixture;
             assert.equal(f.rescaled, false);
             assert.equal(f.graph.directed, false);
             const s = fromEdgeArrays({

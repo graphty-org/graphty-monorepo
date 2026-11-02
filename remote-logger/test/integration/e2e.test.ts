@@ -14,7 +14,8 @@ import { createDualServer, type DualServerResult } from "../../src/server/dual-s
 import { JsonlWriter } from "../../src/server/jsonl-writer.js";
 
 describe("E2E: Browser to Claude Code", () => {
-    let dualServer: DualServerResult;
+    // undefined until a test starts a server, and again after the test's cleanup
+    let dualServer: DualServerResult | undefined;
     let port: number;
     let testBaseDir: string;
     let jsonlWriter: JsonlWriter;
@@ -35,13 +36,10 @@ describe("E2E: Browser to Claude Code", () => {
     });
 
     afterEach(async () => {
-        if (dualServer) {
-            await dualServer.shutdown();
-        }
+        await dualServer?.shutdown();
+        dualServer = undefined;
 
-        if (jsonlWriter) {
-            await jsonlWriter.close();
-        }
+        await jsonlWriter.close();
 
         // Clean up test directory
         try {
@@ -50,6 +48,17 @@ describe("E2E: Browser to Claude Code", () => {
             // Ignore cleanup errors
         }
     });
+
+    /**
+     * The port the running server bound.
+     * @returns the port
+     */
+    function boundPort(): number | undefined {
+        if (dualServer === undefined) {
+            throw new Error("the test sent a request before it started a server");
+        }
+        return dualServer.httpPort;
+    }
 
     /**
      * Helper to send a log via HTTP POST (simulating browser).
@@ -71,7 +80,7 @@ describe("E2E: Browser to Claude Code", () => {
             const req = http.request(
                 {
                     hostname: "127.0.0.1",
-                    port: dualServer.httpPort,
+                    port: boundPort(),
                     path: "/log",
                     method: "POST",
                     headers: {
@@ -219,7 +228,7 @@ describe("E2E: Browser to Claude Code", () => {
 
         // Each line should be valid JSON with expected structure
         for (const line of lines) {
-            const parsed = JSON.parse(line);
+            const parsed: unknown = JSON.parse(line);
             expect(parsed).toHaveProperty("time");
             expect(parsed).toHaveProperty("level");
             expect(parsed).toHaveProperty("message");

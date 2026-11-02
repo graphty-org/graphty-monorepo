@@ -1115,7 +1115,7 @@ export function blockStyles(
         const own = opacityInColor ? opaqueColors(truth[target] ?? {}, target, blockRules, src, n) : truth[target];
         const unsetOf = (property: string): StyleValue | undefined =>
             (
-                (tool === null ? null : toolDefaults(tool))?.[target]?.[property as never] as
+                (tool === null ? null : toolDefaults(tool))?.[target][property as never] as
                     { readonly value: StyleValue } | undefined
             )?.value;
         const map = exceptionMappings(own ?? {}, blockRules, target, src, columns[target], unsetOf);

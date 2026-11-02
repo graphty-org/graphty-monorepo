@@ -34,9 +34,16 @@ export const WAIT_GUARD_MS = 900_000;
 /** How long one test, hook or teardown may run. */
 export const TEST_GUARD_MS = 1_500_000;
 
-// Every package sits one directory below the repository root, and vitest resolves setup files from
-// the package's root, as it does for ../vitest.browser-coverage-setup.ts.
-const GUARD_SETUP = "../vitest.wait-guard-setup.ts";
+/**
+ * The guard setup file as an absolute path, so a config at any depth (a package, tools/pipeline-health,
+ * a nested fixture suite) adds the same file; vitest resolves a relative one from the config's root.
+ * A function, and no node:url, because this module is also loaded inside test environments (a browser
+ * page, where import.meta.url is not a file URL), and only a config needs the path.
+ * @returns the path of vitest.wait-guard-setup.ts
+ */
+function guardSetup() {
+    return decodeURIComponent(new URL("../vitest.wait-guard-setup.ts", import.meta.url).pathname);
+}
 
 /**
  * Sets the guards on one vitest `test` block, over anything it set itself.
@@ -48,14 +55,15 @@ function guardTest(test) {
         // A measurement: no time limit, so a slow one measures instead of failing.
         return { ...test, testTimeout: 0, hookTimeout: 0 };
     }
-    const setupFiles = [test.setupFiles ?? []].flat().filter((f) => f !== GUARD_SETUP);
+    const guard = guardSetup();
+    const setupFiles = [test.setupFiles ?? []].flat().filter((f) => f !== guard);
     return {
         ...test,
         testTimeout: TEST_GUARD_MS,
         hookTimeout: TEST_GUARD_MS,
         teardownTimeout: TEST_GUARD_MS,
         expect: { ...test.expect, poll: { timeout: WAIT_GUARD_MS } },
-        setupFiles: [...setupFiles, GUARD_SETUP],
+        setupFiles: [...setupFiles, guard],
     };
 }
 

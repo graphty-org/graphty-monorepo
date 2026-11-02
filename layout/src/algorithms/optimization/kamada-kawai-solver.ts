@@ -183,7 +183,7 @@ export function _kamadaKawaiCostfn(
     let cost = 0;
 
     // Add mean position penalty term
-    const sumPos: number[] = new Array(dim).fill(0);
+    const sumPos: number[] = new Array<number>(dim).fill(0);
     for (let i = 0; i < nNodes; i++) {
         for (let d = 0; d < dim; d++) {
             sumPos[d] += positions[i][d];
@@ -195,12 +195,12 @@ export function _kamadaKawaiCostfn(
     cost = addDistanceCost(cost, positions, invDist);
 
     // Calculate gradient
-    const grad = new Array(posVec.length).fill(0);
+    const grad = new Array<number>(posVec.length).fill(0);
 
     // Add gradient of mean position penalty
     for (let i = 0; i < nNodes; i++) {
         for (let d = 0; d < dim; d++) {
-            (grad[i * dim + d] as number) += meanWeight * sumPos[d];
+            grad[i * dim + d] += meanWeight * sumPos[d];
         }
     }
 

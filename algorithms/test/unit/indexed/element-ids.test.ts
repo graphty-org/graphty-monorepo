@@ -66,6 +66,7 @@ describe("node ids as single-node inputs", () => {
     it("the dispatcher resolves a node id before it reaches an accelerator", async () => {
         const seen: number[] = [];
         const d = accelerated({
+            kind: "fake",
             sssp: (s, source) => {
                 seen.push(source);
                 return Promise.resolve(dijkstra(s, source));

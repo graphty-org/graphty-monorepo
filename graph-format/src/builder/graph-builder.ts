@@ -101,7 +101,10 @@ function optionError(field: string, found: unknown): GraphFormatError {
  * @param options - the constructor options
  * @returns the fixed options and the initial direction
  */
-function resolveOptions(options: GraphBuilderOptions): { readonly fixed: FixedOptions; readonly directed: boolean } {
+function resolveOptions(options: GraphBuilderOptions | null): {
+    readonly fixed: FixedOptions;
+    readonly directed: boolean;
+} {
     if (typeof options !== "object" || options === null) {
         throw optionError("options", options);
     }
@@ -1073,11 +1076,12 @@ export class GraphBuilder implements GraphBuilderContract {
      */
     addGraph(snapshot: GraphSnapshot, options?: { readonly onDuplicateNode?: "merge" | "error" | undefined }): void {
         this.check();
-        const onDuplicate = options?.onDuplicateNode ?? "merge";
+        // a string, not the option type: a JavaScript caller may pass any value
+        const onDuplicate: string = options?.onDuplicateNode ?? "merge";
         if (onDuplicate !== "merge" && onDuplicate !== "error") {
             throw new GraphFormatError(
                 "E_UNSUPPORTED",
-                `addGraph option onDuplicateNode has an unsupported value ${String(onDuplicate)}`,
+                `addGraph option onDuplicateNode has an unsupported value ${onDuplicate}`,
                 { field: "onDuplicateNode", found: onDuplicate, reason: "unsupported option" },
             );
         }

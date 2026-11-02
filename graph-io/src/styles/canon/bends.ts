@@ -8,6 +8,8 @@
  * right angles.
  */
 
+import { itemAt } from "../../common/text.js";
+
 /** A point in the file's own coordinates. */
 export type BendPoint = readonly [x: number, y: number];
 
@@ -69,8 +71,9 @@ export function bendsToPoints(source: BendPoint, target: BendPoint, value: strin
     const dy = (target[1] - source[1]) * flip;
     const out: BendPoint[] = [];
     for (const pair of value.trim().split(/\s+/)) {
-        const [a, c, extra] = pair.split(",").map(Number);
-        if (extra !== undefined || !Number.isFinite(a) || !Number.isFinite(c)) {
+        const numbers = pair.split(",").map(Number);
+        const [a, c] = numbers;
+        if (itemAt(numbers, 2) !== undefined || !Number.isFinite(a) || !Number.isFinite(c)) {
             return null;
         }
         const x = source[0] + a * dx - c * dy;
@@ -165,10 +168,11 @@ export function nodeOffsetsToPoints(
     const flip = yDown ? -1 : 1;
     const out: BendPoint[] = [];
     for (const pair of value.trim().split(/\s+/)) {
-        const [a, b, extra] = pair.split(",").map(Number);
+        const numbers = pair.split(",").map(Number);
+        const [a, b] = numbers;
         const x = center[0] + (a * size[0]) / 2;
         const y = center[1] + (b * size[1] * flip) / 2;
-        if (extra !== undefined || !Number.isFinite(x) || !Number.isFinite(y)) {
+        if (itemAt(numbers, 2) !== undefined || !Number.isFinite(x) || !Number.isFinite(y)) {
             return null;
         }
         out.push([x, y]);

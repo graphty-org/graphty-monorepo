@@ -166,7 +166,7 @@ describe("logs_get_file_path tool with JsonlWriter", () => {
         expect(lines.length).toBe(2);
 
         for (const line of lines) {
-            const parsed = JSON.parse(line);
+            const parsed: unknown = JSON.parse(line);
             expect(parsed).toHaveProperty("time");
             expect(parsed).toHaveProperty("level");
             expect(parsed).toHaveProperty("message");

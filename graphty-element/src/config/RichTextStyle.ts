@@ -146,6 +146,8 @@ export const RichTextStyle = z.strictObject({
     // How far it is moved right and down again, as fractions of its own width and height.
     shiftX: z.number().optional(),
     shiftY: z.number().optional(),
+    // What the shifts are fractions of: the whole box (margins and all) or the words alone.
+    shiftOf: z.enum(["box", "words"]).optional(),
 
     // Screen fit (labelScreenFit.ts). No defaults, so a label that names neither is painted
     // exactly as before.

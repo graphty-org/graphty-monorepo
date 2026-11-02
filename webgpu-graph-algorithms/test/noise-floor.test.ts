@@ -1152,11 +1152,10 @@ function adapterFromClass(cls: string): NoiseAdapter {
 }
 
 function capOf(id: string): number {
-    const spec = TOLERANCE_CAPS[id];
-    if (spec === undefined) {
+    if (!(id in TOLERANCE_CAPS)) {
         throw new Error(`${id}: no cap in TOLERANCE_CAPS`);
     }
-    return spec.cap;
+    return TOLERANCE_CAPS[id].cap;
 }
 
 /** In a write run every comparison is held to the spec cap (a floor above the cap is a finding); otherwise to the committed, derived tolerance. */
@@ -1741,7 +1740,7 @@ describe("noise floor (benchmarks/results/noise-floor.json)", () => {
             }
             const effective = Math.max(floor, MIN_FLOOR);
             const value = Math.min(spec.cap, 10 * effective);
-            const previous = doc.tolerances[id];
+            const previous = id in doc.tolerances ? doc.tolerances[id] : undefined;
             doc.tolerances[id] = { value, basis: spec.basis, factor: value / effective };
             console.warn(
                 `[noise-floor] tolerance ${id}: floor ${floor.toExponential(3)} (${spec.basis}) -> value ${value.toExponential(3)}, factor ${(value / effective).toFixed(2)}${previous === undefined ? "" : ` (was ${previous.value.toExponential(3)}, factor ${previous.factor.toFixed(2)})`}`,
@@ -1813,8 +1812,8 @@ describe("noise floor (benchmarks/results/noise-floor.json)", () => {
                 Math.abs(tolerance.factor - tolerance.value / effective),
                 `${id}: factor = value / floor`,
             ).toBeLessThanOrEqual(1e-6 * tolerance.factor);
-            const spec = TOLERANCE_CAPS[id];
-            if (spec !== undefined) {
+            if (id in TOLERANCE_CAPS) {
+                const spec = TOLERANCE_CAPS[id];
                 expect(tolerance.basis, `${id}: basis`).toBe(spec.basis);
                 expect(tolerance.value, `${id}: value <= the spec cap`).toBeLessThanOrEqual(spec.cap);
             }

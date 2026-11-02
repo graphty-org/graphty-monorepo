@@ -123,9 +123,9 @@ describe("fuzz audit: a ReadableStream split anywhere imports the same snapshot 
         const entries = (corpusFiles(format) as readonly EntryWithOptions[]).filter(
             (e) => readCorpusBytes(format, e.path).byteLength <= MAX_BYTES,
         );
-        const smallest = [...entries].sort(
-            (a, b) => readCorpusBytes(format, a.path).byteLength - readCorpusBytes(format, b.path).byteLength,
-        )[0];
+        const smallest = [...entries]
+            .sort((a, b) => readCorpusBytes(format, a.path).byteLength - readCorpusBytes(format, b.path).byteLength)
+            .at(0);
 
         for (const entry of entries) {
             const bytes = readCorpusBytes(format, entry.path);

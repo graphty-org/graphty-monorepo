@@ -11,7 +11,14 @@ import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, it } from "vitest";
 
 import * as pkg from "../src";
-import { createSimulation, type LayoutAccelerator, type LayoutEntry, LAYOUTS, type LayoutSimulation } from "../src";
+import {
+    createSimulation,
+    type LayoutAccelerator,
+    type LayoutEntry,
+    type LayoutResult,
+    LAYOUTS,
+    type LayoutSimulation,
+} from "../src";
 
 // A 4 x 5 grid: connected, planar and bipartite, so every layout accepts it. Its weights vary from 1 to 5.
 const ROWS = 4;
@@ -55,7 +62,7 @@ function run(entry: LayoutEntry, s: GraphSnapshot, extra: Record<string, unknown
             options[name] = REQUIRED_OPTIONS[name];
         }
     }
-    return Array.from((entry.fn as (...a: unknown[]) => { positions: Float32Array })(s, options).positions);
+    return Array.from((entry.fn as (...a: unknown[]) => LayoutResult)(s, options).positions);
 }
 
 const entries = Object.entries(LAYOUTS) as [string, LayoutEntry][];

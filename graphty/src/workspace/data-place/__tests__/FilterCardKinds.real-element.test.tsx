@@ -9,9 +9,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent as realKeys } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
@@ -131,8 +130,8 @@ describe("Each kind of filter card", () => {
 
     it("a name card opens with focus on its text, lists values in natural order, and writes on Enter as one step", async () => {
         const { session } = await openPeople();
-        await realKeys.click(await screen.findByRole("button", { name: "Add filter" }));
-        await realKeys.click(await screen.findByRole("menuitem", { name: "name" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "name" }));
         const match = await screen.findByRole<HTMLInputElement>("combobox", { name: "name: how to match" });
         assert.equal(match.value, "Contains");
         const box = screen.getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
@@ -140,7 +139,7 @@ describe("Each kind of filter card", () => {
             assert.strictEqual(document.activeElement, box, "focus is in the text box");
         });
 
-        await realKeys.keyboard("GAL");
+        await userEvent.keyboard("GAL");
         const listbox = await screen.findByRole("listbox");
         await waitFor(() => {
             assert.deepEqual(
@@ -156,9 +155,9 @@ describe("Each kind of filter card", () => {
         const before = session.history.position;
         await userEvent.clear(box);
         await userEvent.type(box, "Mme");
-        await realKeys.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
         assert.lengthOf(session.visibility.conditions, 0);
-        await realKeys.keyboard("{Enter}");
+        await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepEqual(session.visibility.conditions[0]?.rule, {
                 kind: "text",
@@ -174,18 +173,18 @@ describe("Each kind of filter card", () => {
 
     it("picking a match hands focus to the value; Escape drops a new card", async () => {
         const { session } = await openPeople();
-        await realKeys.click(await screen.findByRole("button", { name: "Add filter" }));
-        await realKeys.click(await screen.findByRole("menuitem", { name: "name" }));
-        await realKeys.click(await screen.findByRole("combobox", { name: "name: how to match" }));
-        await realKeys.click(await screen.findByRole("option", { name: "Starts with" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "name" }));
+        await userEvent.click(await screen.findByRole("combobox", { name: "name: how to match" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Starts with" }));
         const text = screen.getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, text, "focus is in the text box");
         });
-        await realKeys.keyboard("GAL");
+        await userEvent.keyboard("GAL");
         await screen.findByRole("listbox");
         // The first Escape closes the list of names; the next drops the card, unwritten.
-        await realKeys.keyboard("{Escape}{Escape}");
+        await userEvent.keyboard("{Escape}{Escape}");
         await waitFor(() => {
             assert.equal(cardsDrawn(), 0);
         });

@@ -491,11 +491,12 @@ function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) |
     if (!Number.isInteger(graphIndex) || graphIndex < 0) {
         throw unsupportedOption("graphIndex", graphIndex, ["a non-negative integer"]);
     }
-    const oboIds = o.oboIds ?? "curie";
+    // a JavaScript caller can pass any value
+    const oboIds: unknown = o.oboIds ?? "curie";
     if (oboIds !== "curie" && oboIds !== "iri") {
         throw unsupportedOption("oboIds", oboIds, ["curie", "iri"]);
     }
-    const typedefs = o.typedefs ?? "metadata";
+    const typedefs: unknown = o.typedefs ?? "metadata";
     if (typedefs !== "metadata" && typedefs !== "nodes") {
         throw unsupportedOption("typedefs", typedefs, ["metadata", "nodes"]);
     }

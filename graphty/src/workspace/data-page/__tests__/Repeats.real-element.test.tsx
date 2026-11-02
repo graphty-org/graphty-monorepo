@@ -11,9 +11,9 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import FRIENDS from "../../../../../design/ui/studio/tool/files/friends.csv?raw";
 import FRIENDS_V2 from "../../../../../design/ui/studio/tool/files/friends-v2.csv?raw";

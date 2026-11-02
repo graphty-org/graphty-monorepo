@@ -756,7 +756,7 @@ async function applyGroupCollapsed(
         const table = entry === undefined ? null : await tableOf(entry.tablePath);
         const at = table?.columns.findIndex((c) => c.name === GROUP_COLLAPSED) ?? -1;
         const cells = table?.rows.get(graph.id);
-        if (table === null || table === undefined || at < 0 || cells === undefined) {
+        if (table === null || at < 0 || cells === undefined) {
             continue;
         }
         pushAtt(graph.atts, cellAtt(table.columns[at], cells[at] ?? "", table.lines.get(graph.id) ?? 0, null, true));

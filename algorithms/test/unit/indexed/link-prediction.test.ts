@@ -12,6 +12,7 @@ import {
     evaluateCommonNeighbors,
     getTopAdamicAdarCandidatesForNode,
     getTopCandidatesForNode,
+    type LinkPredictionOptions,
     type LinkPredictionResult,
 } from "../../../src/indexed/link-prediction.js";
 import { legacyResult } from "../../helpers/golden.js";
@@ -76,7 +77,12 @@ function cases(): Case[] {
     ];
 }
 
-const OPTIONS = [{}, { directed: true }, { includeExisting: true }, { directed: true, includeExisting: true, topK: 7 }];
+const OPTIONS: readonly LinkPredictionOptions[] = [
+    {},
+    { directed: true },
+    { includeExisting: true },
+    { directed: true, includeExisting: true, topK: 7 },
+];
 
 function toLegacy(s: GraphSnapshot, r: LinkPredictionResult): LinkPredictionScore[] {
     return Array.from(r.scores, (score, k) => ({
@@ -437,7 +443,7 @@ describe("indexed link prediction", () => {
             sources: pairs.map(([u]) => s.ids.indexOf(u)),
             targets: pairs.map(([, v]) => s.ids.indexOf(v)),
         });
-        const o = { includeExisting: true };
+        const o: LinkPredictionOptions = { includeExisting: true };
         const scores = adamicAdarForPairs(s, indexed([...test, ...non]), o);
         expect(new Set(scores).size).toBe(1);
         (legacyResult() as LinkPredictionScore[]).forEach((x, k) => {

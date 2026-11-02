@@ -55,7 +55,7 @@ function detectServerUrl(): string | undefined {
         }
     }
 
-    if (typeof window !== "undefined" && window.location) {
+    if (typeof window !== "undefined") {
         return window.location.origin;
     }
 

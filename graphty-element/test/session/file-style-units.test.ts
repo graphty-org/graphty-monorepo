@@ -122,6 +122,31 @@ describe("a file's lengths are drawn in one unit", () => {
         session.dispose();
     });
 
+    it("reports the one factor it scaled the lengths and the stored positions by", async () => {
+        const session = await loaded();
+        const scale = session.data.lastImport()?.styles?.lengthScale;
+        assert.isNumber(scale);
+        assert.approximately(number(session, { node: "a" }, "node.size") * 1.5, FILE.node * (scale as number), 1e-6);
+        assert.approximately(session.layout.options.scale as number, scale as number, 1e-9, "fixed layout scale");
+        session.dispose();
+    });
+
+    it('keeps the file\'s label sizes with labelSizes: "file", and scales the other lengths', async () => {
+        const session = createGraphSession();
+        await session.data.import(
+            { type: "json", config: { data: DOC } },
+            { styles: "file", layout: "recommended", styleOptions: { labelSizes: "file" } },
+        );
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        const scale = session.data.lastImport()?.styles?.lengthScale as number;
+
+        assert.strictEqual(fontSize(session, { node: "a" }), FILE.font);
+        assert.approximately(number(session, { node: "a" }, "node.size") * 1.5, FILE.node * scale, 1e-6);
+        session.dispose();
+    });
+
     it("draws labels of different sizes each in proportion, not only the median one", async () => {
         const doc = JSON.stringify({
             elements: {
@@ -188,6 +213,7 @@ describe("a file's lengths are drawn in one unit", () => {
         session.positions.read(snapshot.ids.requireIndex("b"), b);
         assert.strictEqual(b.x, FILE.ab);
         assert.strictEqual(session.layout.options.scale ?? 1, 1, "one file unit is one scene unit");
+        assert.strictEqual(session.data.lastImport()?.styles?.lengthScale, 1);
         session.dispose();
     });
 

@@ -205,7 +205,7 @@ function bindingLine(decl: BindingDecl): string {
 function findEntryPoint(body: string): string | null {
     const stripped = stripComments(body);
     const matches = [...stripped.matchAll(COMPUTE_ATTRIBUTE)];
-    if (matches.length !== 1 || matches[0].index === undefined) {
+    if (matches.length !== 1) {
         return null;
     }
     const fn = ENTRY_FN.exec(stripped.slice(matches[0].index));
@@ -449,7 +449,7 @@ export function composeWgsl(spec: WgslModuleSpec, caps: PlanCaps): ComposedModul
     const wantsHelpers = spec.needs.includes("subgroups");
     const subgroups = wantsHelpers && caps.features.has("subgroups");
     const overrides: Record<string, number | boolean> = { ...spec.overrides };
-    if (overrides.WG === undefined) {
+    if (!("WG" in overrides)) {
         overrides.WG = workgroupSizeFor(caps);
     }
     if (subgroups) {

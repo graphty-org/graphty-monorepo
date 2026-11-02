@@ -154,7 +154,9 @@ describe("FruchtermanReingoldSimulation", () => {
         sim.setFixed(more);
         assert.equal(sim.settled, false, "unpinning reheats (design 7.12)");
         assert.equal(sim.iterationsDone, Math.floor(0.7 * 50), "a reheat restarts at 70% of the budget (design 7.20)");
-        while (!sim.settled) {
+        // read through a call: the assertion above narrowed sim.settled to false, and step() changes it
+        const settled = (): boolean => sim.settled;
+        while (!settled()) {
             sim.step();
         }
         assert.equal(sim.iterationsDone, 50);

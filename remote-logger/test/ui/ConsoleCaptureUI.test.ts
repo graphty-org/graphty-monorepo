@@ -2,7 +2,7 @@
  * Unit tests for ConsoleCaptureUI - console interception and floating UI widget
  * Tests run in happy-dom environment to provide window and document globals
  */
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, type Mock, test, vi } from "vitest";
 
 import { ConsoleCaptureUI, initConsoleCaptureUI } from "../../src/ui/index.js";
 
@@ -13,7 +13,7 @@ describe("ConsoleCaptureUI", () => {
     let originalInfo: typeof console.info;
     let originalDebug: typeof console.debug;
     let ui: ConsoleCaptureUI | null = null;
-    let clipboardWriteTextMock: ReturnType<typeof vi.fn>;
+    let clipboardWriteTextMock: Mock<(text: string) => Promise<void>>;
 
     beforeEach(() => {
         // Store originals before ConsoleCaptureUI intercepts them

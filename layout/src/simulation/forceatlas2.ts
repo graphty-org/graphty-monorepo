@@ -208,13 +208,14 @@ function isPositiveInteger(v: number): boolean {
  */
 function resolveOptions(options: ForceAtlas2SimulationOptions | undefined): ResolvedOptions {
     const o: ForceAtlas2SimulationOptions = options ?? {};
-    const dim = o.dim ?? FA2_DEFAULTS.dim;
+    // a number and a string, not the option types: a JavaScript caller may pass any value
+    const dim: number = o.dim ?? FA2_DEFAULTS.dim;
     if (dim !== 2 && dim !== 3) {
         throw new RangeError(`ForceAtlas2Simulation: dim must be 2 or 3, got ${String(dim)}`);
     }
-    const compat = o.compat ?? "paper";
+    const compat: string = o.compat ?? "paper";
     if (compat !== "paper" && compat !== "networkx") {
-        throw new RangeError(`ForceAtlas2Simulation: compat must be "paper" or "networkx", got ${String(compat)}`);
+        throw new RangeError(`ForceAtlas2Simulation: compat must be "paper" or "networkx", got ${compat}`);
     }
     return {
         maxIter: pickNumber("maxIter", o.maxIter, FA2_DEFAULTS.maxIter, isPositiveInteger, "an integer >= 1"),
@@ -669,16 +670,16 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
                 `ForceAtlas2Simulation: iterations must be an integer >= 1, got ${String(iterations)}`,
             );
         }
-        if (this.settled) {
-            return;
-        }
         let k = 0;
         while (k < iterations && !this.settled) {
             this.iterate();
             this.iterationsDoneValue += 1;
             k += 1;
         }
-        this.writeBack();
+        // settled on entry: nothing ran, so nothing to write back
+        if (k > 0) {
+            this.writeBack();
+        }
     }
 
     /**

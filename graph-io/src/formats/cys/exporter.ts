@@ -31,6 +31,7 @@ import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
 import { formatDecimal, formatF32, formatF64 } from "../../common/format.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
+import { itemAt, jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { hasIllegalXmlChar } from "../../common/xml.js";
 import { writeZip, type ZipWriteEntry } from "../../common/zip.js";
@@ -496,7 +497,7 @@ function textOf(value: unknown): string {
     if (ArrayBuffer.isView(value)) {
         return JSON.stringify(Array.from(value as unknown as ArrayLike<number>).map(finiteOrText));
     }
-    return JSON.stringify(value) ?? "";
+    return jsonText(value) ?? "";
 }
 
 /**
@@ -1393,7 +1394,9 @@ function* viewGraphics(coords: readonly string[], locked: ReadonlyMap<string, un
 function viewCoords(p: Plan, i: number): string[] {
     const coords: string[] = [];
     if (p.position?.isSet(i) === true) {
-        const [x, y, z] = Array.from(p.position.value(i) as ArrayLike<number>);
+        const xyz = Array.from(p.position.value(i) as ArrayLike<number>);
+        const [x, y] = xyz;
+        const z = itemAt(xyz, 2);
         const fmt = p.position.dtype === "f32" ? formatF32 : formatF64;
         if (Number.isFinite(x) && Number.isFinite(y)) {
             coords.push(`x="${fmt(x)}"`, `y="${fmt(y === 0 ? 0 : -y)}"`);

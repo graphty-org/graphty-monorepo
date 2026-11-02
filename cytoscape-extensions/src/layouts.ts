@@ -658,6 +658,45 @@ function centroidOf(pos: ArrayLike<number>, n: number): [number, number, number]
 }
 
 /**
+ * The stride-3 start rows of a simulation, the mask of its locked nodes, and whether any node is locked. The
+ * simulation reads and writes the rows in "scene" units; scene units are pixels here, so a locked node is pinned
+ * exactly where it stands. A randomized node starts anywhere in the box (Cytoscape's convention). Not left NaN for
+ * the seedPositions of `@graphty/layout` to fill: with exactly one finite row (one locked node) its draw box has zero width
+ * and every seeded node lands on the locked one; Fruchterman-Reingold then never separates them, and
+ * ForceAtlas2Simulation.load does not seed NaN rows at all.
+ * @param cs - the layout's snapshot
+ * @param o - the layout options
+ * @param b - the bounding box
+ * @param radius - the box's radius, the depth a 3D start spreads over
+ * @returns the rows, the locked mask and whether any node is locked
+ */
+function startPositions(
+    cs: CytoscapeSnapshot,
+    o: ConstructorOptions,
+    b: BoundingBoxWH,
+    radius: number,
+): { pos: Float32Array<ArrayBuffer>; fixed: ReturnType<typeof makeMask>; anyLocked: boolean } {
+    const n = cs.snapshot.nodeCount;
+    const flat = (o.dim ?? 2) === 2;
+    const pos = new Float32Array(3 * n);
+    const fixed = makeMask(n);
+    const rng = new Lcg(o.seed ?? null);
+    let anyLocked = false;
+    for (let i = 0; i < cs.nodes.length; i++) {
+        const node = cs.nodes[i];
+        const locked = node.locked();
+        anyLocked ||= locked;
+        maskSet(fixed, i, locked);
+        const p = node.position();
+        const keep = locked || o.randomize === false;
+        pos[3 * i] = keep ? p.x : b.x1 + rng.next() * b.w;
+        pos[3 * i + 1] = keep ? p.y : b.y1 + rng.next() * b.h;
+        pos[3 * i + 2] = keep || flat ? 0 : (rng.next() * 2 - 1) * radius;
+    }
+    return { pos, fixed, anyLocked };
+}
+
+/**
  * Runs a simulation on an accelerator (null: the CPU).
  * @param layout - the layout
  * @param type - the simulation type
@@ -681,27 +720,8 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
     const n = s.nodeCount;
     const b = box(o.boundingBox, o.cy);
     const { radius, center } = frame(b);
-    const dim = o.dim ?? 2;
 
-    // The simulation reads and writes this stride-3 array in "scene" units; scene units are pixels here, so a
-    // locked node is pinned exactly where it stands. A randomized node starts anywhere in the box (Cytoscape's
-    // convention). Not left NaN for @graphty/layout's seedPositions to fill: with exactly one finite row (one locked
-    // node) its draw box has zero width and every seeded node lands on the locked one; Fruchterman-Reingold then
-    // never separates them, and ForceAtlas2Simulation.load does not seed NaN rows at all.
-    const pos = new Float32Array(3 * n);
-    const fixed = makeMask(n);
-    const rng = new Lcg(o.seed ?? null);
-    let anyLocked = false;
-    cs.nodes.forEach((node, i) => {
-        const locked = node.locked();
-        anyLocked ||= locked;
-        maskSet(fixed, i, locked);
-        const p = node.position();
-        const keep = locked || o.randomize === false;
-        pos[3 * i] = keep ? p.x : b.x1 + rng.next() * b.w;
-        pos[3 * i + 1] = keep ? p.y : b.y1 + rng.next() * b.h;
-        pos[3 * i + 2] = keep || dim === 2 ? 0 : (rng.next() * 2 - 1) * radius;
-    });
+    const { pos, fixed, anyLocked } = startPositions(cs, o, b, radius);
     // A continuation (randomize: false) reads the positions at the scale the last run of this simulation on this core
     // drew them at, about their centroid. Read at the box's scale instead, the graph would start far smaller than the
     // simulation's own size, and the first steps would jolt it back out.

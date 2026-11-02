@@ -209,7 +209,7 @@ describe("fromWire carried views (characterization)", () => {
         const w = structuredClone(s.toWire({ includeViews: ["outDegree"] }));
         const refs = viewRefs(w);
         for (const name of ["futureView", "constructor", "toString", "__proto__"]) {
-            Object.defineProperty(refs, name, { value: { data: refs.outDegree?.data }, enumerable: true });
+            Object.defineProperty(refs, name, { value: { data: refs.outDegree.data }, enumerable: true });
         }
         expect(outcome(w, "structure")).toMatchSnapshot();
     });

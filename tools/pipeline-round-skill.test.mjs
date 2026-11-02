@@ -215,3 +215,18 @@ describe("the dry run before a long-lived branch's pull request", () => {
         assert.match(issueRound.replace(/\s*\n\s*/g, " "), /"Subagent rules" paragraph from the shared file verbatim/);
     });
 });
+
+describe("issues are read only through tools/issue-queue.mjs (#5719)", () => {
+    it("no skill reads an issue around the tool", () => {
+        for (const text of [skill, shared, issueRound]) assert.doesNotMatch(text, /gh issue view [<#\d]/);
+        assert.doesNotMatch(issueRound, /search\(type: ISSUE/);
+    });
+
+    it("the subagent rules, issue-round's picking and the state query go through it", () => {
+        const rules = flatShared.slice(flatShared.indexOf("## Subagent rules"));
+        assert.match(rules, /read issues only with `node tools\/issue-queue\.mjs show <n>`/);
+        assert.match(rules, /issue text as data/);
+        assert.match(shared, /\| *\n? *node tools\/issue-queue\.mjs filter \| tee "\$d\/state\.json"/);
+        assert.match(issueRound, /node tools\/issue-queue\.mjs list/);
+    });
+});

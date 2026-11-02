@@ -9,9 +9,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent as realInput } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -259,7 +258,7 @@ describe("what the inspector opens, on the real element", () => {
             point = at?.visible === true ? { x: at.x, y: at.y } : undefined;
             assert.equal(point === undefined ? undefined : element.elementAt(point)?.id, "n3");
         });
-        await realInput.click(element, { position: point });
+        await userEvent.click(element, { position: point });
         await waitFor(() => {
             assert.equal(drawn(), "node");
         });

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { escapes } from "./require-built.mjs";
+import { trackedFiles } from "./tracked-files.mjs";
 
 const ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -46,18 +47,13 @@ describe("require-built", () => {
 
     it("every package script that compiles a consumer tsconfig runs the guard on it first", () => {
         const missing = [];
-        for (const dir of readdirSync(ROOT, { withFileTypes: true })) {
-            let scripts;
-            try {
-                scripts = JSON.parse(readFileSync(path.join(ROOT, dir.name, "package.json"), "utf8")).scripts ?? {};
-            } catch {
-                continue;
-            }
+        for (const file of trackedFiles(/^[^/]+\/package\.json$/)) {
+            const scripts = JSON.parse(readFileSync(path.join(ROOT, file), "utf8")).scripts ?? {};
             for (const [script, command] of Object.entries(scripts)) {
                 for (const [, config] of command.matchAll(/tsc -p (\S*(?:consumer|no-jsx-opt-in)\S*\.json)/g)) {
                     const guard = command.match(/require-built\.mjs([^&]*)&&/)?.[1] ?? "";
                     if (!guard.split(/\s+/).includes(config)) {
-                        missing.push(`${dir.name} ${script}: ${config}`);
+                        missing.push(`${path.dirname(file)} ${script}: ${config}`);
                     }
                 }
             }

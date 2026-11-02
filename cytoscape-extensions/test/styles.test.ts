@@ -119,7 +119,7 @@ describe("graphtyImport with styles", () => {
         const r = await plain.graphtyImport(gephi("n", COLORS), "gexf");
         expect(r.stylesheet).toBeUndefined();
         expect(plain.$id("n0").data("graphty_import")).toBeUndefined();
-        expect(Object.keys(plain.$id("n0").data()).some((k) => k.startsWith("graphty_style"))).toBe(false);
+        expect(Object.keys(plain.$id("n0").data() as object).some((k) => k.startsWith("graphty_style"))).toBe(false);
         // the color stays where graph-io puts it, as channels, never turned into a CSS color
         expect(typeof plain.$id("n0").data("color")).not.toBe("string");
         plain.destroy();
@@ -146,7 +146,7 @@ const styled = (): cytoscape.Core =>
 const drawn = (cy: cytoscape.Core): Record<string, string[]> => {
     const out: Record<string, string[]> = {};
     for (const n of cy.nodes().sort((x, y) => x.id().localeCompare(y.id()))) {
-        out[n.id()] = [n.style("background-color"), n.style("width"), n.style("shape")];
+        out[n.id()] = [n.style("background-color"), n.style("width"), n.style("shape")] as string[];
     }
     out.edges = cy.edges().map((e) => `${e.style("line-color")} ${e.style("width")}`);
     return out;

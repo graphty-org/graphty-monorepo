@@ -419,6 +419,18 @@ interface NodeRecord {
     readonly raw: Record<string, string[]>;
 }
 
+/** The frame being read. */
+interface OpenFrame {
+    /** The frame type, or null for an unknown one. */
+    kind: FrameKind | null;
+    /** The name in the header. */
+    name: string;
+    /** The header's line. */
+    line: number;
+    /** The clauses read so far. */
+    clauses: Clause[];
+}
+
 /** Where a clause is: its line and the id of its frame. */
 interface Where {
     readonly line: number;
@@ -516,7 +528,7 @@ class OboReader {
     private readonly tallies = new Map<string, Tally>();
 
     /** The frame being read: its kind (null for an unknown frame type), name and clauses. */
-    private frame: { kind: FrameKind | null; name: string; line: number; clauses: Clause[] } | null = null;
+    private frame: OpenFrame | null = null;
 
     /** The frames of an unknown type, raw, for `meta.extra.obo.unknownFrames`. */
     readonly unknownFrames: { type: string; clauses: Record<string, string[]> }[] = [];
@@ -690,52 +702,18 @@ class OboReader {
             return;
         }
         if (frame.kind === null) {
-            // the guides: an unrecognized frame must survive, so its clauses are kept, raw
-            const clauses = ownRecord<string[]>();
-            for (const clause of frame.clauses) {
-                append(clauses, clause.tag, clause.value);
-            }
-            this.unknownFrames.push({ type: frame.name, clauses });
+            this.keepUnknownFrame(frame);
             return;
         }
         if (++this.framesSinceCheck >= ABORT_CHECK_INTERVAL) {
             this.framesSinceCheck = 0;
             throwIfAborted(this.signal);
         }
-        const idAt = frame.clauses.findIndex((c) => c.tag === "id");
-        const idParts = idAt < 0 ? null : splitQualifiers(frame.clauses[idAt].value);
-        const rawId = idParts === null ? "" : idParts.value.trim();
-        const id = unescapeObo(rawId).trim();
-        // a Typedef is metadata unless typedefs "nodes": it would never have been a node
-        const wouldBeNode = frame.kind !== "Typedef" || this.typedefsAsNodes;
-        if (id.length === 0) {
-            this.report.error(
-                "missing-value",
-                OBO_ISSUE.MISSING_ID,
-                `a [${frame.kind}] frame has no id; it is skipped`,
-                {
-                    line: frame.line,
-                },
-            );
-            if (wouldBeNode) {
-                this.report.counts.skippedNodes++;
-            }
+        const found = this.frameId(frame, frame.kind);
+        if (found === null) {
             return;
         }
-        if (tokenize(rawId).length > 1 || hasControl(id)) {
-            // a reference cannot name such an id (is_a needs one word), so the frame is refused
-            // rather than made a node no edge can reach
-            this.report.error(
-                "validation-error",
-                OBO_ISSUE.BAD_VALUE,
-                `a [${frame.kind}] frame's id ${JSON.stringify(id)} holds unescaped whitespace or a control character; the frame is skipped`,
-                { line: frame.clauses[idAt].line, element: id },
-            );
-            if (wouldBeNode) {
-                this.report.counts.skippedNodes++;
-            }
-            return;
-        }
+        const { id, idAt, idParts } = found;
         if (idAt > 0) {
             this.tally(
                 "validation-error",
@@ -747,24 +725,82 @@ class OboReader {
         }
         const target = this.recordFor(frame.kind, id, frame.line);
         this.extraQualifiers(target, "id", id, idParts?.qualifiers ?? null);
-        for (let i = 0; i < frame.clauses.length; i++) {
-            const clause = frame.clauses[i];
-            if (clause.tag === "id") {
-                if (i !== idAt) {
-                    this.tally(
-                        "validation-error",
-                        OBO_ISSUE.DUPLICATE_ATTRIBUTE,
-                        "a frame names a second id; the first is kept",
-                        "id",
-                        clause.line,
-                    );
-                }
-                continue;
-            }
-            this.applyClause(target, clause);
-        }
+        this.applyFrameClauses(target, frame.clauses, idAt);
         if (target.kind === "Typedef" && !Object.hasOwn(target.raw, "id")) {
             target.raw.id = [id];
+        }
+    }
+
+    /**
+     * Keep an unrecognized frame: the guides say it must survive, so its clauses are kept, raw.
+     * @param frame - the frame
+     */
+    private keepUnknownFrame(frame: OpenFrame): void {
+        const clauses = ownRecord<string[]>();
+        for (const clause of frame.clauses) {
+            append(clauses, clause.tag, clause.value);
+        }
+        this.unknownFrames.push({ type: frame.name, clauses });
+    }
+
+    /**
+     * Find a frame's id, reporting (and counting as skipped) a frame without a usable one.
+     * @param frame - the frame
+     * @param kind - its (known) type
+     * @returns the id, the index of its clause and its split value, or null when the frame is skipped
+     */
+    private frameId(
+        frame: OpenFrame,
+        kind: FrameKind,
+    ): { id: string; idAt: number; idParts: ReturnType<typeof splitQualifiers> | null } | null {
+        const idAt = frame.clauses.findIndex((c) => c.tag === "id");
+        const idParts = idAt < 0 ? null : splitQualifiers(frame.clauses[idAt].value);
+        const rawId = idParts === null ? "" : idParts.value.trim();
+        const id = unescapeObo(rawId).trim();
+        // a Typedef is metadata unless typedefs "nodes": it would never have been a node
+        const wouldBeNode = kind !== "Typedef" || this.typedefsAsNodes;
+        if (id.length === 0) {
+            this.report.error("missing-value", OBO_ISSUE.MISSING_ID, `a [${kind}] frame has no id; it is skipped`, {
+                line: frame.line,
+            });
+        } else if (tokenize(rawId).length > 1 || hasControl(id)) {
+            // a reference cannot name such an id (is_a needs one word), so the frame is refused
+            // rather than made a node no edge can reach
+            this.report.error(
+                "validation-error",
+                OBO_ISSUE.BAD_VALUE,
+                `a [${kind}] frame's id ${JSON.stringify(id)} holds unescaped whitespace or a control character; the frame is skipped`,
+                { line: frame.clauses[idAt].line, element: id },
+            );
+        } else {
+            return { id, idAt, idParts };
+        }
+        if (wouldBeNode) {
+            this.report.counts.skippedNodes++;
+        }
+        return null;
+    }
+
+    /**
+     * Apply a frame's clauses (all but its id clause) to its record, reporting a second id.
+     * @param target - the record
+     * @param clauses - the frame's clauses
+     * @param idAt - the index of the id clause used
+     */
+    private applyFrameClauses(target: NodeRecord, clauses: readonly Clause[], idAt: number): void {
+        for (let i = 0; i < clauses.length; i++) {
+            const clause = clauses[i];
+            if (clause.tag !== "id") {
+                this.applyClause(target, clause);
+            } else if (i !== idAt) {
+                this.tally(
+                    "validation-error",
+                    OBO_ISSUE.DUPLICATE_ATTRIBUTE,
+                    "a frame names a second id; the first is kept",
+                    "id",
+                    clause.line,
+                );
+            }
         }
     }
 
@@ -909,13 +945,8 @@ class OboReader {
      * @param clause - the clause
      */
     private applyClause(record: NodeRecord, clause: Clause): void {
-        const key = `${clause.tag}\u0000${clause.value}`;
-        if (record.seen.has(key)) {
+        if (!this.firstSeen(record, clause)) {
             return;
-        }
-        record.seen.add(key);
-        if (record.kind === "Typedef") {
-            append(record.raw, clause.tag, clause.value);
         }
         const { tag, scope, qualifiers, value } = this.clauseParts(clause);
         // a control character kept in the value is the shared W_CONTROL_CHARACTER of the text check
@@ -929,96 +960,48 @@ class OboReader {
             return;
         }
         if (BOOL_TAGS.has(tag)) {
-            const text = unescapeObo(value).trim();
-            if (text !== "true" && text !== "false") {
-                this.report.error(
-                    "validation-error",
-                    OBO_ISSUE.BAD_VALUE,
-                    `${tag}: ${JSON.stringify(text)} is not true or false; the clause is skipped`,
-                    where,
-                );
-                return;
-            }
-            this.single(record, tag, text === "true", clause.line);
-            this.extraQualifiers(record, tag, text, qualifiers);
+            this.boolClause(record, tag, value, qualifiers, where);
             return;
         }
         const tokens = tokenize(value);
         if (ID_LIST_TAGS.has(tag)) {
-            const id = this.oneWord(tokens, tag, where);
-            if (id !== null) {
-                this.push(record, tag, id);
-                this.extraQualifiers(record, tag, id, qualifiers);
-                if (tag === "subset" && !this.subsets.has(id)) {
-                    this.tally(
-                        "validation-error",
-                        OBO_ISSUE.UNDECLARED,
-                        "a subset no subsetdef declares",
-                        id,
-                        clause.line,
-                    );
-                }
-            }
+            this.idListClause(record, tag, tokens, qualifiers, where);
             return;
         }
         switch (tag) {
             case "is_a":
-            case "instance_of": {
-                if (tag === "instance_of" && record.kind !== "Instance") {
-                    this.unrecognized(record, clause);
-                    return;
-                }
-                const target = this.oneWord(tokens, tag, where);
-                if (target !== null) {
-                    record.edges.push({ relation: tag, target, qualifiers, line: clause.line });
-                }
+            case "instance_of":
+                this.isAClause(record, clause, tag, tokens, qualifiers, where);
                 return;
-            }
-            case "relationship": {
-                if (tokens.length !== 2 || tokens.some((t) => t.kind !== "word")) {
-                    this.report.error(
-                        "validation-error",
-                        OBO_ISSUE.BAD_VALUE,
-                        `relationship needs a relation and a target, found ${JSON.stringify(unescapeObo(value))}; the clause is skipped`,
+            case "relationship":
+                if (
+                    this.wordsOrError(
+                        tokens,
+                        2,
+                        2,
                         where,
-                    );
-                    return;
+                        () =>
+                            `relationship needs a relation and a target, found ${JSON.stringify(unescapeObo(value))}; the clause is skipped`,
+                    )
+                ) {
+                    record.edges.push({
+                        relation: tokens[0].text,
+                        target: tokens[1].text,
+                        qualifiers,
+                        line: clause.line,
+                    });
                 }
-                record.edges.push({ relation: tokens[0].text, target: tokens[1].text, qualifiers, line: clause.line });
                 return;
-            }
-            case "intersection_of": {
-                if (tokens.length < 1 || tokens.length > 2 || tokens.some((t) => t.kind !== "word")) {
-                    this.report.error(
-                        "validation-error",
-                        OBO_ISSUE.BAD_VALUE,
-                        `intersection_of needs a class, or a relation and a class, found ${JSON.stringify(unescapeObo(value))}; the clause is skipped`,
-                        where,
-                    );
-                    return;
-                }
-                const item: Record<string, unknown> =
-                    tokens.length === 1
-                        ? { relation: null, target: tokens[0].text }
-                        : { relation: tokens[0].text, target: tokens[1].text };
-                this.push(record, tag, withQualifiers(item, qualifiers));
+            case "intersection_of":
+                this.intersectionClause(record, value, tokens, qualifiers, where);
                 return;
-            }
             case "holds_over_chain":
-            case "equivalent_to_chain": {
-                if (tokens.length !== 2 || tokens.some((t) => t.kind !== "word")) {
-                    this.report.error(
-                        "validation-error",
-                        OBO_ISSUE.BAD_VALUE,
-                        `${tag} needs two relations; the clause is skipped`,
-                        where,
-                    );
-                    return;
+            case "equivalent_to_chain":
+                if (this.wordsOrError(tokens, 2, 2, where, () => `${tag} needs two relations; the clause is skipped`)) {
+                    this.push(record, tag, [tokens[0].text, tokens[1].text]);
+                    this.extraQualifiers(record, tag, `${tokens[0].text} ${tokens[1].text}`, qualifiers);
                 }
-                this.push(record, tag, [tokens[0].text, tokens[1].text]);
-                this.extraQualifiers(record, tag, `${tokens[0].text} ${tokens[1].text}`, qualifiers);
                 return;
-            }
             case "def":
             case "expand_assertion_to":
             case "expand_expression_to":
@@ -1027,28 +1010,189 @@ class OboReader {
             case "synonym":
                 this.synonym(record, tokens, scope, qualifiers, clause.line);
                 return;
-            case "xref": {
-                const xref = parseXref(value);
-                if (xref === null) {
-                    this.report.error(
-                        "validation-error",
-                        OBO_ISSUE.BAD_VALUE,
-                        "xref has no id; the clause is skipped",
-                        where,
-                    );
-                    return;
-                }
-                this.push(record, "xref", xref.id);
-                this.describe(record, [xref], tag, clause.line);
-                this.extraQualifiers(record, tag, xref.id, qualifiers ?? xref.qualifiers);
+            case "xref":
+                this.xrefClause(record, value, qualifiers, where);
                 return;
-            }
             case "property_value":
                 this.propertyValue(record, tokens, qualifiers, where);
                 return;
             default:
                 this.unrecognized(record, clause);
         }
+    }
+
+    /**
+     * Mark a clause seen on a record (a Typedef also keeps it raw).
+     * @param record - the record
+     * @param clause - the clause
+     * @returns false when the record already holds this exact clause (it is then ignored)
+     */
+    private firstSeen(record: NodeRecord, clause: Clause): boolean {
+        const key = `${clause.tag}\u0000${clause.value}`;
+        if (record.seen.has(key)) {
+            return false;
+        }
+        record.seen.add(key);
+        if (record.kind === "Typedef") {
+            append(record.raw, clause.tag, clause.value);
+        }
+        return true;
+    }
+
+    /**
+     * An intersection_of clause: a class, or a relation and a class.
+     * @param record - the record
+     * @param value - the raw value
+     * @param tokens - the value's tokens
+     * @param qualifiers - its qualifier block
+     * @param where - the location
+     */
+    private intersectionClause(
+        record: NodeRecord,
+        value: string,
+        tokens: readonly Token[],
+        qualifiers: Qualifiers | null,
+        where: Where,
+    ): void {
+        const usable = this.wordsOrError(
+            tokens,
+            1,
+            2,
+            where,
+            () =>
+                `intersection_of needs a class, or a relation and a class, found ${JSON.stringify(unescapeObo(value))}; the clause is skipped`,
+        );
+        if (!usable) {
+            return;
+        }
+        const item: Record<string, unknown> =
+            tokens.length === 1
+                ? { relation: null, target: tokens[0].text }
+                : { relation: tokens[0].text, target: tokens[1].text };
+        this.push(record, "intersection_of", withQualifiers(item, qualifiers));
+    }
+
+    /**
+     * A true/false clause (is_obsolete, ...).
+     * @param record - the record
+     * @param tag - the tag
+     * @param value - the raw value
+     * @param qualifiers - its qualifier block
+     * @param where - the location
+     */
+    private boolClause(
+        record: NodeRecord,
+        tag: string,
+        value: string,
+        qualifiers: Qualifiers | null,
+        where: Where,
+    ): void {
+        const text = unescapeObo(value).trim();
+        if (text !== "true" && text !== "false") {
+            this.report.error(
+                "validation-error",
+                OBO_ISSUE.BAD_VALUE,
+                `${tag}: ${JSON.stringify(text)} is not true or false; the clause is skipped`,
+                where,
+            );
+            return;
+        }
+        this.single(record, tag, text === "true", where.line);
+        this.extraQualifiers(record, tag, text, qualifiers);
+    }
+
+    /**
+     * A clause listing one id (subset, alt_id, ...), warning about an undeclared subset.
+     * @param record - the record
+     * @param tag - the tag
+     * @param tokens - the value's tokens
+     * @param qualifiers - its qualifier block
+     * @param where - the location
+     */
+    private idListClause(
+        record: NodeRecord,
+        tag: string,
+        tokens: readonly Token[],
+        qualifiers: Qualifiers | null,
+        where: Where,
+    ): void {
+        const id = this.oneWord(tokens, tag, where);
+        if (id === null) {
+            return;
+        }
+        this.push(record, tag, id);
+        this.extraQualifiers(record, tag, id, qualifiers);
+        if (tag === "subset" && !this.subsets.has(id)) {
+            this.tally("validation-error", OBO_ISSUE.UNDECLARED, "a subset no subsetdef declares", id, where.line);
+        }
+    }
+
+    /**
+     * An is_a or instance_of clause: an edge to one id (instance_of only on an Instance).
+     * @param record - the record
+     * @param clause - the clause
+     * @param tag - the tag
+     * @param tokens - the value's tokens
+     * @param qualifiers - its qualifier block
+     * @param where - the location
+     */
+    private isAClause(
+        record: NodeRecord,
+        clause: Clause,
+        tag: string,
+        tokens: readonly Token[],
+        qualifiers: Qualifiers | null,
+        where: Where,
+    ): void {
+        if (tag === "instance_of" && record.kind !== "Instance") {
+            this.unrecognized(record, clause);
+            return;
+        }
+        const target = this.oneWord(tokens, tag, where);
+        if (target !== null) {
+            record.edges.push({ relation: tag, target, qualifiers, line: clause.line });
+        }
+    }
+
+    /**
+     * Check that a value is `min` to `max` words, reporting E_BAD_VALUE when it is not.
+     * @param tokens - the value's tokens
+     * @param min - the fewest words
+     * @param max - the most words
+     * @param where - the location
+     * @param message - the message, built only on an error
+     * @returns whether the value is usable
+     */
+    private wordsOrError(
+        tokens: readonly Token[],
+        min: number,
+        max: number,
+        where: Where,
+        message: () => string,
+    ): boolean {
+        if (tokens.length >= min && tokens.length <= max && tokens.every((t) => t.kind === "word")) {
+            return true;
+        }
+        this.report.error("validation-error", OBO_ISSUE.BAD_VALUE, message(), where);
+        return false;
+    }
+
+    /**
+     * An xref clause.
+     * @param record - the record
+     * @param value - the raw value
+     * @param qualifiers - its qualifier block
+     * @param where - the location
+     */
+    private xrefClause(record: NodeRecord, value: string, qualifiers: Qualifiers | null, where: Where): void {
+        const xref = parseXref(value);
+        if (xref === null) {
+            this.report.error("validation-error", OBO_ISSUE.BAD_VALUE, "xref has no id; the clause is skipped", where);
+            return;
+        }
+        this.push(record, "xref", xref.id);
+        this.describe(record, [xref], "xref", where.line);
+        this.extraQualifiers(record, "xref", xref.id, qualifiers ?? xref.qualifiers);
     }
 
     /**
@@ -1184,54 +1328,102 @@ class OboReader {
             .filter((t) => t.kind === "word")
             .map((t) => t.text);
         const list = tokens.slice(1).find((t) => t.kind === "list");
-        let scope: string | null = fixedScope;
+        const read = fixedScope === null ? this.synonymScopeAndType(words, line) : { scope: fixedScope, type: null };
+        const { type } = read;
+        const scope = this.declaredScope(type, read.scope, line);
+        this.synonymShapeChecks(tokens, words, list, line);
+        const xrefs = list === undefined ? [] : parseXrefList(list.text);
+        this.describe(record, xrefs, "synonym", line);
+        this.xrefQualifiers(record, "synonym", xrefs);
+        this.push(
+            record,
+            "synonym",
+            withQualifiers({ text: tokens[0].text, scope, type, xrefs: xrefs.map((x) => x.id) }, qualifiers),
+        );
+    }
+
+    /**
+     * The scope and type of a synonym whose tag does not fix its scope (`"text" SCOPE? TYPE?`),
+     * warning about a scope that is not one of the four and a scope a 1.4 file omits.
+     * @param words - the words after the text
+     * @param line - the line
+     * @returns the scope (null when not one of the four) and the type
+     */
+    private synonymScopeAndType(words: readonly string[], line: number): { scope: string | null; type: string | null } {
+        let scope: string | null = null;
         let type: string | null = null;
-        if (fixedScope === null) {
-            if (words.length > 0 && SYNONYM_SCOPES.has(words[0])) {
-                [scope] = words;
-                type = words[1] ?? null;
-            } else if (words.length > 0 && this.synonymTypes.has(words[0])) {
-                [type] = words;
-                scope = "RELATED";
-            } else if (words.length > 0) {
-                [type] = words;
+        if (words.length > 0 && SYNONYM_SCOPES.has(words[0])) {
+            [scope] = words;
+            type = words[1] ?? null;
+        } else if (words.length > 0 && this.synonymTypes.has(words[0])) {
+            [type] = words;
+            scope = "RELATED";
+        } else if (words.length > 0) {
+            [type] = words;
+            this.tally(
+                "validation-error",
+                OBO_ISSUE.SYNONYM_SCOPE,
+                `a scope that is not EXACT, BROAD, NARROW or RELATED was kept as the type, scope null`,
+                words[0],
+                line,
+            );
+        } else {
+            scope = "RELATED";
+        }
+        if (scope === "RELATED" && (words.length === 0 || words[0] === type) && !this.allowsMissingScope()) {
+            this.tally(
+                "validation-error",
+                OBO_ISSUE.SYNONYM_SCOPE,
+                "a synonym without a scope (1.2 only) is read as RELATED",
+                "synonym",
+                line,
+            );
+        }
+        return { scope, type };
+    }
+
+    /**
+     * The scope a synonym type's declaration fixes, warning about an undeclared type.
+     * @param type - the synonym type, or null
+     * @param scope - the scope read so far
+     * @param line - the line
+     * @returns the scope to use
+     */
+    private declaredScope(type: string | null, scope: string | null, line: number): string | null {
+        if (type === null) {
+            return scope;
+        }
+        const declared = this.synonymTypes.get(type);
+        if (declared === undefined) {
+            if (scope !== null) {
                 this.tally(
                     "validation-error",
-                    OBO_ISSUE.SYNONYM_SCOPE,
-                    `a scope that is not EXACT, BROAD, NARROW or RELATED was kept as the type, scope null`,
-                    words[0],
-                    line,
-                );
-            } else {
-                scope = "RELATED";
-            }
-            if (scope === "RELATED" && (words.length === 0 || words[0] === type) && !this.allowsMissingScope()) {
-                this.tally(
-                    "validation-error",
-                    OBO_ISSUE.SYNONYM_SCOPE,
-                    "a synonym without a scope (1.2 only) is read as RELATED",
-                    "synonym",
+                    OBO_ISSUE.UNDECLARED,
+                    "a synonym type no synonymtypedef declares",
+                    type,
                     line,
                 );
             }
+            return scope;
         }
-        if (type !== null) {
-            const declared = this.synonymTypes.get(type);
-            if (declared === undefined) {
-                if (scope !== null) {
-                    this.tally(
-                        "validation-error",
-                        OBO_ISSUE.UNDECLARED,
-                        "a synonym type no synonymtypedef declares",
-                        type,
-                        line,
-                    );
-                }
-            } else if (declared !== null) {
-                // the 1.2 guide: a type's default scope is used regardless of the synonym's own
-                scope = declared;
-            }
-        }
+        // the 1.2 guide: a type's default scope is used regardless of the synonym's own
+        return declared ?? scope;
+    }
+
+    /**
+     * Warn about the parts of a synonym the grammar does not allow: a missing or unterminated xref
+     * list, extra words, a second quoted string or list, text after the list.
+     * @param tokens - the value's tokens
+     * @param words - the words after the text
+     * @param list - the xref list token, if any
+     * @param line - the line
+     */
+    private synonymShapeChecks(
+        tokens: readonly Token[],
+        words: readonly string[],
+        list: Token | undefined,
+        line: number,
+    ): void {
         if (words.length > 2 || list === undefined) {
             this.tally(
                 "parse-error",
@@ -1264,14 +1456,6 @@ class OboReader {
                 line,
             );
         }
-        const xrefs = list === undefined ? [] : parseXrefList(list.text);
-        this.describe(record, xrefs, "synonym", line);
-        this.xrefQualifiers(record, "synonym", xrefs);
-        this.push(
-            record,
-            "synonym",
-            withQualifiers({ text: tokens[0].text, scope, type, xrefs: xrefs.map((x) => x.id) }, qualifiers),
-        );
     }
 
     /**
@@ -1651,6 +1835,49 @@ function planGraph(
     addMissingNodes: boolean,
     obo: ResolvedOboOptions,
 ): GraphPlan {
+    const records = planRecords(reader, obo);
+    checkCardinality(reader);
+    const { dropped, kept } = partitionObsolete(reader, records, obo);
+    const declared = new Set<string>(reader.typedefs.keys());
+    for (const typedef of reader.typedefs.values()) {
+        for (const xref of (typedef.lists.get("xref") ?? []) as string[]) {
+            declared.add(xref);
+        }
+    }
+    const planned = planEdges(reader, report, records, { dropped, kept, declared }, addMissingNodes);
+    reader.flushTallies();
+    reportDangling(
+        records,
+        planned.dangling,
+        addMissingNodes,
+        planned.danglingEdges,
+        report,
+        new Set(reader.typedefs.keys()),
+    );
+    if (dropped.size > 0) {
+        const { droppedEdges } = planned;
+        report.warning(
+            "merged",
+            OBO_ISSUE.OBSOLETE_DROPPED,
+            `${dropped.size} obsolete term${plural(dropped.size)} and ${droppedEdges} edge${plural(droppedEdges)} to or from them were left out (obsolete: "drop")`,
+            { element: [...dropped][0] },
+        );
+    }
+    return {
+        nodes: records.filter((record) => kept.has(record.id)),
+        placeholders: addMissingNodes ? planned.dangling : [],
+        edges: planned.edges,
+    };
+}
+
+/**
+ * The node records: every Term and Instance, then the Typedefs under typedefs "nodes" (a Typedef
+ * whose id a node already has is reported and left out).
+ * @param reader - the finished reader
+ * @param obo - the OBO options
+ * @returns the records, in first-appearance order
+ */
+function planRecords(reader: OboReader, obo: ResolvedOboOptions): NodeRecord[] {
     const records: NodeRecord[] = [...reader.nodes.values()];
     for (const [id, typedef] of reader.typedefs) {
         const node = reader.nodes.get(id);
@@ -1666,7 +1893,15 @@ function planGraph(
             records.push(typedef);
         }
     }
-    // a class expression needs two or more operands, counted after merging (spec 4.1.1)
+    return records;
+}
+
+/**
+ * Warn about a class expression with a single operand: it needs two or more, counted after
+ * merging (spec 4.1.1).
+ * @param reader - the finished reader
+ */
+function checkCardinality(reader: OboReader): void {
     for (const record of [...reader.nodes.values(), ...reader.typedefs.values()]) {
         for (const tag of ["intersection_of", "union_of"]) {
             if (record.lists.get(tag)?.length === 1) {
@@ -1680,12 +1915,26 @@ function planGraph(
             }
         }
     }
+}
+
+/**
+ * Split the records into the dropped (obsolete under obsolete "drop") and the kept, checking the
+ * obsoletion rules (the 1.2 guide; fastobo-validator --obsoletion).
+ * @param reader - the finished reader
+ * @param records - the node records
+ * @param obo - the OBO options
+ * @returns the ids dropped and kept
+ */
+function partitionObsolete(
+    reader: OboReader,
+    records: readonly NodeRecord[],
+    obo: ResolvedOboOptions,
+): { dropped: Set<string>; kept: Set<string> } {
     const dropped = new Set<string>();
     const kept = new Set<string>();
     for (const record of records) {
         const obsolete = record.values.get("is_obsolete") === true;
         (obo.obsolete === "drop" && obsolete ? dropped : kept).add(record.id);
-        // obsoletion rules (the 1.2 guide; fastobo-validator --obsoletion)
         if (obsolete && record.edges.length > 0) {
             reader.tally(
                 "validation-error",
@@ -1705,14 +1954,44 @@ function planGraph(
             );
         }
     }
-    const declared = new Set<string>(reader.typedefs.keys());
-    for (const typedef of reader.typedefs.values()) {
-        for (const xref of (typedef.lists.get("xref") ?? []) as string[]) {
-            declared.add(xref);
-        }
-    }
-    const dangling: string[] = [];
-    const danglingSet = new Set<string>();
+    return { dropped, kept };
+}
+
+/** The edges planGraph() keeps and what it counted on the way. */
+interface PlannedEdges {
+    /** The edges to push. */
+    readonly edges: { source: string; edge: PendingEdge }[];
+    /** The undeclared targets, in first-reference order. */
+    readonly dangling: string[];
+    /** The edges to undeclared targets dropped under addMissingNodes false. */
+    readonly danglingEdges: number;
+    /** The edges to or from a dropped obsolete term. */
+    readonly droppedEdges: number;
+}
+
+/**
+ * Decide which edges are pushed, warning about relations no Typedef declares and collecting the
+ * undeclared targets.
+ * @param reader - the finished reader
+ * @param report - the report
+ * @param records - the node records
+ * @param ids - the dropped and kept node ids and the declared relations
+ * @param ids.dropped - the ids of dropped obsolete terms
+ * @param ids.kept - the ids of the kept nodes
+ * @param ids.declared - the relations Typedefs declare (their ids and xrefs)
+ * @param addMissingNodes - whether an undeclared target becomes a placeholder node
+ * @returns the edges and the counts
+ */
+function planEdges(
+    reader: OboReader,
+    report: ImportReportBuilder,
+    records: readonly NodeRecord[],
+    ids: { dropped: ReadonlySet<string>; kept: ReadonlySet<string>; declared: ReadonlySet<string> },
+    addMissingNodes: boolean,
+): PlannedEdges {
+    const { dropped, kept, declared } = ids;
+    // a Set keeps first-insertion order: the undeclared targets in first-reference order
+    const dangling = new Set<string>();
     let danglingEdges = 0;
     let droppedEdges = 0;
     const edges: { source: string; edge: PendingEdge }[] = [];
@@ -1722,44 +2001,39 @@ function planGraph(
                 droppedEdges++;
                 continue;
             }
-            if (!BUILTIN_RELATIONS.has(edge.relation) && !declared.has(edge.relation)) {
-                reader.tally(
-                    "validation-error",
-                    OBO_ISSUE.UNDECLARED,
-                    "a relation no Typedef declares",
-                    edge.relation,
-                    edge.line,
-                );
+            checkRelation(reader, edge, declared);
+            if (kept.has(edge.target)) {
+                edges.push({ source: record.id, edge });
+                continue;
             }
-            if (!kept.has(edge.target)) {
-                if (!danglingSet.has(edge.target)) {
-                    danglingSet.add(edge.target);
-                    dangling.push(edge.target);
-                }
-                if (!addMissingNodes) {
-                    danglingEdges++;
-                    report.counts.skippedEdges++;
-                    continue;
-                }
+            dangling.add(edge.target);
+            if (addMissingNodes) {
+                edges.push({ source: record.id, edge });
+            } else {
+                danglingEdges++;
+                report.counts.skippedEdges++;
             }
-            edges.push({ source: record.id, edge });
         }
     }
-    reader.flushTallies();
-    reportDangling(records, dangling, addMissingNodes, danglingEdges, report, new Set(reader.typedefs.keys()));
-    if (dropped.size > 0) {
-        report.warning(
-            "merged",
-            OBO_ISSUE.OBSOLETE_DROPPED,
-            `${dropped.size} obsolete term${plural(dropped.size)} and ${droppedEdges} edge${plural(droppedEdges)} to or from them were left out (obsolete: "drop")`,
-            { element: [...dropped][0] },
+    return { edges, dangling: [...dangling], danglingEdges, droppedEdges };
+}
+
+/**
+ * Warn about an edge whose relation is neither built in nor declared by a Typedef.
+ * @param reader - the finished reader
+ * @param edge - the edge
+ * @param declared - the relations Typedefs declare
+ */
+function checkRelation(reader: OboReader, edge: PendingEdge, declared: ReadonlySet<string>): void {
+    if (!BUILTIN_RELATIONS.has(edge.relation) && !declared.has(edge.relation)) {
+        reader.tally(
+            "validation-error",
+            OBO_ISSUE.UNDECLARED,
+            "a relation no Typedef declares",
+            edge.relation,
+            edge.line,
         );
     }
-    return {
-        nodes: records.filter((record) => kept.has(record.id)),
-        placeholders: addMissingNodes ? dangling : [],
-        edges,
-    };
 }
 
 /**
@@ -1909,7 +2183,38 @@ function writeGraph(
         restoreIds(plan.nodes, push.restored);
     }
     const namespace = reader.namespaceDefault();
-    // columns, declared only when used, in the vocabulary's order
+    const columns = declareNodeColumns(plan, namespace, sink, report);
+    sink.reserve(plan.nodes.length + plan.placeholders.length, plan.edges.length);
+    for (const record of plan.nodes) {
+        writeNode(record, namespace, columns, push);
+    }
+    if (plan.placeholders.length > 0) {
+        const placeholder = declareResolved(sink, "node", oboColumnDecl("node", PLACEHOLDER_COLUMN), report).handle;
+        for (const text of plan.placeholders) {
+            const index = push.node(text);
+            if (index >= 0) {
+                sink.setNodeValue(placeholder, index, true);
+            }
+        }
+    }
+    writeEdges(plan, push, options);
+}
+
+/**
+ * Declare the node columns the records use (and `namespace` when the header has a default), in
+ * the vocabulary's order; none when there are no records.
+ * @param plan - the plan
+ * @param namespace - the default namespace, or null
+ * @param sink - the sink
+ * @param report - the report
+ * @returns the handles by column name
+ */
+function declareNodeColumns(
+    plan: GraphPlan,
+    namespace: string | null,
+    sink: GraphSink,
+    report: ImportReportBuilder,
+): Map<string, ColumnHandle> {
     const used = new Set<string>(["type"]);
     for (const record of plan.nodes) {
         for (const name of [...record.values.keys(), ...record.lists.keys()]) {
@@ -1925,33 +2230,36 @@ function writeGraph(
             columns.set(name, declareResolved(sink, "node", oboColumnDecl("node", name), report).handle);
         }
     }
-    sink.reserve(plan.nodes.length + plan.placeholders.length, plan.edges.length);
-    for (const record of plan.nodes) {
-        const index = push.node(record.id, record.line);
-        if (index < 0) {
-            continue;
-        }
-        const cells: [string, unknown][] = [["type", record.kind], ...record.values, ...record.lists];
-        if (namespace !== null && !record.values.has("namespace")) {
-            cells.push(["namespace", namespace]);
-        }
-        for (const [name, value] of cells) {
-            const handle = columns.get(name);
-            if (handle !== undefined) {
-                sink.setNodeValue(handle, index, value);
-            }
+    return columns;
+}
+
+/**
+ * Push one node record with its cells (the default namespace when it names none).
+ * @param record - the record
+ * @param namespace - the default namespace, or null
+ * @param columns - the node column handles by name
+ * @param push - the pusher
+ */
+function writeNode(
+    record: NodeRecord,
+    namespace: string | null,
+    columns: ReadonlyMap<string, ColumnHandle>,
+    push: Pusher,
+): void {
+    const index = push.node(record.id, record.line);
+    if (index < 0) {
+        return;
+    }
+    const cells: [string, unknown][] = [["type", record.kind], ...record.values, ...record.lists];
+    if (namespace !== null && !record.values.has("namespace")) {
+        cells.push(["namespace", namespace]);
+    }
+    for (const [name, value] of cells) {
+        const handle = columns.get(name);
+        if (handle !== undefined) {
+            push.sink.setNodeValue(handle, index, value);
         }
     }
-    if (plan.placeholders.length > 0) {
-        const placeholder = declareResolved(sink, "node", oboColumnDecl("node", PLACEHOLDER_COLUMN), report).handle;
-        for (const text of plan.placeholders) {
-            const index = push.node(text);
-            if (index >= 0) {
-                sink.setNodeValue(placeholder, index, true);
-            }
-        }
-    }
-    writeEdges(plan, push, options);
 }
 
 /**

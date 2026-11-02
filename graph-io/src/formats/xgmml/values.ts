@@ -142,43 +142,68 @@ export function parseScalar(text: string, kind: ScalarKind, unescape: boolean): 
     switch (kind) {
         case "string":
             return { value: unescape ? unescapeCytoscape(text) : text };
-        case "bool": {
-            const t = text.trim().toLowerCase();
-            if (t === "1" || t === "true" || t === "yes") {
-                return { value: true };
-            }
-            if (t === "0" || t === "false" || t === "no") {
-                return { value: false };
-            }
-            return null;
-        }
+        case "bool":
+            return parseBool(text);
         case "int":
-        case "long": {
-            const t = text.trim();
-            if (!INTEGER_TEXT.test(t)) {
-                return null;
-            }
-            const n = Number(t);
-            if (kind === "int" && (n < I32_MIN || n > I32_MAX)) {
-                return { value: n, overflow: Number.isSafeInteger(n) ? "i32" : "precision" };
-            }
-            return { value: n, overflow: Number.isSafeInteger(n) ? undefined : "precision" };
-        }
-        case "real": {
-            const t = text.trim();
-            if (!REAL_TEXT.test(t) && !NON_FINITE_TEXT.test(t)) {
-                return null;
-            }
-            const n = Number(t);
-            // only a finite spelling that overflows (1e400) loses precision; NaN and the infinities are exact
-            const overflow = !Number.isFinite(n) && !/Infinity|NaN/.test(t) ? "precision" : undefined;
-            return { value: n, overflow };
-        }
+        case "long":
+            return parseInteger(text, kind);
+        case "real":
+            return parseReal(text);
         default: {
             const name: never = kind;
             throw new Error(`unknown scalar kind ${String(name)}`);
         }
     }
+}
+
+/**
+ * Parse a boolean: 1 / 0 / true / false / yes / no in any case, trimmed.
+ * @param text - the value text
+ * @returns the value, or null when it is not a boolean
+ */
+function parseBool(text: string): ParsedScalar | null {
+    const t = text.trim().toLowerCase();
+    if (t === "1" || t === "true" || t === "yes") {
+        return { value: true };
+    }
+    if (t === "0" || t === "false" || t === "no") {
+        return { value: false };
+    }
+    return null;
+}
+
+/**
+ * Parse an int or a long, noting an int beyond i32 and an integer beyond a double's exact range.
+ * @param text - the value text
+ * @param kind - int or long
+ * @returns the value, or null when it is not an integer
+ */
+function parseInteger(text: string, kind: "int" | "long"): ParsedScalar | null {
+    const t = text.trim();
+    if (!INTEGER_TEXT.test(t)) {
+        return null;
+    }
+    const n = Number(t);
+    if (kind === "int" && (n < I32_MIN || n > I32_MAX)) {
+        return { value: n, overflow: Number.isSafeInteger(n) ? "i32" : "precision" };
+    }
+    return { value: n, overflow: Number.isSafeInteger(n) ? undefined : "precision" };
+}
+
+/**
+ * Parse a real in Java's Double.valueOf forms, or NaN / Infinity.
+ * @param text - the value text
+ * @returns the value, or null when it is not a real
+ */
+function parseReal(text: string): ParsedScalar | null {
+    const t = text.trim();
+    if (!REAL_TEXT.test(t) && !NON_FINITE_TEXT.test(t)) {
+        return null;
+    }
+    const n = Number(t);
+    // only a finite spelling that overflows (1e400) loses precision; NaN and the infinities are exact
+    const overflow = !Number.isFinite(n) && !/Infinity|NaN/.test(t) ? "precision" : undefined;
+    return { value: n, overflow };
 }
 
 /**

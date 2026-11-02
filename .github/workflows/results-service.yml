@@ -56,10 +56,28 @@ jobs:
                   [ -n "$id" ] || { echo "::error::no D1 database graphty-results after creating it"; exit 1; }
                   sed -i "s/00000000-0000-0000-0000-000000000000/$id/" wrangler.toml
 
-            - name: Apply the migrations and deploy the results Worker
+            # A migration holds the database for as long as it runs, so it only changes the schema. The rows a summary
+            # table needs from before it existed are copied by backfill.sql, one bounded batch per call, until it
+            # answers finished = 1 (#5597); the Worker that reads them deploys only after. A failed batch changes
+            # nothing, and the next call repeats it. Once finished, each call is one cheap read.
+            - name: Apply the migrations, backfill the summary tables and deploy the results Worker
               working-directory: tools/results-service
               run: |
                   $WRANGLER d1 migrations apply graphty-results --remote
+                  sql="$(cat backfill.sql)"
+                  finished=0 fails=0 batches=0
+                  while [ "$finished" != 1 ]; do
+                    if out="$($WRANGLER d1 execute graphty-results --remote --json --command="$sql")" &&
+                        finished="$(jq -er '.[-1].results[0].finished' <<< "$out")"; then
+                      fails=0 batches=$((batches + 1))
+                      jq -r '.[-1].results[0] | "batch '"$batches"': done \(.done) of \(.last)"' <<< "$out"
+                    else
+                      fails=$((fails + 1))
+                      [ "$fails" -lt 5 ] || { echo "::error::the summary backfill failed 5 times running"; exit 1; }
+                      sleep 10
+                    fi
+                    [ "$batches" -lt 1000 ] || { echo "::error::the summary backfill did not finish in 1000 batches"; exit 1; }
+                  done
                   $WRANGLER deploy
 
             - name: Deploy the release scheduler

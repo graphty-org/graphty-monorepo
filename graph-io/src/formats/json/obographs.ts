@@ -762,25 +762,9 @@ function readEdges(
     vocabulary: Vocabulary,
     edges: readonly unknown[],
 ): unknown[] {
-    const { report, sink } = ctx;
     const propertyEdges: unknown[] = [];
     const dangling: string[] = [];
     let dropped = 0;
-    const endpoint = (raw: string, element: string): NodeId | null => {
-        const id = ctx.coerceId(vocabulary.id(raw), element);
-        if (id === null || sink.indexOf(id) !== INVALID_INDEX) {
-            return id;
-        }
-        dangling.push(raw);
-        if (!ctx.options.addMissingNodes) {
-            return null;
-        }
-        const row = ctx.pushNode(id, element);
-        if (row >= 0) {
-            columns.node(PLACEHOLDER_COLUMN, row, true);
-        }
-        return id;
-    };
     for (let i = 0; i < edges.length; i++) {
         const element = `edges[${i}]`;
         const record = edges[i];
@@ -788,57 +772,154 @@ function readEdges(
             ctx.badElement("edge", element);
             continue;
         }
-        const sub = subjectOf(ctx, record, element);
-        const { obj, pred } = record;
-        if (typeof sub !== "string" || typeof obj !== "string" || sub.length === 0 || obj.length === 0) {
-            ctx.missingEndpoint(element, typeof sub === "string" && sub.length > 0 ? "obj" : "sub");
+        const ends = edgeEndsOf(ctx, record, element);
+        if (ends === null) {
             continue;
         }
-        // only an edge between two properties is property metadata; one that touches a class stays
-        const between =
-            (vocabulary.isProperty(sub) && vocabulary.isProperty(obj)) ||
-            (typeof pred === "string" &&
-                PROPERTY_PREDICATES.has(pred) &&
-                !vocabulary.isClass(sub) &&
-                !vocabulary.isClass(obj));
-        if (between && ctx.json.typedefs === "metadata") {
+        const { sub, obj } = ends;
+        if (ctx.json.typedefs === "metadata" && isPropertyEdge(vocabulary, sub, obj, record.pred)) {
             propertyEdges.push(record);
             continue;
         }
         try {
-            const u = endpoint(sub, `${element}.sub`);
-            const v = endpoint(obj, `${element}.obj`);
+            const u = edgeEndpoint(ctx, columns, vocabulary, dangling, sub, `${element}.sub`);
+            const v = edgeEndpoint(ctx, columns, vocabulary, dangling, obj, `${element}.obj`);
             if (u === null || v === null) {
                 dropped++;
                 ctx.countSkipped("edge");
                 continue;
             }
             const edge = ctx.pushEdge(u, v, "directed", undefined, element);
-            if (typeof pred === "string") {
-                columns.edge("relation", edge, vocabulary.relation(pred));
-            } else {
-                badValue(ctx, `${element} has no pred; its relation is unset`);
-            }
-            if (isJsonObject(record.meta)) {
-                columns.edge("meta", edge, record.meta);
-            } else if (record.meta !== undefined && record.meta !== null) {
-                badValue(ctx, `${element}.meta must be an object; it is dropped`, `${element}.meta`);
-            }
+            writeEdgeFields(ctx, columns, vocabulary, edge, record, element);
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
     }
-    if (dangling.length > 0) {
-        const shown = [...new Set(dangling)].slice(0, 5).join(", ");
-        const action = ctx.options.addMissingNodes
-            ? "each became a placeholder node (graphty.placeholder)"
-            : `${dropped} edge${plural(dropped)} to them ${agree(dropped, "was", "were")} dropped (addMissingNodes false)`;
-        report.warning(
-            "validation-error",
-            JSON_ISSUE.DANGLING_REFERENCE,
-            `${new Set(dangling).size} edge endpoint${plural(new Set(dangling).size)} missing from nodes: ${shown}; ${action}`,
-            { element: dangling[0] },
-        );
-    }
+    reportDangling(ctx, dangling, dropped);
     return propertyEdges;
+}
+
+/**
+ * An edge record's subject and object, both non-empty strings; a missing one is reported.
+ * @param ctx - the context
+ * @param record - the edge record
+ * @param element - the element name
+ * @returns the subject and object, or null when either is missing
+ */
+function edgeEndsOf(ctx: ImportContext, record: JsonRecord, element: string): { sub: string; obj: string } | null {
+    const sub = subjectOf(ctx, record, element);
+    const { obj } = record;
+    if (typeof sub !== "string" || typeof obj !== "string" || sub.length === 0 || obj.length === 0) {
+        ctx.missingEndpoint(element, typeof sub === "string" && sub.length > 0 ? "obj" : "sub");
+        return null;
+    }
+    return { sub, obj };
+}
+
+/**
+ * An edge endpoint's node id. One missing from the nodes read so far is recorded as dangling and
+ * becomes a placeholder node, or null under addMissingNodes false.
+ * @param ctx - the context
+ * @param columns - the column writer
+ * @param vocabulary - the graph's vocabulary
+ * @param dangling - the missing endpoints so far, appended to
+ * @param raw - the endpoint as written
+ * @param element - the element name
+ * @returns the id, or null when it is unusable or its edge is to be dropped
+ */
+function edgeEndpoint(
+    ctx: ImportContext,
+    columns: ColumnWriter,
+    vocabulary: Vocabulary,
+    dangling: string[],
+    raw: string,
+    element: string,
+): NodeId | null {
+    const id = ctx.coerceId(vocabulary.id(raw), element);
+    if (id === null || ctx.sink.indexOf(id) !== INVALID_INDEX) {
+        return id;
+    }
+    dangling.push(raw);
+    if (!ctx.options.addMissingNodes) {
+        return null;
+    }
+    const row = ctx.pushNode(id, element);
+    if (row >= 0) {
+        columns.node(PLACEHOLDER_COLUMN, row, true);
+    }
+    return id;
+}
+
+/**
+ * Whether an edge is property metadata: only an edge between two properties is, or one with a
+ * property predicate that touches no class; one that touches a class stays an edge.
+ * @param vocabulary - the graph's vocabulary
+ * @param sub - the subject
+ * @param obj - the object
+ * @param pred - the predicate as found
+ * @returns true for a property edge
+ */
+function isPropertyEdge(vocabulary: Vocabulary, sub: string, obj: string, pred: unknown): boolean {
+    if (vocabulary.isProperty(sub) && vocabulary.isProperty(obj)) {
+        return true;
+    }
+    return (
+        typeof pred === "string" &&
+        PROPERTY_PREDICATES.has(pred) &&
+        !vocabulary.isClass(sub) &&
+        !vocabulary.isClass(obj)
+    );
+}
+
+/**
+ * Write a pushed edge's relation (from `pred`) and `meta`, reporting a missing pred or a meta that
+ * is not an object.
+ * @param ctx - the context
+ * @param columns - the column writer
+ * @param vocabulary - the graph's vocabulary
+ * @param edge - the edge index
+ * @param record - the edge record
+ * @param element - the element name
+ */
+function writeEdgeFields(
+    ctx: ImportContext,
+    columns: ColumnWriter,
+    vocabulary: Vocabulary,
+    edge: number,
+    record: JsonRecord,
+    element: string,
+): void {
+    const { pred, meta } = record;
+    if (typeof pred === "string") {
+        columns.edge("relation", edge, vocabulary.relation(pred));
+    } else {
+        badValue(ctx, `${element} has no pred; its relation is unset`);
+    }
+    if (isJsonObject(meta)) {
+        columns.edge("meta", edge, meta);
+    } else if (meta !== undefined && meta !== null) {
+        badValue(ctx, `${element}.meta must be an object; it is dropped`, `${element}.meta`);
+    }
+}
+
+/**
+ * Warn about edge endpoints missing from `nodes`: placeholders made, or edges dropped.
+ * @param ctx - the context
+ * @param dangling - the missing endpoints, in order found (repeats included)
+ * @param dropped - the edges dropped for them
+ */
+function reportDangling(ctx: ImportContext, dangling: readonly string[], dropped: number): void {
+    if (dangling.length === 0) {
+        return;
+    }
+    const shown = [...new Set(dangling)].slice(0, 5).join(", ");
+    const action = ctx.options.addMissingNodes
+        ? "each became a placeholder node (graphty.placeholder)"
+        : `${dropped} edge${plural(dropped)} to them ${agree(dropped, "was", "were")} dropped (addMissingNodes false)`;
+    ctx.report.warning(
+        "validation-error",
+        JSON_ISSUE.DANGLING_REFERENCE,
+        `${new Set(dangling).size} edge endpoint${plural(new Set(dangling).size)} missing from nodes: ${shown}; ${action}`,
+        { element: dangling[0] },
+    );
 }

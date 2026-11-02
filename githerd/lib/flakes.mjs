@@ -47,7 +47,7 @@ import { isMergeQueuePr } from "./merge-status.mjs";
 import { firstParent } from "./master.mjs";
 import { packageIn } from "./workspace.mjs";
 
-export { packageIn, readWorkspace } from "./workspace.mjs";
+export { readWorkspace } from "./workspace.mjs";
 
 /** The line that ties an issue to its test. */
 export const MARKER = "githerd-flaky-test: ";

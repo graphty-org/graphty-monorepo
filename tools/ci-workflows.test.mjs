@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+    chmodSync,
     copyFileSync,
     existsSync,
     mkdirSync,
@@ -8518,6 +8519,61 @@ describe("the Capture impact job (#5304)", () => {
             assert.equal(changed({ [f]: "x\n" }), "false", f);
         }
         assert.equal(changed({ "pnpm-lock.yaml": "  vite@8.0.0:\n" }), "false", "another version");
+    });
+
+    it("prints only GITHUB_OUTPUT lines from measure, whatever its installs print (#5636)", () => {
+        const dir = mkdtempSync(join(TMP, "capture-impact-measure-"));
+        const repo = join(dir, "repo");
+        const bin = join(dir, "bin");
+        mkdirSync(join(repo, "visual-review"), { recursive: true });
+        mkdirSync(join(repo, "visual-fonts"), { recursive: true });
+        mkdirSync(bin);
+        writeFileSync(
+            join(repo, "visual-review/package.json"),
+            JSON.stringify({ devDependencies: { playwright: "1.0.0" }, dependencies: { pngjs: "1.0.0" } }),
+        );
+        writeFileSync(join(repo, "visual-fonts/fonts.conf"), "x\n");
+        writeFileSync(
+            join(repo, "visual-review.config.json"),
+            JSON.stringify({ projects: { x: { storybook: "x/storybook-static" } } }),
+        );
+        const git = (...a) => assert.equal(spawnSync("git", a, { cwd: repo }).status, 0);
+        git("init", "-q", "-b", "master");
+        git("add", ".");
+        git("commit", "-qm", "base");
+        git("commit", "-q", "--allow-empty", "-m", "head");
+        // the installs, chatty on stdout as the real ones are: git lfs, npm, and playwright install --with-deps
+        const realGit = execFileSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+        writeFileSync(
+            join(bin, "git"),
+            `#!/usr/bin/env bash\nfor a; do [[ "$a" == lfs ]] && { echo "Downloading LFS objects: 100%"; exit 0; }; done\nexec ${realGit} "$@"\n`,
+        );
+        writeFileSync(
+            join(bin, "npm"),
+            [
+                "#!/usr/bin/env bash",
+                'while [[ $# -gt 0 ]]; do [[ "$1" == --prefix ]] && prefix=$2; shift; done',
+                'mkdir -p "$prefix/node_modules/playwright"',
+                `echo 'console.log("Installing dependencies...")' > "$prefix/node_modules/playwright/cli.js"`,
+                "echo 'added 2 packages'",
+                "",
+            ].join("\n"),
+        );
+        chmodSync(join(bin, "git"), 0o755);
+        chmodSync(join(bin, "npm"), 0o755);
+        const r = spawnSync(
+            "bash",
+            [join(process.cwd(), "tools/capture-impact.sh"), "measure", "HEAD^", "HEAD", join(dir, "out")],
+            {
+                cwd: repo,
+                encoding: "utf8",
+                env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, STORYBOOK_ROOT: dir },
+            },
+        );
+        assert.equal(r.status, 0, r.stderr);
+        assert.match(r.stderr, /Installing dependencies\.\.\./, "the install ran and its output went to stderr");
+        assert.deepEqual(r.stdout.trim().split("\n"), ["changed=0", "pictures=0"]);
+        for (const line of r.stdout.trim().split("\n")) assert.match(line, /^[A-Za-z_][\w-]*=/, line);
     });
 
     it("runs only when planned, never fails the run, and holds All Checks Pass while its label is on", () => {

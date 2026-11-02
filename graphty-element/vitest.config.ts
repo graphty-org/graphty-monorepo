@@ -338,8 +338,12 @@ const PICTURE_TYPES: Readonly<Record<string, string>> = {
     ".jpeg": "image/jpeg",
 };
 
-/** The browser contexts the sample pictures are served in, and the unmapped internet URLs each refused. */
-const refusedPictures = new WeakMap<object, string[]>();
+/**
+ * The browser contexts the sample pictures are served in, and the unmapped internet URLs each refused; `null` while
+ * no sample is loading, when the route leaves every unmapped request to the routes before it (the browser project
+ * shares one context across its files, and the map tile guard must keep seeing its own requests).
+ */
+const refusedPictures = new WeakMap<object, string[] | null>();
 
 /**
  * The commands the style fidelity harness (test/fidelity/mount.ts) runs around loading a sample, in the `fidelity`
@@ -351,16 +355,16 @@ const samplePictureCommands: {
 } = {
     /**
      * Answers every sample picture's URL from its committed copy, and refuses (and records) any other request to the
-     * internet, once per browser context; a map tile server is left to the map tile fixture (vitest.map-tiles.mjs).
-     * Forgets what was refused before.
+     * internet, until `takeRefusedSamplePictures` ends the load; a map tile server is left to the map tile fixture
+     * (vitest.map-tiles.mjs). The route is installed once per browser context.
      * @param ctx - the browser command context.
      */
     async serveSamplePictures(ctx) {
-        if (refusedPictures.has(ctx.context)) {
-            refusedPictures.set(ctx.context, []);
+        const installed = refusedPictures.has(ctx.context);
+        refusedPictures.set(ctx.context, []);
+        if (installed) {
             return;
         }
-        refusedPictures.set(ctx.context, []);
         const pictures = new Map(
             Object.entries(SAMPLE_PICTURES).map(([url, file]) => [
                 url,
@@ -376,21 +380,22 @@ const samplePictureCommands: {
             if (picture !== undefined) {
                 return route.fulfill({ status: 200, ...picture });
             }
-            if (isTileServer(url)) {
+            const refused = refusedPictures.get(ctx.context);
+            if (!refused || isTileServer(url)) {
                 return route.fallback();
             }
-            refusedPictures.get(ctx.context)?.push(url);
+            refused.push(url);
             return route.abort("blockedbyclient");
         });
     },
     /**
-     * The internet requests refused since the last call.
+     * Ends a sample's load: the internet requests refused during it. Requests after it are no longer refused.
      * @param ctx - the browser command context.
      * @returns their URLs.
      */
     takeRefusedSamplePictures(ctx) {
         const urls = refusedPictures.get(ctx.context) ?? [];
-        refusedPictures.set(ctx.context, []);
+        refusedPictures.set(ctx.context, null);
         return urls;
     },
 };

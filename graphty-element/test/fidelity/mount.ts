@@ -18,7 +18,7 @@ declare module "vitest/browser" {
          * internet request (vitest.config.ts SAMPLE_PICTURES).
          */
         serveSamplePictures: () => Promise<void>;
-        /** The internet requests refused since the last call. */
+        /** Ends a sample's load: the internet requests refused during it. */
         takeRefusedSamplePictures: () => Promise<string[]>;
     }
 }
@@ -99,8 +99,14 @@ export async function mountSample(
     mounted = element;
     // the file's own address on the test server, so a picture it names beside it is found (graph-io/test/<file>)
     const fileUrl = new URL(`../${sample.file}`, new URL(samplesNotes, document.baseURI)).href;
-    const loaded = await importSample(element, sample.format, blobUrl, graphName, formatOptions, fileUrl);
-    const refused = await commands.takeRefusedSamplePictures();
+    let loaded: string;
+    let refused: string[];
+    try {
+        loaded = await importSample(element, sample.format, blobUrl, graphName, formatOptions, fileUrl);
+    } finally {
+        // ends the refusal, so the browser project's later files reach the routes before it (the map tile guard)
+        refused = await commands.takeRefusedSamplePictures();
+    }
     if (refused.length > 0) {
         throw new Error(
             `${sample.id} asked the internet for ${refused.join(", ")}. A fidelity run never reaches the network: ` +

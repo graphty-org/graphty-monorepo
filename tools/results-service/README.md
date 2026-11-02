@@ -71,7 +71,7 @@ A record id names the run that wrote it: `<run_id>.<run_attempt>.<job>.<group>.<
 
 `.github/workflows/results-service.yml` deploys from master on every push that touches this directory
 or `tools/release-scheduler/`: it runs both Workers' tests, creates the D1 database on its first run,
-applies `migrations/` and deploys both Workers. It needs the repository secrets
+applies `migrations/`, runs `backfill.sql` until it answers `finished = 1`, and deploys both Workers. It needs the repository secrets
 `CLOUDFLARE_API_TOKEN` (Workers Scripts edit and D1 edit) and `CLOUDFLARE_ACCOUNT_ID`, and checks
 `/v1/health` at the repository variable `RESULTS_URL`.
 
@@ -94,3 +94,8 @@ node tools/results-service/test/index.test.mjs
 The tests run the real migrations and SQL on `node:sqlite` (`test/d1-shim.mjs`) with OIDC tokens
 signed by a generated key. Schema changes are additive only: a new file in `migrations/`, never an
 edit of an applied one.
+
+D1 runs a migration file as one batch and resets it when it holds storage too long (code 7429), so a
+migration only changes the schema and its statements are `IF NOT EXISTS`. Copying existing rows into a
+new table goes in bounded, idempotent batches, as `backfill.sql` does for the duration summaries
+(#5597): each reads at most 50,000 rows by the primary key.

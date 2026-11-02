@@ -1412,6 +1412,29 @@ function itemTest(read: (index: number) => unknown, wanted: unknown, mark: PathM
 }
 
 /**
+ * The elements one item of a held execution holds: what its run's re-run captured, and nothing
+ * when no capture was kept.
+ * @param context - The compile context.
+ * @param item - The item.
+ * @param mark - The path's mark.
+ * @returns The halves the capture holds.
+ */
+function heldItem(context: CompileContext, item: ResultItem, mark: PathMark): CompiledHalves {
+    const held = context.sources.captured?.(item);
+    if (held === undefined || (held.nodes === null && held.edges === null)) {
+        return NOTHING;
+    }
+
+    mark.seen = true;
+    const { nodes, edges } = held;
+
+    return {
+        node: nodes === null ? null : (index) => maskTest(nodes, index),
+        edge: edges === null ? null : (index) => maskTest(edges, index),
+    };
+}
+
+/**
  * The elements one item of a result holds. A run with no result, a field the result does not
  * publish per element, and a held execution that is no longer current all hold nothing.
  * @param context - The compile context.
@@ -1427,18 +1450,7 @@ function compileItem(context: CompileContext, item: ResultItem): CompiledHalves 
     // A held execution that is no longer current reads what its run's re-run captured, and
     // nothing when no capture was kept.
     if (item.run !== undefined && item.run !== result?.execution) {
-        const held = context.sources.captured?.(item);
-        if (held === undefined || (held.nodes === null && held.edges === null)) {
-            return NOTHING;
-        }
-
-        mark.seen = true;
-        const { nodes, edges } = held;
-
-        return {
-            node: nodes === null ? null : (index) => maskTest(nodes, index),
-            edge: edges === null ? null : (index) => maskTest(edges, index),
-        };
+        return heldItem(context, item, mark);
     }
 
     if (result === undefined) {
@@ -1502,6 +1514,41 @@ function thresholdHalf(
 }
 
 /**
+ * How a threshold reads its path on each half: from a run's result for `results.<run>.<field>`,
+ * else from the element values. A half the path does not live on reads null.
+ * @param context - The compile context.
+ * @param path - The threshold's path.
+ * @returns The node and edge readers.
+ */
+function thresholdReaders(
+    context: CompileContext,
+    path: string,
+): { readNode: ((index: number) => unknown) | null; readEdge: ((index: number) => unknown) | null } {
+    if (!path.startsWith("results.")) {
+        const values = valuesOf(context, "threshold");
+        return {
+            readNode: (index) => values.nodeValue(index, path),
+            readEdge: (index) => values.edgeValue(index, path),
+        };
+    }
+
+    const rest = path.slice("results.".length);
+    const dot = rest.indexOf(".");
+    const run = rest.slice(0, dot);
+    const field = rest.slice(dot + 1);
+    const result = resultOf(context, "threshold", run);
+    if (result === undefined) {
+        return { readNode: null, readEdge: null };
+    }
+
+    const halves = fieldHalves(result, field);
+    return {
+        readNode: halves.node ? (index) => result.nodeValue(index, field) : null,
+        readEdge: halves.edge ? (index) => result.edgeValue(index, field) : null,
+    };
+}
+
+/**
  * The elements whose value for a path passes a threshold's cut. Each half whose elements carry
  * the value is ranked on its own and speaks; when none does, the leaf holds nothing.
  * @param context - The compile context.
@@ -1511,24 +1558,7 @@ function thresholdHalf(
 function compileThreshold(context: CompileContext, filter: Extract<RuleTree, { kind: "threshold" }>): CompiledHalves {
     const { graph } = context;
     const mark = markFor(context, filter.path);
-    let readNode: ((index: number) => unknown) | null;
-    let readEdge: ((index: number) => unknown) | null;
-
-    if (filter.path.startsWith("results.")) {
-        const rest = filter.path.slice("results.".length);
-        const dot = rest.indexOf(".");
-        const run = rest.slice(0, dot);
-        const field = rest.slice(dot + 1);
-        const result = resultOf(context, "threshold", run);
-        const halves = result === undefined ? { node: false, edge: false } : fieldHalves(result, field);
-        readNode = halves.node && result !== undefined ? (index) => result.nodeValue(index, field) : null;
-        readEdge = halves.edge && result !== undefined ? (index) => result.edgeValue(index, field) : null;
-    } else {
-        const values = valuesOf(context, "threshold");
-        readNode = (index) => values.nodeValue(index, filter.path);
-        readEdge = (index) => values.edgeValue(index, filter.path);
-    }
-
+    const { readNode, readEdge } = thresholdReaders(context, filter.path);
     const nodes = readNode === null ? null : thresholdHalf(graph.nodeCount, readNode, filter, mark);
     const edges = readEdge === null ? null : thresholdHalf(graph.edgeCount, readEdge, filter, mark);
     if (nodes === null && edges === null) {

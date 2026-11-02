@@ -1990,11 +1990,11 @@ export class GraphStore {
     }
 
     /**
-     * The completion pass (design 12.2, 12.3): hash new nodes, complete session edges, and, when
-     * no load is open, complete the load's edges -- ordinal and among per pair over the load's
-     * surviving edges, and the edge hash, in one sorted pass.
+     * Hash every node row added since the last completion into the node hash column.
+     * @returns The hashes as one typed array when this is the store's first freeze and they were
+     * written as a whole column, or null when they were written cell by cell.
      */
-    private completeIdentity(): void {
+    private hashNewNodes(): Uint32Array | null {
         const builder = this.current;
         // Every node row at once (the first freeze of a store): one typed array and one bulk
         // column write instead of a checked cell write per node.
@@ -2021,6 +2021,18 @@ export class GraphStore {
         if (bulkNodes !== null) {
             builder.setNodeColumn(IDENTITY_COLUMNS.nodeHash, bulkNodes, { dtype: "u32", components: 2 });
         }
+
+        return bulkNodes;
+    }
+
+    /**
+     * The completion pass (design 12.2, 12.3): hash new nodes, complete session edges, and, when
+     * no load is open, complete the load's edges -- ordinal and among per pair over the load's
+     * surviving edges, and the edge hash, in one sorted pass.
+     */
+    private completeIdentity(): void {
+        const builder = this.current;
+        const bulkNodes = this.hashNewNodes();
 
         const completingLoad = this.loadDepth === 0 && this.loadLength > 0;
         if (this.sessionEdges.length === 0 && !completingLoad) {

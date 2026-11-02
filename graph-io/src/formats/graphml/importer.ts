@@ -1810,102 +1810,146 @@ class GraphmlReader implements XmlHandler {
         }
         const where = { line: content.line, element: key.id };
         switch (content.domain) {
-            case "node": {
-                const node = this.nodes[this.nodes.length - 1];
-                if (key.originalId) {
-                    if (typeof value !== "string" || node.index !== INVALID_INDEX) {
-                        this.report.warning(
-                            "validation-error",
-                            GRAPHML_ISSUE.ORIGINAL_ID_IGNORED,
-                            typeof value === "string"
-                                ? `the ${ORIGINAL_ID_ATTRIBUTE} value comes after the node's nested <graph>, which added the node under its written id; it is not restored`
-                                : `the ${ORIGINAL_ID_ATTRIBUTE} value holds elements, not text; it is not restored`,
-                            where,
-                        );
-                        return;
-                    }
-                    node.restoredId = value;
-                    return;
-                }
-                if (key.yfiles) {
-                    for (const [handle, mapped] of this.graphics("node", key, value, where)) {
-                        this.setNodeData(node, handle, mapped);
-                    }
-                }
-                if (key.node === null) {
-                    return;
-                }
-                const parsed = this.parseValue(key.node, value, where);
-                if (parsed !== undefined) {
-                    this.setNodeData(node, key.node.handle, parsed);
-                }
+            case "node":
+                this.finishNodeData(key, value, where);
                 return;
-            }
-            case "edge": {
-                const { edge } = this;
-                if (edge === null) {
-                    return;
-                }
-                if (key.weight) {
-                    if (typeof value !== "string") {
-                        this.report.error(
-                            "validation-error",
-                            GRAPHML_ISSUE.DATA_NESTED,
-                            "a weight value must be text",
-                            where,
-                        );
-                        return;
-                    }
-                    if (edge.weightKey !== null && edge.weightKey !== key.id) {
-                        this.report.warning(
-                            "validation-error",
-                            GRAPHML_ISSUE.DUPLICATE_ATTRIBUTE,
-                            `the edge has values of two weight keys ("${edge.weightKey}" and "${key.id}"); the later one is kept`,
-                            where,
-                        );
-                    }
-                    edge.weightKey = key.id;
-                    try {
-                        edge.weight = parseWeightText(value, this.report);
-                        this.checkOverflow(value, edge.weight, key.name, where);
-                    } catch (err) {
-                        this.skipEdge(edge);
-                        this.report.recordError(err, where);
-                    }
-                    return;
-                }
-                if (key.yfiles) {
-                    for (const [handle, mapped] of this.graphics("edge", key, value, where)) {
-                        edge.pending.push(handle, mapped);
-                    }
-                }
-                if (key.edge === null) {
-                    return;
-                }
-                const parsed = this.parseValue(key.edge, value, where);
-                if (parsed !== undefined) {
-                    edge.pending.push(key.edge.handle, parsed);
-                }
+            case "edge":
+                this.finishEdgeData(key, value, where);
                 return;
-            }
-            case "graph": {
-                if (key.graph === null) {
-                    return;
-                }
-                const parsed = this.parseValue(key.graph, value, where);
-                if (parsed !== undefined) {
-                    try {
-                        this.sink.setGraphValue(key.graph.name, parsed, key.graph.decl);
-                    } catch (err) {
-                        this.report.recordError(err, where);
-                    }
-                }
+            case "graph":
+                this.finishGraphData(key, value, where);
                 return;
-            }
             default: {
                 const { domain } = content;
                 throw new GraphFormatError("E_UNSUPPORTED", `unknown data domain ${String(domain)}`, {});
             }
+        }
+    }
+
+    /**
+     * Route a `<data>` value of the current node.
+     * @param key - the value's key
+     * @param value - the text or tree
+     * @param where - the location for issues
+     */
+    private finishNodeData(key: KeyEntry, value: unknown, where: Where): void {
+        const node = this.nodes[this.nodes.length - 1];
+        if (key.originalId) {
+            this.restoreOriginalId(node, value, where);
+            return;
+        }
+        if (key.yfiles) {
+            for (const [handle, mapped] of this.graphics("node", key, value, where)) {
+                this.setNodeData(node, handle, mapped);
+            }
+        }
+        if (key.node === null) {
+            return;
+        }
+        const parsed = this.parseValue(key.node, value, where);
+        if (parsed !== undefined) {
+            this.setNodeData(node, key.node.handle, parsed);
+        }
+    }
+
+    /**
+     * Keep a node's original-id value as its id, unless it holds elements or comes too late.
+     * @param node - the node state
+     * @param value - the text or tree
+     * @param where - the location for issues
+     */
+    private restoreOriginalId(node: NodeState, value: unknown, where: Where): void {
+        if (typeof value === "string" && node.index === INVALID_INDEX) {
+            node.restoredId = value;
+            return;
+        }
+        this.report.warning(
+            "validation-error",
+            GRAPHML_ISSUE.ORIGINAL_ID_IGNORED,
+            typeof value === "string"
+                ? `the ${ORIGINAL_ID_ATTRIBUTE} value comes after the node's nested <graph>, which added the node under its written id; it is not restored`
+                : `the ${ORIGINAL_ID_ATTRIBUTE} value holds elements, not text; it is not restored`,
+            where,
+        );
+    }
+
+    /**
+     * Route a `<data>` value of the current edge.
+     * @param key - the value's key
+     * @param value - the text or tree
+     * @param where - the location for issues
+     */
+    private finishEdgeData(key: KeyEntry, value: unknown, where: Where): void {
+        const { edge } = this;
+        if (edge === null) {
+            return;
+        }
+        if (key.weight) {
+            this.setEdgeWeight(edge, key, value, where);
+            return;
+        }
+        if (key.yfiles) {
+            for (const [handle, mapped] of this.graphics("edge", key, value, where)) {
+                edge.pending.push(handle, mapped);
+            }
+        }
+        if (key.edge === null) {
+            return;
+        }
+        const parsed = this.parseValue(key.edge, value, where);
+        if (parsed !== undefined) {
+            edge.pending.push(key.edge.handle, parsed);
+        }
+    }
+
+    /**
+     * Set an edge's weight from a weight key's value; a bad weight skips the edge.
+     * @param edge - the edge state
+     * @param key - the weight key
+     * @param value - the text or tree
+     * @param where - the location for issues
+     */
+    private setEdgeWeight(edge: EdgeState, key: KeyEntry, value: unknown, where: Where): void {
+        if (typeof value !== "string") {
+            this.report.error("validation-error", GRAPHML_ISSUE.DATA_NESTED, "a weight value must be text", where);
+            return;
+        }
+        if (edge.weightKey !== null && edge.weightKey !== key.id) {
+            this.report.warning(
+                "validation-error",
+                GRAPHML_ISSUE.DUPLICATE_ATTRIBUTE,
+                `the edge has values of two weight keys ("${edge.weightKey}" and "${key.id}"); the later one is kept`,
+                where,
+            );
+        }
+        edge.weightKey = key.id;
+        try {
+            edge.weight = parseWeightText(value, this.report);
+            this.checkOverflow(value, edge.weight, key.name, where);
+        } catch (err) {
+            this.skipEdge(edge);
+            this.report.recordError(err, where);
+        }
+    }
+
+    /**
+     * Route a `<data>` value of the graph.
+     * @param key - the value's key
+     * @param value - the text or tree
+     * @param where - the location for issues
+     */
+    private finishGraphData(key: KeyEntry, value: unknown, where: Where): void {
+        if (key.graph === null) {
+            return;
+        }
+        const parsed = this.parseValue(key.graph, value, where);
+        if (parsed === undefined) {
+            return;
+        }
+        try {
+            this.sink.setGraphValue(key.graph.name, parsed, key.graph.decl);
+        } catch (err) {
+            this.report.recordError(err, where);
         }
     }
 

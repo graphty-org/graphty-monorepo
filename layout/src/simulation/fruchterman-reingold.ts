@@ -477,21 +477,34 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         if (this.adaptive && this.pendingEnergy !== null) {
             this.updateAdaptive(this.pendingEnergy);
         }
-        const { n, k, t, positions: pos, displacement: disp, rowPtr, colIdx, fixed, inert } = this;
-        const isInert = (i: number): boolean => inert !== null && maskTest(inert, i);
         // Calculate repulsive forces (lines 88-91): the displacement starts at 0
-        disp.fill(0);
+        this.displacement.fill(0);
+        this.repulse();
+        this.attract();
+        this.moveAndFold();
+    }
 
-        // Repulsive forces between nodes (lines 94-115): every unordered pair, k^2 / d along delta / d
+    /**
+     * Whether row i is inert.
+     * @param i - the row
+     * @returns true when the inert mask holds it
+     */
+    private isInert(i: number): boolean {
+        return this.inert !== null && maskTest(this.inert, i);
+    }
+
+    /** Repulsive forces between nodes (lines 94-115): every unordered pair, k^2 / d along delta / d. */
+    private repulse(): void {
+        const { n, k, positions: pos, displacement: disp } = this;
         for (let u = 0; u < n; u++) {
-            if (isInert(u)) {
+            if (this.isInert(u)) {
                 continue; // an inert row neither repels nor is repelled (it never moves)
             }
             const ux = pos[3 * u];
             const uy = pos[3 * u + 1];
             const uz = pos[3 * u + 2];
             for (let v = u + 1; v < n; v++) {
-                if (isInert(v)) {
+                if (this.isInert(v)) {
                     continue;
                 }
                 // Difference vector (line 100)
@@ -526,16 +539,21 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
                 disp[3 * v + 2] -= fz;
             }
         }
+    }
 
-        // Attractive forces between connected nodes (lines 118-134): per arc, d^2 / k toward the neighbour; the
-        // two arcs of an undirected edge are the edge loop's two contributions (source -= and target +=)
+    /**
+     * Attractive forces between connected nodes (lines 118-134): per arc, d^2 / k toward the neighbour; the two arcs
+     * of an undirected edge are the edge loop's two contributions (source -= and target +=).
+     */
+    private attract(): void {
+        const { n, k, positions: pos, displacement: disp, rowPtr, colIdx } = this;
         for (let u = 0; u < n; u++) {
             const ux = pos[3 * u];
             const uy = pos[3 * u + 1];
             const uz = pos[3 * u + 2];
             for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
                 const v = colIdx[a];
-                if (isInert(v)) {
+                if (this.isInert(v)) {
                     continue; // an inert neighbour pulls nothing
                 }
                 // Difference vector (line 120)
@@ -552,7 +570,11 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
                 disp[3 * u + 2] -= (dz / distance) * force;
             }
         }
+    }
 
+    /** Moves the free nodes, cools, and folds the settle statistics. */
+    private moveAndFold(): void {
+        const { n, t, positions: pos, displacement: disp, fixed } = this;
         // Update positions (lines 137-151): every free node moves along its displacement by min(|disp|, t); the
         // settle fold of design 7.17 rides along: sum of positions (the next centroid), sum |p - c|^2 about the
         // start-of-iteration centroid (the RMS radius), sum of the free nodes' displacement magnitudes
@@ -565,7 +587,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         let free = 0;
         let energy = 0;
         for (let i = 0; i < n; i++) {
-            if ((fixed === null || !maskTest(fixed, i)) && !isInert(i)) {
+            if ((fixed === null || !maskTest(fixed, i)) && !this.isInert(i)) {
                 const mx = disp[3 * i];
                 const my = disp[3 * i + 1];
                 const mz = disp[3 * i + 2];
@@ -585,7 +607,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
                 moved += limitedMagnitude;
                 free++;
             }
-            if (isInert(i)) {
+            if (this.isInert(i)) {
                 continue; // an inert row is left out of the statistics
             }
             const px = pos[3 * i];

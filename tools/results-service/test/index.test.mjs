@@ -6,6 +6,7 @@
 // Not `node --test` in a package.json script, for the reason tools/release-scheduler/test/index.test.mjs gives.
 import assert from "node:assert/strict";
 import { createHash, createSign, generateKeyPairSync } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
@@ -1323,6 +1324,51 @@ describe("POST /v1/durations lastSeen", () => {
         assert.deepEqual(body.lastSeen["task:pkg:build"], { runId: 4010, sha: "new", at: NOW, runsSince: 0 });
         const [{ n }] = env.DB.sqlite.prepare("SELECT count(*) AS n FROM duration_run WHERE run_id = 41").all();
         assert.equal(n, 0);
+    });
+    it("backfill.sql copies rows that predate the trigger in batches, to what the trigger would have kept", () => {
+        const { sqlite } = d1();
+        const migration = (name) => readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8");
+        const summaries = () => [
+            sqlite.prepare("SELECT * FROM duration_last ORDER BY kind, workflow, job, step, task").all(),
+            sqlite.prepare("SELECT * FROM duration_run ORDER BY kind, workflow, run_id").all(),
+        ];
+        const ins = sqlite.prepare("INSERT INTO duration VALUES (?, 1, 'ci.yml', ?, ?, '', ?, ?, ?, ?, ?)");
+        const rows = (from, to) => {
+            for (let r = from; r < to; r++) {
+                for (const job of ["Build", "Test", "Lint"]) {
+                    const conclusion = r % 7 ? "success" : "cancelled";
+                    ins.run(r, job, r % 3 ? "s" : "", `sha${r}`, r % 4 ? "pr" : "full", NOW + r, 1000 + r, conclusion);
+                }
+            }
+        };
+        // what the trigger keeps when every row arrives through it
+        rows(1, 30);
+        const expected = summaries();
+        // the same rows, but 1-19 predate the trigger and 20-29 arrive while the backfill runs
+        sqlite.exec(
+            "DELETE FROM duration; DELETE FROM duration_last; DELETE FROM duration_run; DROP TRIGGER duration_summary",
+        );
+        sqlite.exec("DELETE FROM duration_backfill");
+        rows(1, 20);
+        sqlite.exec(migration("0009_duration_summary.sql") + migration("0010_duration_backfill.sql"));
+        // batches of 4 rows (and the rest of the run holding the 4th), not 50,000
+        const batch = readFileSync(new URL("../backfill.sql", import.meta.url), "utf8").replace(
+            "OFFSET 49999",
+            "OFFSET 3",
+        );
+        let batches = 0;
+        let finished = 0;
+        while (!finished) {
+            sqlite.exec(batch);
+            ({ finished } = sqlite.prepare("SELECT done >= last AS finished FROM duration_backfill").get());
+            if (++batches === 3) rows(20, 30);
+            assert.ok(batches < 50);
+        }
+        assert.ok(batches > 3, `${batches} batches`);
+        assert.deepEqual(summaries(), expected);
+        // finished: another batch changes nothing
+        sqlite.exec(batch);
+        assert.deepEqual(summaries(), expected);
     });
 });
 

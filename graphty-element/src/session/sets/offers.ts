@@ -223,6 +223,103 @@ function halvesOf(values: FilterRunResult, field: string): { node: boolean; edge
     return { node: kinds.has("node"), edge: kinds.has("edge") };
 }
 
+/** Item key to its edge and node counts, as one edge pass builds them. */
+type PassCounts = Map<string, { edges: number; nodes: number }>;
+
+/**
+ * The edge pass read `induced`: an edge counts once for every item in the intersection of its
+ * endpoints' key values.
+ * @param spec - The shape's offers.
+ * @param values - The result by index.
+ * @param graph - The snapshot.
+ * @param keyOf - An item key from a key value.
+ * @param pass - The counts to fill.
+ * @returns `pass`, filled.
+ */
+function inducedPass(
+    spec: OfferedShape,
+    values: FilterRunResult,
+    graph: GraphSnapshot,
+    keyOf: (value: string | number | boolean) => string,
+    pass: PassCounts,
+): PassCounts {
+    const { src, dst } = graph.edgeList();
+    const keys: (string[] | null)[] = [];
+    for (let index = 0; index < graph.nodeCount; index++) {
+        const found = keyValues(values.nodeValue(index, spec.field), spec).map(keyOf);
+        keys.push(found.length === 0 ? null : found);
+    }
+
+    for (let edge = 0; edge < graph.edgeCount; edge++) {
+        const ends = [keys[src[edge]], keys[dst[edge]]];
+        for (const key of ends[0] ?? []) {
+            if (ends[1]?.includes(key) === true) {
+                const entry = pass.get(key) ?? { edges: 0, nodes: 0 };
+                pass.set(key, { ...entry, edges: entry.edges + 1 });
+            }
+        }
+    }
+
+    return pass;
+}
+
+/**
+ * The edge pass read `listed`: each item's node half, plus every member edge's endpoints.
+ * @param spec - The shape's offers.
+ * @param values - The result by index.
+ * @param graph - The snapshot.
+ * @param keyOf - An item key from a key value.
+ * @param pass - The counts to fill.
+ * @param halves - The halves the field lives on.
+ * @param halves.node - Whether it lives on nodes.
+ * @param halves.edge - Whether it lives on edges.
+ * @returns `pass`, filled.
+ */
+function listedPass(
+    spec: OfferedShape,
+    values: FilterRunResult,
+    graph: GraphSnapshot,
+    keyOf: (value: string | number | boolean) => string,
+    pass: PassCounts,
+    halves: { node: boolean; edge: boolean },
+): PassCounts {
+    const { src, dst } = graph.edgeList();
+    const members = new Map<string, { edges: number; nodes: Uint8Array }>();
+    const memberOf = (key: string): { edges: number; nodes: Uint8Array } => {
+        let entry = members.get(key);
+        if (entry === undefined) {
+            entry = { edges: 0, nodes: new Uint8Array(graph.nodeCount) };
+            members.set(key, entry);
+        }
+
+        return entry;
+    };
+    if (halves.node) {
+        for (let index = 0; index < graph.nodeCount; index++) {
+            for (const value of keyValues(values.nodeValue(index, spec.field), spec)) {
+                memberOf(keyOf(value)).nodes[index] = 1;
+            }
+        }
+    }
+
+    if (halves.edge) {
+        for (let edge = 0; edge < graph.edgeCount; edge++) {
+            for (const value of keyValues(values.edgeValue(edge, spec.field), spec)) {
+                const entry = memberOf(keyOf(value));
+                entry.edges++;
+                entry.nodes[src[edge]] = 1;
+                entry.nodes[dst[edge]] = 1;
+            }
+        }
+    }
+
+    for (const [key, entry] of members) {
+        pass.set(key, { edges: entry.edges, nodes: entry.nodes.reduce((sum, bit) => sum + bit, 0) });
+    }
+
+    return pass;
+}
+
 /**
  * The refusal of a run the session does not hold.
  * @param run - The run.
@@ -396,65 +493,12 @@ export function createOffering(sources: OfferSources): Offering {
     ): Map<string, { edges: number; nodes: number }> => {
         offerCounters.edgePasses++;
         const pass = new Map<string, { edges: number; nodes: number }>();
-        const { src, dst } = graph.edgeList();
         const keyOf = (value: string | number | boolean): string => itemKeyOf({ field: spec.field, value });
         const halves = halvesOf(values, spec.field);
 
-        if (spec.reading === "induced") {
-            const keys: (string[] | null)[] = [];
-            for (let index = 0; index < graph.nodeCount; index++) {
-                const found = keyValues(values.nodeValue(index, spec.field), spec).map(keyOf);
-                keys.push(found.length === 0 ? null : found);
-            }
-
-            for (let edge = 0; edge < graph.edgeCount; edge++) {
-                const ends = [keys[src[edge]], keys[dst[edge]]];
-                for (const key of ends[0] ?? []) {
-                    if (ends[1]?.includes(key) === true) {
-                        const entry = pass.get(key) ?? { edges: 0, nodes: 0 };
-                        pass.set(key, { ...entry, edges: entry.edges + 1 });
-                    }
-                }
-            }
-
-            return pass;
-        }
-
-        // Read `listed`: the node half, plus every member edge's endpoints.
-        const members = new Map<string, { edges: number; nodes: Uint8Array }>();
-        const memberOf = (key: string): { edges: number; nodes: Uint8Array } => {
-            let entry = members.get(key);
-            if (entry === undefined) {
-                entry = { edges: 0, nodes: new Uint8Array(graph.nodeCount) };
-                members.set(key, entry);
-            }
-
-            return entry;
-        };
-        if (halves.node) {
-            for (let index = 0; index < graph.nodeCount; index++) {
-                for (const value of keyValues(values.nodeValue(index, spec.field), spec)) {
-                    memberOf(keyOf(value)).nodes[index] = 1;
-                }
-            }
-        }
-
-        if (halves.edge) {
-            for (let edge = 0; edge < graph.edgeCount; edge++) {
-                for (const value of keyValues(values.edgeValue(edge, spec.field), spec)) {
-                    const entry = memberOf(keyOf(value));
-                    entry.edges++;
-                    entry.nodes[src[edge]] = 1;
-                    entry.nodes[dst[edge]] = 1;
-                }
-            }
-        }
-
-        for (const [key, entry] of members) {
-            pass.set(key, { edges: entry.edges, nodes: entry.nodes.reduce((sum, bit) => sum + bit, 0) });
-        }
-
-        return pass;
+        return spec.reading === "induced"
+            ? inducedPass(spec, values, graph, keyOf, pass)
+            : listedPass(spec, values, graph, keyOf, pass, halves);
     };
 
     /**

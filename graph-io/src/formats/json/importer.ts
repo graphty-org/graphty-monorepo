@@ -2192,33 +2192,31 @@ function importNodeLinkEdges(
             }
             const weight = ctx.weightOf(record);
             if (pairs !== null) {
-                const pair = pairKey(u, v, kind === "directed");
-                if (multigraph === false) {
-                    parallels += pairs.has(pair) ? 1 : 0;
-                    pairs.add(pair);
-                } else if (hasKey(record, "key")) {
-                    const triple = `${pair} ${JSON.stringify(record.key)}`;
-                    if (pairs.has(triple)) {
-                        throw new GraphFormatError(
-                            JSON_ISSUE.DUPLICATE_EDGE_ID,
-                            `${element}: key ${JSON.stringify(record.key)} is repeated for the same pair; NetworkX reads it as the same edge, so it is skipped`,
-                            { id: String(record.key) },
-                        );
-                    }
-                    pairs.add(triple);
-                }
+                parallels += trackNodeLinkPair(
+                    pairs,
+                    multigraph === false,
+                    pairKey(u, v, kind === "directed"),
+                    record,
+                    element,
+                );
             }
             const edge = ctx.pushEdge(u, v, kind, weight, element);
-            const { weightFrom } = ctx.options;
-            for (const key of Object.keys(record)) {
-                if (key !== source.key && key !== target.key && key !== weightFrom) {
-                    ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
-                }
-            }
+            writeEdgeRest(ctx, edge, record, element, [source.key, target.key]);
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
     }
+    reportParallelLinks(ctx, parallels, edgesKey);
+    return { source: sourceKey, target: targetKey };
+}
+
+/**
+ * Warn when a document that declares multigraph false repeats the endpoints of a link.
+ * @param ctx - the context
+ * @param parallels - the links that repeat an earlier one's endpoints
+ * @param edgesKey - the top-level key the links came from
+ */
+function reportParallelLinks(ctx: ImportContext, parallels: number, edgesKey: string): void {
     if (parallels > 0) {
         ctx.report.warning(
             "validation-error",
@@ -2227,7 +2225,67 @@ function importNodeLinkEdges(
             { element: edgesKey },
         );
     }
-    return { source: sourceKey, target: targetKey };
+}
+
+/**
+ * Record a node-link edge's endpoint pair. Under multigraph false a repeated pair counts as a
+ * parallel link; otherwise a repeated (pair, key) triple is the same NetworkX edge and is refused.
+ * @param pairs - the pairs (or triples) seen so far
+ * @param simple - whether the document declares multigraph false
+ * @param pair - this edge's pair key
+ * @param record - the edge record
+ * @param element - the element name, for issues
+ * @returns 1 when the pair repeats under multigraph false, else 0
+ */
+function trackNodeLinkPair(
+    pairs: Set<string>,
+    simple: boolean,
+    pair: string,
+    record: JsonRecord,
+    element: string,
+): number {
+    if (simple) {
+        const repeated = pairs.has(pair) ? 1 : 0;
+        pairs.add(pair);
+        return repeated;
+    }
+    if (!hasKey(record, "key")) {
+        return 0;
+    }
+    const triple = `${pair} ${JSON.stringify(record.key)}`;
+    if (pairs.has(triple)) {
+        throw new GraphFormatError(
+            JSON_ISSUE.DUPLICATE_EDGE_ID,
+            `${element}: key ${JSON.stringify(record.key)} is repeated for the same pair; NetworkX reads it as the same edge, so it is skipped`,
+            { id: String(record.key) },
+        );
+    }
+    pairs.add(triple);
+    return 0;
+}
+
+/**
+ * Write an edge record's remaining keys as attributes: every own key except the excluded ones and
+ * the weightFrom key.
+ * @param ctx - the context
+ * @param edge - the edge index
+ * @param record - the edge record
+ * @param element - the element name, for issues
+ * @param excluded - the keys already read (endpoints, id)
+ */
+function writeEdgeRest(
+    ctx: ImportContext,
+    edge: number,
+    record: JsonRecord,
+    element: string,
+    excluded: readonly string[],
+): void {
+    const { weightFrom } = ctx.options;
+    for (const key of Object.keys(record)) {
+        if (!excluded.includes(key) && key !== weightFrom) {
+            ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
+        }
+    }
 }
 
 /**
@@ -2405,6 +2463,26 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
     ctx.sink.reserve(nodes.length, edges.length);
     const nodeIdKey = json.nodeIdKey ?? "id";
     ctx.reportNodeIdFrom("vis", `the ${JSON.stringify(nodeIdKey)} key`);
+    importVisNodes(ctx, nodes, nodeIdKey);
+    throwIfAborted(ctx.options.signal);
+    const ids = ctx.declareEdgeIds(edges, (edge) => edge.id, "id", true);
+    const kind = ctx.uniformKind();
+    const { source: sourceKey, target: targetKey } = importVisEdges(ctx, edges, ids, kind);
+    reportVisArrows(ctx, edges, kind);
+    ctx.styleSource = { dialect: "vis", block: blockOf(root), options: root.options, groups: root.groups };
+    ctx.setMeta(
+        { dialect: "vis", nodeIdKey, sourceKey: sourceKey ?? undefined, targetKey: targetKey ?? undefined },
+        ctx.weightOriginPatch(),
+    );
+}
+
+/**
+ * Read the vis.js node records: the id from the node id key, the other keys as attributes.
+ * @param ctx - the context
+ * @param nodes - the node records
+ * @param nodeIdKey - the node id key
+ */
+function importVisNodes(ctx: ImportContext, nodes: readonly unknown[], nodeIdKey: string): void {
     for (let i = 0; i < nodes.length; i++) {
         const element = `nodes[${i}]`;
         const record = nodes[i];
@@ -2422,9 +2500,24 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
             writeFlat(ctx.nodes, index, record, id, (key) => key !== nodeIdKey);
         }
     }
-    throwIfAborted(ctx.options.signal);
-    const ids = ctx.declareEdgeIds(edges, (edge) => edge.id, "id", true);
-    const kind = ctx.uniformKind();
+}
+
+/**
+ * Read the vis.js edge records: `from` / `to` endpoints, the optional `id`, the weight, the other
+ * keys as attributes.
+ * @param ctx - the context
+ * @param edges - the edge records
+ * @param ids - the edge id column, or null
+ * @param kind - the edge kind
+ * @returns the source and target keys the first well-formed edge used (null when none did)
+ */
+function importVisEdges(
+    ctx: ImportContext,
+    edges: readonly unknown[],
+    ids: EdgeIdColumn | null,
+    kind: EdgeKind,
+): { source: string | null; target: string | null } {
+    const { json } = ctx;
     let sourceKey: string | null = null;
     let targetKey: string | null = null;
     for (let i = 0; i < edges.length; i++) {
@@ -2443,45 +2536,74 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
         sourceKey ??= source.key;
         targetKey ??= target.key;
         try {
-            const u = ctx.coerceId(source.value, `${element}.from`);
-            const v = ctx.coerceId(target.value, `${element}.to`);
-            if (u === null || v === null) {
-                ctx.countSkipped("edge");
-                continue;
-            }
-            const idValue = ctx.edgeIdValue(ids, record.id);
-            const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(record), element);
-            ctx.setEdgeId(ids, edge, idValue);
-            const { weightFrom } = ctx.options;
-            for (const key of Object.keys(record)) {
-                if (key !== source.key && key !== target.key && key !== "id" && key !== weightFrom) {
-                    ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
-                }
-            }
+            pushVisEdge(ctx, record, ids, kind, element, {
+                from: source.value,
+                to: target.value,
+                read: [source.key, target.key, "id"],
+            });
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
     }
-    // vis.js draws arrows from the `arrows` edge option; the file declares no graph direction, so the
-    // arrows stay an attribute and the graph is read as the dialect's default
-    const arrows =
-        kind === "undirected"
-            ? edges.filter((e) => isJsonObject(e) && e.arrows !== undefined && e.arrows !== null && e.arrows !== "")
-                  .length
-            : 0;
+    return { source: sourceKey, target: targetKey };
+}
+
+/**
+ * Push one vis.js edge whose endpoint keys were found; an endpoint without a usable id skips it.
+ * @param ctx - the context
+ * @param record - the edge record
+ * @param ids - the edge id column, or null
+ * @param kind - the edge kind
+ * @param element - the element name
+ * @param ends - the endpoints and the keys already read
+ * @param ends.from - the raw source value
+ * @param ends.to - the raw target value
+ * @param ends.read - the keys already read (endpoints, id), not written as attributes
+ */
+function pushVisEdge(
+    ctx: ImportContext,
+    record: JsonRecord,
+    ids: EdgeIdColumn | null,
+    kind: EdgeKind,
+    element: string,
+    ends: { readonly from: unknown; readonly to: unknown; readonly read: readonly string[] },
+): void {
+    const { from, to, read } = ends;
+    const u = ctx.coerceId(from, `${element}.from`);
+    const v = ctx.coerceId(to, `${element}.to`);
+    if (u === null || v === null) {
+        ctx.countSkipped("edge");
+        return;
+    }
+    const idValue = ctx.edgeIdValue(ids, record.id);
+    const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(record), element);
+    ctx.setEdgeId(ids, edge, idValue);
+    writeEdgeRest(ctx, edge, record, element, read);
+}
+
+/**
+ * Warn when an undirected vis.js graph carries arrows. vis.js draws arrows from the `arrows` edge
+ * option; the file declares no graph direction, so the arrows stay an attribute and the graph is
+ * read as the dialect's default.
+ * @param ctx - the context
+ * @param edges - the edge records
+ * @param kind - the edge kind
+ */
+function reportVisArrows(ctx: ImportContext, edges: readonly unknown[], kind: EdgeKind): void {
+    if (kind !== "undirected") {
+        return;
+    }
+    const arrows = edges.filter(
+        (e) => isJsonObject(e) && e.arrows !== undefined && e.arrows !== null && e.arrows !== "",
+    ).length;
     if (arrows > 0) {
-        report.warning(
+        ctx.report.warning(
             "validation-error",
             JSON_ISSUE.INCONSISTENT,
             `${arrows} edge${plural(arrows)} ${agree(arrows, "carries", "carry")} vis.js arrows but the graph is read undirected; the arrows are kept as an attribute (pass defaultDirected: true to read the edges as directed)`,
             { element: "arrows" },
         );
     }
-    ctx.styleSource = { dialect: "vis", block: blockOf(root), options: root.options, groups: root.groups };
-    ctx.setMeta(
-        { dialect: "vis", nodeIdKey, sourceKey: sourceKey ?? undefined, targetKey: targetKey ?? undefined },
-        ctx.weightOriginPatch(),
-    );
 }
 
 // ============================================================ NetworkX adjacency_data / tree_data
@@ -2831,21 +2953,7 @@ function importTree(ctx: ImportContext, root: JsonRecord): void {
             ctx.badElement("node", element);
             continue;
         }
-        let id = ctx.coerceId(hasKey(record, idKey) ? record[idKey] : undefined, element);
-        if (id === null) {
-            ctx.countSkipped("node");
-        } else if (ctx.pushNode(id, element) < 0) {
-            id = null;
-        } else {
-            writeFlat(ctx.nodes, ctx.sink.indexOf(id), record, id, (key) => key !== idKey && key !== "children");
-            if (parent !== null) {
-                try {
-                    ctx.pushEdge(parent, id, kind, undefined, element);
-                } catch (err) {
-                    ctx.skip(err, "edge", element);
-                }
-            }
-        }
+        const id = pushTreeNode(ctx, record, element, parent, idKey, kind);
         const { children } = record;
         if (Array.isArray(children)) {
             for (let k = children.length - 1; k >= 0; k--) {
@@ -2861,6 +2969,43 @@ function importTree(ctx: ImportContext, root: JsonRecord): void {
         }
     }
     ctx.setMeta({});
+}
+
+/**
+ * Push one tree_data record as a node with its flat attributes, and the edge from its parent.
+ * @param ctx - the context
+ * @param record - the record
+ * @param element - the element name
+ * @param parent - the parent's id, or null for a root (or a child of a skipped record)
+ * @param idKey - the node id key
+ * @param kind - the edge kind
+ * @returns the node id, or null when the record has no usable id or the node was refused
+ */
+function pushTreeNode(
+    ctx: ImportContext,
+    record: JsonRecord,
+    element: string,
+    parent: NodeId | null,
+    idKey: string,
+    kind: EdgeKind,
+): NodeId | null {
+    const id = ctx.coerceId(hasKey(record, idKey) ? record[idKey] : undefined, element);
+    if (id === null) {
+        ctx.countSkipped("node");
+        return null;
+    }
+    if (ctx.pushNode(id, element) < 0) {
+        return null;
+    }
+    writeFlat(ctx.nodes, ctx.sink.indexOf(id), record, id, (key) => key !== idKey && key !== "children");
+    if (parent !== null) {
+        try {
+            ctx.pushEdge(parent, id, kind, undefined, element);
+        } catch (err) {
+            ctx.skip(err, "edge", element);
+        }
+    }
+    return id;
 }
 
 // ============================================================ graphology
@@ -3613,64 +3758,12 @@ function importHyperedges(
     ctx: ImportContext,
     hyperedges: readonly unknown[],
     directed: boolean,
-    push: (
-        record: JsonRecord,
-        u: NodeId,
-        v: NodeId,
-        kind: EdgeKind,
-        element: string,
-        structural: ReadonlySet<string>,
-    ) => void,
+    push: HyperedgePush,
 ): void {
-    if (hyperedges.length === 0) {
+    if (hyperedges.length === 0 || refuseOrSkipHyperedges(ctx, hyperedges.length)) {
         return;
     }
-    const { report } = ctx;
-    const policy = ctx.options.hyperedges;
-    if (policy === "error") {
-        report.error(
-            "unsupported",
-            JSON_ISSUE.HYPEREDGE,
-            `${hyperedges.length} hyperedge${plural(hyperedges.length)} (hyperedges: "error")`,
-            {
-                element: "hyperedges",
-            },
-        );
-        throw report.abort("hyperedges refused", { code: JSON_ISSUE.HYPEREDGE, count: hyperedges.length });
-    }
-    if (policy === "skip") {
-        report.warning(
-            "unsupported",
-            JSON_ISSUE.HYPEREDGES_SKIPPED,
-            `${hyperedges.length} hyperedge${plural(hyperedges.length)} skipped`,
-            {
-                element: "hyperedges",
-            },
-        );
-        report.loss(
-            JSON_ISSUE.HYPEREDGES_SKIPPED,
-            `${hyperedges.length} hyperedge${plural(hyperedges.length)} ${agree(hyperedges.length, "was", "were")} not imported`,
-            null,
-            hyperedges.length,
-        );
-        return;
-    }
-    // each expanded edge is pushed on its own, so one the sink refuses is reported and counted
-    // while the others stay
-    const expand = (
-        record: JsonRecord,
-        pairs: readonly (readonly [NodeId, NodeId])[],
-        kind: EdgeKind,
-        element: string,
-    ): void => {
-        for (const [u, v] of pairs) {
-            try {
-                push(record, u, v, kind, element, JGF_HYPEREDGE_KEYS);
-            } catch (err) {
-                ctx.skip(err, "edge", element);
-            }
-        }
-    };
+    const star = ctx.options.hyperedges === "star";
     // the edges expanded so far: the cap is on the whole import, so many hyperedges just under it
     // cannot amplify without bound either
     const budget = { used: 0 };
@@ -3682,68 +3775,179 @@ function importHyperedges(
             continue;
         }
         try {
-            if (Array.isArray(record.nodes)) {
-                const members = distinctMembers(
-                    ctx,
-                    record.nodes.map((raw) => ctx.requireId(raw, element)),
-                    element,
-                );
-                if (members.length < 2) {
-                    throw new GraphFormatError(
-                        "E_INVALID_ID",
-                        `${element}: an undirected hyperedge needs two or more nodes`,
-                        { reason: "hyperedge shape" },
-                    );
-                }
-                const n = members.length;
-                checkExpansion(policy === "star" ? n - 1 : (n * (n - 1)) / 2, budget, element);
-                const pairs: [NodeId, NodeId][] = [];
-                if (policy === "star") {
-                    for (let k = 1; k < n; k++) {
-                        pairs.push([members[0], members[k]]);
-                    }
-                } else {
-                    for (let a = 0; a < n; a++) {
-                        for (let b = a + 1; b < n; b++) {
-                            pairs.push([members[a], members[b]]);
-                        }
-                    }
-                }
-                expand(record, pairs, directed ? "directed" : "undirected", element);
-            } else if (Array.isArray(record.source) && Array.isArray(record.target)) {
-                const sources = record.source.map((raw) => ctx.requireId(raw, element));
-                const targets = record.target.map((raw) => ctx.requireId(raw, element));
-                if (sources.length === 0 || targets.length === 0) {
-                    throw new GraphFormatError(
-                        "E_INVALID_ID",
-                        `${element}: a directed hyperedge needs sources and targets`,
-                        { reason: "hyperedge shape" },
-                    );
-                }
-                checkExpansion(sources.length * targets.length, budget, element);
-                expand(
-                    record,
-                    sources.flatMap((s) => targets.map((t) => [s, t] as const)),
-                    "directed",
-                    element,
-                );
-            } else {
-                report.error(
-                    "validation-error",
-                    JSON_ISSUE.HYPEREDGE_SHAPE,
-                    `${element} has neither a nodes array nor source / target arrays`,
-                    { element },
-                );
-                ctx.countSkipped("edge");
-            }
+            importHyperedge(ctx, record, element, { star, directed, budget, push });
         } catch (err) {
             if (err instanceof ExpansionRefused) {
                 // one hyperedge over the cap is skipped; the shared E_TOO_LARGE rule would stop the import
-                report.error("unsupported", err.code, err.message, { element });
+                ctx.report.error("unsupported", err.code, err.message, { element });
                 ctx.countSkipped("edge");
             } else {
                 ctx.skip(err, "edge", element);
             }
+        }
+    }
+}
+
+/** The edge writer of the JGF reader, as importHyperedges calls it. */
+type HyperedgePush = (
+    record: JsonRecord,
+    u: NodeId,
+    v: NodeId,
+    kind: EdgeKind,
+    element: string,
+    structural: ReadonlySet<string>,
+) => void;
+
+/**
+ * Apply the "error" and "skip" hyperedge policies: "error" reports and aborts, "skip" records a
+ * warning and a loss note.
+ * @param ctx - the context
+ * @param count - the number of hyperedges (more than zero)
+ * @returns true when the hyperedges were skipped, false when they are to be expanded
+ */
+function refuseOrSkipHyperedges(ctx: ImportContext, count: number): boolean {
+    const { report } = ctx;
+    const policy = ctx.options.hyperedges;
+    if (policy === "error") {
+        report.error("unsupported", JSON_ISSUE.HYPEREDGE, `${count} hyperedge${plural(count)} (hyperedges: "error")`, {
+            element: "hyperedges",
+        });
+        throw report.abort("hyperedges refused", { code: JSON_ISSUE.HYPEREDGE, count });
+    }
+    if (policy !== "skip") {
+        return false;
+    }
+    report.warning("unsupported", JSON_ISSUE.HYPEREDGES_SKIPPED, `${count} hyperedge${plural(count)} skipped`, {
+        element: "hyperedges",
+    });
+    report.loss(
+        JSON_ISSUE.HYPEREDGES_SKIPPED,
+        `${count} hyperedge${plural(count)} ${agree(count, "was", "were")} not imported`,
+        null,
+        count,
+    );
+    return true;
+}
+
+/**
+ * Expand one hyperedge record: an undirected `{ nodes }` one by the star or clique policy, a
+ * directed `{ source, target }` one into every source -> target edge; any other shape is reported
+ * and counted as skipped.
+ * @param ctx - the context
+ * @param record - the hyperedge record
+ * @param element - the element name
+ * @param how - the policy (star or clique), the graph's direction, the shared expansion budget and the edge writer
+ * @param how.star - true for the star policy, false for clique
+ * @param how.directed - the graph's direction
+ * @param how.budget - the edges expanded so far in this import
+ * @param how.budget.used - that count, updated
+ * @param how.push - the edge writer of the JGF reader
+ */
+function importHyperedge(
+    ctx: ImportContext,
+    record: JsonRecord,
+    element: string,
+    how: { star: boolean; directed: boolean; budget: { used: number }; push: HyperedgePush },
+): void {
+    if (Array.isArray(record.nodes)) {
+        const pairs = undirectedHyperedgePairs(ctx, record.nodes, element, how.star, how.budget);
+        expandHyperedge(ctx, how.push, record, pairs, how.directed ? "directed" : "undirected", element);
+    } else if (Array.isArray(record.source) && Array.isArray(record.target)) {
+        const sources = record.source.map((raw) => ctx.requireId(raw, element));
+        const targets = record.target.map((raw) => ctx.requireId(raw, element));
+        if (sources.length === 0 || targets.length === 0) {
+            throw new GraphFormatError("E_INVALID_ID", `${element}: a directed hyperedge needs sources and targets`, {
+                reason: "hyperedge shape",
+            });
+        }
+        checkExpansion(sources.length * targets.length, how.budget, element);
+        expandHyperedge(
+            ctx,
+            how.push,
+            record,
+            sources.flatMap((s) => targets.map((t) => [s, t] as const)),
+            "directed",
+            element,
+        );
+    } else {
+        ctx.report.error(
+            "validation-error",
+            JSON_ISSUE.HYPEREDGE_SHAPE,
+            `${element} has neither a nodes array nor source / target arrays`,
+            { element },
+        );
+        ctx.countSkipped("edge");
+    }
+}
+
+/**
+ * The node pairs of an undirected hyperedge: from its first member to each other one (star), or
+ * between every pair of members (clique); the expansion is checked against the budget first.
+ * @param ctx - the context
+ * @param nodes - the raw member ids
+ * @param element - the element name
+ * @param star - true for the star policy, false for clique
+ * @param budget - the edges expanded so far in this import
+ * @param budget.used - that count, updated
+ * @returns the pairs
+ */
+function undirectedHyperedgePairs(
+    ctx: ImportContext,
+    nodes: readonly unknown[],
+    element: string,
+    star: boolean,
+    budget: { used: number },
+): [NodeId, NodeId][] {
+    const members = distinctMembers(
+        ctx,
+        nodes.map((raw) => ctx.requireId(raw, element)),
+        element,
+    );
+    if (members.length < 2) {
+        throw new GraphFormatError("E_INVALID_ID", `${element}: an undirected hyperedge needs two or more nodes`, {
+            reason: "hyperedge shape",
+        });
+    }
+    const n = members.length;
+    checkExpansion(star ? n - 1 : (n * (n - 1)) / 2, budget, element);
+    const pairs: [NodeId, NodeId][] = [];
+    if (star) {
+        for (let k = 1; k < n; k++) {
+            pairs.push([members[0], members[k]]);
+        }
+        return pairs;
+    }
+    for (let a = 0; a < n; a++) {
+        for (let b = a + 1; b < n; b++) {
+            pairs.push([members[a], members[b]]);
+        }
+    }
+    return pairs;
+}
+
+/**
+ * Push the expanded edges of one hyperedge. Each is pushed on its own, so one the sink refuses is
+ * reported and counted while the others stay.
+ * @param ctx - the context
+ * @param push - the edge writer of the JGF reader
+ * @param record - the hyperedge record
+ * @param pairs - the endpoint pairs
+ * @param kind - the edge kind
+ * @param element - the element name
+ */
+function expandHyperedge(
+    ctx: ImportContext,
+    push: HyperedgePush,
+    record: JsonRecord,
+    pairs: readonly (readonly [NodeId, NodeId])[],
+    kind: EdgeKind,
+    element: string,
+): void {
+    for (const [u, v] of pairs) {
+        try {
+            push(record, u, v, kind, element, JGF_HYPEREDGE_KEYS);
+        } catch (err) {
+            ctx.skip(err, "edge", element);
         }
     }
 }

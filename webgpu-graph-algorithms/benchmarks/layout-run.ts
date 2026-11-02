@@ -74,78 +74,91 @@ function integerOption(flag: string, text: string | undefined, min: number): num
 }
 
 /**
+ * Checks that an option value is one of the accepted words.
+ * @param message - the error text when it is not
+ * @param text - the raw value (undefined when the flag was last)
+ * @param choices - the accepted words
+ * @returns the value
+ */
+function choiceOption<T extends string>(message: string, text: string | undefined, choices: readonly T[]): T {
+    if (text === undefined || !(choices as readonly string[]).includes(text)) {
+        throw new Error(`${message}, got ${String(text)}`);
+    }
+    return text as T;
+}
+
+/** The parsed arguments before the required ones are checked. */
+type PartialLayoutRunArgs = {
+    -readonly [K in keyof LayoutRunArgs]: K extends "nodes" | "edges" ? number | null : LayoutRunArgs[K];
+};
+
+/**
+ * Applies one option and its value to the arguments parsed so far.
+ * @param out - the arguments parsed so far (written)
+ * @param a - the option word
+ * @param next - the word after it (undefined when it was last)
+ */
+function applyLayoutRunOption(out: PartialLayoutRunArgs, a: string, next: string | undefined): void {
+    switch (a) {
+        case "--nodes":
+            out.nodes = integerOption(a, next, 1);
+            return;
+        case "--edges":
+            out.edges = integerOption(a, next, 0);
+            return;
+        case "--iterations":
+            out.iterations = integerOption(a, next, 1);
+            return;
+        case "--batch":
+            out.batch = integerOption(a, next, 1);
+            return;
+        case "--seed":
+            out.seed = integerOption(a, next, 0);
+            return;
+        case "--dim":
+            out.dim = choiceOption("--dim expects 2 or 3", next, ["2", "3"]) === "2" ? 2 : 3;
+            return;
+        case "--compat":
+            out.compat = choiceOption("--compat expects paper or networkx", next, ["paper", "networkx"]);
+            return;
+        case "--repulsion":
+            out.repulsion = choiceOption("--repulsion expects exact, grid or auto", next, ["exact", "grid", "auto"]);
+            return;
+        default:
+            if (a.startsWith("--")) {
+                throw new Error(`unknown option ${a}; known: ${KNOWN_OPTIONS.join(" ")}`);
+            }
+            throw new Error(`unexpected argument ${a}`);
+    }
+}
+
+/**
  * Parses `--nodes N --edges M [--iterations 100] [--batch 8] [--seed 1] [--dim 2] [--compat paper] [--repulsion auto]`.
  * @param argv - process.argv.slice(2)
  * @returns the arguments; a missing required option, an out-of-range value, an unknown option or a stray word throws
  */
 export function parseLayoutRunArgs(argv: readonly string[]): LayoutRunArgs {
-    let nodes: number | null = null;
-    let edges: number | null = null;
-    let iterations = 100;
-    let batch = 8;
-    let seed = 1;
-    let dim: 2 | 3 = 2;
-    let compat: "paper" | "networkx" = "paper";
-    let repulsion: "exact" | "grid" | "auto" = "auto";
-    for (let i = 0; i < argv.length; i++) {
-        const a = argv[i];
-        const next = argv[i + 1];
-        switch (a) {
-            case "--nodes":
-                nodes = integerOption(a, next, 1);
-                i += 1;
-                break;
-            case "--edges":
-                edges = integerOption(a, next, 0);
-                i += 1;
-                break;
-            case "--iterations":
-                iterations = integerOption(a, next, 1);
-                i += 1;
-                break;
-            case "--batch":
-                batch = integerOption(a, next, 1);
-                i += 1;
-                break;
-            case "--seed":
-                seed = integerOption(a, next, 0);
-                i += 1;
-                break;
-            case "--dim":
-                if (next !== "2" && next !== "3") {
-                    throw new Error(`--dim expects 2 or 3, got ${String(next)}`);
-                }
-                dim = next === "2" ? 2 : 3;
-                i += 1;
-                break;
-            case "--compat":
-                if (next !== "paper" && next !== "networkx") {
-                    throw new Error(`--compat expects paper or networkx, got ${String(next)}`);
-                }
-                compat = next;
-                i += 1;
-                break;
-            case "--repulsion":
-                if (next !== "exact" && next !== "grid" && next !== "auto") {
-                    throw new Error(`--repulsion expects exact, grid or auto, got ${String(next)}`);
-                }
-                repulsion = next;
-                i += 1;
-                break;
-            default:
-                if (a.startsWith("--")) {
-                    throw new Error(`unknown option ${a}; known: ${KNOWN_OPTIONS.join(" ")}`);
-                }
-                throw new Error(`unexpected argument ${a}`);
-        }
+    const out: PartialLayoutRunArgs = {
+        nodes: null,
+        edges: null,
+        iterations: 100,
+        batch: 8,
+        seed: 1,
+        dim: 2,
+        compat: "paper",
+        repulsion: "auto",
+    };
+    for (let i = 0; i < argv.length; i += 2) {
+        applyLayoutRunOption(out, argv[i], argv[i + 1]);
     }
+    const { nodes, edges } = out;
     if (nodes === null) {
         throw new Error("--nodes N is required");
     }
     if (edges === null) {
         throw new Error("--edges M is required");
     }
-    return { nodes, edges, iterations, batch, seed, dim, compat, repulsion };
+    return { ...out, nodes, edges };
 }
 
 /**

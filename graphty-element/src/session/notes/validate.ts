@@ -298,6 +298,151 @@ export function checkExtensions(extensions: unknown): Readonly<Record<string, un
 }
 
 /**
+ * Whether a value has the shape of an item target: a result id, its run when pinned, and a key.
+ * @param item - The item as given.
+ * @returns True when it has the shape.
+ */
+function isItemShape(item: unknown): item is Readonly<{
+    result: string;
+    run?: unknown;
+    key: Readonly<{ field: string; value: string | number | boolean }>;
+}> {
+    return (
+        isPlain(item) &&
+        hasKeys(item, ["result", "run", "key"], ["result", "key"]) &&
+        isShortString(item.result) &&
+        (!Object.hasOwn(item, "run") || isShortString(item.run)) &&
+        isPlain(item.key) &&
+        hasKeys(item.key, ["field", "value"], ["field", "value"]) &&
+        isShortString(item.key.field) &&
+        (typeof item.key.value === "string" ||
+            typeof item.key.value === "boolean" ||
+            (typeof item.key.value === "number" && Number.isFinite(item.key.value)))
+    );
+}
+
+/**
+ * Check an edge target and make its saved form.
+ * @param edge - The edge as given.
+ * @param context - The session.
+ * @param bad - Makes the refusal for a malformed target.
+ * @returns The saved form, frozen.
+ */
+function edgeTargetOf(edge: unknown, context: NoteContext, bad: (why: string) => GraphtyError): NoteTarget {
+    if (typeof edge === "string") {
+        const member = context.edgeMember(edge);
+        if (member === undefined) {
+            throw bad(`names the edge "${edge}", which the graph does not hold`);
+        }
+
+        return Object.freeze({ edge: Object.freeze({ ...member }) });
+    }
+
+    if (!isPlain(edge) || !hasKeys(edge, ["source", "target", "id", "ordinal", "among"], ["source", "target"])) {
+        throw bad("is an edge: its source and target, plus its id or its ordinal and among");
+    }
+
+    if (!isNodeId(edge.source) || !isNodeId(edge.target)) {
+        throw bad("names an edge's ends by node id");
+    }
+
+    const byId = Object.hasOwn(edge, "id");
+    const byPosition = Object.hasOwn(edge, "ordinal") || Object.hasOwn(edge, "among");
+    if (byId && !byPosition && isNodeId(edge.id)) {
+        return Object.freeze({ edge: Object.freeze({ source: edge.source, target: edge.target, id: edge.id }) });
+    }
+
+    if (
+        !byId &&
+        Number.isInteger(edge.ordinal) &&
+        Number.isInteger(edge.among) &&
+        (edge.ordinal as number) >= 0 &&
+        (edge.among as number) >= 1
+    ) {
+        return Object.freeze({
+            edge: Object.freeze({
+                source: edge.source,
+                target: edge.target,
+                ordinal: edge.ordinal as number,
+                among: edge.among as number,
+            }),
+        });
+    }
+
+    throw bad("names an edge by exactly one of its id, or its ordinal with among");
+}
+
+/**
+ * Check a set target and make its saved form.
+ * @param raw - The target as given: its set id and, optionally, a name.
+ * @param context - The session.
+ * @param bad - Makes the refusal for a malformed target.
+ * @param unknown - Makes the refusal for a target the session does not hold.
+ * @returns The saved form, frozen.
+ */
+function setTargetOf(
+    raw: Readonly<Record<string, unknown>>,
+    context: NoteContext,
+    bad: (why: string) => GraphtyError,
+    unknown: (what: string) => GraphtyError,
+): NoteTarget {
+    if (typeof raw.set !== "string" || (Object.hasOwn(raw, "name") && typeof raw.name !== "string")) {
+        throw bad("names a set by its id");
+    }
+
+    const held = context.set(raw.set);
+    if (held === undefined) {
+        throw unknown(`the set "${raw.set}", which`);
+    }
+
+    return Object.freeze(held.name === "" ? { set: raw.set } : { set: raw.set, name: held.name });
+}
+
+/**
+ * Check an item target and make its saved form.
+ * @param item - The item as given.
+ * @param index - Its position, for the refusal.
+ * @param context - The session.
+ * @param bad - Makes the refusal for a malformed target.
+ * @param unknown - Makes the refusal for a target the session does not hold.
+ * @returns The saved form, frozen.
+ */
+function itemTargetOf(
+    item: unknown,
+    index: number,
+    context: NoteContext,
+    bad: (why: string) => GraphtyError,
+    unknown: (what: string) => GraphtyError,
+): NoteTarget {
+    if (!isItemShape(item)) {
+        throw bad("is an item: a result id, its run when pinned, and a key { field, value }");
+    }
+
+    const result = context.result(item.result);
+    if (result === undefined) {
+        throw unknown(`the result "${item.result}", which`);
+    }
+
+    const run = Object.hasOwn(item, "run") ? (item.run as string) : result.execution;
+    if (run === undefined) {
+        throw refuseNote(
+            "E_BAD_COMMAND",
+            "not-finished",
+            `Target ${String(index)} is an item of "${item.result}", which has no finished run to pin it to.`,
+            { index },
+        );
+    }
+
+    return Object.freeze({
+        item: Object.freeze({
+            result: item.result,
+            run,
+            key: Object.freeze({ field: item.key.field, value: item.key.value }),
+        }),
+    });
+}
+
+/**
  * Check one target and make its saved form.
  * @param raw - The target as given.
  * @param index - Its position, for the refusal.
@@ -337,61 +482,11 @@ function targetOf(raw: unknown, index: number, context: NoteContext): NoteTarget
     }
 
     if (hasKeys(raw, ["edge"], ["edge"])) {
-        const { edge } = raw;
-        if (typeof edge === "string") {
-            const member = context.edgeMember(edge);
-            if (member === undefined) {
-                throw bad(`names the edge "${edge}", which the graph does not hold`);
-            }
-
-            return Object.freeze({ edge: Object.freeze({ ...member }) });
-        }
-
-        if (!isPlain(edge) || !hasKeys(edge, ["source", "target", "id", "ordinal", "among"], ["source", "target"])) {
-            throw bad("is an edge: its source and target, plus its id or its ordinal and among");
-        }
-
-        if (!isNodeId(edge.source) || !isNodeId(edge.target)) {
-            throw bad("names an edge's ends by node id");
-        }
-
-        const byId = Object.hasOwn(edge, "id");
-        const byPosition = Object.hasOwn(edge, "ordinal") || Object.hasOwn(edge, "among");
-        if (byId && !byPosition && isNodeId(edge.id)) {
-            return Object.freeze({ edge: Object.freeze({ source: edge.source, target: edge.target, id: edge.id }) });
-        }
-
-        if (
-            !byId &&
-            Number.isInteger(edge.ordinal) &&
-            Number.isInteger(edge.among) &&
-            (edge.ordinal as number) >= 0 &&
-            (edge.among as number) >= 1
-        ) {
-            return Object.freeze({
-                edge: Object.freeze({
-                    source: edge.source,
-                    target: edge.target,
-                    ordinal: edge.ordinal as number,
-                    among: edge.among as number,
-                }),
-            });
-        }
-
-        throw bad("names an edge by exactly one of its id, or its ordinal with among");
+        return edgeTargetOf(raw.edge, context, bad);
     }
 
     if (hasKeys(raw, ["set", "name"], ["set"])) {
-        if (typeof raw.set !== "string" || (Object.hasOwn(raw, "name") && typeof raw.name !== "string")) {
-            throw bad("names a set by its id");
-        }
-
-        const held = context.set(raw.set);
-        if (held === undefined) {
-            throw unknown(`the set "${raw.set}", which`);
-        }
-
-        return Object.freeze(held.name === "" ? { set: raw.set } : { set: raw.set, name: held.name });
+        return setTargetOf(raw, context, bad, unknown);
     }
 
     if (hasKeys(raw, ["result"], ["result"])) {
@@ -407,46 +502,7 @@ function targetOf(raw: unknown, index: number, context: NoteContext): NoteTarget
     }
 
     if (hasKeys(raw, ["item"], ["item"])) {
-        const { item } = raw;
-        if (
-            !isPlain(item) ||
-            !hasKeys(item, ["result", "run", "key"], ["result", "key"]) ||
-            !isShortString(item.result) ||
-            (Object.hasOwn(item, "run") && !isShortString(item.run)) ||
-            !isPlain(item.key) ||
-            !hasKeys(item.key, ["field", "value"], ["field", "value"]) ||
-            !isShortString(item.key.field) ||
-            !(
-                typeof item.key.value === "string" ||
-                typeof item.key.value === "boolean" ||
-                (typeof item.key.value === "number" && Number.isFinite(item.key.value))
-            )
-        ) {
-            throw bad("is an item: a result id, its run when pinned, and a key { field, value }");
-        }
-
-        const result = context.result(item.result);
-        if (result === undefined) {
-            throw unknown(`the result "${item.result}", which`);
-        }
-
-        const run = Object.hasOwn(item, "run") ? (item.run as string) : result.execution;
-        if (run === undefined) {
-            throw refuseNote(
-                "E_BAD_COMMAND",
-                "not-finished",
-                `Target ${String(index)} is an item of "${item.result}", which has no finished run to pin it to.`,
-                { index },
-            );
-        }
-
-        return Object.freeze({
-            item: Object.freeze({
-                result: item.result,
-                run,
-                key: Object.freeze({ field: item.key.field, value: item.key.value }),
-            }),
-        });
+        return itemTargetOf(raw.item, index, context, bad, unknown);
     }
 
     throw bad("is not a kind of target this release knows: graph, node, edge, set, result or item");

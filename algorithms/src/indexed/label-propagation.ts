@@ -219,38 +219,10 @@ class Tally {
             this.seen?.fill(-1);
             this.epoch = 0;
         }
-        const { acc, stamp, touched, seen, rows } = this;
-        const visit = this.epoch;
+        const { acc, touched } = this;
         let count = 0;
-        for (let side = 0; side < rows.sides; side++) {
-            const rowPtr = rows.rowPtrs[side];
-            const colIdx = rows.colIdxs[side];
-            const w = rows.arcWeights[side];
-            const end = rowPtr[u + 1];
-            for (let a = rowPtr[u]; a < end; a++) {
-                const v = colIdx[a];
-                if (v === u) {
-                    continue; // a self-loop does not vote
-                }
-                if (seen !== null) {
-                    if (seen[v] === visit) {
-                        continue;
-                    }
-                    seen[v] = visit;
-                }
-                const c = label[v];
-                if (c === INVALID_INDEX) {
-                    continue; // an unlabeled neighbour casts no vote
-                }
-                const vote = w === null ? 1 : w[a];
-                if (stamp[c] !== visit) {
-                    stamp[c] = visit;
-                    acc[c] = vote;
-                    touched[count++] = c;
-                } else {
-                    acc[c] += vote;
-                }
-            }
+        for (let side = 0; side < this.rows.sides; side++) {
+            count = this.collectSide(side, u, label, count);
         }
         this.count = count;
         let max = 0;
@@ -260,6 +232,48 @@ class Tally {
             }
         }
         return max;
+    }
+
+    /**
+     * Add the votes of u's neighbours on one side of the rows to the tally of the current visit.
+     * @param side - Which row (0 the out-row, 1 the in-row)
+     * @param u - The node
+     * @param label - The label of every node
+     * @param count - Labels listed in `touched` so far this visit
+     * @returns Labels listed in `touched` after this side
+     */
+    private collectSide(side: number, u: number, label: U32, count: number): number {
+        const { acc, stamp, touched, seen, rows } = this;
+        const visit = this.epoch;
+        const rowPtr = rows.rowPtrs[side];
+        const colIdx = rows.colIdxs[side];
+        const w = rows.arcWeights[side];
+        const end = rowPtr[u + 1];
+        for (let a = rowPtr[u]; a < end; a++) {
+            const v = colIdx[a];
+            if (v === u) {
+                continue; // a self-loop does not vote
+            }
+            if (seen !== null) {
+                if (seen[v] === visit) {
+                    continue;
+                }
+                seen[v] = visit;
+            }
+            const c = label[v];
+            if (c === INVALID_INDEX) {
+                continue; // an unlabeled neighbour casts no vote
+            }
+            const vote = w === null ? 1 : w[a];
+            if (stamp[c] === visit) {
+                acc[c] += vote;
+            } else {
+                stamp[c] = visit;
+                acc[c] = vote;
+                touched[count++] = c;
+            }
+        }
+        return count;
     }
 
     /**
@@ -301,6 +315,49 @@ function flpa(
     const capacity = n + 1;
     const queue = new Uint32Array(capacity);
     const queued = new Uint8Array(n);
+    const ring: Ring = { queue, queued, capacity, head: 0, tail: 0, size: 0 };
+    shuffledStartQueue(n, fixed, ring, rand);
+    const maxVisits = maxIterations * n;
+    let visits = 0;
+    while (ring.size > 0 && visits < maxVisits) {
+        const u = queue[ring.head];
+        ring.head = ring.head + 1 === capacity ? 0 : ring.head + 1;
+        ring.size--;
+        queued[u] = 0;
+        visits++;
+        const max = tally.collect(u, label);
+        if (max === 0) {
+            continue; // no positive-weight neighbour: keep the label
+        }
+        const pick = drawTiedLabel(tally, max, rand);
+        if (pick === label[u]) {
+            continue;
+        }
+        label[u] = pick;
+        requeueNeighbours(rows, label, fixed, ring, u, pick);
+    }
+    return { visits, size: ring.size };
+}
+
+/** The FLPA work queue: a ring of node ids, with `queued` marking the nodes in it. */
+interface Ring {
+    readonly queue: Uint32Array;
+    readonly queued: Uint8Array;
+    readonly capacity: number;
+    head: number;
+    tail: number;
+    size: number;
+}
+
+/**
+ * Queue every node not in `fixed`, in a seeded shuffle.
+ * @param n - The node count
+ * @param fixed - 1 for a node never visited, or null
+ * @param ring - The empty queue, filled here
+ * @param rand - The random stream
+ */
+function shuffledStartQueue(n: number, fixed: Uint8Array | null, ring: Ring, rand: () => number): void {
+    const { queue, queued } = ring;
     let size = 0;
     for (let i = 0; i < n; i++) {
         if (fixed === null || fixed[i] === 0) {
@@ -314,56 +371,68 @@ function flpa(
         queue[i] = queue[j];
         queue[j] = t;
     }
-    let head = 0;
-    let tail = size;
-    const maxVisits = maxIterations * n;
-    let visits = 0;
+    ring.size = size;
+    ring.tail = size;
+}
+
+/**
+ * Reservoir draw over the labels at the maximum: the k-th replaces the pick with probability 1/k,
+ * so a single dominant label consumes no random number.
+ * @param tally - The tally of the last `collect`
+ * @param max - Its largest vote
+ * @param rand - The random stream
+ * @returns The label drawn
+ */
+function drawTiedLabel(tally: Tally, max: number, rand: () => number): number {
     const { touched, acc } = tally;
-    while (size > 0 && visits < maxVisits) {
-        const u = queue[head];
-        head = head + 1 === capacity ? 0 : head + 1;
-        size--;
-        queued[u] = 0;
-        visits++;
-        const max = tally.collect(u, label);
-        if (max === 0) {
-            continue; // no positive-weight neighbour: keep the label
-        }
-        // Reservoir draw over the labels at the maximum: the k-th replaces the pick with
-        // probability 1/k, so a single dominant label consumes no random number.
-        let pick = 0;
-        let tied = 0;
-        for (let i = 0; i < tally.count; i++) {
-            const c = touched[i];
-            if (acc[c] === max) {
-                tied++;
-                if (tied === 1 || rand() * tied < 1) {
-                    pick = c;
-                }
-            }
-        }
-        if (pick === label[u]) {
-            continue;
-        }
-        label[u] = pick;
-        // A neighbour already holding the new label can only have been strengthened by the move.
-        // Both rows, so on a directed snapshot the nodes that read u are requeued too.
-        for (let side = 0; side < rows.sides; side++) {
-            const rowPtr = rows.rowPtrs[side];
-            const colIdx = rows.colIdxs[side];
-            const end = rowPtr[u + 1];
-            for (let a = rowPtr[u]; a < end; a++) {
-                const v = colIdx[a];
-                if (queued[v] === 0 && label[v] !== pick && (fixed === null || fixed[v] === 0)) {
-                    queued[v] = 1;
-                    queue[tail] = v;
-                    tail = tail + 1 === capacity ? 0 : tail + 1;
-                    size++;
-                }
+    let pick = 0;
+    let tied = 0;
+    for (let i = 0; i < tally.count; i++) {
+        const c = touched[i];
+        if (acc[c] === max) {
+            tied++;
+            if (tied === 1 || rand() * tied < 1) {
+                pick = c;
             }
         }
     }
-    return { visits, size };
+    return pick;
+}
+
+/**
+ * Queue again every neighbour of u not queued, not fixed and not already holding u's new label. A
+ * neighbour already holding it can only have been strengthened by the move. Both rows, so on a
+ * directed snapshot the nodes that read u are requeued too.
+ * @param rows - The voting rows
+ * @param label - The label of every node
+ * @param fixed - 1 for a node never visited, or null
+ * @param ring - The work queue
+ * @param u - The node that moved
+ * @param pick - Its new label
+ */
+function requeueNeighbours(
+    rows: VotingRows,
+    label: U32,
+    fixed: Uint8Array | null,
+    ring: Ring,
+    u: number,
+    pick: number,
+): void {
+    const { queue, queued, capacity } = ring;
+    for (let side = 0; side < rows.sides; side++) {
+        const rowPtr = rows.rowPtrs[side];
+        const colIdx = rows.colIdxs[side];
+        const end = rowPtr[u + 1];
+        for (let a = rowPtr[u]; a < end; a++) {
+            const v = colIdx[a];
+            if (queued[v] === 0 && label[v] !== pick && (fixed === null || fixed[v] === 0)) {
+                queued[v] = 1;
+                queue[ring.tail] = v;
+                ring.tail = ring.tail + 1 === capacity ? 0 : ring.tail + 1;
+                ring.size++;
+            }
+        }
+    }
 }
 
 /**
@@ -591,7 +660,6 @@ export function labelPropagationSynchronous(
     checkOptions(n, maxIterations, null);
     const rows = votingRows(s, weighted);
     const tally = new Tally(n, rows, weighted);
-    const { touched, acc } = tally;
     let label = new Uint32Array(n);
     let next = new Uint32Array(n);
     // The labels two passes back, to catch a period-2 cycle.
@@ -608,26 +676,7 @@ export function labelPropagationSynchronous(
     while (quiet < 2 && passes < maxIterations && !cycling) {
         const up = passes % 2 === 0;
         passes++;
-        let moved = false;
-        for (let u = 0; u < n; u++) {
-            const current = label[u];
-            next[u] = current;
-            const max = tally.collect(u, label);
-            if (max === 0 || tally.voteOf(current) === max) {
-                continue;
-            }
-            let best = INVALID_INDEX;
-            for (let i = 0; i < tally.count; i++) {
-                const c = touched[i];
-                if (acc[c] === max && (best === INVALID_INDEX || priority[c] < priority[best])) {
-                    best = c;
-                }
-            }
-            if (up ? priority[best] > priority[current] : priority[best] < priority[current]) {
-                next[u] = best;
-                moved = true;
-            }
-        }
+        const moved = synchronousPass(tally, priority, label, next, up);
         cycling = moved && sameLabels(next, before);
         [before, label, next] = [label, next, before];
         quiet = moved ? 0 : quiet + 1;
@@ -635,6 +684,52 @@ export function labelPropagationSynchronous(
     const converged = quiet >= 2 || allDominant(tally, label, null);
     const { labels, count } = renumberPartition(label);
     return { ...withGroups(labels, count), iterations: passes, converged };
+}
+
+/**
+ * One synchronous pass: every node reads `label` and writes its new label to `next`.
+ * @param tally - The vote tally
+ * @param priority - Each label's tie and guard priority
+ * @param label - The labels of the previous pass
+ * @param next - Overwritten with the labels of this pass
+ * @param up - Whether a node may only move to a label of higher priority (else only lower)
+ * @returns Whether any node moved
+ */
+function synchronousPass(tally: Tally, priority: U32, label: U32, next: U32, up: boolean): boolean {
+    let moved = false;
+    for (let u = 0; u < label.length; u++) {
+        const current = label[u];
+        next[u] = current;
+        const max = tally.collect(u, label);
+        if (max === 0 || tally.voteOf(current) === max) {
+            continue;
+        }
+        const best = lowestPriorityTied(tally, max, priority);
+        if (up ? priority[best] > priority[current] : priority[best] < priority[current]) {
+            next[u] = best;
+            moved = true;
+        }
+    }
+    return moved;
+}
+
+/**
+ * Of the labels at the maximum vote of the last `collect`, the one of lowest priority.
+ * @param tally - The tally of the last `collect`
+ * @param max - Its largest vote
+ * @param priority - Each label's priority
+ * @returns That label
+ */
+function lowestPriorityTied(tally: Tally, max: number, priority: U32): number {
+    const { touched, acc } = tally;
+    let best = INVALID_INDEX;
+    for (let i = 0; i < tally.count; i++) {
+        const c = touched[i];
+        if (acc[c] === max && (best === INVALID_INDEX || priority[c] < priority[best])) {
+            best = c;
+        }
+    }
+    return best;
 }
 
 /**

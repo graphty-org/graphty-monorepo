@@ -38,6 +38,9 @@ if [[ "$mode" == changed ]]; then
 fi
 
 [[ "$mode" == measure ]] || { echo "unknown mode $mode" >&2; exit 2; }
+# CI tees stdout into GITHUB_OUTPUT, which takes only key=value lines (#5636: `playwright install --with-deps`
+# printed "Installing dependencies..." there). Keep stdout on fd 3 for the results; everything else goes to stderr.
+exec 3>&1 1>&2
 out=$(realpath -m "${4:?out dir}")
 storybooks=$(realpath "${STORYBOOK_ROOT:-$root}")
 sample=${SAMPLE:-6}
@@ -113,5 +116,5 @@ done < <(jq -r '.projects | to_entries[] | "\(.key) \(.value.storybook)"' "$out/
         printf -- '- `%s`\n' "${examples[@]:0:8}"
     fi
 } >"$out/summary.md"
-echo "changed=$changed"
-echo "pictures=$pictures"
+echo "changed=$changed" >&3
+echo "pictures=$pictures" >&3

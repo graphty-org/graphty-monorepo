@@ -206,6 +206,65 @@ export function shuffle(a: U32, stream: RandomStream): void {
 }
 
 /**
+ * Clear `keep` for self-loops (unless `keepLoops`) and for edges inside one `group` value.
+ * @param src - the sources
+ * @param dst - the targets
+ * @param keepLoops - keep self-loops
+ * @param group - a node column; edges inside one group are dropped
+ * @param keep - 1 per kept edge, cleared here
+ */
+function dropLoopsAndGroups(src: U32, dst: U32, keepLoops: boolean, group: U32 | undefined, keep: Uint8Array): void {
+    for (let e = 0; e < src.length; e++) {
+        const u = src[e];
+        const v = dst[e];
+        if ((!keepLoops && u === v) || (group !== undefined && group[u] === group[v])) {
+            keep[e] = 0;
+        }
+    }
+}
+
+/**
+ * Clear `keep` for every repeat of a pair (ordered when directed) after its first kept occurrence,
+ * by a counting sort on the smaller endpoint and a last-seen mark per node.
+ * @param n - the node count
+ * @param src - the sources
+ * @param dst - the targets
+ * @param directed - whether pairs are ordered
+ * @param keep - 1 per kept edge, cleared here
+ */
+function dropRepeats(n: number, src: U32, dst: U32, directed: boolean, keep: Uint8Array): void {
+    const m = src.length;
+    const lo = (e: number): number => (directed ? src[e] : Math.min(src[e], dst[e]));
+    const start = new Uint32Array(n + 1);
+    for (let e = 0; e < m; e++) {
+        start[lo(e) + 1]++;
+    }
+    for (let i = 0; i < n; i++) {
+        start[i + 1] += start[i];
+    }
+    const fill = start.slice(0, n);
+    const order = new Uint32Array(m);
+    for (let e = 0; e < m; e++) {
+        order[fill[lo(e)]++] = e;
+    }
+    // mark[v] = u + 1 when the pair (u, v) has been seen in u's bucket
+    const mark = new Uint32Array(n);
+    for (let k = 0; k < m; k++) {
+        const e = order[k];
+        if (keep[e] === 0) {
+            continue;
+        }
+        const u = lo(e);
+        const v = directed ? dst[e] : Math.max(src[e], dst[e]);
+        if (mark[v] === u + 1) {
+            keep[e] = 0;
+        } else {
+            mark[v] = u + 1;
+        }
+    }
+}
+
+/**
  * Filter an edge list, keeping edge order: drop self-loops unless `keepLoops`, drop edges whose
  * endpoints share a `group` value when `group` is given, and drop every repeat of a pair (ordered
  * when directed, unordered otherwise) after its first kept occurrence unless `keepMulti`. O(n + m)
@@ -235,42 +294,11 @@ function eraseEdges(
     const { directed, keepLoops, keepMulti, group } = rules;
     const m = src.length;
     const keep = new Uint8Array(m).fill(1);
-    for (let e = 0; e < m; e++) {
-        const u = src[e];
-        const v = dst[e];
-        if ((!keepLoops && u === v) || (group !== undefined && group[u] === group[v])) {
-            keep[e] = 0;
-        }
+    if (!keepLoops || group !== undefined) {
+        dropLoopsAndGroups(src, dst, keepLoops, group, keep);
     }
     if (!keepMulti) {
-        const lo = (e: number): number => (directed ? src[e] : Math.min(src[e], dst[e]));
-        const start = new Uint32Array(n + 1);
-        for (let e = 0; e < m; e++) {
-            start[lo(e) + 1]++;
-        }
-        for (let i = 0; i < n; i++) {
-            start[i + 1] += start[i];
-        }
-        const fill = start.slice(0, n);
-        const order = new Uint32Array(m);
-        for (let e = 0; e < m; e++) {
-            order[fill[lo(e)]++] = e;
-        }
-        // mark[v] = u + 1 when the pair (u, v) has been seen in u's bucket
-        const mark = new Uint32Array(n);
-        for (let k = 0; k < m; k++) {
-            const e = order[k];
-            if (keep[e] === 0) {
-                continue;
-            }
-            const u = lo(e);
-            const v = directed ? dst[e] : Math.max(src[e], dst[e]);
-            if (mark[v] === u + 1) {
-                keep[e] = 0;
-            } else {
-                mark[v] = u + 1;
-            }
-        }
+        dropRepeats(n, src, dst, directed, keep);
     }
     for (let e = 0; e < m; e++) {
         if (keep[e] === 1) {
@@ -541,7 +569,7 @@ export function planChungLu(options: ChungLuOptions): ExpectedDegreePlan {
  * @param out - receives the edges
  */
 export function chungLuRows(plan: ExpectedDegreePlan, start: number, end: number, out: EdgeBuffer): void {
-    const { order, weight, rowBlock, starts, factor } = plan;
+    const { weight, rowBlock, starts, factor } = plan;
     const stream = new RandomStream(plan.seed, plan.domain, 0);
     const count = starts.length - 1;
     for (let row = start; row < end; row++) {
@@ -550,32 +578,55 @@ export function chungLuRows(plan: ExpectedDegreePlan, start: number, end: number
         // ponytail: O(B) per row like the block model; iterate non-zero blocks if B grows large
         for (let s = r; s < count; s++) {
             const cu = factor[r][s] * weight[row];
-            let v = s === r ? row + 1 : starts[s];
+            const v = s === r ? row + 1 : starts[s];
             const hi = starts[s + 1];
-            if (cu === 0 || v >= hi) {
-                continue;
-            }
-            let p = Math.min(1, cu * weight[v]);
-            while (v < hi && p > 0) {
-                if (p !== 1) {
-                    const logQ = detLog(1 - p);
-                    // p below 2^-53 rounds 1 - p to 1: no further edge in this segment
-                    if (logQ === 0) {
-                        break;
-                    }
-                    v += stream.nextSkip(logQ);
-                    if (v >= hi) {
-                        break;
-                    }
-                }
-                const q = Math.min(1, cu * weight[v]);
-                if (stream.nextFloat() < q / p) {
-                    out.push(order[row], order[v]);
-                }
-                p = q;
-                v++;
+            if (cu !== 0 && v < hi) {
+                chungLuSegment(plan, stream, row, cu, v, hi, out);
             }
         }
+    }
+}
+
+/**
+ * One row's walk over the later rows [first, hi) of one block, as {@link chungLuRows} describes.
+ * @param plan - the checked options
+ * @param stream - the row's stream
+ * @param row - the row
+ * @param cu - factor[r][s] times the row's weight (not 0)
+ * @param first - the first candidate row (below hi)
+ * @param hi - one past the block's last row
+ * @param out - receives the edges
+ */
+function chungLuSegment(
+    plan: ExpectedDegreePlan,
+    stream: RandomStream,
+    row: number,
+    cu: number,
+    first: number,
+    hi: number,
+    out: EdgeBuffer,
+): void {
+    const { order, weight } = plan;
+    let v = first;
+    let p = Math.min(1, cu * weight[v]);
+    while (v < hi && p > 0) {
+        if (p !== 1) {
+            const logQ = detLog(1 - p);
+            // p below 2^-53 rounds 1 - p to 1: no further edge in this segment
+            if (logQ === 0) {
+                return;
+            }
+            v += stream.nextSkip(logQ);
+            if (v >= hi) {
+                return;
+            }
+        }
+        const q = Math.min(1, cu * weight[v]);
+        if (stream.nextFloat() < q / p) {
+            out.push(order[row], order[v]);
+        }
+        p = q;
+        v++;
     }
 }
 
@@ -701,6 +752,99 @@ const REGULAR_ATTEMPTS = 100;
 const REGULAR_ROUNDS = 1000;
 
 /**
+ * Whether node u's filled adjacency slots hold v.
+ * @param adj - the adjacency slots (d per node)
+ * @param deg - the filled slot count per node
+ * @param d - the degree
+ * @param u - the node whose slots are searched
+ * @param v - the node looked for
+ * @returns true when (u, v) is already an edge
+ */
+function hasSlot(adj: U32, deg: U32, d: number, u: number, v: number): boolean {
+    const base = u * d;
+    for (let k = base; k < base + deg[u]; k++) {
+        if (adj[k] === v) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Join each consecutive stub pair that is not a loop and not yet an edge; count the stubs of the
+ * rest in `potential`.
+ * @param stubs - the shuffled stubs
+ * @param d - the degree
+ * @param adj - the adjacency slots
+ * @param deg - the filled slot count per node
+ * @param potential - leftover stubs per node, all 0 on entry
+ * @returns the nodes with leftover stubs, ascending
+ */
+function joinStubPairs(stubs: U32, d: number, adj: U32, deg: U32, potential: U32): number[] {
+    const touched: number[] = [];
+    for (let k = 0; k < stubs.length; k += 2) {
+        const u = Math.min(stubs[k], stubs[k + 1]);
+        const v = Math.max(stubs[k], stubs[k + 1]);
+        if (u !== v && !hasSlot(adj, deg, d, u, v)) {
+            adj[u * d + deg[u]++] = v;
+            adj[v * d + deg[v]++] = u;
+            continue;
+        }
+        for (const x of [u, v]) {
+            if (potential[x]++ === 0) {
+                touched.push(x);
+            }
+        }
+    }
+    return touched.sort((a, b) => a - b);
+}
+
+/**
+ * Whether the leftover stubs can still be re-paired: none are left, or some pair of distinct
+ * leftover nodes is not yet an edge.
+ * @param touched - the nodes with leftover stubs
+ * @param d - the degree
+ * @param adj - the adjacency slots
+ * @param deg - the filled slot count per node
+ * @returns true when another round may help
+ */
+function leftoverSuitable(touched: readonly number[], d: number, adj: U32, deg: U32): boolean {
+    if (touched.length === 0) {
+        return true;
+    }
+    for (let i = 0; i < touched.length; i++) {
+        for (let j = i + 1; j < touched.length; j++) {
+            if (!hasSlot(adj, deg, d, touched[i], touched[j])) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * The next round's stub list (each leftover node repeated by its count, ascending); clears
+ * `potential`.
+ * @param touched - the nodes with leftover stubs, ascending
+ * @param potential - leftover stubs per node
+ * @returns the stubs
+ */
+function leftoverStubs(touched: readonly number[], potential: U32): U32 {
+    let total = 0;
+    for (const x of touched) {
+        total += potential[x];
+    }
+    const next = new Uint32Array(total);
+    let k = 0;
+    for (const x of touched) {
+        next.fill(x, k, k + potential[x]);
+        k += potential[x];
+        potential[x] = 0;
+    }
+    return next;
+}
+
+/**
  * One attempt of the Steger-Wormald pairing; fills `adj` (d slots per node) and `deg`.
  * @param n - the node count
  * @param d - the degree
@@ -711,57 +855,15 @@ const REGULAR_ROUNDS = 1000;
  */
 function regularAttempt(n: number, d: number, stream: RandomStream, adj: U32, deg: U32): boolean {
     deg.fill(0);
-    const has = (u: number, v: number): boolean => {
-        const base = u * d;
-        for (let k = base; k < base + deg[u]; k++) {
-            if (adj[k] === v) {
-                return true;
-            }
-        }
-        return false;
-    };
     const potential = new Uint32Array(n);
     let stubs: U32 = stubList(new Uint32Array(n).fill(d), n * d);
     for (let round = 0; round < REGULAR_ROUNDS && stubs.length > 0; round++) {
         shuffle(stubs, stream);
-        const touched: number[] = [];
-        for (let k = 0; k < stubs.length; k += 2) {
-            const u = Math.min(stubs[k], stubs[k + 1]);
-            const v = Math.max(stubs[k], stubs[k + 1]);
-            if (u !== v && !has(u, v)) {
-                adj[u * d + deg[u]++] = v;
-                adj[v * d + deg[v]++] = u;
-            } else {
-                for (const x of [u, v]) {
-                    if (potential[x]++ === 0) {
-                        touched.push(x);
-                    }
-                }
-            }
-        }
-        touched.sort((a, b) => a - b);
-        // suitable: some pair of distinct leftover nodes is not yet an edge
-        let suitable = touched.length === 0;
-        for (let i = 0; i < touched.length && !suitable; i++) {
-            for (let j = i + 1; j < touched.length && !suitable; j++) {
-                suitable = !has(touched[i], touched[j]);
-            }
-        }
-        if (!suitable) {
+        const touched = joinStubPairs(stubs, d, adj, deg, potential);
+        if (!leftoverSuitable(touched, d, adj, deg)) {
             return false;
         }
-        let total = 0;
-        for (const x of touched) {
-            total += potential[x];
-        }
-        const next = new Uint32Array(total);
-        let k = 0;
-        for (const x of touched) {
-            next.fill(x, k, k + potential[x]);
-            k += potential[x];
-            potential[x] = 0;
-        }
-        stubs = next;
+        stubs = leftoverStubs(touched, potential);
     }
     return stubs.length === 0;
 }

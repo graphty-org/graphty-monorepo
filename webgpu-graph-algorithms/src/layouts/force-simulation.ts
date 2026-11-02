@@ -594,6 +594,81 @@ interface WeightsUpload {
 // ============================================================ the simulation
 
 /**
+ * The load checks on the snapshot and the owner's array, in PLAN DECISION 16's order: E_SNAPSHOT (directed),
+ * E_TOO_LARGE (nodeCount), then the positions array (length, then a SharedArrayBuffer).
+ * @param snapshot - the snapshot
+ * @param positions - the owner's stride-3 array
+ * @param kind - the model's kind (for the error)
+ */
+function assertLoadable(snapshot: GraphSnapshot, positions: F32, kind: string): void {
+    if (snapshot.directed) {
+        throw new WebGpuGraphError(
+            "E_SNAPSHOT",
+            "a layout needs an undirected snapshot: pass toUndirected().snapshot",
+            {
+                reason: "directed",
+                serial: snapshot.serial,
+            },
+        );
+    }
+    const n = snapshot.nodeCount;
+    if (n > MAX_1D_ITEMS) {
+        throw new WebGpuGraphError(
+            "E_TOO_LARGE",
+            `${n} nodes exceed ${MAX_1D_ITEMS} (the third partials level is P4)`,
+            {
+                needed: n,
+                limit: MAX_1D_ITEMS,
+                path: "partials",
+                algorithm: kind,
+            },
+        );
+    }
+    if (positions.length !== 3 * n) {
+        throw invalidArgument(
+            "positions",
+            positions.length,
+            3 * n,
+            `positions has ${positions.length} entries, expected ${3 * n}`,
+        );
+    }
+    if (isSharedBuffer(positions.buffer)) {
+        throw invalidArgument(
+            "positions",
+            "SharedArrayBuffer",
+            "an ArrayBuffer-backed Float32Array",
+            "positions must not be backed by a SharedArrayBuffer",
+        );
+    }
+}
+
+/**
+ * The model's resolved inputs must cover the nodes: one mass per node and, when present, a fixed mask of
+ * ceil(n / 32) words or more.
+ * @param inputs - the model's inputs
+ * @param n - the node count
+ */
+function assertModelInputs(inputs: ModelInputs, n: number): void {
+    if (inputs.mass.length !== n) {
+        throw invalidArgument(
+            "nodeMass",
+            inputs.mass.length,
+            n,
+            `the model resolved ${inputs.mass.length} masses for ${n} nodes`,
+        );
+    }
+    const fixedWords = Math.ceil(n / 32);
+    if (inputs.fixed !== undefined && inputs.fixed !== null && inputs.fixed.length < fixedWords) {
+        throw invalidArgument(
+            "fixed",
+            inputs.fixed.length,
+            fixedWords,
+            `the model resolved a fixed mask of ${inputs.fixed.length} words, ${fixedWords} needed for ${n} nodes`,
+        );
+    }
+}
+
+/**
  * The shared layout state machine (spec 7.19): buffers, in-flight batches, readback, settle window, fixed mask,
  * setPosition overrides, trace, batch driver; consumes a ForceModel by composition.
  */
@@ -901,45 +976,8 @@ export class ForceSimulation<
     load(snapshot: GraphSnapshot, positions: F32): void {
         this.assertNotDisposed();
         this.ctx.assertReady();
-        if (snapshot.directed) {
-            throw new WebGpuGraphError(
-                "E_SNAPSHOT",
-                "a layout needs an undirected snapshot: pass toUndirected().snapshot",
-                {
-                    reason: "directed",
-                    serial: snapshot.serial,
-                },
-            );
-        }
+        assertLoadable(snapshot, positions, this.model.kind);
         const n = snapshot.nodeCount;
-        if (n > MAX_1D_ITEMS) {
-            throw new WebGpuGraphError(
-                "E_TOO_LARGE",
-                `${n} nodes exceed ${MAX_1D_ITEMS} (the third partials level is P4)`,
-                {
-                    needed: n,
-                    limit: MAX_1D_ITEMS,
-                    path: "partials",
-                    algorithm: this.model.kind,
-                },
-            );
-        }
-        if (positions.length !== 3 * n) {
-            throw invalidArgument(
-                "positions",
-                positions.length,
-                3 * n,
-                `positions has ${positions.length} entries, expected ${3 * n}`,
-            );
-        }
-        if (isSharedBuffer(positions.buffer)) {
-            throw invalidArgument(
-                "positions",
-                "SharedArrayBuffer",
-                "an ArrayBuffer-backed Float32Array",
-                "positions must not be backed by a SharedArrayBuffer",
-            );
-        }
         const scale = scaleOf(this.optionsValue);
         const center = centerOf(this.optionsValue);
         const tier = tierFor(this.tuning, n);
@@ -975,23 +1013,7 @@ export class ForceSimulation<
                 tiers = degreeTiersOf(this.ctx.residency.view(snapshot, "degreeOrder"));
             }
             inputs = this.model.inputs(snapshot, this.optionsValue);
-            if (inputs.mass.length !== n) {
-                throw invalidArgument(
-                    "nodeMass",
-                    inputs.mass.length,
-                    n,
-                    `the model resolved ${inputs.mass.length} masses for ${n} nodes`,
-                );
-            }
-            const fixedWords = Math.ceil(n / 32);
-            if (inputs.fixed !== undefined && inputs.fixed !== null && inputs.fixed.length < fixedWords) {
-                throw invalidArgument(
-                    "fixed",
-                    inputs.fixed.length,
-                    fixedWords,
-                    `the model resolved a fixed mask of ${inputs.fixed.length} words, ${fixedWords} needed for ${n} nodes`,
-                );
-            }
+            assertModelInputs(inputs, n);
         }
 
         // ---- every check passed: mutate

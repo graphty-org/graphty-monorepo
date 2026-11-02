@@ -13,7 +13,7 @@
  * style values its rules read go into graph and element `<att>`s.
  */
 
-import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
+import { type Column, GraphFormatError, type GraphSnapshot, type ListColumn } from "@graphty/graph-format";
 
 import { type ChildrenCsr, childrenCsr } from "../../children.js";
 import { DictHeuristic } from "../../common/attributes.js";
@@ -318,44 +318,15 @@ function planTable(
     note: NoteFn,
 ): ColumnWrite[] {
     const writes: ColumnWrite[] = [];
-    const reserved = RESERVED_NAMES[domain];
     const hasLabelRole =
         domain !== "graph" && (domain === "node" ? snapshot.nodes : snapshot.edges).byRole("label") !== null;
     for (const column of table) {
         const { meta } = column;
-        if (
-            meta.role !== null &&
-            (STRUCTURAL_ROLES.has(meta.role) ||
-                DROPPED_ROLES.has(meta.role) ||
-                meta.role === "id" ||
-                meta.role === "timeText")
-        ) {
+        if (skippedRole(meta.role)) {
             continue;
         }
         const kind = slotOf(column, domain, hasLabelRole);
-        const set = column.length - column.nullCount;
-        if (kind === "att" && reserved.has(meta.name)) {
-            note(
-                LOSS.COLUMN_NAME_CHANGED,
-                `${domain} column "${meta.name}" is named like a column the XGMML importer owns and reads back renamed`,
-                meta.name,
-                set,
-            );
-        } else if (kind === "label" && meta.dtype !== "string" && meta.dtype !== "dict") {
-            note(
-                LOSS.DTYPE,
-                `${domain} label column "${meta.name}" (${meta.dtype}) is written as text and reads back as string`,
-                meta.name,
-                set,
-            );
-        } else if (kind === "label" && meta.role === null) {
-            note(
-                LOSS.ROLE_ASSUMED,
-                `${domain} column "${meta.name}" is written as the label and reads back with the label role`,
-                meta.name,
-                set,
-            );
-        }
+        slotNotes(column, domain, kind, note);
         if (kind === "att") {
             attNotes(column, domain, note);
         }
@@ -371,6 +342,52 @@ function planTable(
         });
     }
     return writes;
+}
+
+/**
+ * Whether a column's role keeps it out of the atts: written structurally, dropped, or the id.
+ * @param role - the column's role
+ * @returns true to skip the column
+ */
+function skippedRole(role: Column["meta"]["role"]): boolean {
+    return (
+        role !== null && (STRUCTURAL_ROLES.has(role) || DROPPED_ROLES.has(role) || role === "id" || role === "timeText")
+    );
+}
+
+/**
+ * The note of a column whose slot changes how it reads back: a renamed att, a label written as text,
+ * a label that gains the label role.
+ * @param column - the column
+ * @param domain - the table
+ * @param kind - its slot
+ * @param note - the recorder
+ */
+function slotNotes(column: Column, domain: Domain, kind: ColumnWrite["kind"], note: NoteFn): void {
+    const { meta } = column;
+    const set = column.length - column.nullCount;
+    if (kind === "att" && RESERVED_NAMES[domain].has(meta.name)) {
+        note(
+            LOSS.COLUMN_NAME_CHANGED,
+            `${domain} column "${meta.name}" is named like a column the XGMML importer owns and reads back renamed`,
+            meta.name,
+            set,
+        );
+    } else if (kind === "label" && meta.dtype !== "string" && meta.dtype !== "dict") {
+        note(
+            LOSS.DTYPE,
+            `${domain} label column "${meta.name}" (${meta.dtype}) is written as text and reads back as string`,
+            meta.name,
+            set,
+        );
+    } else if (kind === "label" && meta.role === null) {
+        note(
+            LOSS.ROLE_ASSUMED,
+            `${domain} column "${meta.name}" is written as the label and reads back with the label role`,
+            meta.name,
+            set,
+        );
+    }
 }
 
 /**
@@ -498,40 +515,60 @@ function attNotes(column: Column, domain: string, note: NoteFn): void {
         );
     }
     if (item === "string" || item === "dict") {
-        let escapes = 0;
-        for (let r = 0; r < column.length; r++) {
-            if (column.isSet(r)) {
-                const values = column.dtype === "list" ? [...column.sliceOf(r)] : [column.value(r)];
-                if (values.some((v) => typeof v === "string" && /\\[nt]/.test(v))) {
-                    escapes++;
-                }
-            }
-        }
-        if (escapes > 0) {
-            note(
-                XGMML_LOSS.BACKSLASH_ESCAPE,
-                `${label}: ${escapes} value${plural(escapes)} ${agree(escapes, "holds", "hold")} a literal ${LITERAL_ESCAPES}, which Cytoscape's escape convention reads back as a newline or tab`,
-                meta.name,
-                escapes,
-            );
-        }
+        escapeNotes(column, label, note);
     }
     if (meta.dtype === "string" || meta.dtype === "dict") {
-        const heuristic = new DictHeuristic();
-        for (let r = 0; r < column.length && !heuristic.decided; r++) {
-            if (column.isSet(r)) {
-                heuristic.observe(column.value(r) as string);
+        storageNotes(column, label, note);
+    }
+}
+
+/**
+ * The note of a text column whose values hold a literal backslash escape.
+ * @param column - the column
+ * @param label - the column as notes name it
+ * @param note - the recorder
+ */
+function escapeNotes(column: Column, label: string, note: NoteFn): void {
+    let escapes = 0;
+    for (let r = 0; r < column.length; r++) {
+        if (column.isSet(r)) {
+            const values = column.dtype === "list" ? [...column.sliceOf(r)] : [column.value(r)];
+            if (values.some((v) => typeof v === "string" && /\\[nt]/.test(v))) {
+                escapes++;
             }
         }
-        const readsAs = heuristic.decide();
-        if (readsAs !== meta.dtype) {
-            note(
-                XGMML_LOSS.STORAGE_CLASS_CHANGED,
-                `${label} reads back as ${readsAs}: the importer stores text with few distinct values as dict and other text as string; the values are the same`,
-                meta.name,
-                null,
-            );
+    }
+    if (escapes > 0) {
+        note(
+            XGMML_LOSS.BACKSLASH_ESCAPE,
+            `${label}: ${escapes} value${plural(escapes)} ${agree(escapes, "holds", "hold")} a literal ${LITERAL_ESCAPES}, which Cytoscape's escape convention reads back as a newline or tab`,
+            column.meta.name,
+            escapes,
+        );
+    }
+}
+
+/**
+ * The note of a string or dict column the importer's heuristic reads back as the other.
+ * @param column - the column
+ * @param label - the column as notes name it
+ * @param note - the recorder
+ */
+function storageNotes(column: Column, label: string, note: NoteFn): void {
+    const heuristic = new DictHeuristic();
+    for (let r = 0; r < column.length && !heuristic.decided; r++) {
+        if (column.isSet(r)) {
+            heuristic.observe(column.value(r) as string);
         }
+    }
+    const readsAs = heuristic.decide();
+    if (readsAs !== column.meta.dtype) {
+        note(
+            XGMML_LOSS.STORAGE_CLASS_CHANGED,
+            `${label} reads back as ${readsAs}: the importer stores text with few distinct values as dict and other text as string; the values are the same`,
+            column.meta.name,
+            null,
+        );
     }
 }
 
@@ -874,35 +911,96 @@ function* attsOf(
     indent: string,
 ): Generator<string, void, undefined> {
     for (const w of writes) {
-        if (w.kind !== "att") {
-            continue;
+        if (w.kind === "att") {
+            yield* attOf(w, row, first, plan, indent);
         }
-        const { column } = w;
-        const isSet = column.isSet(row);
-        if (!isSet && !(first && column.nullCount === column.length)) {
-            continue;
-        }
-        const name = `${indent}<att name="${escapeXmlAttribute(w.name)}"`;
-        const types = optionalAttribute("type", w.type) + optionalAttribute("cy:type", w.cyType);
-        const extra = `${column.meta.extra.hidden === true ? ' cy:hidden="1"' : ""}${column.meta.extra.equation === true ? ' cy:equation="1"' : ""}`;
-        if (!isSet) {
-            yield `${name}${types}${optionalAttribute("cy:elementType", w.elementType)}${extra}/>\n`;
-            continue;
-        }
-        if (column.dtype === "list") {
-            const items = [...column.sliceOf(row)];
-            const [itemType, itemCy] = typesOf(column, column.meta.itemDtype);
-            yield `${name}${types} cy:elementType="${w.elementType ?? "String"}"${extra}${items.length === 0 ? "/>" : ">"}\n`;
-            if (items.length > 0) {
-                for (const item of items) {
-                    yield `${indent}    <att name="${escapeXmlAttribute(w.name)}" value="${valueText(item, column.meta.itemDtype, plan.escapes)}" type="${itemType}" cy:type="${itemCy}"/>\n`;
-                }
-                yield `${indent}</att>\n`;
-            }
-            continue;
-        }
-        yield `${name} value="${valueText(column.value(row), column.dtype, plan.escapes)}"${types}${extra}/>\n`;
     }
+}
+
+/**
+ * The att of one att column in one row: nothing for an unset value, except an all-unset column's
+ * declaration in the table's first row.
+ * @param w - the column write
+ * @param row - the row
+ * @param first - whether this is the table's first row
+ * @param plan - the plan
+ * @param indent - the indentation
+ * @yields the att element
+ * @returns nothing
+ */
+function* attOf(
+    w: ColumnWrite,
+    row: number,
+    first: boolean,
+    plan: Plan,
+    indent: string,
+): Generator<string, void, undefined> {
+    const { column } = w;
+    const isSet = column.isSet(row);
+    if (!isSet && !(first && column.nullCount === column.length)) {
+        return;
+    }
+    const name = `${indent}<att name="${escapeXmlAttribute(w.name)}"`;
+    const types = optionalAttribute("type", w.type) + optionalAttribute("cy:type", w.cyType);
+    const extra = attFlags(column);
+    if (!isSet) {
+        yield `${name}${types}${optionalAttribute("cy:elementType", w.elementType)}${extra}/>\n`;
+        return;
+    }
+    if (column.dtype === "list") {
+        yield* listAttOf(
+            w,
+            column,
+            row,
+            plan,
+            indent,
+            `${name}${types} cy:elementType="${w.elementType ?? "String"}"${extra}`,
+        );
+        return;
+    }
+    yield `${name} value="${valueText(column.value(row), column.dtype, plan.escapes)}"${types}${extra}/>\n`;
+}
+
+/**
+ * The cy:hidden and cy:equation flags of an att column.
+ * @param column - the column
+ * @returns the XML attributes, or empty
+ */
+function attFlags(column: Column): string {
+    const hidden = column.meta.extra.hidden === true ? ' cy:hidden="1"' : "";
+    const equation = column.meta.extra.equation === true ? ' cy:equation="1"' : "";
+    return `${hidden}${equation}`;
+}
+
+/**
+ * A set list att with one child att per item.
+ * @param w - the column write
+ * @param column - its column
+ * @param row - the row
+ * @param plan - the plan
+ * @param indent - the indentation
+ * @param open - the opening tag up to its end
+ * @yields the att element
+ * @returns nothing
+ */
+function* listAttOf(
+    w: ColumnWrite,
+    column: ListColumn,
+    row: number,
+    plan: Plan,
+    indent: string,
+    open: string,
+): Generator<string, void, undefined> {
+    const items = [...column.sliceOf(row)];
+    const [itemType, itemCy] = typesOf(column, column.meta.itemDtype);
+    yield `${open}${items.length === 0 ? "/>" : ">"}\n`;
+    if (items.length === 0) {
+        return;
+    }
+    for (const item of items) {
+        yield `${indent}    <att name="${escapeXmlAttribute(w.name)}" value="${valueText(item, column.meta.itemDtype, plan.escapes)}" type="${itemType}" cy:type="${itemCy}"/>\n`;
+    }
+    yield `${indent}</att>\n`;
 }
 
 /**
@@ -921,9 +1019,7 @@ function* graphicsOf(
     const attrs: [string, string][] = [...coords];
     const nested: [string, unknown][] = [];
     for (const [key, value] of Object.entries(record ?? {})) {
-        if (key === "Line") {
-            nested.push([key, value]);
-        } else if (typeof value === "string" && (GRAPHICS_ATTRIBUTES.has(key) || key.startsWith("cy:"))) {
+        if (key !== "Line" && typeof value === "string" && (GRAPHICS_ATTRIBUTES.has(key) || key.startsWith("cy:"))) {
             attrs.push([key, value]);
         } else {
             nested.push([key, value]);
@@ -940,18 +1036,29 @@ function* graphicsOf(
     yield `${head}>\n`;
     for (const [key, value] of nested) {
         if (key === "Line" && Array.isArray(value)) {
-            yield `${indent}    <Line>\n`;
-            for (const point of value) {
-                const entries =
-                    typeof point === "object" && point !== null ? Object.entries(point as Record<string, unknown>) : [];
-                yield `${indent}        <point${attributeList(entries)}/>\n`;
-            }
-            yield `${indent}    </Line>\n`;
+            yield* lineOf(value, indent);
         } else {
             yield* jsonAtt(key, value, `${indent}    `);
         }
     }
     yield `${indent}</graphics>\n`;
+}
+
+/**
+ * A graphics `Line` value as a `<Line>` of `<point>` elements.
+ * @param points - the points
+ * @param indent - the indentation of the enclosing graphics
+ * @yields the Line element
+ * @returns nothing
+ */
+function* lineOf(points: readonly unknown[], indent: string): Generator<string, void, undefined> {
+    yield `${indent}    <Line>\n`;
+    for (const point of points) {
+        const entries =
+            typeof point === "object" && point !== null ? Object.entries(point as Record<string, unknown>) : [];
+        yield `${indent}        <point${attributeList(entries)}/>\n`;
+    }
+    yield `${indent}    </Line>\n`;
 }
 
 /**

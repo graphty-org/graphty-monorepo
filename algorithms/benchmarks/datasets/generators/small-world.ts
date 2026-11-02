@@ -14,15 +14,7 @@ export function generateSmallWorld(
     k: number, // Initial nearest neighbors (must be even)
     p: number, // Rewiring probability
 ): BenchmarkGraphImpl {
-    if (k % 2 !== 0) {
-        throw new Error("k must be even");
-    }
-    if (k >= vertices) {
-        throw new Error(`k (${k}) must be less than vertices (${vertices})`);
-    }
-    if (p < 0 || p > 1) {
-        throw new Error(`Rewiring probability must be between 0 and 1, got ${p}`);
-    }
+    validateSmallWorldParameters(vertices, k, p);
 
     const metadata: GraphMetadata = {
         generationAlgorithm: "Watts-Strogatz Small-World",
@@ -35,66 +27,14 @@ export function generateSmallWorld(
         },
     };
 
-    const edges: Array<[number, number]> = [];
-    const adjacencyList: Record<number, number[]> = {};
-
-    // Initialize adjacency list
-    for (let i = 0; i < vertices; i++) {
-        adjacencyList[i] = [];
-    }
-
-    // Create initial ring lattice
-    // Each vertex connects to k/2 neighbors on each side
-    for (let i = 0; i < vertices; i++) {
-        for (let j = 1; j <= k / 2; j++) {
-            const neighbor = (i + j) % vertices;
-            // Only add edge once (from smaller to larger index)
-            if (i < neighbor || (neighbor < i && neighbor < k / 2)) {
-                edges.push([i, neighbor]);
-                adjacencyList[i].push(neighbor);
-                adjacencyList[neighbor].push(i);
-            }
-        }
-    }
+    const adjacencyList = emptyAdjacency(vertices);
+    const edges = ringLattice(vertices, k, adjacencyList);
 
     // Rewire edges with probability p
     const rewiredEdges: Array<[number, number]> = [];
     // Process each edge for potential rewiring
     for (const [from, to] of edges) {
-        if (Math.random() < p) {
-            // Rewire this edge
-            // Find a new target that's not already connected to 'from'
-            let newTarget: number;
-            let attempts = 0;
-            const maxAttempts = vertices;
-
-            do {
-                newTarget = Math.floor(Math.random() * vertices);
-                attempts++;
-            } while (
-                (newTarget === from || adjacencyList[from].includes(newTarget) || newTarget === to) &&
-                attempts < maxAttempts
-            );
-
-            if (attempts < maxAttempts) {
-                // Remove old edge from adjacency list
-                adjacencyList[from] = adjacencyList[from].filter((v) => v !== to);
-                adjacencyList[to] = adjacencyList[to].filter((v) => v !== from);
-
-                // Add new edge
-                adjacencyList[from].push(newTarget);
-                adjacencyList[newTarget].push(from);
-
-                // Add to rewired edges list
-                rewiredEdges.push([from, newTarget]);
-            } else {
-                // Keep original edge if we couldn't find a valid rewiring
-                rewiredEdges.push([from, to]);
-            }
-        } else {
-            // Keep original edge
-            rewiredEdges.push([from, to]);
-        }
+        rewiredEdges.push(Math.random() < p ? rewireEdge(from, to, vertices, adjacencyList) : [from, to]);
     }
 
     // Update metadata with actual edge count
@@ -109,6 +49,90 @@ export function generateSmallWorld(
         directed: false,
         weighted: false,
     };
+}
+
+function validateSmallWorldParameters(vertices: number, k: number, p: number): void {
+    if (k % 2 !== 0) {
+        throw new Error("k must be even");
+    }
+    if (k >= vertices) {
+        throw new Error(`k (${k}) must be less than vertices (${vertices})`);
+    }
+    if (p < 0 || p > 1) {
+        throw new Error(`Rewiring probability must be between 0 and 1, got ${p}`);
+    }
+}
+
+function emptyAdjacency(vertices: number): Record<number, number[]> {
+    const adjacencyList: Record<number, number[]> = {};
+    for (let i = 0; i < vertices; i++) {
+        adjacencyList[i] = [];
+    }
+    return adjacencyList;
+}
+
+/**
+ * Create the initial ring lattice: each vertex connects to k/2 neighbors on each side.
+ * @param vertices - Number of vertices
+ * @param k - Initial nearest neighbors
+ * @param adjacencyList - Filled with both directions of every edge
+ * @returns The lattice edges, each added once
+ */
+function ringLattice(vertices: number, k: number, adjacencyList: Record<number, number[]>): Array<[number, number]> {
+    const edges: Array<[number, number]> = [];
+    for (let i = 0; i < vertices; i++) {
+        for (let j = 1; j <= k / 2; j++) {
+            const neighbor = (i + j) % vertices;
+            // Only add edge once (from smaller to larger index)
+            if (i < neighbor || (neighbor < i && neighbor < k / 2)) {
+                edges.push([i, neighbor]);
+                adjacencyList[i].push(neighbor);
+                adjacencyList[neighbor].push(i);
+            }
+        }
+    }
+    return edges;
+}
+
+/**
+ * Rewire one edge to a new target not already connected to `from`, or keep it when none is found.
+ * @param from - Edge source
+ * @param to - Edge target
+ * @param vertices - Number of vertices
+ * @param adjacencyList - Updated when the edge is rewired
+ * @returns The edge after rewiring
+ */
+function rewireEdge(
+    from: number,
+    to: number,
+    vertices: number,
+    adjacencyList: Record<number, number[]>,
+): [number, number] {
+    let newTarget: number;
+    let attempts = 0;
+    const maxAttempts = vertices;
+
+    do {
+        newTarget = Math.floor(Math.random() * vertices);
+        attempts++;
+    } while (
+        (newTarget === from || adjacencyList[from].includes(newTarget) || newTarget === to) &&
+        attempts < maxAttempts
+    );
+
+    if (attempts >= maxAttempts) {
+        // Keep original edge if we couldn't find a valid rewiring
+        return [from, to];
+    }
+
+    // Remove old edge from adjacency list
+    adjacencyList[from] = adjacencyList[from].filter((v) => v !== to);
+    adjacencyList[to] = adjacencyList[to].filter((v) => v !== from);
+
+    // Add new edge
+    adjacencyList[from].push(newTarget);
+    adjacencyList[newTarget].push(from);
+    return [from, newTarget];
 }
 
 /**
@@ -165,47 +189,10 @@ export function generateNewmanWatts(vertices: number, k: number, p: number): Ben
         },
     };
 
-    const edges: Array<[number, number]> = [];
-    const adjacencyList: Record<number, number[]> = {};
+    const adjacencyList = emptyAdjacency(vertices);
     const edgeSet = new Set<string>();
-
-    // Initialize adjacency list
-    for (let i = 0; i < vertices; i++) {
-        adjacencyList[i] = [];
-    }
-
-    // Create initial ring lattice
-    for (let i = 0; i < vertices; i++) {
-        for (let j = 1; j <= k / 2; j++) {
-            const neighbor = (i + j) % vertices;
-            const key = i < neighbor ? `${i}-${neighbor}` : `${neighbor}-${i}`;
-
-            if (!edgeSet.has(key)) {
-                edgeSet.add(key);
-                edges.push([i, neighbor]);
-                adjacencyList[i].push(neighbor);
-                adjacencyList[neighbor].push(i);
-            }
-        }
-    }
-
-    // Add shortcuts with probability p for each edge
-    const shortcuts: Array<[number, number]> = [];
-
-    for (let i = 0; i < vertices; i++) {
-        for (let j = i + 1; j < vertices; j++) {
-            if (Math.random() < p) {
-                // Check if edge already exists
-                const key = `${i}-${j}`;
-                if (!edgeSet.has(key)) {
-                    edgeSet.add(key);
-                    shortcuts.push([i, j]);
-                    adjacencyList[i].push(j);
-                    adjacencyList[j].push(i);
-                }
-            }
-        }
-    }
+    const edges = uniqueRingLattice(vertices, k, adjacencyList, edgeSet);
+    const shortcuts = randomShortcuts(vertices, p, adjacencyList, edgeSet);
 
     // Combine all edges
     const allEdges = [...edges, ...shortcuts];
@@ -221,4 +208,59 @@ export function generateNewmanWatts(vertices: number, k: number, p: number): Ben
         directed: false,
         weighted: false,
     };
+}
+
+function uniqueRingLattice(
+    vertices: number,
+    k: number,
+    adjacencyList: Record<number, number[]>,
+    edgeSet: Set<string>,
+): Array<[number, number]> {
+    const edges: Array<[number, number]> = [];
+    for (let i = 0; i < vertices; i++) {
+        for (let j = 1; j <= k / 2; j++) {
+            const neighbor = (i + j) % vertices;
+            const key = i < neighbor ? `${i}-${neighbor}` : `${neighbor}-${i}`;
+
+            if (!edgeSet.has(key)) {
+                edgeSet.add(key);
+                edges.push([i, neighbor]);
+                adjacencyList[i].push(neighbor);
+                adjacencyList[neighbor].push(i);
+            }
+        }
+    }
+    return edges;
+}
+
+/**
+ * Add a shortcut for each vertex pair with probability p, skipping pairs already joined.
+ * @param vertices - Number of vertices
+ * @param p - Shortcut probability per pair
+ * @param adjacencyList - Filled with both directions of every shortcut
+ * @param edgeSet - Keys of the edges already present
+ * @returns The shortcuts added
+ */
+function randomShortcuts(
+    vertices: number,
+    p: number,
+    adjacencyList: Record<number, number[]>,
+    edgeSet: Set<string>,
+): Array<[number, number]> {
+    const shortcuts: Array<[number, number]> = [];
+    for (let i = 0; i < vertices; i++) {
+        for (let j = i + 1; j < vertices; j++) {
+            if (Math.random() < p) {
+                // Check if edge already exists
+                const key = `${i}-${j}`;
+                if (!edgeSet.has(key)) {
+                    edgeSet.add(key);
+                    shortcuts.push([i, j]);
+                    adjacencyList[i].push(j);
+                    adjacencyList[j].push(i);
+                }
+            }
+        }
+    }
+    return shortcuts;
 }

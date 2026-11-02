@@ -402,30 +402,22 @@ export class DerivationLane {
             const copies = this.targetCopies(dirty);
             const target = frozenOver(this.state, copies);
 
+            // Inline, not an awaited helper: an extra async boundary would move every pass's
+            // `show` a few microtasks later relative to the writes and builds around it.
             for (const slice of HOOK_ORDER) {
                 const keys = dirty.get(slice);
-                for (const hook of keys === undefined ? [] : [...(this.hooks.get(slice) ?? [])]) {
+                for (const hook of this.hooksFor(slice, keys)) {
                     if (this.closed) {
                         break;
                     }
                     await this.call(hook, target, keys ?? new Set());
                 }
 
-                if (slice === "arrangement" && this.restores === restores) {
-                    this.restoringFlag = false;
-                }
+                this.endSlice(slice, restores);
             }
 
             this.show(target, copies, before, dirty);
-            // Checked once the picture has caught up with live state: a pass that another will
-            // follow draws a target that writes made since have already moved past.
-            if (this.afterPass !== null && this.next === null) {
-                try {
-                    this.afterPass(this.state);
-                } catch (error) {
-                    this.onError(error);
-                }
-            }
+            this.checkAfterPass();
 
             this.current = null;
             try {
@@ -438,6 +430,43 @@ export class DerivationLane {
         }
 
         this.idle();
+    }
+
+    /**
+     * The hooks a pass calls for one slice, copied so a hook that registers another does not
+     * change this pass: none when the slice is not dirty.
+     * @param slice - The slice.
+     * @param keys - The slice's dirty keys, undefined when it is clean.
+     * @returns The hooks.
+     */
+    private hooksFor(slice: DerivedSlice, keys: ReadonlySet<string> | undefined): DeriveHook[] {
+        return keys === undefined ? [] : [...(this.hooks.get(slice) ?? [])];
+    }
+
+    /**
+     * After a slice's hooks: the arrangement ends the restore this pass began with, unless another
+     * restore began since.
+     * @param slice - The slice whose hooks ran.
+     * @param restores - The restore count when the pass began.
+     */
+    private endSlice(slice: DerivedSlice, restores: number): void {
+        if (slice === "arrangement" && this.restores === restores) {
+            this.restoringFlag = false;
+        }
+    }
+
+    /**
+     * Checked once the picture has caught up with live state: a pass that another will follow
+     * draws a target that writes made since have already moved past.
+     */
+    private checkAfterPass(): void {
+        if (this.afterPass !== null && this.next === null) {
+            try {
+                this.afterPass(this.state);
+            } catch (error) {
+                this.onError(error);
+            }
+        }
     }
 
     /** Tell `drained` the slices derived since the lane last went idle. */

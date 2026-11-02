@@ -284,18 +284,12 @@ export function bindingNames(spec: WgslModuleSpec, group: number): readonly stri
 }
 
 /**
- * Validates `spec.needs`, `spec.overrideDecls`, `spec.overrides` and `spec.bindings` (contract 3.9's compose-time checks).
- * PLAN DECISION: an `overrideDecls` entry that redeclares a standard override, repeats a name or names a reserved
- * word is `E_SHADER_COMPILE { slot: "override:<name>" }` (otherwise a duplicate-declaration error on the first device).
+ * Validates `spec.overrideDecls`: each a usable identifier, not a standard override, declared once, with a valid default.
  * @param spec - the module
+ * @returns the declared overrides' types by name
  */
-function validateDeclarations(spec: WgslModuleSpec): void {
+function validateOverrideDecls(spec: WgslModuleSpec): Map<string, OverrideDecl["type"]> {
     const { id } = spec;
-    for (const need of spec.needs) {
-        if (!KNOWN_NEEDS.includes(need)) {
-            throw composeError(id, `needs:${need}`, `unknown feature "${need}" in needs`);
-        }
-    }
     const declared = new Map<string, OverrideDecl["type"]>();
     for (const decl of spec.overrideDecls) {
         if (!IDENTIFIER.test(decl.name) || RESERVED.has(decl.name)) {
@@ -311,18 +305,16 @@ function validateDeclarations(spec: WgslModuleSpec): void {
         assertOverrideValue(id, decl.name, decl.type, decl.default);
         declared.set(decl.name, decl.type);
     }
-    for (const [key, value] of Object.entries(spec.overrides)) {
-        const standard = (STANDARD_OVERRIDE_TYPES as Readonly<Record<string, OverrideDecl["type"] | undefined>>)[key];
-        const type = standard ?? declared.get(key);
-        if (type === undefined) {
-            throw composeError(
-                id,
-                `override:${key}`,
-                `override "${key}" is neither a standard override nor declared in overrideDecls`,
-            );
-        }
-        assertOverrideValue(id, key, type, value);
-    }
+    return declared;
+}
+
+/**
+ * Validates `spec.bindings`: usable identifiers, one binding per slot and per name, and every struct type declared by
+ * a block of `spec.uniforms`.
+ * @param spec - the module
+ */
+function validateBindings(spec: WgslModuleSpec): void {
+    const { id } = spec;
     const slots = new Set<string>();
     const names = new Set<string>();
     const blocks = new Set(spec.uniforms.map((block) => block.name));
@@ -348,6 +340,35 @@ function validateDeclarations(spec: WgslModuleSpec): void {
             );
         }
     }
+}
+
+/**
+ * Validates `spec.needs`, `spec.overrideDecls`, `spec.overrides` and `spec.bindings` (contract 3.9's compose-time checks).
+ * PLAN DECISION: an `overrideDecls` entry that redeclares a standard override, repeats a name or names a reserved
+ * word is `E_SHADER_COMPILE { slot: "override:<name>" }` (otherwise a duplicate-declaration error on the first device).
+ * @param spec - the module
+ */
+function validateDeclarations(spec: WgslModuleSpec): void {
+    const { id } = spec;
+    for (const need of spec.needs) {
+        if (!KNOWN_NEEDS.includes(need)) {
+            throw composeError(id, `needs:${need}`, `unknown feature "${need}" in needs`);
+        }
+    }
+    const declared = validateOverrideDecls(spec);
+    for (const [key, value] of Object.entries(spec.overrides)) {
+        const standard = (STANDARD_OVERRIDE_TYPES as Readonly<Record<string, OverrideDecl["type"] | undefined>>)[key];
+        const type = standard ?? declared.get(key);
+        if (type === undefined) {
+            throw composeError(
+                id,
+                `override:${key}`,
+                `override "${key}" is neither a standard override nor declared in overrideDecls`,
+            );
+        }
+        assertOverrideValue(id, key, type, value);
+    }
+    validateBindings(spec);
 }
 
 /**

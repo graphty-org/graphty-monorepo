@@ -43,6 +43,7 @@ import {
     openTimeCard,
     PLUS,
     shapeOf,
+    takeDraftOpener,
     TIME_ROW,
     writeCondition,
 } from "./filterCards";
@@ -54,6 +55,9 @@ const TIME_WINDOW = "Time window";
 
 /** Where focus goes once the Filters section draws next: a card (or its on box), or `PLUS` for "+". */
 let pendingFocus: { readonly target: string; readonly onBox?: boolean } | null = null;
+
+/** The controls that open a new filter card and stay on screen: the canvas toolbar's Filters, "+". */
+const OPENS_FILTERS = '[data-command="filters.open"], [data-filters-plus] [data-add]';
 
 /** A card's on box, inside the card. */
 const ON_BOX = ".dp-filter-on input[type=checkbox]";
@@ -141,8 +145,34 @@ export function FiltersSection(): React.JSX.Element {
         }
     }, [version]);
 
+    // The control that opened the newest card, kept only when it is one that opens filters (the
+    // canvas toolbar's Filters, "Add filter"): focus returns to it when the new card goes (Cancel,
+    // Escape on its empty picker, Done with no step) and it is still on screen, else to "Add
+    // filter". Opened from Quick actions or a menu's Filter to..., what held focus is the page body
+    // or a control the closing popup hands focus to, never one that opens filters. The workspace
+    // covers the canvas, and its toolbar, until it closes: focus moves once it has.
+    const openedFrom = useRef<HTMLElement | null>(null);
+    const [goingBack, setGoingBack] = useState<{ readonly to: HTMLElement | null } | null>(null);
+    const covered = useWorkspaceState((state) => state.selectionWorkspace !== null);
+    useEffect(() => {
+        if (goingBack === null || covered) {
+            return;
+        }
+        setGoingBack(null);
+        const { to } = goingBack;
+        if (to?.isConnected === true && to.checkVisibility()) {
+            to.focus();
+            return;
+        }
+        focusCard(PLUS);
+    }, [goingBack, covered]);
+    const backToOpener = (): void => {
+        setGoingBack({ to: openedFrom.current });
+        openedFrom.current = null;
+    };
     // A new card: its value picker opens at once, or on a field, that field's step card.
-    const open = (side: Side, field?: CardField): void => {
+    const open = (side: Side, field?: CardField, from: Element | null = document.activeElement): void => {
+        openedFrom.current = from instanceof HTMLElement && from.matches(OPENS_FILTERS) ? from : null;
         const id = newConditionId(
             session?.visibility.conditions ?? [],
             drafts.map((each) => each.id),
@@ -158,8 +188,10 @@ export function FiltersSection(): React.JSX.Element {
             return;
         }
         store.set({ filterDraft: null });
+        // What held focus when the card was asked for, not whatever holds it a render later.
+        const from = takeDraftOpener();
         if (asked === PLUS) {
-            openRef.current("node");
+            openRef.current("node", undefined, from);
             return;
         }
         const at = asked.indexOf(":");
@@ -168,7 +200,7 @@ export function FiltersSection(): React.JSX.Element {
         if (side === "node" || side === "edge") {
             const field = cardFields(session, side).find((each) => each.path === path);
             if (field !== undefined) {
-                openRef.current(side, field);
+                openRef.current(side, field, from);
             }
         }
     }, [asked, session, store]);
@@ -267,7 +299,7 @@ export function FiltersSection(): React.JSX.Element {
                             }}
                             onDiscard={() => {
                                 setDrafts((now) => now.filter((draft) => draft.id !== each.id));
-                                focusCard(PLUS);
+                                backToOpener();
                             }}
                             onDuplicate={(copy) => {
                                 setOpenId(copy);
@@ -418,6 +450,11 @@ function FilterCard({
     // A new card's selection: one group starting with All, and a Keep step on its field when it has one.
     const [draftRule, setDraftRule] = useState(() => newFilterSelection(session, fresh?.side ?? "node", fresh?.field));
     const draft = condition === undefined;
+    // Added in this card's life: Cancel in the workspace it opened takes it away again, written or not.
+    const born = useRef(draft);
+    if (!open) {
+        born.current = false;
+    }
     let side: Side = sideOf(draftRule);
     if (condition !== undefined) {
         // The side its rule reads, whatever its effect: a Filter out card on an edge value is on edges.
@@ -583,7 +620,17 @@ function FilterCard({
                             }
                         })}
                         onDraft={setDraftRule}
-                        onEmptyCancel={draft ? onDiscard : undefined}
+                        onEmptyCancel={
+                            draft || born.current
+                                ? () => {
+                                      born.current = false;
+                                      if (!draft) {
+                                          void writeCondition(store, () => session.visibility.removeCondition(id));
+                                      }
+                                      onDiscard();
+                                  }
+                                : undefined
+                        }
                         onDone={() => {
                             if (draft && stepless) {
                                 onDiscard();

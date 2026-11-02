@@ -28,6 +28,39 @@ lessons, the round 1 screenshot audit and the open date-card and mixed-glyph def
 `git show 0ec56d2f3b:design/ui/studio/notes/engineer.md`.
 Trimmed again 2026-11-02 (file at 27 KB): the cancel-new-card focus regression and the reference
 search by name on a file with no label column: `git show 50626246ff:design/ui/studio/notes/engineer.md`.
+Trimmed again 2026-11-02 (file at 28 KB): the main-table and test-mode re-walk, "Drawing" before a
+50,000-node edit blocks, and the data table never taking an editor's selection:
+`git show 64cd59e285:design/ui/studio/notes/engineer.md`.
+
+- (2026-11-02) Cancel on a new filter card takes the card away again (the reverted 0ec56d2f3b,
+  re-applied), with its focus fixed. Two mechanisms: (1) the opener was whatever held focus, so
+  from Quick actions it was the body or Main menu; now `FiltersSection.open` keeps it only when it
+  matches `OPENS_FILTERS` (`[data-command="filters.open"]`, the toolbar's Filters; `[data-filters-plus]
+[data-add]`, Add filter), taken at `openFilterDraft` time (`takeDraftOpener`) for the toolbar and
+  an attribute's Filter to... (a menu item, gone once its menu closes, so it falls to Add filter).
+  (2) The toolbar's Filters is hidden while the workspace covers the canvas (`Frame.tsx` `covered`),
+  so focusing it at discard time failed (`checkVisibility()` false, seen in a logged test run) and
+  focus fell to Add filter. `backToOpener` now only records where to go; an effect moves focus once
+  `selectionWorkspace` is null. Cancel, Escape on the empty picker and Done with no step all reach
+  `onEmptyCancel` -> `onDiscard` -> `backToOpener` (one record).
+  Tests: `FilterCardKinds.real-element.test.tsx` "Cancel in a filter card's workspace" (Add filter;
+  Quick actions Cancel on a written card and Escape; toolbar Filters Escape; an existing card keeps
+  its rule). Re-walks on a fresh `graphty/dist` in `design/ui/studio/tmp/r1-dry2-cancel-new-card/`
+  (`walk*.sh`): T70B touched-35 and T79A touched-32 end with no card, no top-bar mark, `work.json`
+  end with no steps; T77B touched-34-c Escape leaves the ring on the toolbar's Filters and Enter
+  reopens a new card; T77B detour-2 Cancel restores "telemetry yes 7 of 11"; Quick actions then
+  Escape or Cancel lands on "Add filter", saying "Filter not added".
+  Lesson: test runs here wait 15 min on a failing `waitFor` (the hang guard); log to a file, never
+  pipe through `| tail`, and add a temporary console.log to see the state instead of guessing.
+
+- (2026-11-02) RE-CHECK of the open-busy-sign fix (e13e34f007, 64cd59e285): `graphty/dist` was built
+  at 14:15 from the uncommitted fix, before both commits; rebuilt from the committed tree (15:21).
+  Re-walk script `design/ui/studio/tmp/r1-dry2-recheck-open-busy-sign/rewalk.sh` (8 pilot replays,
+  4 at a time, incl. T79B keyboard for Enter/Escape/Tab/Shift+Tab) was started but stopped before
+  any route finished; sessions ended. Still to walk: all 8 routes, by running that script.
+  Acceptance to check (decided.md "Dry run pass 2"): firstFrame of "--click Which nodes" under 1 s
+  (pilot 1,187 to 1,273 ms), its glance shows the workspace or "Drawing", the Otter Creek tick glance
+  shows the box ticked beside "Drawing".
 
 - (2026-11-02) Opening Which nodes right after adding a layer on 50,000 nodes now shows the
   workspace with "Drawing" in its first frame, 345 to 374 ms after the click (was 1.3 to 2.3 s),
@@ -61,54 +94,6 @@ search by name on a file with no label column: `git show 50626246ff:design/ui/st
   Re-walk on a fresh `graphty/dist` into `design/ui/studio/tmp/r1-dry2-open-busy-sign/`: T79B
   touched-40 and success, T79A success, detour-3 and touched-30, T74A and T70A success all matched
   their pilots; settled 1,050 of 50,000.
-
-- (2026-11-02) RE-WALK, main-table and test-mode fixes (1c02b8a883, a6257fe0c7) on a rebuilt
-  `graphty/dist` (stamp a6257fe0c7), `design/ui/studio/tmp/r1-dry1-recheck-main-table/`: no
-  regression, every acceptance holds. Method that worked: `sweep.sh` replays the pilot routes 4 at a
-  time with `REAL_REPLAY_TOLERANCE=1000` (the hidden data table changes every screen's control
-  list, so only printed output and names count) and `--end-on-diverge`; a step that only did
-  nothing in the pilot is dropped with `drop.py` and the route replayed again; the fix walks in
-  `tmp/r1-dry1-test-mode/` replay with `--keep` and serve as the continuation. After Done the data
-  table lists what the canvas draws (T75A 112 of 549, T71B 6 and 3, T70B 7, T77B 9, T70A d3 15 of
-  24); under an open workspace F6 cycles workspace, preview, inspector, status, top bar, rail and
-  never the table; Tab never reaches it; after Done it is back as it was. T74A/B By position 5 and
-  3 (5 of 24, 3 of 11 G02 G03 G04) reopen as By position; By position by keys puts focus in "how
-  many". Dates: Between to After keeps 1990, After to Between, Between 1990 to 1999 is 3 of 11 and
-  reopens so. Observations, not regressions: (a) By position 7, By value, By position again comes
-  back empty (`top: undefined` on the switch, as before the fix); (b) Between "to 1999" to Before
-  gives "before 1999", dropping 1999 itself (the same text, a different bound, as decided.md says
-  the date moves); (c) By value after a brush shows the min at full precision
-  (0.0279617489842932) once focus moves into it; (d) F6 into the data table now lands on the column
-  header last used (the setup's "installed"), not on the Nodes tab: `panelTarget` restores the
-  control that last had focus, which now survives because the table no longer re-renders under an
-  editor (likely mechanism, not proven); (e) "5 of 24 nodes" is announced twice on Enter.
-  The fix itself: the element keys a measure step's run without its test (`stepRuns.ts`), and
-  `UnionStep.mode?: string` (additive, opaque) holds the mode; details `git show a6257fe0c7`.
-
-- (2026-11-02) A 50,000-node edit shows "Drawing" before it blocks (decided.md "Dry run pass 1").
-  App only: `SelectionEditor.tsx` hands every edit, Done, Cancel and Escape on one painted frame
-  later, opens the workspace from local state and names it in the store after the paint, and holds
-  the preview, strip, editing selection and canvas framing until that first frame (`warm`). Test:
-  `LargeGraph.real-element.test.tsx` "an edit says Drawing in the frame of its input" (fails
-  without the change: the first frame after a tick already held the new count). Re-walked on a
-  fresh build into `design/ui/studio/tmp/r1-dry1-busy-sign/` with `REAL_GLANCE_MS=300`: every route
-  matched its pilot; first frame after a tick 33 to 65 ms, Done 18 to 21 ms, a new filter card
-  216 ms, each glance showing "Drawing" with the old count; settled headers 1,050 of 50,000.
-  The slow opening after a new layer, open then, is fixed (entry above).
-
-- (2026-11-02) The data table never takes an editor's selection (decided.md, "Dry run pass 1").
-  Cause: `TableDock` read the store's `editingSelection` (Group column, "Matches only", whole-graph
-  matches), and an editor at rest keeps holding that slot after Done, so the table kept the last
-  card's matches (T75 A 549 listed, 112 drawn). Fix in the app (no element change): `TableDock`
-  no longer reads `editingSelection` at all (Matches only and its Group column are gone from it;
-  the strip owns them); `Frame` keeps the dock's box while a selection workspace is open but marks
-  it `inert` and `data-covered` (CSS `visibility: hidden`), so the canvas is not resized and the
-  strip is the one table under the preview; the Table command's focus-the-grid step now keys on
-  `selectionWorkspace`, not `editingSelection` (which outlives Done). `editingSelection` still
-  feeds the canvas key's preview, the strip's group chip and Filters. Test:
-  `graphty/src/workspace/table/__tests__/TableEditorSelection.real-element.test.tsx` (fails on the
-  pre-fix sources at the inert check; with only the old TableDock its after-Done rows wait never
-  settles, so it fails only at the 15-minute wait guard -- stop such a run rather than sit on it).
 
 - (2026-11-02) Tier 5: every style count reads over the graph the filter leaves. graphty-element
   added `StyleCounts.visible { matched, of }` and legend `scope.visible` (additive; `matched` and

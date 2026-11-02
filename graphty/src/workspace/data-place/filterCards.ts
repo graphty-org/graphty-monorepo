@@ -79,7 +79,21 @@ export const PLUS = "+";
  * @param target - `<node|edge>:<path>`, or `PLUS`.
  */
 export function openFilterDraft(store: WorkspaceStore, target: string): void {
+    draftOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     store.set({ page: "panels", place: "data", filterDraft: target });
+}
+
+/** What held focus when `openFilterDraft` was asked: the card opens a render later, on the Data place. */
+let draftOpener: HTMLElement | null = null;
+
+/**
+ * Takes what held focus when the last new card was asked for (once).
+ * @returns that element, or null.
+ */
+export function takeDraftOpener(): HTMLElement | null {
+    const from = draftOpener;
+    draftOpener = null;
+    return from;
 }
 
 /**

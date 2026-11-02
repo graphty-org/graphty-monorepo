@@ -366,3 +366,27 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
 - 2026-11-02: refrozen for round 1 on baac78342b (master merged in, served from
   `.study-builds/tier5-r1-baac78342b`). The build before it was d13c2ff3da, served from
   `tmp/design-studio/tier5/builds/tier5-r1d1-d13c2ff3da`.
+- 2026-11-02: `answers.md` matched to baac78342b from the round 1 pilots (every task but T72 A and
+  T76); no bar changed and no prompt was wrong, so `tasks.md` is unchanged. Each change with its
+  reason:
+    - T74's path (By position, both halves) is marked blocked: on a Results step started in the
+      editor, By position removes the test's controls and takes no number. The key's own fallbacks
+      are spelled out (a typed lower bound with its cut values; B by editing Analyze's layer, A's
+      equivalent graded P because it recolors everyone else). Item 8 under "Before the first
+      session" is not met while this stands.
+    - T75 A is no longer blocked: Connected components' Piece size, computed on So far with a
+      lower bound of 100, leaves 105; the Largest component route stays P at 112.
+    - T73 A: the reference search does not find a name, so the path types `v02` read off the
+      matches strip (still 12 steps); the find-box route is 18. Analyze's Steps away, narrowed to
+      0 to 2 in its own layer and filled one color, is ruled an equal result for both halves (it
+      is a style layer holding the right set, as T74 already accepts a run's values); a layer made
+      from a canvas selection is not success.
+    - T72 B's "not before 2000" equal route removed: the date step's mode select never leaves
+      Before, so the Except switch is B's only route.
+    - T77 B: the second-card trap leaves 1 gauge in the picture, not 2 (only G09 is deep and sends
+      readings); the path is 15 steps by pointer because a click on the card opens nothing.
+    - Grader notes added for what every path meets on this build (the layer name box in rename
+      mode, "Fill" as the row's "+", fields that apply as typed, the key titled by the layer's
+      name, E4572E spoken "red") and for counts that are not the picture's (a hiding layer's
+      "Show:" key, the node table's "Matches only" list after Done), plus "Build notes
+      (baac78342b)" and the T79 timings read on this build.

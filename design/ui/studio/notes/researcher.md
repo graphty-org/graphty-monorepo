@@ -10,53 +10,31 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-02) Tier 5 criteria review: bar 9's overwhelm rating did not separate three placements
-  in the placement study (2-3 everywhere) while the owner said "walk away": calibrate it against the
-  rejected in-sidebar build in the dry run before it gates anything.
-- (2026-11-02) Known severity 3 candidates (two count bases, false "Covered by" warning, table and
-  strip drawn together) and T75 A's blocked step must be closed or confirmed before round 1, or the
-  round fails bars 1, 4 and 9 by construction and teaches nothing new.
-- (2026-11-02) Echo check on tier 5: grep prompts against the catalog's search keywords too (Degree's
-  "neighbors" hits T78 B's "neighboring"), and against detour labels ("Add instead", Analyze's
-  "Either direction").
-- (2026-11-02) A task whose success path never opens the feature (T76's preset) measures nothing
-  about it; spend its sessions where the placement study was weakest (T78, weak links).
-- (2026-10-30) The studio stopped at its 1-round cap with bars 2, 3, 5, 6 and 7 failing as frozen.
-  One round cannot both find and confirm fixes: plan the cap so a fix round and a re-test round
-  fit, and fix the study tool (popover-on-hover) and the bar definitions (bar 2 key, bar 3 hover
-  rule) before the next tier spends sessions.
-- (2026-10-30) Real design work left, most severe first: join preview mismarks rows (sev 2), choices
-  come after the act with a default applied (sev 2), one fact drawn two ways (time vs kind, sev 2),
-  clipped approved ratio on the joined source row (bar 6), table tab names an unrendered panel
-  (bar 5, axe critical on 14 of 16 screens).
-- (2026-10-30) Tier 4 round 1 settled (`tier4/rounds/round-1/insights.md`): bar 4 HOLDS after the
-  skeptics (no severity 3 survives); bars 2, 3, 5, 6, 7 fail as frozen, but bar 2 rests on the
-  key's definition and bar 3 on post-success checks plus a tool defect. Bar 6 is real (ratio clipped).
-- (2026-10-30) Fix `tool/real.mjs` before round 2: a hover that opens a popover prints
-  `tooltip: null`, and simulated participants believe the line over the screenshot (s13, s15, s21,
-  s22 reported "nothing appears" while 03.png shows the fix list). Check tool lines against images.
-- (2026-10-30) Top open problem: the join preview mismarks rows (one skeptic 3, one 2; held at 2).
-  Readers recover from the counts after Join; cost is steps (T61 about 12 vs path 7).
-- (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing. A
-  "false done" defined only by the answer key (a type the product itself blurs) is contestable.
-- (2026-10-30) Count wrong turns before the success state only, and decide whether a hover is a
-  turn before grading; graders split on it this round.
-- (2026-10-30) Bar 3 on a 2-session task is the mean of two: say so whenever it decides a bar.
-- (2026-10-30) Owner decision item 1 (Select | Filter to | Filter out, new card on Filter out)
-  keeps the default behind 5 of 5 "card hid the picture first" detours; but the task order forces
-  that trap, so test the default on a task that does not start with filtering.
-- (2026-10-30) Approved-surface checks: reference image beside a session screenshot, and the
-  route's text, to tell "removed" from "clipped" (the ratio was clipped, not removed).
-- (2026-10-30) An A/B split with 2 sessions per half is confounded with dataset and persona; never
-  report "people go where they are" from it.
-- (2026-10-30) Brief every row before a round; a fact in "Facts no briefing may hold" must be a
-  phrase no persona or README holds.
-- (2026-10-30) A prompt word that is a detour control's label steers into it; grep prompts
-  against detour controls too.
+- (2026-11-02) Round 1 pilots on baac78342b: T74 is blocked on BOTH halves (By position on a
+  Results step started in the editor empties the step); "Before the first session" item 8 fails
+  until it is fixed. T75 A is unblocked (Piece size on So far gives 105).
+- (2026-11-02) Severity 3 candidates still open on baac78342b: the false "Covered by" warning (now
+  on PageRank and Everything, many tasks), table and strip drawn together, pickers flipping over
+  Done, two count bases. Close or confirm them before round 1 or bars 1, 4 and 9 fail by
+  construction.
+- (2026-11-02) Bar 9's overwhelm rating did not separate three placements in the placement study:
+  calibrate it on the rejected in-sidebar build before it gates anything.
+- (2026-11-02) Grader rulings live in the key, not in graders' heads: equal routes through
+  Analyze's own layer (T73 Steps away, T74 B Betweenness) are S; a route that recolors everyone
+  else is P when the prompt says to leave them.
+- (2026-11-02) Echo check: grep prompts against the catalog's search keywords and detour labels
+  too, not only rendered text.
+- (2026-11-02) A task whose success path never opens the feature measures nothing about it.
+- (2026-10-30) One round cannot both find and confirm fixes: plan the cap for a fix round and a
+  re-test round.
+- (2026-10-30) Simulated participants trust the tool's text over the picture: check tool lines
+  (tooltip: null, ambiguous names like `role`) against the screenshot.
+- (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing.
+- (2026-10-30) Count wrong turns before success only; hovers are not turns.
+- (2026-10-30) An A/B split with 2 sessions per half is confounded with dataset and persona.
+- (2026-10-30) A prompt word that is a detour control's label steers into it.
 - (2026-10-30) First check of any pilot finding: the build in its walk's session.json.
-- (2026-10-29) Grep the app's strings for every prompt word, not only the avoided list.
-- (2026-10-21) Graders over-rate on one half: count a 3 only with its behavioral cost. Expert
-  counts are not user evidence; an expert-only 3 needs a repro under `repro/`.
+- (2026-10-21) Count a 3 only with its behavioral cost; an expert-only 3 needs a repro.
 - (2026-10-21) Leading risk: every participant is one model; read tasks and key for leading.
 
 ## Priorities and values
@@ -91,6 +69,19 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-02 (answer key matched to baac78342b from 16 round 1 pilots):** Changed only
+  `answers.md` (and logged in criteria.md); no bar, no prompt. Marked T74's By position path
+  blocked on both halves and spelled out its fallbacks with cut values (A 0.053, sixth 0.0512; B 19,
+  fourth G01 between 15 and 19); T75 A's 105 route (Piece size, So far, 100); T73 A types v02
+  (reference search ignores names; 12 steps, find box 18); removed T72 B's After route (mode select
+  stuck on Before); fixed T77 B's second-card trap count (1, not 2: only G09 is deep and sends
+  readings); ruled Steps away narrowed in its own layer S for T73 (consistent with T74's run-value
+  route) and T74 A's edit of the PageRank layer P (it recolors the other 19, against the prompt).
+  Added grader notes for "Color: Layer 1", fields that apply as typed, "Fill" as the "+", E4572E
+  spoken "red", and counts that are not the picture's. Reason: the key writes the screen of the
+  frozen build, and a grader without a ruling invents one. Evidence: pilot fields; viewed T74A
+  success/10.png, T75A detour-1/12.png, T77B detour-1/04.png, T73A success/08.png myself.
 
 - **2026-11-02 (tier 5 criteria review, before any session):** Proposed eight changes, applied
   none (the Director freezes): (1) calibrate bar 9's rating with 2 dry-run sessions on the
@@ -162,6 +153,11 @@ logged). Their reasons, in short:
   prompt, not the key, when a prompt leads.
 
 ## Tried: worked / did not work
+
+- 2026-11-02 (key vs pilots) -- Worked: viewing the four screenshots that change a number or a
+  route before editing; one asserted Python edit script (`tmp/researcher-key-r1/edit.py`) with
+  paragraph-level matches. Did not work: pilots still cannot write report.md (harness refuses);
+  their content arrives only in the returned fields.
 
 - 2026-11-02 (tier 5 criteria) -- Worked: grepping prompt words against the catalog's
   `keywords` and the selection's value labels, not only rendered text; found one fix-alias echo and

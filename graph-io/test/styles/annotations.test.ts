@@ -113,7 +113,7 @@ describe("readAnnotations", () => {
         const arrows = readAnnotations(b.freeze()).annotations.filter((a) => a.kind === "arrow");
         // Cytoscape 3.10.5's SVG of specimen-images-charts-p6 ("arrow sourceType=X Arrow"): the source box ends at 249,
         // the X spans 249..259 and the line starts at 254; every other head's tip is the box's side
-        expect(arrows.map((a) => a.kind === "arrow" && a.from)).toEqual([
+        expect(arrows.map((a) => a.from)).toEqual([
             { x: 19, y: -5 },
             { x: 24, y: -5 },
             { x: 14, y: -5 },

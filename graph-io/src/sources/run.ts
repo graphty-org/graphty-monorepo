@@ -205,7 +205,9 @@ function resumeCursor(
         return null;
     }
     const { [CURSOR_VERSION_KEY]: recorded, ...rest } = given;
-    if (recorded !== undefined && recorded !== version) {
+    // the cursor is the caller's, and need not carry the version
+    const own: Readonly<Partial<SourceCursor>> = given;
+    if (own[CURSOR_VERSION_KEY] !== undefined && recorded !== version) {
         failOn(report, "E_SOURCE_PARAM", "the cursor was made by another version of the source", {
             name: "cursor",
             reason: "stale-cursor",

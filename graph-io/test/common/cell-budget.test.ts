@@ -24,7 +24,7 @@ const stopped = async (run: Promise<unknown>): Promise<ImportError> => {
     );
     expect(err).toBeInstanceOf(ImportError);
     const e = err as ImportError;
-    expect(e.details?.code).toBe(TOO_MANY_EMPTY_CELLS_CODE);
+    expect(e.details.code).toBe(TOO_MANY_EMPTY_CELLS_CODE);
     expect(e.message).toMatch(/maxEmptyCells/);
     expect(e.report.issues.map((i) => i.code)).toEqual([TOO_MANY_EMPTY_CELLS_CODE]);
     return e;

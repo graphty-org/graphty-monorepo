@@ -27,6 +27,7 @@ import { formatF32, formatF64 } from "../../common/format.js";
 import { flipY } from "../../common/json-elements.js";
 import { otherFormatDialect, type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
+import { jsonText } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
@@ -465,8 +466,7 @@ function valueText(value: unknown, f32: boolean, nonfinite: Counter): string {
     }
     // ponytail: numbers nested in a json object are written by JSON.stringify, so an integral one
     // beyond 2^53 re-imports as its digit text; walk the object here if that ever matters
-    const text = JSON.stringify(value);
-    return text === undefined ? "null" : text;
+    return jsonText(value) ?? "null";
 }
 
 /**

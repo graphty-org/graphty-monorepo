@@ -41,6 +41,7 @@ import { isCanonicalIntegerText } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { formatTemporal, type TemporalKind } from "../../common/temporal.js";
+import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -1429,7 +1430,7 @@ function formatScalar(value: unknown, scalar: ScalarPlan, text: string | null): 
         case "point":
             return formatPoint(value);
         case "json":
-            return JSON.stringify(value) ?? "";
+            return jsonText(value) ?? "";
         default: {
             const name: string = scalar.kind;
             throw new GraphFormatError("E_UNSUPPORTED", `unknown cell kind ${name}`, { kind: name });
@@ -1445,7 +1446,7 @@ function formatScalar(value: unknown, scalar: ScalarPlan, text: string | null): 
  */
 function formatPoint(value: unknown): string {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        return JSON.stringify(value) ?? "";
+        return jsonText(value) ?? "";
     }
     const parts: string[] = [];
     for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
@@ -1454,7 +1455,7 @@ function formatPoint(value: unknown): string {
         } else if (typeof item === "string") {
             parts.push(`${key}:'${item.replaceAll("'", "")}'`);
         } else {
-            return JSON.stringify(value) ?? "";
+            return jsonText(value) ?? "";
         }
     }
     return `{${parts.join(", ")}}`;
@@ -1487,7 +1488,7 @@ function textOf(column: Column, row: number): string {
         case "list":
             return column.sliceOf(row).map(String).join(",");
         case "json":
-            return JSON.stringify(column.values[row]) ?? "";
+            return jsonText(column.values[row]) ?? "";
         case "bool":
             return column.value(row) === true ? "true" : "false";
         default: {

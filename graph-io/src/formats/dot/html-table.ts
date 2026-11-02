@@ -5,6 +5,7 @@
  * the cells are laid out is left to whoever draws the label, which measures the text.
  */
 
+import { itemAt } from "../../common/text.js";
 import { htmlLabelSpans } from "../../styles/canon/text.js";
 import type { StyleValue } from "../../styles/types.js";
 
@@ -442,7 +443,7 @@ function cellLines(content: string, fonts: readonly string[], runFont: RunFont):
  * @param line - the line, changed in place
  */
 function trimLine(line: TableLine): void {
-    const first = line.runs[0];
+    const first = itemAt(line.runs, 0);
     if (first !== undefined) {
         first.text = String(first.text).trimStart();
     }

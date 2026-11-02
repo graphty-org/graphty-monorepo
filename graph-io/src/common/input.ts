@@ -1053,12 +1053,12 @@ export function throwIfAborted(signal: AbortSignal | null | undefined): void {
     if (!signal?.aborted) {
         return;
     }
-    const { reason }: { reason: unknown } = signal;
-    if (reason === undefined) {
+    const cause: unknown = signal.reason;
+    if (cause === undefined) {
         throw abortError();
     }
     // the platform contract: the reason itself, whatever its type
-    throw reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+    throw cause as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
 }
 
 /**

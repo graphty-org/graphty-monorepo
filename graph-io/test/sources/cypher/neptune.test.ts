@@ -148,7 +148,7 @@ describe("neptune over HTTPS (recorded shapes)", () => {
                 issue: expect.objectContaining({
                     code: "E_SOURCE_RUNTIME",
                     params: { runtime: "browser", reason: "cors" },
-                }),
+                }) as unknown,
             }),
         );
     });

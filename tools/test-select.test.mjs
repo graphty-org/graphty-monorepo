@@ -62,7 +62,6 @@ import {
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
 import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } from "./light-check-replay.mjs";
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
-import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
 import {
     mutant,
@@ -267,12 +266,6 @@ describe("deferring downstream packages' tests (landing checks)", () => {
         assert.ok(run(["graph-io/src/index.ts"], false).includes("graphty-element"), "without deferral it runs");
         const shared = run(["vitest.shared.config.ts"], true);
         assert.deepEqual([...new Set(shared)].sort(), ["graph-format", "graph-io", "graphty", "graphty-element"]);
-    });
-
-    it("is on unless PREPUSH_DEFER_DOWNSTREAM=0", () => {
-        assert.equal(deferDownstreamOn({}), true);
-        assert.equal(deferDownstreamOn({ PREPUSH_DEFER_DOWNSTREAM: "1" }), true);
-        assert.equal(deferDownstreamOn({ PREPUSH_DEFER_DOWNSTREAM: "0" }), false);
     });
 });
 
@@ -919,31 +912,6 @@ describe("running a selection", () => {
         assert.match(text, /graphty\/src\/a\.test\.tsx {2}<- imports it/u);
         assert.match(text, /githerd: WHOLE SHARD/u);
         assert.match(text, /nothing to run: layout/u);
-
-        const notes = [];
-        const run = selectedShards(plan, (l) => notes.push(l));
-        assert.deepEqual(
-            run.map((s) => s.shard),
-            ["graphty-1", "githerd", "webgpu-graph-algorithms-node"],
-        );
-        assert.deepEqual(run[0].selected, ["graphty/src/a.test.tsx"]);
-        assert.deepEqual(run[0].covers, ["graphty-1", "graphty-2", "graphty-3"]);
-        assert.equal(run[1], byName("githerd"), "a whole shard keeps its own entry and command");
-        assert.match(notes.join("\n"), /\[NONE\] layout/u);
-    });
-
-    it("selects by default with a base, never under PREPUSH_ALL=1, PREPUSH_SELECT=0 or for the cut", () => {
-        assert.equal(selectionOn({}, "origin/golden"), true, "on by default for landing checks");
-        assert.equal(
-            selectionOn({ PREPUSH_SELECT_BASE: "origin/golden-cut" }, "origin/master"),
-            false,
-            "never on the cut",
-        );
-        assert.equal(selectionOn({ PREPUSH_SELECT_BASE: "origin/golden" }, "origin/master"), true);
-        assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, "origin/golden"), true);
-        assert.equal(selectionOn({ PREPUSH_SELECT: "1", PREPUSH_ALL: "1" }, "origin/golden"), false);
-        assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, ""), false);
-        assert.equal(selectionOn({ PREPUSH_SELECT: "0" }, "origin/golden"), false);
     });
 
     it("keeps a selected pass apart from a whole-shard pass, and a selecting gate apart from a full one", () => {

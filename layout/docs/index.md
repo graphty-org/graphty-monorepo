@@ -1,21 +1,9 @@
 ---
-head:
-    - - link
-      - rel: icon
-        href: /docs/brand/layout/favicon.ico
-        sizes: 48x48
-    - - link
-      - rel: icon
-        href: /docs/brand/layout/favicon.svg
-        type: image/svg+xml
+title: layout
 layout: home
 
 hero:
-    image:
-        light: /brand/graphty-layout-lockup-color-on-light.svg
-        dark: /brand/graphty-layout-lockup-color-on-dark.svg
-        alt: graphty layout
-    name: layout
+    name: '<img class="lockup-on-light" src="/docs/brand/graphty-layout-lockup-color-on-light.svg" alt="graphty layout"><img class="lockup-on-dark" src="/docs/brand/graphty-layout-lockup-color-on-dark.svg" alt="graphty layout">'
     text: Graph Layouts
     tagline: 15 2D and 3D graph layouts over compact graph snapshots, ported from NetworkX, plus steppable force simulations
     actions:

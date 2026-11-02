@@ -66,3 +66,27 @@
 
     --vp-badge-tip-text: var(--vp-c-tip-1);
 }
+
+/* A lockup comes as a light and a dark file; show the one for the current mode. */
+html:not(.dark) .lockup-on-dark,
+html.dark .lockup-on-light {
+    display: none;
+}
+
+/* A package's lockup is its home page's hero title, drawn at the height of the text title it replaces and never
+   wider than the page, which keeps it above the brand's 24 px minimum height on a phone. */
+.VPHero .name img {
+    vertical-align: top;
+    height: 1em;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+    object-position: left;
+}
+
+.vp-doc h1.package-lockup img {
+    height: 40px;
+    max-width: 100%;
+    object-fit: contain;
+    object-position: left;
+}

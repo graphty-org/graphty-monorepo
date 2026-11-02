@@ -734,6 +734,13 @@ function touchOp(op: GraphOp, into: TouchedIds): boolean {
     return false;
 }
 
+/** The graph slice's maps, writable. */
+interface SliceMaps {
+    nodes: Map<NodeId, GraphRecord>;
+    edges: Map<EdgeId, GraphRecord>;
+    values: Map<string, unknown>;
+}
+
 /** The entry one recorded writer logs, growing as it writes. */
 class GraphEntry implements OpLogEntry {
     readonly slice = "graph";
@@ -789,7 +796,7 @@ class GraphEntry implements OpLogEntry {
      * The slice's maps now, writable.
      * @returns The maps.
      */
-    private maps(): { nodes: Map<NodeId, GraphRecord>; edges: Map<EdgeId, GraphRecord>; values: Map<string, unknown> } {
+    private maps(): SliceMaps {
         const { slice } = this.graph;
         return {
             nodes: slice.nodes as Map<NodeId, GraphRecord>,
@@ -803,104 +810,9 @@ class GraphEntry implements OpLogEntry {
         const seen = bumped();
         store.audit();
         // Re-read after a replace, which swaps the maps.
-        let { nodes, edges, values } = this.maps();
+        let maps = this.maps();
         for (let index = this.ops.length - 1; index >= 0; index--) {
-            const op = this.ops[index];
-            switch (op.kind) {
-                case "node":
-                    bumpFields(store, "node", op.record, op.prior, seen);
-                    restore(nodes, op.id, op.prior);
-                    if (!op.existed && isStorableId(op.id)) {
-                        // Behind a structural change still waiting, the row goes with it, at
-                        // the next read: reading the builder now would rebuild the graph.
-                        if (store.deferring) {
-                            store.dropAdded([op.id], []);
-                        } else if (store.builder.hasNode(op.id)) {
-                            store.builder.removeNode(op.id);
-                        }
-                    }
-
-                    this.graph.touch(nodeKey(op.id));
-                    break;
-                case "edge": {
-                    op.identity ??= store.frozenEdgeIdentity(op.edgeId);
-                    bumpFields(store, "edge", op.record, undefined, seen);
-                    edges.delete(edgeIdOf(op.edgeId));
-                    const created = op.created.filter((id) => !nodes.has(id));
-                    if (store.deferring) {
-                        store.dropAdded(created, [op.edgeId]);
-                    } else {
-                        const row = store.edgeIndexOf(op.edgeId);
-                        if (row !== INVALID_INDEX) {
-                            store.builder.removeEdge(row);
-                        }
-
-                        for (const id of created) {
-                            if (store.builder.hasNode(id)) {
-                                store.builder.removeNode(id);
-                            }
-                        }
-                    }
-
-                    this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
-                    break;
-                }
-
-                case "weight": {
-                    const row = store.edgeIndexOf(op.edgeId);
-                    if (row !== INVALID_INDEX) {
-                        store.builder.setEdgeWeight(row, op.prior);
-                    }
-
-                    this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
-                    break;
-                }
-
-                case "record":
-                    bumpFields(store, op.target, op.next, op.prior, seen, true);
-                    restore(
-                        op.target === "node" ? nodes : edges,
-                        op.target === "node" ? op.id : String(op.id),
-                        op.prior,
-                    );
-                    if (op.target === "edge") {
-                        writeCapacity(store, edgeCounterOf(String(op.id)), op.prior);
-                    }
-
-                    this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
-                    break;
-                case "value":
-                    restore(values, op.name, op.prior);
-                    this.graph.touch(`v:${op.name}`);
-                    break;
-                case "remove":
-                    op.rows.nodes.forEach((node, at) => {
-                        restore(nodes, node.id, op.nodeRecords[at]);
-                        this.graph.touch(nodeKey(node.id));
-                    });
-                    op.rows.edges.forEach((edge, at) => {
-                        restore(edges, edgeIdOf(edge.edgeId), op.edgeRecords[at]);
-                        this.graph.touch(edgeKey(edgeIdOf(edge.edgeId)));
-                    });
-                    store.insertRows(op.rows);
-                    break;
-                case "replace":
-                    this.graph.swapMaps(op.prior);
-                    this.graph.restoreEpoch(op.epochs.prior);
-                    ({ nodes, edges, values } = this.maps());
-                    touchAll(this.graph, op.prior);
-                    store.replace(op.kept, true);
-                    break;
-                default:
-                    // "direction"
-                    if (store.builder.directed !== op.prior.directed && !store.builder.directedLocked) {
-                        store.builder.setDirected(op.prior.directed);
-                    }
-
-                    store.restoreDirection(op.prior.provenance);
-                    this.graph.touch("directed");
-                    break;
-            }
+            maps = this.undoOp(this.ops[index], maps, seen);
         }
 
         if (this.ops.some(movesRows)) {
@@ -913,6 +825,145 @@ class GraphEntry implements OpLogEntry {
         } else {
             this.graph.restoreToken(this.tokenBefore);
         }
+    }
+
+    /**
+     * Undo one op.
+     * @param op - The op.
+     * @param maps - The slice's maps now.
+     * @param seen - The fields this batch bumped already.
+     * @returns The slice's maps after: new ones after a replace.
+     */
+    private undoOp(op: GraphOp, maps: SliceMaps, seen: Bumped): SliceMaps {
+        const { store } = this;
+        switch (op.kind) {
+            case "node":
+                this.undoNode(op, maps.nodes, seen);
+                break;
+            case "edge":
+                this.undoEdge(op, maps, seen);
+                break;
+            case "weight": {
+                const row = store.edgeIndexOf(op.edgeId);
+                if (row !== INVALID_INDEX) {
+                    store.builder.setEdgeWeight(row, op.prior);
+                }
+
+                this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
+                break;
+            }
+
+            case "record":
+                bumpFields(store, op.target, op.next, op.prior, seen, true);
+                restore(
+                    op.target === "node" ? maps.nodes : maps.edges,
+                    op.target === "node" ? op.id : String(op.id),
+                    op.prior,
+                );
+                if (op.target === "edge") {
+                    writeCapacity(store, edgeCounterOf(String(op.id)), op.prior);
+                }
+
+                this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
+                break;
+            case "value":
+                restore(maps.values, op.name, op.prior);
+                this.graph.touch(`v:${op.name}`);
+                break;
+            case "remove":
+                this.undoRemove(op, maps);
+                break;
+            case "replace": {
+                this.graph.swapMaps(op.prior);
+                this.graph.restoreEpoch(op.epochs.prior);
+                const swapped = this.maps();
+                touchAll(this.graph, op.prior);
+                store.replace(op.kept, true);
+                return swapped;
+            }
+
+            default:
+                // "direction"
+                if (store.builder.directed !== op.prior.directed && !store.builder.directedLocked) {
+                    store.builder.setDirected(op.prior.directed);
+                }
+
+                store.restoreDirection(op.prior.provenance);
+                this.graph.touch("directed");
+                break;
+        }
+
+        return maps;
+    }
+
+    /**
+     * Undo a node added: its record, and its row unless the builder held it before.
+     * @param op - The op.
+     * @param nodes - The node records.
+     * @param seen - The fields this batch bumped already.
+     */
+    private undoNode(op: Extract<GraphOp, { kind: "node" }>, nodes: Map<NodeId, GraphRecord>, seen: Bumped): void {
+        const { store } = this;
+        bumpFields(store, "node", op.record, op.prior, seen);
+        restore(nodes, op.id, op.prior);
+        if (!op.existed && isStorableId(op.id)) {
+            // Behind a structural change still waiting, the row goes with it, at
+            // the next read: reading the builder now would rebuild the graph.
+            if (store.deferring) {
+                store.dropAdded([op.id], []);
+            } else if (store.builder.hasNode(op.id)) {
+                store.builder.removeNode(op.id);
+            }
+        }
+
+        this.graph.touch(nodeKey(op.id));
+    }
+
+    /**
+     * Undo an edge added: its record, its row, and the endpoints it created that no node record holds.
+     * @param op - The op.
+     * @param maps - The slice's maps.
+     * @param seen - The fields this batch bumped already.
+     */
+    private undoEdge(op: Extract<GraphOp, { kind: "edge" }>, maps: SliceMaps, seen: Bumped): void {
+        const { store } = this;
+        op.identity ??= store.frozenEdgeIdentity(op.edgeId);
+        bumpFields(store, "edge", op.record, undefined, seen);
+        maps.edges.delete(edgeIdOf(op.edgeId));
+        const created = op.created.filter((id) => !maps.nodes.has(id));
+        if (store.deferring) {
+            store.dropAdded(created, [op.edgeId]);
+        } else {
+            const row = store.edgeIndexOf(op.edgeId);
+            if (row !== INVALID_INDEX) {
+                store.builder.removeEdge(row);
+            }
+
+            for (const id of created) {
+                if (store.builder.hasNode(id)) {
+                    store.builder.removeNode(id);
+                }
+            }
+        }
+
+        this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
+    }
+
+    /**
+     * Undo rows removed: their records, then their rows.
+     * @param op - The op.
+     * @param maps - The slice's maps.
+     */
+    private undoRemove(op: Extract<GraphOp, { kind: "remove" }>, maps: SliceMaps): void {
+        op.rows.nodes.forEach((node, at) => {
+            restore(maps.nodes, node.id, op.nodeRecords[at]);
+            this.graph.touch(nodeKey(node.id));
+        });
+        op.rows.edges.forEach((edge, at) => {
+            restore(maps.edges, edgeIdOf(edge.edgeId), op.edgeRecords[at]);
+            this.graph.touch(edgeKey(edgeIdOf(edge.edgeId)));
+        });
+        this.store.insertRows(op.rows);
     }
 
     redo(): void {

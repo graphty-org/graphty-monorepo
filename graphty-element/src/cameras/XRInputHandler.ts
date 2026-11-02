@@ -38,6 +38,16 @@ interface ControllerEntry {
     handedness: string;
 }
 
+/** The part of a Babylon motion controller the trigger is read from. */
+interface MotionControllerLike {
+    getComponent: (id: string) => { pressed?: boolean; value?: number } | null;
+}
+
+/** The part of a Babylon tracked hand the pinch is read from. */
+interface TrackedHandLike {
+    getJointMesh: (joint: string) => { position: Vector3; rotationQuaternion?: Quaternion } | null;
+}
+
 /**
  * XRInputHandler processes XR controller and hand tracking input.
  *
@@ -536,8 +546,15 @@ export class XRInputHandler {
      * @returns Hand state including position, rotation, and pinch info, or null if unavailable
      */
     private getHandState(handedness: "left" | "right"): HandState | null {
-        // PATH 1: Try controller trigger first
-        // Find controller by handedness
+        return this.controllerHandState(handedness) ?? this.trackedHandState(handedness);
+    }
+
+    /**
+     * The hand's state from its controller's trigger, when the trigger pinches.
+     * @param handedness - Which hand
+     * @returns The state while the trigger is held, or null to fall through to hand tracking
+     */
+    private controllerHandState(handedness: "left" | "right"): HandState | null {
         let controllerEntry: ControllerEntry | null = null;
         for (const entry of this.gestureControllers.values()) {
             if (entry.handedness === handedness) {
@@ -546,102 +563,137 @@ export class XRInputHandler {
             }
         }
 
-        if (controllerEntry) {
-            const { controller } = controllerEntry;
-            const { grip } = controller;
-            const mc = controller as unknown as {
-                motionController?: { getComponent: (id: string) => { pressed?: boolean; value?: number } | null };
-            };
-
-            // Check if grip and motion controller are valid
-            if (grip && mc.motionController) {
-                try {
-                    const gripPos = grip.position;
-                    // Verify position is valid (not disposed)
-                    if (Number.isFinite(gripPos.x) && Number.isFinite(gripPos.y) && Number.isFinite(gripPos.z)) {
-                        const trigger = mc.motionController.getComponent("xr-standard-trigger");
-                        if (trigger) {
-                            // Use trigger.pressed OR value > 0.5 for pinching
-                            const triggerValue = trigger.value ?? 0;
-                            const isPinching = trigger.pressed === true || triggerValue > 0.5;
-
-                            if (isPinching) {
-                                // Log when trigger state changes
-                                if (!this.wasPinching[handedness]) {
-                                    logger.debug("Trigger press", { handedness, value: triggerValue });
-                                }
-
-                                this.wasPinching[handedness] = true;
-
-                                return {
-                                    position: gripPos.clone(),
-                                    rotation: grip.rotationQuaternion?.clone() ?? Quaternion.Identity(),
-                                    isPinching: true,
-                                    pinchStrength: triggerValue,
-                                };
-                            } else if (this.wasPinching[handedness]) {
-                                logger.debug("Trigger release", { handedness, value: triggerValue });
-                                this.wasPinching[handedness] = false;
-                                this.resetGestureState();
-                            }
-                        }
-                    }
-                } catch {
-                    // Controller is likely disposed, fall through to hand tracking
-                }
-            }
+        if (!controllerEntry) {
+            return null;
         }
 
-        // PATH 2: Try hand tracking
-        if (this.handTrackingFeature) {
-            try {
-                const htFeature = this.handTrackingFeature as {
-                    getHandByHandedness?: (h: string) => {
-                        getJointMesh: (joint: string) => { position: Vector3; rotationQuaternion?: Quaternion } | null;
-                    } | null;
-                };
+        const { controller } = controllerEntry;
+        const { grip } = controller;
+        const mc = controller as unknown as { motionController?: MotionControllerLike };
+        if (!grip || !mc.motionController) {
+            return null;
+        }
 
-                const hand = htFeature.getHandByHandedness?.(handedness);
-                if (hand) {
-                    const wrist = hand.getJointMesh("wrist");
-                    const thumbTip = hand.getJointMesh("thumb-tip");
-                    const indexTip = hand.getJointMesh("index-finger-tip");
+        try {
+            return this.triggerHandState(handedness, grip, mc.motionController);
+        } catch {
+            // Controller is likely disposed, fall through to hand tracking
+            return null;
+        }
+    }
 
-                    if (wrist && thumbTip && indexTip) {
-                        // Verify positions are valid (not NaN from disposed objects)
-                        if (!Number.isFinite(wrist.position.x) || !Number.isFinite(thumbTip.position.x)) {
-                            return null;
-                        }
+    /**
+     * Read the trigger: pinching while pressed or past half travel. A release logs, clears the
+     * hand's pinch and resets the gesture.
+     * @param handedness - Which hand
+     * @param grip - The controller's grip
+     * @param motionController - The controller's motion controller
+     * @returns The state while the trigger is held, or null
+     */
+    private triggerHandState(
+        handedness: "left" | "right",
+        grip: NonNullable<WebXRInputSource["grip"]>,
+        motionController: MotionControllerLike,
+    ): HandState | null {
+        const gripPos = grip.position;
+        // Verify position is valid (not disposed)
+        if (!Number.isFinite(gripPos.x) || !Number.isFinite(gripPos.y) || !Number.isFinite(gripPos.z)) {
+            return null;
+        }
 
-                        const pinchDist = Vector3.Distance(thumbTip.position, indexTip.position);
-                        const wasP = this.wasPinching[handedness];
-                        const isP = isPinching(pinchDist, wasP);
+        const trigger = motionController.getComponent("xr-standard-trigger");
+        if (!trigger) {
+            return null;
+        }
 
-                        if (isP !== wasP) {
-                            logger.debug(isP ? "Pinch start" : "Pinch end", { handedness, distance: pinchDist });
-                            if (!isP) {
-                                this.resetGestureState();
-                            }
-                        }
-
-                        this.wasPinching[handedness] = isP;
-
-                        if (isP) {
-                            return {
-                                position: wrist.position.clone(),
-                                rotation: wrist.rotationQuaternion?.clone() ?? Quaternion.Identity(),
-                                isPinching: true,
-                                pinchStrength: pinchStrength(pinchDist),
-                            };
-                        }
-                    }
-                }
-            } catch {
-                // Hand tracking access error - ignore
+        // Use trigger.pressed OR value > 0.5 for pinching
+        const triggerValue = trigger.value ?? 0;
+        if (trigger.pressed === true || triggerValue > 0.5) {
+            // Log when trigger state changes
+            if (!this.wasPinching[handedness]) {
+                logger.debug("Trigger press", { handedness, value: triggerValue });
             }
+
+            this.wasPinching[handedness] = true;
+            return {
+                position: gripPos.clone(),
+                rotation: grip.rotationQuaternion?.clone() ?? Quaternion.Identity(),
+                isPinching: true,
+                pinchStrength: triggerValue,
+            };
+        }
+
+        if (this.wasPinching[handedness]) {
+            logger.debug("Trigger release", { handedness, value: triggerValue });
+            this.wasPinching[handedness] = false;
+            this.resetGestureState();
         }
 
         return null;
+    }
+
+    /**
+     * The hand's state from hand tracking, when the hand pinches.
+     * @param handedness - Which hand
+     * @returns The state while the hand pinches, or null
+     */
+    private trackedHandState(handedness: "left" | "right"): HandState | null {
+        if (!this.handTrackingFeature) {
+            return null;
+        }
+
+        try {
+            const htFeature = this.handTrackingFeature as {
+                getHandByHandedness?: (h: string) => TrackedHandLike | null;
+            };
+            const hand = htFeature.getHandByHandedness?.(handedness);
+            return hand ? this.pinchHandState(handedness, hand) : null;
+        } catch {
+            // Hand tracking access error - ignore
+            return null;
+        }
+    }
+
+    /**
+     * Read a tracked hand's pinch, with hysteresis. A pinch that ends logs and resets the gesture.
+     * @param handedness - Which hand
+     * @param hand - The tracked hand
+     * @returns The state while the hand pinches, or null
+     */
+    private pinchHandState(handedness: "left" | "right", hand: TrackedHandLike): HandState | null {
+        const wrist = hand.getJointMesh("wrist");
+        const thumbTip = hand.getJointMesh("thumb-tip");
+        const indexTip = hand.getJointMesh("index-finger-tip");
+        if (!wrist || !thumbTip || !indexTip) {
+            return null;
+        }
+
+        // Verify positions are valid (not NaN from disposed objects)
+        if (!Number.isFinite(wrist.position.x) || !Number.isFinite(thumbTip.position.x)) {
+            return null;
+        }
+
+        const pinchDist = Vector3.Distance(thumbTip.position, indexTip.position);
+        const wasP = this.wasPinching[handedness];
+        const isP = isPinching(pinchDist, wasP);
+        if (isP !== wasP) {
+            logger.debug(isP ? "Pinch start" : "Pinch end", { handedness, distance: pinchDist });
+            if (!isP) {
+                this.resetGestureState();
+            }
+        }
+
+        this.wasPinching[handedness] = isP;
+        if (!isP) {
+            return null;
+        }
+
+        return {
+            position: wrist.position.clone(),
+            rotation: wrist.rotationQuaternion?.clone() ?? Quaternion.Identity(),
+            isPinching: true,
+            pinchStrength: pinchStrength(pinchDist),
+        };
     }
 
     /**

@@ -66,3 +66,16 @@
 
     --vp-badge-tip-text: var(--vp-c-tip-1);
 }
+
+/* A lockup comes as a light and a dark file; show the one for the current mode. */
+html:not(.dark) .lockup-on-dark,
+html.dark .lockup-on-light {
+    display: none;
+}
+
+.vp-doc h1.package-lockup img {
+    height: 40px;
+    max-width: 100%;
+    object-fit: contain;
+    object-position: left;
+}

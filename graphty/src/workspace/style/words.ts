@@ -507,6 +507,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.exactCornerRadius": "Exact corner radius",
     "node.cornerFraction": "Corner fraction",
     "node.shapeStretchPoints": "Polygon stretch",
+    "node.shapeRotation": "Shape rotation",
     "node.shapeParts": "Shape parts",
     "node.shapeLines": "Shape lines",
     "node.shapeTexts": "Shape texts",

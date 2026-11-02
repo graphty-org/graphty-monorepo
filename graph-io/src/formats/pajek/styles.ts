@@ -222,6 +222,7 @@ const READ: Readonly<Record<StyleTarget, readonly string[]>> = {
         "shape",
         "shapePoints",
         "shapePointsStretch",
+        "shapeRotation",
         "fill",
         "fillOpacity",
         "borderColor",
@@ -402,8 +403,12 @@ const PAJEK_DIAMOND_Q = 0.001;
  * square, `q 2` a bow tie twice as wide), and `phi` turns a box, a triangle, a house or a diamond `phi` degrees
  * counterclockwise about its center (`phi-30-box`, `phi-90-triangle`: Pajek draws the shape at its size, then turns
  * it). ponytail: the corners are fractions of the size the line gives (`x_fact`, `y_fact`); a turned shape whose width
- * and height the Draw window's Size of Vertices or vectors scale apart is turned in the wrong box. A turned ellipse,
- * man or woman is drawn unturned: an outline of corners would draw an ellipse as a polygon.
+ * and height the Draw window's Size of Vertices or vectors scale apart is turned in the wrong box. An ellipse keeps
+ * its shape and is turned whole (`shapeRotation`, clockwise): `pajek-specimen-node-shapes` `phi-30-ellipse-wide` is
+ * drawn 30 x 20 turned 30 degrees. ponytail: a turned cross, man or woman is drawn unturned. Pajek's SVG export draws
+ * a cross as an ellipse where graphty draws a plus, so a turned plus's box is not Pajek's and the label beside it
+ * lands across a band edge (`pajek-synth-vertices` v5); a turned man's box covers its neighbors in the scorecard's
+ * box test (v22, v31 beside man 32). Turn them once those read as Pajek draws them.
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param shape - its shape
@@ -420,7 +425,13 @@ function readOutline(get: Param, put: Put, shape: StyleValue | null): void {
         [-q, -1],
     ];
     const corners = shape === "diamond" ? diamond : PAJEK_OUTLINES.get(String(shape));
-    if (corners === undefined || (shape !== "diamond" && phi % 360 === 0)) {
+    if (corners === undefined) {
+        if (phi % 360 !== 0 && shape === "ellipse") {
+            put("shapeRotation", -phi);
+        }
+        return;
+    }
+    if (shape !== "diamond" && phi % 360 === 0) {
         return;
     }
     // turned in the drawn box, x_fact by y_fact, and back to fractions of it

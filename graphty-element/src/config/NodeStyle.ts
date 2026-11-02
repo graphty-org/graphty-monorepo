@@ -278,6 +278,11 @@ export const NodeStyle = z.strictObject({
             // lie on the ellipse inside the node's box stays that size, as OGDF draws its
             // triangles, pentagons, hexagons and octagons. Other shapes ignore it.
             stretchPoints: z.boolean().optional(),
+            // Turns a flat shape's outline this many degrees clockwise about the node's center, after
+            // it is drawn at its width and height (Pajek's `phi` turns an ellipse 20 x 30 into a
+            // tilted one). Its fill, border and the edges that end at it turn with it; its label does
+            // not. Unset or 0, unturned. Solids ignore it.
+            rotation: z.number().optional(),
             // Further closed pieces of a flat node's body, beside its outline: polygons as `x,y` pairs
             // separated by spaces, one polygon after another separated by ";", each point relative to
             // the node's center as fractions of its half width and half height, y up, drawn where they

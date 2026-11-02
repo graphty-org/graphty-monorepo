@@ -2834,9 +2834,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         // its repaint lands, so until then the stack's readings (counts, agreement, the legend)
         // read what it last painted, never "nothing" -- which would read it as covered by a layer
         // below on every element it matches.
-        return branchesShown === null && viewPending === 0
-            ? prepared
-            : (lastPainted.get(versionsOf(own)) ?? prepared);
+        return branchesShown === null && viewPending === 0 ? prepared : (lastPainted.get(versionsOf(own)) ?? prepared);
     };
 
     /**

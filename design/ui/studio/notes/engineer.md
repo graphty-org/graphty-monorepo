@@ -30,6 +30,18 @@ picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360d
   `useHead`, MultiRowPanel, LayerValues "on N of M", PropertyRow "on N" -- check them if a reader
   meets two bases again.
 
+- (2026-11-02) The false "Covered by <lower layer>" (tier 5 dry run, 8 pilots) was a reading
+  taken in the window between `view.end()` of a branches view and the view's end repaint landing:
+  a layer whose selector was written during the view had no prepared bindings yet, so agreement,
+  counts and the legend read the layer below as deciding. `style:branches-shown-changed` fires in
+  that window and no event follows the repaint, so the app kept the stale reading until any
+  unrelated re-render. Fix in graphty-element `StylesApi.ts` (`viewPending`): until that repaint
+  lands, the stack's readings read what the layer last painted, as they already did during the
+  view. Also the legend's value reach now reads the stack's own layers, never the view's
+  suspended stand-ins. Tests: `graphty-element/test/session/scope/covered-claim.test.ts` (fails
+  without the fix), `graphty/src/workspace/style/__tests__/CoveredClaim.real-element.test.tsx`.
+  Residual: a CHANNEL added to a layer while a view is drawn reads from the old bindings until
+  the next style event; no pilot route does that.
 - (2026-10-30) Tier 4 round 1 closed; the studio stopped at its 1-round cap with bars 2, 3, 5, 6
   and 7 failing (`tier4/rounds/round-1/insights.md`). No severity 3 or 4 survived the skeptic
   checks. Most severe open problem (sev 2): the join preview tags the wrong rows -- the
@@ -203,6 +215,13 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-11-02 worked: probing a reading at each moment (in the event listener, right after
+  `view.end()`, after `settled()`) in a happy-dom session test found the stale window in one
+  run; a reading only after `settled()` (the earlier fix's test) can never see it.
+- 2026-11-02 did not work: `git diff <path> | git apply -R` to test without a fix in a shared
+  worktree also reverts other agents' uncommitted hunks; build a patch from `git show HEAD:<file>`
+  with only your own edits and `git apply --cached` it to commit just those.
 
 - 2026-10-30 worked (screenshot audit): `bars.mjs <out> --dist <frozen> --tier 4 --size <WxH>`
   walks the nine data screens at any size and adds the cut-text check (bar10 in bars.json) for

@@ -192,6 +192,97 @@ function optionWords(option: OptionDescriptor): { label: string; choice: (value:
     };
 }
 
+/** One row of the Format list. */
+type Row = ReturnType<typeof formatRows>[number];
+
+/**
+ * The file an export writes: the row's key options, a CSV's table (from its variant or its
+ * options: what the file holds) and the file's name.
+ * @param choices - the data choices.
+ * @param row - the chosen format row.
+ * @param project - the project's name.
+ * @returns the key options, the table and the file name.
+ */
+function exportTarget(
+    choices: DataChoices,
+    row: Row | undefined,
+    project: string,
+): { keyed: Record<string, unknown>; table: string | undefined; name: string } {
+    const keyed = row === undefined ? {} : dataExportOptions(row, { ...choices, columns: undefined });
+    const table = typeof keyed.table === "string" ? keyed.table : undefined;
+    const extension = row?.extensions[0]?.replace(/^\./, "") ?? choices.format;
+    const name =
+        choices.format === "graphty"
+            ? projectFileName(project)
+            : fileName(project, table ?? partName(keyed.part), extension);
+    return { keyed, table, name };
+}
+
+/**
+ * The columns an export can write, the ones chosen, and the list to write.
+ * @param session - the element's session.
+ * @param table - a CSV's table, when the file holds one.
+ * @param choices - the data choices.
+ * @returns the columns, the chosen names, and the names to write (undefined for every column).
+ */
+function columnsWritten(
+    session: GraphSession | null,
+    table: string | undefined,
+    choices: DataChoices,
+): { columns: ExportColumn[]; chosen: readonly string[]; written: readonly string[] | undefined } {
+    let kinds: ("node" | "edge")[] = ["node", "edge"];
+    if (table !== undefined) {
+        kinds = table === "edges" ? ["edge"] : ["node"];
+    }
+    const columns = session === null ? [] : exportColumns(session, kinds);
+    const chosen = choices.columns ?? columns.filter((column) => !column.hidden).map((column) => column.name);
+    // Every column is written when none is left out, so the export keeps what this list cannot name.
+    const written = chosen.length === columns.length ? undefined : chosen;
+    return { columns, chosen, written };
+}
+
+/**
+ * The row's options the reader can set: with no edges there is only the node table to write, so no
+ * Table choice.
+ * @param session - the element's session.
+ * @param row - the chosen format row.
+ * @returns the options.
+ */
+function writableOptions(session: GraphSession, row: Row): readonly OptionDescriptor[] {
+    return session.data.statistics().edgeCount === 0
+        ? row.options.filter((option) => option.name !== "table")
+        : row.options;
+}
+
+/**
+ * How many nodes the scope writes, as a node chip.
+ * @param props - Component props
+ * @param props.nodes - the scope's nodes.
+ * @param props.total - every node.
+ * @returns the chip.
+ */
+function ScopeChip({ nodes, total }: Readonly<{ nodes: number; total: number }>): React.JSX.Element {
+    return (
+        <EntityChip kind="node">
+            {nodes === total ? formatNumber(total) : `${formatNumber(nodes)} of ${formatNumber(total)}`}
+        </EntityChip>
+    );
+}
+
+/**
+ * Why the file was not written.
+ * @param props - Component props
+ * @param props.failure - the refusals' rows, or a label.
+ * @returns the alert.
+ */
+function FailureAlert({ failure }: Readonly<{ failure: Failure }>): React.JSX.Element {
+    return (
+        <Alert color="red" title="Not written" role="alert">
+            {typeof failure === "string" ? failure : <LossList rows={failure} />}
+        </Alert>
+    );
+}
+
 /**
  * The Data output: one Format row per file type graphty-element writes (each format's export
  * variants, such as CSV's tables), the row's key options and the rest behind an Advanced fold, the
@@ -220,25 +311,11 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
     const format = formats.find((entry) => entry.id === choices.format);
     const rowId = choices.variant === undefined ? choices.format : `${choices.format}/${choices.variant}`;
     const row = rows.find((entry) => entry.id === rowId);
-    const keyed = row === undefined ? {} : dataExportOptions(row, { ...choices, columns: undefined });
-    // A CSV's table, from its variant or its options: what the file holds, and its name.
-    const table = typeof keyed.table === "string" ? keyed.table : undefined;
-    const extension = row?.extensions[0]?.replace(/^\./, "") ?? choices.format;
-    const name =
-        choices.format === "graphty"
-            ? projectFileName(project)
-            : fileName(project, table ?? partName(keyed.part), extension);
+    const { keyed, table, name } = exportTarget(choices, row, project);
     const binary = format?.binary === true;
     const formatName = row?.plainName ?? format?.plainName ?? choices.format;
 
-    let kinds: ("node" | "edge")[] = ["node", "edge"];
-    if (table !== undefined) {
-        kinds = table === "edges" ? ["edge"] : ["node"];
-    }
-    const columns = session === null ? [] : exportColumns(session, kinds);
-    const chosen = choices.columns ?? columns.filter((column) => !column.hidden).map((column) => column.name);
-    // Every column is written when none is left out, so the export keeps what this list cannot name.
-    const written = chosen.length === columns.length ? undefined : chosen;
+    const { columns, chosen, written } = columnsWritten(session, table, choices);
     const scopes = useAsyncValue(() => (session === null ? null : scopeOptions(session)), session === null ? 0 : 1);
     const scope = scopes?.find((option) => option.value === choices.scope);
     const total = scopes?.[0]?.nodes;
@@ -341,12 +418,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                             // A new row starts with its Advanced fold closed.
                             key={row.id}
                             session={session}
-                            // With no edges there is only the node table to write: no Table choice.
-                            options={
-                                session.data.statistics().edgeCount === 0
-                                    ? row.options.filter((option) => option.name !== "table")
-                                    : row.options
-                            }
+                            options={writableOptions(session, row)}
                             values={keyed}
                             words={optionWords}
                             onChange={(option, value) => {
@@ -392,20 +464,12 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                                 </Menu.Dropdown>
                             </Menu>
                             {scope === undefined || total === undefined ? null : (
-                                <EntityChip kind="node">
-                                    {scope.nodes === total
-                                        ? formatNumber(total)
-                                        : `${formatNumber(scope.nodes)} of ${formatNumber(total)}`}
-                                </EntityChip>
+                                <ScopeChip nodes={scope.nodes} total={total} />
                             )}
                         </Group>
                     </Input.Wrapper>
                 </div>
-                {failure !== null ? (
-                    <Alert color="red" title="Not written" role="alert">
-                        {typeof failure === "string" ? failure : <LossList rows={failure} />}
-                    </Alert>
-                ) : null}
+                {failure !== null ? <FailureAlert failure={failure} /> : null}
                 {failure === null && styleLosses !== null ? (
                     <Alert color="orange" role="alertdialog" title={`Styles lost in ${formatName}`}>
                         <LossList rows={lossRows(listedStyleLosses(format, styleLosses))} />

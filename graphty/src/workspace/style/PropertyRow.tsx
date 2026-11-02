@@ -1125,6 +1125,68 @@ function fieldBreakdown(ctx: RowContext, channel: Channel, word: string, lines: 
     return breakdownWords(word, many.breakdown(channel), spread !== undefined);
 }
 
+/** Props for FieldCaptions. */
+interface FieldCaptionsProps {
+    ctx: RowContext;
+    channel: Channel;
+    own: FieldLines["own"];
+    pending: boolean;
+    over: PaintedOver | undefined;
+    label: string;
+    breakdown: string;
+}
+
+/**
+ * The captions under a property row: what covers it, a value the element draws nothing for, the
+ * first value of a selection with no layer yet, and how several rows set it.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.channel - the property
+ * @param props.own - the row's own line
+ * @param props.pending - just added with "+", waiting for a value
+ * @param props.over - what a layer above covers
+ * @param props.label - the name drawn in the label column
+ * @param props.breakdown - how several rows set it, or empty
+ * @returns the captions
+ */
+function FieldCaptions({
+    ctx,
+    channel,
+    own,
+    pending,
+    over,
+    label,
+    breakdown,
+}: Readonly<FieldCaptionsProps>): React.JSX.Element {
+    const { session } = ctx;
+    // Just added on a selection with no layer yet: the value drawn is not set, and the first one
+    // picked makes the layer.
+    const firstValue =
+        pending && own === undefined && ctx.many === undefined && ctx.layers.length === 0 && ctx.fresh !== undefined;
+    // A value the element draws nothing for here (a lift outside a flat layout in 3D).
+    const undrawn = own === undefined ? undefined : undrawnCode(session, own.layer.id, channel);
+    return (
+        <>
+            {over === undefined ? null : <CoveredLine session={session} over={over} />}
+            {undrawn === undefined ? null : (
+                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-undrawn>
+                    {UNDRAWN_WORDS[undrawn]}
+                </Text>
+            )}
+            {firstValue ? (
+                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-first-value>
+                    {firstValueWords(label)}
+                </Text>
+            ) : null}
+            {breakdown === "" ? null : (
+                <Text className="ws-field-covered ws-bulk-words" data-breakdown>
+                    {breakdown}
+                </Text>
+            )}
+        </>
+    );
+}
+
 /**
  * One property this layer sets (the owner's style panel design, 2026-10-13): its name, its value,
  * the vary glyph, and a minus that removes it so the layers beneath show through. A property the
@@ -1250,12 +1312,6 @@ export function Field({
     const breakdown = fieldBreakdown(ctx, channel, label, lines, pending);
     const removeName =
         ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every layer`;
-    // Just added on a selection with no layer yet: the value drawn is not set, and the first one
-    // picked makes the layer.
-    const firstValue =
-        pending && own === undefined && ctx.many === undefined && ctx.layers.length === 0 && ctx.fresh !== undefined;
-    // A value the element draws nothing for here (a lift outside a flat layout in 3D).
-    const undrawn = own === undefined ? undefined : undrawnCode(session, own.layer.id, channel);
     return (
         <div
             ref={box}
@@ -1287,22 +1343,15 @@ export function Field({
                     </Tooltip>
                 </span>
             </div>
-            {over === undefined ? null : <CoveredLine session={session} over={over} />}
-            {undrawn === undefined ? null : (
-                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-undrawn>
-                    {UNDRAWN_WORDS[undrawn]}
-                </Text>
-            )}
-            {firstValue ? (
-                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-first-value>
-                    {firstValueWords(label)}
-                </Text>
-            ) : null}
-            {breakdown === "" ? null : (
-                <Text className="ws-field-covered ws-bulk-words" data-breakdown>
-                    {breakdown}
-                </Text>
-            )}
+            <FieldCaptions
+                ctx={ctx}
+                channel={channel}
+                own={own}
+                pending={pending}
+                over={over}
+                label={label}
+                breakdown={breakdown}
+            />
             {pendingVary === null ? null : (
                 <BulkBinding
                     session={session}

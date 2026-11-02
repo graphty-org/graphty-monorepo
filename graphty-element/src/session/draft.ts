@@ -665,7 +665,6 @@ function guessTable(
     config: SessionDataConfig,
     guess: DraftGuess = "names",
 ): TableMappingRead {
-    const { knownFields } = config;
     const has = (name: unknown): name is string => typeof name === "string" && held.order.includes(name);
     const present = (name: string | null): string | null => (has(name) ? name : null);
 
@@ -673,15 +672,66 @@ function guessTable(
         return guessFixed(held, config);
     }
 
+    const { pair, idColumn } = readTableColumns(held, source, guess, has);
+    const readsAsNodes = source.variant === "node-list" || (pair === undefined && idColumn !== undefined);
+    const ownKind: "nodes" | "edges" = readsAsNodes ? "nodes" : "edges";
+    // One file of a pair says what it holds by its columns, whichever half it was handed over as;
+    // only a file whose columns say nothing is read as the half it was handed over as.
+    const decided = held.table.id === "rows" || pair !== undefined || idColumn !== undefined;
+    const kind = rowsAre ?? (decided ? ownKind : (held.table.id as "nodes" | "edges"));
+
+    if (kind === "nodes") {
+        return guessNodeRoles(held, idColumn, config, guess, { has, present });
+    }
+
+    return guessEdgeRoles(held, pair, config, guess, present);
+}
+
+/** A table's column tests, shared by {@link guessTable}'s helpers. */
+interface ColumnTests {
+    /** Whether a name is one of the table's columns. */
+    readonly has: (name: unknown) => name is string;
+    /** The name when it is one of the table's columns, else null. */
+    readonly present: (name: string | null) => string | null;
+}
+
+/**
+ * The two columns a table's header, or the deprecated CSV options, name as an edge's ends.
+ * @param source - The source's options, for the deprecated CSV column aliases.
+ * @param has - Whether a name is one of the table's columns.
+ * @returns The pair, or undefined.
+ */
+function namedEnds(
+    source: Readonly<Record<string, unknown>>,
+    has: (name: unknown) => name is string,
+): readonly [string, string] | undefined {
     // The deprecated CSV options name columns; they translate into the mapping.
     const aliasSource = typeof source.edgeSource === "string" ? source.edgeSource : undefined;
     const aliasTarget = typeof source.edgeTarget === "string" ? source.edgeTarget : undefined;
-    const named: readonly [string, string] | undefined =
-        aliasSource !== undefined && aliasTarget !== undefined
-            ? [aliasSource, aliasTarget]
-            : [...(source.variant === "gephi" ? [["Source", "Target"] as const] : []), ...ENDPOINT_PAIRS].find(
-                  ([from, to]) => has(from) && has(to),
-              );
+    if (aliasSource !== undefined && aliasTarget !== undefined) {
+        return [aliasSource, aliasTarget];
+    }
+
+    return [...(source.variant === "gephi" ? [["Source", "Target"] as const] : []), ...ENDPOINT_PAIRS].find(
+        ([from, to]) => has(from) && has(to),
+    );
+}
+
+/**
+ * A table's edge ends and node key, by its header or, with `guess: "values"`, by its values.
+ * @param held - The table.
+ * @param source - The source's options, for the deprecated CSV column aliases.
+ * @param guess - `"values"` also reads the values when no header names the roles.
+ * @param has - Whether a name is one of the table's columns.
+ * @returns The ends and the key, each undefined when nothing names it.
+ */
+function readTableColumns(
+    held: HeldTable,
+    source: Readonly<Record<string, unknown>>,
+    guess: DraftGuess,
+    has: (name: unknown) => name is string,
+): { pair: readonly [string, string] | undefined; idColumn: string | undefined } {
+    const named = namedEnds(source, has);
     const namedId = has(source.idColumn) ? source.idColumn : NODE_ID_COLUMNS.find(has);
     // No header says what the rows are: read the values. Two columns naming the same things are an
     // edge's ends; else a single file's nearly unique text column is its nodes' key.
@@ -694,26 +744,56 @@ function guessTable(
         values !== null && shared === undefined && held.table.id === "rows" ? nearlyUniqueKey(held, values) : undefined;
     const pair = shared ?? (values === null || uniqueKey !== undefined ? undefined : repeatingEnds(held, values));
     const idColumn = namedId ?? (pair === undefined ? uniqueKey : undefined);
-    const readsAsNodes = source.variant === "node-list" || (pair === undefined && idColumn !== undefined);
-    const ownKind: "nodes" | "edges" = readsAsNodes ? "nodes" : "edges";
-    // One file of a pair says what it holds by its columns, whichever half it was handed over as;
-    // only a file whose columns say nothing is read as the half it was handed over as.
-    const decided = held.table.id === "rows" || pair !== undefined || idColumn !== undefined;
-    const kind = rowsAre ?? (decided ? ownKind : (held.table.id as "nodes" | "edges"));
+    return { pair, idColumn };
+}
 
-    if (kind === "nodes") {
-        // A pair's node file falls back to its first column, as the CSV reader does.
-        const key = idColumn ?? (held.table.id === "rows" ? undefined : held.order[0]) ?? null;
-        return {
-            rowsAre: "nodes",
-            key,
-            label:
-                present(knownFields.nodeLabelPath) ??
-                (guess === "values" ? (LABEL_COLUMNS.find((name) => has(name) && name !== key) ?? null) : null),
-            time: present(knownFields.nodeTimePath),
-        };
-    }
+/**
+ * The roles of a table read as nodes.
+ * @param held - The table.
+ * @param idColumn - The column read as the nodes' key, if any.
+ * @param config - The data configuration.
+ * @param guess - `"values"` also guesses a label column.
+ * @param tests - The table's column tests.
+ * @returns The table's roles.
+ */
+function guessNodeRoles(
+    held: HeldTable,
+    idColumn: string | undefined,
+    config: SessionDataConfig,
+    guess: DraftGuess,
+    tests: ColumnTests,
+): TableMappingRead {
+    const { knownFields } = config;
+    const { has, present } = tests;
+    // A pair's node file falls back to its first column, as the CSV reader does.
+    const key = idColumn ?? (held.table.id === "rows" ? undefined : held.order[0]) ?? null;
+    return {
+        rowsAre: "nodes",
+        key,
+        label:
+            present(knownFields.nodeLabelPath) ??
+            (guess === "values" ? (LABEL_COLUMNS.find((name) => has(name) && name !== key) ?? null) : null),
+        time: present(knownFields.nodeTimePath),
+    };
+}
 
+/**
+ * The roles of a table read as edges.
+ * @param held - The table.
+ * @param pair - The columns read as an edge's ends, if any.
+ * @param config - The data configuration.
+ * @param guess - `"values"` also guesses a weight column.
+ * @param present - The name when it is one of the table's columns, else null.
+ * @returns The table's roles.
+ */
+function guessEdgeRoles(
+    held: HeldTable,
+    pair: readonly [string, string] | undefined,
+    config: SessionDataConfig,
+    guess: DraftGuess,
+    present: (name: string | null) => string | null,
+): TableMappingRead {
+    const { knownFields } = config;
     const weight =
         present(knownFields.edgeWeightPath) ??
         present("value") ??

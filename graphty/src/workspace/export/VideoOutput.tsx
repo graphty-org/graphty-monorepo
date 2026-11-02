@@ -19,6 +19,48 @@ interface VideoOutputProps {
 }
 
 /**
+ * The views a tour flies between: the reader's, else the saved views when there are two, else the
+ * first tour's cameras.
+ * @param choices - the video choices
+ * @param saved - the saved views' names
+ * @param cameras - the camera presets' ids
+ * @returns the stops
+ */
+function tourStops(choices: VideoChoices, saved: string[], cameras: ReadonlySet<string>): readonly string[] {
+    if (choices.stops.length > 0) {
+        return choices.stops;
+    }
+    return saved.length >= 2 ? saved : FIRST_TOUR.filter((id) => cameras.has(id));
+}
+
+/**
+ * The element's dropped-frames estimate as a chip.
+ * @param props - Component props
+ * @param props.estimate - the element's estimate
+ * @returns the chip
+ */
+function FramesChip({ estimate }: Readonly<{ estimate: CaptureEstimate }>): React.JSX.Element {
+    return (
+        <Tooltip
+            label={
+                estimate.recommendedFps === undefined
+                    ? `${String(estimate.totalFrames)} frames`
+                    : `${String(estimate.recommendedFps)} fps recommended`
+            }
+        >
+            <Badge
+                size="sm"
+                variant="light"
+                color={estimate.likelyToDropFrames ? "orange" : "gray"}
+                data-testid="video-frames"
+            >
+                {estimate.likelyToDropFrames ? "May drop frames" : `${String(estimate.totalFrames)} frames`}
+            </Badge>
+        </Tooltip>
+    );
+}
+
+/**
  * The Video output: a still camera or a tour of views, length and frame rate, the element's
  * dropped-frames estimate as a chip, and Record. Every recording is graphty-element's
  * `captureAnimation`; a tour names its views and the element flies between them.
@@ -39,8 +81,7 @@ export function VideoOutput({ choices, onChange, onCancel, onDone }: Readonly<Vi
     const presets = session?.catalog.cameras() ?? [];
     const cameras = new Set(presets.map((camera) => camera.id));
     const saved = session === null ? [] : [...session.views.keys()];
-    const firstStops = saved.length >= 2 ? saved : FIRST_TOUR.filter((id) => cameras.has(id));
-    const stops = choices.stops.length > 0 ? choices.stops : firstStops;
+    const stops = tourStops(choices, saved, cameras);
     const asked: VideoChoices = { ...choices, stops };
     const tourShort = asked.camera === "tour" && stops.length < 2;
 
@@ -152,28 +193,7 @@ export function VideoOutput({ choices, onChange, onCancel, onDone }: Readonly<Vi
                         />
                     </Input.Wrapper>
                     <Input.Wrapper size="xs" label="Frames">
-                        <div>
-                            {estimate === null ? null : (
-                                <Tooltip
-                                    label={
-                                        estimate.recommendedFps === undefined
-                                            ? `${String(estimate.totalFrames)} frames`
-                                            : `${String(estimate.recommendedFps)} fps recommended`
-                                    }
-                                >
-                                    <Badge
-                                        size="sm"
-                                        variant="light"
-                                        color={estimate.likelyToDropFrames ? "orange" : "gray"}
-                                        data-testid="video-frames"
-                                    >
-                                        {estimate.likelyToDropFrames
-                                            ? "May drop frames"
-                                            : `${String(estimate.totalFrames)} frames`}
-                                    </Badge>
-                                </Tooltip>
-                            )}
-                        </div>
+                        <div>{estimate === null ? null : <FramesChip estimate={estimate} />}</div>
                     </Input.Wrapper>
                 </div>
                 {failure === null ? null : <Alert color="red" role="alert" title={failure} />}

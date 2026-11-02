@@ -10,9 +10,11 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-02) Round 1 pilots on baac78342b: T74 is blocked on BOTH halves (By position on a
-  Results step started in the editor empties the step); "Before the first session" item 8 fails
-  until it is fixed. T75 A is unblocked (Piece size on So far gives 105).
+- (2026-11-02) On 797a4f6b47 T74 is unblocked (By position walked, both halves, 12 steps), T72 B's
+  After / Between routes and T73 A's name search work. Still able to spoil a grade: Cancel on a
+  new filter card leaves an empty card switched on (T71, T77, T79 grade card counts).
+- (2026-11-02) The canvas key now counts over the filtered graph (T70 B "2 of 7"); it drops its
+  count line when the layer covers all drawn nodes: grade from the inspector or header then.
 - (2026-11-02) Severity 3 candidates still open on baac78342b: the false "Covered by" warning (now
   on PageRank and Everything, many tasks), table and strip drawn together, pickers flipping over
   Done, two count bases. Close or confirm them before round 1 or bars 1, 4 and 9 fail by
@@ -69,6 +71,14 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-02 (answer key matched to 797a4f6b47 from 8 targeted re-pilots):** Changed only
+  `answers.md` and the change log; no bar, no prompt. Unblocked T74 (path as written, B cut read:
+  fourth 16), restored T72 B's After and Except Between routes, rewrote T73 A to type the name,
+  T70 B's key to "2 of 7", noted T75 A's Piece vs Piece size trap and T77 B's 14 steps, and added
+  "Build notes (797a4f6b47)". Why: a key that names a blocked path or a stale count makes graders
+  mark real successes wrong. Worked: every re-pilot gave screenshots per claim, so each edit cites
+  a walk. Did not work: subagents cannot write report.md, so reports arrive only as text.
 
 - **2026-11-02 (answer key matched to baac78342b from 16 round 1 pilots):** Changed only
   `answers.md` (and logged in criteria.md); no bar, no prompt. Marked T74's By position path

@@ -393,3 +393,20 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
 - 2026-11-02: the dry run's second build, 797a4f6b47 in `.study-builds/tier5-r1d1-797a4f6b47`,
   replaces baac78342b (`.study-builds/tier5-r1-baac78342b`). It carries the first dry-run pass's
   fixes, among them the main table's columns and a test's mode kept as the step's own.
+- 2026-11-02: `answers.md` matched to 797a4f6b47 from the dry run's targeted re-pilots (T70 B, T72
+  B, T73 A and B, T74 A and B, T75 A, T77 B); no bar changed and no prompt was wrong, so `tasks.md`
+  is unchanged. Each change with its reason:
+    - T74's path is no longer marked blocked: By position on a Results step started in the editor
+      now takes the number and keeps it, both halves walked in 12 steps. Item 8's T74 block is
+      cleared; the B cut is read (fourth, Upper Falls, 16).
+    - T72 B's equal routes restored (installed After 2000; Except Between 1990 and 1999): the date
+      step now keeps its mode.
+    - T73 A's path types the name: the reference search lists "v02 name James Carter" for James,
+      Carter or both, so the 13- and 18-step find-box counts are gone.
+    - T70 B's key reads "2 of 7 nodes": the canvas key now counts over the graph the filter leaves,
+      as `decided.md` rules for every style host count; the grader note on two bases says which
+      build drew which, and when the key draws no count line.
+    - T75 A: the picker's highlighted "Piece" is not "Piece size", so Enter takes the wrong one.
+      T77 B: the Graph step is needless on this build too (14 steps by pointer).
+    - "Build notes (797a4f6b47)" lists what the re-pilots saw; the one that can still spoil a
+      grade is Cancel on a new filter card leaving an empty card switched on (graded card counts).

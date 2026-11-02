@@ -10,7 +10,10 @@ main checkout's `tmp/design-studio/tier5/materials/p1` to `p9`); a path marked "
 walked there end to end, the others follow the same controls and the dry run walks them. The round 1
 pilots re-read every task but T72 A and T76 on the frozen build baac78342b (walks under the main
 checkout's `tmp/design-studio/tier5/r1/pilot/<task>/`); where that build draws something else, the
-task says so, and "Build notes (baac78342b)" lists what can spoil a grade. Each core
+task says so, and "Build notes (baac78342b)" lists what can spoil a grade. The dry run's targeted
+re-pilots re-read T70 B, T72 B, T73, T74, T75 A and T77 B on build 797a4f6b47 (walks under the main
+checkout's `tmp/design-studio/tier5/r1d1/pilot/<task>/`); where that build differs, the task says
+so, and "Build notes (797a4f6b47)" lists what can still spoil a grade. Each core
 task's path step count is written as "Path steps: N" (bar 8) in `tool/steps.mjs`'s units: every
 click, key, typed text and file chosen counts, looking does not.
 
@@ -31,8 +34,11 @@ click, key, typed text and file chosen counts, looking does not.
   edited (the top bar's count changes at once).
 - A style layer's selection is graded by the inspector's Which nodes count ("4 of 14", over the
   filtered graph; "1,076 of 50k" short), the workspace header, and the canvas key ("Color: Staff, 4
-  of 24 nodes", over the full graph: two bases, a known finding; the key's title is the layer's
-  name, "Color: Layer 1" for a new layer). A filter is graded by the top
+  of 24 nodes", over the full graph on baac78342b: two bases; on 797a4f6b47 the key counts over the
+  graph the filter leaves, as `decided.md` rules: "Color: Layer 1, 2 of 7 nodes"; the key's title is
+  the layer's name, "Color: Layer 1" for a new layer). On 797a4f6b47 the key draws no "N of M
+  nodes" line under a filter that leaves the layer's whole set (T72 B touched-5) or when the layer
+  covers every drawn node (T77 B detour-1): grade from the inspector or the header then. A filter is graded by the top
   bar's "N of M nodes" and the card's "N of M". A color is "orange" when the layer's fill is any
   visibly orange or red-orange hue (the setups use E4572E); a different hue with the right members
   is SD for the color, never P. A screen reader speaks E4572E as "red" ("Node color now red, on 4
@@ -45,9 +51,10 @@ click, key, typed text and file chosen counts, looking does not.
   (it still counts as a step; a screen reader hears the count on it); an algorithm result's number
   box (PageRank, Betweenness) applies only on Enter, Tab or Escape.
 - **Counts that are not the picture's**: a style layer with Visibility hidden keys itself "Show:
-  Layer 1, 9 of 24 nodes", where 9 are the hidden ones, and leaves their edges drawn; after a filter
-  card's Done the node table keeps that card's "Matches only" list (T75 A lists 549 while 112 are in
-  the picture). A count read from either is graded as the count it is, not the top bar's.
+  Layer 1, 9 of 24 nodes", where 9 are the hidden ones, and leaves their edges drawn; on baac78342b,
+  after a filter card's Done the node table kept that card's "Matches only" list (T75 A listed 549
+  while 112 were in the picture; on 797a4f6b47 the table lists what is in the picture, with Shown
+  selected). A count read from either is graded as the count it is, not the top bar's.
 
 ## Wrong turns, worked examples
 
@@ -115,7 +122,8 @@ state. One example of each kind:
   participant says one is out of the picture.
 - **B values** (read): in the picture **7 of 11** (G01, G02, G04, G06, G07, G09, G11; top bar "7 of
   11 nodes, 3 of 13 edges"); in orange **2** (G01 1998, G09 1999; G05 1995 sends no readings);
-  Which nodes "2 of 7", key "Color: Layer 1, 2 of 11 nodes".
+  Which nodes "2 of 7", key "Color: Layer 1, 2 of 7 nodes" on 797a4f6b47 ("2 of 11 nodes" on
+  baac78342b, which keyed over the full graph).
 - **Path (A)**: Style layers "+" (Add a layer or a folder) > Layer; Which nodes (the workspace
   opens, value picker open); `role`; tick staff; Done; Fill "+" (Add to node fill); type the hex
   (the color box is focused, its text selected); Enter. Then Data; Filters "+" (Add filter; the
@@ -124,7 +132,8 @@ state. One example of each kind:
   the workspace header are titled "trained pick yes or no".
 - **Path (B)** (walked): the same, with `installed` (its test opens on Before, the date box
   focused): type 2000, Enter, Done, Fill, hex, Enter; then Data, Add filter, `telemetry`, tick
-  yes, Done. Path steps: 15 (B). Between 1990 and 1999 is equal (more steps).
+  yes, Done. Path steps: 15 (B), walked again on 797a4f6b47. Between 1990 and 1999 is equal (more
+  steps).
 - **Also success**: the filter first (the layer then counts over the filtered graph: staff 4);
   trained No / telemetry no with the Except switch; a color picked from the swatch.
 - **Not success**: a style layer with Visibility hidden instead of a filter card (the people are
@@ -171,10 +180,14 @@ state. One example of each kind:
   Final outline: "kind agency, company / Except on_record Yes", header "7 of 24".
 - **Path (B)**: + > Layer; Which nodes; `telemetry`; tick yes; Condition...; `installed`; type
   2000; Enter; the Except switch; Done; Fill; hex; Enter.
-- **Also success**: a second step with on_record No (A; an equal result). B's equal route,
-  installed After 2000, cannot be built on baac78342b: the date step's "how to match" select stays
-  on Before whatever is picked, and a pick after a date is typed clears the date; B's only route is
-  the Except switch. The value picker's search finds nothing for "not" or "1990".
+  Path (B) walked on 797a4f6b47: telemetry yes / Except installed before 2000, 5 of 11, the key
+  "5 of 11". The date box applies as typed, so the Enter after 2000 changes nothing visible.
+- **Also success**: a second step with on_record No (A; an equal result). B on 797a4f6b47 (read):
+  installed After 2000 instead of the Except switch (5 of 11), and Except installed Between 1990
+  and 1999 (5 of 11); the date step keeps Before, After or Between whether picked before or after a
+  date is typed, and carries the typed date across a change of mode. (On baac78342b the mode select
+  stayed on Before and the Except switch was B's only route.) The value picker's search finds
+  nothing for "not" or "1990".
 - **Not success**: a filter card; a second layer painting the on-record ones back in the default
   color (P: the count is right on the canvas but no layer holds the rule).
 
@@ -188,15 +201,14 @@ state. One example of each kind:
   ("in either direction" is in the prompt).
 - **Path (B)** (walked): + > Layer; Which nodes; type "within"; Enter (Within hops of; focus goes
   to the reference field); Enter (the reference picker opens, its search focused); type Cedar;
-  Enter; Done; Fill; hex; Enter. Hops is 2 by default. Path steps: 12 (B). The row reads "Within 2
-  hops of Cedar Bend".
-- **Path (A)** (walked on baac78342b): the reference search does **not** find James Carter by
-  `name` on this build ("Nodes 0" for James, Carter and James Carter; spec 4.3 says it should), and
-  the workspace covers the sidebar's find box. The person reads `v02` beside James Carter in the
-  matches strip under the preview: + > Layer; Which nodes; type "within"; Enter; Enter; type v02;
-  Enter; Done; Fill; hex; Enter. Path steps: 12 (A); 13 with the name tried first. By the find
-  box (Done, type James, read "v02", reopen the step, type v02): 18. The row reads "Within 2 hops
-  of v02".
+  Enter; Done; Fill; hex; Enter. Hops is 2 by default. Path steps: 12 (B), walked again on
+  797a4f6b47 (lowercase "cedar" works too). The row reads "Within 2 hops of Cedar Bend". Before a
+  reference is picked the header reads "11 of 11", not the answer.
+- **Path (A)** (walked on 797a4f6b47): + > Layer; Which nodes; type "within"; Enter; Enter; type
+  James (or Carter, or James Carter: each lists "v02 name James Carter"); Enter (or a click on that
+  row); Done; Fill; hex; Enter. Path steps: 12 (A). Typing v02 is the same route. The row reads
+  "Within 2 hops of v02". (On baac78342b the reference search found no name, "Nodes 0", and the
+  person had to read `v02` off the matches strip or the find box.)
 - **Also success (A)**: James selected first (Pick on canvas, or the find result's click and the
   reference "Selected (1)"): a live reference, equal while he stays selected; the grader checks the
   layer still counts 16 after the selection changes (P unless the participant pinned it to v02).
@@ -218,28 +230,30 @@ state. One example of each kind:
   Betweenness (B), filled orange; the participant names them.
 - **A values**: Ben Adler v21, Seun Okoro v13, Priya Nair v05, Hannah Weiss v09, James Carter v02
   (PageRank 0.0586 to 0.0545; the sixth, v23, is 0.0512: no tie at the cut).
-- **B values**: Mill Pond G02, Cedar Bend G03, Fox Creek G04. The dry run reads the fourth's value
-  to check there is no tie at the cut.
+- **B values** (read): Mill Pond G02, Cedar Bend G03, Fox Creek G04 (Betweenness 21, 25, 24); the
+  fourth, Upper Falls G01, is 16: no tie at the cut.
 - **Path (A)**: + > Layer; Which nodes; type "page"; Enter (Results: PageRank, the run the start
   holds); the mode select ("By value"); By position; type 5; Enter; Done; Fill; hex; Enter. Path
   steps: 12 (A).
 - **Path (B)**: the same with "between" (Analyze's Betweenness, not yet run: committing starts the
   run, which finishes at once on 11 gauges) and 3. Path steps: 12 (B).
-- **Blocked on baac78342b (both halves)**: By position on a Results step started in the editor
-  ("PageRank: Influence", "Betweenness: Bridging") removes the mode select, the histogram and the
-  boxes; nothing takes the number, focus falls to the outline row and the count stays 24 of 24 /
-  11 of 11; reopening never restores it (T74 A success/10.png, T74 B success/08.png). The same
-  choice works on a step Analyze's own layer holds. Until it is fixed only the routes below reach
-  the answer. After the value pick, focus is in the From box; the mode select is named "PageRank
-  test" / "Betweenness test", not by what it shows.
+- **Walked on 797a4f6b47, both halves, as written** (12 steps each, pointer and keyboard): By
+  position shows a focused number box ("PageRank: how many" / "Betweenness: how many"); 5 gives 5
+  of 24, 3 gives 3 of 11; reopening shows By position and the number; the saved selector is
+  "pagerank top 5, ties all". Exactly 5 / 3 nodes are drawn orange and the others keep their
+  PageRank colors. After the value pick, focus is in the From box; the mode select is named
+  "PageRank test" / "Betweenness test", not by what it shows, so a click aimed at the words "By
+  value" misses and a click on the box opens it. (On baac78342b By position on a step started in
+  the editor emptied the step and both halves were blocked.)
 - **Also success**: By value with a hand-typed lower bound that leaves exactly those (SD, a wrong
   turn per try): A From 0.053 (5 of 24; the sixth, v23, is 0.0512), B From 19 (3 of 11; the
-  fourth, G01 Upper Falls, lies between 15 and 19: no tie at the cut). No exact value is on the
+  fourth, G01 Upper Falls, is 16: no tie at the cut). No exact value is on the
   route (the histogram labels its ends only), so the bound comes by trial: B walked in 19 steps.
   B: Analyze > Betweenness > Run, then that layer's "Betweenness has a value" step By position 3
   ("Betweenness top 3"), "Stop varying node color by data" and the hex (about 14 steps). A: the
   same on the start's PageRank layer narrows it to the top 5, and the other 19 lose their PageRank
-  colors: P, the prompt says to leave everyone else as they are.
+  colors: P, the prompt says to leave everyone else as they are (read on 797a4f6b47: the five
+  orange, the other 19 indigo). Both read on 797a4f6b47.
 - **Not success**: the table sorted and nodes selected by hand (no layer selection); Analyze's
   suggested style (colors every node by value).
 
@@ -258,7 +272,10 @@ state. One example of each kind:
   Enter; Done.
 - **Path (A)** (walked on baac78342b, pointer and keyboard): Data; Add filter; type "degree";
   Enter; type 10; Enter; Condition...; type "component"; Connected components: Piece size;
-  Advanced; So far; type 100; Enter; Done: "105 of 549 nodes, 869 of 2,084 edges" (14 steps). The
+  Advanced; So far; type 100; Enter; Done: "105 of 549 nodes, 869 of 2,084 edges" (14 steps; the
+  same on 797a4f6b47). The picker lists both "Connected components: Piece" and "Connected
+  components: Piece size" and highlights the first, so Enter after "component" takes Piece, not
+  Piece size: the path clicks Piece size. The
   row is cut to "Connected compon... m... So far" (its bound cannot be read) and the strip's column
   "Connected components" reads "Group 1", not the piece size. Condition... > "largest" > Largest
   component reads "112 of 549" and stays P: Largest component has no Advanced, so it cannot be
@@ -295,9 +312,11 @@ state. One example of each kind:
   (the inspector keeps the Staff layer while Data is open): 13.
 - **Path (B)** (walked): Data; Edit on the card "telemetry yes" (or Enter on its row); Or...;
   `depth_cm`; type 140; Enter; Done; Graph; the Oldest layer's row "installed before 2000"; the
-  date box; Ctrl+A; type 2005; Enter; Done. 14 steps. On baac78342b Edit is not drawn at rest or
-  on hover: a click on the card opens nothing and swaps its count for Edit, then Edit opens it (15
-  steps); by keyboard Enter on the card twice.
+  date box; Ctrl+A; type 2005; Enter; Done. 14 steps. On baac78342b and 797a4f6b47 Edit is not
+  drawn at rest or on hover: a click on the card opens nothing and swaps its count for Edit, then
+  Edit opens it (one more step); by keyboard Enter on the card twice. On 797a4f6b47 the Graph step
+  is needless (the inspector keeps the Oldest layer while Data is open): 14 steps by pointer
+  (read). Counts read there: 9 of 11, Oldest 5 of 9.
 - **Also success**: a new card or layer that gives the same counts while the old one is removed
   (SD); Clear on the old one and rebuilt (SD); the participant's own color.
 - **Not success**: a second filter card for the deep gauges (both must hold: 1 in the picture,
@@ -345,6 +364,42 @@ state. One example of each kind:
   place of "1,076 of 50k"; the count shows once focus moves. Enter in the checklist search ticks
   nothing; "Check 1" beside the one match ticks it. "32 more" is plain text. The Values tab offers
   `station` as a time too (B).
+
+## Build notes (797a4f6b47)
+
+Seen in the dry run's targeted re-pilots of 2026-11-02 (walks under the main checkout's
+`tmp/design-studio/tier5/r1d1/pilot/<task>/`); each is a candidate, not a confirmed finding.
+
+- **Fixed since baac78342b**: By position on a Results step (T74 unblocked, both halves); the date
+  step keeps After and Between (T72 B's equal routes); the reference search finds a node by name
+  (T73 A); the node table no longer switches to "Matches only"; the matches strip is not clipped;
+  no false "Covered by" warning was seen in T73 A or B.
+- **Can spoil a grade**: Cancel on a new filter card still leaves an empty card "a selection, All
+  nodes" switched on (top bar "11 of 11 nodes"), and it stays in the project beside the real card
+  (T70 B touched-35); T71, T77 and T79 grade the number of filter cards. Escape on a new card
+  opened from the canvas toolbar's Filters removes it (T77 B touched-34).
+- **Can mislead a count read off the canvas**: with the node table open, one orange node sits half
+  under the canvas toolbar, so a count of the picture finds one fewer (T72 B 4 of 5, T74 B Fox
+  Creek); the matches strip and the inspector hold the right count.
+- **Colors that are not drawn**: a new Fill shows 6366F1 and a blue chip before its color is
+  committed, and the canvas changes only on Enter (T72 B); on a node already painted by another
+  layer, the new color box is named "Node color, not set, drawn #6366F1 indigo" while the canvas
+  draws the other layer's color (T74 A keyboard).
+- **A Between step with only its from box typed** (1990) reads "installed after 1989" in the
+  outline, one year early (T72 B).
+- **Keyboard**: Tab from a date box or the workspace's last field leaves the workspace for the
+  status bar's "Local only" (the page scrolls up 1 px), and Escape there does nothing (T70 B,
+  T77 B, T74 A); Tab in the reference picker's search goes to the app's Main menu with the picker
+  left open (T73 A, T73 B); after Escape on a toolbar-opened card, focus lands on the sidebar's
+  Filters "+" (T77 B); Enter on an algorithm's "how many" box announces the count twice (T74).
+- **Accessibility**: nine buttons and twelve rows with no accessible name are present whenever a
+  workspace is open: the main table drawn under the preview (T72 B, T73 A).
+- **Looks only**: a blank band of about 200 px between the preview and the matches strip; the
+  value picker flips up over Done once a search narrows it; Largest component's card shows Edit
+  in place of its count after Done; the open card repeats its name as its first step; a filter
+  card is named by its first step only ("telemetry yes" while it also holds an Except step);
+  "With issues" counts every row (11) on the gauges; Cancel on a new layer turns "Node and edge
+  layer" into "Node layer" (nothing painted).
 
 ## Build notes (baac78342b)
 

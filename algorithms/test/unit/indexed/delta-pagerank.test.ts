@@ -7,7 +7,7 @@ import { exactArcWeights } from "../../helpers/facade.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
-import type { NodeId } from "../../helpers/legacy-types.js";
+import type { NodeId, PageRankResult } from "../../helpers/legacy-types.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, gnm } from "./port-fixtures.js";
 

@@ -401,7 +401,13 @@ describe("per-tool readers", () => {
             NODE_LABEL_COLOR: "#000000",
         });
         const s = sceneFromCyrest({
-            nodes: [row(1, 0, "A"), row(2, 100, "B")],
+            nodes: [
+                row(1, 0, "A"),
+                {
+                    ...row(2, 100, "B"),
+                    NODE_CUSTOMGRAPHICS_1: 'org.cytoscape.RadialGradient:{"cy_gradientColors":["#FFFFFF","#A50F15"]}',
+                },
+            ],
             edges: [
                 {
                     SUID: 9,
@@ -438,6 +444,8 @@ describe("per-tool readers", () => {
             label: { position: "below" },
         });
         expect(s.nodes[0].fillOpacity).toBeCloseTo(128 / 255);
+        // a gradient custom graphic is painted over the second node's fill; the first has none
+        expect(s.nodes.map((n) => n.paintedOver)).toEqual([undefined, true]);
         expect(s.edges[0]).toMatchObject({
             id: "x->x#1",
             points: [

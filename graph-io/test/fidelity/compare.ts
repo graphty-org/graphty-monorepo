@@ -667,8 +667,13 @@ const NODE_JUDGES: Partial<Record<Property, NodeJudge>> = {
     // a fill of opacity 0 draws nothing, so it is no fill on either side (yEd's hasColor="false", an
     // unfilled DOT node), whichever color the scene still carries
     // a node the reference does not draw shows no fill to judge; whether it is drawn is `visible`'s
+    // a node the program paints a gradient over shows its gradient, not its fill colour: the reference's flat colour
+    // is not what it draws, so it is not judged here (the oracle scorecard judges the gradient); its opacity is the
+    // gradient's too, and is still judged
     fill: (r, s) =>
-        r.visible ? color(r.fillOpacity === 0 ? null : r.fill, s.fillOpacity === 0 ? null : s.fill) : null,
+        r.visible && r.paintedOver !== true
+            ? color(r.fillOpacity === 0 ? null : r.fill, s.fillOpacity === 0 ? null : s.fill)
+            : null,
     // with no reference fill there is nothing for an opacity to apply to; `fill` judges the missing fill
     fillOpacity: (r, s) => {
         if (r.fill === null) {

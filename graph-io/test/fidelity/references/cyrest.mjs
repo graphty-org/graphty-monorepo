@@ -46,6 +46,20 @@ export function cyrestIds(topology) {
     return { nodes, edges, repeated: [...seen.values()].some((k) => k > 1) };
 }
 
+/** A Cytoscape gradient custom graphic, as the desktop writes it (`<class>:{...}`) or as an object (CX2). */
+const GRADIENT_GRAPHIC = /org\.cytoscape\.(Linear|Radial)Gradient/;
+
+/**
+ * Whether a node row's custom graphics slots hold a gradient, which the desktop paints over the node's whole face.
+ * @param r - the node's CyREST row
+ * @returns whether one does
+ */
+function paintsGradient(r) {
+    return Array.from({ length: 9 }, (_, k) => r[`NODE_CUSTOMGRAPHICS_${String(k + 1)}`]).some((v) =>
+        GRADIENT_GRAPHIC.test(typeof v === "string" ? v : JSON.stringify(v ?? "")),
+    );
+}
+
 /**
  * The scene of one Cytoscape network view as CyREST reports it.
  * Under "lock node width and height", Cytoscape draws a node at NODE_SIZE, except where the node
@@ -110,6 +124,8 @@ export function sceneFromCyrest(v) {
                 : null,
             visible: r.NODE_VISIBLE !== false,
             z: r.NODE_Z_LOCATION ?? 0,
+            // a gradient custom graphic is painted over the node's whole face: NODE_FILL_COLOR is the colour under it
+            ...(paintsGradient(r) ? { paintedOver: true } : {}),
         };
     });
     const ends = new Map(

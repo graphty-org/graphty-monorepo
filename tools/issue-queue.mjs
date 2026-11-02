@@ -143,7 +143,7 @@ export function queue(issues, now) {
     };
 }
 
-const ascii = (s) => s.replace(/[^\x20-\x7e\n\t]/g, "?");
+const ascii = (s) => s.replaceAll(/[^\x20-\x7e\n\t]/g, "?");
 
 /**
  * The `list` output lines.
@@ -177,8 +177,8 @@ export function showText(issue) {
     ];
     for (const c of issue.comments.nodes) {
         const who = c.author?.login ?? "ghost";
-        out.push("", `--- comment by ${who} at ${c.createdAt}`);
-        out.push(trustedText(c) ? c.body : `[comment by ${who} withheld: untrusted author]`);
+        const text = trustedText(c) ? c.body : `[comment by ${who} withheld: untrusted author]`;
+        out.push("", `--- comment by ${who} at ${c.createdAt}`, text);
     }
     const more = issue.comments.totalCount - issue.comments.nodes.length;
     // ponytail: only the first 100 comments; page through comments if an issue ever passes that

@@ -78,13 +78,16 @@ function ramp(a: number, b: number, n: number): number[] {
 const flat = (v: number, n: number): number[] => new Array<number>(n).fill(v);
 const nulls = (n: number): null[] => new Array<null>(n).fill(null);
 
+/** A sparkline point's mark: yellow, red, or none. */
+type Mark = "warn" | "bad" | null;
+
 /**
  * Green when the target holds, red when the red comparison holds, yellow between.
  * @param v - The value to judge, or null when there is none.
  * @param sla - The target and red comparisons to judge it against.
  * @returns null when the target holds, "bad" when the red comparison holds, else "warn".
  */
-function judge(v: number | null, sla: Sla): "warn" | "bad" | null {
+function judge(v: number | null, sla: Sla): Mark {
     if (v === null || !("op" in sla.target)) {
         return null;
     }
@@ -2106,13 +2109,13 @@ function hourly(v: (number | null)[]): (number | null)[] {
     }
     return out;
 }
-function worst(b: ("warn" | "bad" | null)[]): ("warn" | "bad" | null)[] {
-    const out: ("warn" | "bad" | null)[] = [];
+function worst(b: Mark[]): Mark[] {
+    const out: Mark[] = [];
     for (let i = 0; i < b.length; i += 4) {
-        const xs = b.slice(i, i + 4);
-        if (xs.includes("bad")) {
+        const xs = new Set(b.slice(i, i + 4));
+        if (xs.has("bad")) {
             out.push("bad");
-        } else if (xs.includes("warn")) {
+        } else if (xs.has("warn")) {
             out.push("warn");
         } else {
             out.push(null);

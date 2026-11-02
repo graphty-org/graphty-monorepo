@@ -355,7 +355,7 @@ export function cellHtml(c: Cell): string {
             return `<span class="mk ${c.state}">${cellHtml(c.cell)}</span>`;
         case "state": {
             const chip = c.state === "idle" ? `<span class="sw low">idle</span>` : stateChip({ state: c.state });
-            return c.link ? `<a class="sw low ln" href="${href(c.link)}">${chip.replaceAll(/<[^>]+>/g, "")}</a>` : chip;
+            return c.link ? `<a class="sw low ln" href="${href(c.link)}">${chip.replace(/<[^>]+>/g, "")}</a>` : chip;
         }
         case "spark":
             return sparkline(c.spark, clock.generated, "projection by day");

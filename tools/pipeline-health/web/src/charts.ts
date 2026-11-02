@@ -231,7 +231,7 @@ export function sortedBars(
         caption,
         ["item", "value"],
         items.map((i) => [
-            cellHtml(i.label).replaceAll(/<[^>]+>/g, ""),
+            cellHtml(i.label).replace(/<[^>]+>/g, ""),
             i.unit === "usd" ? `${fmtN(i.n)} USD` : fmtUnit(i.n, i.unit),
         ]),
     );

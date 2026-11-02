@@ -3488,7 +3488,17 @@ function judgeLabel(
         const [ob, gb] = [center(place.o), center(place.g)];
         const oc: Pt = [oc0[0] - ob[0], oc0[1] - ob[1]];
         const gc = place.vec([gc0[0] - gb[0], gc0[1] - gb[1]]);
-        const d = Math.hypot(oc[0] - gc[0], oc[1] - gc[1]);
+        // Other words make a box of another width, so their middles part where the words start or end together
+        // (pajek-iliad 204: Pajek draws the UTF-8 name as Latin-1, a character longer, from the same start). The
+        // words' difference is label.text's; here the label is in place when its start, middle or end is.
+        const ends = norm(o.content) === norm(g.content) ? [0] : [-1, 0, 1];
+        const d = Math.min(
+            ...ends.map((s) => {
+                const gs = place.vec([(s * (g.box.x1 - g.box.x0)) / 2, 0]);
+                const os = (s * (o.box.x1 - o.box.x0)) / 2;
+                return Math.hypot(oc[0] + os - gc[0] - gs[0], oc[1] - gc[1] - gs[1]);
+            }),
+        );
         const near = Math.max(T.labelOffsetOfSize * o.sizePx, place.pixel);
         j.add("label.offset", kind, id, Math.max(0, d / near - 1), oc, gc);
         const [oa, ga] = [labelAnchor(o, place.o), labelAnchor(g, place.g)];

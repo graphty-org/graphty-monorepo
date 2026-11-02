@@ -289,6 +289,17 @@ describe("label checks", () => {
         assert.deepEqual(pair(114)["label.anchor"], ["a"]);
     });
 
+    it("places other words by their start, middle or end, and the same words by their middle", () => {
+        // pajek-iliad 204: the program's words are a character longer and start where graphty's start
+        const pair = (o: PText, g: PText): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: o }), scene("graphty", {}, { a: g }));
+        const at = (content: string, x0: number, w: number): PText => text(content, x0 + w / 2, 130, {}, w);
+        assert.deepEqual(pair(at("Abcd", 120, 60), at("A", 120, 30))["label.offset"], undefined);
+        assert.deepEqual(pair(at("Abcd", 110, 60), at("A", 175, 30))["label.offset"], ["a"]);
+        // the same words started where the program centers them still fail
+        assert.deepEqual(pair(at("A", 85, 30), at("A", 100, 30))["label.offset"], ["a"]);
+    });
+
     it("fails a halo graphty does not draw round the letters, and one of another color or width", () => {
         const halo = { color: "#ff0000", opacity: 1, width: 2 };
         assert.deepEqual(labelPair({ outline: null }, { outline: halo }), { "label.outline": ["a"] });

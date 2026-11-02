@@ -13,6 +13,11 @@ Beside these real files, every format has specimen sheets: small synthetic files
 element, drawn by the format's own program, so each setting is judged on its own (`specimens/README.md`). Their
 oracles sit in `oracles/` with the samples' and are judged by the same oracle report.
 
+A sample that names a picture by a URL on the internet is drawn without the network: graphty-element's fidelity
+harness answers the URL from a copy in `pictures/` (`SAMPLE_PICTURES` in `graphty-element/vitest.config.ts`).
+`pictures/cytoscape-logo.png` is the cytoscape.js logo (MIT), which the Cytoscape samples' custom graphics and image
+annotations name.
+
 Where a route matches elements by something other than the file's own id, the comparer maps it:
 
 - `cytoscape-desktop`, `cytoscape-gml`, `cyjs-hop`: the node `name` column. For XGMML and CX that is

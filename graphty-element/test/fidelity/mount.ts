@@ -11,6 +11,13 @@ import type { Scene } from "../../../graph-io/test/fidelity/scene";
 import type { Graphty } from "../../index.js";
 import { createSampleElement, importSample, PRE_STEPS, sampleData, SEED } from "./load-sample";
 
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Answers each picture a sample names on the internet from its committed copy (vitest.config.ts). */
+        serveSamplePictures: () => Promise<void>;
+    }
+}
+
 export { drawnScene, nodeKeys } from "./load-sample";
 
 export const WIDTH = 800;
@@ -74,6 +81,8 @@ export async function mountSample(
     formatOptions?: Readonly<Record<string, unknown>>,
 ): Promise<{ element: Graphty; sha256: string; command: string }> {
     unmount();
+    // a picture the sample names on the internet is answered from its committed copy: no test reaches the network
+    await commands.serveSamplePictures();
     const { sha256, data } = await readSample(sample.file);
     blobUrl = URL.createObjectURL(data);
 

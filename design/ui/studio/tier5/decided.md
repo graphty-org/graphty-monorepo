@@ -798,3 +798,56 @@ reviews above judged their build, so nothing of it was left unverified.
   per scope; per-step computed values for the strip; saving a ticked community as "the group of X";
   GraphML node names (owner question). Fit after the Table toggles was not reproduced on Les
   Miserables (see the round's check).
+
+## Dry run pass 1, 2026-11-02 (Design Director)
+
+From the triage of the round 1 pilots on baac78342b (`dry-run-r1-1.md`). Each entry narrows an entry
+above; none reverses one.
+
+- **How the dry run classes a known severity 3 candidate.** A candidate `criteria.md` item 8 names
+  (the false "covered" claim, two count bases for one layer, the data table and the matches strip
+  drawn together, a 50,000-node edit with no sign of work) is fixed in the dry run even where it
+  blocks no single step: item 8 refuses every session while one is open. A 50,000-node edit that
+  blocks input with nothing on screen is treated as a frozen app ("Large graphs": a reader takes it
+  for a hang). Why: the dry run's rule fixes only crashes, blocks and spoiled grades, and item 8 is
+  the gate the round cannot pass with these open.
+- **The data table never takes an editor's selection.** While a workspace is open the data table is
+  not drawn and is inert (no Tab stop, no F6 stop); the matches strip is the only table under the
+  preview, on the selection's own side (Nodes or Edges), its header and first column whole. Adding a
+  layer, selecting a layer or a filter card, or a hover never switches the data table to Matches only
+  or adds a Group column. After Done or Cancel the data table is as it was before the workspace
+  opened. Narrows "Owner question 1" and "A preview's table is the workspace's strip" (placement):
+  the main table's Group column and Matches only were the preview's, and the strip took that job.
+  Why: after Done the table kept the last card's matches (T75 A listed 549 while 112 were drawn; T71 B
+  and T77 B listed 3 while 1 was), so a reader counting from it reports a wrong answer; and two tables
+  under one preview is a severity 3 candidate in `criteria.md` item 8.
+- **A test's mode is the step's own.** The number test's By value | By position and the date test's
+  Before | After | Between are kept by the step from the moment they are picked, before any bound is
+  typed (an untouched step is inert, as decided); reopening the step shows the mode picked. Changing
+  a date test's mode keeps the date already typed: Before and After share one date, Between takes
+  Before's date as its "to" and After's as its "from". Narrows placement editor fix 6 ("By position
+  starts untouched"). Why: By position on a Results value emptied the step (T74 A and B success
+  paths), and the date mode select fell back to Before and dropped the typed date (T72 B), because
+  the mode was not held by the step; dropping a typed date loses work (spec reviews reversal: a
+  step's work is never dropped).
+- **Cancel on a new filter card takes the card away**, as the selection was at open: there was no
+  card. Focus returns to what opened the workspace; the screen reader hears "Filter not added" (the
+  words Escape on a new card's picker already says). Narrows placement "Cancel restores". Why: the
+  empty card stayed switched on and saved (T70 B, T79 A), and T71, T77 and T79 grade the number of
+  filter cards.
+- **Every count in the style host reads over the style selector's base**, the graph the filter
+  leaves drawn: a layer's row, Everything's pane ("styles all N"), the Which nodes header and the
+  canvas key's "of N". Narrows the panel entry "The style selector's whole graph is what the filter
+  leaves drawn", which the key and the rows did not follow ("two bases, a known finding" in
+  `answers.md`). graphty-element offers the count over that base additively; what it returns today
+  is unchanged. Why: one layer read "24", "10 of 10" and "of 24" at once (T72 A, T72 B, T77 A); a
+  count over a base nobody can tell is severity 3 (`criteria.md`).
+- **A field is said to be covered only when the canvas draws another layer's paint on it.** The Fill
+  row's "Covered by" and the key's "covered by" are read after a preview ends and after a selector
+  write's repaint settles, from graphty-element's own reading. Why: the key and the drawing never
+  disagree; eight pilots read "covered by" a lower layer while the canvas drew the layer's color.
+- **An edit that blocks input shows that it is working first.** Opening the workspace, a tick, Done
+  and a new card on a large graph draw the header's "Drawing" (workspace polish rounds 1 and 3) in
+  the frame of the click or key that started them, before the blocking work, until
+  `waitForPainted()` resolves. Why: on 50,000 nodes each edit blocked input 3 to 17 s with nothing on
+  screen (T79 B), which `criteria.md` "Large graphs" calls a hang.

@@ -5,19 +5,28 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-02 (tier 5 criteria reviewed and frozen on d13c2ff3da for the dry run).
+Last updated: 2026-11-02 (tier 5 dry run pass 1 triaged on baac78342b: 319 defects, 7 fix units).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
 2026-10-30 (five times) and 2026-11-02; the full earlier text is in this file's git history.
 
 ## Top of mind
 
-- (2026-11-02) TIER 5 CRITERIA FROZEN for the dry run: build d13c2ff3da, copied read-only to the main
-  checkout's `tmp/design-studio/tier5/builds/tier5-r1d1-d13c2ff3da`. Each dry-run fix pass refreezes and
-  names the build before it on line 3.
-- (2026-11-02) Five known severity 3 candidates must be fixed before round 1 (criteria item 8): T75 A blocked
-  (no So far on Largest component), false "Covered by Everything", two count bases (layer "of 14" vs key
-  "of 24"), table and matches strip drawn together, 50k input delay with no sign of work. The dry run may now
-  fix them. If T75 A is unfixed after two passes, rewrite it on a network already in pieces.
+- (2026-11-02) DRY RUN PASS 1 TRIAGED (`tier5/dry-run-r1-1.md`): 319 pilot defects on baac78342b; 33 fix
+  now in 7 units (covered-claim, main-table, test-mode, reference-names, cancel-new-card,
+  style-count-base, busy-sign), 7 decided, 4 design questions, 275 backlog (50 of them "decided, not
+  built"). The next pass re-walks exactly the units' routes and checks criteria item 8 again.
+- (2026-11-02) Criteria item 8 makes every named severity 3 candidate a round blocker, so the dry run
+  fixes them even where no single step is blocked (rule in `tier5/decided.md`, "Dry run pass 1").
+  T75 A is no longer blocked: the Piece size So far route reaches 105.
+- (2026-11-02) 50 backlog rows break behaviors decided.md already settles (pickers flipping over the
+  header, the camera moving on a click, a resting card not opening on a click, the older editor from
+  New layer from selection). The decide-and-fix loop takes those first, before any new decision.
+- (2026-11-02) The round 1 study build is baac78342b (`criteria.md` line 1, served from the main
+  checkout's `.study-builds/tier5-r1-baac78342b`); criteria were frozen on d13c2ff3da. Each dry-run
+  fix pass refreezes and names the build before it on line 3.
+- (2026-11-02) Criteria item 8's five severity 3 candidates: four sent to fix in pass 1 (covered-claim,
+  style-count-base, main-table, busy-sign); T75 A is unblocked by Piece size So far, so its rewrite is
+  off unless a re-walk fails. So far on Largest component stays backlog (spec 4.2).
 - (2026-11-02) Bar 9 is three parts: calm-first (0 sev 3-4, at most 3 sev 2), no screen named as the reason
   for a 4+ in two sessions on different halves, and the median <= 2 ONLY if the rating check separates the
   rejected build (7dfd51c277) from the frozen one by 2+ points. The calm-first check must fail the rejected
@@ -82,6 +91,19 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Decisions and reasons
 
+- **2026-11-02, dry run pass 1 triage** (`tier5/dry-run-r1-1.md`, entries in `tier5/decided.md`). Fix
+  now: the false "covered" claim (8 pilots; a repeat of polish round 1's element fix), the data table
+  drawn under the workspace and keeping the last card's Matches only after Done (T75 A read 549 for
+  112; criteria item 8), the test mode lost (By position empties a Results step, T74 both halves; the
+  date mode stuck on Before, T72 B), the reference search missing a name column (T73 A; a repeat of
+  repolish 2), Cancel leaving a new filter card saved, one layer counted over two bases, and a busy
+  sign before a 50,000-node edit blocks input. Why these and no more: the dry run makes the build
+  session-ready, and criteria item 8 names four of them. Not taken: pickers flipping and the camera
+  moving (Escape and the panels' counts get past them), Visibility Hidden's "Show:" key (every route
+  through it is not-success), every T76 row (no sessions), every keyboard-only row (the a11y walk).
+  Settled: an item 8 candidate is fix now; a blocking 50k edit with no sign is a frozen app; the data
+  table never takes an editor's selection; a test's mode is the step's own; Cancel on a new card
+  removes it; style counts read the filtered graph; "covered" only when the canvas shows it.
 - **2026-11-02, tier 5 criteria reviewed and frozen** (three reviews: researcher 81e993f52d, user advocate
   65a6f779a1, red team 6946dd5032; they agreed on most points). Taken: bar 9 split into calm-first (gating
   sev 2 at most 3, with counts of what is drawn, gaps, row breaks, alignment, words budget, at 1440 x 900 and
@@ -116,6 +138,12 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (dry run pass 1) -- Worked: reading `criteria.md` item 8 before classing (it turned four
+  "friction" candidates into round blockers); reading the source behind each unit before naming files
+  (the main table follows `editingSelection`, which an editor at rest keeps; the date mode is lost
+  because a card with no bound reads back as Before); generating `backlog.md` from the triage's rows
+  with a script and counting classes from the file (319 rows matched the brief). Did not work: a
+  first regex that dropped rows with an empty reason cell (112 of 275); caught by checking the total.
 - 2026-11-02 (tier 5 criteria) -- Worked: reading the answer key's build notes against each bar to find bars
   that would fail by construction (five candidates); grepping the catalog's `keywords` for prompt words (it
   found "neighbors" behind "neighboring", which the noun list could not); checking the dist's
@@ -134,6 +162,11 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Thinking
 
+- **2026-11-02, dry run pass 1:** the pilots found more "decided, not built" than new problems. A fix
+  round that is graded on spoils alone leaves those standing (tier 4's lesson again), so the backlog
+  carries them as their own first section and the decide-and-fix loop must take them before deciding
+  anything new. The most damaging defect was a quiet one: a table that keeps showing the last thing
+  edited reads as an answer.
 - **2026-11-02, tier 5 criteria:** the owner's complaint is mostly severity 2 clutter, and every earlier tier
   gated only severity 3-4. A bar built from his words that cannot see his words is the same failure as a
   success bar the model always meets. So the instrument is now tested against the build he rejected before
@@ -153,6 +186,8 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 ## Sources
 
 - Tier 5: `tier5/{criteria,tasks,answers,roster,decided,owner-feedback-2026-11-01,placement-study}.md`;
+  dry run triage `tier5/dry-run-r1-1.md` and `tier5/backlog.md`; pilots under the main checkout's
+  `tmp/design-studio/tier5/r1/pilot/<task>/`;
   reviews in `notes/{researcher,user,redteam}.md` (81e993f52d, 65a6f779a1, 6946dd5032); frozen build
   `tmp/design-studio/tier5/builds/tier5-r1d1-d13c2ff3da` (main checkout); rejected-card build copy
   `tmp/design-studio/tier5/prep/build-7ca4cae647`; walks `tmp/design-studio/tier5/materials/p1..p9`.

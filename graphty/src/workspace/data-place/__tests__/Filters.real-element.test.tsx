@@ -317,7 +317,8 @@ describe("Filter cards on the real element", () => {
                 branches: [{ start: "none", steps: [{ op: "add", rule: { kind: "degree", min: 3 } }] }],
             },
         });
-        const selects = await card(/^Degree min 3/);
+        // A saved Select card reads in its own words (repolish 2): "Select Degree min 3".
+        const selects = await card(/^Select Degree min 3/);
         assert.isTrue((selects.getByRole("checkbox", { name: /^Use / }) as HTMLInputElement).checked);
         const matched = session.visibility.conditionCounts().find((each) => each.id === "out")?.nodes?.matched ?? 0;
         const total = session.data.statistics().nodeCount;

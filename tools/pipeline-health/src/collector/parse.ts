@@ -75,7 +75,7 @@ export interface GhJob {
 }
 
 const ms = (iso: string | null | undefined): number | undefined => (iso ? Date.parse(iso) : undefined);
-const msOr = (iso: string | null): number => (iso ? Date.parse(iso) : NaN);
+const msOr = (iso: string | null): number => (iso ? Date.parse(iso) : Number.NaN);
 const opt = <K extends string, V>(k: K, v: V | undefined | null): Partial<Record<K, V>> =>
     (v === undefined || v === null ? {} : { [k]: v }) as Partial<Record<K, V>>;
 
@@ -633,7 +633,7 @@ function ownerPattern(pat: string): RegExp {
     const body = (pat.startsWith("/") ? pat.slice(1) : `**/${pat}`).replace(/\/$/, "");
     const re = body
         .split("**/")
-        .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replaceAll("*", "[^/]*"))
+        .map((part) => part.replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`).replaceAll("*", "[^/]*"))
         .join("(?:.*/)?");
     return new RegExp(`^${re}(?:/.*)?$`);
 }
@@ -734,8 +734,8 @@ export function prStages(runs: PrRun[], mergedAt: number): PrStages | undefined 
             s.red += Math.max(0, Math.min(rs[i + 1]?.[0] ?? mergedAt, mergedAt) - end);
         }
     });
-    const last = rs[rs.length - 1];
-    if (last[3]) {
+    const last = rs.at(-1);
+    if (last?.[3]) {
         s.merging = Math.max(0, mergedAt - last[2]);
     }
     return s;
@@ -1200,12 +1200,13 @@ export function workflowState(workflow: string, all: GhRun[], nowMs: number): Wo
     );
     const streak = failedStreak(runs);
     const replaced = replacedRuns(runs);
+    const first = streak.at(-1);
     return {
         workflow,
         runs: day.length,
         failed: day.filter((r) => BAD.has(r.conclusion ?? "") && !replaced.has(r.id)).length,
         inRow: streak.length,
-        ...(streak.length ? { since: Date.parse(streak[streak.length - 1].created_at) } : {}),
+        ...(first ? { since: Date.parse(first.created_at) } : {}),
     };
 }
 
@@ -1352,11 +1353,12 @@ export function llmCost(
     const paid = (j.steps ?? []).filter(
         (s) => s.name === step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
     );
-    if (!paid.length) {
+    const lastPaid = paid.at(-1);
+    if (!lastPaid) {
         return undefined;
     }
     const logged = (j.steps ?? []).map((s) => LLM_COST_STEP.exec(s.name)?.[1]).find((v) => v !== undefined);
-    const end = Date.parse(paid[paid.length - 1].completed_at ?? j.completed_at ?? j.created_at);
+    const end = Date.parse(lastPaid.completed_at ?? j.completed_at ?? j.created_at);
     return {
         kind: "cost",
         id: `llm#${repo}/${j.id}`,

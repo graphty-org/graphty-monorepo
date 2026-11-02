@@ -75,8 +75,8 @@ const cmp = (op: Cmp["op"], n: number, unit?: Cmp["unit"]): Cmp => (unit ? { op,
 function ramp(a: number, b: number, n: number): number[] {
     return Array.from({ length: n }, (_, i) => +(a + ((b - a) * i) / Math.max(1, n - 1)).toFixed(2));
 }
-const flat = (v: number, n: number): number[] => Array(n).fill(v);
-const nulls = (n: number): null[] => Array(n).fill(null);
+const flat = (v: number, n: number): number[] => new Array<number>(n).fill(v);
+const nulls = (n: number): null[] => new Array<null>(n).fill(null);
 
 /**
  * Green when the target holds, red when the red comparison holds, yellow between.
@@ -390,7 +390,7 @@ const ciMembers: Member[] = [
         id: "ci.pr_duration",
         window: "1h6h",
         value: num(0.9, "x"),
-        value6h: num(1.0, "x"),
+        value6h: num(1, "x"),
         n: 6,
         minN: 5,
         sla: SLA.prDuration,
@@ -508,7 +508,7 @@ const flakeRate = member({
     sla: SLA.flakeRate,
     spark: spark(
         nulls(18),
-        [...nulls(10), 0.9, 0.9, 1.0, 1.15, 1.3, 1.45, 1.46, 1.33, 1.2, 1.1, 1.1, 1.2, 1.33, 1.4],
+        [...nulls(10), 0.9, 0.9, 1, 1.15, 1.3, 1.45, 1.46, 1.33, 1.2, 1.1, 1.1, 1.2, 1.33, 1.4],
         SLA.flakeRate,
     ),
     note: f("flaky.flake_rate.note", { since: t("20:42") }),

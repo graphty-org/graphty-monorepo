@@ -154,11 +154,15 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     <TimeDock />
                     {dockOpen ? (
                         // Maximized, the dock covers the canvas area (table.css), so it takes no height
-                        // of its own and has nothing to resize.
+                        // of its own and has nothing to resize. Under an open selection workspace it
+                        // keeps its place (the canvas is not resized) but is not drawn and takes no
+                        // input or focus: the workspace's matches strip is the one table there.
                         <section
                             className="ws-dock"
                             aria-label="Table"
                             data-maximized={dockMaximized ? "" : undefined}
+                            data-covered={covered === null ? undefined : ""}
+                            inert={covered !== null}
                             style={dockMaximized ? undefined : { height: dockHeight }}
                         >
                             {dockMaximized ? null : (

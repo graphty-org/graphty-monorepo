@@ -7,15 +7,7 @@ import {
     SegmentedControl,
     UiGlyph,
 } from "@graphty/compact-mantine";
-import type {
-    DataIssue,
-    EdgeId,
-    GraphSession,
-    IssueId,
-    NodeId,
-    ScopeInput,
-    SummaryGroup,
-} from "@graphty/graphty-element/session";
+import type { DataIssue, GraphSession, IssueId, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Chip, Menu, Pill, Tabs, Text, Tooltip } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import React, { useEffect, useRef, useState } from "react";
@@ -24,8 +16,6 @@ import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape, isTypingTarget } from "../keys/keys";
 import { runName } from "../runWords";
-import { useEditedSelection } from "../selection/useSteps";
-import { letterOf } from "../selection/words";
 import { formatCount, useNumberFormats } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -112,15 +102,12 @@ interface Arrangement {
     readonly views: Readonly<Record<RecordKind, View>>;
     readonly members: Members | null;
     readonly all: boolean;
-    /** While a selection is edited: only the rows it matches (spec 8), on until the reader turns it off. */
-    readonly matchesOnly: boolean;
 }
 
 const FIRST_ARRANGEMENT: Arrangement = {
     views: { node: EMPTY_VIEW, edge: EMPTY_VIEW },
     members: null,
     all: false,
-    matchesOnly: true,
 };
 
 /**
@@ -572,10 +559,6 @@ interface StripFiltersProps {
     dock: Pick<DockScope, "active" | "kind" | "groupRun" | "shownMembers" | "filtered">;
     /** Whether the reader asked for all records. */
     all: boolean;
-    /** Whether Matches only lists a selection over the whole graph, which Shown cannot narrow. */
-    wholeMatches: boolean;
-    /** Matches only, while a selection is edited on this side; null otherwise. */
-    matchesOnly: boolean | null;
     /** How many rows an open issue is on. */
     withIssues: number;
     /** The issue the rows are narrowed to, or null. */
@@ -591,8 +574,6 @@ interface StripFiltersProps {
  * @param props - Component props
  * @param props.dock - what the dock lists
  * @param props.all - whether the reader asked for all records
- * @param props.wholeMatches - whether Matches only lists a selection over the whole graph
- * @param props.matchesOnly - Matches only while a selection is edited on this side, else null
  * @param props.withIssues - how many rows an open issue is on
  * @param props.issue - the issue the rows are narrowed to
  * @param props.arrange - changes the arrangement
@@ -603,8 +584,6 @@ interface StripFiltersProps {
 function StripFilters({
     dock,
     all,
-    wholeMatches,
-    matchesOnly,
     withIssues,
     issue,
     arrange,
@@ -625,40 +604,16 @@ function StripFilters({
                 />
             ) : null}
             {filtered && groupRun === undefined && (kind === "edge" || shownMembers === null) ? (
-                // A selection over the whole graph (a filter's) lists its matches shown or not:
-                // Shown cannot narrow it, so All is pressed and the segment waits, its reason in
-                // the tooltip.
-                <Tooltip label="Matches only lists every match, shown or not" disabled={!wholeMatches}>
-                    <div>
-                        <SegmentedControl
-                            size="xs"
-                            aria-label="Records"
-                            value={all || wholeMatches ? "all" : "shown"}
-                            disabled={wholeMatches}
-                            data={[
-                                { value: "shown", label: "Shown" },
-                                { value: "all", label: "All" },
-                            ]}
-                            onChange={(value) => {
-                                arrange({ all: value === "all" });
-                            }}
-                        />
-                    </div>
-                </Tooltip>
-            ) : null}
-            {groupRun === undefined && matchesOnly !== null ? (
-                // compact-mantine's segment, as "Shown | All" beside it: Mantine's bare Chip
-                // draws white on the brand color, under 3:1.
                 <SegmentedControl
                     size="xs"
-                    label="Rows"
-                    value={matchesOnly ? "matches" : "all"}
+                    aria-label="Records"
+                    value={all ? "all" : "shown"}
                     data={[
-                        { value: "matches", label: "Matches only" },
+                        { value: "shown", label: "Shown" },
                         { value: "all", label: "All" },
                     ]}
                     onChange={(value) => {
-                        arrange({ matchesOnly: value === "matches" });
+                        arrange({ all: value === "all" });
                     }}
                 />
             ) : null}
@@ -751,9 +706,9 @@ export function TableDock(): React.JSX.Element {
     useEffect(() => {
         ARRANGEMENTS.set(store, arrangement);
     }, [store, arrangement]);
-    const { views, all, matchesOnly } = arrangement;
-    const edited = useWorkspaceState((state) => state.editingSelection);
-    const editedReading = useEditedSelection(session, edited?.rule ?? null);
+    // The table never reads a selection an editor holds: the workspace's matches strip lists its
+    // matches, and the table stays as the reader arranged it (it is hidden while the workspace is open).
+    const { views, all } = arrangement;
 
     // Show in table: bring the asked-for column into view, checking it first if the reader
     // unchecked it, then forget the ask.
@@ -817,17 +772,11 @@ export function TableDock(): React.JSX.Element {
         );
     }
 
-    const {
-        groups,
-        hasEdges,
-        active,
-        kind,
-        groupRun,
-        shownMembers,
-        shownCount,
-        filtered,
-        scope: listed,
-    } = dockScope(session, tab, arrangement);
+    const { groups, hasEdges, active, kind, groupRun, shownMembers, shownCount, filtered, scope } = dockScope(
+        session,
+        tab,
+        arrangement,
+    );
     const choices = columnChoices(session, kind);
     const view = views[kind];
     const isHidden = (choice: TableColumnChoice): boolean => choice.hidden === true || view.hidden.includes(choice.id);
@@ -837,29 +786,6 @@ export function TableDock(): React.JSX.Element {
         view,
     );
     const sorted = visible.find((choice) => choice.id === view.sort?.id);
-    // While a selection is edited on this side: its Group column, and only its matches unless asked.
-    const picked = editedReading !== null && editedReading.rule.side === `${kind}s` ? editedReading : null;
-    const pickedScope =
-        picked === null || !matchesOnly
-            ? null
-            : (picked.branches.find((branch) => branch.id === edited?.branch)?.members ?? picked.result);
-    const groupOf =
-        picked === null
-            ? undefined
-            : (id: NodeId | EdgeId): { name: string; color: string } | null => {
-                  const branchId = picked.branchOf(id);
-                  const at = picked.rule.branches.findIndex((branch) => branch.id === branchId);
-                  const branch = picked.rule.branches[at];
-                  // One group is the selection itself, named by the selection's title as the key names it.
-                  const single = picked.rule.branches.length === 1 ? edited?.title : undefined;
-                  return branch === undefined
-                      ? null
-                      : { name: branch.name ?? single ?? letterOf(at), color: branch.color ?? "" };
-              };
-    // Matches only over the whole graph (a filter's selection) lists rows the filter removed.
-    const wholeMatches = pickedScope !== null && picked?.rule.within === "graph";
-    const scope: ScopeInput = pickedScope ?? listed;
-    const pickedKey = pickedScope === null ? "" : `:${JSON.stringify(pickedScope)}`;
     const tableHeight = Math.max(MIN_TABLE_HEIGHT, bodyHeight);
     const issues = issuesByColumn(session, kind, choices);
     const issueColumns = new Map([...issues].map(([column, list]) => [column, list.map((issue) => issue.id)]));
@@ -957,8 +883,6 @@ export function TableDock(): React.JSX.Element {
                 <StripFilters
                     dock={{ active, kind, groupRun, shownMembers, filtered }}
                     all={all}
-                    wholeMatches={wholeMatches}
-                    matchesOnly={picked === null ? null : matchesOnly}
                     withIssues={withIssues}
                     issue={view.issue}
                     arrange={arrange}
@@ -992,9 +916,8 @@ export function TableDock(): React.JSX.Element {
             <Tabs.Panel value={active} className="ws-table-body" ref={bodyRef}>
                 {groupRun === undefined ? (
                     <RecordTable
-                        key={`${tableKey(kind, shownMembers, scope === "visible" ? shownCount : null, view.issue)}${pickedKey}`}
+                        key={tableKey(kind, shownMembers, scope === "visible" ? shownCount : null, view.issue)}
                         session={session}
-                        groupOf={groupOf}
                         kind={kind}
                         columns={visible}
                         scope={scope}

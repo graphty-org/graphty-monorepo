@@ -24,6 +24,20 @@ Trimmed again 2026-11-02: the 2026-10-30 study tool facts (scripted bars, the ga
 folders, the wording check, the matcher's role names, data panel selectors, `REAL_WARM_POOL=0`,
 one background script per re-walk): `git show 42601df9bf:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) The data table never takes an editor's selection (decided.md, "Dry run pass 1").
+  Cause: `TableDock` read the store's `editingSelection` (Group column, "Matches only", whole-graph
+  matches), and an editor at rest keeps holding that slot after Done, so the table kept the last
+  card's matches (T75 A 549 listed, 112 drawn). Fix in the app (no element change): `TableDock`
+  no longer reads `editingSelection` at all (Matches only and its Group column are gone from it;
+  the strip owns them); `Frame` keeps the dock's box while a selection workspace is open but marks
+  it `inert` and `data-covered` (CSS `visibility: hidden`), so the canvas is not resized and the
+  strip is the one table under the preview; the Table command's focus-the-grid step now keys on
+  `selectionWorkspace`, not `editingSelection` (which outlives Done). `editingSelection` still
+  feeds the canvas key's preview, the strip's group chip and Filters. Test:
+  `graphty/src/workspace/table/__tests__/TableEditorSelection.real-element.test.tsx` (fails on the
+  pre-fix sources at the inert check; with only the old TableDock its after-Done rows wait never
+  settles, so it fails only at the 15-minute wait guard -- stop such a run rather than sit on it).
+
 - (2026-11-02) The reference search ("Within N hops of", `nodePage({ matching: { names: true } })`)
   found nobody by name on a graph FILE with no label column: every graph-file load sets
   `knownFields.nodeLabelPath` to `label` "whether or not this file has one" (`loadLabel` in

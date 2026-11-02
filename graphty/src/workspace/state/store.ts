@@ -97,8 +97,8 @@ export interface WorkspaceState {
     readonly dockIssue: string | null;
     /**
      * The selection open in an editor (a style layer's Which nodes / Which edges, or a filter
-     * card), as graphty-element holds it, and the group a filter's count chip narrowed the table
-     * to; null while none is open. The table draws its Group column and Matches only while one is.
+     * card), as graphty-element holds it, and the group a filter's count chip narrowed the matches
+     * strip to; null while none is open. The canvas key's preview reads it; the data table never does.
      */
     readonly editingSelection: {
         /** The editor that holds the slot: only it replaces or clears it. */

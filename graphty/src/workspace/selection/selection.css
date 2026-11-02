@@ -69,8 +69,12 @@
     text-overflow: ellipsis;
 }
 
+/* A tag gives way after the test and before the value: a Links condition can be long. */
 .sel-tag {
-    flex: none;
+    flex: 0 100 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     padding-inline: 4px;
     border: 1px solid var(--mantine-color-default-border);
     border-radius: var(--mantine-radius-sm);
@@ -155,4 +159,100 @@
 
 .sel-more {
     flex: none;
+}
+
+/* The workspace (spec 3.0): one non-modal surface over the canvas column that edits a selection,
+   laid over the left panel and the canvas (a style layer's, whose inspector stays beside it) or
+   over the canvas and the inspector (a filter card's, whose Filters list stays beside it); the
+   editor measures where. No scrim: its center is transparent and lets clicks through to the
+   canvas, which it never re-frames. */
+.sel-ws {
+    position: fixed;
+    z-index: 20;
+    display: grid;
+    grid-template-rows: 40px minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+    pointer-events: none;
+}
+
+.sel-ws-head,
+.sel-ws-outline,
+.sel-ws-props,
+.sel-ws-strip,
+.sel-ws-preview .ws-legend-card,
+.sel-ws-fit {
+    pointer-events: auto;
+}
+
+.sel-ws-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-inline: 12px;
+    background: var(--cm-bg);
+    border-bottom: 1px solid var(--cm-border);
+    white-space: nowrap;
+}
+
+.sel-ws-title {
+    min-width: 0;
+}
+
+.sel-ws-body {
+    display: grid;
+    /* The outline as wide as its longest row, 200 to 280 px; the properties at 320 px. */
+    grid-template-columns: fit-content(280px) minmax(0, 1fr) auto;
+    min-height: 0;
+}
+
+.sel-ws-outline {
+    min-width: max(200px, var(--sel-ws-cover-start, 0px));
+    max-width: max(280px, var(--sel-ws-cover-start, 0px));
+    overflow: hidden auto;
+    padding: 4px;
+    background: var(--cm-bg);
+    border-inline-end: 1px solid var(--cm-border);
+}
+
+.sel-ws-center {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+}
+
+/* The strip takes 30% of the workspace's height under the preview. */
+.sel-ws-center[data-strip] {
+    grid-template-rows: minmax(0, 1fr) 30%;
+}
+
+.sel-ws-preview {
+    position: relative;
+    min-height: 0;
+}
+
+.sel-ws-fit {
+    position: absolute;
+    inset-block-start: 8px;
+    inset-inline-end: 8px;
+}
+
+.sel-ws-strip {
+    min-height: 0;
+    overflow: hidden;
+    background: var(--cm-bg);
+    border-top: 1px solid var(--cm-border);
+}
+
+.sel-ws-props.sel-pane-box {
+    border-top: 0;
+}
+
+.sel-ws-props {
+    width: max(320px, var(--sel-ws-cover-end, 0px));
+    overflow: hidden auto;
+    padding: 8px;
+    background: var(--cm-bg);
+    border-inline-start: 1px solid var(--cm-border);
 }

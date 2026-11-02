@@ -399,6 +399,9 @@ function FilterCard({
     // A card opened from its row takes focus on its title row once the editor draws, so the next
     // Space switches its on box rather than landing on "Add filter".
     const focusOnOpen = useRef(false);
+    // Opened from its row while another selection's workspace is open: the workspace switches to
+    // this card (selection spec 3.0).
+    const switchIn = useRef(false);
     useEffect(() => {
         if (!open || !focusOnOpen.current) {
             return;
@@ -564,6 +567,7 @@ function FilterCard({
                         }
                         openFirst={draft && !stepless}
                         openPicker={draft && stepless && !switched}
+                        openTitle={(draft && switched) || switchIn.current}
                         hostPicks={timePick(() => {
                             if (draft) {
                                 onDiscard();
@@ -591,6 +595,7 @@ function FilterCard({
                             aria-expanded={open}
                             onClick={() => {
                                 focusOnOpen.current = !open;
+                                switchIn.current = !open && store.get().selectionWorkspace !== null;
                                 onOpen(!open);
                             }}
                         >

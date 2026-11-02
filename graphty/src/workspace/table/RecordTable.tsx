@@ -57,6 +57,9 @@ function cellValue(
     return tableValue(timeValue(session, value, column.descriptor?.type === "time"));
 }
 
+/** Fired with a node id when a row is clicked while Pick on canvas is armed (the selection's reference picker). */
+export const PICK_NODE_EVENT = "graphty-pick-node";
+
 /** Props for RecordTable. */
 interface RecordTableProps {
     session: GraphSession;
@@ -315,6 +318,12 @@ export function RecordTable({
                     const real = known.get(id);
                     return real === undefined ? [] : [real];
                 });
+                // Pick on canvas is armed: the row clicked is the reference, and the selection stays.
+                const clicked = picked.find((id) => !selected.some((each) => String(each) === String(id)));
+                if (document.body.dataset.pickingNode !== undefined && kind === "node" && clicked !== undefined) {
+                    window.dispatchEvent(new CustomEvent(PICK_NODE_EVENT, { detail: clicked }));
+                    return;
+                }
                 // The ids come from the page just read, so the element has no reason to refuse them;
                 // if it does, the selection it already has stays, which is what the table shows.
                 session.selection

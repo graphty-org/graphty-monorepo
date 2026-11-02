@@ -177,7 +177,8 @@ export function tabStops(root: ParentNode): HTMLElement[] {
 /**
  * The regions F6 and Shift+F6 move between, in order, as a desktop application's do -- the one
  * place the app's F6 ring is defined: the top bar, the places rail, the left panel, then the
- * inspector that edits what it picks (one press from a layer to its style), the drawing, the
+ * selection workspace while it is open, the inspector that edits what it picks (one press from a
+ * layer to its style), the drawing, the
  * timeline dock while a time field is designated, the canvas toolbar, the table while it is open,
  * the Data page while it stands in for the panels, and the status bar; then round to the top bar.
  * A hidden one is passed over. Inside each region Tab follows the order the region is drawn in
@@ -187,6 +188,8 @@ const PANELS = [
     ".ws-header",
     ".ws-rail",
     ".ws-left",
+    // The selection workspace, between the panel it covers and the one beside it (spec 3.0).
+    ".sel-ws",
     ".ws-right",
     ".ws-canvas graphty-element",
     // The timeline dock while a time field is designated: its brush is where focus lands.

@@ -5,11 +5,12 @@
  */
 
 import { LISTBOX_CLASS_NAMES, TargetTooltip } from "@graphty/compact-mantine";
-import type { GraphSession, StepReference } from "@graphty/graphty-element/session";
+import type { GraphSession, NodeId, StepReference } from "@graphty/graphty-element/session";
 import { ActionIcon, Combobox, Group, Input, InputBase, ScrollArea, useCombobox } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
+import { PICK_NODE_EVENT } from "../table/RecordTable";
 import { PICK_ON_CANVAS, referenceSections } from "./references";
 import type { Host } from "./values";
 import { referenceWords } from "./words";
@@ -100,6 +101,12 @@ export function ReferencePicker({
                 take.current({ nodes: [event.node] });
             }
         });
+        // A row of the matches strip, or the table, clicked while armed is the pick too.
+        const fromTable = (event: Event): void => {
+            setArming(false);
+            take.current({ nodes: [(event as CustomEvent<NodeId>).detail] });
+        };
+        window.addEventListener(PICK_NODE_EVENT, fromTable);
         const escape = (event: KeyboardEvent): void => {
             if (event.key === "Escape") {
                 event.stopPropagation();
@@ -111,6 +118,7 @@ export function ReferencePicker({
             delete document.body.dataset.pickingNode;
             stop();
             document.removeEventListener("keydown", escape, true);
+            window.removeEventListener(PICK_NODE_EVENT, fromTable);
         };
     }, [arming, session]);
     const typed = search.trim();

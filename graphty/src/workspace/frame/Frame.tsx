@@ -62,6 +62,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
     const dockMaximized = useWorkspaceState((state) => state.dockMaximized);
     const autosave = useWorkspaceState((state) => state.autosave);
+    // The selection workspace covers one side panel (spec 3.0): it takes no focus under it.
+    const covered = useWorkspaceState((state) => state.selectionWorkspace?.host ?? null);
     const panels = page === "panels";
     // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
     // to the graph's heading, or the open place's list while the inspector shows something else
@@ -107,7 +109,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 }
             >
                 <Rail />
-                <aside className="ws-left" aria-label="Left panel" hidden={!panels}>
+                <aside className="ws-left" aria-label="Left panel" hidden={!panels} inert={covered === "selector"}>
                     <div className="ws-panel-body">
                         <PanelBoundary key={place} name="Place">
                             {PLACES[place]}
@@ -179,7 +181,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 {/* Every pop-out opened in the inspector opens flush with its edge, level with
                     the row that opened it (Figma's right panel). */}
                 <Popout.Anchor>
-                    <aside className="ws-right" aria-label="Inspector" hidden={!panels}>
+                    <aside className="ws-right" aria-label="Inspector" hidden={!panels} inert={covered === "filter"}>
                         <div className="ws-panel-body">
                             <PanelBoundary name="Inspector">
                                 <Inspector />

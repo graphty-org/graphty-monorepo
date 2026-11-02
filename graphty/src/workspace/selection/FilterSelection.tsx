@@ -27,6 +27,7 @@ import type { PickSection } from "./values";
  * @param props.effect - the condition's effect, or undefined for a card not yet written
  * @param props.openFirst - selects the first step on arrival
  * @param props.openPicker - opens the value picker at once (a new card)
+ * @param props.openTitle - opens the workspace on the title row at once (a new card switched to edges)
  * @param props.hostPicks - the filter's own picker entries (Time window)
  * @param props.title - the card's name
  * @param props.lead - the card's on box
@@ -47,6 +48,7 @@ export function FilterSelection({
     effect,
     openFirst,
     openPicker,
+    openTitle,
     hostPicks,
     title,
     lead,
@@ -65,6 +67,7 @@ export function FilterSelection({
     effect: FilterCondition["effect"] | undefined;
     openFirst?: boolean;
     openPicker?: boolean;
+    openTitle?: boolean;
     hostPicks?: readonly PickSection[];
     title?: string;
     lead?: React.ReactNode;
@@ -88,7 +91,9 @@ export function FilterSelection({
             session={session}
             rule={local ?? rule}
             host="filter"
+            ownerName="Filters"
             openFirst={openFirst}
+            openTitle={openTitle}
             openPicker={openPicker}
             hostPicks={hostPicks}
             hold={id}

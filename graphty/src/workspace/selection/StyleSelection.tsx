@@ -59,6 +59,7 @@ export function StyleSelection({
             session={session}
             rule={local ?? held}
             host="selector"
+            ownerName={name}
             autoFocus={autoFocus}
             onChange={(next) => {
                 setLocal(next);

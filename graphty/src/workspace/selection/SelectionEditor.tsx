@@ -40,16 +40,19 @@ import {
     UnstyledButton,
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
+import { PreviewKey } from "../canvas/PreviewKey";
 import { focusInspectorTitle, focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { isTypingTarget, matchesKey } from "../keys/keys";
 import { useAnnounceChange } from "../state/useAnnounceChange";
-import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddCondition } from "../style/WhichPicker";
 import { colorName } from "../style/words";
+import { MatchesStrip } from "./MatchesStrip";
 import {
     addBranch,
     addStep,
@@ -59,6 +62,7 @@ import {
     editStep,
     moveBranch,
     moveStep,
+    newSelection,
     newVerb,
     removeBranch,
     removeStep,
@@ -82,6 +86,12 @@ import { countWords, letterOf, NOUNS, reasonWords, rowWords, stepWords, VERB_WOR
 /** Whether a host's preview shows group colors while picking, for the session (spec 9). */
 const groupColors: Record<Host, boolean> = { selector: true, filter: true };
 
+/** Whether the workspace shows its matches strip, per host for the session (spec 3.0). */
+const stripShown: Record<Host, boolean> = { selector: true, filter: true };
+
+/** Where focus returns when the workspace was opened by the sidebar's Edit button. */
+const EDIT = "edit";
+
 /** The title row's id among the rows. */
 const TITLE = "title";
 
@@ -93,8 +103,10 @@ interface SelectionEditorProps {
     readonly host: Host;
     /** Takes the next rule, which the host writes. */
     readonly onChange: (next: UnionLeaf) => void;
-    /** Escape with no row selected: the host may close or fold the editor. */
+    /** Escape on the sidebar's outline: the host may fold it. */
     readonly onDone?: () => void;
+    /** What the selection belongs to, after its name in the workspace's title ("Style layer 1", "Filters"). */
+    readonly ownerName?: string;
     /** Selects the first step on arrival (a filter card opened on a value). */
     readonly openFirst?: boolean;
     /** A filter condition being edited: what it would remove stays drawn, faint, while picking (spec 9). */
@@ -103,6 +115,8 @@ interface SelectionEditorProps {
     readonly title?: string;
     /** Opens the value picker on the first group at once (a new filter card). */
     readonly openPicker?: boolean;
+    /** Opens the workspace on the title row at once (a new filter card switched to the other side). */
+    readonly openTitle?: boolean;
     /** The host's own picker entries, listed after Results (the import filter's Time window). */
     readonly hostPicks?: readonly PickSection[];
     /** Takes focus on arrival, on its title row. */
@@ -138,28 +152,27 @@ const ROW = "[data-row]";
 /** How long typing pauses before a count is said. */
 const SPEAK_AFTER_MS = 500;
 
-/** What a click must land outside of to end picking: the editor, its lists, menus and the table. */
-const INSIDE =
-    "[data-portal], [role=listbox], [role=menu], .mantine-Popover-dropdown, .mantine-Combobox-dropdown, .mantine-Menu-dropdown, .mantine-Tooltip-tooltip, .ws-table";
-
 /**
- * The selection editor.
+ * The selection editor: the read-only outline in its host's sidebar, and while it is open, the
+ * one workspace over the canvas column that edits it (spec 3.0).
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rule - the selection as the host holds it
  * @param props.host - where it is edited
  * @param props.onChange - takes the next rule, which the host writes
- * @param props.onDone - Escape with no row selected
- * @param props.openFirst - selects the first step on arrival
+ * @param props.onDone - Escape on the sidebar outline: the host may fold it
+ * @param props.openFirst - opens the workspace on the first step on arrival
  * @param props.hold - the filter condition being edited
  * @param props.title - the title row's name
- * @param props.openPicker - opens the value picker on the first group at once
+ * @param props.ownerName - what the selection belongs to, after its name in the workspace's title
+ * @param props.openPicker - opens the workspace with the value picker on the first group at once
+ * @param props.openTitle - opens the workspace on the title row at once
  * @param props.hostPicks - the host's own picker entries
  * @param props.autoFocus - takes focus on arrival
  * @param props.lead - drawn first in the title row
  * @param props.titleMenu - the title pane's "..." items
  * @param props.titleExtra - drawn first in the title pane
- * @param props.onEmptyCancel - the value picker closed with nothing chosen on a selection with no step
+ * @param props.onEmptyCancel - the selection was left with no step where it never had one
  * @param props.onTitleToggle - Space on the title row
  * @param props.titleOff - the host's on box is off
  * @returns The editor
@@ -173,7 +186,9 @@ export function SelectionEditor({
     openFirst = false,
     hold,
     title,
+    ownerName,
     openPicker = false,
+    openTitle = false,
     hostPicks = [],
     autoFocus = false,
     lead,
@@ -183,39 +198,48 @@ export function SelectionEditor({
     onTitleToggle,
     titleOff = false,
 }: SelectionEditorProps): React.JSX.Element {
-    const { store } = useWorkspace();
+    const { store, element } = useWorkspace();
     const reading = useSteps(session, given);
     // The element's canonical form: every group and step has its id and color.
     const { rule } = reading;
     const side = sideOf(rule);
     const name = title ?? `Which ${NOUNS[side].many}`;
-    // A new filter card shows its title pane (Nodes | Edges) while its first value is picked.
-    const [selected, setSelected] = useState<string | null>(() => {
-        if (openFirst) {
-            return rule.branches[0]?.steps[0]?.id ?? null;
-        }
-        return openPicker && titleExtra !== undefined ? TITLE : null;
-    });
+    const wsTitle = ownerName === undefined ? name : `${name} -- ${ownerName}`;
+    const owner = useId();
+    const titleId = useId();
+    // The one workspace is this editor's while the store names it (spec 3.0).
+    const open = useWorkspaceState((state) => state.selectionWorkspace?.owner === owner);
+    // The row whose pane the workspace shows; null at rest, and after a delete.
+    const [selected, setSelected] = useState<string | null>(null);
     // Whether the last key was Escape: a picker it closed on a selection with no step takes a new
     // filter card back (spec 25); a click elsewhere only closes the picker.
     const escaped = useRef(false);
     // `fresh`: the group was made by "Or..." for this step, and goes again with it.
-    const [adding, setAdding] = useState<{ branch: string; op: Verb; fresh?: boolean } | null>(() => {
-        const first = rule.branches[0];
-        return openPicker && first?.id !== undefined ? { branch: first.id, op: newVerb(first) } : null;
-    });
+    const [adding, setAdding] = useState<{ branch: string; op: Verb; fresh?: boolean } | null>(null);
     const [active, setActive] = useState<string | null>(null);
     const [renaming, setRenaming] = useState<string | null>(null);
     const [colors, setColors] = useState(groupColors[host]);
+    const [strip, setStrip] = useState(stripShown[host]);
     // The group the pointer or focus is on: graphty-element marks its members while picking.
     const [marked, setMarked] = useState<string | null>(null);
+    // A group deleted under the pointer leaves its last sibling's group row until the pointer
+    // leaves the outline, so the row under it never changes (spec 3.1).
+    const [keepShape, setKeepShape] = useState(false);
+    // Where the workspace lies over the frame, once measured (below).
+    const [wsPlace, setPlace] = useState<React.CSSProperties | null>(null);
     const box = useRef<HTMLDivElement>(null);
-    const pane = useRef<HTMLDivElement>(null);
-    // A card opened on a value takes focus in its step's pane, on the test's first box.
+    const wsBox = useRef<HTMLElement>(null);
+    const outlineColumn = useRef<HTMLDivElement>(null);
+    // What the workspace restores on Cancel, and where focus returns when it closes.
+    const openedWith = useRef<UnionLeaf | null>(null);
+    // The place it was opened in: leaving it closes the workspace as Done (spec 3.0).
+    const place = useWorkspaceState((state) => state.place);
+    const openedIn = useRef(place);
+    const closeRef = useRef<(how: "done" | "cancel") => void>(() => undefined);
+    const opener = useRef<string | null>(null);
     const arrival = autoFocus && !openPicker ? `[data-row="${TITLE}"]` : null;
-    const focusAfter = useRef<string | readonly string[] | null>(openFirst ? PANE_FOCUS : arrival);
-    const picking = selected !== null || adding !== null;
-    const multi = rule.branches.length > 1;
+    const focusAfter = useRef<string | readonly string[] | number | null>(arrival);
+    const multi = rule.branches.length > 1 || (keepShape && rule.branches.length === 1);
     const { of } = reading.total;
     const say = (words: string): void => {
         store.set({ announcement: words });
@@ -228,13 +252,111 @@ export function SelectionEditor({
         reading.pending.length > 0 ? null : countWords(reading.total.count, of, side),
         SPEAK_AFTER_MS,
     );
-    useAnnounceChange(host === "filter" ? heardCount : null);
+    useAnnounceChange(host === "filter" && open ? heardCount : null);
+
+    /**
+     * Opens the workspace on a row (or switches the one open to this selection), keeping every
+     * edit of the selection it showed before (spec 3.0).
+     * @param row - the row to select.
+     * @param from - the sidebar row or Edit that opened it, where focus returns.
+     * @param add - a group to add a step to, its value picker open.
+     */
+    const openAt = (row: string, from: string, add?: UnionBranch): void => {
+        if (!open) {
+            openedIn.current = store.get().place;
+            openedWith.current = reading.rule;
+            opener.current = from;
+            say(`Editing ${[name, ownerName].filter((each) => each !== undefined).join(", ")}`);
+        }
+        setSelected(row);
+        setActive(row);
+        if (add === undefined) {
+            focusAfter.current = [`[data-row="${CSS.escape(row)}"]`, `[data-row="${TITLE}"]`];
+        } else {
+            setAdding({ branch: add.id ?? "", op: newVerb(add) });
+        }
+        store.set({ selectionWorkspace: { owner, host } });
+    };
+    /**
+     * Closes the workspace: Done keeps every edit; Cancel restores the selection as it was when it
+     * opened, as one undo step. A new filter card left with no step goes.
+     * @param how - "done" or "cancel".
+     */
+    const close = (how: "done" | "cancel"): void => {
+        const back = openedWith.current;
+        const restore = how === "cancel" && back !== null && JSON.stringify(back) !== JSON.stringify(reading.rule);
+        if (restore) {
+            onChange(back);
+        }
+        if (store.get().selectionWorkspace?.owner === owner) {
+            store.set({ selectionWorkspace: null });
+        }
+        setSelected(null);
+        setAdding(null);
+        setKeepShape(false);
+        say(how === "done" ? `Done, ${formatNumber(reading.total.count)} of ${formatNumber(of)}` : "Cancelled");
+        const from = opener.current;
+        focusAfter.current = [
+            ...(from === EDIT ? ["[data-edit]"] : []),
+            ...(from === null || from === EDIT ? [] : [`[data-row="${CSS.escape(from)}"]`]),
+            `[data-row="${TITLE}"]`,
+        ];
+        const left = how === "cancel" && back !== null ? back : reading.rule;
+        if (onEmptyCancel !== undefined && left.branches.every((branch) => branch.steps.length === 0)) {
+            onEmptyCancel();
+        }
+    };
+    closeRef.current = close;
+    // A new filter card opens the workspace at once: on its title (Nodes | Edges) with its value
+    // picker open, or on its first step.
+    const arrived = useRef(false);
+    useEffect(() => {
+        if (arrived.current) {
+            return;
+        }
+        arrived.current = true;
+        const first = rule.branches[0];
+        const firstStep = first?.steps[0]?.id;
+        if (openPicker && first !== undefined) {
+            openAt(TITLE, TITLE, first);
+        } else if (openFirst && firstStep !== undefined) {
+            openAt(firstStep, TITLE);
+            focusAfter.current = PANE_FOCUS;
+        } else if (openTitle) {
+            openAt(TITLE, TITLE);
+        }
+    });
+    // Leaving the place it was opened in is Done.
+    useEffect(() => {
+        if (open && place !== openedIn.current) {
+            closeRef.current("done");
+        }
+    }, [open, place]);
+    // Another selection took the workspace: this one closed as Done, its edits kept.
+    const wasOpen = useRef(false);
+    useEffect(() => {
+        if (wasOpen.current && !open) {
+            setSelected(null);
+            setAdding(null);
+            setKeepShape(false);
+        }
+        wasOpen.current = open;
+    }, [open]);
+    // Leaving the place unmounts the editor: the workspace closes with it, as Done.
+    useEffect(
+        () => () => {
+            if (store.get().selectionWorkspace?.owner === owner) {
+                store.set({ selectionWorkspace: null });
+            }
+        },
+        [store, owner],
+    );
 
     // The picking view (spec 9): every layer suspended, members in their group's color, the rest
     // faint; graphty-element draws it. A changed rule replaces the view in place.
     const view = useRef<{ end(): void } | null>(null);
     const viewKey = JSON.stringify(reading.rule);
-    const previewing = picking && colors;
+    const previewing = open && colors;
     useEffect(() => {
         if (previewing) {
             view.current = session.styles.showBranches({
@@ -248,14 +370,6 @@ export function SelectionEditor({
             view.current = null;
         }
     }, [previewing, viewKey, session, hold, marked]);
-    // The preview's start and end are said once each (spec 9), never on each redraw.
-    const wasPreviewing = useRef(false);
-    useEffect(() => {
-        if (previewing !== wasPreviewing.current) {
-            wasPreviewing.current = previewing;
-            store.set({ announcement: previewing ? "Preview: group colors" : "Preview ended" });
-        }
-    }, [previewing, store]);
     useEffect(
         () => () => {
             view.current?.end();
@@ -264,13 +378,15 @@ export function SelectionEditor({
     );
 
     // The table's Group column and Matches only, and the key's title, read the open selection
-    // (spec 8). One slot, two hosts: an editor that is picking claims it, one at rest keeps it only
+    // (spec 8). One slot, two hosts: an editor that is open claims it, one at rest keeps it only
     // while no other editor holds it, and each clears only its own claim.
-    const owner = useId();
     const holder = useWorkspaceState((state) => state.editingSelection?.owner ?? null);
+    const stripBranch = useWorkspaceState((state) =>
+        state.editingSelection?.owner === owner ? state.editingSelection.branch : null,
+    );
     useEffect(() => {
         const was = store.get().editingSelection;
-        if (picking || was === null || was.owner === owner) {
+        if (open || was === null || was.owner === owner) {
             store.set({
                 editingSelection: {
                     owner,
@@ -280,7 +396,7 @@ export function SelectionEditor({
                 },
             });
         }
-    }, [viewKey, store, name, picking, owner, holder]);
+    }, [viewKey, store, name, open, owner, holder]);
     useEffect(
         () => () => {
             if (store.get().editingSelection?.owner === owner) {
@@ -289,50 +405,25 @@ export function SelectionEditor({
         },
         [store, owner],
     );
-    // Another editor began picking: this one stops, so the canvas, the key and the table describe one.
-    useEffect(() => {
-        const now = store.get().editingSelection?.owner ?? null;
-        if (picking && now !== null && now !== owner) {
-            setSelected(null);
-            setAdding(null);
-        }
-    }, [holder, owner, picking, store]);
-    // A click outside the editor, its lists and menus and the table ends picking (spec 3). On the
-    // click, never the press: the pane closing on the press moved what was pressed (another filter
-    // card's row) out from under the pointer, and the click never reached it.
-    useEffect(() => {
-        if (!picking) {
-            return undefined;
-        }
-        const down = (event: MouseEvent): void => {
-            escaped.current = false;
-            const { target } = event;
-            if (
-                !(target instanceof Element) ||
-                box.current?.contains(target) ||
-                target.closest(INSIDE) !== null ||
-                // A reference being picked on the canvas: the click is the pick, not a click away.
-                document.body.dataset.pickingNode !== undefined
-            ) {
-                return;
-            }
-            setSelected(null);
-        };
-        document.addEventListener("click", down, true);
-        return () => {
-            document.removeEventListener("click", down, true);
-        };
-    }, [picking]);
 
-    // A row asked for focus (after a move, an add, a remove) gets it once it is drawn.
+    // A row asked for focus (after a move, an add, a remove) gets it once it is drawn: in the
+    // workspace while it is open, else in the sidebar outline. A number is a row's place.
     useEffect(() => {
         const want = focusAfter.current;
-        if (want === null) {
+        const root = open ? wsBox.current : box.current;
+        // The workspace is hidden until it is placed, and a hidden control takes no focus.
+        if (want === null || root === null || (open && wsPlace === null)) {
             return;
         }
-        const target = (typeof want === "string" ? [want] : want)
-            .map((each) => box.current?.querySelector<HTMLElement>(each))
-            .find((each) => each !== null && each !== undefined);
+        let target: HTMLElement | undefined;
+        if (typeof want === "number") {
+            const rows = [...root.querySelectorAll<HTMLElement>(ROW)];
+            target = rows[Math.min(want, rows.length - 1)];
+        } else {
+            target = (typeof want === "string" ? [want] : want)
+                .map((each) => root.querySelector<HTMLElement>(each))
+                .find((each) => each !== null && each !== undefined);
+        }
         if (target !== undefined) {
             focusAfter.current = null;
             focusWithRing(target);
@@ -349,7 +440,7 @@ export function SelectionEditor({
             : rule.branches.find((branch) => branch.id === id || branch.steps.some((step) => step.id === id));
 
     const focusPane = (): boolean => {
-        const target = PANE_FOCUS.map((each) => box.current?.querySelector<HTMLElement>(each)).find(
+        const target = PANE_FOCUS.map((each) => wsBox.current?.querySelector<HTMLElement>(each)).find(
             (each) => each !== null && each !== undefined,
         );
         if (target === undefined) {
@@ -359,21 +450,6 @@ export function SelectionEditor({
         focusWithRing(target);
         return true;
     };
-    // Done: picking ends in one click, focus back on the row that was selected.
-    const endPicking = (): void => {
-        const back = selected;
-        setSelected(null);
-        setAdding(null);
-        focusAfter.current = [
-            ...(back === null ? [] : [`[data-row="${CSS.escape(back)}"]`, `[data-selects="${CSS.escape(back)}"]`]),
-            `[data-row="${TITLE}"]`,
-        ];
-    };
-    const done = (
-        <Button size="compact-xs" variant="subtle" className="sel-done" onClick={endPicking}>
-            Done
-        </Button>
-    );
     /**
      * The pane's add actions, first in its first row: "Condition..." adds a step to the selected
      * row's group, "Or..." adds a group. They act on the selection, never move a row.
@@ -411,24 +487,18 @@ export function SelectionEditor({
             </>
         );
     };
-    // The toolbar's Table, as a "..." item of the title pane (same words, key and reason): the
-    // pane's first row has no room for a third icon in a 200 px filter card.
-    const tableDoor = useCommand("table.toggle");
-    const tableOpen = useWorkspaceState((state) => state.dockOpen);
-    const tableItem: SelectionMenuItem | null =
-        tableDoor === null
-            ? null
-            : {
-                  id: "table",
-                  label: tableDoor.tip,
-                  icon: "table",
-                  group: "view",
-                  key: tableDoor.command.keys?.[0],
-                  reason: tableDoor.disabledReason,
-                  onRun: () => {
-                      store.set(tableOpen ? { dockOpen: false } : { dockOpen: true, dockTab: `${side}s` });
-                  },
-              };
+    // The workspace's Table: the matches strip under the preview, hidden or shown for the session.
+    const toggleStrip = (): void => {
+        stripShown[host] = !strip;
+        setStrip(!strip);
+    };
+    const tableItem: SelectionMenuItem = {
+        id: "table",
+        label: strip ? "Hide table" : "Show table",
+        icon: "table",
+        group: "view",
+        onRun: toggleStrip,
+    };
     const select = (id: string | null, intoPane = false): void => {
         setSelected(id);
         if (id !== null) {
@@ -499,24 +569,30 @@ export function SelectionEditor({
         say(`Moved to ${letterOf(to)}`);
         focusAfter.current = `[data-row="${CSS.escape(id)}"]`;
     };
+    // After a delete no row is selected (a second Delete deletes nothing) and focus stays at the
+    // deleted row's place (spec 3.1).
+    const placeOf = (id: string): number =>
+        [...(wsBox.current?.querySelectorAll<HTMLElement>(ROW) ?? [])].findIndex((row) => row.dataset.row === id);
     const removeStepAt = (branch: UnionBranch, id: string): void => {
-        const at = branch.steps.findIndex((step) => step.id === id);
-        const next = branch.steps[at + 1]?.id ?? branch.steps[at - 1]?.id;
+        const place = placeOf(id);
         onChange(removeStep(rule, branch.id ?? "", id));
-        const gone = branch.steps[at];
+        const gone = branch.steps.find((step) => step.id === id);
         if (gone !== undefined) {
             say(`Removed ${stepName(gone)}`);
         }
-        if (selected === id) {
-            setSelected(null);
-        }
-        focusAfter.current = next === undefined ? `[data-row="${TITLE}"]` : `[data-row="${CSS.escape(next)}"]`;
+        setSelected(null);
+        focusAfter.current = place < 0 ? `[data-row="${TITLE}"]` : place;
     };
     const removeBranchOf = (branch: UnionBranch): void => {
+        const place = placeOf(branch.id ?? "");
+        // Under the pointer, a lone group left keeps its row until the pointer leaves the outline.
+        if (rule.branches.length === 2 && outlineColumn.current?.matches(":hover") === true) {
+            setKeepShape(true);
+        }
         onChange(removeBranch(rule, branch.id ?? ""));
         say(`Removed ${branchName(branch)}`);
         setSelected(null);
-        focusAfter.current = `[data-row="${TITLE}"]`;
+        focusAfter.current = place < 0 ? `[data-row="${TITLE}"]` : place;
     };
     const duplicate = (branch: UnionBranch, stepId?: string): void => {
         const id = stepId ?? branch.id ?? "";
@@ -537,7 +613,20 @@ export function SelectionEditor({
         );
         say(`${step === undefined ? branchName(branch) : stepName(step)} ${on ? "on" : "off"}`);
     };
-    // A group's members: selected (a style layer), or the table on them (a filter, spec 2).
+    // Clear (spec 3.0): the selection's empty state, its Condition row, as one undo step. A filter
+    // card keeps its name and on box, and starts with everything again.
+    const clear = (): void => {
+        const empty = newSelection(rule.side, rule.within);
+        const first = empty.branches[0];
+        onChange(
+            host === "filter" && first !== undefined ? editBranch(empty, first.id ?? "", { start: "all" }) : empty,
+        );
+        setSelected(TITLE);
+        setAdding(null);
+        say("Cleared");
+        focusAfter.current = `[data-row="${TITLE}"]`;
+    };
+    // A group's members: selected (a style layer), or the strip on them (a filter, spec 2).
     const showMembers = (members: StepsReading["result"] | undefined, branch: string | null): void => {
         if (members === undefined) {
             return;
@@ -554,16 +643,17 @@ export function SelectionEditor({
             return;
         }
         const held = store.get().editingSelection;
-        store.set({
-            dockOpen: true,
-            dockTab: `${side}s`,
-            ...(held === null ? {} : { editingSelection: { ...held, branch } }),
-        });
+        if (held !== null) {
+            store.set({ editingSelection: { ...held, branch } });
+        }
+        stripShown[host] = true;
+        setStrip(true);
     };
 
     // The outline is one Tab stop walked with the arrows (roving focus); a row's keys act on it.
-    const walk = (event: React.KeyboardEvent<HTMLElement>): boolean => {
-        const rows = [...(box.current?.querySelectorAll<HTMLElement>(ROW) ?? [])];
+    const walk = (event: React.KeyboardEvent<HTMLElement>, selects: boolean): boolean => {
+        const tree = event.currentTarget.closest("[role=tree]");
+        const rows = [...(tree?.querySelectorAll<HTMLElement>(ROW) ?? [])];
         const at = rows.indexOf(event.currentTarget);
         const targets: Partial<Record<string, number>> = {
             ArrowDown: at + 1,
@@ -579,33 +669,48 @@ export function SelectionEditor({
         event.preventDefault();
         const id = row.dataset.row ?? null;
         setActive(id);
-        // Arrowing onto a row selects it, as Figma's Layers list does; the Add row's verbs only take focus.
-        if (row.dataset.selects !== undefined) {
+        // In the workspace, arrowing onto a row selects it, as Figma's Layers list does; the
+        // Condition row only takes focus.
+        if (selects && row.dataset.selects !== undefined) {
             setSelected(row.dataset.selects);
         }
         row.focus();
         return true;
     };
+    // The sidebar's outline is read-only: Enter opens the workspace on the row (spec 3.4), Space
+    // switches a filter card's on box, Escape lets the host fold it.
+    const restKeys = (event: React.KeyboardEvent<HTMLElement>, selects: string, isTitle: boolean): void => {
+        if (event.target !== event.currentTarget || walk(event, false)) {
+            return;
+        }
+        if (event.key === "Enter") {
+            event.preventDefault();
+            openAt(selects, event.currentTarget.dataset.row ?? selects);
+        } else if (event.key === " " && isTitle && onTitleToggle !== undefined) {
+            event.preventDefault();
+            onTitleToggle();
+        } else if (event.key === "Escape" && onDone !== undefined) {
+            event.preventDefault();
+            onDone();
+        } else if (event.key === "F2") {
+            // The outline's, never the project's rename.
+            event.preventDefault();
+        }
+    };
     const rowKeys = (event: React.KeyboardEvent<HTMLElement>, branch: UnionBranch | null, stepId?: string): void => {
-        if (event.target !== event.currentTarget || isTypingTarget(event.target) || walk(event)) {
+        if (event.target !== event.currentTarget || isTypingTarget(event.target) || walk(event, true)) {
             return;
         }
         const id = stepId ?? branch?.id ?? TITLE;
+        const selects = event.currentTarget.dataset.selects ?? id;
         if (event.key === "Enter") {
             event.preventDefault();
-            const to = event.currentTarget.dataset.selects ?? id;
             // The row is selected already (arrowing onto it selects it): nothing would draw again,
             // so focus goes into its pane now rather than on some later render.
-            if (to === selected && focusPane()) {
+            if (selects === selected && focusPane()) {
                 return;
             }
-            select(to, true);
-            return;
-        }
-        if (event.key === "Escape" && selected !== null) {
-            event.preventDefault();
-            event.stopPropagation();
-            setSelected(null);
+            select(selects, true);
             return;
         }
         if (event.key === "F2") {
@@ -635,6 +740,10 @@ export function SelectionEditor({
             duplicate(branch, stepId);
         } else if (event.key === "Delete" || event.key === "Backspace") {
             event.preventDefault();
+            // Only the selected row: after a delete none is, so a second press deletes nothing.
+            if (selected !== selects) {
+                return;
+            }
             if (stepId === undefined) {
                 removeBranchOf(branch);
             } else {
@@ -752,88 +861,50 @@ export function SelectionEditor({
     const selectedStep = recipeOpen
         ? loneStep
         : branchOfRow(selected)?.steps.find((s) => selected !== null && s.id === selected);
-    const rowProps = (
-        id: string,
-        selects: string,
-        label: string,
-        branch: UnionBranch | null,
-        stepId?: string,
-    ): React.HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, string | undefined> => ({
-        role: "treeitem",
-        tabIndex: tabbed === id ? 0 : -1,
-        "data-row": id,
-        "data-selects": selects,
-        "aria-selected": selected === selects,
-        "aria-label": label,
-        onKeyDown: (event) => {
-            rowKeys(event, branch, stepId);
-        },
-        onFocus: () => {
-            setActive(id);
-        },
-        onClick: (event) => {
-            if ((event.target as Element).closest("button, input, label") === null) {
-                select(selects);
-            }
-        },
-    });
 
-    return (
-        <Stack
-            ref={box}
-            gap={0}
-            className="sel-editor"
-            data-host={host}
-            onPointerDownCapture={() => {
-                escaped.current = false;
-            }}
-            onKeyDownCapture={(event) => {
-                escaped.current = event.key === "Escape";
-                // Escape in a pane's box ends picking, keeping its text (it is written as it leaves
-                // the box), unless the box's own list is open.
-                const target = event.target as HTMLElement;
-                if (
-                    event.key !== "Escape" ||
-                    selected === null ||
-                    !target.matches("input, textarea") ||
-                    target.closest(".sel-pane-box") === null ||
-                    target.closest("[data-portal]") !== null ||
-                    target.getAttribute("aria-expanded") === "true" ||
-                    "expanded" in target.dataset
-                ) {
+    /**
+     * The outline's rows: the sidebar's read-only copy at rest ("rest"), or the workspace's
+     * outline column ("ws"), whose rows select. The same rows, words and caps in both (spec 3.1).
+     * @param where - which outline.
+     * @returns the tree.
+     */
+    const outline = (where: "rest" | "ws"): React.JSX.Element => {
+        const ws = where === "ws";
+        const rowProps = (
+            id: string,
+            selects: string,
+            label: string,
+            branch: UnionBranch | null,
+            stepId?: string,
+        ): React.HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, string | undefined> => ({
+            role: "treeitem",
+            tabIndex: tabbed === id ? 0 : -1,
+            "data-row": id,
+            "data-selects": selects,
+            ...(ws ? { "aria-selected": selected === selects } : {}),
+            "aria-label": label,
+            onKeyDown: (event) => {
+                if (ws) {
+                    rowKeys(event, branch, stepId);
+                } else {
+                    restKeys(event, selects, branch === null);
+                }
+            },
+            onFocus: () => {
+                setActive(id);
+            },
+            onClick: (event) => {
+                if ((event.target as Element).closest("button, input, label") !== null) {
                     return;
                 }
-                event.preventDefault();
-                event.stopPropagation();
-                target.blur();
-                const back = selected;
-                setSelected(null);
-                focusAfter.current = [`[data-row="${CSS.escape(back)}"]`, `[data-row="${TITLE}"]`];
-            }}
-            onKeyDown={(event) => {
-                // Escape closes the innermost thing per press: the selected row, then the editor.
-                if (event.key !== "Escape" || event.defaultPrevented) {
-                    return;
+                if (ws) {
+                    select(selects);
+                } else {
+                    openAt(selects, id);
                 }
-                const target = event.target as Element;
-                if (target.closest("[data-portal]") !== null || target.matches("[aria-expanded=true]")) {
-                    return;
-                }
-                event.preventDefault();
-                event.stopPropagation();
-                if (selected !== null) {
-                    const back = selected;
-                    setSelected(null);
-                    focusAfter.current = [
-                        `[data-row="${CSS.escape(back)}"]`,
-                        `[data-selects="${CSS.escape(back)}"]`,
-                        `[data-row="${TITLE}"]`,
-                    ];
-                    return;
-                }
-                onDone?.();
-            }}
-        >
+            },
+        });
+        return (
             <div role="tree" aria-label={name} className="sel-outline">
                 <div
                     {...rowProps(
@@ -843,13 +914,13 @@ export function SelectionEditor({
                         null,
                     )}
                     className="sel-row sel-title-row"
-                    {...(recipeOpen ? { "aria-selected": true } : {})}
+                    {...(ws && recipeOpen ? { "aria-selected": true } : {})}
                 >
                     {lead}
                     <Text size="sm" fw={600} className="sel-title">
                         {name}
                     </Text>
-                    {recipeTitle && loneStep !== undefined && !recipeOpen && recipeState !== "" && (
+                    {recipeTitle && loneStep !== undefined && !(ws && recipeOpen) && recipeState !== "" && (
                         <Text size="sm" c="dimmed" className="sel-state">
                             {recipeState}
                         </Text>
@@ -865,6 +936,19 @@ export function SelectionEditor({
                             {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
                         </Text>
                     </Tooltip>
+                    {!ws && (
+                        <Button
+                            size="compact-xs"
+                            variant="subtle"
+                            data-edit=""
+                            aria-label={`Edit ${name}`}
+                            onClick={() => {
+                                openAt(TITLE, EDIT);
+                            }}
+                        >
+                            Edit
+                        </Button>
+                    )}
                 </div>
                 {rule.branches.map((branch, at) => {
                     const branchRead = branchReading(branch.id);
@@ -897,16 +981,22 @@ export function SelectionEditor({
                                             .join(", "),
                                         branch,
                                     )}
-                                    {...dragProps(branch, branchId, false)}
+                                    {...(ws ? dragProps(branch, branchId, false) : {})}
                                     className="sel-row sel-group-row"
                                     onPointerEnter={() => {
-                                        setMarked(branchId);
+                                        if (ws) {
+                                            setMarked(branchId);
+                                        }
                                     }}
                                     onPointerLeave={() => {
-                                        setMarked(null);
+                                        if (ws) {
+                                            setMarked(null);
+                                        }
                                     }}
                                     onDoubleClick={() => {
-                                        setRenaming(branchId);
+                                        if (ws) {
+                                            setRenaming(branchId);
+                                        }
                                     }}
                                 >
                                     <Text size="sm" className="sel-verb sel-or-word">
@@ -918,7 +1008,7 @@ export function SelectionEditor({
                                         style={{ borderColor: color, background: previewing ? color : "transparent" }}
                                         aria-hidden
                                     />
-                                    {renaming === branch.id ? (
+                                    {ws && renaming === branch.id ? (
                                         // Figma's rename: the name preselected, Enter or a click away keeps it.
                                         <InlineRename
                                             value={letter}
@@ -949,19 +1039,21 @@ export function SelectionEditor({
                                         </Text>
                                     )}
                                     <span className="sel-spacer" />
-                                    <ToggleIconButton
-                                        className="sel-eye"
-                                        variant="swap"
-                                        label={`Use ${letter}`}
-                                        tooltip={`Use ${letter} (Space)`}
-                                        icon={<GLYPHS.hide size={12} aria-hidden />}
-                                        checkedIcon={<GLYPHS.show size={12} aria-hidden />}
-                                        checked={branch.on !== false}
-                                        tabIndex={-1}
-                                        onChange={() => {
-                                            toggle(branch);
-                                        }}
-                                    />
+                                    {ws && (
+                                        <ToggleIconButton
+                                            className="sel-eye"
+                                            variant="swap"
+                                            label={`Use ${letter}`}
+                                            tooltip={`Use ${letter} (Space)`}
+                                            icon={<GLYPHS.hide size={12} aria-hidden />}
+                                            checkedIcon={<GLYPHS.show size={12} aria-hidden />}
+                                            checked={branch.on !== false}
+                                            tabIndex={-1}
+                                            onChange={() => {
+                                                toggle(branch);
+                                            }}
+                                        />
+                                    )}
                                     <Text size="sm" className="sel-count">
                                         {branchRead?.state === "pending"
                                             ? "Waits"
@@ -983,7 +1075,11 @@ export function SelectionEditor({
                                               className: "sel-row sel-all-row",
                                           })}
                                     onClick={() => {
-                                        select(branchId);
+                                        if (ws) {
+                                            select(branchId);
+                                        } else {
+                                            openAt(branchId, `all:${branchId}`);
+                                        }
                                     }}
                                 >
                                     <span className="sel-verb" />
@@ -1004,7 +1100,7 @@ export function SelectionEditor({
                                 // A group's first step at the group's own verb leaves the verb column empty.
                                 const quiet = index === 0 && step.op === newVerb(branch);
                                 // A selected row's pane already says its state.
-                                const drawnState = selected === id ? "" : state;
+                                const drawnState = ws && selected === id ? "" : state;
                                 const soFar =
                                     read === undefined || read.waiting
                                         ? ""
@@ -1021,7 +1117,7 @@ export function SelectionEditor({
                                     <Tooltip key={id} label={`${full}${soFar}`} openDelay={500}>
                                         <div
                                             {...rowProps(id, id, `${label}${soFar}`, branch, id)}
-                                            {...dragProps(branch, id, true)}
+                                            {...(ws ? dragProps(branch, id, true) : {})}
                                             data-state={step.on === false ? "off" : read?.state}
                                             className="sel-row sel-step-row"
                                         >
@@ -1059,7 +1155,7 @@ export function SelectionEditor({
                                     </Tooltip>
                                 );
                             })}
-                            {adding !== null && adding.branch === branch.id && (
+                            {ws && adding !== null && adding.branch === branch.id && (
                                 <NewStep
                                     session={session}
                                     rule={rule}
@@ -1079,10 +1175,14 @@ export function SelectionEditor({
                                     id={`add:${branchId}`}
                                     branchId={branchId}
                                     tabbed={tabbed}
-                                    onWalk={walk}
+                                    onWalk={(event) => walk(event, ws)}
                                     onFocus={setActive}
                                     onRun={() => {
-                                        startAdding(branch, newVerb(branch));
+                                        if (ws) {
+                                            startAdding(branch, newVerb(branch));
+                                        } else {
+                                            openAt(TITLE, `add:${branchId}`, branch);
+                                        }
                                     }}
                                 />
                             )}
@@ -1090,131 +1190,337 @@ export function SelectionEditor({
                     );
                 })}
             </div>
-            {selected !== null && (
-                <div ref={pane} className="sel-pane-box">
-                    {(selected === TITLE || recipeOpen) && (
-                        <TitlePane
-                            name={name}
-                            extra={titleExtra}
-                            adds={adds(multi ? undefined : rule.branches[0])}
-                            menu={[
-                                ...(host === "selector"
-                                    ? [
-                                          {
-                                              id: "select",
-                                              label: `Select ${formatNumber(reading.total.count)}`,
-                                              icon: "selection" as const,
-                                              group: "edit" as const,
-                                              reason: reading.total.count === 0 ? `No ${NOUNS[side].many} match` : null,
-                                              onRun: () => {
-                                                  showMembers(reading.result, null);
-                                              },
-                                          },
-                                      ]
-                                    : []),
-                                ...(titleMenu ?? []),
-                                ...(tableItem === null ? [] : [tableItem]),
-                                {
-                                    id: "colors",
-                                    label: colors ? "Hide group colors" : "Show group colors",
-                                    icon: "groupColors",
-                                    group: "view",
-                                    onRun: () => {
-                                        groupColors[host] = !colors;
-                                        setColors(!colors);
-                                    },
-                                },
-                            ]}
-                            done={done}
-                        />
-                    )}
-                    {selectedBranch !== undefined && (
-                        <GroupPane
-                            branch={selectedBranch}
-                            reading={branchReading(selectedBranch.id)}
-                            name={branchName(selectedBranch)}
-                            side={side}
+        );
+    };
+
+    // The selected row's pane, at the properties column's full width (spec 3.2).
+    const panes = (
+        <>
+            {(selected === TITLE || recipeOpen || (selected === null && open)) && (
+                <TitlePane
+                    name={name}
+                    extra={titleExtra}
+                    adds={adds(multi ? undefined : rule.branches[0])}
+                    menu={[
+                        ...(host === "selector"
+                            ? [
+                                  {
+                                      id: "select",
+                                      label: `Select ${formatNumber(reading.total.count)}`,
+                                      icon: "selection" as const,
+                                      group: "edit" as const,
+                                      reason: reading.total.count === 0 ? `No ${NOUNS[side].many} match` : null,
+                                      onRun: () => {
+                                          showMembers(reading.result, null);
+                                      },
+                                  },
+                              ]
+                            : []),
+                        ...(titleMenu ?? []),
+                        tableItem,
+                        {
+                            id: "colors",
+                            label: colors ? "Hide group colors" : "Show group colors",
+                            icon: "groupColors",
+                            group: "view",
+                            onRun: () => {
+                                groupColors[host] = !colors;
+                                setColors(!colors);
+                            },
+                        },
+                    ]}
+                    done={null}
+                />
+            )}
+            {selectedBranch !== undefined && (
+                <GroupPane
+                    branch={selectedBranch}
+                    reading={branchReading(selectedBranch.id)}
+                    name={branchName(selectedBranch)}
+                    side={side}
+                    host={host}
+                    of={of}
+                    multi={multi}
+                    done={null}
+                    adds={adds(selectedBranch)}
+                    first={rule.branches[0] === selectedBranch}
+                    last={rule.branches.at(-1) === selectedBranch}
+                    onStart={(start) => {
+                        onChange(editBranch(rule, selectedBranch.id ?? "", { start }));
+                    }}
+                    onRename={() => {
+                        setRenaming(selectedBranch.id ?? null);
+                    }}
+                    onName={(typed) => {
+                        const text = typed.trim();
+                        if (text !== branchName(selectedBranch)) {
+                            onChange(
+                                editBranch(rule, selectedBranch.id ?? "", {
+                                    name: text === "" ? undefined : text,
+                                }),
+                            );
+                        }
+                    }}
+                    onToggle={() => {
+                        toggle(selectedBranch);
+                    }}
+                    onShow={() => {
+                        showMembers(branchReading(selectedBranch.id)?.members, selectedBranch.id ?? null);
+                    }}
+                    onDuplicate={() => {
+                        duplicate(selectedBranch);
+                    }}
+                    onMove={(by) => {
+                        moveBranchBy(selectedBranch.id ?? "", by);
+                    }}
+                    onDelete={() => {
+                        removeBranchOf(selectedBranch);
+                    }}
+                />
+            )}
+            {selectedStep !== undefined &&
+                (() => {
+                    const branch = branchOfRow(selectedStep.id ?? null) as UnionBranch;
+                    const id = selectedStep.id ?? "";
+                    const index = branch.steps.indexOf(selectedStep);
+                    return (
+                        <StepPane
+                            key={id}
+                            session={session}
+                            rule={rule}
+                            branch={branch}
+                            step={selectedStep}
+                            reading={readingOf(id)}
                             host={host}
                             of={of}
-                            multi={multi}
-                            done={done}
-                            adds={adds(selectedBranch)}
-                            first={rule.branches[0] === selectedBranch}
-                            last={rule.branches.at(-1) === selectedBranch}
-                            onStart={(start) => {
-                                onChange(editBranch(rule, selectedBranch.id ?? "", { start }));
-                            }}
-                            onRename={() => {
-                                setRenaming(selectedBranch.id ?? null);
-                            }}
-                            onName={(typed) => {
-                                const text = typed.trim();
-                                if (text !== branchName(selectedBranch)) {
-                                    onChange(
-                                        editBranch(rule, selectedBranch.id ?? "", {
-                                            name: text === "" ? undefined : text,
-                                        }),
-                                    );
-                                }
-                            }}
-                            onToggle={() => {
-                                toggle(selectedBranch);
-                            }}
-                            onShow={() => {
-                                showMembers(branchReading(selectedBranch.id)?.members, selectedBranch.id ?? null);
-                            }}
-                            onDuplicate={() => {
-                                duplicate(selectedBranch);
+                            first={index === 0}
+                            last={index === branch.steps.length - 1}
+                            hostPicks={hostPicks}
+                            adds={adds(branch)}
+                            head={!recipeOpen}
+                            onStep={(patch) => {
+                                onChange(editStep(rule, branch.id ?? "", id, patch));
                             }}
                             onMove={(by) => {
-                                moveBranchBy(selectedBranch.id ?? "", by);
+                                moveStepBy(branch, id, by);
                             }}
-                            onDelete={() => {
-                                removeBranchOf(selectedBranch);
+                            onToggle={() => {
+                                toggle(branch, id);
+                            }}
+                            onDuplicate={() => {
+                                duplicate(branch, id);
+                            }}
+                            onRemove={() => {
+                                removeStepAt(branch, id);
                             }}
                         />
-                    )}
-                    {selectedStep !== undefined &&
-                        (() => {
-                            const branch = branchOfRow(selectedStep.id ?? null) as UnionBranch;
-                            const id = selectedStep.id ?? "";
-                            const index = branch.steps.indexOf(selectedStep);
-                            return (
-                                <StepPane
-                                    key={id}
-                                    session={session}
-                                    rule={rule}
-                                    branch={branch}
-                                    step={selectedStep}
-                                    reading={readingOf(id)}
-                                    host={host}
-                                    of={of}
-                                    first={index === 0}
-                                    last={index === branch.steps.length - 1}
-                                    hostPicks={hostPicks}
-                                    done={done}
-                                    adds={adds(branch)}
-                                    head={!recipeOpen}
-                                    onStep={(patch) => {
-                                        onChange(editStep(rule, branch.id ?? "", id, patch));
-                                    }}
-                                    onMove={(by) => {
-                                        moveStepBy(branch, id, by);
-                                    }}
-                                    onToggle={() => {
-                                        toggle(branch, id);
-                                    }}
-                                    onDuplicate={() => {
-                                        duplicate(branch, id);
-                                    }}
-                                    onRemove={() => {
-                                        removeStepAt(branch, id);
-                                    }}
-                                />
-                            );
-                        })()}
-                </div>
-            )}
+                    );
+                })()}
+        </>
+    );
+
+    // Where the workspace lies (spec 3.0): over the canvas column and the side panel its host does
+    // not use -- a style layer's the left panel, a filter card's the inspector -- measured from the
+    // frame, so the panel beside it stays where it is.
+    const frame = typeof document === "undefined" ? null : document.querySelector<HTMLElement>(".ws-body");
+    useLayoutEffect(() => {
+        if (!open || frame === null) {
+            return undefined;
+        }
+        const shown = (selector: string): DOMRect | null => {
+            const panel = frame.querySelector<HTMLElement>(selector);
+            return panel !== null && panel.getClientRects().length > 0 ? panel.getBoundingClientRect() : null;
+        };
+        const measure = (): void => {
+            const main = shown(".ws-main");
+            if (main === null) {
+                return;
+            }
+            const left = host === "selector" ? shown(".ws-left") : null;
+            const right = host === "filter" ? shown(".ws-right") : null;
+            const from = left ?? main;
+            const to = right ?? main;
+            // The opaque columns cover the panel underneath whole, so the preview shows only canvas.
+            setPlace({
+                left: from.left,
+                top: main.top,
+                width: to.right - from.left,
+                height: main.height,
+                "--sel-ws-cover-start": `${String(left?.width ?? 0)}px`,
+                "--sel-ws-cover-end": `${String(right?.width ?? 0)}px`,
+            } as React.CSSProperties);
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(frame);
+        for (const selector of [".ws-left", ".ws-main", ".ws-right"]) {
+            const panel = frame.querySelector(selector);
+            if (panel !== null) {
+                observer.observe(panel);
+            }
+        }
+        return () => {
+            observer.disconnect();
+        };
+    }, [open, host, frame]);
+
+    // Escape closes the innermost open thing per press and never discards work (spec 3.4): a list
+    // or a menu closes itself; then Advanced; then focus goes from the pane to its outline row;
+    // then the workspace closes as Done.
+    const wsKeys = (event: React.KeyboardEvent<HTMLElement>): void => {
+        if (event.key !== "Escape" || event.defaultPrevented) {
+            return;
+        }
+        const target = event.target as HTMLElement;
+        if (
+            target.closest("[data-portal]") !== null ||
+            target.matches("[aria-expanded=true]") ||
+            "expanded" in target.dataset
+        ) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const props = target.closest(".sel-ws-props");
+        if (props !== null) {
+            const advanced = props.querySelector<HTMLElement>('.sel-advanced[aria-expanded="true"]');
+            if (advanced !== null) {
+                advanced.click();
+                focusWithRing(advanced);
+                return;
+            }
+            const back = selected ?? TITLE;
+            const row = wsBox.current?.querySelector<HTMLElement>(
+                `.sel-ws-outline [data-row="${CSS.escape(back)}"], .sel-ws-outline [data-selects="${CSS.escape(back)}"]`,
+            );
+            if (row !== null && row !== undefined) {
+                focusWithRing(row);
+                return;
+            }
+        }
+        close("done");
+    };
+
+    const workspace =
+        open && frame !== null
+            ? createPortal(
+                  <section
+                      ref={wsBox}
+                      role="region"
+                      aria-labelledby={titleId}
+                      className="sel-ws sel-editor"
+                      data-host={host}
+                      style={wsPlace ?? { visibility: "hidden" }}
+                      onPointerDownCapture={() => {
+                          escaped.current = false;
+                      }}
+                      onKeyDownCapture={(event) => {
+                          escaped.current = event.key === "Escape";
+                      }}
+                      onKeyDown={wsKeys}
+                  >
+                      <header className="sel-ws-head">
+                          <Text size="sm" fw={600} className="sel-ws-title" id={titleId} truncate>
+                              {wsTitle}
+                          </Text>
+                          <Text size="sm" className="sel-count">
+                              {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
+                          </Text>
+                          <span className="sel-spacer" />
+                          <SegmentedControl
+                              size="xs"
+                              label="Preview"
+                              value={colors ? "colors" : "styled"}
+                              data={[
+                                  { value: "colors", label: "Group colors" },
+                                  { value: "styled", label: "Styled" },
+                              ]}
+                              onChange={(value) => {
+                                  groupColors[host] = value === "colors";
+                                  setColors(value === "colors");
+                              }}
+                          />
+                          <Button
+                              size="compact-xs"
+                              variant={strip ? "light" : "subtle"}
+                              aria-pressed={strip}
+                              onClick={toggleStrip}
+                          >
+                              Table
+                          </Button>
+                          <Tooltip label="Start over (Undo brings it back)">
+                              <Button size="compact-xs" variant="subtle" data-ws-clear="" onClick={clear}>
+                                  Clear
+                              </Button>
+                          </Tooltip>
+                          <Button
+                              size="compact-xs"
+                              variant="default"
+                              onClick={() => {
+                                  close("cancel");
+                              }}
+                          >
+                              Cancel
+                          </Button>
+                          <Button
+                              size="compact-xs"
+                              onClick={() => {
+                                  close("done");
+                              }}
+                          >
+                              Done
+                          </Button>
+                      </header>
+                      <div className="sel-ws-body">
+                          <div
+                              ref={outlineColumn}
+                              className="sel-ws-outline"
+                              onPointerLeave={() => {
+                                  setKeepShape(false);
+                              }}
+                          >
+                              {outline("ws")}
+                          </div>
+                          <div className="sel-ws-center" data-strip={strip ? "" : undefined}>
+                              <div className="sel-ws-preview">
+                                  <PreviewKey session={session}>{null}</PreviewKey>
+                                  <Tooltip label="Frame the matches">
+                                      <Button
+                                          size="compact-xs"
+                                          variant="default"
+                                          className="sel-ws-fit"
+                                          onClick={() => {
+                                              void element?.applyCameraView("fitToGraph", {
+                                                  scope: reading.result,
+                                                  params: { keepAngle: true },
+                                                  animate: true,
+                                              });
+                                          }}
+                                      >
+                                          Fit
+                                      </Button>
+                                  </Tooltip>
+                              </div>
+                              {strip && (
+                                  <MatchesStrip
+                                      session={session}
+                                      rule={reading.rule}
+                                      title={name}
+                                      branch={stripBranch}
+                                  />
+                              )}
+                          </div>
+                          <div className="sel-ws-props sel-pane-box">{panes}</div>
+                      </div>
+                  </section>,
+                  frame,
+              )
+            : null;
+
+    return (
+        <Stack ref={box} gap={0} className="sel-editor sel-rest" data-host={host} data-open={open ? "" : undefined}>
+            {outline("rest")}
+            {workspace}
         </Stack>
     );
 }

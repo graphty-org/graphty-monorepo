@@ -323,6 +323,8 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const { session } = useWorkspace();
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const legendShown = useWorkspaceState((state) => state.legendShown);
+    // The selection workspace draws its preview key at its own preview's corner (spec 3.0).
+    const workspaceOpen = useWorkspaceState((state) => state.selectionWorkspace !== null);
     const legendAsked = useWorkspaceState((state) => state.legendAsked);
     // The empty card's doors: the Sources "+" doors a first source most often comes through.
     const doors = [useCommand("data.add-file"), useCommand("data.samples")].filter((door) => door !== null);
@@ -379,7 +381,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
         <>
             {/* Asked for over nothing, the card says nothing is styled yet. */}
             {/* While a selection is picked, the key says the styles are suspended and names its groups. */}
-            {legendShown ? (
+            {legendShown && !workspaceOpen ? (
                 <PreviewKey session={session}>
                     {keyed || legendAsked ? <LegendCard blocks={blocks} session={session} /> : null}
                 </PreviewKey>

@@ -196,9 +196,12 @@ describe("the selection editor on 50,000 nodes", () => {
             assert.isNotNull(screen.queryByText(`${(matches - 6).toLocaleString("en-US")} more checked`));
         });
         assert.isAtMost(within(values).getAllByRole("checkbox").length, 9);
+        // A list of more than nine values is said as its count (spec 3.1), else two names and "N more".
         assert.match(
-            document.querySelector('[data-row="com"]')?.getAttribute("aria-label") ?? "",
-            new RegExp(`and ${(matches - 2).toLocaleString("en-US")} more`),
+            document.querySelector('.sel-ws-outline [data-row="com"]')?.getAttribute("aria-label") ?? "",
+            matches > 9
+                ? new RegExp(`${matches.toLocaleString("en-US")} values`)
+                : new RegExp(`and ${(matches - 2).toLocaleString("en-US")} more`),
         );
     });
 

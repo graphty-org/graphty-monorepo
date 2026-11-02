@@ -1124,7 +1124,7 @@ export function SelectionEditor({
                                     disabled={!ws || !previewing || underOf(at).length === 0}
                                     openDelay={500}
                                 >
-                                    <div
+                                    <div // NOSONAR(S6848): a treeitem; rowProps gives its role, tab stop and keys
                                         {...rowProps(
                                             branchId,
                                             branchId,

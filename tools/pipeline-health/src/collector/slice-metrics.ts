@@ -70,10 +70,13 @@ export function budgetShares(
 
 /**
  * What one cycle of slices cost other work, in the pool GitHub limits (machine.dev and self-hosted jobs left out):
- * slice runner-minutes held while the pool was saturated or another job waited for a runner, and the minutes other
- * jobs spent waiting for a runner inside the cycle while a slice job held one. A job waits for a runner by the
- * runner-use rule (waitsForRunner: queued over 2 minutes), so a job created seconds ago, one held by a concurrency
- * group or one waiting for an environment approval costs nothing, and a job queued 3 minutes counts 3, not the cycle.
+ * slice runner-minutes held while the pool was saturated, and the minutes other jobs spent waiting for a runner inside
+ * that cycle. A hosted slice runner holds back another job only through the concurrency limit, so a job waiting while
+ * the pool is below it (GitHub's own assignment delay; ci.unassigned_ms) is no cost of the slices, and nothing counts
+ * unless the cycle was saturated (#5398: since the limit became 500, every wait charged to slices was that delay, with
+ * at most 180 of 500 runners busy). A job waits for a runner by the runner-use rule (waitsForRunner: queued over 2
+ * minutes), so a job created seconds ago, one held by a concurrency group or one waiting for an environment approval
+ * costs nothing, and a job queued 3 minutes counts 3, not the cycle.
  * @param open every unfinished run with its jobs
  * @param workflow the slice workflow's file
  * @param saturated this cycle's saturation flag
@@ -103,10 +106,10 @@ export function contention(
             }
         }
     }
-    if (!held) {
+    if (!held || !saturated) {
         return { contendedMin: 0, queueWaitMin: 0 };
     }
-    return { contendedMin: saturated || waited ? held * minutes : 0, queueWaitMin: waited };
+    return { contendedMin: held * minutes, queueWaitMin: waited };
 }
 
 /** Changed pictures waiting for the owner (key project/story/mode), and the approval merges seen. */

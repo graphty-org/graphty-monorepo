@@ -177,7 +177,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
             }
             next = { binding: textBinding(session, proposal.binding) };
         }
-        focusLineNext(kind.words);
+        focusLineNext(session, kind.words);
         const card = asCard.current;
         asCard.current = false;
         // A card: the card look and the picked value as its first row, in bold, in one step.
@@ -199,7 +199,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                 store.set({ announcement: `${kindWord} ${card ? "card" : kind.name.toLowerCase()} added` });
             })
             .catch((error: unknown) => {
-                focusLineNext(null);
+                focusLineNext(session, null);
                 fail(error);
             });
     };
@@ -249,7 +249,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
             if (size === undefined) {
                 return;
             }
-            focusLineNext(kind.size);
+            focusLineNext(session, kind.size);
             write = writeIn(ctx, kind.size, { value: startFor(ctx, size) });
         } else {
             const patch: Partial<LabelStyle> =
@@ -512,7 +512,13 @@ function SourcePicker({
     return (
         <Popout opened={opened} onOpenChange={onOpenChange}>
             <Popout.Trigger>{children}</Popout.Trigger>
-            <Popout.Panel width={LIST_WIDTH} placement="left" alignment="start" header={{ variant: "title", title }}>
+            <Popout.Panel
+                width={LIST_WIDTH}
+                placement="left"
+                alignment="start"
+                header={{ variant: "title", title }}
+                closeLabel={`Close ${title}`}
+            >
                 <ValuePicker
                     title={title}
                     target={target}
@@ -690,20 +696,25 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
     // about 30 px.
     const fixed = typed || typing;
     const sourceWord = fixed ? FIXED_TEXT : source;
+    // The button is narrow and cuts its words short ("Fixed t..."), so its tooltip says them whole,
+    // in the words of its name.
+    const sourceName = `${kind.name} source: ${sourceWord}`;
     const sourceControl = sourcePicker(
-        <Button
-            size="compact-xs"
-            variant="default"
-            c={words === undefined ? "dimmed" : undefined}
-            fullWidth
-            justify="flex-start"
-            aria-label={`${kind.name} source: ${sourceWord}`}
-            aria-haspopup="dialog"
-            aria-expanded={sourceOpen}
-            style={{ flex: 1, minWidth: 0 }}
-        >
-            {sourceWord}
-        </Button>,
+        <Tooltip label={sourceName}>
+            <Button
+                size="compact-xs"
+                variant="default"
+                c={words === undefined ? "dimmed" : undefined}
+                fullWidth
+                justify="flex-start"
+                aria-label={sourceName}
+                aria-haspopup="dialog"
+                aria-expanded={sourceOpen}
+                style={{ flex: 1, minWidth: 0 }}
+            >
+                {sourceWord}
+            </Button>
+        </Tooltip>,
     );
 
     return (
@@ -725,7 +736,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                 {sourceControl}
                 <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>
                     <Popout.Trigger>
-                        <Tooltip label={`${kind.name} settings`}>
+                        <Tooltip label={`${where} settings`}>
                             <PopoutButton
                                 icon={<GLYPHS.settings size={14} aria-hidden />}
                                 aria-label={`${where} settings`}
@@ -740,6 +751,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                         alignment="start"
                         boundaryTop={settingsOpen ? headerBottom() : 0}
                         header={{ variant: "title", title: `${kind.name} settings` }}
+                        closeLabel={`Close ${kind.name} settings`}
                     >
                         <Popout.Content>
                             {card && words !== undefined ? (
@@ -787,7 +799,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                             aria-label={`Remove ${noun}`}
                             onClick={(event) => {
                                 // The minus goes with the entry: focus moves to the list's "+".
-                                focusSectionNext(event.currentTarget, kind.words);
+                                focusSectionNext(session, event.currentTarget, kind.words);
                                 removeEntry(session, layers, channelsOf(kind)).catch(onFail);
                             }}
                         >

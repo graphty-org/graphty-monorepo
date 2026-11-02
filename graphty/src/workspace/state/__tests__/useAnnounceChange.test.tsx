@@ -4,9 +4,9 @@
  * number and comes back to the same one), and the first count of a thing just added is news.
  * The status line empties on the reader's next key, so browse mode never reads an old message.
  */
-import userEvent from "@testing-library/user-event";
 import React from "react";
 import { assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { act, render, screen } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";

@@ -87,6 +87,7 @@ export async function neptuneResult(input: TransportInput, response: Response): 
     }
     if (body === null || !Array.isArray(body.results)) {
         failOn(ctx.report, "E_SOURCE_RESPONSE", "the Neptune answer has no results", {
+            origin,
             expected: "json",
             contentType: response.headers.get("content-type"),
         });

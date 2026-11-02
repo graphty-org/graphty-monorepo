@@ -13,13 +13,11 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { HeroTurns } from "../../start/heroTurns";
-import { createWorkspaceStore } from "../../state/store";
+import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 type ElementUnderTest = HTMLElementTagNameMap["graphty-element"];
 
@@ -46,10 +44,10 @@ function forgetAutosave(): Promise<void> {
  * real click on the page waits behind each frame (issue #4139).
  * @returns the render result.
  */
-function mountWorkspace(): ReturnType<typeof render> {
+function mountWorkspace(store: WorkspaceStore): ReturnType<typeof render> {
     return render(
         <HeroTurns.Provider value={false}>
-            <Workspace store={createWorkspaceStore({ autosave: true })} />
+            <Workspace store={store} />
         </HeroTurns.Provider>,
     );
 }
@@ -60,13 +58,10 @@ function mountWorkspace(): ReturnType<typeof render> {
  */
 async function openElement(): Promise<ElementUnderTest> {
     let found: ElementUnderTest | null = null;
-    await waitFor(
-        () => {
-            found = document.querySelector<ElementUnderTest>("graphty-element:not([data-start-page])");
-            assert.isDefined(found?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        found = document.querySelector<ElementUnderTest>("graphty-element:not([data-start-page])");
+        assert.isDefined(found?.session);
+    });
     if (found === null) {
         throw new Error("the element never came up");
     }
@@ -75,23 +70,17 @@ async function openElement(): Promise<ElementUnderTest> {
 
 /**
  * Brings a sample into the open project through the Data place's own door, Sources "+" >
- * Samples..., and waits for its nodes.
+ * Samples..., and waits for it to open.
+ * @param store - the workspace store.
  * @param name - the sample's name.
- * @param nodes - how many nodes it has.
  * @returns the element.
  */
-async function loadSample(name: string, nodes: number): Promise<ElementUnderTest> {
+async function loadSample(store: WorkspaceStore, name: string): Promise<ElementUnderTest> {
     const element = await openElement();
-    await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
-    const samples = await screen.findByRole("dialog", { name: "Samples" }, { timeout: TIMEOUT_MS });
-    await userEvent.click(within(samples).getByRole("button", { name: new RegExp(`^${name}`) }));
-    await waitFor(
-        () => {
-            assert.equal(element.session.data.statistics().nodeCount, nodes);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const samples = await screen.findByRole("dialog", { name: "Samples" });
+    await openBy(store, () => userEvent.click(within(samples).getByRole("button", { name: new RegExp(`^${name}`) })));
     // A real click waits behind every frame drawn while the layout moves: start clicking once the
     // picture is at rest, as a reader would.
     await element.waitForStableFrame();
@@ -107,7 +96,7 @@ async function loadSample(name: string, nodes: number): Promise<ElementUnderTest
 async function fields(): Promise<ReturnType<typeof within>> {
     // Exact, so "Data place" (the region) does not also match.
     await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
-    const place = await screen.findByRole("region", { name: "Data place" }, { timeout: TIMEOUT_MS });
+    const place = await screen.findByRole("region", { name: "Data place" });
     return within(within(place).getByRole("group", { name: "Fields" }));
 }
 
@@ -153,16 +142,15 @@ function drop(file: File): void {
  * @returns the session.
  */
 async function dropCsv(csv: string): Promise<GraphSession> {
-    render(<Workspace store={createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" })} />);
-    const element = await openElement();
-    drop(new File([csv], "places.csv"));
-    await waitFor(
-        () => {
-            assert.isAbove(element.session.data.statistics().nodeCount, 0);
-        },
-        { timeout: TIMEOUT_MS },
-    );
-    return element.session;
+    const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+    render(<Workspace store={store} />);
+    await openElement();
+    const session = await openBy(store, async () => {
+        drop(new File([csv], "places.csv"));
+        await Promise.resolve();
+    });
+    assert.isAbove(session.data.statistics().nodeCount, 0);
+    return session;
 }
 
 describe("Data > Fields as a + list on the real element", () => {
@@ -180,21 +168,21 @@ describe("Data > Fields as a + list on the real element", () => {
         // turning start-page graph and one on the airline's 36,906 edges laying out; on a
         // software GPU each frame held the page for 100 to 600 ms, so on a loaded runner each
         // click took 3 to 6 s and the test passed its 15 s limit (issue #3981).
-        render(<Workspace store={createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" })} />);
+        const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
         const element = await openElement();
         const section = await fields();
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
-        const samples = await screen.findByRole("dialog", { name: "Samples" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(samples).getByRole("button", { name: /^OpenFlights airline routes/ }));
-        await waitFor(
-            () => {
-                assert.equal(element.session.data.statistics().nodeCount, 3214);
-                assert.includeMembers(entries(section, "nodes"), ["label", "latitude", "longitude"]);
-                assert.include(entries(section, "edges"), "weight");
-            },
-            { timeout: TIMEOUT_MS },
+        const samples = await screen.findByRole("dialog", { name: "Samples" });
+        await openBy(store, () =>
+            userEvent.click(within(samples).getByRole("button", { name: /^OpenFlights airline routes/ })),
         );
+        assert.equal(element.session.data.statistics().nodeCount, 3214);
+        await waitFor(() => {
+            assert.includeMembers(entries(section, "nodes"), ["label", "latitude", "longitude"]);
+            assert.include(entries(section, "edges"), "weight");
+        });
         assert.equal(shown(section, "Node label"), "label");
         assert.equal(shown(section, "Node latitude column"), "latitude");
         assert.equal(shown(section, "Node longitude column"), "longitude");
@@ -213,12 +201,10 @@ describe("Data > Fields as a + list on the real element", () => {
     it("adds Time from +, removes it with the minus, and it stays gone after a reload", async () => {
         // The sample comes in through the Data place's own door, as in the airline test above, so
         // no click waits behind the start screen's turning graph or the sample's layout.
-        const first = render(
-            <Workspace
-                store={createWorkspaceStore({ autosave: true, project: { name: "Fields", id: 1 }, place: "data" })}
-            />,
-        );
-        const element = await loadSample("Paper citations", 159);
+        const store = createWorkspaceStore({ autosave: true, project: { name: "Fields", id: 1 }, place: "data" });
+        const first = render(<Workspace store={store} />);
+        const element = await loadSample(store, "Paper citations");
+        assert.equal(element.session.data.statistics().nodeCount, 159);
         let section = await fields();
         await waitFor(() => {
             section.getByRole("button", { name: "Add to node fields" });
@@ -243,22 +229,16 @@ describe("Data > Fields as a + list on the real element", () => {
         });
 
         // The work is saved, then the page goes away and comes back: a reload.
-        await waitFor(
-            () => {
-                assert.strictEqual(element.autosaver.status.state, "saved");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.autosaver.status.state, "saved");
+        });
         first.unmount();
         // This tab's own work reopens straight into the workspace, with no offer to answer.
-        const second = mountWorkspace();
+        const kept = createWorkspaceStore({ autosave: true });
+        const second = mountWorkspace(kept);
+        await openBy(kept, () => Promise.resolve());
         const restored = await openElement();
-        await waitFor(
-            () => {
-                assert.equal(restored.session.data.statistics().nodeCount, 159);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        assert.equal(restored.session.data.statistics().nodeCount, 159);
         await restored.waitForStableFrame();
         section = await fields();
         await waitFor(() => {
@@ -272,12 +252,9 @@ describe("Data > Fields as a + list on the real element", () => {
     it("lists a detected city and the country narrowing it as two entries, and their minuses stop the search", async () => {
         const session = await dropCsv("id,city,country\na,Paris,France\nb,Lyon,France\nc,Berlin,Germany\n");
         const section = await fields();
-        await waitFor(
-            () => {
-                assert.includeMembers(entries(section, "nodes"), ["country", "city"]);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.includeMembers(entries(section, "nodes"), ["country", "city"]);
+        });
         assert.equal(shown(section, "Node city column"), "city");
         assert.equal(shown(section, "Node country column"), "country");
 

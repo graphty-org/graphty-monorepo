@@ -19,10 +19,17 @@ import { SchemaManager } from "../../src/ai/schema";
 import type { Graph } from "../../src/Graph";
 import {
     getLlmRegressionApiKey,
-    getLlmRegressionKeyVariable,
+    getLlmRegressionGeminiTier,
     getLlmRegressionModel,
     getLlmRegressionProvider,
+    getSkipReason,
 } from "./llm-regression-env";
+import {
+    ACCOUNT_REFUSAL_TEXT,
+    FLEX_CAPACITY_CODE,
+    GeminiTransport,
+    REQUEST_TIMEOUT_CODE,
+} from "./llm-regression-gemini";
 import { createMockGraphContext } from "./mock-graph-context";
 
 /**
@@ -77,10 +84,12 @@ export interface TestExpectations {
  * Options for retry behavior when API calls fail
  */
 export interface RetryOptions {
-    /** Maximum number of retry attempts (default: 2) */
+    /**
+     * Maximum number of retry attempts (default: 2). A retry is sent at once: each attempt's request
+     * already waits as the provider asks between its own retries (the AI SDK's backoff, which reads
+     * the provider's retry headers), so the harness adds no wait of its own.
+     */
     maxRetries?: number;
-    /** Delay between retry attempts in milliseconds (default: 1000) */
-    retryDelayMs?: number;
     /** Custom function to determine if an error should trigger a retry */
     retryOn?: (error: Error) => boolean;
 }
@@ -131,11 +140,7 @@ export function accountRefusalOf(error: unknown): string | null {
     // insufficient_quota, Google with 429 RESOURCE_EXHAUSTED on a billing quota, or 402 when its
     // prepayment credits are depleted.
     const text = failure.text.toLowerCase();
-    if (
-        /credit balance|insufficient_quota|no credits|credits are depleted|billing|exceeded your current quota/.test(
-            text,
-        )
-    ) {
+    if (ACCOUNT_REFUSAL_TEXT.test(text)) {
         return `HTTP ${status ?? "?"}, out of credit or quota`;
     }
 
@@ -143,11 +148,26 @@ export function accountRefusalOf(error: unknown): string | null {
 }
 
 /**
+ * The test file's one Gemini transport, so every harness in it shares the cached prefixes; setup.ts closes it
+ * and prints its usage.
+ * @param apiKey - The Google key
+ * @returns The transport
+ */
+function geminiTransport(apiKey: string): GeminiTransport {
+    const shared = globalThis as { __LLM_REGRESSION_GEMINI__?: GeminiTransport };
+    shared.__LLM_REGRESSION_GEMINI__ ??= new GeminiTransport({
+        apiKey,
+        tier: getLlmRegressionGeminiTier(),
+        usageFile: process.env.LLM_REGRESSION_USAGE_FILE || undefined,
+    });
+    return shared.__LLM_REGRESSION_GEMINI__;
+}
+
+/**
  * Default retry options
  */
 const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, "retryOn">> = {
     maxRetries: 2,
-    retryDelayMs: 1000,
 };
 
 /**
@@ -156,7 +176,7 @@ const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, "retryOn">> = {
 export interface LlmRegressionTestHarnessOptions {
     /** Test graph fixture data */
     graphData?: TestGraphFixture;
-    /** Model to use (defaults to VITE_LLM_REGRESSION_MODEL, else the provider's default) */
+    /** Model to use (defaults to LLM_REGRESSION_MODEL, else the provider's default) */
     model?: string;
     /** Temperature setting (defaults to 0 for determinism) */
     temperature?: number;
@@ -254,17 +274,18 @@ export class LlmRegressionTestHarness {
     static create(options: LlmRegressionTestHarnessOptions = {}): Promise<LlmRegressionTestHarness> {
         const apiKey = getLlmRegressionApiKey();
         if (!apiKey) {
-            throw new Error(
-                `${getLlmRegressionKeyVariable()} environment variable is required for LLM regression tests`,
-            );
+            throw new Error(getSkipReason());
         }
 
-        // The provider VITE_LLM_REGRESSION_PROVIDER names (google by default)
-        const provider = new ToolCallCapturingProvider(getLlmRegressionProvider());
+        // The provider LLM_REGRESSION_PROVIDER names (google by default)
+        const providerType = getLlmRegressionProvider();
+        const provider = new ToolCallCapturingProvider(providerType);
         provider.configure({
             apiKey,
             model: options.model ?? getLlmRegressionModel(),
             temperature: options.temperature ?? 0,
+            // Google's requests go through the run's one transport: the cached prefix, the tier, the deadline, the cost.
+            fetch: providerType === "google" ? geminiTransport(apiKey).fetch : undefined,
         });
 
         // Create graph from fixture or default
@@ -329,7 +350,6 @@ export class LlmRegressionTestHarness {
         }
 
         const maxRetries = retryOptions?.maxRetries ?? DEFAULT_RETRY_OPTIONS.maxRetries;
-        const retryDelayMs = retryOptions?.retryDelayMs ?? DEFAULT_RETRY_OPTIONS.retryDelayMs;
         const shouldRetry = retryOptions?.retryOn ?? this.defaultRetryCondition;
         const startTime = Date.now();
         let resentRejectedFirstRequest = false;
@@ -372,7 +392,6 @@ export class LlmRegressionTestHarness {
                 }
 
                 if (attempt < maxRetries && shouldRetry(failure)) {
-                    await this.delay(retryDelayMs);
                     continue;
                 }
 
@@ -414,6 +433,12 @@ export class LlmRegressionTestHarness {
      */
     private defaultRetryCondition(error: Error): boolean {
         const message = error.message.toLowerCase();
+        // The transport already retried Flex's capacity errors as Google documents, and resent a request that
+        // missed its deadline once: asking again only waits past the case's time limit.
+        if (error.message.includes(FLEX_CAPACITY_CODE) || error.message.includes(REQUEST_TIMEOUT_CODE)) {
+            return false;
+        }
+
         return (
             message.includes("rate") ||
             message.includes("429") ||
@@ -421,14 +446,6 @@ export class LlmRegressionTestHarness {
             message.includes("timeout") ||
             message.includes("econnreset")
         );
-    }
-
-    /**
-     * Delay helper for retry logic.
-     */
-    private delay(ms: number): Promise<void> {
-        // eslint-disable-next-line local/no-test-timing -- backoff before calling a remote LLM provider again after a rate limit or transient error; the provider offers no condition to wait on, tracked in #1636
-        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     /**

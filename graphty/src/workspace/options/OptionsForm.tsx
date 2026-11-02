@@ -766,6 +766,7 @@ export function OptionsForm({
                                 placement="left"
                                 alignment="start"
                                 header={{ variant: "title", title: advancedLabel }}
+                                closeLabel={`Close ${advancedLabel}`}
                             >
                                 <Popout.Content>
                                     <Stack gap={8}>

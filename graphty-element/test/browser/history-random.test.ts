@@ -177,7 +177,7 @@ describe.each(ENGINES)("random sequences on a real graph under %s", (engine) => 
                         }
                     },
                 ),
-                { seed, numRuns: NUM_RUNS, endOnFailure: true, timeout: 20_000 },
+                { seed, numRuns: NUM_RUNS, endOnFailure: true },
             );
         });
     }

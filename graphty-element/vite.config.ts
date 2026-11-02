@@ -54,10 +54,14 @@ const entries = {
  * 130 packages, among them `@modelcontextprotocol/sdk`, `http-proxy` and `selfsigned`). No
  * published `.d.ts` names a remote-logger type, so copying it changes no public type.
  *
- * Because they are copied in, both are devDependencies: a consumer never resolves them. This set
- * stays so that declaring either as a dependency again cannot quietly externalise it.
+ * `@jsonhero/json-infer-types` (the AI layer's value and string-format classification) is copied
+ * in so that a consumer of the AI entry point installs nothing for it, as it was when it arrived
+ * through `@jsonhero/schema-infer` (issue #3278).
+ *
+ * Because they are copied in, all three are devDependencies: a consumer never resolves them. This
+ * set stays so that declaring one as a dependency again cannot quietly externalise it.
  */
-const bundledDependencies = new Set(["lodash", "@graphty/remote-logger"]);
+const bundledDependencies = new Set(["lodash", "@graphty/remote-logger", "@jsonhero/json-infer-types"]);
 
 /**
  * Every declared dependency and peer dependency, as a specifier matcher.

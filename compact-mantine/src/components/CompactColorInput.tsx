@@ -267,6 +267,12 @@ interface HexReading {
     hexState: string;
     /** Whether the state already carries the color's words, so the value text is not added again. */
     wordsInState: boolean;
+    /**
+     * What the box keeps, in the words its name uses ("006400 dark green"), for "Edit discarded;
+     * this stays ..." and a refusal: the hex alone would leave a reader who hears the box's words
+     * unsure the value is the one they heard.
+     */
+    keptWords: string;
 }
 
 /**
@@ -312,7 +318,11 @@ function readHex(
     }
     // An unset color's words are already in its state ("drawn #6366F1 indigo").
     const wordsInState = showsMixed || (isColorDefault && emptyText === undefined);
-    return { showsMixed, emptyWords, shownHex, hexState, wordsInState };
+    const keptWords =
+        shownHex === ""
+            ? (emptyWords ?? "")
+            : [shownHex, valueText].filter((part) => part !== undefined && part !== "").join(" ");
+    return { showsMixed, emptyWords, shownHex, hexState, wordsInState, keptWords };
 }
 
 /**
@@ -631,7 +641,7 @@ export function CompactColorInput({
     const displayOpacity = chosenOpacity ?? defaultOpacity;
 
     const reading = readHex(labels, { mixed, isColorDefault, emptyText, emptySwatch, displayColor, valueText });
-    const { showsMixed, emptyWords, shownHex, hexState } = reading;
+    const { showsMixed, emptyWords, shownHex, hexState, keptWords } = reading;
     // The state joins the hex box's name: a default is drawn as any value, as Figma does.
     const { hexName, swatchName, opacityName } = controlNames(labels, name);
     const [hexDraft, setHexDraft] = useState(shownHex);
@@ -745,7 +755,7 @@ export function CompactColorInput({
             onChangeEnd?.(candidate, chosenOpacity, event);
         } else if (candidate === undefined && typed !== "" && hexDraft !== shownHex) {
             setRefusal({
-                message: labels.colorRefusedKept(typed, shownHex === "" ? (emptyWords ?? "") : shownHex),
+                message: labels.colorRefusedKept(typed, keptWords),
             });
             setHexDraft(shownHex);
         } else {
@@ -909,9 +919,7 @@ export function CompactColorInput({
                             typedHere.current = false;
                             setRefusal(undefined);
                             if (hexDraft !== shownHex) {
-                                setDiscarded(
-                                    labels.colorEditDiscarded(shownHex === "" ? (emptyWords ?? "") : shownHex),
-                                );
+                                setDiscarded(labels.colorEditDiscarded(keptWords));
                             }
                             revertOnEscape(
                                 event,

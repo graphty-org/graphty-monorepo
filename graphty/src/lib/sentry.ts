@@ -1,7 +1,26 @@
-import * as Sentry from "@sentry/react";
+import * as SentrySdk from "@sentry/react";
 
 import { siteConfig } from "../siteConfig";
 import { privacyFilters } from "./sentryPrivacy";
+
+/** The parts of Sentry's SDK this module calls. */
+export type SentryCalls = Pick<
+    typeof SentrySdk,
+    "init" | "close" | "replayIntegration" | "captureException" | "captureFeedback" | "getCurrentScope"
+>;
+
+/** Sentry's SDK, or the stand-in a test passed to {@link setSentryCallsForTests}. */
+let Sentry: SentryCalls = SentrySdk;
+
+/**
+ * Sends this module's calls to a stand-in rather than Sentry's SDK. A test passes one in here instead
+ * of mocking the module: in a browser test, a module mock switches the page's HTTP cache off
+ * (issue #3416).
+ * @param calls - the stand-in, or nothing for Sentry's SDK again.
+ */
+export function setSentryCallsForTests(calls?: SentryCalls): void {
+    Sentry = calls ?? SentrySdk;
+}
 
 let initialized = false;
 /**
@@ -9,14 +28,14 @@ let initialized = false;
  * instances are not supported" on a second replayIntegration(), and a reader can turn usage data
  * off and on again in one visit, so it is made once and restarted.
  */
-let replay: ReturnType<typeof Sentry.replayIntegration> | undefined;
+let replay: ReturnType<typeof SentrySdk.replayIntegration> | undefined;
 
 interface SentryConfig {
     dsn?: string;
     environment?: string;
     isProd?: boolean;
     /** Where events go; Sentry's own by default. Tests pass one that records them. */
-    transport?: Sentry.BrowserOptions["transport"];
+    transport?: SentrySdk.BrowserOptions["transport"];
 }
 
 /**

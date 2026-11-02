@@ -8,6 +8,9 @@
  * - Error retry functionality
  */
 
+// encrypt-storage, as the ./ai and ./credentials entry points register it
+import "../src/ai/keys/withEncryptStorage";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html, type TemplateResult } from "lit";
 
@@ -222,7 +225,8 @@ async function setupShowcase(): Promise<void> {
         return;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // The element is upgraded, so its graph exists.
+    await customElements.whenDefined("graphty-element");
     const graph = element.graph as VoiceGraph & GraphtyElement["graph"];
 
     // State

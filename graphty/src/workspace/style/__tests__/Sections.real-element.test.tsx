@@ -23,9 +23,6 @@ import { Workspace } from "../../Workspace";
 import { SECTIONS } from "../words";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** The scene: the session, the chrome store, and the Degree run's row name when it ran. */
 interface Scene {
     readonly session: GraphSession;
@@ -44,14 +41,11 @@ async function openScene({ degree = false }: { degree?: boolean } = {}): Promise
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -92,7 +86,7 @@ function escape(name: string): string {
  * @returns the Style tab.
  */
 async function openStyle(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escape(name)}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
@@ -550,7 +544,7 @@ describe("the Style tab's sections", () => {
             set: { "node.size": 3 },
         });
         await session.styles.settled();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         const user = userEvent.setup();
         await user.click(within(tree).getByRole("treeitem", { name: /^Key people, / }));
         await user.keyboard("{Control>}");
@@ -574,7 +568,7 @@ describe("the Style tab's sections", () => {
 
     it("shows every eye at rest, names a hidden row's eye 'Show', and keeps Everything in place", async () => {
         const { session } = await openScene();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.unhover(tree);
         const eyes = within(tree).getAllByRole("button", { name: /^(Hide|Show) / });
         assert.isAbove(eyes.length, 3);

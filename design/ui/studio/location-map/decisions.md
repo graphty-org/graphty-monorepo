@@ -266,6 +266,9 @@ then legibility, then polish.
   with no word.
 - **Owner:** graphty-element, graphty.
 - **Done when:** a real-input test in 2D finds Surface disabled with a reason in its tooltip.
+- **Superseded (owner, 2026-10-23):** there is no flat-map/globe choice. The map follows the 2D
+  and 3D mode: the option is `mapDimension` (`"3d"`, the globe, by default; `"2d"`), the Map form
+  calls it Map type with 2D map and 3D map, and the 2D view offers only the 2D map.
 
 ### 15. Say which columns "Automatic" used, and order the lists by fit
 

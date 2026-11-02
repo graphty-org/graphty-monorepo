@@ -23,6 +23,7 @@ import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
 import type { LayerSpec } from "../../../src/catalog/types";
 import { operationQueueOf } from "../../../src/Graph";
+import { EdgeShaderDrawing } from "../../../src/meshes/EdgeShaderDrawing";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import { SHADER_PRESETS } from "../../../src/shaders/presets";
 import { defineShader } from "../../../src/simple/defineShader";
@@ -161,11 +162,14 @@ async function mounted(shader: string, edgeShader: string | undefined): Promise<
 }
 
 /**
- * Wait until every node on screen is drawn by its shader's compiled batch.
+ * Wait until every node on screen is drawn by its shader's compiled batch, and every edge by its
+ * edge shader's. An edge shader resolves and compiles on its own schedule, and until then its edge
+ * keeps its plain line, so waiting on the nodes alone can read an edge that is not shaded yet.
  * @param element - The element.
  * @param count - How many nodes the batches should hold.
+ * @param edges - How many edges the edge shader batches should hold (0 for plain edges).
  */
-async function untilDrawn(element: Graphty, count: number): Promise<void> {
+async function untilDrawn(element: Graphty, count: number, edges: number): Promise<void> {
     const scene = element.graph.getScene();
     const ready = (): boolean => {
         const drawing = NodeShaderDrawing.peek(scene);
@@ -173,13 +177,20 @@ async function untilDrawn(element: Graphty, count: number): Promise<void> {
             (mesh) => /^graphtyNode(impostor|replace)/.test(mesh.name) && !mesh.isDisposed(),
         );
         const held = [...(drawing?.stats().slots.values() ?? [])].reduce((sum, n) => sum + n, 0);
-        return held === count && batches.length > 0 && batches.every((mesh) => mesh.material?.isReady(mesh) === true);
+        const edgeSlots = EdgeShaderDrawing.peek(scene)?.stats().slots.values() ?? [];
+        const edgesHeld = [...edgeSlots].reduce((sum, n) => sum + n, 0);
+        return (
+            held === count &&
+            edgesHeld === edges &&
+            batches.length > 0 &&
+            batches.every((mesh) => mesh.material?.isReady(mesh) === true)
+        );
     };
     for (let i = 0; i < 600 && !ready(); i++) {
         await drawnFrames(scene, 1);
     }
 
-    assert.isTrue(ready(), `the shader draws all ${String(count)} nodes`);
+    assert.isTrue(ready(), `the shaders draw all ${String(count)} nodes and ${String(edges)} edges`);
 }
 
 /**
@@ -225,12 +236,14 @@ async function assertCovers(shader: string, edgeShader: string | undefined): Pro
     const sphere = place !== "replace" && shader !== "depth/own-replace";
     const points = [OVERLAP, ON_EDGE, THROUGH, INTERSECT];
     const element = await mounted(shader, edgeShader);
-    await untilDrawn(element, NODES.length);
+    const shadedEdges = edgeShader === undefined ? 0 : EDGES.length;
+    await untilDrawn(element, NODES.length, shadedEdges);
     const [overlap, edge, through, intersect] = await pixelsAt(element, points);
 
     await element.session.data.removeNodes(HIDDEN);
     await operationQueueOf(element.graph).waitForCompletion();
-    await untilDrawn(element, NODES.length - HIDDEN.length);
+    // Removing "left" and "right" removes the edge between them.
+    await untilDrawn(element, NODES.length - HIDDEN.length, edgeShader === undefined ? 0 : EDGES.length - 1);
     const [nearAlone, edgeAlone, throughAlone, intersectAlone] = await pixelsAt(element, points);
 
     if (TRANSLUCENT.has(shader)) {

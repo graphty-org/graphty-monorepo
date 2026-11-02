@@ -272,11 +272,16 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     // label leaves, for the same reasons. The whole block used to be waived here as a defect: the
     // renderer read every field of it and only the words had a door.
     ...namedBlockOf("node", "tooltip", LABEL_RESIDUE),
+    // A node's external label: its words, its place and its appearance are channels, so what is left is the same
+    // leaves a label leaves, for the same reasons.
+    ...namedBlockOf("node", "xlabel", LABEL_RESIDUE),
 
     // ------------------------------------------------------------------------------------------
     // Edges
     // ------------------------------------------------------------------------------------------
     ...namedBlockOf("edge", "label", LABEL_RESIDUE),
+    // An edge's external label: its words, its place and its appearance are channels, as the node's.
+    ...namedBlockOf("edge", "xlabel", LABEL_RESIDUE),
 
     // A caption at each end of an edge, published as four channels -- the words and the
     // appearance at each end -- so what is left is the same sixteen leaves a label leaves, for

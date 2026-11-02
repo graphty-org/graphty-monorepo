@@ -28,6 +28,7 @@ import {
     type Point,
     rightClick,
     touchDrag,
+    twist,
     wheel,
     withDevicePixelRatio,
 } from "../helpers/real-input";
@@ -96,6 +97,29 @@ function at(element: Graphty, id: string): Point {
     assert.isDefined(position, `node ${id} is drawn`);
     assert.isTrue(position.visible, `node ${id} is on screen`);
     return { x: position.x, y: position.y };
+}
+
+/**
+ * A corner of the canvas, 30 pixels in, that no node is drawn over, read from the nodes' public
+ * screen bounds: after the camera moves, a fixed spot such as `EMPTY` can land on a node.
+ * @param element - The element.
+ * @returns The spot.
+ */
+function emptyCorner(element: Graphty): Point {
+    const corners: Point[] = [
+        { x: 30, y: 30 },
+        { x: WIDTH - 30, y: 30 },
+        { x: 30, y: HEIGHT - 30 },
+        { x: WIDTH - 30, y: HEIGHT - 30 },
+    ];
+    const spot = corners.find((p) =>
+        NODES.every(({ id }) => {
+            const b = element.nodeScreenPosition(id)?.bounds;
+            return !b || p.x < b.left || p.x > b.right || p.y < b.top || p.y > b.bottom;
+        }),
+    );
+    assert.isDefined(spot, "a corner of the canvas is empty");
+    return spot;
 }
 
 /**
@@ -281,6 +305,24 @@ describe("the mouse", () => {
             await click(element, EMPTY);
             await applied(element);
             assert.isNull(element.getSelectedNode(), "a click on empty canvas clears the selection");
+        });
+
+        it("a click that changes the selection switches a select condition off, and undo switches it back on", async () => {
+            const element = await mounted(viewMode);
+            const { session } = element;
+            await session.visibility.addCondition({ id: "hub", effect: "select", rule: { kind: "degree", min: 2 } });
+            assert.sameMembers([...session.selection.nodes], ["a"], "the condition selected the hub");
+
+            await click(element, at(element, "b"));
+            await applied(element);
+            await vi.waitFor(() => {
+                assert.isFalse(session.visibility.conditions[0]?.on, "the reader's click switched the condition off");
+            });
+            assert.sameMembers([...session.selection.nodes], ["b"], "the reader's selection stands");
+
+            await session.undo();
+            assert.isTrue(session.visibility.conditions[0]?.on);
+            assert.sameMembers([...session.selection.nodes], ["a"], "undo selects the condition's matches again");
         });
 
         it("Shift-click adds a node to the selection, a plain click replaces it", async () => {
@@ -478,6 +520,25 @@ describe("the 2D view", () => {
         for (const { id } of NODES) {
             assert.closeTo(element.getNode(id)?.getPosition().z ?? Number.NaN, 0, 1e-6, `node ${id} is on the plane`);
         }
+    });
+
+    it("viewRotation turns the drawing counterclockwise, framed, and a finger still drags it along", async () => {
+        const element = await mounted("2d");
+        await element.session.config.set({ viewRotation: 90 });
+        await applied(element);
+
+        // Unturned, b is right of a; a quarter turn counterclockwise puts b straight above a.
+        const a = at(element, "a");
+        const b = at(element, "b");
+        assert.closeTo(b.x - a.x, 0, 2, "a and b stand one above the other");
+        assert.isBelow(b.y - a.y, -20, "b is above a");
+        assert.closeTo(element.getCameraState().rotation ?? Number.NaN, Math.PI / 2, 1e-6);
+
+        await touchDrag(element, EMPTY, { x: EMPTY.x + 40, y: EMPTY.y - 80 });
+        await applied(element);
+        const moved = at(element, "a");
+        assert.closeTo(moved.x - a.x, 40, 3, "the turned drawing followed the finger across");
+        assert.closeTo(moved.y - a.y, -80, 3, "the turned drawing followed the finger up");
     });
 });
 
@@ -829,6 +890,25 @@ describe("touch", () => {
         assert.isAbove(spread(element), gap * 1.5, "the drawing grew with the fingers");
     });
 
+    it("turning two fingers turns the 2D view with them, and the camera reports the turn", async () => {
+        const element = await mounted("2d");
+        // The way from node a to node b on screen, in degrees clockwise (screen y runs down).
+        const heading = (): number => {
+            const a = at(element, "a");
+            const b = at(element, "b");
+            return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+        };
+        const before = heading();
+        assert.closeTo(element.getCameraState().rotation ?? Number.NaN, 0, 1e-9, "the view starts unturned");
+
+        await twist(element, { x: WIDTH / 2, y: HEIGHT / 2 }, 120, 40);
+        await applied(element);
+
+        assert.closeTo(heading() - before, 40, 4, "the drawing turned clockwise with the fingers");
+        // The camera reports the drawing's turn counterclockwise, in radians: 40 degrees clockwise is -40.
+        assert.closeTo(element.getCameraState().rotation ?? Number.NaN, (-40 * Math.PI) / 180, 0.07);
+    });
+
     it("spreading two fingers zooms the 3D view in", async () => {
         const element = await mounted("3d");
         const gap = spread(element);
@@ -1000,7 +1080,12 @@ describe("the selection as the camera's pivot", () => {
 
         const before = at(element, "c");
         const unturned = camera(element);
-        await drag(element, EMPTY, { x: EMPTY.x + 120, y: EMPTY.y - 40 });
+        // The pivot's glide brings node a down over `EMPTY`, so the drag starts where no node is
+        const from = emptyCorner(element);
+        await drag(element, from, {
+            x: from.x + (from.x < WIDTH / 2 ? 120 : -120),
+            y: from.y + (from.y < HEIGHT / 2 ? 40 : -40),
+        });
         await applied(element);
 
         assert.notStrictEqual(camera(element), unturned, "the camera turned");

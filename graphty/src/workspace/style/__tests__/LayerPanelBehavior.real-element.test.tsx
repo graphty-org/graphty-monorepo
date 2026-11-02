@@ -20,9 +20,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { DEFAULT_NAME_KEY } from "../cards";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Les Miserables in the workspace with its starting rows.
  * @returns The session, the store and the node id of a character by name.
@@ -35,14 +32,11 @@ async function openScene(): Promise<{
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -58,7 +52,7 @@ async function openScene(): Promise<{
  * @returns the row.
  */
 async function treeRow(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     return within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
 }
 
@@ -86,7 +80,7 @@ describe("the layer panel's behavior", () => {
         });
         await session.styles.settled();
         await userEvent.click(await treeRow(name));
-        await userEvent.click(await screen.findByRole("button", { name: /^Which edges, / }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Which edges, / }));
         const region = await screen.findByRole("group", { name: "Which edges" });
         await userEvent.click(within(region).getByRole("button", { name: /^Remove / }));
         await noticeSays(new RegExp(`^${name} now styles all 254 edges: no condition is left`));
@@ -114,7 +108,7 @@ describe("the layer panel's behavior", () => {
         });
         await session.styles.settled();
         await userEvent.click(await treeRow("Cosette"));
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         await userEvent.keyboard("name");
@@ -132,7 +126,7 @@ describe("the layer panel's behavior", () => {
         await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
         if (screen.queryByRole("combobox", { name: "Find an attribute" }) === null) {
-            const nodes = await screen.findByRole("group", { name: "Which nodes" }, { timeout: TIMEOUT_MS });
+            const nodes = await screen.findByRole("group", { name: "Which nodes" });
             await userEvent.click(within(nodes).getByRole("button", { name: "Add a condition" }));
         }
         const search = await screen.findByRole("combobox", { name: "Find an attribute" });
@@ -155,7 +149,7 @@ describe("the layer panel's behavior", () => {
         await act(async () => {
             await session.selection.apply({ nodes: [idOf("Valjean")] });
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
         const memberships = await screen.findByRole("heading", { name: "Memberships" });
         const section = memberships.closest("section") ?? document.body;
         await userEvent.click(within(section).getByRole("button", { name: /^Louvain/ }));
@@ -185,7 +179,7 @@ describe("the layer panel's behavior", () => {
         await act(async () => {
             await session.selection.apply({ nodes: [idOf("Valjean")] });
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
         await userEvent.click(await screen.findByRole("button", { name: "Open layer Thanked" }));
         await waitFor(() => {
             assert.deepEqual(store.get().inspected, { kind: "layer-row", id: top.row ?? top.id, tab: "style" });

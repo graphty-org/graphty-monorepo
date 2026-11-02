@@ -245,21 +245,30 @@ function ellipse(halfWidth: number, halfHeight: number): Point2[] {
 }
 
 /**
- * A rectangle with rounded corners filling a box. The corner radius is a quarter of the shorter
- * side, or `maxRadius` when that is smaller -- Cytoscape.js's rule, which caps it at 8 px, so a
- * large box keeps small corners -- and it is the same in both directions however long and thin
- * the box is.
+ * A rectangle with rounded corners filling a box. The corner radius is `fraction` of the shorter
+ * side (a quarter by default), or `maxRadius` when that is smaller -- Cytoscape.js's rule, which
+ * caps a quarter at 8 px, so a large box keeps small corners -- and it is the same in both
+ * directions however long and thin the box is.
  * @param halfWidth - Half the box's width.
  * @param halfHeight - Half its height.
- * @param maxRadius - The largest corner radius; unset, a quarter of the shorter side.
- * @param exact - Whether `maxRadius` is drawn as given, up to half the shorter side, rather than capped at a quarter.
+ * @param maxRadius - The largest corner radius; unset, `fraction` of the shorter side.
+ * @param exact - Whether `maxRadius` is drawn as given, up to half the shorter side, rather than capped at `fraction`.
+ * @param fraction - The share of the shorter side the corners are rounded by, up to a half.
  * @returns The outline, counter-clockwise.
  */
-function roundRectangle(halfWidth: number, halfHeight: number, maxRadius = Infinity, exact = false): Point2[] {
+function roundRectangle(
+    halfWidth: number,
+    halfHeight: number,
+    maxRadius = Infinity,
+    exact = false,
+    fraction = 1 / 4,
+): Point2[] {
     const half = Math.min(halfWidth, halfHeight);
     const radius = Math.max(
         0,
-        exact && Number.isFinite(maxRadius) ? Math.min(half, maxRadius) : Math.min(half / 2, maxRadius),
+        exact && Number.isFinite(maxRadius)
+            ? Math.min(half, maxRadius)
+            : Math.min(half, 2 * half * fraction, maxRadius),
     );
     const corners: Point2[] = [
         [halfWidth - radius, -halfHeight + radius],
@@ -306,20 +315,89 @@ function fitToBox(unit: readonly Point2[], halfWidth: number, halfHeight: number
 }
 
 /**
- * A polygon's corners from its `x,y x,y ...` text (`shape.points`), counter-clockwise.
- * @param text - The corners, as `x,y` pairs separated by spaces.
- * @returns The corners, or null when there are fewer than three or one is not two finite numbers.
+ * A point of a shape's corners, parts or lines (`shape.points`, `shape.parts`, `shape.lines`): its x as a fraction of
+ * the half width plus a length, and its y as a fraction of the half height plus a length.
  */
-export function polygonPoints(text: string | undefined): Point2[] | null {
-    const pairs = (text ?? "").trim().split(/\s+/);
-    const points = pairs.map((pair): Point2 => {
-        const [x, y, extra] = pair.split(",").map(Number);
+export type ShapePoint = readonly [x: number, xLength: number, y: number, yLength: number];
 
-        return extra === undefined ? [x, y] : [Number.NaN, Number.NaN];
-    });
-    if (points.length < 3 || !points.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))) {
+/**
+ * A coordinate of a shape's points: a number, a fraction, or a fraction and the length added to it (`-1+24`: 24 in
+ * from the left side).
+ * @param text - The coordinate.
+ * @returns The fraction and the length, NaN when it is neither.
+ */
+function coordinate(text: string | undefined): [number, number] {
+    const plain = text === undefined ? Number.NaN : Number(text);
+    if (text === undefined || Number.isFinite(plain)) {
+        return [plain, 0];
+    }
+    // the length starts at the last sign that is not the fraction's own
+    const at = Math.max(text.lastIndexOf("+"), text.lastIndexOf("-"));
+    const [fraction, length] = at > 0 ? [Number(text.slice(0, at)), Number(text.slice(at))] : [Number.NaN, Number.NaN];
+    return Number.isFinite(fraction) && Number.isFinite(length) ? [fraction, length] : [Number.NaN, Number.NaN];
+}
+
+/**
+ * One list of a shape's points from its `x,y x,y ...` text, each coordinate a fraction of the half width or height,
+ * optionally followed by a signed length (`-1+24,0`).
+ * @param text - The points, as `x,y` pairs separated by spaces.
+ * @returns The points, or null when there are none or one is not two coordinates.
+ */
+export function shapePointList(text: string | undefined): ShapePoint[] | null {
+    const points = (text ?? "")
+        .trim()
+        .split(/\s+/)
+        .filter((pair) => pair !== "")
+        .map((pair): ShapePoint => {
+            const [x, y, extra] = pair.split(",");
+            return extra === undefined ? [...coordinate(x), ...coordinate(y)] : [Number.NaN, 0, Number.NaN, 0];
+        });
+    return points.length > 0 && points.every((p) => p.every((v) => Number.isFinite(v))) ? points : null;
+}
+
+/**
+ * Whether a polygon is drawn against its box (`shape.points` whose corners add lengths to their fractions, `-1+24`):
+ * a glyph of pieces at fixed sizes, which may fill little of its box and sit off its center. Graphviz ends its edges at
+ * the box and places its label by it, so the node's surface is the box, not its pieces.
+ * @param text - The corners.
+ * @returns True when at least three corners parse and one of them carries a length.
+ */
+export function drawnAgainstBox(text: string | undefined): boolean {
+    const corners = shapePointList(text);
+    return (
+        corners !== null &&
+        corners.length >= 3 &&
+        corners.some(([, xLength, , yLength]) => xLength !== 0 || yLength !== 0)
+    );
+}
+
+/**
+ * Where a shape's point is drawn in a box.
+ * @param point - The point.
+ * @param halfWidth - The box's half width.
+ * @param halfHeight - Its half height.
+ * @param perLength - The box's units per unit of the point's lengths.
+ * @returns The point, relative to the box's center.
+ */
+export function placePoint(point: ShapePoint, halfWidth: number, halfHeight: number, perLength = 1): Point2 {
+    const [x, xLength, y, yLength] = point;
+    return [x * halfWidth + xLength * perLength, y * halfHeight + yLength * perLength];
+}
+
+/**
+ * A polygon's corners from its `x,y x,y ...` text (`shape.points`), counter-clockwise, placed in a box: as fractions
+ * of its half width and half height when it is 1 by 1, its corners' lengths in the box's units.
+ * @param text - The corners, as `x,y` pairs separated by spaces.
+ * @param halfWidth - The box's half width.
+ * @param halfHeight - Its half height.
+ * @returns The corners, or null when there are fewer than three or one is not two coordinates.
+ */
+export function polygonPoints(text: string | undefined, halfWidth = 1, halfHeight = 1): Point2[] | null {
+    const corners = shapePointList(text);
+    if (corners === null || corners.length < 3) {
         return null;
     }
+    const points = corners.map((p) => placePoint(p, halfWidth, halfHeight));
 
     const area = points.reduce((sum, [x0, y0], i) => {
         const [x1, y1] = points[(i + 1) % points.length];
@@ -331,8 +409,7 @@ export function polygonPoints(text: string | undefined): Point2[] | null {
 }
 
 /**
- * How far a polygon's corners reach from its center along x and along y, as fractions of its half
- * width and half height.
+ * How far a polygon's corners reach from its center along x and along y, in the units they are in.
  * @param points - The corners.
  * @returns The farthest |x| and |y|.
  */
@@ -528,17 +605,43 @@ function database(halfWidth: number, halfHeight: number): Point2[] {
 }
 
 /**
+ * A polygon's outline in a box: its corners where they say, or stretched about its center, not its box, so the
+ * corners stay where they are around the node's position and the farthest on each axis reach the node's side.
+ * @param points - The corners (`shape.points`), their lengths in the box's units.
+ * @param halfWidth - The box's half width.
+ * @param halfHeight - Its half height.
+ * @param stretch - Whether the corners are stretched.
+ * @returns The outline, counter-clockwise; the box without usable corners.
+ */
+function polygonOutline(points: string | undefined, halfWidth: number, halfHeight: number, stretch: boolean): Point2[] {
+    const corners = polygonPoints(points, halfWidth, halfHeight);
+    if (corners === null) {
+        return fitToBox(UNIT_OUTLINES.rectangle, halfWidth, halfHeight);
+    }
+    if (!stretch) {
+        return corners;
+    }
+    const [reachX, reachY] = polygonReach(corners);
+    const toX = reachX > 0 ? halfWidth / reachX : 1;
+    const toY = reachY > 0 ? halfHeight / reachY : 1;
+    return corners.map(([x, y]): Point2 => [x * toX, y * toY]);
+}
+
+/**
  * The outline of one flat shape, filling a box centred on the origin.
  * @param shape - A flat shape name.
  * @param width - The box's width.
  * @param height - Its height.
  * @param cornerRadius - A round-rectangle's or a round-* polygon's largest corner radius, in the box's units.
- * @param points - A polygon's corners (`shape.points`); a polygon without usable ones is drawn as a
- *   rectangle.
+ * @param points - A polygon's corners (`shape.points`), their lengths in the box's units; a polygon without
+ *   usable ones is drawn as a rectangle.
  * @param stretch - Whether a polygon's corners are stretched to reach the box's sides (`shape.stretchPoints`), or
  *   drawn where they say.
- * @param exact - Whether `cornerRadius` is drawn as given (`shape.exactCornerRadius`), up to half the shorter side,
- *   rather than capped at a quarter of it (round-rectangle) or a tenth (round-* polygons).
+ * @param corners - How the corners are rounded.
+ * @param corners.exact - Whether `cornerRadius` is drawn as given (`shape.exactCornerRadius`), up to half the
+ *   shorter side, rather than capped at a quarter of it (round-rectangle) or a tenth (round-* polygons).
+ * @param corners.fraction - The share of the shorter side a round-rectangle's corners are rounded by when not
+ *   `exact` (`shape.cornerFraction`), a quarter by default.
  * @returns The outline, counter-clockwise, or an empty list for a shape that is not flat.
  */
 export function flatShapeOutline(
@@ -548,22 +651,13 @@ export function flatShapeOutline(
     cornerRadius?: number,
     points?: string,
     stretch = true,
-    exact = false,
+    { exact = false, fraction }: { readonly exact?: boolean; readonly fraction?: number } = {},
 ): Point2[] {
     const halfWidth = width / 2;
     const halfHeight = height / 2;
 
     if (shape === "polygon") {
-        const corners = polygonPoints(points);
-        if (corners === null) {
-            return fitToBox(UNIT_OUTLINES.rectangle, halfWidth, halfHeight);
-        }
-
-        // Stretched about its center, not its box: the corners stay where they are around the
-        // node's position, the farthest on each axis reaching the node's side.
-        const [reachX, reachY] = stretch ? polygonReach(corners) : [1, 1];
-
-        return corners.map(([x, y]): Point2 => [(x / reachX) * halfWidth, (y / reachY) * halfHeight]);
+        return polygonOutline(points, halfWidth, halfHeight, stretch);
     }
 
     if (shape === "ellipse") {
@@ -571,7 +665,7 @@ export function flatShapeOutline(
     }
 
     if (shape === "round-rectangle") {
-        return roundRectangle(halfWidth, halfHeight, cornerRadius, exact);
+        return roundRectangle(halfWidth, halfHeight, cornerRadius, exact, fraction);
     }
 
     const sharp = ROUNDED[shape] as string | undefined;
@@ -691,7 +785,8 @@ export function convexHull(points: readonly Point2[]): Point2[] {
  * Move every point of a closed outline outward by a distance, along the bisector of its corner.
  *
  * A sharp corner's mitre is clamped to three times the distance, so a star's points do not grow
- * spikes; the ring is then slightly thinner at that point, which no reader can see.
+ * spikes; a line along the offset is then thinner near that corner. A ring's edges come from
+ * {@link mitredEdges}, which cuts such a corner square instead and keeps the ring its full width.
  * @param outline - The outline, counter-clockwise.
  * @param distance - How far out.
  * @returns The offset outline, point for point.
@@ -702,20 +797,79 @@ export function offsetOutline(outline: readonly Point2[], distance: number): Poi
     return outline.map(([x, y], i): Point2 => {
         const [px, py] = outline[(i + count - 1) % count];
         const [nx, ny] = outline[(i + 1) % count];
+
+        return offsetCorner(x, y, unitNormal(px, py, x, y), unitNormal(x, y, nx, ny), distance);
+    });
+}
+
+/** How far a corner's mitre reaches past it, at most, as a multiple of the offset (see {@link offsetOutline}). */
+const MITRE_LIMIT = 3;
+
+/**
+ * A closed outline and its offsets by several distances, point for point, for the edges of a ring. Where a convex
+ * corner is too sharp to mitre in full, its mitre is cut square to the corner's bisector at {@link MITRE_LIMIT} times
+ * the distance, so the corner takes two points on every edge (the outline's own corner twice): each offset side stays
+ * parallel to its side all the way to the cut, and a ring between two of these edges is its full width along every
+ * side, not thinner along a side whose ends are both sharp, as pulling the mitre's point in along its bisector left
+ * it (a bow tie's long sides, a stretched diamond's or a vee's, issue #5570). A concave corner, and any corner
+ * blunt enough to mitre in full, is offset as {@link offsetOutline} offsets it.
+ * @param outline - The outline, counter-clockwise.
+ * @param distances - How far out each edge is; 0 is the outline itself.
+ * @returns One edge per distance, all with the same number of points.
+ */
+export function mitredEdges(outline: readonly Point2[], distances: readonly number[]): Point2[][] {
+    const count = outline.length;
+    const edges: Point2[][] = distances.map(() => []);
+
+    outline.forEach(([x, y], i) => {
+        const [px, py] = outline[(i + count - 1) % count];
+        const [nx, ny] = outline[(i + 1) % count];
         const [ax, ay] = unitNormal(px, py, x, y);
         const [bx, by] = unitNormal(x, y, nx, ny);
-        const [mx, my] = [ax + bx, ay + by];
-        const along = Math.hypot(mx, my);
+        const along = Math.hypot(ax + bx, ay + by);
+        const convex = (x - px) * (ny - y) - (y - py) * (nx - x) > 0;
 
-        if (along < 1e-9) {
-            return [x + ax * distance, y + ay * distance];
+        if (!convex || along < 1e-9 || 2 / along <= MITRE_LIMIT) {
+            distances.forEach((distance, k) => edges[k].push(offsetCorner(x, y, [ax, ay], [bx, by], distance)));
+            return;
         }
 
-        // The mitre's length is distance / cos(half the turn) = 2 * distance / |a + b|.
-        const length = Math.min((2 * distance) / along, distance * 3);
-
-        return [x + (mx / along) * length, y + (my / along) * length];
+        // the cut: points P + L m + t m', square to the bisector m at L = MITRE_LIMIT * distance, on each side's
+        // offset line (X - P) . n = distance, so t = (distance - L m . n) / (m' . n)
+        const [mx, my] = [(ax + bx) / along, (ay + by) / along];
+        const cut = (n: Point2, distance: number): Point2 => {
+            const reach = MITRE_LIMIT * distance;
+            const t = (distance - reach * (mx * n[0] + my * n[1])) / (-my * n[0] + mx * n[1]);
+            return [x + reach * mx - t * my, y + reach * my + t * mx];
+        };
+        distances.forEach((distance, k) => edges[k].push(cut([ax, ay], distance), cut([bx, by], distance)));
     });
+
+    return edges;
+}
+
+/**
+ * One corner of an outline moved outward by a distance along its bisector, its mitre clamped to
+ * {@link MITRE_LIMIT} times the distance.
+ * @param x - The corner, x.
+ * @param y - The corner, y.
+ * @param a - The outward unit normal of the side before it.
+ * @param b - The outward unit normal of the side after it.
+ * @param distance - How far out.
+ * @returns The moved corner.
+ */
+function offsetCorner(x: number, y: number, a: Point2, b: Point2, distance: number): Point2 {
+    const [mx, my] = [a[0] + b[0], a[1] + b[1]];
+    const along = Math.hypot(mx, my);
+
+    if (along < 1e-9) {
+        return [x + a[0] * distance, y + a[1] * distance];
+    }
+
+    // The mitre's length is distance / cos(half the turn) = 2 * distance / |a + b|.
+    const length = Math.min((2 * distance) / along, distance * MITRE_LIMIT);
+
+    return [x + (mx / along) * length, y + (my / along) * length];
 }
 
 /**
@@ -767,10 +921,11 @@ export function borderRing(outline: readonly Point2[], width: number, style: str
 
     if (style === "double") {
         const third = width / 3;
+        const [base, first, second, outer] = mitredEdges(outline, [0, third, third * 2, width]);
 
         return [
-            { inner: [...outline], outer: offsetOutline(outline, third), closed: true },
-            { inner: offsetOutline(outline, third * 2), outer: offsetOutline(outline, width), closed: true },
+            { inner: base, outer: first, closed: true },
+            { inner: second, outer, closed: true },
         ];
     }
 
@@ -779,15 +934,15 @@ export function borderRing(outline: readonly Point2[], width: number, style: str
         return drawn;
     }
 
-    const outer = offsetOutline(outline, width);
+    const [inner, outer] = mitredEdges(outline, [0, width]);
     const pattern = PATTERNS[style];
 
     if (pattern === undefined) {
-        return [{ inner: [...outline], outer, closed: true }];
+        return [{ inner, outer, closed: true }];
     }
 
     return cutIntoDashes(
-        outline,
+        inner,
         outer,
         pattern.map((length) => length * width),
     );
@@ -861,14 +1016,17 @@ function slice(
 
         return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t];
     };
-    const corners = lengths.map((length, i) => ({ length, i })).filter(({ length }) => length > from && length < to);
-    const distances = [from, ...corners.map(({ length }) => length), to];
+    // each corner the stretch passes is taken by its index, not by its distance: a corner cut square (`mitredEdges`)
+    // is two points at one distance along the inner edge, and both of its outer points belong in the stretch, also
+    // when the stretch starts or ends on that corner (a dash from the start of an outline that starts at a sharp tip)
+    const corners = lengths.map((length, i) => ({ length, i })).filter(({ length }) => length >= from && length <= to);
+    const edgeOf = (edge: readonly Point2[]): Point2[] => [
+        ...(corners[0]?.length === from ? [] : [at(from, edge)]),
+        ...corners.map(({ i }) => edge[i % edge.length]),
+        ...(corners.at(-1)?.length === to ? [] : [at(to, edge)]),
+    ];
 
-    return {
-        inner: distances.map((distance) => at(distance, inner)),
-        outer: distances.map((distance) => at(distance, outer)),
-        closed: false,
-    };
+    return { inner: edgeOf(inner), outer: edgeOf(outer), closed: false };
 }
 
 /** A point on a closed outline and the outline's direction there. */

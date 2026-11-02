@@ -310,4 +310,22 @@ describe("the oracle SVG reader", () => {
             ],
         );
     });
+
+    it("reads only the branch of a switch the browser draws, keeping a fallback beside an HTML label", () => {
+        // draw.io ends every export with a switch whose drawn branch is an empty group and whose fallback, the warning
+        // "Text is not SVG - cannot display", is never on the canvas; a label is a switch of a foreignObject (drawn,
+        // HTML this reader cannot read) and a text standing for it
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <switch>
+                <foreignObject x="10" y="10" width="80" height="20"><div xmlns="http://www.w3.org/1999/xhtml">Label</div></foreignObject>
+                <text x="50" y="25" font-size="12">Label</text>
+            </switch>
+            <switch>
+                <g requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"/>
+                <a transform="translate(0,-5)" href="https://www.drawio.com/doc/faq/svg-export-text-problems"><text x="50%" y="100%" font-size="10" text-anchor="middle">Text is not SVG - cannot display</text></a>
+            </switch>
+        </svg>`;
+        const texts = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text.content] : []));
+        assert.deepEqual(texts, ["Label"]);
+    });
 });

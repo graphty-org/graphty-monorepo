@@ -20,6 +20,7 @@ import { sourceDescriptors } from "../catalog/sources";
 import {
     type EdgeId,
     type FieldDescriptor,
+    type FilterStep,
     type NodeId,
     PROJECT_FILE,
     type ResultShape,
@@ -67,6 +68,9 @@ import type {
     TransactionScope,
 } from "./types";
 import { valueLabelOf } from "./valueLabels";
+import { CONDITIONS_VERSION, readSavedConditions } from "./visibility/conditions";
+import { assertVisibility } from "./visibility/filter";
+import type { SessionVisibilityApi } from "./visibility/VisibilityApi";
 
 /** The container's `kind`. */
 const DOCUMENT_KIND = "graphty-document";
@@ -235,6 +239,13 @@ export interface ProjectOpenOptions {
      * `ImportOptions.history` does for a load. A project always starts the history.
      */
     readonly history?: "step" | "start";
+    /**
+     * For a data file: how it is read into its draft, as `session.data.prepare`'s options of the
+     * same names -- `onto: "graph"` to join it onto the graph, `guess: "values"` to guess its
+     * roles from the values too. Default: as `prepare` with no options.
+     * @since 3.34.0
+     */
+    readonly draft?: { readonly onto?: "graph"; readonly guess?: "names" | "values" };
     readonly limits?: {
         /** The largest file to read, in bytes. Default 256 MiB. */
         readonly fileBytes?: number;
@@ -765,8 +776,13 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
             filter: visibility.filter,
             window: visibility.window,
             showContext: visibility.showContext,
-            // Written only when there are steps, so a project without them saves as before.
+            // Written only when there are steps, so a project without them saves as before. The
+            // steps are the keep and exclude conditions, so an older reader hides the same.
             ...(visibility.steps.length === 0 ? {} : { steps: visibility.steps }),
+            // Additive and versioned: an older reader ignores it and loses only the select conditions.
+            ...(visibility.conditions.length === 0
+                ? {}
+                : { conditions: { version: CONDITIONS_VERSION, list: visibility.conditions } }),
             // Written only when set, so a project without a timeline saves as before.
             ...(dispatcher.state.visibility.playback === undefined || dispatcher.state.visibility.playback === null
                 ? {}
@@ -1379,8 +1395,9 @@ async function clearInto(tx: TransactionScope): Promise<void> {
         await tx.visibility.setWindow(null);
     }
 
-    if (tx.visibility.steps.length > 0) {
-        await tx.visibility.setSteps([]);
+    // Every condition, select ones included, so none survives into the project opened.
+    if (tx.visibility.conditions.length > 0) {
+        await (tx.visibility as SessionVisibilityApi).restoreConditions([]);
     }
 
     if (!sameSettings(tx.time.settings, DEFAULT_TIME_SETTINGS)) {
@@ -1796,15 +1813,10 @@ async function readProject(
                 await tx.visibility.setWindow(visibility.window as never);
             }
 
-            if (Array.isArray(visibility.steps) && visibility.steps.length > 0) {
-                await tx.visibility.setSteps(
-                    // A malformed step is passed on as it is, for setSteps to refuse with its reason.
-                    (visibility.steps as ({ rule?: unknown } | null)[]).map((step) =>
-                        typeof step === "object" && step !== null ? { ...step, rule: remap(step.rule) } : step,
-                    ) as never,
-                );
-            }
-
+            await readFilterConditions(opening, visibility, remap);
+        });
+        // Read on their own, so a filter that cannot be read never loses them.
+        await attempt(opening, "visibility", async () => {
             if (typeof visibility.playback === "object" && visibility.playback !== null) {
                 await tx.execute({ op: "visibility.playback", playback: visibility.playback as never });
             }
@@ -1824,6 +1836,35 @@ async function readProject(
     const views = (state.views ?? []) as never[];
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
+    }
+}
+
+/**
+ * Read the filter steps and conditions of a `graphty-session` member's `visibility`: the
+ * conditions when the file holds ones this reader can read, else the steps, as every writer since
+ * the steps were added writes them (`readSavedConditions`).
+ * @param opening - The open.
+ * @param visibility - The member's `visibility`.
+ * @param remap - Rewrites the set ids a rule names to the ones this session gave.
+ */
+async function readFilterConditions(
+    opening: Opening,
+    visibility: Readonly<Record<string, unknown>>,
+    remap: <T>(value: T) => T,
+): Promise<void> {
+    const { tx } = opening;
+    // A malformed step is passed on as it is, for setSteps to refuse with its reason.
+    const steps = (Array.isArray(visibility.steps) ? visibility.steps : []).map((step: unknown) =>
+        typeof step === "object" && step !== null ? { ...step, rule: remap((step as { rule?: unknown }).rule) } : step,
+    ) as FilterStep[];
+    const read = readSavedConditions(visibility.conditions, steps, remap, (rule) => {
+        assertVisibility(rule, null);
+    });
+    opening.problems.push(...read.problems);
+    if (read.conditions !== null) {
+        await (tx.visibility as SessionVisibilityApi).restoreConditions(read.conditions);
+    } else if (steps.length > 0) {
+        await tx.visibility.setSteps(steps);
     }
 }
 
@@ -2402,7 +2443,7 @@ export function projectOf(
                 // Not a graphty document: a data file, read the way session.data.prepare reads one.
                 // Nothing is loaded until its draft is, which takes a place of its own.
                 turn.leave();
-                const draft = await session.data.prepare(dataSourceOf(source, text, fileName));
+                const draft = await session.data.prepare(dataSourceOf(source, text, fileName), options.draft);
                 return Object.freeze({
                     opened: "graph" as const,
                     draft,

@@ -541,6 +541,34 @@ describe("renderOnDemand", () => {
         await restsOnTheCurrentPicture(element);
     });
 
+    // Ignoring a data issue writes only the issue state, which draws nothing, yet its pass drew a
+    // whole frame: on the airline sample each one cost 2.4 s of a software GPU (#3973).
+    it("draws no frame for ignoring a data issue, and one for the change after it", async () => {
+        const element = await mounted(true);
+        await element.session.data.import({ type: "csv", config: { data: "source,target\na,b\na,b\n" } });
+        await element.waitForStableFrame();
+        await untilResting(element);
+        const issues = element.session.data.issues();
+        assert.isNotEmpty(issues, "the repeated edge is an issue");
+        const before = loopTicks(element).drawn;
+
+        await element.session.data.ignoreIssues(issues);
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 0, "no frame for the issue state");
+        assert.isEmpty(element.session.data.issues(), "the issue is ignored");
+
+        const { drawn } = loopTicks(element);
+        await element.session.styles.add({
+            name: "Red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await untilResting(element);
+        assert.isAtLeast(loopTicks(element).drawn - drawn, 1, "the style after it is drawn");
+        await restsOnTheCurrentPicture(element);
+    });
+
     it("draws a time window and its ghosts, which a pass asks no frame for", async () => {
         const element = await mounted(true);
         await element.session.data.addNodes([
@@ -652,6 +680,38 @@ describe("renderOnDemand", () => {
 
         assert.isAbove(result.blob.size, 0, "the recording holds video");
         assert.isAbove(draws.count(), 5, "the still graph was drawn while it was recorded");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("rests a turning graph while its canvas is out of view, and draws it again in view", async () => {
+        // A graph below the fold kept drawing every turn of its camera nobody could see: on a
+        // software GPU the start page's hero cost the page about 160 ms a frame (#4426).
+        const element = await mounted(true);
+        const yaw = (): number => element.getCameraState().pivotRotation?.y ?? Number.NaN;
+        element.autoRotate = 1;
+        const inView = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(inView.rested, 0, "in view, the turning is drawn at every chance");
+
+        // Below the viewport, at the same size.
+        element.style.marginTop = "300vh";
+        await untilResting(element);
+        const before = yaw();
+        const outOfView = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(outOfView.drawn, 0, "out of view, the turning draws nothing");
+        assert.notStrictEqual(yaw(), before, "the camera kept turning");
+
+        element.style.marginTop = "";
+        const draws = countDraws(element);
+        const back = loopTicks(element).rested;
+        while (draws.count() === 0) {
+            if (loopTicks(element).rested - back > MAX_DRAWS) {
+                throw new Error("the turning graph was not drawn again back in view");
+            }
+
+            await nextFrame();
+        }
+
+        element.autoRotate = 0;
         await restsOnTheCurrentPicture(element);
     });
 

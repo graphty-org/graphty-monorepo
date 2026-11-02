@@ -7,6 +7,19 @@ const MAX_CODE_LENGTH = 32;
 const SHORT = /^[23456789CFGHJMPQRVWX]{2,7}\+[23456789CFGHJMPQRVWX]*$/;
 
 /**
+ * The code's digits without the zeros that pad a code shorter than eight digits.
+ * @param digits - The digits, without the separator.
+ * @returns The digits up to the last one that is not "0".
+ */
+function withoutTrailingZeros(digits: string): string {
+    let end = digits.length;
+    while (end > 0 && digits[end - 1] === "0") {
+        end--;
+    }
+    return digits.slice(0, end);
+}
+
+/**
  * Decodes a full Open Location Code (plus code) to the center of its area, following Google's
  * reference implementation (https://github.com/google/open-location-code).
  * @param value - The code, any case, with its "+" separator.
@@ -22,10 +35,7 @@ export function decodePlusCode(value: string): { lat: number; lon: number } | "s
     if (!FULL.test(code)) {
         return SHORT.test(code) && code.indexOf("+") < 8 ? "short" : null;
     }
-    let digits = code.replace("+", "");
-    while (digits.endsWith("0")) {
-        digits = digits.slice(0, -1); // padding zeros
-    }
+    const digits = withoutTrailingZeros(code.replace("+", ""));
     if (ALPHABET.indexOf(digits[0]) > 8 || ALPHABET.indexOf(digits[1]) > 17) {
         return null; // beyond 90 degrees north or 180 east
     }

@@ -10,6 +10,7 @@ import React from "react";
 import { FLOATING_UI_Z_INDEX } from "../../constants/popout";
 import { defaultLabels } from "../../i18n/labels";
 import { UiGlyph } from "../../icons";
+import { TypeAheadRun } from "../../utils/type-ahead-run";
 import { capped, VIEWPORT_CAP_MARGIN, visualBand } from "../overlays/viewportCap";
 
 /** The list's inset: its top padding, and how far it starts before the trigger. */
@@ -59,7 +60,8 @@ function anchorBoxes(state: ListState): { anchor: DOMRect; reference: DOMRect } 
  * macOS does: its height is capped to the part that fits 8px inside the visual viewport and its
  * content scrolled, so the selected option still lands on the field. A list that fits whole is
  * pushed back inside instead (floating-ui's shift), moving the selected option off the field by
- * the overflow, so every option shows. The visual viewport, so an on-screen keyboard shrinks it.
+ * the overflow, so every option shows. The visual viewport, so an on-screen keyboard shrinks it,
+ * cut by any scrolling or clipping ancestor of a list that is not portalled.
  *
  * ponytail: a long list on a field near the edge is still cut to whatever fits beside the field,
  * which can be a few rows; open it toward the room when that shows.
@@ -92,8 +94,13 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     // tall, and shift pulls it in.
     const edge = VIEWPORT_CAP_MARGIN / 2;
     const view = visualBand();
-    const viewportTop = view.top + edge;
-    const viewportBottom = Math.min(floating.ownerDocument.documentElement.clientHeight, view.bottom) - edge;
+    const band = clippedBand(
+        floating,
+        view.top,
+        Math.min(floating.ownerDocument.documentElement.clientHeight, view.bottom),
+    );
+    const viewportTop = band.top + edge;
+    const viewportBottom = band.bottom - edge;
     const inside =
         anchor.top >= viewportTop &&
         anchor.bottom <= viewportBottom &&
@@ -103,6 +110,28 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     floating.style.maxHeight = inside ? capped(`${String(bottom - top)}px`) : "";
     floating.scrollTop = top - contentTop;
     return { mainAxis: top - reference.bottom, alignmentAxis: align(LISTBOX_EDGE) };
+}
+
+/**
+ * The part of a vertical band the list's clipping ancestors leave visible. A list that is not
+ * portalled (`withinPortal: false`) inside a scrolling panel is cut by the panel, not only by the
+ * viewport, so it fits inside the panel's visible part: otherwise it runs past it, and reaching its
+ * last options scrolls the panel, which moves the list under the pointer (#4484).
+ * @param floating - the list
+ * @param top - the band's top edge
+ * @param bottom - the band's bottom edge
+ * @returns the band, cut by every ancestor whose overflow clips
+ */
+function clippedBand(floating: HTMLElement, top: number, bottom: number): { top: number; bottom: number } {
+    const { body } = floating.ownerDocument;
+    for (let el = floating.parentElement; el && el !== body; el = el.parentElement) {
+        if (getComputedStyle(el).overflowY !== "visible") {
+            const clipTop = el.getBoundingClientRect().top + el.clientTop;
+            top = Math.max(top, clipTop);
+            bottom = Math.min(bottom, clipTop + el.clientHeight);
+        }
+    }
+    return { top, bottom };
 }
 
 /**
@@ -479,7 +508,7 @@ export function ensureListboxKeyboard(): void {
     }
     keyboardTracked = true;
     let typed = "";
-    let lastAt = 0;
+    const run = new TypeAheadRun(TYPEAHEAD_RESET_MS);
     let closedTrigger: EventTarget | null = null;
     // The trigger whose last run matched no option: its Enter is used up, writing nothing.
     let missOn: EventTarget | null = null;
@@ -567,19 +596,14 @@ export function ensureListboxKeyboard(): void {
     document.addEventListener("keydown", announceOpened);
     document.addEventListener("click", announceOpened);
 
-    let runOn: EventTarget | null = null;
     /**
-     * Adds a key to the type-ahead run, or starts a new one after a pause or on another field. The
-     * pause runs from when the page took the last letter, not from when it was typed: letters
-     * typed while the page was busy (opening the list, redrawing the panel around it) are one run
-     * however late each is handled.
+     * Adds a key to the type-ahead run, or starts a new one after a pause or on another field
+     * (`TypeAheadRun`: letters typed while the page was busy are one run however late each is
+     * handled).
      * @param event - the key
      */
     const extendRun = (event: KeyboardEvent): void => {
-        const now = event.timeStamp;
-        typed = now - lastAt > TYPEAHEAD_RESET_MS || event.target !== runOn ? event.key : typed + event.key;
-        lastAt = Math.max(now, performance.now());
-        runOn = event.target;
+        typed = run.add(event, event.target);
     };
     /**
      * Highlights the next enabled option whose label starts with the run typed so far.
@@ -600,7 +624,7 @@ export function ensureListboxKeyboard(): void {
                 missOn = null;
                 speak(list, "");
                 walkHighlight(input, list, option);
-                lastAt = performance.now();
+                run.taken();
                 return;
             }
         }
@@ -611,7 +635,7 @@ export function ensureListboxKeyboard(): void {
         speak(list, listNoMatch(typed));
         list.querySelector("[data-combobox-selected]")?.removeAttribute("data-combobox-selected");
         input.removeAttribute("aria-activedescendant");
-        lastAt = performance.now();
+        run.taken();
     };
     const enabledOptions = (list: HTMLElement): HTMLElement[] =>
         [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].filter(

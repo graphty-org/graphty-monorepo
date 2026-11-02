@@ -664,6 +664,7 @@ export type Channel =
     | "node.width"
     | "node.height"
     | "node.depth"
+    | "node.relativeExtents"
     | "node.planar"
     | "node.zIndex"
     | "node.drawOrder"
@@ -680,6 +681,7 @@ export type Channel =
     | "node.outerBorderOpacity"
     | "node.outerBorderStyle"
     | "node.outerBorderOffset"
+    | "node.outerBorderCount"
     | "node.underlayColor"
     | "node.underlayOpacity"
     | "node.underlayPadding"
@@ -692,16 +694,22 @@ export type Channel =
     | "node.overlayCornerRadius"
     | "node.cornerRadius"
     | "node.exactCornerRadius"
+    | "node.cornerFraction"
     | "node.shapePoints"
     | "node.shapeStretchPoints"
+    | "node.shapeRotation"
     | "node.shapeParts"
     | "node.shapeLines"
     | "node.shapeTexts"
+    | "node.labelTable"
     | "node.shapeLineWidth"
     | "node.labelFit"
     | "node.labelPaddingX"
     | "node.labelPaddingY"
     | "node.labelFitSquare"
+    | "node.labelFitQuantum"
+    | "node.labelFitImage"
+    | "node.labelFitImagePadding"
     | "node.gradientColor"
     | "node.gradientDirection"
     | "node.gradientColors"
@@ -748,6 +756,10 @@ export type Channel =
     | "node.chartMax"
     | "node.chartHorizontal"
     | "node.chartSize"
+    | "node.chartWidth"
+    | "node.chartHeight"
+    | "node.chartOffsetX"
+    | "node.chartOffsetY"
     | "node.chartMargin"
     | "node.chartGap"
     | "node.chartLineWidth"
@@ -804,6 +816,7 @@ export type Channel =
     | "edge.supportRepulsion"
     | "edge.supportCentralGravity"
     | "edge.supportUnit"
+    | "edge.supportScale"
     | "edge.route"
     | "edge.arcHeight"
     | "edge.nodeGap"
@@ -817,6 +830,7 @@ export type Channel =
     | "edge.arrowHeadSide"
     | "edge.arrowHeadPosition"
     | "edge.arrowHeadGap"
+    | "edge.arrowHeadStack"
     | "edge.arrowHeadColor"
     | "edge.arrowHeadOpacity"
     | "edge.arrowHeadImage"
@@ -838,6 +852,7 @@ export type Channel =
     | "edge.arrowTailSide"
     | "edge.arrowTailPosition"
     | "edge.arrowTailGap"
+    | "edge.arrowTailStack"
     | "edge.arrowTailColor"
     | "edge.arrowTailOpacity"
     | "edge.arrowTailImage"
@@ -916,7 +931,17 @@ export type Channel =
     | "edge.labelOffsetY"
     | "edge.labelShiftX"
     | "edge.labelShiftY"
-    | "edge.labelShiftOf";
+    | "edge.labelShiftOf"
+    | "node.xlabel"
+    | "node.xlabelStyle"
+    | "node.xlabelLocation"
+    | "node.xlabelOffsetX"
+    | "node.xlabelOffsetY"
+    | "edge.xlabel"
+    | "edge.xlabelStyle"
+    | "edge.xlabelLocation"
+    | "edge.xlabelOffsetX"
+    | "edge.xlabelOffsetY";
 
 /**
  * The values the "edge.style" channel accepts.
@@ -2077,6 +2102,56 @@ export interface FilterStep {
     /** What the step keeps. */
     readonly rule: RuleTree;
 }
+
+/**
+ * What a filter condition that is on does: `"keep"` hides everything its rule does not match,
+ * `"exclude"` hides what it matches, `"select"` selects what it matches and hides nothing.
+ *
+ * OPEN UNION: a later release may add an effect on visibility or selection; handle unknown
+ * effects. Styling, saving a set or running on the matches belong to `styles`, `sets` and `runs`,
+ * never here.
+ * Experimental: may change or be removed in a minor release.
+ * @since 3.32.0
+ * @beta
+ */
+export type FilterEffect = "keep" | "exclude" | "select";
+
+/**
+ * One filter condition: a rule that can be switched off without being lost, with what it does.
+ *
+ * Conditions are independent and order never matters: every keep condition that is on narrows
+ * what stays, every exclude condition that is on hides its matches (two of them hide what either
+ * matches), and the select conditions that are on select what all of them match, over the whole
+ * graph, visible or not.
+ *
+ * A `range`, `categories` or `text` leaf on an edge value that names no `nodes` reading gets one
+ * from the effect: keep keeps the matching edges and the nodes at their ends, exclude hides only
+ * the matching edges, select selects only the matching edges. A reading written in the rule wins.
+ * Experimental: may change or be removed in a minor release.
+ * @since 3.32.0
+ * @beta
+ */
+export interface FilterCondition {
+    /** The condition's id, unique among the conditions. */
+    readonly id: string;
+    /** Whether the condition applies. One that is off keeps its rule and does nothing. */
+    readonly on: boolean;
+    /** What it does when on. */
+    readonly effect: FilterEffect;
+    /** What it matches. */
+    readonly rule: RuleTree;
+}
+
+/**
+ * A filter condition as it is handed in: the id is made when absent, and `on` defaults to true.
+ * Experimental: may change or be removed in a minor release.
+ * @since 3.32.0
+ * @beta
+ */
+export type FilterConditionInput = Omit<FilterCondition, "id" | "on"> & {
+    readonly id?: string;
+    readonly on?: boolean;
+};
 
 // ---------------------------------------------------------------------------------------------
 // Sets: what a kept set holds, and how it came to exist

@@ -1,3 +1,62 @@
+## 0.0.33 (2026-11-02)
+
+### 🩹 Fixes
+
+- **workspace:** bundle storybook test dependencies afresh every run ([#5240](https://github.com/graphty-org/graphty-monorepo/issues/5240))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.66
+- Updated graph-samples to 0.1.44
+- Updated visual-review to 0.2.40
+- Updated graph-format to 1.4.12
+- Updated algorithms to 3.4.19
+- Updated graph-io to 0.3.53
+- Updated layout to 2.5.15
+
+## 0.0.32 (2026-11-01)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.65
+- Updated graph-samples to 0.1.43
+- Updated visual-review to 0.2.39
+- Updated graph-format to 1.4.11
+- Updated algorithms to 3.4.18
+- Updated graph-io to 0.3.52
+- Updated layout to 2.5.14
+
+## 0.0.31 (2026-10-31)
+
+### 🩹 Fixes
+
+- **layout:** add a Barnes-Hut repulsion to ForceAtlas2 and use it for the large dataset stories ([#5001](https://github.com/graphty-org/graphty-monorepo/issues/5001), [#3849](https://github.com/graphty-org/graphty-monorepo/issues/3849), [#3848](https://github.com/graphty-org/graphty-monorepo/issues/3848))
+- **algorithms:** score every ordered pair in directed link prediction ([#961](https://github.com/graphty-org/graphty-monorepo/issues/961))
+- **cytoscape-extensions:** measure the network sources as loaded after the file formats ([1e66fbbcce](https://github.com/graphty-org/graphty-monorepo/commit/1e66fbbcce))
+- **cytoscape-extensions:** keep the script-tag bundle's lazy file formats under Vite 8 ([#4230](https://github.com/graphty-org/graphty-monorepo/issues/4230))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.64
+- Updated graph-samples to 0.1.42
+- Updated visual-review to 0.2.38
+- Updated graph-format to 1.4.10
+- Updated algorithms to 3.4.17
+- Updated graph-io to 0.3.51
+- Updated layout to 2.5.13
+
+## 0.0.30 (2026-10-29)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.63
+- Updated graph-samples to 0.1.41
+- Updated visual-review to 0.2.37
+- Updated graph-format to 1.4.9
+- Updated algorithms to 3.4.16
+- Updated graph-io to 0.3.50
+- Updated layout to 2.5.12
+
 ## 0.0.29 (2026-10-28)
 
 ### 🚀 Features

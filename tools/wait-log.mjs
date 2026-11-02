@@ -10,11 +10,13 @@
  * - kind: what was waited for: "land-lock" and "cut-lock" (tools/land.mjs), "gate-slot"
  *   (tools/push-queue.sh), "browser-slot" (tools/with-browser.sh), "test-slot" and "gpu-slot"
  *   (tools/test-slots.mjs), "preview-lock" (tools/visual-preview.sh). "land-lock-held" and
- *   "cut-lock-held" are the time a landing held the lock, from taking it to giving it back.
+ *   "cut-lock-held" are the time a landing held the lock, from taking it to giving it back;
+ *   "test-slot-held" and "gpu-slot-held" the time a test run held its slot, with `what` (its package
+ *   or shard family) and `exit` (its exit code, null when unknown): every local test run, waited or not.
  * - start, end: ISO times; ms: end - start.
  * - waiter: who waited (its checkout and command); pid: its process.
  * - heldBy: who held what it waited for when the wait began, as each tool describes its holders.
- * Slots log only waits that happened; the landing locks log every taking and every hold, waited or not.
+ * Slots log a wait only when one happened, and every hold; the landing locks log every taking and every hold.
  *
  * PIPELINE_WAIT_LOG names another file (tests), and "off" turns the log off. A log that cannot be
  * written never fails or delays the waiter.

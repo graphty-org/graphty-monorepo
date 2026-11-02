@@ -192,6 +192,25 @@ export class SetsNotifier {
         return this.#queue.size;
     }
 
+    /**
+     * Resolve every queued watch now, whatever the frame budget, for a caller that has asked to
+     * wait for the work already queued (`styles.settled()`). The frames that would have worked the
+     * queue may never come: the render loop stops in a background tab, while frames are held, and
+     * before the element is connected.
+     */
+    drain(): void {
+        for (const entry of [...this.#queue]) {
+            if (this.#queue.has(entry)) {
+                this.#settle(entry);
+            }
+        }
+
+        if (this.#queue.size === 0) {
+            this.#cancelFrame?.();
+            this.#cancelFrame = null;
+        }
+    }
+
     /** Cancel the queued work and drop every watch. */
     dispose(): void {
         this.#disposed = true;

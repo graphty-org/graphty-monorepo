@@ -35,10 +35,10 @@ import type { BrowserCommand } from "vitest/node";
 
 import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
-import { mapTileCommands } from "../vitest.map-tiles.mjs";
-import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
+import { isTileServer, mapTileCommands } from "../vitest.map-tiles.mjs";
 
 /**
  * Each pre-push gate shard's own Vite dependency cache (tools/test-slots.mjs shardCacheDir()), set
@@ -47,8 +47,45 @@ import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env
  * shard at once, each deleting chunks the others load ("error when mocking a module", "The file
  * does not exist ... in the optimize deps directory", issue #3319). Outside the gate, Vite's
  * default directory.
+ *
+ * Every browser project also sets `optimizeDeps.force`, so each run scans the test files and
+ * bundles their dependencies before the first test page loads. Without it Vite trusts a cache an
+ * earlier run in the same checkout wrote, as long as the lockfile and this config are unchanged
+ * ("Hash is consistent. Skipping."), and a test file or import that arrived since -- by a merge of
+ * master, a new test, an edit -- is found mid-run: Vite re-bundles, reloads the page under the
+ * running test, and the run stops with "Vite unexpectedly reloaded a test" (#5134). The scan costs
+ * a few seconds a run; the shard directories above keep side-by-side runs from deleting each
+ * other's bundles.
  */
 const SHARD_CACHE_DIR = shardCacheDir();
+
+/**
+ * The "minimum-work" project's files: the tests of "the picture is final" written for the issues
+ * where work split across frames escaped it (#3287, #3361, #3372, #3527, #3528, #3531, #3533, #4218, #5097, #5140),
+ * and the frame reads of tests that once read a frame too early (#1473). Not layout-pace.test.ts: it
+ * counts a slow frame's layout catch-up rounds, which this mode turns off by design.
+ */
+const MINIMUM_WORK_TESTS = [
+    "test/browser/pending-work-split-across-frames.test.ts",
+    "test/browser/stable-frame-waits-for-framing.test.ts",
+    "test/browser/stable-frame-waits-for-work-that-came-late.test.ts",
+    "test/browser/stable-frame-rechecks-work-after-the-pass.test.ts",
+    "test/browser/stable-frame-follows-camera-moves.test.ts",
+    "test/browser/a-label-redraws-when-its-font-loads.test.ts",
+    "test/browser/a-glyph-and-an-annotation-redraw-when-their-font-loads.test.ts",
+    "test/browser/an-image-annotation-is-in-the-stable-frame.test.ts",
+    "test/browser/simulation-owed-pre-steps.test.ts",
+    "test/browser/camera/owed-fit-reads-late-inputs.test.ts",
+    "test/browser/camera/refit-on-resize.test.ts",
+    "test/browser/camera/view-insets.test.ts",
+    "test/browser/groups-follow-members.test.ts",
+    "test/browser/label-declutter.test.ts",
+    "test/browser/curves-rest-the-same-however-frames-split.test.ts",
+    "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
+    "test/browser/a-layer-added-later-paints.test.ts",
+    "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
+    "test/browser/label-textures-fit-across-frames.test.ts",
+];
 
 /**
  * Babylon modules the element imports only for their side effects (see
@@ -56,15 +93,15 @@ const SHARD_CACHE_DIR = shardCacheDir();
  * dependency Vite discovers mid-run makes it reload the page under the test that is running.
  */
 const BABYLON_SIDE_EFFECTS = [
-    "@babylonjs/core/Meshes/instancedMesh",
-    "@babylonjs/core/Meshes/thinInstanceMesh",
-    "@babylonjs/core/Culling/ray",
-    "@babylonjs/core/Animations/animatable",
+    "@babylonjs/core/Meshes/instancedMesh.js",
+    "@babylonjs/core/Meshes/thinInstanceMesh.js",
+    "@babylonjs/core/Culling/ray.js",
+    "@babylonjs/core/Animations/animatable.js",
     // src/meshes/bundledStandardShaders.ts
-    "@babylonjs/core/Shaders/default.vertex",
-    "@babylonjs/core/Shaders/default.fragment",
-    "@babylonjs/core/ShadersWGSL/default.vertex",
-    "@babylonjs/core/ShadersWGSL/default.fragment",
+    "@babylonjs/core/Shaders/default.vertex.js",
+    "@babylonjs/core/Shaders/default.fragment.js",
+    "@babylonjs/core/ShadersWGSL/default.vertex.js",
+    "@babylonjs/core/ShadersWGSL/default.fragment.js",
 ];
 
 /**
@@ -81,6 +118,7 @@ const LODASH_FUNCTIONS = [
     "lodash/defaultsDeep.js",
     "lodash/get.js",
     "lodash/isEqual.js",
+    "lodash/omit.js",
 ];
 
 /**
@@ -103,48 +141,48 @@ const GRAPHVIZ = ["@hpcc-js/wasm-graphviz"];
  * reason: the chunk is imported lazily, so Vite would otherwise discover these mid-run.
  */
 const MODEL_CHUNK = [
-    "@babylonjs/loaders/glTF/2.0/glTFLoader",
-    "@babylonjs/loaders/glTF/glTFFileLoader",
-    "@babylonjs/loaders/glTF/glTFValidation",
-    "@babylonjs/loaders/OBJ/objFileLoader",
-    "@babylonjs/loaders/STL/stlFileLoader",
-    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_transform",
-    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_mesh_quantization",
-    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_unlit",
-    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_pbrSpecularGlossiness",
-    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_emissive_strength",
-    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_clearcoat",
-    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_ior",
-    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_specular",
-    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_sheen",
-    "@babylonjs/loaders/glTF/2.0/Extensions/EXT_texture_webp",
-    "@babylonjs/core/Materials/PBR/pbrMaterial",
-    "@babylonjs/loaders/glTF/2.0/pbrMaterialLoadingAdapter",
-    "@babylonjs/core/Animations/animationGroup",
-    "@babylonjs/loaders/glTF/2.0/glTFLoaderAnimation",
-    "@babylonjs/core/Shaders/pbr.vertex",
-    "@babylonjs/core/Shaders/pbr.fragment",
-    "@babylonjs/core/ShadersWGSL/pbr.vertex",
-    "@babylonjs/core/ShadersWGSL/pbr.fragment",
-    "@babylonjs/core/Shaders/rgbdDecode.fragment",
-    "@babylonjs/core/ShadersWGSL/rgbdDecode.fragment",
-    "@babylonjs/core/Shaders/postprocess.vertex",
-    "@babylonjs/core/ShadersWGSL/postprocess.vertex",
-    "@babylonjs/core/Misc/tools",
-    "@babylonjs/core/Materials/Textures/Loaders/envTextureLoader",
-    "@babylonjs/core/Materials/Textures/cubeTexture",
-    "@babylonjs/core/Materials/Textures/baseTexture",
-    "@babylonjs/core/Materials/Textures/texture",
-    "@babylonjs/core/Loading/sceneLoader",
-    "@babylonjs/core/Loading/sceneLoaderFlags",
+    "@babylonjs/loaders/glTF/2.0/glTFLoader.js",
+    "@babylonjs/loaders/glTF/glTFFileLoader.js",
+    "@babylonjs/loaders/glTF/glTFValidation.js",
+    "@babylonjs/loaders/OBJ/objFileLoader.js",
+    "@babylonjs/loaders/STL/stlFileLoader.js",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_transform.js",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_mesh_quantization.js",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_unlit.js",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_pbrSpecularGlossiness.js",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_emissive_strength.js",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_clearcoat.js",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_ior.js",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_specular.js",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_sheen.js",
+    "@babylonjs/loaders/glTF/2.0/Extensions/EXT_texture_webp.js",
+    "@babylonjs/core/Materials/PBR/pbrMaterial.js",
+    "@babylonjs/loaders/glTF/2.0/pbrMaterialLoadingAdapter.js",
+    "@babylonjs/core/Animations/animationGroup.js",
+    "@babylonjs/loaders/glTF/2.0/glTFLoaderAnimation.js",
+    "@babylonjs/core/Shaders/pbr.vertex.js",
+    "@babylonjs/core/Shaders/pbr.fragment.js",
+    "@babylonjs/core/ShadersWGSL/pbr.vertex.js",
+    "@babylonjs/core/ShadersWGSL/pbr.fragment.js",
+    "@babylonjs/core/Shaders/rgbdDecode.fragment.js",
+    "@babylonjs/core/ShadersWGSL/rgbdDecode.fragment.js",
+    "@babylonjs/core/Shaders/postprocess.vertex.js",
+    "@babylonjs/core/ShadersWGSL/postprocess.vertex.js",
+    "@babylonjs/core/Misc/tools.js",
+    "@babylonjs/core/Materials/Textures/Loaders/envTextureLoader.js",
+    "@babylonjs/core/Materials/Textures/cubeTexture.js",
+    "@babylonjs/core/Materials/Textures/baseTexture.js",
+    "@babylonjs/core/Materials/Textures/texture.js",
+    "@babylonjs/core/Loading/sceneLoader.js",
+    "@babylonjs/core/Loading/sceneLoaderFlags.js",
     // The model template builder and the request guard (src/models/).
-    "@babylonjs/core/Maths/math.color",
-    "@babylonjs/core/Maths/math.vector",
-    "@babylonjs/core/Meshes/Builders/boxBuilder",
-    "@babylonjs/core/Meshes/mesh",
-    "@babylonjs/core/Meshes/mesh.vertexData",
-    "@babylonjs/core/Meshes/instancedMesh",
-    "@babylonjs/core/Instrumentation/sceneInstrumentation",
+    "@babylonjs/core/Maths/math.color.js",
+    "@babylonjs/core/Maths/math.vector.js",
+    "@babylonjs/core/Meshes/Builders/boxBuilder.js",
+    "@babylonjs/core/Meshes/mesh.js",
+    "@babylonjs/core/Meshes/mesh.vertexData.js",
+    "@babylonjs/core/Meshes/instancedMesh.js",
+    "@babylonjs/core/Instrumentation/sceneInstrumentation.js",
 ];
 
 /**
@@ -269,6 +307,97 @@ const heldRequestCommands: {
         entry.refuse = refuse;
         await Promise.all(entry.routes.map((route) => answer(route, refuse)));
         await ctx.page.unroute(entry.matches);
+    },
+};
+
+/**
+ * The pictures the style fidelity samples name by a URL on the internet (a Cytoscape custom graphic or image
+ * annotation pointing at the cytoscape.js logo), each answered from a copy committed beside the samples
+ * (graph-io/test/fidelity/pictures/), so what graphty draws, and how it scores, never depends on the network. Any
+ * other internet request a fidelity run makes is refused, and the harness fails the sample naming the URL.
+ */
+const SAMPLE_PICTURES: Readonly<Record<string, string>> = {
+    "https://raw.githubusercontent.com/cytoscape/cytoscape.js/master/documentation/img/cytoscape-logo.png":
+        "../graph-io/test/fidelity/pictures/cytoscape-logo.png",
+};
+
+/** Hosts the test server answers itself: never the internet. */
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"]);
+
+/**
+ * Whether a request goes to the internet.
+ * @param url - the request's URL.
+ * @returns true for an http(s) URL on a host other than the test server's.
+ */
+const isInternet = (url: URL): boolean =>
+    (url.protocol === "http:" || url.protocol === "https:") && !LOCAL_HOSTS.has(url.hostname);
+
+/** A picture's media type, from its file's extension. */
+const PICTURE_TYPES: Readonly<Record<string, string>> = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+};
+
+/**
+ * The browser contexts the sample pictures are served in, and the unmapped internet URLs each refused; `null` while
+ * no sample is loading, when the route leaves every unmapped request to the routes before it (the browser project
+ * shares one context across its files, and the map tile guard must keep seeing its own requests).
+ */
+const refusedPictures = new WeakMap<object, string[] | null>();
+
+/**
+ * The commands the style fidelity harness (test/fidelity/mount.ts) runs around loading a sample, in the `commands` of
+ * every project that runs a test file using it (`fidelity`, `browser`, `minimum-work`).
+ */
+const samplePictureCommands: {
+    serveSamplePictures: BrowserCommand<[]>;
+    takeRefusedSamplePictures: BrowserCommand<[]>;
+} = {
+    /**
+     * Answers every sample picture's URL from its committed copy, and refuses (and records) any other request to the
+     * internet, until `takeRefusedSamplePictures` ends the load; a map tile server is left to the map tile fixture
+     * (vitest.map-tiles.mjs). The route is installed once per browser context.
+     * @param ctx - the browser command context.
+     */
+    async serveSamplePictures(ctx) {
+        const installed = refusedPictures.has(ctx.context);
+        refusedPictures.set(ctx.context, []);
+        if (installed) {
+            return;
+        }
+        const pictures = new Map(
+            Object.entries(SAMPLE_PICTURES).map(([url, file]) => [
+                url,
+                {
+                    body: readFileSync(path.resolve(dirname, file)),
+                    contentType: PICTURE_TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream",
+                },
+            ]),
+        );
+        await ctx.context.route(isInternet, (route) => {
+            const url = route.request().url();
+            const picture = pictures.get(url);
+            if (picture !== undefined) {
+                return route.fulfill({ status: 200, ...picture });
+            }
+            const refused = refusedPictures.get(ctx.context);
+            if (!refused || isTileServer(url)) {
+                return route.fallback();
+            }
+            refused.push(url);
+            return route.abort("blockedbyclient");
+        });
+    },
+    /**
+     * Ends a sample's load: the internet requests refused during it. Requests after it are no longer refused.
+     * @param ctx - the browser command context.
+     * @returns their URLs.
+     */
+    takeRefusedSamplePictures(ctx) {
+        const urls = refusedPictures.get(ctx.context) ?? [];
+        refusedPictures.set(ctx.context, null);
+        return urls;
     },
 };
 
@@ -483,10 +612,6 @@ const config = defineConfig({
                     // A browser benchmark needs a page, which this project has not got: it runs in
                     // "browser-bench" below.
                     exclude: ["test/browser/**", "**/node_modules/**"],
-                    // test/lifecycle/autosave-engines.bench.test.ts launches three browsers per size,
-                    // up to 100,000 nodes each.
-                    testTimeout: 600_000,
-                    hookTimeout: 120_000,
                 },
             },
             {
@@ -496,9 +621,6 @@ const config = defineConfig({
                     name: "default",
                     server: { deps: { external: [WORKSPACE_DIST] } },
                     setupFiles: ["./test/setup.ts"],
-                    // The shared config's figure. Tests that import a whole entry point take several
-                    // seconds on a CI runner or under the pre-push gate, past vitest's default five.
-                    testTimeout: 30000,
                     include: ["test/**/*.test.ts", "test/unit/**/*.test.ts", "test/integration/**/*.test.ts"],
                     exclude: [
                         // Timing benchmarks, which run as their own project -- see "bench" above.
@@ -605,10 +727,6 @@ const config = defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // Mesh construction under NullEngine is fast; these are the limits the standalone
-                    // config used and no case comes close to them.
-                    testTimeout: 10000,
-                    hookTimeout: 5000,
                 },
             },
             {
@@ -621,7 +739,7 @@ const config = defineConfig({
                     },
                 },
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: PREBUNDLED },
+                optimizeDeps: { include: PREBUNDLED, force: true },
                 test: {
                     // The contract lane: the handful of browser tests that read what the element actually
                     // PAINTED -- pixels in the frame buffer, the order style layers landed in, whether a
@@ -706,7 +824,7 @@ const config = defineConfig({
                 // the fixed cost of starting a browser project. These files are excluded from
                 // "browser" below, so CI runs them once, through this project, in its browser shards.
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
                 test: {
                     name: "xr",
                     setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
@@ -731,7 +849,7 @@ const config = defineConfig({
                 // npx vitest run --project=browser-bench. Not "bench-browser": that is the
                 // sets timing rows' project below, which never runs in CI.
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: PREBUNDLED },
+                optimizeDeps: { include: PREBUNDLED, force: true },
                 test: {
                     name: "browser-bench",
                     setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
@@ -747,8 +865,17 @@ const config = defineConfig({
                         // the steps before it made due. Its header has the numbers.
                         // `--enable-precise-memory-info` makes performance.memory exact rather than
                         // bucketed, for the restore memory peak in autosave-write.bench.test.ts.
+                        // GRAPHTY_BROWSER_GPU picks the renderer as it does for "browser" (unset: the
+                        // software one CI draws with), so a benchmark can be timed on both.
                         provider: playwright({
-                            launchOptions: { args: ["--js-flags=--expose-gc", "--enable-precise-memory-info"] },
+                            launchOptions: {
+                                args: [
+                                    ...(BROWSER_GPU_FLAGS[browserGpu] ?? []),
+                                    "--js-flags=--expose-gc",
+                                    "--enable-precise-memory-info",
+                                ],
+                                env: browserLaunchEnv(),
+                            },
                         }),
                         instances: [{ browser: "chromium" }],
                     },
@@ -774,7 +901,7 @@ const config = defineConfig({
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
@@ -817,7 +944,40 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: mapTileCommands,
+                        commands: { ...mapTileCommands, ...samplePictureCommands },
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [browserInstance()],
+                    },
+                },
+            },
+            {
+                // The tests that pin "the picture is final" again, under the minimum-work-per-frame
+                // test mode (src/managers/minimumWork.ts, issue #4218): one paint batch and one
+                // layout round per frame, every other render tick skipped. A fast machine fits most
+                // split work into one frame, so a wait that reads half-finished work is caught here
+                // rather than when a slow runner happens to split it. They also run in "browser" and
+                // "interactions" at full speed. A new test that reads the final picture of work the
+                // element splits across frames belongs in this list too.
+                define: { ...define },
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "minimum-work",
+                    setupFiles: [
+                        BROWSER_COVERAGE_SETUP,
+                        MAP_TILES_SETUP,
+                        "./test/setup.ts",
+                        "./test/setup-minimum-work.ts",
+                    ],
+                    include: MINIMUM_WORK_TESTS,
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        commands: { ...mapTileCommands, ...heldRequestCommands, ...samplePictureCommands },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -836,7 +996,7 @@ const config = defineConfig({
                 // Vite re-optimizes and reloads the page under the running test.
                 define: { ...define },
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES] },
+                optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES], force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "autosave-engines",
@@ -887,7 +1047,8 @@ const config = defineConfig({
                 // such a fetch has failed before. Chromium runs the same files through "browser",
                 // with coverage; v8 coverage cannot instrument WebKit, so this project runs without.
                 define: { ...define },
-                optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES] },
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES], force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "models-webkit",
@@ -924,7 +1085,7 @@ const config = defineConfig({
                 define: { ...define },
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_ORACLE_BASELINE", "GRAPHTY_ORACLE_SLICE"],
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: PREBUNDLED },
+                optimizeDeps: { include: PREBUNDLED, force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "fidelity",
@@ -934,11 +1095,10 @@ const config = defineConfig({
                         "test/fidelity/oracle-report.test.ts",
                         "test/fidelity/mutants.test.ts",
                     ],
-                    testTimeout: 0,
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: mapTileCommands,
+                        commands: { ...mapTileCommands, ...samplePictureCommands },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -959,7 +1119,6 @@ const config = defineConfig({
                 test: {
                     name: "bench-browser",
                     include: ["test/bench-browser/**/*.bench-browser.ts"],
-                    testTimeout: 0,
                     fileParallelism: false,
                     browser: {
                         enabled: true,
@@ -974,7 +1133,7 @@ const config = defineConfig({
             {
                 define: { ...define },
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
                 test: {
                     name: "interactions",
                     setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
@@ -1000,8 +1159,6 @@ const config = defineConfig({
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
                     },
-                    // Interaction tests load complex scenes and may need longer timeout
-                    testTimeout: 30000,
                 },
             },
             {
@@ -1018,6 +1175,8 @@ const config = defineConfig({
                     }),
                 ],
                 ...(VISUAL && { mode: PRODUCTION.mode, appType: PRODUCTION.appType }),
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { force: true },
                 resolve: {
                     alias: {
                         // Mock @mlc-ai/web-llm in storybook tests - the package is CDN-only
@@ -1061,11 +1220,6 @@ const config = defineConfig({
                         ...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []),
                         ".storybook/vitest.setup.ts",
                     ],
-                    // Storybook tests load complex 3D scenes and need longer timeout
-                    testTimeout: 30000,
-                    // With screenshots on, a story's afterEach renders it again for each further mode
-                    // and once more when a shot differs from its baseline: it bounds that work, no wait.
-                    ...(VISUAL && { hookTimeout: 90000 }),
                 },
             },
             // Autosave lifecycle tests (design/work-protection/plan.md, step 6): every test that reloads,
@@ -1085,19 +1239,15 @@ const config = defineConfig({
                     // The benchmark beside these tests runs in "bench".
                     exclude: ["**/*.bench.test.ts", "**/node_modules/**"],
                     fileParallelism: false,
-                    // On the macOS runners (work-protection-macos.yml) booting the iOS Simulator and
-                    // Safari's first launch take minutes; the workflow's step limits bound them there.
-                    // The project's limits win over the command line's, so they are set here.
-                    testTimeout: process.env.GRAPHTY_LIFECYCLE_MACOS === "1" ? 900_000 : 120_000,
-                    hookTimeout: process.env.GRAPHTY_LIFECYCLE_MACOS === "1" ? 900_000 : 60_000,
                 },
             },
             // LLM Regression Tests - Tests real LLM API calls for tool calling verification.
             //
             // Every case makes a paid API call, so this project runs in no pull-request or merge-queue
             // job. The release train runs it on every release candidate (release.yml's "LLM regression"
-            // job). VITE_LLM_REGRESSION_PROVIDER picks the provider (google by default, as the release job
-            // runs; openai and anthropic also work) and its key variable (VITE_GOOGLE_API_KEY, ...). Its seven real test
+            // job). LLM_REGRESSION_PROVIDER picks the provider (google by default, as the release job
+            // runs; openai and anthropic also work) and its key variable (GOOGLE_API_KEY, ...; never VITE_-prefixed,
+            // which the browser project's envPrefix would put on import.meta.env). Its seven real test
             // files sit inside describe.skipIf(skipIfNoApiKey()), so without a key they skip; the release
             // job checks the key is set first and fails if it is not.
             {
@@ -1117,9 +1267,6 @@ const config = defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // Per provider, sized from measured call latency (test/helpers/llm-regression-env.ts)
-                    testTimeout: getLlmRegressionCaseTimeoutMs(),
-                    hookTimeout: 30000,
                     // Run tests sequentially to avoid rate limits
                     pool: "forks",
                     fileParallelism: false,
@@ -1158,4 +1305,5 @@ config.test = {
     ),
 };
 
-export default config;
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

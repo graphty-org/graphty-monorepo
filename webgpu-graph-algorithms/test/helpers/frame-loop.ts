@@ -180,7 +180,8 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
     /** Ticks the pause spent past its `pauseTicks` floor waiting for flush(): added to the run, not taken from it. */
     let extraTicks = 0;
     let pausing = false;
-    let flushResolved = false;
+    /** Set by flush()'s handler; an object, so the reads below see the handler's write. */
+    const flush = { resolved: false };
 
     const checkHolds = (): void => {
         for (const write of writes) {
@@ -249,7 +250,7 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
             flightCeiling = inFlightAtStart;
         }
         // (b) the pause window
-        if (pausing && pauseStart !== null && tick >= pauseStart + pauseTicks && flushResolved) {
+        if (pausing && pauseStart !== null && tick >= pauseStart + pauseTicks && flush.resolved) {
             pausing = false;
             pauseEnd = tick;
             extraTicks = tick - (pauseStart + pauseTicks);
@@ -264,7 +265,7 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
             pauseStart = tick;
             sim.flush().then(
                 () => {
-                    flushResolved = true;
+                    flush.resolved = true;
                 },
                 (err: unknown) => {
                     errors.push(err);
@@ -303,7 +304,7 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
     if (pausing) {
         errors.push(
             new Error(
-                flushResolved
+                flush.resolved
                     ? `the ${pauseTicks}-tick pause that started at tick ${pauseStart} ran past the last tick`
                     : `flush() did not resolve before the loop ended (the pause started at tick ${pauseStart})`,
             ),

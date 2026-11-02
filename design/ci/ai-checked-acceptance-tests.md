@@ -1,6 +1,8 @@
 # AI-checked acceptance tests for the graphty app
 
-Status: Proposed, 2026-10-22. Issue #3272. Design only; nothing here is built yet.
+Status: Proposed, 2026-10-22. Issue #3272. Built so far: the routes in `graphty/acceptance/` (outcome checks only,
+no step screenshots yet) and `tools/acceptance.mjs run` and `select` (section 9) without a model, selecting by
+the files the app's build bundles, read from its source maps, rather than by per-route coverage (section 5.3).
 
 This document describes how the graphty app's study tasks become scripted acceptance tests that run
 on every change that can affect them, compare a screenshot of every step with the same step on the
@@ -424,6 +426,9 @@ the acceptance tests do not hook into the nightly branch sync (`design/ci/branch
 `infra/3266-branch-sync`): the sync's own check of a branch runs the branch's affected build, lint
 and test shards and leaves the acceptance lane to the branch's owner. The automatic runs, on a
 branch and in verification, cover only the routes a change affects.
+
+The command for every route is `node tools/acceptance.mjs run --all` (or `graphty/acceptance/run.mjs`):
+`pnpm run check:quick --with-dry-run` (issue #3269), with the same occasions as below.
 
 The agent that owns a long-running branch decides when to run wider, and runs it with
 `acceptance.mjs run --wide` or `--all`. The guidance, written into CLAUDE.md ("Landing changes"),

@@ -66,6 +66,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "node.shape": ["shape"],
     "node.label": ["label"],
     "node.tooltip": ["tooltip"],
+    "node.xlabel": ["xlabel"],
     "node.labelDeclutter": ["labelAvoidOverlap"],
     "edge.color": ["color"],
     "edge.width": ["width"],
@@ -85,6 +86,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "edge.label": ["label"],
     "edge.arrowHeadText": ["targetLabel"],
     "edge.arrowTailText": ["sourceLabel"],
+    "edge.xlabel": ["xlabel"],
 };
 const LABEL_PROPERTIES = [
     "labelColor",
@@ -273,22 +275,6 @@ const KNOWN_GAPS: ReadonlyMap<string, string> = new Map([
     [
         "Cytoscape.js JSON: a stack of every kind of layer",
         "a node's own opacity under a translucent class comes back opaque: the writer keeps it as an exceptions column the reader does not apply (graph-io ISSUES.md, Specimen sheets: Cytoscape.js)",
-    ],
-    [
-        "XGMML: cx2/fidelity/repro-shared-interaction.cx2",
-        "the written file reads back with one more layer than was written: a per-element exceptions column comes back as a layer of its own (graph-io ISSUES.md, Cytoscape desktop writers)",
-    ],
-    [
-        "CX2: cx2/fidelity/repro-shared-interaction.cx2",
-        "the written file reads back with one more layer than was written: a per-element exceptions column comes back as a layer of its own (graph-io ISSUES.md, Cytoscape desktop writers)",
-    ],
-    [
-        "XGMML: dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot",
-        "Graphviz's arrow gap is written into a Cytoscape file, which has no arrow gap, and read back as Cytoscape's own 4 with no note (graph-io ISSUES.md, Specimen sheets: Graphviz DOT)",
-    ],
-    [
-        "CX2: dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot",
-        "Graphviz's arrow gap is written into a Cytoscape file, which has no arrow gap, and read back as Cytoscape's own 4 with no note (graph-io ISSUES.md, Specimen sheets: Graphviz DOT)",
     ],
     [
         "Cytoscape.js JSON: cyjs/adv/cyjs-selector-zoo.cyjs",

@@ -13,9 +13,6 @@ import type { Graphty } from "../../index.js";
 import type { RunResult } from "../../src/session/results";
 import type { Caveats, WeightMeaning } from "../../src/session/runs";
 
-/** Per-test budget: each builds a real Babylon scene. */
-const TEST_TIMEOUT_MS = 30_000;
-
 /** Who emailed whom, and how often: a strength (more emails, closer). */
 const MESSAGES = [
     "from,to,emails",
@@ -101,105 +98,85 @@ async function run(
 }
 
 describe("every run reads the loaded weight", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a strength reader reads the loaded weight with no option; a distance reader counts hops and says why",
-        async () => {
-            const element = await loaded();
+    it("a strength reader reads the loaded weight with no option; a distance reader counts hops and says why", async () => {
+        const element = await loaded();
 
-            for (const key of ["pagerank", "louvain"]) {
-                const done = await run(element, key);
-                // Nobody gave emails a meaning: the run read it as a strength, and says it assumed so.
-                assert.deepStrictEqual(
-                    done.caveats.weight,
-                    { attribute: "emails", meaning: "strength", assumed: true },
-                    key,
-                );
-                assert.isUndefined(done.caveats.weightSkipped, key);
-            }
+        for (const key of ["pagerank", "louvain"]) {
+            const done = await run(element, key);
+            // Nobody gave emails a meaning: the run read it as a strength, and says it assumed so.
+            assert.deepStrictEqual(
+                done.caveats.weight,
+                { attribute: "emails", meaning: "strength", assumed: true },
+                key,
+            );
+            assert.isUndefined(done.caveats.weightSkipped, key);
+        }
 
-            const path = await run(element, "shortest-path", { source: "p01", target: "p12" });
-            assert.isNull(path.caveats.weight ?? null);
-            assert.deepStrictEqual(path.caveats.weightSkipped, {
-                code: "weight.meaning-mismatch",
-                params: { attribute: "emails", meaning: null, reads: "distance" },
-            });
-            // p01 - p12 is one edge: one hop, cost 1, whatever its 6 emails.
-            assert.strictEqual(path.result?.graph.cost, 1);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        const path = await run(element, "shortest-path", { source: "p01", target: "p12" });
+        assert.isNull(path.caveats.weight ?? null);
+        assert.deepStrictEqual(path.caveats.weightSkipped, {
+            code: "weight.meaning-mismatch",
+            params: { attribute: "emails", meaning: null, reads: "distance" },
+        });
+        // p01 - p12 is one edge: one hop, cost 1, whatever its 6 emails.
+        assert.strictEqual(path.result?.graph.cost, 1);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "reads a weight as a distance when told so, at load or for one run",
-        async () => {
-            const forOneRun = await run(await loaded(), "shortest-path", {
-                source: "p01",
-                target: "p12",
-                weight: EMAILS_AS_DISTANCE,
-            });
-            assert.deepStrictEqual(forOneRun.caveats.weight, EMAILS_AS_DISTANCE);
-            // The cheapest route by emails: p01-p03 (9) then p03-p12 (4) is 13, p01-p12 alone is 6.
-            assert.strictEqual(forOneRun.result?.graph.cost, 6);
+    it("reads a weight as a distance when told so, at load or for one run", async () => {
+        const forOneRun = await run(await loaded(), "shortest-path", {
+            source: "p01",
+            target: "p12",
+            weight: EMAILS_AS_DISTANCE,
+        });
+        assert.deepStrictEqual(forOneRun.caveats.weight, EMAILS_AS_DISTANCE);
+        // The cheapest route by emails: p01-p03 (9) then p03-p12 (4) is 13, p01-p12 alone is 6.
+        assert.strictEqual(forOneRun.result?.graph.cost, 6);
 
-            const element = await loaded("distance");
-            const atLoad = await run(element, "shortest-path", { source: "p01", target: "p03" });
-            assert.deepStrictEqual(atLoad.caveats.weight, EMAILS_AS_DISTANCE);
-            // The direct edge (9) beats p01-p12-p03 (6 + 4) and p01-p08-p06-p03 (2 + 8 + 2).
-            assert.strictEqual(atLoad.result?.graph.cost, 9);
+        const element = await loaded("distance");
+        const atLoad = await run(element, "shortest-path", { source: "p01", target: "p03" });
+        assert.deepStrictEqual(atLoad.caveats.weight, EMAILS_AS_DISTANCE);
+        // The direct edge (9) beats p01-p12-p03 (6 + 4) and p01-p08-p06-p03 (2 + 8 + 2).
+        assert.strictEqual(atLoad.result?.graph.cost, 9);
 
-            // A distance is no strength: PageRank leaves it unread and says so.
-            const rank = await run(element, "pagerank");
-            assert.isNull(rank.caveats.weight ?? null);
-            assert.deepStrictEqual(rank.caveats.weightSkipped?.params, {
-                attribute: "emails",
-                meaning: "distance",
-                reads: "strength",
-            });
-        },
-        TEST_TIMEOUT_MS,
-    );
+        // A distance is no strength: PageRank leaves it unread and says so.
+        const rank = await run(element, "pagerank");
+        assert.isNull(rank.caveats.weight ?? null);
+        assert.deepStrictEqual(rank.caveats.weightSkipped?.params, {
+            attribute: "emails",
+            meaning: "distance",
+            reads: "strength",
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "weight null reads none, and an algorithm with no weighted form reads none",
-        async () => {
-            const element = await loaded();
+    it("weight null reads none, and an algorithm with no weighted form reads none", async () => {
+        const element = await loaded();
 
-            const unweighted = await run(element, "pagerank", { weight: null });
-            assert.isNull(unweighted.caveats.weight);
+        const unweighted = await run(element, "pagerank", { weight: null });
+        assert.isNull(unweighted.caveats.weight);
 
-            const degree = await run(element, "degree");
-            assert.isNull(degree.caveats.weight);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        const degree = await run(element, "degree");
+        assert.isNull(degree.caveats.weight);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "plan() says before a run which weight it would read, as the run then does",
-        async () => {
-            const element = await loaded();
-            const params = { source: "p01", target: "p12" };
+    it("plan() says before a run which weight it would read, as the run then does", async () => {
+        const element = await loaded();
+        const params = { source: "p01", target: "p12" };
 
-            const unread = await element.session.plan({ op: "algo.run", algorithm: "shortest-path", params });
-            const ran = await run(element, "shortest-path", params);
-            assert.deepStrictEqual(unread.caveats.weightSkipped, {
-                code: "weight.meaning-mismatch",
-                params: { attribute: "emails", meaning: null, reads: "distance" },
-            });
-            assert.deepStrictEqual(unread.caveats.weightSkipped, ran.caveats.weightSkipped);
-            assert.isNull(unread.caveats.weight ?? null);
+        const unread = await element.session.plan({ op: "algo.run", algorithm: "shortest-path", params });
+        const ran = await run(element, "shortest-path", params);
+        assert.deepStrictEqual(unread.caveats.weightSkipped, {
+            code: "weight.meaning-mismatch",
+            params: { attribute: "emails", meaning: null, reads: "distance" },
+        });
+        assert.deepStrictEqual(unread.caveats.weightSkipped, ran.caveats.weightSkipped);
+        assert.isNull(unread.caveats.weight ?? null);
 
-            const read = await (
-                await loaded("distance")
-            ).session.plan({ op: "algo.run", algorithm: "shortest-path", params });
-            assert.deepStrictEqual(read.caveats.weight, EMAILS_AS_DISTANCE);
-            assert.isUndefined(read.caveats.weightSkipped);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        const read = await (
+            await loaded("distance")
+        ).session.plan({ op: "algo.run", algorithm: "shortest-path", params });
+        assert.deepStrictEqual(read.caveats.weight, EMAILS_AS_DISTANCE);
+        assert.isUndefined(read.caveats.weightSkipped);
+    });
 
     it("the catalog says which meaning each algorithm reads", async () => {
         const element = await loaded();

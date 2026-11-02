@@ -8,6 +8,7 @@ import type {
 import { z } from "zod";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
+import { resolveLayoutWeight } from "../algorithms/input/weight";
 import { LAYOUT_DESCRIPTORS, layoutAlias, layoutDescriptor } from "../catalog/layouts";
 import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
@@ -369,12 +370,17 @@ function optionRefusal(type: string, error: unknown, passed: Record<string, unkn
 const FRAME_LOOP_OPTIONS: readonly string[] = ["iterationsPerStep", "maxInFlight", "settleThreshold", "settleWindow"];
 
 /**
- * The options a layout will run without, for the engines that do not refuse an unknown name.
+ * The options a layout will run without, for the engines that do not refuse an unknown name, and
+ * a `seed` given to any layout that takes none.
  *
  * `ngraph` and the simulation layouts read their options without a strict schema, so a misspelled
  * option used to be dropped with no sign. Refusing it now would break a call that runs today, so
  * it is reported instead, as `W_UNKNOWN_OPTION`. Every other built-in engine refuses an unknown
- * name with `E_UNKNOWN_OPTION` while it is built, and a registered layout's descriptor does.
+ * name with `E_UNKNOWN_OPTION` while it is built, and a registered layout's descriptor does --
+ * except `seed`: a layout that takes no seed draws the same graph the same way every time, so a
+ * consumer that set one for repeatable drawings has asked for nothing it does not already do.
+ * Refusing it made `layout = "fixed"` with a seed fail where `ngraph` ran (issue #5124); it is
+ * reported as `W_UNKNOWN_OPTION` and the layout runs without it.
  * @param engineClass - The engine the consumer named.
  * @param passed - The consumer's options.
  * @returns The ignored names and the names the layout takes, or undefined when none is ignored.
@@ -384,12 +390,12 @@ function ignoredOptions(
     passed: Record<string, unknown>,
 ): { options: string[]; available: string[] } | undefined {
     const simulation = engineClass.simulationType !== undefined;
-    if (!simulation && engineClass.type !== NGraphEngine.type) {
-        return undefined;
-    }
-
-    const available = [...Object.keys(engineClass.getZodOptionsSchema()), ...(simulation ? FRAME_LOOP_OPTIONS : [])];
-    const options = Object.keys(passed).filter((name) => !available.includes(name));
+    const lenient = simulation || engineClass.type === NGraphEngine.type;
+    const available = engineClass.descriptor?.options.map((option) => option.name) ?? [
+        ...Object.keys(engineClass.getZodOptionsSchema()),
+        ...(simulation ? FRAME_LOOP_OPTIONS : []),
+    ];
+    const options = Object.keys(passed).filter((name) => !available.includes(name) && (lenient || name === "seed"));
     return options.length > 0 ? { options, available } : undefined;
 }
 
@@ -637,6 +643,8 @@ export class LayoutManager implements Manager {
     #building = 0;
     /** Moves at every restore of the arrangement; pre-steps computed before one are dropped. */
     #generation = 0;
+    /** Whether the last restore of the arrangement was the reader's (undo, redo, a history jump). */
+    #restoredByReader = false;
 
     /**
      * Set while a CONSUMER has paused the layout, through {@link LayoutManager.setPaused}. Nothing
@@ -652,6 +660,13 @@ export class LayoutManager implements Manager {
      * {@link LayoutManager.runPreStepsOnceThereIsSomethingToStep}.
      */
     private preStepsOwed = false;
+
+    /**
+     * How many pre-step chunks are on their way through a simulation; see `preStepsInFlight`. A
+     * count, not a flag: a stale owed payment and a new build's pre-steps can overlap, and the
+     * first to land must not clear the other.
+     */
+    #chunksInFlight = 0;
 
     /**
      * Set while the running layout's arrangement is the layout's own work: it was built, forward,
@@ -784,6 +799,16 @@ export class LayoutManager implements Manager {
      */
     get building(): boolean {
         return this.#building > 0;
+    }
+
+    /**
+     * Whether a chunk of pre-steps is being computed now. The frame loop neither steps the layout
+     * nor judges it settled while one is: see {@link LayoutManager.step}.
+     * @returns True while one is.
+     * @internal
+     */
+    get preStepsInFlight(): boolean {
+        return this.#chunksInFlight > 0;
     }
 
     /**
@@ -1013,6 +1038,12 @@ export class LayoutManager implements Manager {
      * The layout is stopped before the rebuild, which is asynchronous, so no frame steps a
      * simulation over the snapshot the freeze that triggered this is about to release.
      * `_setLayoutInternal` starts it again once the new driver is in, and reports its own failures.
+     *
+     * A RESTORE OF THE ARRANGEMENT LANDING MID-REBUILD STARTS THE REBUILD OVER, as it starts a
+     * `build` over (issue #5613): the driver is still the wrong one. What initiated the restore
+     * decides whether the layout runs again, never when it landed: one the reader asked for (an
+     * undo, a redo, a history jump) leaves it at rest, and a rollback of another command's writes
+     * resumes the layout that was running (issue #5670).
      * @param nodeCount - The graph the layout will be run over.
      * @returns True when a rebuild was started, so the caller leaves the engine alone.
      */
@@ -1034,22 +1065,36 @@ export class LayoutManager implements Manager {
         // QUEUED BEHIND EVERY BUILD ALREADY ASKED FOR, as `apply` queues them, so a rebuild never
         // races a `layout.set` -- and counted as a build, so the frame loop steps nothing until the
         // new driver is in. A restore of the arrangement drops it, as it drops any build.
-        const generation = this.#generation;
+        let generation = this.#generation;
         this.#building++;
         const rebuild = this.#applying.then(async () => {
-            const engine = this.layoutEngine;
-            if (engine === undefined || !this.driverChanged(this.dataManager.nodes.size)) {
-                // A build that ran ahead of this one already chose the driver for the graph as it is.
-                this.running = !this.restoring();
-                return;
-            }
+            let restoring = this.restoring();
+            for (;;) {
+                const engine = this.layoutEngine;
+                if (engine === undefined || !this.driverChanged(this.dataManager.nodes.size)) {
+                    // A build that ran ahead of this one already chose the driver for the graph as it is.
+                    this.running = !restoring && !this.restoring();
+                    return;
+                }
 
-            await this._setLayoutInternal(engine.type, this.driverOptions, {
-                dimension: this.engineDimension ?? 3,
-                restoring: this.restoring(),
-                live: () => this.#generation === generation,
-                explicitScope: false,
-            });
+                const attempt = generation;
+                try {
+                    await this._setLayoutInternal(engine.type, this.driverOptions, {
+                        dimension: this.engineDimension ?? 3,
+                        restoring,
+                        live: () => this.#generation === attempt,
+                        explicitScope: false,
+                    });
+                    return;
+                } catch (error) {
+                    if (this.#generation === attempt || (error as Error | null)?.name !== "AbortError") {
+                        throw error;
+                    }
+                }
+
+                generation = this.#generation;
+                restoring = this.restoring() || this.#restoredByReader;
+            }
         });
         this.#applying = rebuild.catch(() => undefined);
         void rebuild
@@ -1190,20 +1235,30 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * Report the consumer's options a layout will run without, as `W_UNKNOWN_OPTION`.
-     * @param type - The layout.
-     * @param engineClass - Its engine.
-     * @param passed - The consumer's options.
+     * What the graph's stored edge weights mean to one layout engine, asked each time it reads
+     * them: the loaded weight checked against `data.knownFields.edgeWeightMeaning` by the same rule
+     * an algorithm run uses. A meaning assumed or left unread is reported as a `layout-warning`,
+     * once per engine until the answer changes.
+     * @param type - The layout, which the warning names.
+     * @returns The reader.
      */
-    private warnIgnoredOptions(
-        type: string,
-        engineClass: LayoutEngineStatics & { simulationType?: SimulationType },
-        passed: Record<string, unknown>,
-    ): void {
-        const ignored = ignoredOptions(engineClass, passed);
-        if (ignored !== undefined) {
-            this.warnLayout(type, { code: "W_UNKNOWN_OPTION", params: ignored });
-        }
+    private weightMeaningFor(type: string): () => "strength" | "distance" | null {
+        let warned: string | null = null;
+        return () => {
+            const attribute = this.dataManager.lastImport?.weights.attribute ?? null;
+            const reading = resolveLayoutWeight(
+                attribute === null
+                    ? null
+                    : { attribute, meaning: this.styles.config.data.knownFields.edgeWeightMeaning },
+            );
+            const key = JSON.stringify(reading.warning ?? null);
+            if (reading.warning !== undefined && key !== warned) {
+                this.warnLayout(type, reading.warning);
+            }
+
+            warned = key;
+            return reading.meaning;
+        };
     }
 
     /**
@@ -1252,7 +1307,14 @@ export class LayoutManager implements Manager {
         // The CONSUMER'S options are checked on their own, before the element adds anything: the
         // dimension options below are the element's to add and are not the layout's to declare,
         // so validating after the merge would refuse the element's own key.
-        const callerOpts = resolveLayoutOptions(type, engineClass.descriptor, opts);
+        // A `seed` the layout takes none of is left out before the layout sees it, and reported
+        // with the other ignored options once the engine is built: see `ignoredOptions`.
+        const ignored = ignoredOptions(engineClass, opts as Record<string, unknown>);
+        const passed =
+            ignored?.options.includes("seed") === true
+                ? Object.fromEntries(Object.entries(opts).filter(([name]) => name !== "seed"))
+                : opts;
+        const callerOpts = resolveLayoutOptions(type, engineClass.descriptor, passed);
         // The layout's dimension options follow the graph's 2D/3D mode; in 3D the caller may
         // choose otherwise, in 2D never: see `withDimensionOptions`.
         const { dimension } = how;
@@ -1264,7 +1326,9 @@ export class LayoutManager implements Manager {
 
         const engine = await this.buildEngine(type, driver, driverClass, layoutOpts, how);
 
-        this.warnIgnoredOptions(type, engineClass, callerOpts);
+        if (ignored !== undefined) {
+            this.warnLayout(type, { code: "W_UNKNOWN_OPTION", params: ignored });
+        }
         if (overridden !== undefined) {
             this.warnLayout(type, { code: "W_DIMENSION_OVERRIDDEN", params: overridden });
         }
@@ -1410,6 +1474,7 @@ export class LayoutManager implements Manager {
                     },
                     dataManager: this.dataManager,
                     fromSeed: how.fromSeed,
+                    weightMeaning: this.weightMeaningFor(type),
                 };
                 engine = new SimulationLayoutEngine(init);
             }
@@ -1456,6 +1521,7 @@ export class LayoutManager implements Manager {
                 this.reportLayoutFailure(type, error, "stepped");
             },
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
+            weightMeaning: this.weightMeaningFor(type),
             drawPaint: () => {
                 this.drawArrivedPaint?.();
             },
@@ -1721,11 +1787,10 @@ export class LayoutManager implements Manager {
         options: { readonly restoring: boolean; readonly signal?: AbortSignal; readonly explicitScope?: boolean },
     ): Promise<void> {
         this.#wanted = choice;
-        const generation = this.#generation;
         const build = this.#applying.then(async () => {
             this.#building++;
             try {
-                await this.build(choice, options, generation);
+                await this.build(choice, options);
             } finally {
                 this.#building--;
                 if (this.#wanted === choice) {
@@ -1744,9 +1809,42 @@ export class LayoutManager implements Manager {
      * @param options.restoring - Whether this is a restore.
      * @param options.signal - The asking command's signal.
      * @param options.explicitScope - Whether the asking command named the scope.
-     * @param generation - The arrangement generation it was asked for under.
      */
     private async build(
+        choice: LayoutChoice,
+        options: { readonly restoring: boolean; readonly signal?: AbortSignal; readonly explicitScope?: boolean },
+    ): Promise<void> {
+        // A RESTORE OF THE ARRANGEMENT LANDING MID-BUILD STARTS THE BUILD OVER; it never fails it.
+        // The restore drops pre-steps computed from the coordinates it replaced (`loadArrangement`),
+        // but the layout is still wanted: only its own command being cancelled or overtaken (the
+        // signal) ends it. Failing it made a `setLayout` reject with an AbortError whenever another
+        // command's rollback -- a queued layout it overtook -- reached the arrangement hook after
+        // this build began, which moved with every microtask between the two (issue #5613).
+        for (;;) {
+            const generation = this.#generation;
+            try {
+                await this.buildOnce(choice, options, generation);
+                return;
+            } catch (error) {
+                const restoredOnly =
+                    options.signal?.aborted !== true && !options.restoring && this.#generation !== generation;
+                if (!restoredOnly || (error as Error | null)?.name !== "AbortError") {
+                    throw error;
+                }
+            }
+        }
+    }
+
+    /**
+     * One attempt at {@link LayoutManager.build}, given up when the arrangement is restored under it.
+     * @param choice - The value.
+     * @param options - How.
+     * @param options.restoring - Whether this is a restore.
+     * @param options.signal - The asking command's signal.
+     * @param options.explicitScope - Whether the asking command named the scope.
+     * @param generation - The arrangement generation the attempt began under.
+     */
+    private async buildOnce(
         choice: LayoutChoice,
         options: { readonly restoring: boolean; readonly signal?: AbortSignal; readonly explicitScope?: boolean },
         generation: number,
@@ -1822,10 +1920,14 @@ export class LayoutManager implements Manager {
      * @param restoring - Whether undo, redo, a restore or a rollback wrote them.
      * @param wrote - Whether anything was written into the lane, which forward is a
      *     `positions.set`.
+     * @param byReader - Whether the reader asked for the restore (undo, redo, a history jump);
+     *     false for a rollback of another command's writes, after which a driver rebuild the
+     *     restore landed on resumes the layout. Defaults to `restoring`.
      */
-    loadArrangement(restoring: boolean, wrote = false): void {
+    loadArrangement(restoring: boolean, wrote = false, byReader = restoring): void {
         if (restoring) {
             this.#generation++;
+            this.#restoredByReader = byReader;
         }
 
         // A consumer placed nodes: the arrangement is no longer the layout's alone to start over.
@@ -2081,7 +2183,13 @@ export class LayoutManager implements Manager {
         if (engine instanceof SimulationLayoutEngine) {
             for (let remaining = preSteps; remaining > 0 && !engine.isSettled;) {
                 const chunk = Math.min(remaining, MAX_ITERATIONS_PER_STEP_CHUNK);
-                await engine.stepAsync(chunk);
+                this.#chunksInFlight++;
+                try {
+                    await engine.stepAsync(chunk);
+                } finally {
+                    this.#chunksInFlight--;
+                }
+
                 if (!live()) {
                     return false;
                 }
@@ -2526,11 +2634,22 @@ export class LayoutManager implements Manager {
         // it has run would move the arrangement being restored. The frames after it step again.
         //
         // Nor while a new layout waits its turn: see `replacing`.
-        if (this.#building > 0 || this.restoring() || this.replacing()) {
+        //
+        // Nor while a chunk of pre-steps is on the device. Owed pre-steps are paid outside a build,
+        // over several frames, and a simulation takes more than one batch in flight: a frame's
+        // batch submitted beside a chunk ran iterations the pre-steps did not count and moved where
+        // the next chunk read `settled`, so a slow device -- on which frames fall inside a chunk --
+        // ended the same seed somewhere else than a fast one (issue #3533). The frames step again
+        // once the pre-steps are paid, as they do after a build's.
+        if (this.#building > 0 || this.preStepsInFlight || this.restoring() || this.replacing()) {
             return;
         }
 
         this.runPreStepsOnceThereIsSomethingToStep();
+        if (this.preStepsInFlight) {
+            // The payment just started has its first chunk on the device.
+            return;
+        }
         this.syncFollowers();
 
         const engine = this.layoutEngine;

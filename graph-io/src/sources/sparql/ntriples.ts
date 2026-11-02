@@ -4,6 +4,8 @@
  * subject named by the predicate's local name.
  */
 
+import { itemAt } from "../../common/text.js";
+
 /** One RDF term. */
 export type Term =
     | { readonly kind: "iri"; readonly value: string }
@@ -60,7 +62,7 @@ function unescape(text: string): string {
     if (!text.includes("\\")) {
         return text;
     }
-    const simple: Readonly<Record<string, string>> = { t: "\t", b: "\b", n: "\n", r: "\r", f: "\f" };
+    const simple: Readonly<Partial<Record<string, string>>> = { t: "\t", b: "\b", n: "\n", r: "\r", f: "\f" };
     return text.replaceAll(
         /\\(?:u([\da-fA-F]{4})|U([\da-fA-F]{8})|(.))/g,
         (_m, u4?: string, u8?: string, c?: string) => {
@@ -85,7 +87,11 @@ function readTerm(line: string, at: number): { term: Term; end: number } | null 
     if (m === null) {
         return null;
     }
-    const [, iri, bnode, lexical, lang, datatype] = m;
+    const iri = itemAt(m, 1);
+    const bnode = itemAt(m, 2);
+    const lexical = itemAt(m, 3);
+    const lang = itemAt(m, 4);
+    const datatype = itemAt(m, 5);
     let term: Term;
     if (iri !== undefined) {
         term = { kind: "iri", value: unescape(iri) };

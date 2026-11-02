@@ -1,7 +1,7 @@
 import { type AbstractMesh, Matrix, Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
 import type { FlatMap, Globe, MapCredit, MapSource } from "babylonjs-map";
 
-import type { BasemapConfig, BasemapStatus } from "../config/Basemap";
+import type { BasemapConfig, BasemapStatus, GlobeLook } from "../config/Basemap";
 import type { BasemapStatusEvent } from "../events";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 
@@ -189,6 +189,37 @@ export class BasemapManager {
         this.#strip.style.bottom = `${String(Math.max(0, pixels))}px`;
     }
 
+    /** How a globe looks beyond its map; see {@link GlobeLook}. */
+    #look: GlobeLook = {};
+
+    /**
+     * How a globe looks beyond its map: its air's glow and its sun. Applied to the globe drawn now,
+     * and to every globe made after.
+     * @param look - The look.
+     */
+    set globeLook(look: GlobeLook) {
+        this.#look = look;
+        if (this.#surface !== null && this.#module !== null) {
+            void this.#module.then((m) => {
+                if (this.#surface instanceof m.Globe) {
+                    this.#lookOf(this.#surface);
+                }
+            });
+        }
+    }
+
+    /**
+     * Gives a globe the look.
+     * @param globe - The globe.
+     */
+    #lookOf(globe: Globe): void {
+        globe.atmosphere = this.#look.atmosphere === true;
+        const sun = this.#look.sun ?? null;
+        if (JSON.stringify(sun) !== JSON.stringify(globe.sun)) {
+            globe.sun = sun;
+        }
+    }
+
     /**
      * Follows the active layout's frame and the basemap setting; cheap when neither changed.
      * @param frame - The geographic frame, or null when the active layout has none.
@@ -355,6 +386,7 @@ export class BasemapManager {
 
         if (frame.surface === "globe" && surface instanceof m.Globe) {
             surface.radius = frame.radius;
+            this.#lookOf(surface);
             const r = frame.rotation;
             surface.root.rotationQuaternion = Quaternion.FromRotationMatrix(
                 Matrix.FromValues(r[0], r[1], r[2], 0, r[3], r[4], r[5], 0, r[6], r[7], r[8], 0, 0, 0, 0, 1),

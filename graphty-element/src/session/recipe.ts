@@ -13,6 +13,7 @@
 import type {
     AttributeRole,
     AttributeType,
+    FilterCondition,
     FilterStep,
     FormatId,
     LayerSpec,
@@ -72,7 +73,8 @@ export interface RecipeIgnoredIssue {
 
 /**
  * Why a part of the session is not in a recipe: it names nodes or edges. `part` is `"filter"`,
- * `"filter-step"` or `"style"`, and `count` how many leaves or layers were left out.
+ * `"filter-step"`, `"filter-condition"` (since 3.32.0; an exclude condition that loses a leaf is
+ * left out whole) or `"style"`, and `count` how many leaves or layers were left out.
  */
 export type RecipeLeftOutCode = "names-elements";
 
@@ -88,8 +90,19 @@ export interface RecipeDocument {
     readonly joins: readonly RecipeJoin[];
     /** The data issues ignored. */
     readonly ignoredIssues: readonly RecipeIgnoredIssue[];
-    /** The visibility filter and its steps. */
-    readonly filter: { readonly rule: RuleTree | null; readonly steps: readonly FilterStep[] };
+    /**
+     * The visibility filter, its steps, and the filter conditions (`conditions`, since 3.32.0; the
+     * steps are their keep and exclude half).
+     */
+    readonly filter: {
+        readonly rule: RuleTree | null;
+        readonly steps: readonly FilterStep[];
+        /**
+         * The filter conditions. Experimental: may change or be removed in a minor release.
+         * @beta
+         */
+        readonly conditions?: readonly FilterCondition[];
+    };
     /** The style layers, as `styles.toFile()` writes them. */
     readonly styles: StyleFileDocument;
     /** What was left out because it names nodes or edges. */
@@ -224,6 +237,18 @@ export function recipeOf(session: GraphSession): RecipeDocument {
         return scrubbed === null ? [] : [{ ...step, rule: scrubbed }];
     });
     note("filter-step", stepDropped.count);
+    // A part dropped from an exclude condition would widen what it hides, so the whole condition
+    // goes; keep and select conditions lose only the part.
+    const conditionDropped = { count: 0 };
+    const conditions = session.visibility.conditions.flatMap((condition) => {
+        const dropped = { count: 0 };
+        const scrubbed = scrubRule(condition.rule, dropped);
+        conditionDropped.count += dropped.count;
+        return scrubbed === null || (condition.effect === "exclude" && dropped.count > 0)
+            ? []
+            : [{ ...condition, rule: scrubbed }];
+    });
+    note("filter-condition", conditionDropped.count);
 
     const file = session.styles.toFile();
     const layers = file.layers.filter((layer) => !selectsByIds(layer.selector)).map(recipeLayer);
@@ -236,7 +261,7 @@ export function recipeOf(session: GraphSession): RecipeDocument {
         columns,
         joins,
         ignoredIssues,
-        filter: { rule, steps },
+        filter: { rule, steps, ...(conditions.length === 0 ? {} : { conditions }) },
         styles: { ...file, layers },
         leftOut,
     });

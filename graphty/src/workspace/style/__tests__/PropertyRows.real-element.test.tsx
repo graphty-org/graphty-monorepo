@@ -22,9 +22,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** The scene's run rows, by the name the tree draws for each. */
 interface Scene {
     readonly session: GraphSession;
@@ -39,14 +36,11 @@ interface Scene {
 async function openScene(): Promise<Scene> {
     await page.viewport(1440, 900);
     render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -85,7 +79,7 @@ async function openScene(): Promise<Scene> {
  * @returns the Style tab.
  */
 async function openStyle(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
@@ -212,14 +206,11 @@ describe("the Style tab's property rows", () => {
     it("gives a varied field its second line: a community's chits and the scale it is read on", async () => {
         const { session, runs } = await openScene();
         const louvain = await openStyle(runs.louvain);
-        await waitFor(
-            () => {
-                const chits = louvain.querySelectorAll("[data-varied-line] .ws-varied-chit");
-                assert.isAbove(chits.length, 0, "the groups' colors");
-                assert.isAtMost(chits.length, 8, "at most 8, then +N");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const chits = louvain.querySelectorAll("[data-varied-line] .ws-varied-chit");
+            assert.isAbove(chits.length, 0, "the groups' colors");
+            assert.isAtMost(chits.length, 8, "at most 8, then +N");
+        });
 
         const degree = session.styles.list().find((l) => l.name === runs.degree);
         const bound = Object.entries(degree?.encode ?? {}).find(([, b]) => "by" in b);
@@ -230,7 +221,7 @@ describe("the Style tab's property rows", () => {
         });
         await session.styles.settled();
         const tab = await openStyle(runs.degree);
-        await within(tab).findByText("Logarithmic scale", {}, { timeout: TIMEOUT_MS });
+        await within(tab).findByText("Logarithmic scale", {});
     });
 
     it("shows the Which picker on every layer, run or not, and draws no reset 'x' in the fields", async () => {

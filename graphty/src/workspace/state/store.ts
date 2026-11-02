@@ -90,6 +90,12 @@ export interface WorkspaceState {
      */
     readonly dockColumn: string | null;
     /**
+     * A new filter card to open once the Filters section shows it: on a field
+     * (`<node|edge>:<path>`, an attribute's Filter to...), or "+" for its add list (the toolbar's
+     * Filters); cleared by the section. Null when none is asked for.
+     */
+    readonly filterDraft: string | null;
+    /**
      * Whether the open table dock fills the canvas area, with the configuration beside it (data
      * prototype spec section 3.5). A file with problems opens it so.
      */
@@ -183,12 +189,19 @@ export interface WorkspaceState {
      * What to load once the element of a project that was just opened has come up (a sample or
      * a file from the start screen), with the name it is known by; run once, then cleared.
      */
-    readonly opening: {
-        readonly name: string;
-        readonly load: (session: GraphSession, element: GraphtyElement) => Promise<void>;
-        /** Where focus goes once it is loaded, when not to the opened graph's heading. */
-        readonly focus?: () => void;
-    } | null;
+    readonly opening: Opening | null;
+    /**
+     * The latest open's whole run -- a new project's (a sample, a dataset, a file, kept work), to
+     * its load read and focus handed on, or a first graph's into an empty project, to its load
+     * read: resolves then, or rejects with the load's error. Kept work reopened in this tab asks
+     * for focus on the graph's heading, which moves once the heading is drawn, so focus there may
+     * move after this settles. A data file opened from the start screen settles once the Data page
+     * shows. An open replaced by a newer one, or whose project closes before its element comes up,
+     * never settles. The node count arrives before the
+     * rest of an open, so whatever waits for an open to finish (a test after a click) awaits this
+     * instead. Null before the first open.
+     */
+    readonly opened: Promise<void> | null;
     /**
      * Whether graphty-element keeps the reader's work in the browser (its autosave). The
      * application turns it on; stories and tests leave it off, so one never reopens another's work.
@@ -226,6 +239,7 @@ const INITIAL: WorkspaceState = {
     timeSpeed: 1,
     dockTab: "nodes",
     dockColumn: null,
+    filterDraft: null,
     dockMaximized: false,
     joining: null,
     editingJoin: null,
@@ -247,9 +261,53 @@ const INITIAL: WorkspaceState = {
     announcement: "",
     announced: 0,
     opening: null,
+    opened: null,
     autosave: false,
     recovered: null,
 };
+
+/** Settles an open's `opened`: with nothing once it is done, else with the failure. */
+export type SettleOpen = (failure?: { readonly error: unknown }) => void;
+
+/** What to load once the element of a just-opened project has come up; see `WorkspaceState.opening`. */
+export interface Opening {
+    readonly name: string;
+    readonly load: (session: GraphSession, element: GraphtyElement) => Promise<void>;
+    /** Where focus goes once it is loaded, when not to the opened graph's heading. */
+    readonly focus?: () => void;
+    /** Called by the workspace once the load is read and focus handed on, or it failed. */
+    readonly settle: SettleOpen;
+}
+
+/**
+ * A new `opened` promise and what settles it, for an open that is about to start.
+ * @returns the promise and its settle.
+ */
+export function openRun(): { readonly opened: Promise<void>; readonly settle: SettleOpen } {
+    let settle: SettleOpen = () => undefined;
+    const opened = new Promise<void>((resolve, reject) => {
+        settle = (failure) => {
+            if (failure === undefined) {
+                resolve();
+            } else {
+                reject(failure.error);
+            }
+        };
+    });
+    // A failed open is the reader's notice; one nothing awaits is not an unhandled rejection.
+    opened.catch(() => undefined);
+    return { opened, settle };
+}
+
+/**
+ * The fields that start an open the workspace runs: its `opening`, and the `opened` it settles.
+ * @param entry - what to load, its name and where focus goes.
+ * @returns the fields to set.
+ */
+export function startOpening(entry: Omit<Opening, "settle">): Pick<WorkspaceState, "opening" | "opened"> {
+    const { opened, settle } = openRun();
+    return { opening: { ...entry, settle }, opened };
+}
 
 /** The store. */
 export interface WorkspaceStore {

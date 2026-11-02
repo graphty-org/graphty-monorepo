@@ -269,6 +269,27 @@ function addCommand(byId: Map<string, Command>, byKey: Map<string, string>, comm
 }
 
 /**
+ * Adds commands to a list, refusing an id the list already holds.
+ * @param list - the commands so far.
+ * @param commands - the commands to add.
+ * @param what - what a command is, for the error.
+ * @param owner - the registration they came from, for the error.
+ */
+function addUnique<T extends { readonly id: string }>(
+    list: T[],
+    commands: readonly T[],
+    what: string,
+    owner: string,
+): void {
+    for (const command of commands) {
+        if (list.some((each) => each.id === command.id)) {
+            throw new Error(`${what} "${command.id}" is registered twice (again by ${owner})`);
+        }
+        list.push(command);
+    }
+}
+
+/**
  * Builds the registry, refusing what would break a door: a duplicate id, a key two commands
  * share, or a key graphty-element owns on a focused canvas.
  * @param registrations - every package's registration.
@@ -288,18 +309,8 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
         sourceRow: rowCommands = [],
         columnHeader: headerCommands = [],
     } of registrations) {
-        for (const command of headerCommands) {
-            if (columnHeader.some((each) => each.id === command.id)) {
-                throw new Error(`Column header command "${command.id}" is registered twice (again by ${owner})`);
-            }
-            columnHeader.push(command);
-        }
-        for (const command of rowCommands) {
-            if (sourceRow.some((each) => each.id === command.id)) {
-                throw new Error(`Source row command "${command.id}" is registered twice (again by ${owner})`);
-            }
-            sourceRow.push(command);
-        }
+        addUnique(columnHeader, headerCommands, "Column header command", owner);
+        addUnique(sourceRow, rowCommands, "Source row command", owner);
         for (const command of commands) {
             addCommand(byId, byKey, command, owner);
         }

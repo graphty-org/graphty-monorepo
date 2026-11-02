@@ -10,7 +10,7 @@ import { type GraphSession, listAutosaves, removeAutosave } from "@graphty/graph
 import type { CommandContext } from "../commands/registry";
 import { baseName } from "../data-page/words";
 import { focusMainHeading } from "../frame/focus";
-import { keptPlace, newProjectId, type WorkspaceStore } from "../state/store";
+import { keptPlace, newProjectId, startOpening, type WorkspaceStore } from "../state/store";
 import { reopenedSentence, reopenedTabSentence } from "./words";
 
 /** The key graphty-element keeps the workspace's work under. */
@@ -65,7 +65,7 @@ function reopen(store: WorkspaceStore, entry: AutosaveEntry, after: (name: strin
         place: "graph",
         inspected: null,
         dialog: null,
-        opening: {
+        ...startOpening({
             name,
             load: async (session, element) => {
                 const report = await element.autosaver.restore(entry.id, { discard: true });
@@ -74,7 +74,7 @@ function reopen(store: WorkspaceStore, entry: AutosaveEntry, after: (name: strin
                 after(opened);
             },
             ...(focus === undefined ? {} : { focus }),
-        },
+        }),
     }));
 }
 

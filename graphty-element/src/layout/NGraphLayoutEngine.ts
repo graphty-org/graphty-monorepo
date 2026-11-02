@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { getDefaults } from "../config/OptionsSchema";
+import { NGRAPH_SPRING_LENGTH } from "../constants/layoutConstants";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
 import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
@@ -25,7 +26,7 @@ const ngraphLayoutOptionsSchema = defineOptions({
         },
     },
     springLength: {
-        schema: z.number().positive().default(10),
+        schema: z.number().positive().default(NGRAPH_SPRING_LENGTH),
         meta: {
             label: "Spring Length",
             description: "Ideal spring length between connected nodes",
@@ -376,14 +377,14 @@ export class NGraphEngine extends LayoutEngine {
             const i = bodies.length;
             const b = this.ngraphLayout.getNodePosition(ngraphNode.id);
             bodies.push(b);
-            radii[i] = node.drawnRadius + gap / 2;
+            radii[i] = node.layoutRadius + gap / 2;
             // A round node is a sphere; anything else (a box, a tall cylinder, a torus) is kept
             // apart by its bounding box, which one radius over- or under-states (#2668).
             round[i] = node.roundRadius === null ? 0 : 1;
             const half = round[i] === 1 ? null : node.drawnHalfExtents;
-            reaches[3 * i] = (half?.x ?? node.drawnRadius) + gap / 2;
-            reaches[3 * i + 1] = (half?.y ?? node.drawnRadius) + gap / 2;
-            reaches[3 * i + 2] = (half?.z ?? node.drawnRadius) + gap / 2;
+            reaches[3 * i] = (half?.x ?? node.layoutRadius) + gap / 2;
+            reaches[3 * i + 1] = (half?.y ?? node.layoutRadius) + gap / 2;
+            reaches[3 * i + 2] = (half?.z ?? node.layoutRadius) + gap / 2;
             movable[i] = this.ngraphLayout.isNodePinned(ngraphNode) ? 0 : 1;
             // A group following its members encloses them: it is not kept apart from them.
             if (this.isFollower(node.index)) {

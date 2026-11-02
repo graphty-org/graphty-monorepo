@@ -25,7 +25,6 @@ import {
     resetHighlights,
     updateStatus,
 } from "../utils/visualization.js";
-import { storyWaitOptions } from "../utils/wait.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -455,13 +454,10 @@ export const Prim: Story = {
         await userEvent.click(playButton);
 
         // Wait for animation to complete
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("complete");
-            },
-            storyWaitOptions((args.nodeCount * 3 + 10) * args.animationSpeed),
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("complete");
+        });
 
         // The finished picture must hold a spanning tree of minimum weight: n - 1 tree edges drawn
         // and listed, whose weights add up to primMST()'s total, which Kruskal's must equal too.

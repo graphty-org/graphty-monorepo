@@ -239,6 +239,10 @@ export const NodeStyle = z.strictObject({
             width: z.number().nonnegative().optional(),
             height: z.number().nonnegative().optional(),
             depth: z.number().nonnegative().optional(),
+            // Read `width`, `height` and `depth` as multiples of `size`, so changing the size keeps
+            // the stretch: width 2 at size 3 is drawn 6 wide. Unset or false reads them as extents.
+            // A painted style carries the extents already multiplied, with this flag beside them.
+            relativeExtents: z.boolean().optional(),
             // Draw the node thin along z, as a flat shape facing a 2D camera, even in a 3D view.
             planar: z.boolean().optional(),
             // Drawing order in a 2D view: below 0 draws the node behind every edge and every node
@@ -255,11 +259,18 @@ export const NodeStyle = z.strictObject({
             // than capped at a quarter of it (round-rectangle) or a tenth (the round-* polygons),
             // as Cytoscape.js and vis-network draw a radius a file sets. Unset or false keeps the caps.
             exactCornerRadius: z.boolean().optional(),
+            // The share of the shorter side a round-rectangle's corners are rounded by when
+            // `exactCornerRadius` is not set, never more than `cornerRadius`: unset, a quarter, as
+            // Cytoscape.js rounds; Cytoscape desktop rounds an eighth, Graphviz a third. At most a half.
+            cornerFraction: z.number().min(0).max(0.5).optional(),
             // A "polygon" node's corners, as `x,y` pairs separated by spaces: each relative to the
             // node's center as fractions of its half width and half height, y up ("0,1 1,-1 -1,-1"
             // is a triangle). The outline is stretched so its farthest corners reach the node's
             // sides. A node that grows to hold its label (`labelFit`) grows by as far as its corners
-            // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it.
+            // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it. A coordinate may
+            // add a length in the units of `size` after its fraction, so a piece keeps its size whatever the
+            // node's: "-1+24" is 24 in from the left side, "0+6" 6 above the middle (here, in `parts` and in
+            // `lines`).
             points: z.string().optional(),
             // Whether a "polygon" node's corners are stretched about its center until the farthest
             // on each axis reach its sides (unset or true), or drawn exactly where they say, as
@@ -267,6 +278,11 @@ export const NodeStyle = z.strictObject({
             // lie on the ellipse inside the node's box stays that size, as OGDF draws its
             // triangles, pentagons, hexagons and octagons. Other shapes ignore it.
             stretchPoints: z.boolean().optional(),
+            // Turns a flat shape's outline this many degrees clockwise about the node's center, after
+            // it is drawn at its width and height (Pajek's `phi` turns an ellipse 20 x 30 into a
+            // tilted one). Its fill, border and the edges that end at it turn with it; its label does
+            // not. Unset or 0, unturned. Solids ignore it.
+            rotation: z.number().optional(),
             // Further closed pieces of a flat node's body, beside its outline: polygons as `x,y` pairs
             // separated by spaces, one polygon after another separated by ";", each point relative to
             // the node's center as fractions of its half width and half height, y up, drawn where they
@@ -285,15 +301,27 @@ export const NodeStyle = z.strictObject({
             // (`{ "size": 0.2, "color": "#404040", "font": "Arial", "rotation": 45 }`, the size a share of the node's
             // height: a chart's item labels). Drawn whatever the label says, beside it.
             texts: z.string().optional(),
+            // The label laid out as a table of cells, as JSON (see the `node.labelTable` channel): drawn in place of
+            // the label's own words, each cell's outline a line over the node and each line of its text centered in
+            // its place; with `labelFit` the table is the label's box the node grows round.
+            labelTable: z.string().optional(),
             // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and
             // `labelPaddingY` above and below, in the units of `size`, decides the rest. With
-            // `labelFitSquare` it stays as wide as it is tall. Unset, the node is the size it states.
+            // `labelFitSquare` it stays as wide as it is tall. `labelFitQuantum` rounds the padded box up to a
+            // multiple of it each way before the outline is fitted. Unset, the node is the size it states.
             labelFit: NodeLabelFits.optional(),
             labelPaddingX: z.number().nonnegative().optional(),
             labelPaddingY: z.number().nonnegative().optional(),
             labelFitSquare: z.boolean().optional(),
+            labelFitQuantum: z.number().nonnegative().optional(),
+            // With `labelFit`, the node holds its picture (`image.src`) too: the picture's own pixels, each this
+            // long in the units of `size`, padded by `labelFitImagePadding` on each side; the larger of the padded
+            // label and the padded picture decides each way. The node is fitted again once the picture's size is
+            // read. Unset, the picture does not size the node.
+            labelFitImage: z.number().nonnegative().optional(),
+            labelFitImagePadding: z.number().nonnegative().optional(),
             // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
             // URL. `type` stays the placeholder while it loads and the fallback when it fails
             // (design/rendering/node-models.md).
@@ -394,7 +422,8 @@ export const NodeStyle = z.strictObject({
     /**
      * A second ring drawn outside the border, `offset` beyond its outer edge (Cytoscape.js
      * `outline-*`): its color, its width and offset in the units of the border's width, its
-     * opacity and its line style. No width, or an opacity of 0, draws none. Unlike
+     * opacity and its line style. `count` (default 1, a fraction rounded down) draws that many rings, each `offset` beyond
+     * the one before (Graphviz's `peripheries`). No width, or an opacity of 0, draws none. Unlike
      * `effect.outline`, a highlight drawn over the node's rim, this is a ring of its own.
      */
     outerBorder: z
@@ -404,6 +433,7 @@ export const NodeStyle = z.strictObject({
             opacity: z.number().min(0).max(1).optional(),
             style: NodeBorderStyles.optional(),
             offset: z.number().optional(),
+            count: z.number().min(1).optional(),
         })
         .optional(),
     /**
@@ -512,7 +542,9 @@ export const NodeStyle = z.strictObject({
      * row of colored cells, one per value. `values` are numbers separated by spaces; `colors` CSS
      * colors separated by spaces, item i drawn in color i and the last color for the rest (a box's
      * whiskers in the first, its median in the second, else black). The plot is a box `size`
-     * (default 1) times the node's, centred on it; the values run along it from `min` (default the
+     * (default 1) times the node's (`width` and `height`, shares of the node's, give its sides
+     * apart), centred on it or moved by `offsetX` / `offsetY` (in the units of `shape.size`, y
+     * down); the values run along it from `min` (default the
      * smaller of 0 and the least value) to `max` (default the greatest), bottom to top, or left to
      * right with `horizontal`; the categories run along the other side, left to right or top to
      * bottom, each an equal share after `margin` (a share of the side, default 0) at each end and
@@ -529,6 +561,10 @@ export const NodeStyle = z.strictObject({
             max: z.number().optional(),
             horizontal: z.boolean().optional(),
             size: z.number().nonnegative().optional(),
+            width: z.number().nonnegative().optional(),
+            height: z.number().nonnegative().optional(),
+            offsetX: z.number().optional(),
+            offsetY: z.number().optional(),
             margin: z.number().optional(),
             gap: z.number().min(0).max(1).optional(),
             lineWidth: z.number().nonnegative().optional(),
@@ -575,6 +611,13 @@ export const NodeStyle = z.strictObject({
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),
+    /**
+     * A second label drawn outside the node, beside it (Graphviz's `xlabel`), switched on by its words. It is drawn
+     * in the label's look -- font, size, color, outline -- and any field set here wins over the label's. Unset
+     * `location`, it sits against the node's top left corner outside it (its own lower right corner on the node's
+     * box's upper left), or where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
+     */
+    xlabel: RichTextStyle.optional(),
     tooltip: RichTextStyle.prefault({
         location: "top-right",
         textColor: "#000000",

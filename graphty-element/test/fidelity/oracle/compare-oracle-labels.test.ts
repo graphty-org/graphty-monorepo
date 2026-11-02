@@ -206,6 +206,40 @@ describe("label checks", () => {
         assert.deepEqual(labelPair({ content: "A\nB", lines: two }, { content: "A B" }), { "label.lines": ["a"] });
     });
 
+    it("reads words drawn side by side on one row as one line, however far apart", () => {
+        // dot-specimen-labels-p2 html-table: Graphviz draws the cells a and b as two texts 8 px apart on one
+        // baseline, html-sub its <SUB> run lower than the rest; each is one line, as graphty draws it
+        const cells = [
+            { x0: 85, y0: 95, x1: 91, y1: 105 },
+            { x0: 99, y0: 95, x1: 105, y1: 105 },
+        ];
+        assert.deepEqual(labelPair({ content: "a\nb", lines: cells }, { content: "a b" }), {});
+        const sub = [
+            { x0: 85, y0: 94, x1: 100, y1: 104 },
+            { x0: 101, y0: 96, x1: 107, y1: 106 },
+        ];
+        assert.deepEqual(labelPair({ content: "abc\nd", lines: sub }, { content: "abc d" }), {});
+        // a field set half a line down between another field's two lines is a line of its own on both sides
+        // (dot-specimen-node-shapes-p2 record-escapes: graphty's taller line boxes overlap more, still under SAME_ROW)
+        const record = (h: number): PBox[] => [
+            { x0: 85, y0: 90, x1: 100, y1: 90 + h },
+            { x0: 110, y0: 96, x1: 115, y1: 96 + h },
+            { x0: 85, y0: 102, x1: 100, y1: 102 + h },
+        ];
+        assert.deepEqual(
+            labelPair(
+                { content: "left\nc\nright", lines: record(14) },
+                { content: "left\nc\nright", lines: record(11) },
+            ),
+            {},
+        );
+        // a row of two cells over a row of one is two lines (dot-synth-nodes n_html3)
+        const rows = [...cells, { x0: 85, y0: 110, x1: 105, y1: 120 }];
+        assert.deepEqual(labelPair({ content: "a\nb\nwide", lines: rows }, { content: "a b wide" }), {
+            "label.lines": ["a"],
+        });
+    });
+
     it("fails lines centered where the program aligned them left", () => {
         // two lines of different widths sharing their left edge
         const lines: PBox[] = [
@@ -216,6 +250,19 @@ describe("label checks", () => {
         assert.isNull(lineAlign(text("A", 100, 100)));
         assert.deepEqual(labelPair({ align: "middle" }, { content: "A\nB", lines }), { "label.align": ["a"] });
         assert.deepEqual(labelPair({ align: "start" }, { content: "A\nB", lines }), {});
+    });
+
+    it("reads a table's lines cell by cell, not across the cells beside each other", () => {
+        // dot-specimen-labels-p2 html-td-balign-left: "a" and "wide" flush left in one cell, "b" in the cell beside it
+        const a = { x0: 88.71, y0: 168.6, x1: 94.83, y1: 178.6 };
+        const wide = { x0: 88.71, y0: 181.35, x1: 112.31, y1: 191.35 };
+        // "b" a hair narrower than "a": across the cells their middles line up 0.01 px better than their left edges
+        const b = { x0: 128.96, y0: 175.0, x1: 135.06, y1: 185.0 };
+        assert.strictEqual(lineAlign(text("a\nwide\nb", 110, 180, { lines: [a, wide, b] })), "start");
+        // the defect planted: the cell's lines centered on each other, as a table drawn without BALIGN is
+        const shift = (wide.x1 - wide.x0 - (a.x1 - a.x0)) / 2;
+        const centered = { ...a, x0: a.x0 + shift, x1: a.x1 + shift };
+        assert.strictEqual(lineAlign(text("a\nwide\nb", 110, 180, { lines: [centered, wide, b] })), "middle");
     });
 
     it("fails a label at the start of its node where the program centered it, a shift the offset check passes", () => {
@@ -578,6 +625,80 @@ describe("what the association reads as a label's own and a node's own", () => {
         {},
         Object.fromEntries(GRID.map(([id, x, y]) => [id, text(id.toUpperCase(), x, y)])),
     );
+
+    it("groups a node's words side by side into lines the same way on both sides", () => {
+        // xgmml-specimen-images-charts-p7: a chart's category names under its node. At size 20 (node a) "b" overlaps
+        // "a" and "c" a little in the oracle's Tahoma boxes and more in graphty's DejaVu ones; at size 10 (node b) the
+        // oracle's "a" and "b" stand 0.61 of a font size apart where graphty's stand 0.5 and graphty reads "a b"
+        const words: Record<string, [string, number, number][]> = {
+            a: [
+                ["a", 104, 9],
+                ["b", 111.5, 10],
+                ["c", 119, 9],
+            ],
+            b: [
+                ["a", 302.5, 5],
+                ["b", 313.7, 5],
+                ["c", 325.5, 5],
+            ],
+        };
+        const graphtyWords: Record<string, [string, number, number][]> = {
+            a: [
+                ["a", 104, 11],
+                ["b", 110, 11],
+                ["c", 116, 11],
+            ],
+            b: [
+                ["a", 303, 6],
+                ["b", 313.25, 5.5],
+                ["c", 324, 5],
+            ],
+        };
+        const sizeOf = (id: string): number => (id === "a" ? 20 : 10);
+        const prims = drawing((id) =>
+            (words[id] ?? []).map(([w, x, width]) => {
+                const t = text(w, x, 120, { anchor: "start" }, width, sizeOf(id));
+                return prim({ tag: "text", kind: "text", points: [], closed: false, box: t.box, text: t });
+            }),
+        );
+        const labelOf = (id: string, x: number, y: number): PText | undefined =>
+            mergeTexts([
+                text(id.toUpperCase(), x, y),
+                ...(graphtyWords[id] ?? []).map(([w, wx, width]) => text(w, wx, 120, {}, width, sizeOf(id))),
+            ]) ?? undefined;
+        const g = scene("graphty", {}, Object.fromEntries(GRID.map(([id, x, y]) => [id, labelOf(id, x, y)])));
+        assert.strictEqual(g.nodes[0].label?.content, "A\na\nb\nc");
+        assert.strictEqual(g.nodes[1].label?.content, "B\na b\nc");
+        const { scene: o } = associate(prims, 600, 400, g);
+        assert.strictEqual(o.nodes.find((n) => n.id === "a")?.label?.content, "A\na\nb\nc");
+        assert.strictEqual(o.nodes.find((n) => n.id === "b")?.label?.content, "B\na b\nc");
+        // words graphty draws on rows of their own are still joined where the oracle runs them together
+        const stacked = scene(
+            "graphty",
+            {},
+            {
+                ...Object.fromEntries(GRID.map(([id, x, y]) => [id, text(id.toUpperCase(), x, y)])),
+                a:
+                    mergeTexts([text("A", 100, 100), text("a", 104, 120, {}, 9, 20), text("b", 104, 140, {}, 9, 20)]) ??
+                    undefined,
+            },
+        );
+        const ab = drawing((id) =>
+            id === "a"
+                ? [
+                      ["a", 104, 9],
+                      ["b", 112, 9],
+                  ].map(([w, x, width]) => {
+                      const t = text(String(w), Number(x), 120, { anchor: "start" }, Number(width), 20);
+                      return prim({ tag: "text", kind: "text", points: [], closed: false, box: t.box, text: t });
+                  })
+                : [],
+        );
+        assert.strictEqual(
+            associate(ab, 600, 400, stacked).scene.nodes.find((n) => n.id === "a")?.label?.content,
+            "A\nab",
+        );
+    });
 
     it("reads a box drawn tight behind a label's words as its background, not a stray", () => {
         const prims = drawing(() => []);
@@ -949,6 +1070,54 @@ describe("a label drawn as runs side by side", () => {
             out.map((p) => p.text?.content),
             "B I M far",
         );
+        // turned words are no line of text: a chart's category names turned 45 degrees under its bars
+        // (xgmml-specimen-images-charts-p7 bar-domain-label-position-up-45) stay apart on both sides
+        const turned = (content: string, x0: number): Prim => {
+            const p = run(content, x0, 8);
+            p.text = { ...(p.text as PText), rotation: -45 };
+            return p;
+        };
+        assert.notInclude(
+            stackedTexts([turned("a", 100), turned("b", 110), turned("c", 120)]).map((p) => p.text?.content),
+            "a b c",
+        );
+        assert.strictEqual(
+            mergeTexts([
+                text("a", 104, 100, { rotation: -45 }, 8),
+                text("b", 114, 100, { rotation: -45 }, 8),
+                text("c", 124, 100, { rotation: -45 }, 8),
+            ])?.content,
+            "a\nb\nc",
+        );
+        // turned upright (UP_90), each name's anchor sits as far down as it is long: still read left to right
+        assert.strictEqual(
+            mergeTexts([
+                text("a", 104, 100, { rotation: -90 }, 6, 10),
+                text("b", 116, 98, { rotation: -90 }, 6, 10),
+                text("c", 128, 104, { rotation: -90 }, 6, 10),
+            ])?.content,
+            "a\nb\nc",
+        );
+        // overlapping names (xgmml-specimen-images-charts-p7 bar-axis-label-font-size-20): "b" drawn over the ends of
+        // "a" and "c" -- a run never joins across the word between, on either side ("ac" and "b" was graphty's reading)
+        const over = [text("a", 6, 100, {}, 12, 18), text("b", 12, 100, {}, 12, 18), text("c", 18.5, 100, {}, 12, 18)];
+        assert.strictEqual(mergeTexts(over)?.content, "a\nb\nc");
+        const overPrims = over.map((t, i) => ({ ...run(t.content, t.box.x0, 12, 18), index: i, text: t, box: t.box }));
+        assert.notInclude(
+            stackedTexts(overPrims).map((p) => p.text?.content),
+            "ac",
+        );
+        // level and turned lines in one label: one order, whatever order they come in
+        const mixed = [
+            text("10", 100, 90, {}, 10),
+            text("p", 104, 112, { rotation: -90 }, 6),
+            text("q", 98, 108, { rotation: -90 }, 6),
+            text("0", 100, 110, {}, 10),
+        ];
+        const orders = [mixed, [...mixed].reverse(), [mixed[2], mixed[0], mixed[3], mixed[1]]].map(
+            (m) => mergeTexts(m)?.content,
+        );
+        assert.deepEqual(orders, ["10\n0\nq\np", "10\n0\nq\np", "10\n0\nq\np"]);
         // a run whose text keeps its blank before its word (" x" drawn as "x" from where the blank starts)
         const x = run("x", 107, 6);
         x.text = { ...(x.text as PText), blank: { before: true, after: false } };

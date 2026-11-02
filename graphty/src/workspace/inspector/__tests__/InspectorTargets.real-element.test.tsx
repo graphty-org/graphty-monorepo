@@ -9,16 +9,12 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent as realInput } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
 
 /** Two rings of six joined by one bridge; every node but the last carries a phone. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({
@@ -41,13 +37,10 @@ async function openRings(): Promise<{ session: GraphSession; store: WorkspaceSto
     const store = createWorkspaceStore({ project: { name: "Two rings", id: 1 } });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -260,15 +253,12 @@ describe("what the inspector opens, on the real element", () => {
         // The node's center once the layout has settled, and the drawing answers n3 there.
         await element.waitForStableFrame();
         let point: { x: number; y: number } | undefined;
-        await waitFor(
-            () => {
-                const at = element.nodeScreenPosition("n3");
-                point = at?.visible === true ? { x: at.x, y: at.y } : undefined;
-                assert.equal(point === undefined ? undefined : element.elementAt(point)?.id, "n3");
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        await realInput.click(element, { position: point });
+        await waitFor(() => {
+            const at = element.nodeScreenPosition("n3");
+            point = at?.visible === true ? { x: at.x, y: at.y } : undefined;
+            assert.equal(point === undefined ? undefined : element.elementAt(point)?.id, "n3");
+        });
+        await userEvent.click(element, { position: point });
         await waitFor(() => {
             assert.equal(drawn(), "node");
         });

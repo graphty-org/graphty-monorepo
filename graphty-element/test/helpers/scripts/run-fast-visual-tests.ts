@@ -45,16 +45,13 @@ async function runFastVisualTests(): Promise<void> {
         });
 
         // Wait for element
-        await page.waitForSelector("graphty-element", { timeout: 3000 });
+        await page.waitForSelector("graphty-element");
 
         // Quick readiness check
-        await page.waitForFunction(
-            () => {
-                const el = document.querySelector("graphty-element");
-                return (el as any)?.graph?.scene?.meshes?.length > 0;
-            },
-            { timeout: 3000 },
-        );
+        await page.waitForFunction(() => {
+            const el = document.querySelector("graphty-element");
+            return (el as any)?.graph?.scene?.meshes?.length > 0;
+        });
 
         // Render frames in one batch
         await page.evaluate((frameCount: number) => {

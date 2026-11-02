@@ -22,3 +22,8 @@ which captures, elements or properties a test reads, regenerate it from the stud
 `node tests/figma/figma-fixture.mjs build` (a test that reads a capture the fixture lacks fails and
 names that command). Where the study is present, the lock checks its captures against
 `tests/figma/figma-study.sha256` and every fixture value against the study.
+
+## Shared components
+
+Callers never write a bespoke control to work around a component here: if a component is wrong, fix it here, so
+every caller gets the fix (graphty/CLAUDE.md, "UI Components").

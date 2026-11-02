@@ -6,7 +6,7 @@
 // 5-minute step of the last 24 h come from one path. Slow members and costs read daily buckets.
 
 import { quantile } from "../model/histogram.js";
-import { type Bucket, DAY, floorTo, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
+import { type Bucket, DAY, floorTo, HOUR, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
 import { quotaUsed } from "../model/raw.js";
 import { aggQuantile, emptyAgg, loadSeries, mergeAgg, mergeBucket } from "../model/rollup.js";
 import type { Store } from "../model/store.js";
@@ -28,7 +28,7 @@ export interface MemberStatus {
     label: string;
     window: MemberConfig["window"];
     state: MemberState;
-    /** In its category's rollup: OK, WARNING, FAILING or NO DATA, and not a slow member. */
+    /** In its category's rollup: OK, WARNING, FAILING or NO DATA (a 7- or 28-day member too). */
     judged: boolean;
     value?: number;
     value6h?: number;
@@ -46,6 +46,10 @@ export interface MemberStatus {
     clearedAt?: number;
     /** When the current bad state began, where the engine can tell without history (sources, collector). */
     since?: number;
+    /** Numbers the alerts read: each `also` metric's newest value, month_to_date, credential_error_ms. */
+    facts?: Record<string, number>;
+    /** What a source member's state comes from: the erroring source and its error. */
+    cause?: Reason;
 }
 
 export interface CategoryStatus {
@@ -69,6 +73,8 @@ export interface Episode {
     /** The state left WARNING and FAILING; absent while ongoing. */
     endedAt?: number;
     peak?: number;
+    /** The start is a bound, not a time: the episode began before the history kept, or when the engine cannot tell. */
+    startUnknown?: boolean;
 }
 
 export interface SourceStatus {
@@ -121,7 +127,15 @@ interface Point {
     end: number;
 }
 
-function hit(v: number, [op, x]: Threshold): boolean {
+/**
+ * Whether a value meets a threshold.
+ * @param v - the value
+ * @param root0 - the threshold, an operator and the number it compares with
+ * @param root0."0" - the operator; anything other than <, <=, > or >= means equal
+ * @param root0."1" - the number compared with
+ * @returns true when `v op x` holds
+ */
+export function hit(v: number, [op, x]: Threshold): boolean {
     switch (op) {
         case "<":
             return v < x;
@@ -148,7 +162,7 @@ function merged(series: Series | undefined, from: number, to: number): Bucket {
     return out;
 }
 
-const metricsOf = (m: Measure) => ("metric" in m ? [m.metric] : []);
+const metricsOf = (m: Measure): string[] => ("metric" in m ? [m.metric] : []);
 
 /** Days of spend a month-end projection takes its daily rate from. */
 export const PROJECTION_DAYS = 7;
@@ -159,6 +173,7 @@ export const PROJECTION_DAYS = 7;
  * carry a month's early spend to its end (October's T4 lane ran on triggers removed by its second week).
  * @param daySum one day's cost, by the day's start
  * @param end now
+ * @returns the projected month-end total
  */
 export function projectMonth(daySum: (day: number) => number, end: number): number {
     const d = new Date(end);
@@ -166,9 +181,13 @@ export function projectMonth(daySum: (day: number) => number, end: number): numb
     const monthDays = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) - monthStart) / DAY;
     const today = floorTo(end, "1d");
     let done = 0;
-    for (let t = monthStart; t < today; t += DAY) done += daySum(t);
+    for (let t = monthStart; t < today; t += DAY) {
+        done += daySum(t);
+    }
     let recent = 0;
-    for (let i = 1; i <= PROJECTION_DAYS; i++) recent += daySum(today - i * DAY);
+    for (let i = 1; i <= PROJECTION_DAYS; i++) {
+        recent += daySum(today - i * DAY);
+    }
     const rate = recent / PROJECTION_DAYS;
     const after = monthDays - (today - monthStart) / DAY - 1;
     return done + Math.max(rate, daySum(today)) + rate * after;
@@ -179,8 +198,10 @@ function monthValue(ctx: Ctx, m: Extract<Measure, { type: "month" }>, end: numbe
     const monthStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
     const today = floorTo(end, "1d");
     const series = ctx.daily.get(m.metric);
-    const sumOf = (b: Bucket | undefined) => {
-        if (b === undefined) return 0;
+    const sumOf = (b: Bucket | undefined): number => {
+        if (b === undefined) {
+            return 0;
+        }
         return m.dim === undefined ? b.sum : (b.dims?.[m.dim]?.sum ?? 0);
     };
     if (!m.projected) {
@@ -189,6 +210,13 @@ function monthValue(ctx: Ctx, m: Extract<Measure, { type: "month" }>, end: numbe
     return projectMonth((t) => sumOf(series?.get(t)), end);
 }
 
+/**
+ * A measure's value over one bucket.
+ * @param m - the measure
+ * @param b - the bucket
+ * @param spanMs - the time the bucket covers, for a share of time
+ * @returns the value, or undefined when the bucket has nothing to judge
+ */
 export function measureValue(m: Measure, b: Bucket, spanMs: number): number | undefined {
     const scale = "scale" in m && m.scale !== undefined ? m.scale : 1;
     switch (m.type) {
@@ -218,19 +246,24 @@ interface Computed {
     n?: number;
     n6h?: number;
     failExtra?: boolean;
+    /** A `redOnSpent` month member's spend so far: red is judged on it, not on the projection. */
+    spent?: number;
     since?: number;
+    facts?: Record<string, number>;
+    cause?: Reason;
     /** Whole days of a slow window the store holds history for. */
     covered?: number;
 }
 
-const slowDays = (c: MemberConfig) => (c.slowWindow === "28d" ? 28 : 7);
+const slowDays = (c: MemberConfig): number => (c.slowWindow === "28d" ? 28 : 7);
 
 /**
  * Whole days of a slow window with history: from the earliest daily bucket of the member's metrics or the first
  * write of its sources, whichever is older, so a backfill still running shows how far back it has reached.
- * @param ctx
- * @param c
- * @param today
+ * @param ctx - what evaluate loaded
+ * @param c - the member
+ * @param today - start of today, epoch ms
+ * @returns days covered, 0 to the window's length
  */
 function coveredDays(ctx: Ctx, c: MemberConfig, today: number): number {
     const days = slowDays(c);
@@ -270,25 +303,75 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
     return { value: measureValue(m, b, (covered || days) * DAY), n: b.n, covered };
 }
 
+/** An error only the owner can fix: an expired, rejected or missing credential. */
+const CREDENTIAL =
+    /\b40[13]\b|AccessDenied|ExpiredToken|Unauthorized|bad credentials|ParameterNotFound|InvalidClientTokenId|UnrecognizedClient|security token/i;
 /**
- * Sources past their age limit or failing, and whether one is past twice it.
- * @param ctx
+ * Sources that page no credential error of their own: those the collector reads through its GitHub App
+ * (data.collector reports that credential), and Coveralls, which is public (a 401 or 403 there is not a key to renew).
+ */
+const COLLECTOR_WRITES = new Set([
+    "collector",
+    "collector-parts",
+    "release",
+    "npm",
+    "stress",
+    "hosts",
+    "deploy",
+    "coverage",
+]);
+/**
+ * The sources whose credential only the owner can make (alerts/index.ts CREDENTIALS): one of these erroring is the
+ * cause, ahead of an older error on a credential agents can fix, so the owner's page is never masked.
+ */
+const OWNER_CREDENTIALS = new Set(["cloudflare-token", "sentry-token"]);
+/** A credential error this old turns data.sources_age red, even while the source's last good values hold. */
+const CREDENTIAL_RED_MS = HOUR;
+
+/**
+ * Sources past their age limit or failing, and whether one is past twice it or has had a credential error for an
+ * hour (an erroring source has no age ratio, so an expired token would otherwise stay yellow for good).
+ * @param ctx - what evaluate loaded
+ * @returns how many sources are not OK, with the credential error that is the cause, if any
  */
 function sourcesNotOk(ctx: Ctx): Computed {
-    const bad = [...ctx.sources.values()].filter((s) => (s.state === "stale" || s.state === "error") && !s.holding);
-    if (!bad.length) {
-        return { value: 0 };
+    const all = [...ctx.sources.values()];
+    const bad = all.filter((s) => (s.state === "stale" || s.state === "error") && !s.holding);
+    const cred = all
+        .filter((s) => s.state === "error" && !COLLECTOR_WRITES.has(s.id))
+        .filter((s) => CREDENTIAL.test(String(s.reason?.params.error ?? "")))
+        .sort(
+            (a, b) =>
+                Number(OWNER_CREDENTIALS.has(b.id)) - Number(OWNER_CREDENTIALS.has(a.id)) ||
+                (a.since ?? ctx.now) - (b.since ?? ctx.now),
+        )[0];
+    const credMs = cred ? ctx.now - (cred.since ?? ctx.now) : undefined;
+    const credential: Computed =
+        cred && credMs !== undefined
+            ? {
+                  facts: { credential_error_ms: credMs },
+                  cause: {
+                      code: "error",
+                      params: { source: cred.id, label: cred.label, error: String(cred.reason?.params.error) },
+                  },
+              }
+            : { facts: { credential_error_ms: 0 } }; // no credential error: ends its alert (an absent fact is a gap)
+    if (!bad.length && !cred) {
+        return { value: 0, ...credential };
     }
     return {
-        value: bad.length,
-        failExtra: bad.some((s) => (s.ageRatio ?? 0) > 2),
-        since: Math.min(...bad.map((s) => s.since ?? ctx.now)),
+        // A holding source with a credential error counts too, so a red member never reads "0 sources".
+        value: bad.length + (cred && !bad.includes(cred) ? 1 : 0),
+        failExtra: bad.some((s) => (s.ageRatio ?? 0) > 2) || (credMs ?? 0) >= CREDENTIAL_RED_MS,
+        since: Math.min(...[...bad, ...(cred ? [cred] : [])].map((s) => s.since ?? ctx.now)),
+        ...credential,
     };
 }
 
 /**
  * The thinnest source with enough activity in the hour; too few when none has.
- * @param ctx
+ * @param ctx - what evaluate loaded
+ * @returns the thinnest source's ratio and activity
  */
 function sourcesThin(ctx: Ctx): Computed {
     let best: Computed = { n: 0 };
@@ -314,27 +397,43 @@ function engineValue(ctx: Ctx, name: Extract<Measure, { type: "engine" }>["name"
         case "sources_thin":
             return sourcesThin(ctx);
         case "collector_age": {
-            const ok = ctx.metas.get("collector")?.lastOkAt;
-            return ok === undefined ? {} : { value: ctx.now - ok, since: ok };
+            // A cycle counts once its pages are written too: one that reads GitHub and then fails to write them
+            // leaves the dashboard frozen while this age stays fresh.
+            const meta = ctx.metas.get("collector");
+            const views = ctx.metas.get("views");
+            const ok =
+                views === undefined || meta?.lastOkAt === undefined || views.lastOkAt === undefined
+                    ? meta?.lastOkAt
+                    : Math.min(meta.lastOkAt, views.lastOkAt);
+            const [source, error] = meta?.error ? ["collector", meta.error] : ["views", views?.error];
+            const cause: Computed = error ? { cause: { code: "error", params: { source, error } } } : {};
+            return ok === undefined ? cause : { value: ctx.now - ok, since: ok, ...cause };
         }
         case "write_budget":
             return { value: ctx.quota / ctx.cfg.dailyRowLimit };
+        default:
+            return {};
     }
 }
 
 /**
  * Rows per unit of activity in the last 1 h and 6 h, against the last 7 d (section 9).
- * @param ctx
- * @param metric
- * @param p
+ * @param ctx - what evaluate loaded
+ * @param metric - the source's row metric
+ * @param p - the point judged
+ * @returns the 1 h and 6 h ratios and their activity counts
  */
-function thinRatios(ctx: Ctx, metric: string, p: Point) {
+function thinRatios(
+    ctx: Ctx,
+    metric: string,
+    p: Point,
+): { r1: number | undefined; r6: number | undefined; n1: number; n6: number } {
     const base = merged(ctx.daily.get(metric), floorTo(p.end, "1d") - 6 * DAY, floorTo(p.end, "1d"));
-    const perRun = (b: Bucket) => (b.n > 0 ? b.sum / b.n : undefined);
+    const perRun = (b: Bucket): number | undefined => (b.n > 0 ? b.sum / b.n : undefined);
     const b1 = merged(ctx.five.get(metric), p.t - HOUR_SPAN + STEP, p.t);
     const b6 = merged(ctx.five.get(metric), p.t - SIX_SPAN + STEP, p.t);
     const baseRate = perRun(base);
-    const ratio = (b: Bucket) => {
+    const ratio = (b: Bucket): number | undefined => {
         const r = perRun(b);
         return r === undefined || !baseRate ? undefined : r / baseRate;
     };
@@ -342,10 +441,31 @@ function thinRatios(ctx: Ctx, metric: string, p: Point) {
 }
 
 /**
+ * A month member's value. A projection also gives what is spent so far (the alerts page early in a month only on
+ * real spend), and spend so far its projection (the AWS page's forecast is the one the Costs page shows).
+ * @param ctx - what evaluate loaded
+ * @param m - the month measure
+ * @param p - the point judged
+ * @returns the value, spend so far and the other figure as a fact
+ */
+function monthComputed(ctx: Ctx, m: Extract<Measure, { type: "month" }>, p: Point): Computed {
+    const value = monthValue(ctx, m, p.end);
+    const spent = m.redOnSpent ? monthValue(ctx, { ...m, projected: false }, p.end) : undefined;
+    const other = p.end === ctx.now ? monthValue(ctx, { ...m, projected: !m.projected }, p.end) : undefined;
+    const fact = m.projected ? "month_to_date" : "projected";
+    return {
+        value,
+        ...(spent === undefined ? {} : { spent }),
+        ...(other === undefined ? {} : { facts: { [fact]: other } }),
+    };
+}
+
+/**
  * The member's values at a point: 1 h and 6 h for windowed members, the newest value for states.
- * @param ctx
- * @param c
- * @param p
+ * @param ctx - what evaluate loaded
+ * @param c - the member
+ * @param p - the point judged
+ * @returns the computed values, or null when they cannot be told at a past point
  */
 function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
     const m = c.measure;
@@ -356,7 +476,7 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
         return p.end === ctx.now ? engineValue(ctx, m.name) : null;
     }
     if (m.type === "month") {
-        return { value: monthValue(ctx, m, p.end) };
+        return monthComputed(ctx, m, p);
     }
     if (m.type === "dims_median_over") {
         return null;
@@ -376,7 +496,10 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
             merged(ctx.five.get(a.metric), p.t - HOUR_SPAN + STEP, p.t),
             0,
         );
-        if (v !== undefined && hit(v, a.fail)) {
+        if (v !== undefined && p.end === ctx.now) {
+            out.facts = { ...out.facts, [a.metric]: v };
+        }
+        if (v !== undefined && a.fail && hit(v, a.fail)) {
             out.failExtra = true;
         }
     }
@@ -385,8 +508,9 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
 
 /**
  * The thresholds' verdict on computed values, or a gray reason.
- * @param c
- * @param v
+ * @param c - the member
+ * @param v - its computed values
+ * @returns the state, how far past its threshold, and why when gray
  */
 function verdict(c: MemberConfig, v: Computed): { state: MemberState; excess?: number; reason?: Reason } {
     if (c.minN !== undefined && (v.n ?? 0) < c.minN) {
@@ -395,22 +519,45 @@ function verdict(c: MemberConfig, v: Computed): { state: MemberState; excess?: n
     if (v.value === undefined) {
         return { state: v.failExtra ? "FAILING" : "NO DATA", reason: { code: "no_value", params: {} } };
     }
+    if (c.measure.type === "month" && c.measure.redOnSpent) {
+        return spentVerdict(c, v.value, v.spent ?? 0);
+    }
     const out = thresholds(c, v.value, v.value6h);
     return v.failExtra && out.state !== "FAILING" ? { state: "FAILING", excess: out.excess ?? 0 } : out;
 }
 
 /**
+ * A spending limit: red once what is spent so far passes it, yellow while only the projection does.
+ * @param c - the member
+ * @param projected - projected month-end spend
+ * @param spent - spend so far
+ * @returns the state and how far past its threshold
+ */
+function spentVerdict(c: MemberConfig, projected: number, spent: number): { state: MemberState; excess?: number } {
+    const ex = (v: number, thr: Threshold): number => Math.abs(v - thr[1]) / (Math.abs(thr[1]) || 1);
+    if (c.fail && hit(spent, c.fail)) {
+        return { state: "FAILING", excess: ex(spent, c.fail) };
+    }
+    const over = c.fail ?? c.ok;
+    if (over && (c.fail ? hit(projected, c.fail) : !hit(projected, over))) {
+        return { state: "WARNING", excess: ex(projected, over) };
+    }
+    return thresholds({ ...c, fail: undefined }, projected, undefined);
+}
+
+/**
  * Green at or better than the target, red past the red threshold, yellow between.
- * @param c
- * @param value
- * @param value6h
+ * @param c - the member
+ * @param value - its 1 h (or only) value
+ * @param value6h - its 6 h value, for a 1h+6h member
+ * @returns the state and how far past its threshold
  */
 export function thresholds(
     c: MemberConfig,
     value: number,
     value6h: number | undefined,
 ): { state: MemberState; excess?: number } {
-    const ex = (thr: Threshold) => Math.abs(value - thr[1]) / (Math.abs(thr[1]) || 1);
+    const ex = (thr: Threshold): number => Math.abs(value - thr[1]) / (Math.abs(thr[1]) || 1);
     if (c.fail && hit(value, c.fail)) {
         // A noisy rate turns red only when its 6 h value is past red too (section 4, "1 h, 6 h agrees").
         const agrees = c.window !== "1h+6h" || (value6h !== undefined && hit(value6h, c.fail));
@@ -452,9 +599,10 @@ function sourceStatus(ctx: Ctx, id: string): SourceStatus {
 
 /**
  * A source with no config, no write yet, or idle by design.
- * @param id
- * @param cfg
- * @param base
+ * @param id - source id
+ * @param cfg - its config, if any
+ * @param base - the status fields already known
+ * @returns the idle, not set up or stale status
  */
 function absentSource(id: string, cfg: SourceConfig | undefined, base: SourceStatus): SourceStatus {
     // An idle source is judged again once it writes within its age limit (an hour when it has none).
@@ -473,11 +621,12 @@ function absentSource(id: string, cfg: SourceConfig | undefined, base: SourceSta
 
 /**
  * Past its age limit while it had activity, or thin for its activity (section 9).
- * @param ctx
- * @param id
- * @param cfg
- * @param meta
- * @param base
+ * @param ctx - what evaluate loaded
+ * @param id - source id
+ * @param cfg - its config
+ * @param meta - its stored health record
+ * @param base - the status fields already known
+ * @returns the stale, thin or ok status
  */
 function freshness(ctx: Ctx, id: string, cfg: SourceConfig, meta: SourceItem, base: SourceStatus): SourceStatus {
     const limit = cfg.yellowAfterMs;
@@ -512,14 +661,15 @@ function freshness(ctx: Ctx, id: string, cfg: SourceConfig, meta: SourceItem, ba
 
 /**
  * The gray state a member's sources impose, in order: not set up, informational, idle, NO DATA.
- * @param c
- * @param srcs
+ * @param c - the member
+ * @param srcs - the statuses of its sources
+ * @returns the gray state and reason, or undefined when the sources allow judging
  */
 function sourceGray(
     c: MemberConfig,
     srcs: SourceStatus[],
 ): { state: MemberState; reason: Reason; judged: boolean } | undefined {
-    const first = (...states: SourceStatus["state"][]) =>
+    const first = (...states: SourceStatus["state"][]): Reason | undefined =>
         srcs.find((s) => states.includes(s.state) && !s.holding)?.reason;
     const notSetUp = first("not set up");
     if (notSetUp) {
@@ -534,16 +684,17 @@ function sourceGray(
     }
     const broken = first("stale", "error", "thin");
     if (broken) {
-        return { state: "NO DATA", reason: broken, judged: c.window !== "slow" };
+        return { state: "NO DATA", reason: broken, judged: true };
     }
     return undefined;
 }
 
 /**
  * A windowed member whose sources began writing less than an hour ago.
- * @param ctx
- * @param c
- * @param srcs
+ * @param ctx - what evaluate loaded
+ * @param c - the member
+ * @param srcs - the statuses of its sources
+ * @returns the partial-window reason, or undefined when the hour is covered
  */
 function partialWindow(ctx: Ctx, c: MemberConfig, srcs: SourceStatus[]): Reason | undefined {
     if (c.window !== "1h" && c.window !== "1h+6h") {
@@ -551,6 +702,22 @@ function partialWindow(ctx: Ctx, c: MemberConfig, srcs: SourceStatus[]): Reason 
     }
     const covered = (ctx.now - Math.max(...srcs.map((s) => s.firstAt ?? -Infinity))) / HOUR_SPAN;
     return covered < 1 ? { code: "partial", params: { hours: Math.round(covered * 10) / 10, of: 1 } } : undefined;
+}
+
+/**
+ * The computed fields a status carries, leaving out the ones not computed.
+ * @param v - the computed values
+ * @returns the status fields
+ */
+function computedFields(v: Computed): Partial<MemberStatus> {
+    return {
+        ...(v.value === undefined ? {} : { value: v.value }),
+        ...(v.value6h === undefined ? {} : { value6h: v.value6h }),
+        ...(v.n === undefined ? {} : { n: v.n }),
+        ...(v.n6h === undefined ? {} : { n6h: v.n6h }),
+        ...(v.facts ? { facts: v.facts } : {}),
+        ...(v.cause ? { cause: v.cause } : {}),
+    };
 }
 
 function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
@@ -573,12 +740,7 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
         return { ...status, ...gray };
     }
     const v = compute(ctx, c, { t: floorTo(ctx.now, "5m"), end: ctx.now }) ?? {};
-    Object.assign(status, {
-        ...(v.value === undefined ? {} : { value: v.value }),
-        ...(v.value6h === undefined ? {} : { value6h: v.value6h }),
-        ...(v.n === undefined ? {} : { n: v.n }),
-        ...(v.n6h === undefined ? {} : { n6h: v.n6h }),
-    });
+    Object.assign(status, computedFields(v));
     // A source failing within its age limit: the value its last good writes give, marked stale with its age.
     const held = srcs.find((s) => s.holding);
     if (held) {
@@ -597,7 +759,8 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
               reason: { code: "partial" as const, params: { days: v.covered ?? 0, of: slowDays(c) } },
           }
         : verdict(c, v);
-    const judged = c.window !== "slow" && ["OK", "WARNING", "FAILING", "NO DATA"].includes(out.state);
+    // A 7- or 28-day member sets its category's color like any other, so a block is never OK above a red row.
+    const judged = ["OK", "WARNING", "FAILING", "NO DATA"].includes(out.state);
     return {
         ...status,
         ...out,
@@ -610,9 +773,10 @@ const BAD = (s: MemberState | null): s is "WARNING" | "FAILING" => s === "WARNIN
 
 /**
  * The member's state at a past 5-minute step, from buckets alone; null where it cannot be told (gray, engine).
- * @param ctx
- * @param c
- * @param p
+ * @param ctx - what evaluate loaded
+ * @param c - the member
+ * @param p - the past point
+ * @returns the state, value and excess, or a null state
  */
 function historicState(
     ctx: Ctx,
@@ -639,9 +803,10 @@ function historicState(
 
 /**
  * The newest 5-minute bucket alone is back within the target (section 3.1, "Clearing").
- * @param ctx
- * @param c
- * @param t
+ * @param ctx - what evaluate loaded
+ * @param c - the member
+ * @param t - start of the newest 5-minute bucket
+ * @returns true when that bucket alone meets the target
  */
 function recovered(ctx: Ctx, c: MemberConfig, t: number): boolean {
     const m = c.measure;
@@ -662,10 +827,11 @@ type OpenEpisode = Episode & { score: number };
 
 /**
  * A bad step: opens the episode or extends it, keeping its worst state and peak, and its clearing.
- * @param open
- * @param c
- * @param h
- * @param start
+ * @param open - the open episode, if any
+ * @param c - the member
+ * @param h - the bad step's state
+ * @param start - when an episode opened here starts
+ * @returns the open episode
  */
 function extend(open: OpenEpisode | undefined, c: MemberConfig, h: StepState, start: number): OpenEpisode {
     const state = h.state as Episode["worst"];
@@ -683,21 +849,89 @@ function extend(open: OpenEpisode | undefined, c: MemberConfig, h: StepState, st
 
 const closed = ({ score: _score, ...e }: OpenEpisode): Episode => e;
 
+/** Gray steps in a row after which an open episode ends: an hour the member could not be judged. */
+const GRAY_ENDS = HOUR_SPAN / STEP;
+
+/**
+ * Ends an open episode: cleared then, unless it cleared earlier, and ended then.
+ * @param open - the open episode
+ * @param end - when it ends
+ * @returns the closed episode
+ */
+function endAt(open: OpenEpisode, end: number): Episode {
+    open.clearedAt ??= end;
+    open.endedAt = end;
+    return closed(open);
+}
+
+/**
+ * A failing or warning step: opens the member's episode or extends it, and marks it cleared or not.
+ * @param ctx - what evaluate loaded
+ * @param c - the member
+ * @param current - its status now
+ * @param open - its open episode, if any
+ * @param step - the step: its state, index back from now (0 is now), start, and the state of the step before
+ * @param step.h - the step's state
+ * @param step.i - the step's index back from now
+ * @param step.t - the step's start
+ * @param step.before - the state of the step before it
+ * @returns the open episode
+ */
+function badStep(
+    ctx: Ctx,
+    c: MemberConfig,
+    current: MemberStatus,
+    open: OpenEpisode | undefined,
+    step: { h: StepState; i: number; t: number; before: MemberState | null },
+): OpenEpisode {
+    const { h, i, t, before } = step;
+    const next = extend(open, c, h, i === 0 ? (current.since ?? t) : t);
+    // Opened by the current step after steps that could not be judged, with no time the engine can tell:
+    // it may have begun any time in that gray stretch, so its start is unknown.
+    if (open === undefined && i === 0 && current.since === undefined && before === null) {
+        next.startUnknown = true;
+    }
+    clearing(next, recovered(ctx, c, t), t);
+    return next;
+}
+
+/**
+ * The member's episodes over the last 24 h. A 7- or 28-day member has none: it has no 5-minute history, so its
+ * start would be "now" on every cycle; its rows and blocks show its breach instead. An episode ends after an hour
+ * of gray steps, so one the member stopped being judged on (too few samples) does not stay ongoing.
+ * @param ctx - what evaluate loaded
+ * @param c - the member
+ * @param current - its status now
+ * @returns its episodes, oldest first
+ */
 function episodesOf(ctx: Ctx, c: MemberConfig, current: MemberStatus): Episode[] {
     const out: Episode[] = [];
+    if (c.window === "slow") {
+        return out;
+    }
     const now5 = floorTo(ctx.now, "5m");
     let open: OpenEpisode | undefined;
+    let gray = 0;
+    let prev: MemberState | null = null;
     for (let i = HISTORY_STEPS - 1; i >= 0; i--) {
         const t = now5 - i * STEP;
         const h = i === 0 ? currentStep(current) : historicState(ctx, c, { t, end: t + STEP });
+        const before = prev;
+        prev = h.state;
+        if (h.state === null && open) {
+            gray++;
+            if (gray >= GRAY_ENDS) {
+                out.push(endAt(open, t - (GRAY_ENDS - 1) * STEP));
+                open = undefined;
+            }
+            continue;
+        }
+        gray = 0;
         if (BAD(h.state)) {
-            open = extend(open, c, h, i === 0 ? (current.since ?? t) : t);
-            clearing(open, recovered(ctx, c, t), t);
+            open = badStep(ctx, c, current, open, { h, i, t, before });
         } else if (h.state === "OK" && open) {
             // Gray or unknown steps (null) neither open nor clear an episode.
-            open.clearedAt ??= t;
-            open.endedAt = t;
-            out.push(closed(open));
+            out.push(endAt(open, t));
             open = undefined;
         }
     }
@@ -709,7 +943,8 @@ function episodesOf(ctx: Ctx, c: MemberConfig, current: MemberStatus): Episode[]
 
 /**
  * The state now as an episode step: gray states are unknown (null).
- * @param m
+ * @param m - the member's status now
+ * @returns the step's state, value and excess
  */
 const currentStep = (m: MemberStatus): StepState => ({
     state: BAD(m.state) || m.state === "OK" ? m.state : null,
@@ -719,9 +954,9 @@ const currentStep = (m: MemberStatus): StepState => ({
 
 /**
  * Cleared from the first recovered bucket on; a relapse takes it back.
- * @param open
- * @param isRecovered
- * @param t
+ * @param open - the open episode
+ * @param isRecovered - whether the step's bucket alone meets the target
+ * @param t - the step's start
  */
 function clearing(open: OpenEpisode, isRecovered: boolean, t: number): void {
     if (!isRecovered) {
@@ -735,8 +970,11 @@ const RANK: Record<string, number> = { OK: 0, "NO DATA": 1, WARNING: 2, FAILING:
 
 /**
  * A category's state: the worst of its judged members, and the member that set it.
- * @param cfg
- * @param members
+ * @param cfg - the category
+ * @param cfg.id - category id
+ * @param cfg.label - category label
+ * @param members - every member's status
+ * @returns the category's status
  */
 export function categoryOf(cfg: { id: string; label: string }, members: MemberStatus[]): CategoryStatus {
     const mine = members.filter((m) => m.category === cfg.id);
@@ -762,9 +1000,10 @@ export function categoryOf(cfg: { id: string; label: string }, members: MemberSt
 
 /**
  * Every member's state now, the categories, the last 24 h of episodes and the sources.
- * @param store
- * @param nowMs
- * @param cfg
+ * @param store - the table
+ * @param nowMs - current time
+ * @param cfg - the SLA config
+ * @returns the evaluation
  */
 export async function evaluate(store: Store, nowMs: number, cfg: SlaConfig = SLAS): Promise<Evaluation> {
     const ctx = await load(store, nowMs, cfg);
@@ -792,7 +1031,8 @@ export async function evaluate(store: Store, nowMs: number, cfg: SlaConfig = SLA
 
 /**
  * The metrics the members and sources read, at 5 minutes (windows, history) and by day (slow, costs, baselines).
- * @param cfg
+ * @param cfg - the SLA config
+ * @returns the metric ids to load at each step
  */
 function metricsToLoad(cfg: SlaConfig): { five: Set<string>; daily: Set<string> } {
     const five = new Set<string>();
@@ -822,9 +1062,10 @@ function metricsToLoad(cfg: SlaConfig): { five: Set<string>; daily: Set<string> 
 
 /**
  * Everything evaluate reads: two single-partition queries per metric, one get per source, the quota.
- * @param store
- * @param nowMs
- * @param cfg
+ * @param store - the table
+ * @param nowMs - current time
+ * @param cfg - the SLA config
+ * @returns the loaded context
  */
 async function load(store: Store, nowMs: number, cfg: SlaConfig): Promise<Ctx> {
     const now5 = floorTo(nowMs, "5m");

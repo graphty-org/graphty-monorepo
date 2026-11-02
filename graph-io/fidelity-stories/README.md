@@ -52,6 +52,12 @@ folder holds:
 - `Samples.stories.ts` ("Style Fidelity/<Format>/Samples"): one story per real-world or older synthetic sample,
   named for the sample.
 
+- `Matched.stories.ts` (vis-network only, "Style Fidelity/vis-network/Matched"): graphty-element drawn with its nodes at
+  the program's own positions (the oracle tests' position-matched comparison), the program's drawing, graphty-element's
+  and the two overlaid in the same frame, with every element failing a property the known failures do not list outlined
+  and listed below with a short reason. Hover an item to pick its outline out; click it to zoom every panel onto it.
+  The `sample` arg picks any vis-network sample with an oracle.
+
 To add a sample, add its oracle to `graph-io/test/fidelity/oracles/` (`graph-io/test/fidelity/TOOLS.md` says how
 each program is run) and the story to its format's `Samples.stories.ts`.
 

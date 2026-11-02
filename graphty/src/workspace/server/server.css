@@ -82,7 +82,7 @@
 
 .sv-code[data-error] {
     background: var(--mantine-color-red-light);
-    color: var(--mantine-color-red-light-color);
+    color: var(--cm-text-danger);
 }
 
 .sv-preview {

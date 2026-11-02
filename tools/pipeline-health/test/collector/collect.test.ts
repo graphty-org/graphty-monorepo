@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+
 import rates from "../../config/rates.json" with { type: "json" };
 import { collect, type Deps } from "../../src/collector/collect.js";
-import { GitHub } from "../../src/collector/github.js";
+import { type Fetch, GitHub } from "../../src/collector/github.js";
 import type { GhJob, GhRun, Rates } from "../../src/collector/parse.js";
-import { MIN, sourceKey, type ObservationItem } from "../../src/model/items.js";
+import { quarantineReader, SLICE_STORE_PARAMS } from "../../src/collector/slices.js";
+import { MIN, type ObservationItem, sourceKey } from "../../src/model/items.js";
 import { getCursor } from "../../src/model/raw.js";
 import { readSnapshot } from "../../src/model/snapshots.js";
 import { MemoryStore } from "../../src/model/store.js";
@@ -14,9 +16,9 @@ import { fakeGitHub, fixture, NOW } from "./fake-github.js";
 const deps = (store: MemoryStore, fake: ReturnType<typeof fakeGitHub>, now = NOW, withApp = true): Deps => ({
     store,
     now,
-    gh: withApp ? new GitHub(async () => "ghs_test", fake.fetch) : undefined,
+    gh: withApp ? new GitHub(() => Promise.resolve("ghs_test"), fake.fetch) : undefined,
     fetch: fake.fetch,
-    awsCosts: async () => [{ day: "2026-10-25", usd: 0.12 }],
+    awsCosts: () => Promise.resolve([{ day: "2026-10-25", usd: 0.12 }]),
     rates: rates as unknown as Rates,
     limits: { linux_windows: SLAS.runnerLimits.linux_windows, macos: SLAS.runnerLimits.macos },
     org: "graphty-org",
@@ -41,7 +43,9 @@ describe("collector without the GitHub App", () => {
 
         const e = await evaluate(store, NOW, SLAS);
         const state = (id: string) => e.sources.find((s) => s.id === id)?.state;
-        for (const id of ["collector", "release", "npm", "stress", "hosts"]) expect(state(id), id).toBe("not set up");
+        for (const id of ["collector", "release", "npm", "stress", "hosts"]) {
+            expect(state(id), id).toBe("not set up");
+        }
         expect(state("billing")).toBe("ok");
         expect(state("coverage")).toBe("stale"); // 29 h old: past its 24 h limit
     });
@@ -73,6 +77,8 @@ describe("collector with the GitHub App", () => {
         // The 18:00 shadow attempt skipped every lane on 1fa254bf, a commit no attempt tested (design 4.5).
         expect(observed(store, "release.train_skipped")).toBe(1);
         expect(observed(store, "github.rate_remaining_share")).toBe(0.8);
+        // GitHub's own open-issue count, which the Issues page checks its count against.
+        expect(observed(store, "issues.open_github")).toBe(510);
         // The "now" lists: quarantine and CODEOWNERS from master, release lanes per attempt, release workflows.
         expect(await readSnapshot(store, "quarantine")).toEqual([
             { file: "a/x.test.ts", name: "t1", family: "a", issue: 9, since: undefined, expires: undefined },
@@ -86,18 +92,72 @@ describe("collector with the GitHub App", () => {
             "release-watch.yml",
         ]);
         expect(Array.isArray(await readSnapshot(store, "owner-wait"))).toBe(true);
+        // The release channels (#4460): what channel/nightly holds; no deploy or promotion runs recorded.
+        expect(await readSnapshot(store, "channels")).toEqual({
+            canary: [],
+            promotions: {},
+            refs: { nightly: "a".repeat(40) },
+        });
         expect(observed(store, "npm.tagged_missing")).toBeGreaterThan(0);
         expect(observed(store, "ci.jobs_running")).toBe(0);
         expect(observed(store, "ci.jobs_queued")).toBe(0);
         // Flaky tests (4.4): nothing seen flaky yet, so every "now" member reads 0 rather than no value.
-        for (const m of ["flaky.no_issue", "flaky.blocked_prs", "flaky.blocked_oldest_ms", "flaky.net_change"])
+        for (const m of ["flaky.no_issue", "flaky.blocked_prs", "flaky.blocked_oldest_ms", "flaky.net_change"]) {
             expect(observed(store, m), m).toBe(0);
+        }
 
-        for (const s of ["collector", "release", "npm", "coverage", "billing"])
+        for (const s of ["collector", "release", "npm", "coverage", "billing"]) {
             expect((await store.get(sourceKey(s)))?.error, s).toBeUndefined();
+        }
         expect(await getCursor(store, "runs#graphty-org/graphty-monorepo")).toBe("2026-10-26T00:35:00Z");
         expect(JSON.parse((await getCursor(store, "open#graphty-org/graphty-monorepo"))!)).toContain(40238975833);
         expect(await getCursor(store, "cycle")).toBe(String(NOW));
+    });
+
+    it("reads the quarantine in force from the results store, not the emptied committed list", async () => {
+        // 2026-10-30: tools/test-quarantine.json has been empty since the store took the quarantine over, so the
+        // flaky page said nothing was quarantined while #5038 and #5039 were.
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const asked: string[] = [];
+        const storeFetch: Fetch = (url, init) => {
+            asked.push(`${url} ${new Headers(init?.headers).get("authorization")}`);
+            return Promise.resolve(
+                new Response(
+                    JSON.stringify({
+                        quarantine: [
+                            {
+                                family: "graphty-element-lifecycle",
+                                file: "test/autosave.test.ts",
+                                name: "unmount and remount",
+                                issue: 5038,
+                                since: Date.parse("2026-10-30T12:21:00Z"),
+                                expires: Date.parse("2026-11-13T12:21:00Z"),
+                                passes: 0,
+                            },
+                        ],
+                    }),
+                ),
+            );
+        };
+        const readQuarantine = quarantineReader(
+            { [SLICE_STORE_PARAMS.url]: "https://results.test/", [SLICE_STORE_PARAMS.token]: "tok" },
+            storeFetch,
+        );
+        const report = await collect({ ...deps(store, fake), readQuarantine });
+        expect(report.errors).toEqual({});
+        expect(asked).toEqual(["https://results.test/v1/quarantine Bearer tok"]);
+        expect(await readSnapshot(store, "quarantine")).toEqual([
+            {
+                file: "test/autosave.test.ts",
+                name: "unmount and remount",
+                family: "graphty-element-lifecycle",
+                issue: 5038,
+                since: "2026-10-30T12:21:00.000Z",
+                expires: "2026-11-13T12:21:00.000Z",
+            },
+        ]);
+        expect(await readSnapshot(store, "codeowners")).toEqual(["/.github/", "/visual-review/"]);
     });
 
     it("a 502 on one run's jobs skips that run only, keeps every other value, and reads it again next cycle", async () => {
@@ -109,7 +169,9 @@ describe("collector with the GitHub App", () => {
         const JOBS = "/actions/runs/40249709094/jobs";
         const hits: string[] = [];
         fake.fetch = async (url, init) => {
-            if (url.includes(JOBS)) hits.push(url);
+            if (url.includes(JOBS)) {
+                hits.push(url);
+            }
             return down && url.includes(JOBS) ? new Response("{}", { status: 502 }) : base(url, init);
         };
         const report = await collect(deps(store, fake));
@@ -117,7 +179,8 @@ describe("collector with the GitHub App", () => {
         expect(report.skipped).toEqual([
             "jobs of graphty-org/graphty-monorepo run 40249709094: GitHub repos/graphty-org/graphty-monorepo/actions/runs/40249709094/jobs: HTTP 502",
         ]);
-        // Pages of 100 tried, then retried twice; then the same in pages of 50.
+        // Pages of 100 tried, then retried twice; then the same in pages of 50 and 10; then, past three failed
+        // requests (an outage, src/collector/github.ts), one page of 1 without retries.
         expect(hits.map((u) => new URL(u).searchParams.get("per_page"))).toEqual([
             "100",
             "100",
@@ -125,6 +188,10 @@ describe("collector with the GitHub App", () => {
             "50",
             "50",
             "50",
+            "10",
+            "10",
+            "10",
+            "1",
         ]);
         expect(observed(store, "master.red_builds")).toBe(1);
         expect(observed(store, "release.lanes_red")).toBe(3);
@@ -132,13 +199,13 @@ describe("collector with the GitHub App", () => {
         expect(src).toMatchObject({ lastOkAt: NOW, partial: expect.stringContaining("run 40249709094") });
         expect(src?.error).toBeUndefined();
         expect(JSON.parse((await getCursor(store, "open#graphty-org/graphty-monorepo"))!)).toContain(40249709094);
-        expect(homes(store, "run").some((r) => String(r.pk).includes("40249709094"))).toBe(false);
+        expect(homes(store, "run").some((r) => r.pk.includes("40249709094"))).toBe(false);
 
         down = false;
         const next = await collect(deps(store, fake, NOW + 5 * MIN));
         expect(next.skipped).toEqual([]);
-        expect(hits).toHaveLength(7);
-        expect(homes(store, "run").some((r) => String(r.pk).includes("40249709094"))).toBe(true);
+        expect(hits).toHaveLength(11);
+        expect(homes(store, "run").some((r) => r.pk.includes("40249709094"))).toBe(true);
     });
 
     it("reads a re-run release attempt GitHub answers 502 for, and the attempt it replaced", async () => {
@@ -148,10 +215,10 @@ describe("collector with the GitHub App", () => {
         const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
         const base = fake.fetch;
         const ID = 40119894804;
-        const red = fixture<{ total_count: number; jobs: GhJob[] }>("jobs-release-tested-40119894804.json");
+        const red = fixture("jobs-release-tested-40119894804.json") as { total_count: number; jobs: GhJob[] };
         const green = red.jobs.map((j) => (j.conclusion === "skipped" ? j : { ...j, conclusion: "success" }));
         const first: GhRun = {
-            ...fixture<{ workflow_runs: GhRun[] }>("release-runs.json").workflow_runs.find((r) => r.id === ID)!,
+            ...(fixture("release-runs.json") as { workflow_runs: GhRun[] }).workflow_runs.find((r) => r.id === ID)!,
             display_title: "Release (full)",
             run_attempt: 1,
         };
@@ -167,14 +234,20 @@ describe("collector with the GitHub App", () => {
             const u = new URL(url);
             const size = Number(u.searchParams.get("per_page"));
             const page = Number(u.searchParams.get("page"));
-            if (u.pathname.endsWith("/actions/workflows/release.yml/runs"))
+            if (u.pathname.endsWith("/actions/workflows/release.yml/runs")) {
                 return json({ total_count: 1, workflow_runs: [second] });
-            if (u.pathname.endsWith(`/runs/${ID}/attempts/1`)) return json(first);
-            if (u.pathname.endsWith(`/runs/${ID}/attempts/1/jobs`)) return json(red);
-            if (u.pathname.endsWith(`/runs/${ID}/jobs`))
+            }
+            if (u.pathname.endsWith(`/runs/${ID}/attempts/1`)) {
+                return json(first);
+            }
+            if (u.pathname.endsWith(`/runs/${ID}/attempts/1/jobs`)) {
+                return json(red);
+            }
+            if (u.pathname.endsWith(`/runs/${ID}/jobs`)) {
                 return size === 100
                     ? new Response("{}", { status: 502 })
                     : json({ total_count: green.length, jobs: green.slice((page - 1) * size, page * size) });
+            }
             return base(url, init);
         };
         const report = await collect(deps(store, fake));
@@ -183,7 +256,7 @@ describe("collector with the GitHub App", () => {
         expect(seen[`${ID}.1`]).toMatchObject({ mode: "full", tested: true, ok: false, red: ["ci", "t4", "audit"] });
         expect(seen[`${ID}.2`]).toMatchObject({ mode: "full", tested: true, ok: true, red: [] });
         // The first attempt is the run item release.train_first_attempt counts.
-        expect(homes(store, "run").filter((r) => String(r.pk).includes(String(ID)))).toEqual(
+        expect(homes(store, "run").filter((r) => r.pk.includes(String(ID)))).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({ attempt: 1, conclusion: "failure", tested: true }),
                 expect.objectContaining({ attempt: 2, conclusion: "success", tested: true }),
@@ -214,9 +287,11 @@ describe("collector with the GitHub App", () => {
         const store = new MemoryStore();
         const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
         await collect(deps(store, fake));
-        for (const k of [...store.items.keys()])
-            if (k.startsWith("DIRTY") || k.startsWith("CURSOR#hourly") || k.startsWith("CURSOR#daily"))
+        for (const k of [...store.items.keys()]) {
+            if (k.startsWith("DIRTY") || k.startsWith("CURSOR#hourly") || k.startsWith("CURSOR#daily")) {
                 store.items.delete(k);
+            }
+        }
         const again = await collect(deps(store, fake, NOW + 5 * MIN));
         const obsOnly = [...store.items.values()].filter((i) => i.pk === "DIRTY");
         // Only this cycle's observations (one 5-minute bucket) are new.
@@ -232,6 +307,26 @@ describe("collector with the GitHub App", () => {
         expect(await store.get(sourceKey("coverage"))).toMatchObject({ error: expect.stringMatching(/HTTP 500/) });
         expect((await store.get(sourceKey("collector")))?.lastOkAt).toBe(NOW);
     });
+
+    it("a failing part other than the runs read errors its own source; the collector's age and error stay the runs read's", async () => {
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const base = fake.fetch;
+        fake.fetch = async (url, init) =>
+            new URL(url).pathname === "/graphql" && (init?.body as string).includes("issues(")
+                ? new Response("{}", { status: 502 })
+                : base(url, init);
+        const report = await collect(deps(store, fake));
+        expect(report.errors.issues).toBeDefined();
+        // The runs were read: the dashboard is not blind, so data.collector has nothing to page on.
+        const collector = await store.get(sourceKey("collector"));
+        expect(collector).toMatchObject({ lastOkAt: NOW });
+        expect(collector?.error).toBeUndefined();
+        expect(await store.get(sourceKey("collector-parts"))).toMatchObject({
+            error: expect.stringMatching(/^issues: /),
+        });
+        expect((await store.get(sourceKey("collector-parts")))?.lastOkAt).toBeUndefined();
+    });
 });
 
 type Fake = ReturnType<typeof fakeGitHub>;
@@ -241,9 +336,11 @@ function withOpenBranches(fake: Fake, branches: string[]): Fake {
     const recorded = fake.fetch;
     fake.fetch = async (url, init) => {
         const res = await recorded(url, init);
-        if (!url.endsWith("/graphql") || !String(init?.body).includes("pullRequests")) return res;
+        if (!url.endsWith("/graphql") || !(init?.body as string).includes("pullRequests")) {
+            return res;
+        }
         const body = (await res.json()) as { data: { repository: { open: { nodes: { headRefName?: string }[] } } } };
-        const open = body.data.repository.open;
+        const { open } = body.data.repository;
         open.nodes = open.nodes.slice(0, branches.length).map((p, i) => ({ ...p, headRefName: branches[i] }));
         return new Response(JSON.stringify(body), { headers: res.headers });
     };
@@ -253,13 +350,15 @@ function withOpenBranches(fake: Fake, branches: string[]): Fake {
 /** Adds the recorded ghost: "Lint PR Title" queued since 02:58Z on #3940, which merged at 03:29Z. */
 function withGhost(fake: Fake): Fake {
     const recorded = fake.fetch;
-    const ghost = fixture<GhRun>("run-ghost-40441556963.json");
+    const ghost = fixture("run-ghost-40441556963.json") as GhRun;
     fake.fetch = async (url, init) => {
         const u = new URL(url);
-        if (/\/actions\/runs\/40441556963\/jobs$/.test(u.pathname))
+        if (/\/actions\/runs\/40441556963\/jobs$/.test(u.pathname)) {
             return Response.json(fixture("jobs-ghost-40441556963.json"));
-        if (/monorepo\/actions\/runs$/.test(u.pathname) && u.searchParams.get("status") === "queued")
+        }
+        if (/monorepo\/actions\/runs$/.test(u.pathname) && u.searchParams.get("status") === "queued") {
             return Response.json({ total_count: 1, workflow_runs: [ghost] });
+        }
         return recorded(url, init);
     };
     return fake;
@@ -276,7 +375,9 @@ describe("runner job counts", () => {
         // outside GitHub's limit and so not counted).
         fake.fetch = async (url, init) => {
             const res = await recorded(url, init);
-            if (!/\/actions\/runs\/40238975833\/jobs$/.test(new URL(url).pathname)) return res;
+            if (!/\/actions\/runs\/40238975833\/jobs$/.test(new URL(url).pathname)) {
+                return res;
+            }
             const body = (await res.json()) as { total_count: number; jobs: Record<string, unknown>[] };
             const status = ["in_progress", "in_progress", "queued", "queued", "queued"];
             body.jobs = body.jobs.map((j, i) => ({
@@ -289,6 +390,8 @@ describe("runner job counts", () => {
         await collect(deps(store, fake));
         expect(observed(store, "ci.jobs_running")).toBe(2);
         expect(observed(store, "ci.jobs_queued")).toBe(2);
+        // The runners page's count: only Linux and Windows jobs queued for a runner over 2 minutes.
+        expect(observed(store, "ci.jobs_waiting_runner")).toBe(2);
     });
 
     it("leaves out a queued run whose pull request is no longer open", async () => {
@@ -322,24 +425,29 @@ describe("collector deploy trigger", () => {
     /** GitHub that answers only the deploy query, with master's tools/pipeline-health tree `tree()`. */
     const gh = (tree: () => string) =>
         new GitHub(
-            async () => "ghs_test",
-            async (url, init) => {
-                const body = String(init?.body ?? "");
-                if (url.endsWith("/graphql") && body.includes("master:tools/pipeline-health"))
-                    return Response.json({ data: { repository: { tree: { oid: tree() }, head: { oid: HEAD } } } });
-                return new Response("{}", { status: 500 });
+            () => Promise.resolve("ghs_test"),
+            (url, init) => {
+                const body = (init?.body as string | undefined) ?? "";
+                if (url.endsWith("/graphql") && body.includes("master:tools/pipeline-health")) {
+                    return Promise.resolve(
+                        Response.json({ data: { repository: { tree: { oid: tree() }, head: { oid: HEAD } } } }),
+                    );
+                }
+                return Promise.resolve(new Response("{}", { status: 500 }));
             },
         );
     const builds = (opts: { status?: string; fail?: boolean } = {}) => {
         const started: string[] = [];
         return {
             started,
-            start: async (commit: string) => {
-                if (opts.fail) throw new Error("AccessDenied");
+            start: (commit: string) => {
+                if (opts.fail) {
+                    return Promise.reject(new Error("AccessDenied"));
+                }
                 started.push(commit);
-                return `graphty-health-deploy:${started.length}`;
+                return Promise.resolve(`graphty-health-deploy:${started.length}`);
             },
-            status: async () => opts.status ?? "SUCCEEDED",
+            status: () => Promise.resolve(opts.status ?? "SUCCEEDED"),
         };
     };
     const run = (store: MemoryStore, g: GitHub, b: ReturnType<typeof builds>, now = NOW) =>
@@ -350,11 +458,15 @@ describe("collector deploy trigger", () => {
         let budgets = "d".repeat(40);
         const answer = () =>
             new GitHub(
-                async () => "ghs_test",
-                async () =>
-                    Response.json({
-                        data: { repository: { tree: { oid: TREE }, budgets: { oid: budgets }, head: { oid: HEAD } } },
-                    }),
+                () => Promise.resolve("ghs_test"),
+                () =>
+                    Promise.resolve(
+                        Response.json({
+                            data: {
+                                repository: { tree: { oid: TREE }, budgets: { oid: budgets }, head: { oid: HEAD } },
+                            },
+                        }),
+                    ),
             );
         const b = builds();
         await run(store, answer(), b);
@@ -433,7 +545,7 @@ describe("collector deploy trigger", () => {
         );
         const b = builds({ status: "FAILED" });
         const errors: (string | undefined)[] = [];
-        for (let i = 1; i <= 3; i++)
+        for (let i = 1; i <= 3; i++) {
             errors.push(
                 (
                     await run(
@@ -444,6 +556,7 @@ describe("collector deploy trigger", () => {
                     )
                 ).errors.deploy,
             );
+        }
         expect(b.started).toEqual([HEAD, HEAD]);
         expect(errors[0]).toContain("attempt 2 started");
         expect(errors[2]).toContain("after 3 attempts");
@@ -476,7 +589,9 @@ describe("a merged pull request's last run", () => {
         const base = fake.fetch;
         let prsDown = true;
         // Run 40238975833 finished on a merged pull request: GitHub lists no pull request for it.
-        const gql = fixture<{ data: { repository: { recent: { nodes: Record<string, unknown>[] } } } }>("gql-pr.json");
+        const gql = fixture("gql-pr.json") as {
+            data: { repository: { recent: { nodes: Record<string, unknown>[] } } };
+        };
         const merged = gql.data.repository.recent.nodes.find((n) => n.mergedAt)!;
         gql.data.repository.recent.nodes.unshift({
             ...merged,
@@ -488,10 +603,13 @@ describe("a merged pull request's last run", () => {
         });
         fake.fetch = async (url, init) => {
             const u = new URL(url);
-            if (u.searchParams.get("status") === "in_progress")
+            if (u.searchParams.get("status") === "in_progress") {
                 return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
-            if (u.pathname === "/graphql" && String(init?.body).includes("pullRequests")) {
-                if (prsDown) return new Response("{}", { status: 502 });
+            }
+            if (u.pathname === "/graphql" && (init?.body as string).includes("pullRequests")) {
+                if (prsDown) {
+                    return new Response("{}", { status: 502 });
+                }
                 return new Response(JSON.stringify(gql), { status: 200 });
             }
             return base(url, init);
@@ -511,8 +629,9 @@ describe("a merged pull request's last run", () => {
         const lookups: string[] = [];
         fake.fetch = async (url, init) => {
             const u = new URL(url);
-            if (u.searchParams.get("status") === "in_progress")
+            if (u.searchParams.get("status") === "in_progress") {
                 return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
+            }
             if (u.pathname.endsWith("/commits/5a2ebfac75cc6510846149d8cc07b65d83f0ba0b/pulls")) {
                 lookups.push(url);
                 return new Response(
@@ -545,8 +664,9 @@ describe("a merged pull request's last run", () => {
         let lookups = 0;
         fake.fetch = async (url, init) => {
             const u = new URL(url);
-            if (u.searchParams.get("status") === "in_progress")
+            if (u.searchParams.get("status") === "in_progress") {
                 return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
+            }
             if (u.pathname.endsWith("/pulls") && u.pathname.includes("/commits/")) {
                 lookups++;
                 return new Response(JSON.stringify({ message: "No commit found for SHA" }), { status: 422 });

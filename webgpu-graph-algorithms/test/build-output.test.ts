@@ -251,7 +251,13 @@ describe("the tsconfig trio (contract 2.3)", () => {
     it("vitest.config.ts declares the three projects and exports the flag sets", () => {
         const config = readFileSync(resolve("./vitest.config.ts"), "utf-8");
         expect(config).toContain("export const BROWSER_FLAGS");
-        for (const name of ['name: "node"', 'name: "node-limits"', 'name: "browser"']) {
+        // A noise-floor recording renames each project bench-<name> (out of the hang guard), so the
+        // config names them through projectName().
+        for (const name of [
+            'name: projectName("node")',
+            'name: projectName("node-limits")',
+            'name: projectName("browser")',
+        ]) {
             expect(config).toContain(name);
         }
         expect(config).toContain('setupFiles: ["test/setup/gpu.ts"]');
@@ -386,10 +392,7 @@ function bundleClosure(entry: string): string[] {
         seen.push(file);
         const code = readFileSync(resolve(file), "utf-8");
         for (const match of code.matchAll(/\bfrom\s*(["'])(\.\.?\/[^"']+)\1/g)) {
-            const target = match[2];
-            if (target !== undefined) {
-                pending.push(`${file.slice(0, file.lastIndexOf("/") + 1)}${target}`);
-            }
+            pending.push(`${file.slice(0, file.lastIndexOf("/") + 1)}${match[2]}`);
         }
     }
     return seen;

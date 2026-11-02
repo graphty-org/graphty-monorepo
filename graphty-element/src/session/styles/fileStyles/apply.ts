@@ -9,6 +9,7 @@
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
+import type { FileLayout } from "@graphty/graph-io";
 import { type ExtractedStyles, readAnnotations, readImageAnnotations } from "@graphty/graph-io/styles";
 
 import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../../../catalog/types";
@@ -77,6 +78,8 @@ export const HELD_READERS = new WeakMap<
     Partial<FileStyleSource> & {
         /** The file's graph-level attributes, as the source read them. */
         readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
+        /** The layout the file asks for, as the source read it. */
+        readonly declaredFileLayout?: FileLayout | null;
     }
 >();
 
@@ -193,6 +196,16 @@ export async function applyFileStyles(
         layers.push(...applied.layers);
         notes.push(...applied.notes);
         sceneScale = replacing ? applied.sceneScale : null;
+    }
+
+    // The program fits the stored positions' centers into its canvas (sigma.js): framed the same, the drawing fills
+    // the canvas as the program's does. A file whose program states no fit returns to the element's own framing.
+    if (options.framing === "file" && replacing) {
+        const fit = read?.positionFit;
+        await ctx.inline({
+            op: "config.set",
+            values: { framing: fit === undefined ? undefined : { extent: "centers", padding: fit.padding } },
+        });
     }
 
     const report: LoadReport = Object.freeze({
@@ -323,6 +336,11 @@ async function applyRead(
                     },
                 });
             });
+    }
+
+    // The file turns the whole drawing (Graphviz's rotate=90 and landscape): the 2D view turns, labels and all.
+    if (translation.rotation !== null) {
+        await ctx.inline({ op: "config.set", values: { viewRotation: translation.rotation } });
     }
 
     // The stored positions take the styles' unit, so they are drawn at the file's proportions. Where

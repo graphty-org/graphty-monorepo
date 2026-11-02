@@ -72,7 +72,8 @@ describe("an oracle node drawn under another", () => {
         const off = { ...node("n5", 1, 7.35), cx: 100.63 };
         const oracle = scene([off, node("n109", 2, 7.35)]);
         assert.lengthOf(withoutCovered(oracle).nodes, 2);
-        const graphty = scene([node("n5", 0, 5.4), node("n109", 0, 5.4)]);
+        // graphty hides n5 under n109 and leaves it out of its scene; a twin graphty shows both of stays drawn
+        const graphty = scene([node("n109", 0, 5.4)]);
         assert.deepEqual(
             withoutCovered(oracle, graphty).nodes.map((n) => n.id),
             ["n109"],

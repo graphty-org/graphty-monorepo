@@ -1,7 +1,7 @@
-import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine";
-import { EngineStore } from "@babylonjs/core/Engines/engineStore";
-import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { Logger } from "@babylonjs/core/Misc/logger";
+import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine.js";
+import { EngineStore } from "@babylonjs/core/Engines/engineStore.js";
+import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Logger } from "@babylonjs/core/Misc/logger.js";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 
 import type { Graph } from "../src/Graph";

@@ -112,10 +112,30 @@ describe("DOT styles: outlines and shapes", () => {
         expect(width.e ?? 0).toBe(0);
     });
 
+    it("draws every further outline as a ring of its own: peripheries=3 and tripleoctagon draw two", async () => {
+        const doc = `digraph {
+            a [shape=box, peripheries=3];
+            b [shape=tripleoctagon];
+            c [shape=doublecircle, peripheries=4];
+            d [shape=doublecircle];
+        }`;
+        const count = await nodes(doc, "outerBorderCount");
+        expect([count.a, count.b, count.c]).toEqual([2, 2, 3]);
+        expect(count.d ?? 1).toBe(1);
+    });
+
     it("draws a striped cluster's color list as stripes left to right, as on a box", async () => {
         const doc = `digraph { subgraph cluster_s { style=striped; fillcolor="red:green:blue"; a } }`;
         expect((await nodes(doc, "stripeColors")).cluster_s).toBe("#ff0000 #008000 #0000ff");
         expect((await nodes(doc, "stripeDirection")).cluster_s).toBe("right");
+    });
+
+    it("holds a cylinder's label as a box does, its width exactly the padded label", async () => {
+        const fit = await nodes(
+            `digraph { c [shape=cylinder, label="cylinder"]; h [shape=house, label="house"] }`,
+            "labelFit",
+        );
+        expect([fit.c, fit.h]).toEqual(["bounds", "inside"]);
     });
 
     it("turns a box by its orientation into the polygon Graphviz draws", async () => {
@@ -144,6 +164,24 @@ describe("DOT styles: edges", () => {
             "other:open-inverted",
         ]);
         expect((await edges(doc, "targetArrowSide"))[2]).toBe("left");
+    });
+
+    it("keeps every shape of a stacked arrowhead, each with its own open and side, nearest the node first", async () => {
+        const doc = `digraph { a -> b [arrowhead=boxdotnormal]; b -> c [arrowhead=lteeoldiamond]; c -> d [arrowhead=normal]; d -> e [dir=both, arrowtail=invodot] }`;
+        expect(await edges(doc, "targetArrow")).toEqual(["square", "tee", "triangle", "triangle"]);
+        expect(await edges(doc, "targetArrowParts")).toEqual(["circle triangle", "diamond-open:left", null, null]);
+        expect((await edges(doc, "targetArrowSide"))[1]).toBe("left");
+        expect((await edges(doc, "sourceArrowParts"))[3]).toBe("circle-open");
+    });
+
+    it("reads at most four shapes of an arrow name, a none among them, as Graphviz does", async () => {
+        const doc = `digraph { a -> b [arrowhead=normalnormalnormalnormalnormal]; b -> c [arrowhead=boxboxboxboxbox]; c -> d [arrowhead=nonenormalnormalnormalnormal]; d -> e [arrowhead="${"dot".repeat(20000)}"] }`;
+        expect(await edges(doc, "targetArrowParts")).toEqual([
+            "triangle triangle triangle",
+            "square square square",
+            "triangle triangle",
+            "circle circle circle",
+        ]);
     });
 
     it("draws a color list with fractions as segments along the line, each a band with a hard switch", async () => {

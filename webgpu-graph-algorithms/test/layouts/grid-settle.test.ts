@@ -33,7 +33,6 @@ import { GRID_BASE_OPTIONS, gridFixture } from "../helpers/grid-parity.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 600_000;
 /** The grid tier, paper mode, bitwise reproducible (the tuning defaults). */
 const GRID: GpuLayoutTuning = Object.freeze({ repulsion: "grid", compat: "paper", deterministic: true });
 /** The budget of the settle run; the rule, not the budget, must stop it. */
@@ -185,112 +184,98 @@ describe("grid tier: settle, determinism, saturation, 3D and R-24 (design 13 row
         ctx = await acquire({ label: "grid-settle" });
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 22 s on the Windows WARP host lane, 18 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "(1) isolated: the shared rule settles the core, not only the strays; a bbox normaliser would have fired >= 20 iterations earlier while the core still moved",
-        async (t) => {
-            requireGpu(t);
-            const { snapshot: s } = fixture("isolated", gpuScale());
-            const inGiant = giantComponent(s);
-            const options: ForceAtlas2Options = { dim: 2, seed: 7, maxIter: SETTLE_BUDGET, maxInFlight: 1 };
+    it("(1) isolated: the shared rule settles the core, not only the strays; a bbox normaliser would have fired >= 20 iterations earlier while the core still moved", async (t) => {
+        requireGpu(t);
+        const { snapshot: s } = fixture("isolated", gpuScale());
+        const inGiant = giantComponent(s);
+        const options: ForceAtlas2Options = { dim: 2, seed: 7, maxIter: SETTLE_BUDGET, maxInFlight: 1 };
+        const sim = createSim(ctx, options, GRID);
+        try {
+            const positions = new Float32Array(3 * s.nodeCount).fill(Number.NaN);
+            sim.load(s, positions);
+            const records: IterationRecord[] = [];
+            while (!sim.settled) {
+                const before = Float32Array.from(positions);
+                await sim.step(1);
+                records.push(recordOf(before, positions, inGiant));
+            }
+            const settledAt = sim.iterationsDone;
+            const last = sim.stats.trace[sim.stats.trace.length - 1];
+            expect(settledAt, "the rule, not the budget, stopped the run").toBeLessThan(SETTLE_BUDGET);
+            expect(last.settledCount).toBeGreaterThanOrEqual(FA2_DEFAULTS.settleWindow);
+            expectFinite(positions, "isolated settled");
+            // K1 of iteration T read the count at settleWindow: iterations T - settleWindow .. T - 1 each met the
+            // rule (disp(k) <= threshold x rms(after k)); the same holds for the core's own mean displacement
+            const window = records.slice(settledAt - FA2_DEFAULTS.settleWindow, settledAt);
+            const coreOverWindow = window.reduce((acc, r) => acc + r.dispGiant, 0) / window.length;
+            const rmsOverWindow = window.reduce((acc, r) => acc + r.rms, 0) / window.length;
+            const bboxAt = firesAt(records, (r) => r.radius);
+            const rmsAt = firesAt(records, (r) => r.rms);
+            const giant = inGiant.reduce((acc, v) => acc + v, 0);
+            console.log(
+                `[grid-settle] isolated n=${s.nodeCount} giant=${giant}: settled at ${settledAt} (replayed rms rule ${rmsAt}); ` +
+                    `last window core disp ${coreOverWindow.toExponential(3)} vs threshold x rms ${(FA2_DEFAULTS.settleThreshold * rmsOverWindow).toExponential(3)} ` +
+                    `(rms ${rmsOverWindow.toFixed(3)}, bbox radius ${window[window.length - 1].radius.toFixed(3)}); ` +
+                    `bbox rule would fire at ${bboxAt}${bboxAt === null ? "" : `, core disp there ${records[bboxAt - 1].dispGiant.toExponential(3)} vs ${(FA2_DEFAULTS.settleThreshold * records[bboxAt - 1].rms).toExponential(3)}`}`,
+            );
+            // the rule averages over EVERY node, strays included, so one iteration of the core alone may sit above
+            // the line (8 % above on lavapipe once the grid tier tracked the exact tier's expansion, issue #90);
+            // over the window the core's mean displacement is under threshold x rms
+            expect(
+                coreOverWindow,
+                "the core's mean displacement over the window under threshold x rms",
+            ).toBeLessThanOrEqual(FA2_DEFAULTS.settleThreshold * rmsOverWindow);
+            // and no single iteration of the window more than 25 % over it (the measured worst is 8 %)
+            for (const r of window) {
+                expect(r.dispGiant, "the core's mean displacement at each window iteration").toBeLessThanOrEqual(
+                    1.25 * FA2_DEFAULTS.settleThreshold * r.rms,
+                );
+            }
+            expect(bboxAt, "the bbox normaliser fires").not.toBeNull();
+            if (bboxAt !== null) {
+                const earlierBy = Math.max(1, Math.round(EARLIER_BY * gpuScale()));
+                expect(
+                    bboxAt,
+                    `the bbox normaliser fires at least ${earlierBy} iterations earlier`,
+                ).toBeLessThanOrEqual(settledAt - earlierBy);
+                // the layout was still moving between the two firings: its rms radius had not stopped growing
+                console.log(
+                    `[grid-settle] isolated: rms radius ${records[bboxAt - 1].rms.toFixed(3)} at the bbox firing, ${records[settledAt - 1].rms.toFixed(3)} at the RMS firing`,
+                );
+            }
+        } finally {
+            sim.dispose();
+            ctx.release(s);
+        }
+    });
+
+    it("(2) deterministic: true on rmat14: two run({ maxIter: 100 }) are bitwise identical in positions, stats and trace (spec 7.16)", async (t) => {
+        requireGpu(t);
+        const { snapshot: s } = fixture("rmat14", gpuScale());
+        const options: ForceAtlas2Options = { dim: 2, seed: 7, maxIter: 100 };
+        const run = async (): Promise<{ readonly positions: F32; readonly stats: ForceAtlas2Stats }> => {
             const sim = createSim(ctx, options, GRID);
             try {
                 const positions = new Float32Array(3 * s.nodeCount).fill(Number.NaN);
                 sim.load(s, positions);
-                const records: IterationRecord[] = [];
-                while (!sim.settled) {
-                    const before = Float32Array.from(positions);
-                    await sim.step(1);
-                    records.push(recordOf(before, positions, inGiant));
-                }
-                const settledAt = sim.iterationsDone;
-                const last = sim.stats.trace[sim.stats.trace.length - 1];
-                expect(settledAt, "the rule, not the budget, stopped the run").toBeLessThan(SETTLE_BUDGET);
-                expect(last.settledCount).toBeGreaterThanOrEqual(FA2_DEFAULTS.settleWindow);
-                expectFinite(positions, "isolated settled");
-                // K1 of iteration T read the count at settleWindow: iterations T - settleWindow .. T - 1 each met the
-                // rule (disp(k) <= threshold x rms(after k)); the same holds for the core's own mean displacement
-                const window = records.slice(settledAt - FA2_DEFAULTS.settleWindow, settledAt);
-                const coreOverWindow = window.reduce((acc, r) => acc + r.dispGiant, 0) / window.length;
-                const rmsOverWindow = window.reduce((acc, r) => acc + r.rms, 0) / window.length;
-                const bboxAt = firesAt(records, (r) => r.radius);
-                const rmsAt = firesAt(records, (r) => r.rms);
-                const giant = inGiant.reduce((acc, v) => acc + v, 0);
-                console.log(
-                    `[grid-settle] isolated n=${s.nodeCount} giant=${giant}: settled at ${settledAt} (replayed rms rule ${rmsAt}); ` +
-                        `last window core disp ${coreOverWindow.toExponential(3)} vs threshold x rms ${(FA2_DEFAULTS.settleThreshold * rmsOverWindow).toExponential(3)} ` +
-                        `(rms ${rmsOverWindow.toFixed(3)}, bbox radius ${window[window.length - 1].radius.toFixed(3)}); ` +
-                        `bbox rule would fire at ${bboxAt}${bboxAt === null ? "" : `, core disp there ${records[bboxAt - 1].dispGiant.toExponential(3)} vs ${(FA2_DEFAULTS.settleThreshold * records[bboxAt - 1].rms).toExponential(3)}`}`,
-                );
-                // the rule averages over EVERY node, strays included, so one iteration of the core alone may sit above
-                // the line (8 % above on lavapipe once the grid tier tracked the exact tier's expansion, issue #90);
-                // over the window the core's mean displacement is under threshold x rms
-                expect(
-                    coreOverWindow,
-                    "the core's mean displacement over the window under threshold x rms",
-                ).toBeLessThanOrEqual(FA2_DEFAULTS.settleThreshold * rmsOverWindow);
-                // and no single iteration of the window more than 25 % over it (the measured worst is 8 %)
-                for (const r of window) {
-                    expect(r.dispGiant, "the core's mean displacement at each window iteration").toBeLessThanOrEqual(
-                        1.25 * FA2_DEFAULTS.settleThreshold * r.rms,
-                    );
-                }
-                expect(bboxAt, "the bbox normaliser fires").not.toBeNull();
-                if (bboxAt !== null) {
-                    const earlierBy = Math.max(1, Math.round(EARLIER_BY * gpuScale()));
-                    expect(
-                        bboxAt,
-                        `the bbox normaliser fires at least ${earlierBy} iterations earlier`,
-                    ).toBeLessThanOrEqual(settledAt - earlierBy);
-                    // the layout was still moving between the two firings: its rms radius had not stopped growing
-                    console.log(
-                        `[grid-settle] isolated: rms radius ${records[bboxAt - 1].rms.toFixed(3)} at the bbox firing, ${records[settledAt - 1].rms.toFixed(3)} at the RMS firing`,
-                    );
-                }
+                const stats = await sim.run({ maxIter: 100 });
+                return { positions, stats };
             } finally {
                 sim.dispose();
-                ctx.release(s);
             }
-        },
-        CASE_TIMEOUT,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 30 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "(2) deterministic: true on rmat14: two run({ maxIter: 100 }) are bitwise identical in positions, stats and trace (spec 7.16)",
-        async (t) => {
-            requireGpu(t);
-            const { snapshot: s } = fixture("rmat14", gpuScale());
-            const options: ForceAtlas2Options = { dim: 2, seed: 7, maxIter: 100 };
-            const run = async (): Promise<{ readonly positions: F32; readonly stats: ForceAtlas2Stats }> => {
-                const sim = createSim(ctx, options, GRID);
-                try {
-                    const positions = new Float32Array(3 * s.nodeCount).fill(Number.NaN);
-                    sim.load(s, positions);
-                    const stats = await sim.run({ maxIter: 100 });
-                    return { positions, stats };
-                } finally {
-                    sim.dispose();
-                }
-            };
-            try {
-                const a = await run();
-                const b = await run();
-                expectFinite(a.positions, "rmat14 run 1");
-                expectBitwiseEqual(a.positions, b.positions, "rmat14: run 1 vs run 2 positions");
-                expectBitwiseEqual(
-                    statsValues(a.stats),
-                    statsValues(b.stats),
-                    "rmat14: run 1 vs run 2 stats and trace",
-                );
-                expect(a.stats.repulsionTier).toBe("grid");
-                expect(a.stats.trace.length).toBeGreaterThan(0);
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+        };
+        try {
+            const a = await run();
+            const b = await run();
+            expectFinite(a.positions, "rmat14 run 1");
+            expectBitwiseEqual(a.positions, b.positions, "rmat14: run 1 vs run 2 positions");
+            expectBitwiseEqual(statsValues(a.stats), statsValues(b.stats), "rmat14: run 1 vs run 2 stats and trace");
+            expect(a.stats.repulsionTier).toBe("grid");
+            expect(a.stats.trace.length).toBeGreaterThan(0);
+        } finally {
+            ctx.release(s);
+        }
+    });
 
     it("(3) the software saturation case: gridMax2D 32 on random20k gives G = 32, an occupancy max >= 2, finite after 50 iterations", async (t) => {
         requireGpu(t);
@@ -343,44 +328,39 @@ describe("grid tier: settle, determinism, saturation, 3D and R-24 (design 13 row
         expect(gridSpecFor(1_000_000, 3, LAYOUT_TUNING_DEFAULTS).g).toBe(LAYOUT_TUNING_DEFAULTS.gridMax3D);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 37 s on the Windows WARP host lane, 20 s on lavapipe on the dev box under load, 17 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "(5) R-24 measured: hubcell at nearMax 8 under the resampled near field, against the same graph from its uniform start (random20k): finite, settled within the budget, the rule's verdict printed",
-        async (t) => {
-            requireGpu(t);
-            const options: ForceAtlas2Options = { dim: 2, seed: 7, maxIter: R24_BUDGET, maxInFlight: 1 };
-            const runOf = async (
-                name: string,
-                tuning: GpuLayoutTuning,
-            ): Promise<{ readonly settledAt: number; readonly byRule: boolean }> => {
-                const { snapshot: s, start } = gridFixture(name, gpuScale(), options);
-                const sim = createSim(ctx, options, tuning);
-                try {
-                    const positions = Float32Array.from(start);
-                    sim.load(s, positions);
-                    const stats = await sim.run({ maxIter: R24_BUDGET, batch: 10 });
-                    const last = stats.trace[stats.trace.length - 1];
-                    const byRule = last.settledCount >= FA2_DEFAULTS.settleWindow;
-                    console.log(
-                        `[grid-settle] R-24 ${name} n=${s.nodeCount} nearMax=${tuning.nearMax ?? LAYOUT_TUNING_DEFAULTS.nearMax}: settled ${sim.settled} at ${sim.iterationsDone} (by the rule: ${byRule}, settledCount ${last.settledCount}); ` +
-                            `maxCellOccupancy ${stats.maxCellOccupancy}, outsideGrid ${stats.outsideGrid}, meanDisplacement ${stats.meanDisplacement.toExponential(3)}, rmsRadius ${stats.rmsRadius.toExponential(3)}`,
-                    );
-                    expectFinite(positions, name);
-                    expect(sim.settled).toBe(true);
-                    return { settledAt: sim.iterationsDone, byRule };
-                } finally {
-                    sim.dispose();
-                    ctx.release(s);
-                }
-            };
-            const hub = await runOf("hubcell", { ...GRID, nearMax: 8 });
-            const uniform = await runOf("random20k", GRID);
-            expect(hub.byRule, "the resampled near field does not keep the shared rule from firing (R-24)").toBe(true);
-            console.log(
-                `[grid-settle] R-24 verdict: hubcell ${hub.byRule ? `settled by the rule at ${hub.settledAt}` : `did not settle by the rule within ${R24_BUDGET}`}; ` +
-                    `random20k ${uniform.byRule ? `settled by the rule at ${uniform.settledAt}` : `did not settle by the rule within ${R24_BUDGET}`}`,
-            );
-        },
-        CASE_TIMEOUT,
-    );
+    it("(5) R-24 measured: hubcell at nearMax 8 under the resampled near field, against the same graph from its uniform start (random20k): finite, settled within the budget, the rule's verdict printed", async (t) => {
+        requireGpu(t);
+        const options: ForceAtlas2Options = { dim: 2, seed: 7, maxIter: R24_BUDGET, maxInFlight: 1 };
+        const runOf = async (
+            name: string,
+            tuning: GpuLayoutTuning,
+        ): Promise<{ readonly settledAt: number; readonly byRule: boolean }> => {
+            const { snapshot: s, start } = gridFixture(name, gpuScale(), options);
+            const sim = createSim(ctx, options, tuning);
+            try {
+                const positions = Float32Array.from(start);
+                sim.load(s, positions);
+                const stats = await sim.run({ maxIter: R24_BUDGET, batch: 10 });
+                const last = stats.trace[stats.trace.length - 1];
+                const byRule = last.settledCount >= FA2_DEFAULTS.settleWindow;
+                console.log(
+                    `[grid-settle] R-24 ${name} n=${s.nodeCount} nearMax=${tuning.nearMax ?? LAYOUT_TUNING_DEFAULTS.nearMax}: settled ${sim.settled} at ${sim.iterationsDone} (by the rule: ${byRule}, settledCount ${last.settledCount}); ` +
+                        `maxCellOccupancy ${stats.maxCellOccupancy}, outsideGrid ${stats.outsideGrid}, meanDisplacement ${stats.meanDisplacement.toExponential(3)}, rmsRadius ${stats.rmsRadius.toExponential(3)}`,
+                );
+                expectFinite(positions, name);
+                expect(sim.settled).toBe(true);
+                return { settledAt: sim.iterationsDone, byRule };
+            } finally {
+                sim.dispose();
+                ctx.release(s);
+            }
+        };
+        const hub = await runOf("hubcell", { ...GRID, nearMax: 8 });
+        const uniform = await runOf("random20k", GRID);
+        expect(hub.byRule, "the resampled near field does not keep the shared rule from firing (R-24)").toBe(true);
+        console.log(
+            `[grid-settle] R-24 verdict: hubcell ${hub.byRule ? `settled by the rule at ${hub.settledAt}` : `did not settle by the rule within ${R24_BUDGET}`}; ` +
+                `random20k ${uniform.byRule ? `settled by the rule at ${uniform.settledAt}` : `did not settle by the rule within ${R24_BUDGET}`}`,
+        );
+    });
 });

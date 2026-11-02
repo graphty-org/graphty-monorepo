@@ -228,20 +228,14 @@ async function drain(fake: FakeAccelerator): Promise<void> {
     await fake.flush().catch(() => undefined);
 }
 
-/** How long {@link until} may wait for the controller: the test's own budget. */
-const POLL_BUDGET_MS = 10_000;
-
 /**
  * Waits for a condition the controller reaches on its own.
  * @param predicate - What has to become true.
  */
 async function until(predicate: () => boolean): Promise<void> {
-    await vi.waitFor(
-        () => {
-            assert.isTrue(predicate(), "the condition never became true");
-        },
-        { timeout: POLL_BUDGET_MS, interval: 5 },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(predicate(), "the condition never became true");
+    });
 }
 
 afterEach(() => {

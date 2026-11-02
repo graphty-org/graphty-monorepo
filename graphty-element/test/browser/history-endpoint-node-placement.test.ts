@@ -2,9 +2,9 @@
  * @file Undo puts back an arrangement in which a node was unplaced, and the node stays unplaced
  * under every engine (issue #582).
  *
- * The node first exists only as an edge's endpoint, so it has a row and no record, and nothing
- * places it. An expansion then gives it a record, and ngraph and d3, which keep coordinates of
- * their own, place it as the expansion derives. A removal after that is undone: the lane goes
+ * The node first exists only as an edge's endpoint, so it has a row and a record holding only its
+ * id; the spring simulation leaves it unplaced until its next step. An expansion then gives it a
+ * record of its own, and ngraph and d3, which keep coordinates of their own, place it. A removal after that is undone: the lane goes
  * back to the arrangement the expansion began from, where the node was unplaced. ngraph and d3
  * still held their own coordinates for it, and the redraw that follows the restore read them --
  * and the read published them, placing the node at a history position where it never was.
@@ -65,8 +65,13 @@ describe.each(["ngraph", "d3", "spring"])("a node an edge created, under %s", (e
         session.history.clear();
 
         await session.data.addEdges([{ src: "n7", dst: "n1" }]);
+        // An edge's endpoint is drawn (#3192). ngraph and d3 place a node as it is drawn; the
+        // spring simulation leaves it unplaced until its next step, which is the case #582 is about.
         const unplaced = coords(graph, "n7");
-        assert.strictEqual(unplaced, "NaN,NaN,NaN", "an edge's endpoint is unplaced");
+        if (engine === "spring") {
+            assert.strictEqual(unplaced, "NaN,NaN,NaN", "an edge's endpoint is unplaced");
+        }
+
         await session.execute({
             op: "data.expand",
             seed: "n1",

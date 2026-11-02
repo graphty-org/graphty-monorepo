@@ -33,6 +33,7 @@ import { ExpandRequest } from '@graphty/graph-io';
 import { ExportCapabilities } from '@graphty/graph-io';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
+import { FileLayout } from '@graphty/graph-io';
 import { FreezeReport } from '@graphty/graph-format';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
@@ -69,7 +70,7 @@ import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_3 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
-import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
+import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
@@ -123,7 +124,7 @@ import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector';
+import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
 import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
@@ -446,7 +447,6 @@ export interface CameraState {
         z: number;
     };
     radius?: number;
-    // (undocumented)
     rotation?: number;
     // (undocumented)
     target?: {
@@ -458,6 +458,9 @@ export interface CameraState {
     type?: "arcRotate" | "free" | "universal" | "orthographic";
     zoom?: number;
 }
+
+// @public
+export type CameraViewExtent = "centers" | "drawn";
 
 // @public
 export interface CameraViewInput {
@@ -599,8 +602,10 @@ export abstract class DataSource {
     protected chunkSize: number;
     dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean>;
     get declaredDirection(): DeclaredDirection | null;
+    get declaredFileLayout(): FileLayout | null;
     get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
+    protected declareFileLayout(layout: FileLayout | null): void;
     protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
     // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
@@ -750,6 +755,7 @@ export class Edge {
     constructor(graph: Graph | GraphContext, srcNodeId: NodeIdType, dstNodeId: NodeIdType, edgeId: number, paint: EdgePaint, data: AdHocData, opts?: EdgeOpts);
     applySessionPaint(paint: EdgePaint): void;
     arrowCap: ArrowCap | null;
+    get arrowHeadStackCaps(): readonly ArrowCap[];
     // (undocumented)
     arrowHeadText: RichTextLabel | null;
     // @deprecated
@@ -759,6 +765,7 @@ export class Edge {
     arrowTailCap: ArrowCap | null;
     // @deprecated
     arrowTailMesh: AbstractMesh | null;
+    get arrowTailStackCaps(): readonly ArrowCap[];
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     get data(): AdHocData;
@@ -808,6 +815,8 @@ export class Edge {
     // (undocumented)
     ray: Ray;
     // @internal
+    refreshFonts(families: ReadonlySet<string>): boolean;
+    // @internal
     refreshShaderPaint(): void;
     setRenderVisible(visible: boolean): boolean;
     setSelected(selected: boolean): boolean;
@@ -825,6 +834,7 @@ export class Edge {
     // @deprecated
     static updateRays(_g: Graph | GraphContext): void;
     updateStyle(): void;
+    xlabelLabel: RichTextLabel | null;
 }
 
 // @public (undocumented)
@@ -840,8 +850,13 @@ export interface EdgePosition {
     bends?: readonly number[];
     // (undocumented)
     dst: Position;
+    headLabelAt?: readonly [along: number, across: number];
+    labelAt?: readonly [along: number, across: number];
+    leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
     // (undocumented)
     src: Position;
+    tailLabelAt?: readonly [along: number, across: number];
+    xlabelAt?: readonly [along: number, across: number];
 }
 
 // @public
@@ -1586,23 +1601,23 @@ export type GraphtyErrorCode =
 */
 | "E_SOURCE_AUTH"
 /**
-* A network source refused the request for this credential. `details.status`, `details.serverCode`. Experimental.
+* A network source refused the request for this credential. `details.origin` is the host that answered, `details.status`, `details.serverCode`. Experimental.
 */
 | "E_SOURCE_FORBIDDEN"
 /**
-* The item a network source was asked for does not exist. `details.what`, `details.value`. Experimental.
+* The item a network source was asked for does not exist. `details.origin` is the host that answered, `details.what`, `details.value`. Experimental.
 */
 | "E_SOURCE_NOT_FOUND"
 /**
-* A network source answered 429 after the retries. `details.retryAfterMs`. Recoverable later. Experimental.
+* A network source answered 429 after the retries. `details.origin` is the host that answered, `details.retryAfterMs`. Recoverable later. Experimental.
 */
 | "E_SOURCE_QUOTA"
 /**
-* A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.timeoutMs`, `details.serverSide`. Experimental.
+* A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.origin` is the host, `details.timeoutMs`, `details.serverSide`. Experimental.
 */
 | "E_SOURCE_TIMEOUT"
 /**
-* A database rejected the query. `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
+* A database rejected the query. `details.origin` is the host that answered, `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
 */
 | "E_SOURCE_QUERY"
 /**
@@ -1610,7 +1625,7 @@ export type GraphtyErrorCode =
 */
 | "E_SOURCE_NOT_A_GRAPH"
 /**
-* A network source answered with a body of the wrong shape. `details.expected`, `details.contentType`. Experimental.
+* A network source answered with a body of the wrong shape. `details.origin` is the host that answered, `details.expected`, `details.contentType`. Experimental.
 */
 | "E_SOURCE_RESPONSE"
 /**
@@ -1913,6 +1928,7 @@ export abstract class LayoutEngine {
     abstract getEdgePosition(e: Edge): EdgePosition;
     // (undocumented)
     abstract getNodePosition(n: Node_2): Position;
+    getNodeXlabelOffset(_n: Node_2): readonly [right: number, down: number] | undefined;
     static getOptionsForDimension(dimension: 2 | 3): object | null;
     static getOptionsForDimensionByType(type: string, dimension: 2 | 3): object | null;
     static getRegisteredTypes(): string[];
@@ -1925,6 +1941,7 @@ export abstract class LayoutEngine {
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
+    isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
     loadArrangement(): void;
@@ -2057,7 +2074,10 @@ class Node_2 implements ModelUser {
     }>;
     get drawnRadius(): number;
     // @internal
-    framingHalf(axis: "x" | "y" | "z"): number;
+    framingBounds(): {
+        min: Vector3;
+        max: Vector3;
+    };
     getPosition(): {
         x: number;
         y: number;
@@ -2078,6 +2098,8 @@ class Node_2 implements ModelUser {
     isSelected(): boolean;
     // (undocumented)
     label?: RichTextLabel;
+    // @internal
+    get layoutRadius(): number;
     // (undocumented)
     mesh: AbstractMesh;
     // @internal
@@ -2102,7 +2124,11 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
-    refreshScreenBorder(): void;
+    refitPicture(): void;
+    // @internal
+    refreshFonts(families: ReadonlySet<string>): boolean;
+    // @internal
+    refreshScreenBorder(): boolean;
     refreshSelectionOverlay(): void;
     // @internal
     refreshShaderPaint(): void;
@@ -2120,6 +2146,10 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    get surfaceIsBox(): boolean;
+    // @internal
+    syncXlabelPlace(): void;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;
@@ -2127,6 +2157,7 @@ class Node_2 implements ModelUser {
     updateStyle(): void;
     // @internal
     get wordedLabel(): RichTextLabel | null;
+    xlabelLabel?: RichTextLabel;
 }
 export { Node_2 as Node }
 
@@ -2713,6 +2744,7 @@ export interface SnapshotLayoutInput {
     readonly signal: AbortSignal;
     readonly stored: GraphSnapshot;
     warn(warning: SnapshotLayoutWarning): void;
+    weightMeaning?(): "strength" | "distance" | null;
 }
 
 // @public

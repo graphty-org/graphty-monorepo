@@ -42,7 +42,7 @@ export function useClickOutside(callback: () => void, enabled = true): void {
             return undefined;
         }
 
-        const handleMouseDown = (event: MouseEvent): void => {
+        const handlePress = (event: MouseEvent): void => {
             const target = event.target as HTMLElement;
 
             // Check if the click is inside a popout panel
@@ -88,11 +88,30 @@ export function useClickOutside(callback: () => void, enabled = true): void {
             callback();
         };
 
-        // Use mousedown instead of click to prevent race conditions
-        // with the trigger toggle behavior
+        // A mouse or pen press is read at pointerdown: a control that cancels it (Mantine's
+        // ScrollArea scrollbar does, so a drag selects no text) leaves no mousedown behind, and
+        // pressing such a scrollbar outside the pop-out must still close it. A touch is read at its
+        // mousedown, which a tap sends and a swipe that scrolls does not. Both run before click, so
+        // the trigger's own toggle never races this.
+        let pressHandled = false;
+        const handlePointerDown = (event: PointerEvent): void => {
+            pressHandled = event.pointerType !== "touch";
+            if (pressHandled) {
+                handlePress(event);
+            }
+        };
+        const handleMouseDown = (event: MouseEvent): void => {
+            if (pressHandled) {
+                pressHandled = false;
+                return;
+            }
+            handlePress(event);
+        };
+        document.addEventListener("pointerdown", handlePointerDown);
         document.addEventListener("mousedown", handleMouseDown);
 
         return (): void => {
+            document.removeEventListener("pointerdown", handlePointerDown);
             document.removeEventListener("mousedown", handleMouseDown);
         };
     }, [callback, enabled]);

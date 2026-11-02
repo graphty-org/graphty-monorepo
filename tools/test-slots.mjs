@@ -263,8 +263,11 @@ const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(m
  * @param options.log where the one waiting line goes
  * @param options.list reads the live tickets (a test replaces it)
  * @param options.kind "test" or "gpu", for the wait log (tools/wait-log.mjs)
- * @param options.waitLog records a wait that happened (a test replaces it)
- * @returns a function that gives the slot back (a no-op when none was taken)
+ * @param options.waitLog records a wait that happened, and each hold when it ends (a test replaces it)
+ * @param options.what what holds the slot, for the hold's log line: a package or a shard family
+ * @returns a function that gives the slot back and logs the hold, `<kind>-slot-held` with `what` and the exit
+ *   code it is called with (an exit listener's); its `free` gives the slot back without logging, for a teardown
+ *   that runs before the exit code is known. A no-op when no slot was taken.
  */
 export async function acquire({
     label,
@@ -277,6 +280,7 @@ export async function acquire({
     list = liveTickets,
     kind = "test",
     waitLog = logWait,
+    what,
 }) {
     const none = () => {};
     if (slots === 0 || env[HELD]) {
@@ -315,7 +319,7 @@ export async function acquire({
         renameSync(tmp, join(dir, name)); // whole or not at all, for readers
     };
     writeTicket(ticket);
-    const release = () => rmSync(join(dir, name), { force: true });
+    const free = () => rmSync(join(dir, name), { force: true });
     const start = Date.now();
     let holders = null;
     for (;;) {
@@ -323,12 +327,23 @@ export async function acquire({
         const at = placeInLine(live, name);
         if (at === -1) {
             // Our ticket is gone (a cleanup removed the directory): queue again at the back.
-            return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog });
+            return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog, what });
         }
         if (at < slots) {
             // Marked held: placeInLine counts a low ticket that holds a slot (ordinary ones ignore the mark).
             writeTicket({ ...ticket, granted: true });
             if (holders) waitLog({ kind: `${kind}-slot`, start, waiter: label, heldBy: holders });
+            const granted = Date.now();
+            let logged = false;
+            // Every local test run is a slot hold: the health dashboard's Local runs page counts them (#4478).
+            const release = (code) => {
+                free();
+                if (logged) return;
+                logged = true;
+                const exit = typeof code === "number" ? code : null;
+                waitLog({ kind: `${kind}-slot-held`, start: granted, waiter: label, extra: { what, exit } });
+            };
+            release.free = free;
             return release;
         }
         if (!holders) {
@@ -354,6 +369,33 @@ function labelOf(argv) {
 }
 
 /**
+ * The package a vitest run belongs to: its directory's package.json name, without the @graphty/ scope.
+ * @param [dir] the run's directory
+ * @returns the name, or the directory's name
+ */
+export function packageName(dir = process.cwd()) {
+    try {
+        const name = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).name;
+        if (typeof name === "string" && name) return name.replace(/^@graphty\//, "");
+    } catch {
+        // no package.json: the directory names it
+    }
+    return basename(dir);
+}
+
+/**
+ * What a wrapped command runs: the shard family of `bash tools/run-tests.sh [--command] <shard> ...`, else the
+ * command's name.
+ * @param argv the command
+ * @returns the shard family or the command
+ */
+export function commandWhat(argv) {
+    const at = argv.findIndex((a) => basename(a) === "run-tests.sh");
+    const shard = at === -1 ? undefined : argv.slice(at + 1).find((a) => !a.startsWith("--"));
+    return shard ? shard.replace(/-\d+$/, "") : basename(argv[0]);
+}
+
+/**
  * Whether slots are off here (GitHub Actions: one job per runner, nothing to share).
  * @returns true on GitHub Actions
  */
@@ -368,10 +410,10 @@ export default async function setup(project) {
     if (off() || project?.vitest?.config?.watch) {
         return undefined;
     }
-    const release = await acquire({ label: labelOf(["vitest", ...process.argv.slice(2)]) });
+    const release = await acquire({ label: labelOf(["vitest", ...process.argv.slice(2)]), what: packageName() });
     process.on("exit", release);
     process.env[HELD] = String(process.pid);
-    return release;
+    return release.free ?? release;
 }
 
 /**
@@ -419,8 +461,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
                   slots: Math.min(1, slotCount()),
                   env: {},
                   kind: "gpu",
+                  what: commandWhat([cmd, ...args]),
               })
-        : () => acquire({ label });
+        : () => acquire({ label, what: commandWhat([cmd, ...args]) });
     const release = off() ? () => {} : await take();
     process.on("exit", release);
     const child = spawn(cmd, args, { stdio: "inherit", env: { ...process.env, [HELD]: String(process.pid) } });

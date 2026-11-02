@@ -51,13 +51,14 @@ export { focusWithRing } from "./components/inputs/listbox";
 export { type ScrubCallbacks, useScrub } from "./components/inputs/useScrub";
 
 // Overlays: the context menu, the checkable menu row and a row's second line, the modal footer,
-// the toast and the tooltip's shortcut label (8.1-8.6).
+// the toast, the tooltip's shortcut label (8.1-8.6), and the tooltip for a menu's button.
 export {
     ContextMenu,
     MenuCheckItem,
     MenuItemDescription,
     MenuShortcut,
     ModalFooter,
+    TargetTooltip,
     Toast,
     ToastProvider,
     TooltipShortcut,
@@ -292,6 +293,7 @@ export type {
     ContextMenuProps,
     MenuCheckItemProps,
     ModalFooterProps,
+    TargetTooltipProps,
     ToastAction,
     ToastApi,
     ToastOptions,

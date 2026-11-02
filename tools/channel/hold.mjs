@@ -13,6 +13,13 @@
 //   node tools/channel/hold.mjs end      the land job (promoted) or nightly-abandon.yml: clear the hold, close its issue
 //       env WHY, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL; writes base and head (the held commit and the
 //       held head, empty when none); ABANDONED=true (an abandon) also records `rejected` on the held head
+//   node tools/channel/hold.mjs replace  the verdict job, hold=replace (#5052): a newer commit's green-clean or
+//       green-images verdict ends the held head judged red, owner-item or rejected (tools/full-run.mjs holdAction), as
+//       end does, but only while the store still holds HELD; then green-images holds SHA as start does (action start)
+//       and green-clean leaves nothing held, so it promotes (action replace). Writes replaced (the ended head, whose
+//       channel/candidate the candidate_branch job deletes; empty when nothing was ended) and action
+//       env SHA, STATE, WHAT, HELD (the head the verdict judged replaceable), RUN_URL, GH_TOKEN, GITHUB_REPOSITORY,
+//       RESULTS_URL
 //   node tools/channel/hold.mjs auto     release.yml's candidate_fix job, before a full or restart run picks: abandons
 //       the hold when autoAbandon (below) says so, as end does with ABANDONED=true; writes abandoned, base and head
 //       env RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL; git history of master's head (the checkout)
@@ -39,9 +46,9 @@ export function holdIssue({ sha, state, what, run }) {
     const body = [
         `Nightly is held on ${sha}: its full run ended ${state} (${what}) after its one same-commit re-run: ${run}`,
         "",
-        "Master keeps merging, and newer commits' full runs still run and file their red issues, but none of them is promoted to nightly or replaces this candidate. Branch `channel/candidate` holds it.",
+        "Master keeps merging, and newer commits' full runs still run and file their red issues, but none of them is promoted to nightly unless its green run replaces this candidate (below). Branch `channel/candidate` holds it.",
         "",
-        'It ends when this commit promotes to nightly: a red lane or a rejected screenshot is fixed forward, and changed screenshots are approved on the review page. Anyone may end it without a promotion: `gh workflow run nightly-abandon.yml --ref master -f reason="<why>"`. A full run ends it on its own when only a pipeline defect, since fixed on master, held it, or when it is over 24 hours old and master has a newer green build; changed screenshots awaiting review never end it.',
+        'It ends when this commit promotes to nightly: a red lane or a rejected screenshot is fixed forward, and changed screenshots are approved on the review page. While it is red (not waiting on a screenshot review), a green full run on a newer commit replaces it. Anyone may end it without a promotion: `gh workflow run nightly-abandon.yml --ref master -f reason="<why>"`. A full run ends it on its own when only a pipeline defect, since fixed on master, held it, or when it is over 24 hours old and master has a newer green build; changed screenshots awaiting review never end it.',
         "",
         "To fix it forward, start the fix from the candidate's head, never from newer master: `worktree-new.sh fix/<issue>-<topic> origin/channel/candidate --issue <issue>` (the script in tools/; or `" +
             sha +
@@ -72,7 +79,7 @@ async function post(cfg, body) {
 }
 
 async function start(env) {
-    // A held candidate is never replaced, and the store is asked now, not trusted from the pick: a run picked while
+    // start never replaces a held candidate (replace does, for a red one), and the store is asked now, not trusted from the pick: a run picked while
     // nothing was held (or its same-commit re-run, which keeps attempt 1's pick) can end after another run held its
     // commit. Before any issue is opened, so a hold the store refuses (409) leaves no "Nightly held" issue behind.
     const hold = await held(config(env));
@@ -188,12 +195,13 @@ export function autoAbandon({ hold, recent = [], sites = [], chain = [], now = D
     return { abandon: false, why: `the hold on ${s} stands` };
 }
 
+// returns the hold it ended, or null
 async function end(env) {
     const cfg = config(env);
     const hold = await held(cfg);
     if (!hold) {
         output({ base: "", head: "" });
-        return;
+        return null;
     }
     // an abandoned head is rejected before anything is cleared, so an approval of it that merges later promotes
     // nothing (resume.mjs); a failure here leaves the hold standing, and a re-run finishes the abandon
@@ -209,7 +217,7 @@ async function end(env) {
             throw new Error(`the hold on ${hold.base} moved while it was abandoned: run again`);
         console.log(`::warning::the hold on ${hold.base} moved before it was cleared`);
         output({ base: "", head: "" });
-        return;
+        return null;
     }
     if (hold.issue)
         sh([
@@ -220,6 +228,21 @@ async function end(env) {
             `Hold on ${hold.base} ended: ${env.WHY} (${env.RUN_URL}).`,
         ]);
     output({ base: hold.base, head: hold.head });
+    return hold;
+}
+
+async function replace(env) {
+    // only the hold the verdict judged: one a fix moved on since, or another run's, is left alone
+    const hold = await held(config(env));
+    if (!hold || hold.head !== env.HELD) {
+        console.log(`::notice::the hold moved since the verdict read it (${hold?.head ?? "none"}): nothing replaced`);
+        output({ replaced: "", action: "none" });
+        return;
+    }
+    const gone = await end({ ...env, WHY: `replaced by the newer ${env.STATE} full run on ${env.SHA}` });
+    output({ replaced: gone?.head ?? "" });
+    if (gone && env.STATE === "green-images") await start(env);
+    else output({ action: gone ? "replace" : "none" });
 }
 
 async function auto(env) {
@@ -244,9 +267,11 @@ async function auto(env) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-    const cmd = { start, update, end, auto }[process.argv[2]];
+    const cmd = { start, update, end, replace, auto }[process.argv[2]];
     if (!cmd) {
-        console.error("usage: node tools/channel/hold.mjs start | update | end | auto (see the head of the file)");
+        console.error(
+            "usage: node tools/channel/hold.mjs start | update | end | replace | auto (see the head of the file)",
+        );
         process.exit(2);
     }
     await cmd(process.env);

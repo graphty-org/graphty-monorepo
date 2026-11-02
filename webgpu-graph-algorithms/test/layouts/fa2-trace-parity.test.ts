@@ -76,7 +76,6 @@ const ITERATIONS = TRACE_ITERATIONS;
 /** 10 .. 1,000 nodes (spec 11.4): the path of 10, karate, the grid and random1k (scaled on software adapters). */
 const GRAPHS: readonly ParityGraph[] = ["path10", "karate", "grid10", "random1k"];
 const MODES = [PAPER, NETWORKX];
-const CASE_TIMEOUT = 300_000;
 /** The seeds of the free-running sweep (G3-F3 item 2): the pinned parity seed 7 and its seven neighbours. */
 const SWEEP_SEEDS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8];
 /** The sweep's graphs: the three small fixtures of GRAPHS (random1k's oracle at 8 seeds would cost the lavapipe budget). */
@@ -144,71 +143,66 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
         for (const tuning of MODES) {
             const paper = tuning.compat === "paper";
             const label = `${graph}/${tuning.compat ?? "paper"}`;
-            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 181 s on the macOS Metal host lane, 138 s on the T4 lane, 118 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
-            it(
-                `${label}: twice bitwise; re-synchronised within the traced tolerances${paper ? "; the free-running legs printed (chaotic, G3-F3)" : "; free-running first 10 vs f32 within the spec cap, 50 vs f64 printed (seed-bound, G3-F3 item 2)"}`,
-                async (t) => {
-                    requireGpu(t);
-                    const s = paritySnapshot(graph, gpuScale(), false);
-                    try {
-                        const start = startPositions(s, BASE_OPTIONS, false);
-                        const a = await resyncTrace(ctx, s, start, BASE_OPTIONS, tuning, ITERATIONS);
-                        const b = await resyncTrace(ctx, s, start, BASE_OPTIONS, tuning, ITERATIONS);
-                        expectBitwiseEqual(
-                            traceValues(a.trace, 0, ITERATIONS),
-                            traceValues(b.trace, 0, ITERATIONS),
-                            `${label}: trace run 1 vs run 2`,
-                        );
-                        expectBitwiseEqual(a.positions, b.positions, `${label}: positions run 1 vs run 2`);
-                        // the re-synchronised leg (both modes)
-                        const resync = resyncReports(a, label);
-                        console.warn(
-                            `[fa2-trace-parity] ${label}: re-synchronised ${ITERATIONS} iterations: ratio vs f32 ${resync.f32.worst.toExponential(3)}, vs f64 ${resync.f64.worst.toExponential(3)}; per-node positions after one step differ by at most ${Math.max(...a.positionError.f32).toExponential(2)} (f32) / ${Math.max(...a.positionError.f64).toExponential(2)} (f64)`,
-                        );
-                        assertCheckPasses(resync.f32);
-                        assertCheckPasses(resync.f64);
-                        // the free-running legs of spec 11.4
-                        const { f32, f64 } = await oracleTraces(s, start, BASE_OPTIONS, tuning);
-                        expect(f32).toHaveLength(ITERATIONS);
-                        expect(f64).toHaveLength(ITERATIONS);
-                        const reports = traceReports(a.trace, f32, f64, label);
-                        const fold = {
-                            worst: ratioOf(
-                                statsFoldError(a.stats, f64, 0, ITERATIONS),
-                                toleranceOf("fa2-trace-parity.f64"),
-                            ),
-                            worstLabel: `${label}: K1 fold fields`,
-                            samples: 5 * ITERATIONS,
-                        };
-                        console.warn(
-                            `[fa2-trace-parity] ${label}: free-running first ${TRACE_TIGHT} vs f32 ratio ${reports.first10.worst.toExponential(3)}${paper ? " (paper mode: informational, G3-F3)" : ""}; ${ITERATIONS} vs f64 ratio ${reports.through50.worst.toExponential(3)}; K1 fold ratio ${fold.worst.toExponential(3)} (the 50-iteration legs: informational in both modes, G3-F3 item 2)`,
-                        );
-                        if (!paper) {
-                            assertCheckPasses(reports.first10);
-                        }
-                        // settleThreshold 0: K1 increments settledCount only when meanDisplacement is exactly 0 (every node fixed)
-                        expect(
-                            a.trace.every((r) => r.settledCount === 0),
-                            `${label}: never settles`,
-                        ).toBe(true);
-                        // iteration 1 carries FA2_FLAG_FIRST: K1 folds nothing and reports the host-written meanDisplacement 0
-                        expect(a.trace[0].meanDisplacement).toBe(0);
-                        // every later record reports a positive mean displacement (the layout moves)
-                        expect(
-                            a.trace.slice(1).every((r) => r.meanDisplacement > 0),
-                            `${label}: moving`,
-                        ).toBe(true);
-                        // every value of every record finite
-                        expect(
-                            traceValues(a.trace, 0, ITERATIONS).every((v) => Number.isFinite(v)),
-                            `${label}: finite trace`,
-                        ).toBe(true);
-                    } finally {
-                        ctx.release(s);
+            it(`${label}: twice bitwise; re-synchronised within the traced tolerances${paper ? "; the free-running legs printed (chaotic, G3-F3)" : "; free-running first 10 vs f32 within the spec cap, 50 vs f64 printed (seed-bound, G3-F3 item 2)"}`, async (t) => {
+                requireGpu(t);
+                const s = paritySnapshot(graph, gpuScale(), false);
+                try {
+                    const start = startPositions(s, BASE_OPTIONS, false);
+                    const a = await resyncTrace(ctx, s, start, BASE_OPTIONS, tuning, ITERATIONS);
+                    const b = await resyncTrace(ctx, s, start, BASE_OPTIONS, tuning, ITERATIONS);
+                    expectBitwiseEqual(
+                        traceValues(a.trace, 0, ITERATIONS),
+                        traceValues(b.trace, 0, ITERATIONS),
+                        `${label}: trace run 1 vs run 2`,
+                    );
+                    expectBitwiseEqual(a.positions, b.positions, `${label}: positions run 1 vs run 2`);
+                    // the re-synchronised leg (both modes)
+                    const resync = resyncReports(a, label);
+                    console.warn(
+                        `[fa2-trace-parity] ${label}: re-synchronised ${ITERATIONS} iterations: ratio vs f32 ${resync.f32.worst.toExponential(3)}, vs f64 ${resync.f64.worst.toExponential(3)}; per-node positions after one step differ by at most ${Math.max(...a.positionError.f32).toExponential(2)} (f32) / ${Math.max(...a.positionError.f64).toExponential(2)} (f64)`,
+                    );
+                    assertCheckPasses(resync.f32);
+                    assertCheckPasses(resync.f64);
+                    // the free-running legs of spec 11.4
+                    const { f32, f64 } = await oracleTraces(s, start, BASE_OPTIONS, tuning);
+                    expect(f32).toHaveLength(ITERATIONS);
+                    expect(f64).toHaveLength(ITERATIONS);
+                    const reports = traceReports(a.trace, f32, f64, label);
+                    const fold = {
+                        worst: ratioOf(
+                            statsFoldError(a.stats, f64, 0, ITERATIONS),
+                            toleranceOf("fa2-trace-parity.f64"),
+                        ),
+                        worstLabel: `${label}: K1 fold fields`,
+                        samples: 5 * ITERATIONS,
+                    };
+                    console.warn(
+                        `[fa2-trace-parity] ${label}: free-running first ${TRACE_TIGHT} vs f32 ratio ${reports.first10.worst.toExponential(3)}${paper ? " (paper mode: informational, G3-F3)" : ""}; ${ITERATIONS} vs f64 ratio ${reports.through50.worst.toExponential(3)}; K1 fold ratio ${fold.worst.toExponential(3)} (the 50-iteration legs: informational in both modes, G3-F3 item 2)`,
+                    );
+                    if (!paper) {
+                        assertCheckPasses(reports.first10);
                     }
-                },
-                CASE_TIMEOUT,
-            );
+                    // settleThreshold 0: K1 increments settledCount only when meanDisplacement is exactly 0 (every node fixed)
+                    expect(
+                        a.trace.every((r) => r.settledCount === 0),
+                        `${label}: never settles`,
+                    ).toBe(true);
+                    // iteration 1 carries FA2_FLAG_FIRST: K1 folds nothing and reports the host-written meanDisplacement 0
+                    expect(a.trace[0].meanDisplacement).toBe(0);
+                    // every later record reports a positive mean displacement (the layout moves)
+                    expect(
+                        a.trace.slice(1).every((r) => r.meanDisplacement > 0),
+                        `${label}: moving`,
+                    ).toBe(true);
+                    // every value of every record finite
+                    expect(
+                        traceValues(a.trace, 0, ITERATIONS).every((v) => Number.isFinite(v)),
+                        `${label}: finite trace`,
+                    ).toBe(true);
+                } finally {
+                    ctx.release(s);
+                }
+            });
         }
     }
 
@@ -346,88 +340,83 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
             }
         });
     }
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 128 s on the macOS Metal host lane, 41 s on the Windows WARP host lane, 13 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "the networkx free-running 50-vs-f64 leg across seeds 1 .. 8 is seed-bound, not kernel-bound (G3-F3 item 2): printed on every run, the oracle pair recorded (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            requireGpu(t);
-            const f32Tol = toleranceOf("fa2-trace-parity.f32");
-            const f64Tol = toleranceOf("fa2-trace-parity.f64");
-            const capRatio = 5e-2 / f64Tol;
-            for (const graph of SWEEP_GRAPHS) {
-                const s = paritySnapshot(graph, 1, false);
-                try {
-                    const lines: string[] = [];
-                    let oracleWorst10 = 0;
-                    let oracleWorst50 = 0;
-                    let gpuWorst10 = 0;
-                    let gpuWorst50 = 0;
-                    let oracleAbs10 = 0;
-                    let oracleAbs50 = 0;
-                    let seedsOverCap = 0;
-                    for (const seed of SWEEP_SEEDS) {
-                        const options: ForceAtlas2Options = { ...BASE_OPTIONS, seed };
-                        const start = startPositions(s, options, false);
-                        const { f32, f64 } = await oracleTraces(s, start, options, NETWORKX);
-                        const gpu = await freeRunningTrace(ctx, s, start, options, NETWORKX, ITERATIONS);
-                        expect(gpu, `${graph} seed ${seed}: one record per step`).toHaveLength(ITERATIONS);
-                        // the oracle pair: the f32 oracle's own free-running divergence from the f64 oracle
-                        const o10 = traceError(f32, f64, 0, TRACE_TIGHT) / f32Tol;
-                        const o50 = traceError(f32, f64, 0, ITERATIONS) / f64Tol;
-                        // the GPU's legs of this file, at this seed
-                        const g10 = traceError(gpu, f32, 0, TRACE_TIGHT) / f32Tol;
-                        const g50 = traceError(gpu, f64, 0, ITERATIONS) / f64Tol;
-                        oracleWorst10 = Math.max(oracleWorst10, o10);
-                        oracleWorst50 = Math.max(oracleWorst50, o50);
-                        oracleAbs10 = Math.max(
-                            oracleAbs10,
-                            maxAbsDiff(traceValues(f32, 0, TRACE_TIGHT), traceValues(f64, 0, TRACE_TIGHT)),
-                        );
-                        oracleAbs50 = Math.max(
-                            oracleAbs50,
-                            maxAbsDiff(traceValues(f32, 0, ITERATIONS), traceValues(f64, 0, ITERATIONS)),
-                        );
-                        gpuWorst10 = Math.max(gpuWorst10, g10);
-                        gpuWorst50 = Math.max(gpuWorst50, g50);
-                        if (g50 > capRatio) {
-                            seedsOverCap += 1;
-                        }
-                        lines.push(
-                            `s${seed}: oracle f32-vs-f64 ${o10.toExponential(2)} / ${o50.toExponential(2)}, gpu ${g10.toExponential(2)} / ${g50.toExponential(2)}`,
-                        );
-                    }
-                    console.warn(
-                        `[fa2-trace-parity] seeds/${graph}/networkx (ratios first ${TRACE_TIGHT} vs f32 / ${ITERATIONS} vs f64, tolerances ${f32Tol.toExponential(3)} / ${f64Tol.toExponential(3)}): ${lines.join("; ")}; worst oracle ${oracleWorst10.toExponential(3)} / ${oracleWorst50.toExponential(3)}, worst gpu ${gpuWorst10.toExponential(3)} / ${gpuWorst50.toExponential(3)}; ${seedsOverCap} of ${SWEEP_SEEDS.length} seeds over the 5e-2 cap on the GPU`,
+    it("the networkx free-running 50-vs-f64 leg across seeds 1 .. 8 is seed-bound, not kernel-bound (G3-F3 item 2): printed on every run, the oracle pair recorded (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        requireGpu(t);
+        const f32Tol = toleranceOf("fa2-trace-parity.f32");
+        const f64Tol = toleranceOf("fa2-trace-parity.f64");
+        const capRatio = 5e-2 / f64Tol;
+        for (const graph of SWEEP_GRAPHS) {
+            const s = paritySnapshot(graph, 1, false);
+            try {
+                const lines: string[] = [];
+                let oracleWorst10 = 0;
+                let oracleWorst50 = 0;
+                let gpuWorst10 = 0;
+                let gpuWorst50 = 0;
+                let oracleAbs10 = 0;
+                let oracleAbs50 = 0;
+                let seedsOverCap = 0;
+                for (const seed of SWEEP_SEEDS) {
+                    const options: ForceAtlas2Options = { ...BASE_OPTIONS, seed };
+                    const start = startPositions(s, options, false);
+                    const { f32, f64 } = await oracleTraces(s, start, options, NETWORKX);
+                    const gpu = await freeRunningTrace(ctx, s, start, options, NETWORKX, ITERATIONS);
+                    expect(gpu, `${graph} seed ${seed}: one record per step`).toHaveLength(ITERATIONS);
+                    // the oracle pair: the f32 oracle's own free-running divergence from the f64 oracle
+                    const o10 = traceError(f32, f64, 0, TRACE_TIGHT) / f32Tol;
+                    const o50 = traceError(f32, f64, 0, ITERATIONS) / f64Tol;
+                    // the GPU's legs of this file, at this seed
+                    const g10 = traceError(gpu, f32, 0, TRACE_TIGHT) / f32Tol;
+                    const g50 = traceError(gpu, f64, 0, ITERATIONS) / f64Tol;
+                    oracleWorst10 = Math.max(oracleWorst10, o10);
+                    oracleWorst50 = Math.max(oracleWorst50, o50);
+                    oracleAbs10 = Math.max(
+                        oracleAbs10,
+                        maxAbsDiff(traceValues(f32, 0, TRACE_TIGHT), traceValues(f64, 0, TRACE_TIGHT)),
                     );
-                    // every value finite at every seed (a NaN trajectory would be a kernel defect, whatever the seed)
-                    expect(Number.isFinite(gpuWorst10) && Number.isFinite(gpuWorst50), `${graph}: finite`).toBe(true);
-                    // the record of the decision: the oracle pair at both horizons, adapter-independent, never a
-                    // tolerance's basis (the first-10 row is the basis the owner would re-derive fa2-trace-parity.f32
-                    // from, G3-F3 item 2)
-                    const rowOf = (
-                        suffix: string,
-                        horizon: number,
-                        relRatio: number,
-                        tol: number,
-                        abs: number,
-                    ): NoiseRow => ({
-                        id: `fa2-trace-parity.${suffix}.${graph}`,
-                        kernel: NOISE_FIXTURES.trace50Karate.kernel,
-                        fixture: `${graph}-trace${horizon}-seeds1-8`,
-                        comparison: "oracle-f64",
-                        a: ORACLE_F32_CLASS,
-                        b: ORACLE_F64_CLASS,
-                        maxRelError: relRatio * tol,
-                        maxAbsError: abs,
-                        samples: 6 * horizon * SWEEP_SEEDS.length,
-                    });
-                    recordNoiseRow(rowOf("seeds10", TRACE_TIGHT, oracleWorst10, f32Tol, oracleAbs10));
-                    recordNoiseRow(rowOf("seeds", ITERATIONS, oracleWorst50, f64Tol, oracleAbs50));
-                } finally {
-                    ctx.release(s);
+                    oracleAbs50 = Math.max(
+                        oracleAbs50,
+                        maxAbsDiff(traceValues(f32, 0, ITERATIONS), traceValues(f64, 0, ITERATIONS)),
+                    );
+                    gpuWorst10 = Math.max(gpuWorst10, g10);
+                    gpuWorst50 = Math.max(gpuWorst50, g50);
+                    if (g50 > capRatio) {
+                        seedsOverCap += 1;
+                    }
+                    lines.push(
+                        `s${seed}: oracle f32-vs-f64 ${o10.toExponential(2)} / ${o50.toExponential(2)}, gpu ${g10.toExponential(2)} / ${g50.toExponential(2)}`,
+                    );
                 }
+                console.warn(
+                    `[fa2-trace-parity] seeds/${graph}/networkx (ratios first ${TRACE_TIGHT} vs f32 / ${ITERATIONS} vs f64, tolerances ${f32Tol.toExponential(3)} / ${f64Tol.toExponential(3)}): ${lines.join("; ")}; worst oracle ${oracleWorst10.toExponential(3)} / ${oracleWorst50.toExponential(3)}, worst gpu ${gpuWorst10.toExponential(3)} / ${gpuWorst50.toExponential(3)}; ${seedsOverCap} of ${SWEEP_SEEDS.length} seeds over the 5e-2 cap on the GPU`,
+                );
+                // every value finite at every seed (a NaN trajectory would be a kernel defect, whatever the seed)
+                expect(Number.isFinite(gpuWorst10) && Number.isFinite(gpuWorst50), `${graph}: finite`).toBe(true);
+                // the record of the decision: the oracle pair at both horizons, adapter-independent, never a
+                // tolerance's basis (the first-10 row is the basis the owner would re-derive fa2-trace-parity.f32
+                // from, G3-F3 item 2)
+                const rowOf = (
+                    suffix: string,
+                    horizon: number,
+                    relRatio: number,
+                    tol: number,
+                    abs: number,
+                ): NoiseRow => ({
+                    id: `fa2-trace-parity.${suffix}.${graph}`,
+                    kernel: NOISE_FIXTURES.trace50Karate.kernel,
+                    fixture: `${graph}-trace${horizon}-seeds1-8`,
+                    comparison: "oracle-f64",
+                    a: ORACLE_F32_CLASS,
+                    b: ORACLE_F64_CLASS,
+                    maxRelError: relRatio * tol,
+                    maxAbsError: abs,
+                    samples: 6 * horizon * SWEEP_SEEDS.length,
+                });
+                recordNoiseRow(rowOf("seeds10", TRACE_TIGHT, oracleWorst10, f32Tol, oracleAbs10));
+                recordNoiseRow(rowOf("seeds", ITERATIONS, oracleWorst50, f64Tol, oracleAbs50));
+            } finally {
+                ctx.release(s);
             }
-        },
-        CASE_TIMEOUT,
-    );
+        }
+    });
 });

@@ -99,21 +99,21 @@ describe("3D Camera Controls", () => {
 
     test("WASD keys control camera movement", async () => {
         graph.canvas.focus();
-        const initialDistance = cameraController.cameraDistance;
 
-        // Test W key (zoom in)
+        // Each key is measured over one update counted from after its press: the render loop
+        // updates too while the keys change, and a released W still owes the rest of its tap
+        // (TAP_FRAMES) until S is pressed, so a distance read before the S press is not a
+        // baseline for S (#5129).
         await holdKey("w");
+        const beforeW = cameraController.cameraDistance;
         inputController.update();
+        assert.isBelow(cameraController.cameraDistance, beforeW, "W key should zoom in (decrease distance)");
 
-        assert.isTrue(cameraController.cameraDistance < initialDistance, "W key should zoom in (decrease distance)");
-
-        // Release W, reset, and test S key (zoom out): the press itself zooms a notch
         await releaseKey("w");
-        cameraController.cameraDistance = initialDistance;
         await holdKey("s");
+        const beforeS = cameraController.cameraDistance;
         inputController.update();
-
-        assert.isTrue(cameraController.cameraDistance > initialDistance, "S key should zoom out (increase distance)");
+        assert.isAbove(cameraController.cameraDistance, beforeS, "S key should zoom out (increase distance)");
     });
 
     test("AD keys control yaw (spin)", async () => {

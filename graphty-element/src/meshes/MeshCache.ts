@@ -1,7 +1,7 @@
 // Installs Mesh.prototype.createInstance, which get() calls. This module loads it itself so any
 // path that reaches get() -- including a consumer resolving the element from source -- has it.
 // See test/packaging/babylon-side-effects.test.ts.
-import "@babylonjs/core/Meshes/instancedMesh";
+import "@babylonjs/core/Meshes/instancedMesh.js";
 
 import { InstancedMesh, Mesh, type Scene } from "@babylonjs/core";
 
@@ -135,6 +135,26 @@ export class MeshCache {
                 this.meshCacheMap.delete(name);
             }
         }
+    }
+
+    /**
+     * Dispose and forget the cached meshes that match, with every instance drawn from them, so the
+     * next `get` of their name builds them again: a look whose drawing went stale (a glyph drawn in
+     * the fallback while its web font loaded). Whoever held an instance finds it disposed.
+     * @param match - Whether a cached source mesh is stale.
+     * @returns True when any was forgotten.
+     */
+    forget(match: (mesh: Mesh) => boolean): boolean {
+        let forgot = false;
+        for (const [name, mesh] of this.meshCacheMap) {
+            if (match(mesh)) {
+                MeshCache.disposeSource(mesh);
+                this.meshCacheMap.delete(name);
+                forgot = true;
+            }
+        }
+
+        return forgot;
     }
 
     /**

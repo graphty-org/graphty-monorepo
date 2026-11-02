@@ -91,9 +91,15 @@ export interface ToolDefaults {
     /**
      * The largest corner radius, in `units`, the program draws on a rounded rectangle whose file gives none. Not a
      * node default: it only bounds the rounding of the shape the file names, so no rule carries it and no writer has
-     * to hold it.
+     * to hold it. Absent, the corners have no cap and are `roundedCornerFraction` of the shorter side at any size.
      */
     readonly roundedCornerRadius?: ToolDefaultValue<number>;
+    /**
+     * The fraction of a rounded rectangle's shorter side the program rounds its corners by when the file gives no
+     * radius, before `roundedCornerRadius` caps it: Cytoscape.js a quarter, Graphviz a third, Cytoscape desktop an
+     * eighth. Absent, a quarter. Not a node default, for the same reason as the cap.
+     */
+    readonly roundedCornerFraction?: ToolDefaultValue<number>;
     /**
      * How big the program draws its filled triangle arrowhead, which it sizes from the line width and its own size
      * setting rather than from the neutral `arrowSize` alone. Not an edge default: the size follows from two
@@ -106,6 +112,22 @@ export interface ToolDefaults {
      * it says how every node's border width is read, so no rule carries it. Absent, a border width is a length.
      */
     readonly nodeBorderOnScreen?: ToolDefaultValue<boolean>;
+    /**
+     * Whether the program draws a label's `labelSize`, node and edge alike, in screen pixels, the same at every zoom,
+     * rather than as a length that grows and shrinks with the drawing: sigma keeps a label 12 px tall however far the
+     * view zooms. Not a label default: it says how every label size is read, so no rule carries it. Absent, a label
+     * size is a length.
+     */
+    readonly labelSizeOnScreen?: ToolDefaultValue<boolean>;
+    /**
+     * How far apart, in `units`, the program's own layout leaves the nodes of a file that stores no positions: the
+     * median distance from a node to its nearest neighbor once the layout it runs on load has settled, measured on
+     * the program's own drawings of real files. Not its spring length: layouts settle at different multiples of their
+     * springs. Not an edge default: it says how the program spaces a layout, so no rule carries it. Absent for a
+     * program whose layout of such a file has no fixed spacing (Gephi scatters nodes over a square whatever their
+     * number).
+     */
+    readonly layoutSpacing?: ToolDefaultValue<number>;
 }
 
 /**
@@ -242,16 +264,30 @@ const DRAWIO_ARROWHEAD: ToolArrowhead = {
 };
 
 /**
- * The largest corner radius of a rounded rectangle whose file gives none, in the program's units. Cytoscape.js is the
- * one program that publishes its rule (`getRoundRectangleRadius`); the others draw barely rounded corners too, so they
- * get the same 8, and a 513 x 453 group keeps small corners instead of a quarter of its side.
- * @param tool - the program, when it is not Cytoscape.js and so states no radius of its own
+ * The largest corner radius of a rounded rectangle whose file gives none, in the program's units. Cytoscape.js
+ * publishes its rule (`getRoundRectangleRadius`); Graphviz and vis-network were measured or read below, and Cytoscape
+ * desktop has none (`roundedCornerFraction` alone states its corners). A program
+ * whose own radius is not known gets Cytoscape.js's 8, and the source says so, so a 513 x 453 group keeps small
+ * corners instead of a quarter of its side.
+ * @param tool - the program, when its own radius is not known
+ * @param why - what is known of the program's own corners instead
  * @returns the default
  */
-function cornerCap(tool?: string): ToolDefaultValue<number> {
+function cornerCap(tool?: string, why = "states none"): ToolDefaultValue<number> {
     const rule = `${CYJS} 4386`;
-    return v(8, tool === undefined ? rule : `${rule} (Cytoscape.js's rule; ${tool} states none)`);
+    return v(8, tool === undefined ? rule : `${rule} (Cytoscape.js's rule, unverified for ${tool}: it ${why})`);
 }
+
+/**
+ * Cytoscape desktop's corners: Cytoscape 3.10.5 draws a round rectangle's corners an eighth of its shorter side
+ * whatever its size, with no cap (its SVG export of a CX2 file: 7.5 on a 120 x 60 node, 2.5 on 40 x 20, 56.6 on
+ * 513 x 453).
+ */
+const CYTOSCAPE_DESKTOP_CORNERS: ToolDefaultValue<number> = v(
+    1 / 8,
+    "Cytoscape 3.10.5's SVG export of a CX2 file: round rectangle corners 7.5 on a 120 x 60 node, 2.5 on 40 x 20, " +
+        "56.6 on 513 x 453, an eighth of the shorter side with no cap (measured)",
+);
 
 /**
  * The defaults of every program graph-io recognizes as a file's writer, by tool id.
@@ -264,8 +300,15 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape",
                 version: "cytoscape-impl develop 6c63e97c5152 (3.11)",
                 units: "px",
-                roundedCornerRadius: cornerCap("cytoscape"),
+                roundedCornerFraction: CYTOSCAPE_DESKTOP_CORNERS,
                 arrowhead: CYTOSCAPE_ARROWHEAD,
+                layoutSpacing: v(
+                    102,
+                    "Cytoscape lays out a network with no view coordinates with its default layout, force-directed " +
+                        "(layout-prefuse-impl ForceDirectedLayoutContext.java, defaultSpringLength 50.0), which " +
+                        "settles at about 2 springs: nearest-node spacing 94.7 and 109.1 px in Cytoscape 3.10.5's " +
+                        "drawings of cx-radiation-bibliography and cx-repro-unplaced-boxes (the fidelity oracles)",
+                ),
                 node: {
                     fill: v("#89d0f5", `${CY} 382`),
                     fillOpacity: v(1, `${CY} 383`),
@@ -312,6 +355,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelLineHeight: CYTOSCAPE_LABEL_LINE_HEIGHT,
                     // EDGE_CURVED is true there, but it only rounds an edge's bends: an edge without bends is straight
                     curved: v(false, `${CY} 422`),
+                    fanned: v(
+                        true,
+                        `${MEASURED}cys-import-and-save, cx-lianhe-affiliation), Cytoscape 3.10.5: the edges joining two nodes are spread apart`,
+                    ),
                     bendCurve: CYTOSCAPE_BEND_CURVE,
                 },
                 graph: { background: v("#ffffff", `${CY} 335`) },
@@ -321,7 +368,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape-fallbacks",
                 version: "cytoscape-api develop (3.11)",
                 units: "px",
-                roundedCornerRadius: cornerCap("cytoscape-fallbacks"),
+                roundedCornerFraction: CYTOSCAPE_DESKTOP_CORNERS,
                 arrowhead: CYTOSCAPE_ARROWHEAD,
                 node: {
                     fill: v("#c80000", `${CYL} 83`),
@@ -373,6 +420,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "cytoscape.js 3.34.3",
                 units: "px",
                 roundedCornerRadius: cornerCap(),
+                roundedCornerFraction: v(
+                    1 / 4,
+                    `${CYJS} 4386 (getRoundRectangleRadius: a quarter of the shorter side)`,
+                ),
                 arrowhead: {
                     // getArrowWidth, and the triangle's points at +-0.15, -0.3 of it
                     length: (size, width) => 0.3 * Math.max((width * 13.37) ** 0.9, 29) * size,
@@ -442,6 +493,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     curved: v(false, `${CYJS} 18658`),
                     // control-point-step-size 40: a quadratic's middle is half as far out as its control point
                     fanSpacing: v(20, `${CYJS} 18647`),
+                    fanned: v(
+                        true,
+                        `${CYJS} 18647 (bezier edges joining the same two nodes are spread control-point-step-size apart)`,
+                    ),
                     labelColor: v("#000000", `${CYJS} 18474`),
                     labelSize: v(16, `${CYJS} 18496`),
                     labelFont: v("Helvetica Neue, Helvetica, sans-serif", `${CYJS} 18493`),
@@ -457,7 +512,20 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "graphviz",
                 version: "graphviz main (16.1.0)",
                 units: "px",
-                roundedCornerRadius: cornerCap("graphviz"),
+                roundedCornerRadius: v(
+                    12,
+                    "Graphviz 2.43.0 dot -Tsvg of style=rounded boxes: 12 points on a 504 x 432 box, a third of the " +
+                        "shorter side (7.33) on a 36 x 22 one (lib/common/shapes.c round_corners, RBCONST 12)",
+                ),
+                roundedCornerFraction: v(
+                    1 / 3,
+                    "Graphviz 2.43.0 dot -Tsvg of fixedsize style=rounded boxes: each side's straight run starts " +
+                        "4.67 in on a 22 x 14 box, 7.33 on 36 x 22 and 12 on 72 x 36 (a third of the shorter side), " +
+                        "and 12 on 72 x 72, 144 x 43, 216 x 144 and 504 x 432 (the cap)",
+                ),
+                // the median of the nearest-node spacings dot, neato and twopi leave in the nine fidelity oracles of DOT
+                // files with no positions (28 to 102 points)
+                layoutSpacing: v(75, `${GV} (dot, neato, twopi on dot-real-*, dot-synth-*, dot-profile)`),
                 arrowhead: {
                     // ARROW_LENGTH 10 and the normal arrow's half width 0.35 of its length
                     length: (size) => 10 * size,
@@ -548,6 +616,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${YED_CORPUS} of y:EdgeLabel`),
                     labelFont: v("DejaVu Sans, sans-serif", `${YED_CORPUS} of y:EdgeLabel (Dialog's face)`),
                     labelSize: v(12, `${YED_CORPUS} of y:EdgeLabel`),
+                    fanned: v(
+                        false,
+                        `${YED_EDGE} (an edge is drawn along its own path and bends, whatever other edges join its nodes)`,
+                    ),
                 },
                 graph: {
                     background: v(
@@ -588,6 +660,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${Y3} LabelStyle textFill`),
                     labelFont: v("Arial", `${Y3} LabelStyle font`),
                     labelSize: v(12, `${Y3} LabelStyle font`),
+                    fanned: v(
+                        false,
+                        `${Y3} PolylineEdgeStyle (an edge is drawn along its own path and bends, whatever other edges join its nodes)`,
+                    ),
                 },
                 graph: {
                     background: v("#ffffff", `${Y3} GraphComponent (a transparent canvas over the page's white)`),
@@ -598,7 +674,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "gephi",
                 version: "gephi 0.11.4-SNAPSHOT",
                 units: "relative",
-                roundedCornerRadius: cornerCap("gephi"),
+                roundedCornerRadius: cornerCap("gephi", "draws no rounded rectangle (its preview draws discs)"),
                 arrowhead: {
                     length: (size, width) => 3.25 * width * size,
                     aspect: 0.9,
@@ -657,7 +733,18 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "vis-network",
                 version: "vis-network 10.1.2",
                 units: "px",
-                roundedCornerRadius: cornerCap("vis-network"),
+                // barnesHut's springLength 95 settles at about 0.9 springs: the median over the six json-vis-* fidelity
+                // oracles with no positions (73 to 131 px)
+                layoutSpacing: v(87, `${VIS} (physics.barnesHut.springLength 95, stabilized)`),
+                roundedCornerRadius: v(
+                    6,
+                    "vis-network 9.1.9 peer/esm/vis-network.js line 19152 (shapeProperties.borderRadius 6, a box's " +
+                        "corners) and drawRoundRect (the radius as given, at most half a side)",
+                ),
+                roundedCornerFraction: v(
+                    1 / 2,
+                    "vis-network 9.1.9 peer/esm/vis-network.js drawRoundRect (the radius as given, at most half a side)",
+                ),
                 arrowhead: {
                     // EdgeBase.getArrowData: 15 * scaleFactor + 3 * width; ArrowHead's points at -1, +-0.3
                     length: (size, width) => 15 * size + 3 * width,
@@ -696,6 +783,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 },
                 edge: {
                     width: v(1, `${VIS} lines 25160-25290`),
+                    // no line is drawn thinner on screen, whatever its width or the zoom (width 0 included)
+                    minScreenWidth: v(0.3, `${VIS9} EdgeBase.getLineWidth: max(width, 0.3 / view.scale)`),
                     outlineColor: v("#6f6f6f", `${VIS} lines 25160-25290 (background.color)`),
                     lineStyle: v("solid", `${VIS} lines 25160-25290 (dashes false)`),
                     sourceArrow: v("none", `${VIS} lines 25160-25290`),
@@ -724,7 +813,11 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "sigma",
                 version: "sigma 4.0.1",
                 units: "relative",
-                roundedCornerRadius: cornerCap("sigma"),
+                roundedCornerRadius: cornerCap("sigma", "draws no rounded rectangle (its node program draws discs)"),
+                labelSizeOnScreen: v(
+                    true,
+                    "sigma 4.0.1 dist/factory-668a8969.esm.js lines 3241 and 5936 (a node label's zoomToLabelSizeRatioFunction is 1, an edge label's fontSizeMode \"fixed\")",
+                ),
                 node: {
                     fill: v("#666666", `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (color "#666")`),
                     shape: v("ellipse", `${SIGMA}/settings.ts lines 119-126`),

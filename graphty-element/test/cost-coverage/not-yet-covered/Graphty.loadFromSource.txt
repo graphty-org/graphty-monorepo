@@ -1,1 +1,0 @@
-No counted-work test yet: a source load reads through a source the test must register; covered by the session's data.import-source fixtures (issue #2907).

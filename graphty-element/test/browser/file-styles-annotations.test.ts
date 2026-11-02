@@ -95,7 +95,17 @@ describe("a file's annotations", () => {
         assert.isAtMost(note.box.y1, box.y0 + 1);
         assert.closeTo(arrow.x1, b.x, 2);
         assert.closeTo(arrow.y1, b.y, 2);
-        assert.closeTo(arrow.x0, note.box.x0, 2);
+        // it leaves the note where a line from the center of the note's text box toward b crosses the box, as
+        // Cytoscape 3.10.5 does (cys-annotation-example: the GCN3 arrow starts at (1049.6, 546.6), on its note's box,
+        // not at the arrow's saved corner (1000.5, 522.2)); here that is the box's bottom side
+        const c = { x: (note.box.x0 + note.box.x1) / 2, y: (note.box.y0 + note.box.y1) / 2 };
+        const [dx, dy] = [b.x - c.x, b.y - c.y];
+        const t = Math.min(
+            (note.box.x1 - note.box.x0) / 2 / Math.abs(dx),
+            (note.box.y1 - note.box.y0) / 2 / Math.abs(dy),
+        );
+        assert.closeTo(arrow.x0, c.x + dx * t, 2);
+        assert.closeTo(arrow.y0, c.y + dy * t, 2);
         // its one head (a triangle at the target, none at the source) is read as a box of its own at the target end
         const heads = drawn.annotations.find((x) => x.kind === "arrow")?.heads ?? [];
         assert.lengthOf(heads, 1);

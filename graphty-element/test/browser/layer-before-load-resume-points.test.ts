@@ -37,8 +37,6 @@ const LAYER: LayerSpec = {
     set: { "node.size": SIZE },
 };
 
-const MOUNT_TIMEOUT_MS = 10000;
-
 /** The routes a graph arrives by. Each returns the load's promise, or undefined for a property. */
 const LOADS = {
     "the nodeData property": (target: Graphty): Promise<void> | undefined => {
@@ -84,12 +82,9 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
-        },
-        { timeout: MOUNT_TIMEOUT_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+    });
 
     return mounted;
 }

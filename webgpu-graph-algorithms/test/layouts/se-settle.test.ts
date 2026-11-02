@@ -24,7 +24,6 @@ import { edgeLengthQuantiles } from "../helpers/metrics.js";
 import { STORY_NODE_COUNT, storyEdges, storyGraph } from "../helpers/story-graph.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 600_000;
 const MAX_STEPS = 1000;
 const QUANTILES = [0.1, 0.5, 0.9] as const;
 /** The gate's number: 25% relative per quantile. */
@@ -114,58 +113,50 @@ describe("G5: the spring-electrical preset vs ngraph on the story graph (design 
         ctx = await acquire({ label: "se-settle" });
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 13 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "settles within 1,000 steps by the shared rule, the same run is bitwise repeatable, and the edge-length quantiles agree with ngraph's within 25%",
-        async (t) => {
-            requireGpu(t);
-            const s = storyGraph();
-            try {
-                const gpu = await gpuLayout(ctx);
-                const again = await gpuLayout(ctx);
-                const cpu = ngraphLayout();
-                const gpuQ = edgeLengthQuantiles(s, gpu.positions, 2, [...QUANTILES]);
-                const cpuQ = edgeLengthQuantiles(s, cpu.positions, 2, [...QUANTILES]);
-                const ratios = gpuQ.map((q, k) => rel(q, cpuQ[k], 1e-3));
-                const stopBatch = gpu.stats.trace.map((r) => r.kineticEnergy);
-                // Printed BEFORE the first assertion (finding G5-F12): an adapter that misses one of them still
-                // reports every number the record is written from. The Windows leg's failure of 2026-09-23 printed
-                // nothing at all, so neither the stop iteration nor the layout quality could be read from the log.
-                console.log(
-                    `[se-settle] gpu stop ${gpu.iterationsDone} iterations (settled ${gpu.settled}); ngraph stop ${cpu.steps} steps (stable ${cpu.stable}); ` +
-                        `edge length q10/q50/q90 gpu ${gpuQ.map((q) => q.toFixed(4)).join(" / ")} ngraph ${cpuQ.map((q) => q.toFixed(4)).join(" / ")} ` +
-                        `rel ${ratios.map((r) => r.toFixed(4)).join(" / ")}; kineticEnergy first batch ${gpu.firstBatchEnergy} stop ${gpu.stats.kineticEnergy} ` +
-                        `(fell ${(gpu.firstBatchEnergy / gpu.stats.kineticEnergy).toFixed(1)}x; the stop batch's eight iterations span ` +
-                        `${Math.min(...stopBatch).toFixed(4)} .. ${Math.max(...stopBatch).toFixed(4)})`,
+    it("settles within 1,000 steps by the shared rule, the same run is bitwise repeatable, and the edge-length quantiles agree with ngraph's within 25%", async (t) => {
+        requireGpu(t);
+        const s = storyGraph();
+        try {
+            const gpu = await gpuLayout(ctx);
+            const again = await gpuLayout(ctx);
+            const cpu = ngraphLayout();
+            const gpuQ = edgeLengthQuantiles(s, gpu.positions, 2, [...QUANTILES]);
+            const cpuQ = edgeLengthQuantiles(s, cpu.positions, 2, [...QUANTILES]);
+            const ratios = gpuQ.map((q, k) => rel(q, cpuQ[k], 1e-3));
+            const stopBatch = gpu.stats.trace.map((r) => r.kineticEnergy);
+            // Printed BEFORE the first assertion (finding G5-F12): an adapter that misses one of them still
+            // reports every number the record is written from. The Windows leg's failure of 2026-09-23 printed
+            // nothing at all, so neither the stop iteration nor the layout quality could be read from the log.
+            console.log(
+                `[se-settle] gpu stop ${gpu.iterationsDone} iterations (settled ${gpu.settled}); ngraph stop ${cpu.steps} steps (stable ${cpu.stable}); ` +
+                    `edge length q10/q50/q90 gpu ${gpuQ.map((q) => q.toFixed(4)).join(" / ")} ngraph ${cpuQ.map((q) => q.toFixed(4)).join(" / ")} ` +
+                    `rel ${ratios.map((r) => r.toFixed(4)).join(" / ")}; kineticEnergy first batch ${gpu.firstBatchEnergy} stop ${gpu.stats.kineticEnergy} ` +
+                    `(fell ${(gpu.firstBatchEnergy / gpu.stats.kineticEnergy).toFixed(1)}x; the stop batch's eight iterations span ` +
+                    `${Math.min(...stopBatch).toFixed(4)} .. ${Math.max(...stopBatch).toFixed(4)})`,
+            );
+            expectBitwiseEqual(gpu.positions, again.positions, "the same run twice");
+            expect(again.iterationsDone).toBe(gpu.iterationsDone);
+            expect(gpu.positions.every((v) => Number.isFinite(v))).toBe(true);
+            expect(gpu.settled, "settled").toBe(true);
+            expect(gpu.iterationsDone, "the shared rule fired before the budget").toBeLessThan(MAX_STEPS);
+            const last = gpu.stats.trace[gpu.stats.trace.length - 1];
+            expect(last.settledCount).toBeGreaterThanOrEqual(10);
+            // The kinetic energy is PRINTED, not capped (finding G5-F12). The 7.17 rule stops the run on mean
+            // DISPLACEMENT, and around that stop the energy is still swinging over one to two orders of
+            // magnitude -- 0.286 .. 25.06 over the last 120 iterations on lavapipe, 0.446 .. 8.32 on the RTX
+            // 4070 SUPER -- so which point of the swing the rule happens to fire on is arithmetic, not layout
+            // quality. What holds on every adapter is the direction and the distribution below.
+            expect(gpu.firstBatchEnergy).toBeGreaterThan(0);
+            expect(gpu.stats.kineticEnergy, "the run cooled rather than diverged").toBeLessThan(gpu.firstBatchEnergy);
+            QUANTILES.forEach((q, k) => {
+                expect(ratios[k], `q${Math.round(q * 100)}: gpu ${gpuQ[k]} vs ngraph ${cpuQ[k]}`).toBeLessThanOrEqual(
+                    GATE,
                 );
-                expectBitwiseEqual(gpu.positions, again.positions, "the same run twice");
-                expect(again.iterationsDone).toBe(gpu.iterationsDone);
-                expect(gpu.positions.every((v) => Number.isFinite(v))).toBe(true);
-                expect(gpu.settled, "settled").toBe(true);
-                expect(gpu.iterationsDone, "the shared rule fired before the budget").toBeLessThan(MAX_STEPS);
-                const last = gpu.stats.trace[gpu.stats.trace.length - 1];
-                expect(last.settledCount).toBeGreaterThanOrEqual(10);
-                // The kinetic energy is PRINTED, not capped (finding G5-F12). The 7.17 rule stops the run on mean
-                // DISPLACEMENT, and around that stop the energy is still swinging over one to two orders of
-                // magnitude -- 0.286 .. 25.06 over the last 120 iterations on lavapipe, 0.446 .. 8.32 on the RTX
-                // 4070 SUPER -- so which point of the swing the rule happens to fire on is arithmetic, not layout
-                // quality. What holds on every adapter is the direction and the distribution below.
-                expect(gpu.firstBatchEnergy).toBeGreaterThan(0);
-                expect(gpu.stats.kineticEnergy, "the run cooled rather than diverged").toBeLessThan(
-                    gpu.firstBatchEnergy,
-                );
-                QUANTILES.forEach((q, k) => {
-                    expect(
-                        ratios[k],
-                        `q${Math.round(q * 100)}: gpu ${gpuQ[k]} vs ngraph ${cpuQ[k]}`,
-                    ).toBeLessThanOrEqual(GATE);
-                });
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+            });
+        } finally {
+            ctx.release(s);
+        }
+    });
 });
 
 /** Issue #97's graph: a random spanning tree on n nodes plus n random extra edges (the triage's harness). */
@@ -218,58 +209,51 @@ describe("issue #97: settled means the spring layout has stopped growing", () =>
     /** The iterations between two progress lines: a multiple of the batch (8). */
     const PROGRESS_ITERATIONS = 512;
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 425 s on the Windows WARP host lane, 122 s on CI's lavapipe, 87 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
-    it(
-        `a ${N}-node spring layout run to settled grows its rms radius by less than ${MAX_GROWTH * 100} % over the next ${AFTER} iterations`,
-        async (t) => {
-            requireGpu(t);
-            const ctx = await acquire({ label: "se-settle-growth" });
-            const s = snapshotOf(treePlusRandom(N), { nodeCount: N });
+    it(`a ${N}-node spring layout run to settled grows its rms radius by less than ${MAX_GROWTH * 100} % over the next ${AFTER} iterations`, async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "se-settle-growth" });
+        const s = snapshotOf(treePlusRandom(N), { nodeCount: N });
+        try {
+            const sim = createSpringElectrical(ctx, { seed: 42, maxInFlight: 1 });
             try {
-                const sim = createSpringElectrical(ctx, { seed: 42, maxInFlight: 1 });
-                try {
-                    const positions = new Float32Array(3 * N).fill(Number.NaN);
-                    sim.load(s, positions);
-                    // run() in chunks of PROGRESS_ITERATIONS, with a line before each: this file runs alone
-                    // (node-gpu-alone), where one run lasts minutes on a software adapter and the node shard
-                    // wrapper fails a run that writes nothing for 90 s (scripts/run-node-shard.js). maxIter is a
-                    // total and the chunk is a multiple of the batch, so every batch is the one run() would submit.
-                    const runUntil = async (iterations: number): Promise<void> => {
-                        while (!sim.settled && sim.iterationsDone < iterations) {
-                            console.warn(
-                                `[se-settle] n=${N}: ${sim.iterationsDone} of at most ${iterations} iterations`,
-                            );
-                            await sim.run({
-                                maxIter: Math.min(iterations, sim.iterationsDone + PROGRESS_ITERATIONS),
-                                batch: 8,
-                            });
-                        }
-                    };
-                    await runUntil(BUDGET);
-                    const settledAt = sim.iterationsDone;
-                    expect(sim.settled && settledAt < BUDGET, "settled before the budget").toBe(true);
-                    const atStop = positions.slice();
-                    // What a viewer would have seen next: the same run continued past the stop. settleThreshold
-                    // feeds only the settle counter (fa2-stats-finalize), never a force, and setParams' reheat
-                    // resets only iterationsDone and that counter (the spring-electrical model's onReheat is
-                    // empty), so with it at 0 (never settles) these are the iterations a run that never settled
-                    // takes after the stop -- without replaying the first settledAt of them from a fresh load.
-                    sim.setParams({ settleThreshold: 0 });
-                    await runUntil(AFTER);
-                    expect(sim.iterationsDone, "the iterations run past the stop").toBe(AFTER);
-                    const growth = rmsRadius(positions) / rmsRadius(atStop) - 1;
-                    console.log(
-                        `[se-settle] n=${N}: settled at ${settledAt}; rms radius growth over the next ${AFTER} iterations ${(growth * 100).toFixed(3)} %`,
-                    );
-                    expect(Math.abs(growth)).toBeLessThan(MAX_GROWTH);
-                } finally {
-                    sim.dispose();
-                }
+                const positions = new Float32Array(3 * N).fill(Number.NaN);
+                sim.load(s, positions);
+                // run() in chunks of PROGRESS_ITERATIONS, with a line before each: this file runs alone
+                // (node-gpu-alone), where one run lasts minutes on a software adapter and the node shard
+                // wrapper fails a run that writes nothing for 90 s (scripts/run-node-shard.js). maxIter is a
+                // total and the chunk is a multiple of the batch, so every batch is the one run() would submit.
+                const runUntil = async (iterations: number): Promise<void> => {
+                    while (!sim.settled && sim.iterationsDone < iterations) {
+                        console.warn(`[se-settle] n=${N}: ${sim.iterationsDone} of at most ${iterations} iterations`);
+                        await sim.run({
+                            maxIter: Math.min(iterations, sim.iterationsDone + PROGRESS_ITERATIONS),
+                            batch: 8,
+                        });
+                    }
+                };
+                await runUntil(BUDGET);
+                const settledAt = sim.iterationsDone;
+                expect(sim.settled && settledAt < BUDGET, "settled before the budget").toBe(true);
+                const atStop = positions.slice();
+                // What a viewer would have seen next: the same run continued past the stop. settleThreshold
+                // feeds only the settle counter (fa2-stats-finalize), never a force, and setParams' reheat
+                // resets only iterationsDone and that counter (the spring-electrical model's onReheat is
+                // empty), so with it at 0 (never settles) these are the iterations a run that never settled
+                // takes after the stop -- without replaying the first settledAt of them from a fresh load.
+                sim.setParams({ settleThreshold: 0 });
+                await runUntil(AFTER);
+                expect(sim.iterationsDone, "the iterations run past the stop").toBe(AFTER);
+                const growth = rmsRadius(positions) / rmsRadius(atStop) - 1;
+                console.log(
+                    `[se-settle] n=${N}: settled at ${settledAt}; rms radius growth over the next ${AFTER} iterations ${(growth * 100).toFixed(3)} %`,
+                );
+                expect(Math.abs(growth)).toBeLessThan(MAX_GROWTH);
             } finally {
-                ctx.release(s);
-                ctx.dispose();
+                sim.dispose();
             }
-        },
-        CASE_TIMEOUT,
-    );
+        } finally {
+            ctx.release(s);
+            ctx.dispose();
+        }
+    });
 });

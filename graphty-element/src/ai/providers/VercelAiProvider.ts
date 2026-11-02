@@ -1,9 +1,7 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
-import { generateText, type LanguageModel, type ModelMessage, streamText, type Tool } from "ai";
+import type { LanguageModel, ModelMessage, Tool } from "ai";
 
 import { aiProviderDescriptor, type AiProviderId } from "../../catalog/ai";
+import { missingPackage } from "../missingPackage";
 import { API_KEY_MISSING_ERROR, toSafeError } from "../safeError";
 import type {
     LlmProvider,
@@ -29,6 +27,13 @@ const DEFAULT_MODELS: Readonly<Record<VercelProviderType, string>> = {
     google: aiProviderDescriptor("google").defaultModel,
 };
 
+/** The AI SDK functions a request needs, and the model it runs on. */
+interface Sdk {
+    generateText: typeof import("ai").generateText;
+    streamText: typeof import("ai").streamText;
+    model: LanguageModel;
+}
+
 /**
  * LLM provider implementation using the Vercel AI SDK.
  * Supports OpenAI, Anthropic, and Google providers.
@@ -43,6 +48,7 @@ export class VercelAiProvider implements LlmProvider {
     private baseUrl?: string;
     private maxTokens?: number;
     private temperature?: number;
+    private fetch?: typeof globalThis.fetch;
     private readonly providerType: VercelProviderType;
 
     /**
@@ -64,28 +70,59 @@ export class VercelAiProvider implements LlmProvider {
         this.baseUrl = options.baseUrl;
         this.maxTokens = options.maxTokens;
         this.temperature = options.temperature;
+        this.fetch = options.fetch;
     }
 
     /**
-     * Get the configured model for the Vercel AI SDK.
+     * Load the AI SDK and this provider's package, and make the configured model.
+     *
+     * `ai` and the `@ai-sdk/*` packages are optional peers, so each is the literal target of an
+     * `await import()` inside `try` (see `missingPackage`).
+     * @returns the SDK functions and the model
+     * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when a package is not installed.
+     */
+    private async loadSdk(): Promise<Sdk> {
+        let ai: typeof import("ai");
+        try {
+            ai = await import("ai");
+        } catch (error) {
+            throw missingPackage("ai", this.name, error);
+        }
+        const model = await this.loadModel();
+        return { generateText: ai.generateText, streamText: ai.streamText, model };
+    }
+
+    /**
+     * Make the configured model with this provider's package.
      * @returns Language model instance
      */
-    private getModel(): LanguageModel {
+    private async loadModel(): Promise<LanguageModel> {
         if (!this.apiKey) {
             const error = new Error(`API key not configured for ${this.name}`);
             error.name = API_KEY_MISSING_ERROR;
             throw error;
         }
 
+        const settings = { apiKey: this.apiKey, baseURL: this.baseUrl, fetch: this.fetch };
         switch (this.providerType) {
             case "openai": {
-                const openai = createOpenAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
-                return openai(this.model ?? DEFAULT_MODELS.openai);
+                let sdk: typeof import("@ai-sdk/openai");
+                try {
+                    sdk = await import("@ai-sdk/openai");
+                } catch (error) {
+                    throw missingPackage("@ai-sdk/openai", this.name, error);
+                }
+                return sdk.createOpenAI(settings)(this.model ?? DEFAULT_MODELS.openai);
             }
             case "anthropic": {
-                const anthropic = createAnthropic({
-                    apiKey: this.apiKey,
-                    baseURL: this.baseUrl,
+                let sdk: typeof import("@ai-sdk/anthropic");
+                try {
+                    sdk = await import("@ai-sdk/anthropic");
+                } catch (error) {
+                    throw missingPackage("@ai-sdk/anthropic", this.name, error);
+                }
+                const anthropic = sdk.createAnthropic({
+                    ...settings,
                     // Enable browser support - Anthropic requires this header for CORS
                     headers: {
                         "anthropic-dangerous-direct-browser-access": "true",
@@ -95,8 +132,13 @@ export class VercelAiProvider implements LlmProvider {
             }
             case "google":
             default: {
-                const google = createGoogleGenerativeAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
-                return google(this.model ?? DEFAULT_MODELS.google);
+                let sdk: typeof import("@ai-sdk/google");
+                try {
+                    sdk = await import("@ai-sdk/google");
+                } catch (error) {
+                    throw missingPackage("@ai-sdk/google", this.name, error);
+                }
+                return sdk.createGoogleGenerativeAI(settings)(this.model ?? DEFAULT_MODELS.google);
             }
         }
     }
@@ -115,8 +157,10 @@ export class VercelAiProvider implements LlmProvider {
         tools: ToolDefinition[],
         options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
     ): Promise<LlmResponse> {
+        // Outside the cleaning: a missing package is reported as itself, and names no secret.
+        const sdk = await this.loadSdk();
         try {
-            return await this.generateUnsafe(messages, tools, options);
+            return await this.generateUnsafe(sdk, messages, tools, options);
         } catch (error) {
             throw toSafeError(error, [this.apiKey]);
         }
@@ -125,6 +169,7 @@ export class VercelAiProvider implements LlmProvider {
     /**
      * {@link generate} without the error cleaning: what it throws may carry the request and the
      * response, so it never leaves this class.
+     * @param sdk - The loaded SDK and model
      * @param messages - Conversation messages
      * @param tools - Available tools for the LLM
      * @param options - Generation options
@@ -133,11 +178,12 @@ export class VercelAiProvider implements LlmProvider {
      * @returns Promise resolving to LLM response
      */
     private async generateUnsafe(
+        sdk: Sdk,
         messages: Message[],
         tools: ToolDefinition[],
         options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
     ): Promise<LlmResponse> {
-        const model = this.getModel();
+        const { generateText, model } = sdk;
         const convertedMessages = this.convertMessages(messages);
         const convertedTools = this.convertTools(tools);
 
@@ -175,7 +221,7 @@ export class VercelAiProvider implements LlmProvider {
         callbacks: StreamCallbacks,
         signal?: AbortSignal,
     ): Promise<void> {
-        const model = this.getModel();
+        const { streamText, model } = await this.loadSdk();
         const convertedMessages = this.convertMessages(messages);
         const convertedTools = this.convertTools(tools);
 

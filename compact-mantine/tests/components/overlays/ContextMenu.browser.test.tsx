@@ -48,7 +48,7 @@ describe("ContextMenu touch hold", () => {
             </MantineProvider>,
         );
         touch(screen.getByTestId("target"), "pointerdown");
-        const item = await waitFor(() => screen.getByRole("menuitem", { name: "Rename" }), { timeout: 1500 });
+        const item = await waitFor(() => screen.getByRole("menuitem", { name: "Rename" }));
 
         // The finger lifts over the row: its pointerup and the click after it are the press's.
         touch(item, "pointerup");

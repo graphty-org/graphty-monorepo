@@ -15,7 +15,8 @@ the item named corrects the design's text in its own branch.
    $29 a month plus capped bisects, under the owner's ceiling of about $60 (2026-10-12). The
    `spend:llm` alarm at $60 a calendar month stays. Design section 9 already names this as the
    one-line fallback; the round posts the change on #3418 when it merges, and the owner reverses it
-   with that one line. Item `llm-once-a-day`.
+   with that one line. Item `llm-once-a-day`. Superseded 2026-10-29 (#4469): the owner reversed it, and
+   the lane runs in every full, restart and candidate run.
 2. **The owner keeps his own credentials.** Owner action 2 no longer asks him to log out of `gh`,
    delete SSH keys, `npm logout` or remove credential helpers. Agents and every servherd server run
    with `GH_CONFIG_DIR`, `GIT_CONFIG_GLOBAL` (which replaces `~/.gitconfig`, so its credential

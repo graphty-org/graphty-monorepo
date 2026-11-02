@@ -45,7 +45,8 @@ import { type LazyShaderHost, lendSceneShaders } from "../shaders/chunk";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
-import { trackOnScene } from "./PendingWork";
+import { minimumWorkPerFrame } from "./minimumWork";
+import { pendingWorkOf, trackOnScene } from "./PendingWork";
 import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, ShaderGuard } from "./ShaderGuard";
 
 /**
@@ -690,6 +691,9 @@ export class RenderManager implements Manager {
     private frameHolds = 0;
     /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
     private lastFrameFence: WebGLSync | null = null;
+    /** Flips every tick in the minimum-work test mode; see {@link RenderManager.minimumWorkSkips}. */
+    private minimumWorkTick = false;
+
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
     /**
@@ -760,6 +764,25 @@ export class RenderManager implements Manager {
     private readonly owe = (): void => {
         this.drawOwed = true;
     };
+    /**
+     * Whether any of the canvas is in the page's viewport. Out of it, a camera that moves on its
+     * own -- `camera.autoRotate`, a glide -- is no reason to draw: nobody sees the frame (#4426).
+     * True until the browser first says otherwise, and always where it cannot say.
+     */
+    private inView = true;
+    /** Tells {@link inView}; null where the browser has no IntersectionObserver. */
+    private readonly viewWatch: IntersectionObserver | null =
+        typeof IntersectionObserver === "undefined"
+            ? null
+            : new IntersectionObserver((entries) => {
+                  const inView = entries.at(-1)?.isIntersecting ?? true;
+                  // Back in view, the camera may have moved since the last frame drawn.
+                  if (inView && !this.inView) {
+                      this.drawOwed = true;
+                  }
+
+                  this.inView = inView;
+              });
     /**
      * Forgets the last frame's fence when the GL context is lost or given back. A fence made by
      * the lost context never signals in the restored one, so kept, it held every tick in
@@ -862,6 +885,7 @@ export class RenderManager implements Manager {
         }
         this.canvas.addEventListener("webglcontextlost", this.dropFence);
         this.canvas.addEventListener("webglcontextrestored", this.dropFence);
+        this.viewWatch?.observe(this.canvas);
         this.eventManager.onGraphEvent.add(this.oweForEvent);
         // Assigning the canvas's size clears its drawing, even when a resize ends at the size the
         // last frame was drawn at, so every resize owes a frame.
@@ -963,6 +987,7 @@ export class RenderManager implements Manager {
         }
         this.canvas.removeEventListener("webglcontextlost", this.dropFence);
         this.canvas.removeEventListener("webglcontextrestored", this.dropFence);
+        this.viewWatch?.disconnect();
         this.eventManager.onGraphEvent.removeCallback(this.oweForEvent);
         this.engine.onResizeObservable.removeCallback(this.owe);
 
@@ -1013,8 +1038,9 @@ export class RenderManager implements Manager {
                 return;
             }
 
-            // Loops at half rate (the frame guard): every other tick, skipped as a GPU wait is.
-            if (this.shaderGuard.skipTick()) {
+            // Loops at half rate (the frame guard): every other tick, skipped as a GPU wait is. The
+            // minimum-work test mode skips every other tick the same way (issue #4218).
+            if (this.shaderGuard.skipTick() || this.minimumWorkSkips()) {
                 this.skippedMs += this.engine.getDeltaTime();
                 this.workEndedAt = performance.now();
                 return;
@@ -1314,10 +1340,26 @@ export class RenderManager implements Manager {
      *
      * For a change the loop cannot see by itself: one that moves no node, queues no style work,
      * leaves the camera where it is and announces no event. A graph drawing every frame (the
-     * default) needs none of this.
+     * default) needs none of this to draw it, but the frame on screen is no longer the final one:
+     * every caller is saying the picture changed, so it is entered in the graph's record of
+     * pending work and `waitForStableFrame()` waits for a frame that draws it (issue #3287).
      */
     requestFrame(): void {
         this.drawOwed = true;
+        pendingWorkOf(this.scene)?.changed();
+    }
+
+    /**
+     * Whether the minimum-work test mode skips this tick: every other one, as a GPU wait does.
+     * @returns True to skip it.
+     */
+    private minimumWorkSkips(): boolean {
+        if (!minimumWorkPerFrame()) {
+            return false;
+        }
+
+        this.minimumWorkTick = !this.minimumWorkTick;
+        return this.minimumWorkTick;
     }
 
     /** See {@link setPixelRatio}. */
@@ -1413,7 +1455,7 @@ export class RenderManager implements Manager {
             this.pictureIsFinal === null ||
             !this.drawsOnDemand() ||
             this.drawOwed ||
-            this.lastFrameMoved ||
+            (this.lastFrameMoved && this.inView) ||
             !this.pictureIsFinal()
         ) {
             return false;
@@ -1450,7 +1492,16 @@ export class RenderManager implements Manager {
             return false;
         }
 
-        return this.sameAsDrawn();
+        return this.sameAsDrawn(!this.inView);
+    }
+
+    /**
+     * Whether any of the canvas is in the page's viewport, as far as the browser has said.
+     * @returns False only once the browser has said the canvas is wholly out of view.
+     * @internal
+     */
+    get canvasInView(): boolean {
+        return this.inView;
     }
 
     /**
@@ -1470,9 +1521,11 @@ export class RenderManager implements Manager {
 
     /**
      * Whether everything the loop cannot learn from the model is as it was for the last frame drawn.
+     * @param anyCamera - Whether a camera that moved still counts as the same: true while the
+     *     canvas is out of view, where nobody sees it move.
      * @returns True when the camera, size, background and frame observers are unchanged.
      */
-    private sameAsDrawn(): boolean {
+    private sameAsDrawn(anyCamera = false): boolean {
         const from = this.drawnFrom;
         const camera = this.scene.activeCamera;
         if (camera?.uniqueId !== from.camera) {
@@ -1489,8 +1542,9 @@ export class RenderManager implements Manager {
             Math.fround(clearColor.b) === from.clear[2] &&
             Math.fround(clearColor.a) === from.clear[3] &&
             observers.every((observer, i) => observer === from.observers[i]) &&
-            RenderManager.sameMatrix(camera.getViewMatrix().m, from.view) &&
-            RenderManager.sameMatrix(camera.getProjectionMatrix().m, from.projection)
+            (anyCamera ||
+                (RenderManager.sameMatrix(camera.getViewMatrix().m, from.view) &&
+                    RenderManager.sameMatrix(camera.getProjectionMatrix().m, from.projection)))
         );
     }
 
@@ -1763,13 +1817,35 @@ export class RenderManager implements Manager {
         this.requestFrame();
     }
 
+    /** The graph's own background colour, last applied. */
+    #backgroundColor = DEFAULT_BACKGROUND_COLOR;
+
+    /** A colour drawn in place of the graph's background (a globe's look), or null. */
+    #backgroundOverride: string | null = null;
+
+    /**
+     * Clear the canvas to a colour in place of the graph's background colour, or null to draw the
+     * graph's own again. A skybox, when the graph has one, still covers it.
+     * @param color - Hex colour string, or null.
+     */
+    set backgroundOverride(color: string | null) {
+        if (color === this.#backgroundOverride) {
+            return;
+        }
+
+        this.#backgroundOverride = color;
+        this.setBackgroundColor(this.#backgroundColor);
+        this.requestFrame();
+    }
+
     /**
      * Update the background color
      * @param color - Hex color string (e.g., "#FFFFFF")
      */
     private setBackgroundColor(color: string): void {
+        this.#backgroundColor = color;
         try {
-            this.scene.clearColor = Color4.FromHexString(color);
+            this.scene.clearColor = Color4.FromHexString(this.#backgroundOverride ?? color);
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
             this.eventManager.emitGraphError(null, err, "other", {

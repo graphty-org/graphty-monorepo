@@ -32,9 +32,9 @@ fn integrate(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id
     var valid = false;
     var ke = 0.0;
     if (i < P.n) {
-        valid = true;
         let f = load_force(i);
         p = pos[i];
+        valid = p.w > 0.0;                                                  // an inert row (mass 0, setInert) is left out of partials A
         var swing_i = p.w * length(f);                                     // SWING_MODE 1: NetworkX's local swinging m |F| (layout.py line 1497)
         if (SWING_MODE == 0u) { swing_i = p.w * length(f - load_old(i)); }  // paper: m |F(t) - F(t-1)|, recomputed inline (7.2)
         let factor = S.speed / (1.0 + sqrt(S.speed * swing_i));

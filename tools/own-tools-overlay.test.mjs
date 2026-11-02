@@ -3,7 +3,9 @@
 // held head, a version commit, a bisect point, an older commit's site): before it runs anything from tools/ or a
 // local action (.github/actions/), it overlays the workflow's own copies -- its step "Use the workflow's own tools
 // and actions", git archive "$GITHUB_SHA" -- so a commit that predates a fix never runs the unfixed tool. The jobs
-// that must run the checked-out commit's own tools/ are listed below with the reason.
+// that must run the checked-out commit's own tools/ are listed below with the reason. The overlay extracts over the
+// commit's copies and never deletes them first: the commit's own configs (eslint.config.js importing
+// tools/eslint-rules/) still need files the workflow's commit may have removed (issue #5311).
 // Run: node tools/own-tools-overlay.test.mjs (WORKFLOWS=<dir> checks another tree's workflows)
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -21,8 +23,6 @@ export const OWN_TOOLS = {
     "ci.yml/checks": "runs the commit's tool tests and checks against its own workflows and packages",
     "ci.yml/docs": "builds the commit's docs with its own copy-docs-content.js and sanitize-api-docs.js",
     "base-check.yml/check": "the base's own tests are what is checked; master's tools run from $RUNNER_TEMP/trusted",
-    "pr-integrity.yml/integrity":
-        "a pull request is checked by its own head's pr-integrity.mjs, which takes master's trusted code itself",
     "bisect.yml/point":
         "the point's run-tests.sh and ci-test-matrix.mjs are what is bisected; bisect-ci.mjs runs from the workflow's copy",
 };
@@ -59,6 +59,8 @@ export function problems(file, text) {
         let overlay = null;
         for (const s of steps.slice(co + 1)) {
             if (s.name === STEP) {
+                if (/\brm\b/.test(String(s.run ?? "")))
+                    out.push(`${key}: "${STEP}" deletes the commit's files; extract over them instead`);
                 overlay = String(s.env?.OVERLAY ?? "").split(/\s+/);
                 continue;
             }
@@ -97,6 +99,8 @@ describe("jobs on another commit run the workflow's own tools and actions", () =
             problems("x.yml", yml(`${checkout}${overlay}      - run: node tools/full-run.mjs pick\n`)),
             [],
         );
+        const deleting = overlay.replace("run: true", "run: rm -rf $OVERLAY");
+        assert.equal(problems("x.yml", yml(`${checkout}${deleting}`)).length, 1);
         const own = "      - uses: actions/checkout@v7\n        with: { ref: master }\n";
         assert.deepEqual(problems("x.yml", yml(`${own}      - run: node tools/full-run.mjs pick\n`)), []);
     });

@@ -13,6 +13,7 @@ import type { ImportReport, LoadReport } from "../data/report";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
+import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { SupportPoints } from "../meshes/supportPoints";
@@ -27,8 +28,10 @@ import {
     replaceNodesCommand,
 } from "../session/commands/data";
 import type { FreezeFollower, LaneStore } from "../session/GraphSession";
-import { supersededError } from "../session/loadLine";
+import { loadLineOf, supersededError } from "../session/loadLine";
+import type { SessionCommand } from "../session/planning";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
+import type { Draft } from "../session/project/draft";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import {
     type AddEdgesOptions,
@@ -215,10 +218,10 @@ function collectDoomed(nodes: Iterable<Node>, edges: Iterable<Edge>, doomed: Set
     }
 
     for (const edge of edges) {
-        // A line drawn as a slot in a shared batch points `edge.mesh` at the batch, which still
-        // draws every other edge in it: the batch disposes itself with its last slot. Arrowheads
+        // A line drawn as a slot in a shared batch (instanced, or one plain mesh on a software
+        // renderer) points `edge.mesh` at the batch, which still draws every other edge in it: the batch disposes itself with its last slot. Arrowheads
         // are always such slots (ArrowCap), so they own no mesh here.
-        if (!(edge.mesh instanceof AbstractMesh && edge.mesh.hasThinInstances)) {
+        if (!(edge.mesh instanceof AbstractMesh && (edge.mesh.hasThinInstances || isEdgeLineBatchMesh(edge.mesh)))) {
             add(edge.mesh);
         }
     }
@@ -330,6 +333,11 @@ export const dataManagerInternals = {} as {
     followRenumbering(manager: DataManager, follower: FreezeFollower): () => void;
     /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
     partialSeeds(manager: DataManager): ReturnType<GraphStore["partialSeeds"]>;
+    /**
+     * Settles once the edit a data door dispatched last has landed, been cancelled or failed (a
+     * failure is published as a graph error): at once unless it waited in the load line.
+     */
+    lastEdit(manager: DataManager): Promise<void>;
 };
 
 /**
@@ -375,6 +383,7 @@ export class DataManager implements Manager {
             };
         };
         dataManagerInternals.partialSeeds = (manager) => manager.store.partialSeeds();
+        dataManagerInternals.lastEdit = (manager) => manager.lastEdit;
         dataManagerInternals.adoptNode = (manager, node) => {
             manager.nodeMap.set(node.id, node);
             manager.nodeVersion++;
@@ -521,6 +530,9 @@ export class DataManager implements Manager {
 
     /** The session's dispatcher, once bound: the data doors dispatch through it. */
     private dispatcher: Dispatcher | null = null;
+
+    /** The edit a data door dispatched last, settled once it landed; see `dispatchEdit`. */
+    private lastEdit: Promise<void> = Promise.resolve();
 
     /** The edges the last removal took out, for the doors that answer with them. */
     private removedEdges: readonly EdgeId[] = [];
@@ -734,35 +746,59 @@ export class DataManager implements Manager {
             values: (values, draft) => {
                 this.graph.writer(draft, this.store).setGraphValues(values);
             },
-            import: async (command, draft, signal, after) => {
-                const writer = this.graph.writer(draft, this.store);
-                const { cause } = this;
-                this.cause = "command";
+            import: (command, draft, signal, after) => {
+                // One import at a time (the ingest's `oneAtATime`, issue #3535): this manager's load
+                // id, held announcement and cause are one import's too, so they are set inside the
+                // turn. It counts as reading from the moment it is queued, so the graph does not
+                // place and paint the whole graph between two queued imports.
                 hooks.loading(true);
-                // Imports hold the whole graph, so one runs at a time and one field is enough.
-                this.loadId = command.source.config === undefined ? undefined : this.loadIds.get(command.source.config);
-                let outcome: ImportOutcome | null;
-                this.heldLoadEvents = () => undefined;
-                let announce: () => void;
-                try {
-                    outcome = await this.ingest.importSource(command, writer, signal);
-                } finally {
-                    this.cause = cause;
-                    this.loadId = undefined;
-                    announce = this.heldLoadEvents;
-                    this.heldLoadEvents = null;
-                    hooks.loading(false);
-                }
-
-                this.announceOnCommit(announce, after);
-
-                if (addsRows(command)) {
-                    hooks.rowsAdded(after);
-                }
-
-                return outcome;
+                return this.ingest.oneAtATime(() => this.importOne(command, draft, signal, after, hooks));
             },
         };
+    }
+
+    /**
+     * Carry out one import through the ingest, with the load id, the held announcement and the
+     * cause its own while it runs.
+     * @param command - The import.
+     * @param draft - The command's draft.
+     * @param signal - Fires when the import is cancelled.
+     * @param after - Starts work once the import's step is recorded.
+     * @param hooks - What the graph does around a write.
+     * @param hooks.rowsAdded - Called once the import added rows.
+     * @param hooks.loading - Called with false when it stops reading; the caller called it with true.
+     * @returns What the ingest returned.
+     */
+    private async importOne(
+        command: DataImportCommand,
+        draft: Draft,
+        signal: AbortSignal | undefined,
+        after: UndoableContext["after"] | undefined,
+        hooks: { rowsAdded(after: UndoableContext["after"] | undefined): void; loading(active: boolean): void },
+    ): Promise<ImportOutcome | null> {
+        const { cause } = this;
+        this.cause = "command";
+        this.loadId = command.source.config === undefined ? undefined : this.loadIds.get(command.source.config);
+        let outcome: ImportOutcome | null;
+        this.heldLoadEvents = () => undefined;
+        let announce: () => void;
+        try {
+            outcome = await this.ingest.importSource(command, this.graph.writer(draft, this.store), signal);
+        } finally {
+            this.cause = cause;
+            this.loadId = undefined;
+            announce = this.heldLoadEvents;
+            this.heldLoadEvents = null;
+            hooks.loading(false);
+        }
+
+        this.announceOnCommit(announce, after);
+
+        if (addsRows(command)) {
+            hooks.rowsAdded(after);
+        }
+
+        return outcome;
     }
 
     /**
@@ -1656,7 +1692,7 @@ export class DataManager implements Manager {
             return;
         }
 
-        this.dispatcher.dispatchNow(command);
+        this.dispatchEdit(command);
     }
 
     /**
@@ -1670,7 +1706,7 @@ export class DataManager implements Manager {
             return;
         }
 
-        this.dispatcher.dispatchNow({
+        this.dispatchEdit({
             op: "data.apply",
             mutation: { kind: "add-nodes", records: nodes, ...(idPath === undefined ? {} : { idPath }) },
         });
@@ -1965,7 +2001,51 @@ export class DataManager implements Manager {
             return;
         }
 
-        this.dispatcher.dispatchNow({ op: "data.apply", mutation });
+        this.dispatchEdit({ op: "data.apply", mutation });
+    }
+
+    /**
+     * Dispatch an edit in the session's load line (issue #3604): at once, throwing what it throws,
+     * when no load asked for earlier is still reading, as a synchronous door always did; otherwise
+     * once that load has dispatched, queued behind its step so it lands on what the load loaded. A
+     * clear asked for while it waits cancels it. A failure after the wait has no caller to throw
+     * to, so it is published as a graph error.
+     * @param command - The edit.
+     */
+    private dispatchEdit(command: SessionCommand): void {
+        const { dispatcher } = this;
+        if (dispatcher === null) {
+            return;
+        }
+
+        let waited = false;
+        const edit = loadLineOf(dispatcher).edit((): Promise<unknown> => {
+            if (waited) {
+                return dispatcher.dispatch(command);
+            }
+
+            dispatcher.dispatchNow(command);
+            return Promise.resolve();
+        }, undefined);
+        waited = true;
+        this.lastEdit = edit.then(
+            () => undefined,
+            (error: unknown) => {
+                this.reportEditFailure(error);
+            },
+        );
+    }
+
+    /**
+     * Publish an edit's failure that came after it waited in the load line.
+     * @param error - What it failed with.
+     */
+    private reportEditFailure(error: unknown): void {
+        this.eventManager.emitGraphError(
+            this.graphContext,
+            error instanceof Error ? error : new Error(String(error)),
+            "other",
+        );
     }
 
     /**
@@ -2032,7 +2112,7 @@ export class DataManager implements Manager {
             return;
         }
 
-        this.dispatcher.dispatchNow({
+        this.dispatchEdit({
             op: "data.apply",
             mutation: {
                 kind: "add-edges",
@@ -2262,7 +2342,7 @@ export class DataManager implements Manager {
         }
 
         // One step: the removal and the new edges roll back together.
-        this.dispatcher.dispatchNow(replaceEdgesCommand([...this.edges.keys()], edges, options));
+        this.dispatchEdit(replaceEdgesCommand([...this.edges.keys()], edges, options));
     }
 
     /**
@@ -2325,7 +2405,14 @@ export class DataManager implements Manager {
             ...(load.coalesce === undefined ? {} : { coalesce: load.coalesce }),
             ...(load.setup === true ? { setup: true } : {}),
         };
-        await this.runLoad(command, generation, load.loadId);
+        if (load.generation !== undefined || this.dispatcher === null) {
+            // Called by a door that already holds the load's place in line (Graph's loads).
+            await this.runLoad(command, generation, load.loadId);
+            return;
+        }
+
+        // Called directly: its place in the session's load line is taken now (issue #3604).
+        await loadLineOf(this.dispatcher).run(() => this.runLoad(command, generation, load.loadId));
     }
 
     /**
@@ -2344,7 +2431,9 @@ export class DataManager implements Manager {
         }
 
         if (this.dispatcher === null) {
-            await this.ingest.addDataFromSource(type, command.source.config ?? {}, this.graph.writer(null, this.store));
+            await this.ingest.oneAtATime(() =>
+                this.ingest.addDataFromSource(type, command.source.config ?? {}, this.graph.writer(null, this.store)),
+            );
             return;
         }
 
@@ -2407,7 +2496,25 @@ export class DataManager implements Manager {
      * Remove every node, edge, record and graph-level value, as one undoable step.
      */
     clear(): void {
-        this.write({ kind: "clear" });
+        if (this.dispatcher === null) {
+            this.write({ kind: "clear" });
+            return;
+        }
+
+        // A load still in flight would otherwise put its data back after the graph was closed:
+        // the graph's own, dispatched or not, and every load or edit still waiting in the
+        // session's line (issues #3524, #3604). The clear itself happens before this returns,
+        // except while a project open writes: then it lands once the open has written.
+        this.supersedeLoads();
+        const { dispatcher } = this;
+        loadLineOf(dispatcher)
+            .clear(() => {
+                dispatcher.dispatchNow({ op: "data.apply", mutation: { kind: "clear" } });
+                return Promise.resolve();
+            })
+            .catch((error: unknown) => {
+                this.reportEditFailure(error);
+            });
     }
 
     /**

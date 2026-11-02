@@ -150,15 +150,15 @@ a T4 hour.
 
 **What it runs, in parallel, on that commit:**
 
-| Lane                                                                | Workflow                                            | Measured                                         |
-| ------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------ |
-| Every test shard and the full screenshot capture                    | `ci.yml` (called, reusing the master build)         | 38 to 48 min today with a 21 to 24 min Build     |
-| NVIDIA T4 GPU tests and benchmarks                                  | `gpu.yml`                                           | 38.8 to 50.7 min, the longest                    |
-| Hosts: Dawn on Metal and WebKit, D3D12 WARP and Chromium            | `hosts.yml` (full scope)                            | 42.4 to 42.6 min on Windows                      |
-| macOS work protection: WebKit, Safari, Safari on iOS                | `work-protection-macos.yml`                         | under 40 min                                     |
-| Production dependency audit                                         | `audit` job, `pnpm audit --prod --audit-level=high` | 1 min                                            |
-| LLM regression (about 190 paid Gemini calls, about $0.94), when due | `llm` job                                           | about 10 min                                     |
-| Version and major-bump dry run                                      | `version-dry-run` job                               | 29 s to 29 min today; budget 5 min after the fix |
+| Lane                                                      | Workflow                                            | Measured                                         |
+| --------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------ |
+| Every test shard and the full screenshot capture          | `ci.yml` (called, reusing the master build)         | 38 to 48 min today with a 21 to 24 min Build     |
+| NVIDIA T4 GPU tests and benchmarks                        | `gpu.yml`                                           | 38.8 to 50.7 min, the longest                    |
+| Hosts: Dawn on Metal and WebKit, D3D12 WARP and Chromium  | `hosts.yml` (full scope)                            | 42.4 to 42.6 min on Windows                      |
+| macOS work protection: WebKit, Safari, Safari on iOS      | `work-protection-macos.yml`                         | under 40 min                                     |
+| Production dependency audit                               | `audit` job, `pnpm audit --prod --audit-level=high` | 1 min                                            |
+| LLM regression (about 190 paid Gemini calls, about $0.94) | `llm` job                                           | about 10 min                                     |
+| Version and major-bump dry run                            | `version-dry-run` job                               | 29 s to 29 min today; budget 5 min after the fix |
 
 **Measured time.** The two real train runs took 64.7 min (39540908824) and 92.8 min (40119894804).
 In the second, `pick`'s "Skip when nothing releasable changed" step (`tools/release-version.sh`, nx
@@ -196,14 +196,14 @@ Every job's queue time is recorded and pull-request queue time in a full-run win
 trend key (`queue:pr:full-window`), so queueing shows as queueing. A restart is a full run too: with
 8 of 17 recent verifications red, plan for about 6 full runs a day.
 
-**LLM regression** runs once per UTC day (implementation plan, item `llm-once-a-day`): the `llm` job
-`needs` the ci.yml lane and runs when it is green (off the critical path, since the T4 lane is
-longer), in the Off configuration only, and its paid step runs only when no run passed it yet that
-UTC day, or on an owner `mode=full` run (`tools/llm-due.mjs`; otherwise the job passes with the step
-skipped). A restart's failing-tests phase and a slot skipped as judged run none. A hosted model can
-change behind the same name with no change here, so the day's later candidates are judged on the
-day's pass; a model change shows up the next day at most. About $29 a month against the owner's
-standing ceiling of about $60; the store keeps a monthly spend counter, and `spend:llm` warns at $60
+**LLM regression** runs in every release test of a candidate (owner, 2026-10-29, #4469): modes
+full (each of the four slots), restart and candidate, and the owner's shadow and legacy runs; never
+promote-nightly, which tests nothing, a pull request or a master push. The `llm` job `needs` the
+ci.yml lane and runs when it is green (off the critical path, since the T4 lane is longer), in the
+Off configuration only. A restart's failing-tests phase and a slot skipped as judged run none. At
+about $0.94 a run and 4 to 6 full runs a day, about $113 to $170 a month, over the owner's
+standing ceiling of about $60 until he sets a new one; `tools/llm-spend.mjs` counts the month's paid
+runs before each one, and `spend:llm` warns at $60
 (main section 9). A red LLM lane: at most 2 confirm runs; a model answer that differs between them is an
 `owner-item` (or flaky, by the usual rule), never bisected blind; a consistent failure bisects only
 over merges that touched graphty-element's AI code, prompts, schemas or the lockfile, with one paid

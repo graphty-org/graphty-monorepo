@@ -98,6 +98,267 @@ function shapeOf(values: Readonly<Record<string, unknown>>, drawn: "2d" | "3d" |
 }
 
 /**
+ * How a layout's options are offered in the view it would be drawn in.
+ * @param session - The element's session.
+ * @param descriptor - The layout.
+ * @param drawnIn - The view the layout would be drawn in.
+ * @returns `drawnOnly`: the one value the view draws for an option it does not draw as asked
+ *     (the map's Map type in 2D), else undefined; `defaultOnly`: whether an option is so; and
+ *     `inView`: a set of values as the view draws them.
+ */
+function viewChoices(
+    session: GraphSession,
+    descriptor: LayoutDescriptor,
+    drawnIn: "2d" | "3d",
+): {
+    drawnOnly: (option: OptionDescriptor) => unknown;
+    defaultOnly: (option: OptionDescriptor) => boolean;
+    inView: (asked: Record<string, unknown>) => Record<string, unknown>;
+} {
+    // An option the 2D view does not draw (the map's Map type) offers only the value the view
+    // draws instead, as the element names it, else its default.
+    const drawnOnly = (option: OptionDescriptor): unknown => {
+        const effect = session.layout.optionInEffect(descriptor.id, option.name, drawnIn);
+        if (typeof option.default !== "string" || effect.code !== "setting.notIn2d") {
+            return undefined;
+        }
+        return effect.params.drawn ?? option.default;
+    };
+    const defaultOnly = (option: OptionDescriptor): boolean => drawnOnly(option) !== undefined;
+    // Shown as the value the view draws; the reader's own choice is kept for the 3D view.
+    const inView = (asked: Record<string, unknown>): Record<string, unknown> => {
+        const shown = { ...asked };
+        for (const option of descriptor.options) {
+            const drawn = drawnOnly(option);
+            if (drawn !== undefined) {
+                shown[option.name] = drawn;
+            }
+        }
+        return shown;
+    };
+    return { drawnOnly, defaultOnly, inView };
+}
+
+/**
+ * The form's last row: the cost of applying, or why it cannot be, and Apply ("Applied" when the
+ * graph is drawn so already).
+ * @param props - Component props
+ * @param props.reason - Why the layout cannot run, or null
+ * @param props.seconds - The estimated run time
+ * @param props.differs - Whether applying would change the drawing
+ * @returns The row
+ */
+function ApplyRow({
+    reason,
+    seconds,
+    differs,
+}: Readonly<{ reason: string | null; seconds: number; differs: boolean }>): React.JSX.Element {
+    return (
+        <Group justify="space-between" wrap="nowrap">
+            <Text size="xs" c={reason === null ? "dimmed" : "red"}>
+                {reason ?? costLine(seconds)}
+            </Text>
+            <Button size="xs" type="submit" disabled={!differs || reason !== null}>
+                {differs ? "Apply" : "Applied"}
+            </Button>
+        </Group>
+    );
+}
+
+/**
+ * What picking a shape asks for.
+ * @param picked - The shape picked.
+ * @param start - What the form started with, when the shape picked is the one it is drawn in.
+ * @param values - The form's values.
+ * @returns The values.
+ */
+function shapePicked(
+    picked: "2d" | "3d",
+    start: Readonly<Record<string, unknown>> | null,
+    values: Record<string, unknown>,
+): Record<string, unknown> {
+    if (start !== null) {
+        // Back to what is drawn: its own dim (or none).
+        const { dim: _dim, ...rest } = values;
+        return start.dim === undefined ? rest : { ...rest, dim: start.dim };
+    }
+    return { ...values, dim: picked === "2d" ? 2 : 3 };
+}
+
+/**
+ * Shape: whether the layout is drawn in 3D or flat in the 3D view.
+ * @param props - Component props
+ * @param props.id - The layout's id, for the label's id
+ * @param props.shape - The shape asked for
+ * @param props.onPick - Called with the shape picked
+ * @returns The field
+ */
+function ShapeField({
+    id,
+    shape,
+    onPick,
+}: Readonly<{ id: string; shape: "2d" | "3d"; onPick: (picked: "2d" | "3d") => void }>): React.JSX.Element {
+    return (
+        <Stack gap={2}>
+            <Text size="xs" id={`layout-shape-${id}`}>
+                Shape
+            </Text>
+            <SegmentedControl
+                aria-labelledby={`layout-shape-${id}`}
+                fullWidth
+                value={shape}
+                data={[
+                    { value: "3d", label: "3D" },
+                    { value: "2d", label: "2D" },
+                ]}
+                onChange={(picked) => {
+                    onPick(picked === "2d" ? "2d" : "3d");
+                }}
+            />
+        </Stack>
+    );
+}
+
+/**
+ * Seed, with its reset, and Reshuffle, which applies a new seed at once.
+ * @param props - Component props
+ * @param props.values - The form's values
+ * @param props.edit - Writes the form's values
+ * @param props.onReshuffle - Applies the layout with a new random seed
+ * @returns The fields
+ */
+function SeedField({
+    values,
+    edit,
+    onReshuffle,
+}: Readonly<{
+    values: Record<string, unknown>;
+    edit: (next: Record<string, unknown>) => void;
+    onReshuffle: () => void;
+}>): React.JSX.Element {
+    const seed = typeof values.seed === "number" ? values.seed : undefined;
+    return (
+        <Group gap={8} wrap="nowrap" align="flex-end">
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <PanelLabelsProvider showLabels>
+                    <FieldRow
+                        trailing={
+                            seed !== undefined && (
+                                <ResetButton
+                                    label="Seed"
+                                    onClick={() => {
+                                        edit({ ...values, seed: undefined });
+                                    }}
+                                />
+                            )
+                        }
+                    >
+                        <PanelField
+                            label="Seed"
+                            kind="number"
+                            value={seed ?? LAYOUT_SEED}
+                            step={1}
+                            decimalScale={0}
+                            onChange={(next) => {
+                                edit({ ...values, seed: Number(next) });
+                            }}
+                        />
+                    </FieldRow>
+                </PanelLabelsProvider>
+            </div>
+            <Button size="compact-xs" variant="default" onClick={onReshuffle}>
+                Reshuffle
+            </Button>
+        </Group>
+    );
+}
+
+/**
+ * The map's columns: the drawn map's element (only when this map is the one drawn), the columns its
+ * options read, and the ones the drawn map read.
+ * @param input - what to read
+ * @param input.session - the element's session
+ * @param input.element - the element
+ * @param input.values - the layout's options
+ * @param input.isMap - whether the layout is the map
+ * @param input.isCurrent - whether the layout is the one drawn
+ * @returns the drawn map, and the two lines
+ */
+function mapLines(input: {
+    session: GraphSession;
+    element: GraphtyElement | null;
+    values: Readonly<Record<string, unknown>>;
+    isMap: boolean;
+    isCurrent: boolean;
+}): { mapDrawn: GraphtyElement | null; reads: string; read: string | undefined } {
+    const { session, element, values, isMap, isCurrent } = input;
+    const mapDrawn = isMap && isCurrent ? element : null;
+    const reads = isMap ? locationLine(session, values) : "";
+    return { mapDrawn, reads, read: drawnLine(mapDrawn) };
+}
+
+/**
+ * Whether Apply would change the drawing: another layout, engine or options than the drawn one.
+ * @param input - what to compare
+ * @param input.isCurrent - whether the layout is the one drawn
+ * @param input.engine - the form's engine
+ * @param input.descriptor - the layout
+ * @param input.current - the drawn layout
+ * @param input.values - the form's options
+ * @param input.read - the columns the drawn map read
+ * @param input.reads - the columns the map reads now
+ * @returns true when it differs
+ */
+function layoutDiffers(input: {
+    isCurrent: boolean;
+    engine: string | undefined;
+    descriptor: LayoutDescriptor;
+    current: GraphSession["layout"];
+    values: Readonly<Record<string, unknown>>;
+    read: string | undefined;
+    reads: string;
+}): boolean {
+    const { isCurrent, engine, descriptor, current, values, read, reads } = input;
+    return (
+        !isCurrent ||
+        (engine ?? descriptor.engine) !== current.engine ||
+        !sameValues(values, current.options) ||
+        // Another location designated since the map was drawn: Apply reads it.
+        (read !== undefined && read !== reads)
+    );
+}
+
+/**
+ * The map's Location row, naming the columns it reads, with a note on what they held.
+ * @param props - Component props
+ * @param props.reads - the columns the map reads
+ * @param props.mapNote - what the columns held
+ * @param props.onLocation - goes to Data > Fields
+ * @returns the row
+ */
+function MapLocation({
+    reads,
+    mapNote,
+    onLocation,
+}: Readonly<{ reads: string; mapNote: string; onLocation: () => void }>): React.JSX.Element {
+    return (
+        <Stack gap={2}>
+            <FieldRow>
+                <Text size="xs">Location</Text>
+                <Button size="compact-xs" variant="default" aria-label="Location" onClick={onLocation}>
+                    {reads === "" ? "none" : reads}
+                </Button>
+            </FieldRow>
+            {mapNote === "" ? null : (
+                <Text size="xs" c="dimmed">
+                    {mapNote}
+                </Text>
+            )}
+        </Stack>
+    );
+}
+
+/**
  * The form for one layout (the Layout popover's second level, and inline in the graph's
  * inspector): Shape, its key options, the Advanced fold with Seed and Reshuffle, the cost line
  * and Apply. Nothing runs while the reader edits; Apply (or Enter) lays the graph out, as one
@@ -145,40 +406,22 @@ export function LayoutForm({
         }
     }, [focusButton]);
 
-    const shape = shapeOf(values, isCurrent && values.dim === start.values.dim ? current.arrangedDimension : undefined);
-    const startShape = shapeOf(start.values, isCurrent ? current.arrangedDimension : undefined);
+    const arranged = isCurrent ? current.arrangedDimension : undefined;
+    const shape = shapeOf(values, values.dim === start.values.dim ? arranged : undefined);
+    const startShape = shapeOf(start.values, arranged);
     const showShape = shapeChoice && current.dimension === "3d" && descriptor.maxDimensions === 3;
 
     // The map's form: the columns it reads (designated in Data > Fields), the warnings about what
     // they held, Surface offering only the flat map in 2D, and the map it draws on.
     const isMap = descriptor.id === MAP_LAYOUT;
-    const mapDrawn = isMap && isCurrent ? element : null;
-    const reads = isMap ? locationLine(session, values) : "";
-    const read = drawnLine(mapDrawn);
-    const differs =
-        !isCurrent ||
-        (engine ?? descriptor.engine) !== current.engine ||
-        !sameValues(values, current.options) ||
-        // Another location designated since the map was drawn: Apply reads it.
-        (read !== undefined && read !== reads);
+    const { mapDrawn, reads, read } = mapLines({ session, element, values, isMap, isCurrent });
+    const differs = layoutDiffers({ isCurrent, engine, descriptor, current, values, read, reads });
     const reason = unavailable(session, descriptor, values);
     const estimate = session.estimate({ op: "layout.set", id: descriptor.id, engine, options: values });
 
     // The view the layout would be drawn in: the 2D view draws every layout flat.
     const drawnIn = current.dimension === "2d" ? "2d" : shape;
-    // An option the 2D view does not draw (the map's Surface) offers only its default there.
-    const defaultOnly = (option: OptionDescriptor): boolean =>
-        typeof option.default === "string" &&
-        session.layout.optionInEffect(descriptor.id, option.name, drawnIn).code === "setting.notIn2d";
-    const inView = (asked: Record<string, unknown>): Record<string, unknown> => {
-        const shown = { ...asked };
-        for (const option of descriptor.options) {
-            if (shown[option.name] !== undefined && defaultOnly(option)) {
-                shown[option.name] = option.default;
-            }
-        }
-        return shown;
-    };
+    const { drawnOnly, defaultOnly, inView } = viewChoices(session, descriptor, drawnIn);
 
     const edit = (next: Record<string, unknown>): void => {
         setValues(next);
@@ -186,7 +429,8 @@ export function LayoutForm({
     };
     const apply = (asked: Record<string, unknown>): void => {
         setError(null);
-        const options = inView(asked);
+        // The reader's own values: one the 2D view does not draw is kept for the 3D view.
+        const options = asked;
         session.layout
             .set(descriptor.id, engine === undefined ? { options } : { engine, options })
             .then(onApplied, (failure: unknown) => {
@@ -203,7 +447,7 @@ export function LayoutForm({
         if (isCurrent && !differs) {
             setValues(next);
             setError(null);
-            session.layout.set(descriptor.id, { options: inView(next) }).catch(() => {
+            session.layout.set(descriptor.id, { options: next }).catch(() => {
                 setError(`${layoutName(descriptor)} could not draw this map`);
             });
             return;
@@ -211,13 +455,7 @@ export function LayoutForm({
         edit(next);
     };
     const pickShape = (picked: "2d" | "3d"): void => {
-        if (picked === startShape) {
-            // Back to what is drawn: its own dim (or none).
-            const { dim: _dim, ...rest } = values;
-            edit(start.values.dim === undefined ? rest : { ...rest, dim: start.values.dim });
-            return;
-        }
-        edit({ ...values, dim: picked === "2d" ? 2 : 3 });
+        edit(shapePicked(picked, picked === startShape ? start.values : null, values));
     };
 
     // One note under Location: what the columns held.
@@ -232,46 +470,15 @@ export function LayoutForm({
 
     const takesSeed = descriptor.options.some((o) => o.name === "seed");
     const seed = takesSeed ? (
-        <Group gap={8} wrap="nowrap" align="flex-end">
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <PanelLabelsProvider showLabels>
-                    <FieldRow
-                        trailing={
-                            typeof values.seed === "number" && (
-                                <ResetButton
-                                    label="Seed"
-                                    onClick={() => {
-                                        edit({ ...values, seed: undefined });
-                                    }}
-                                />
-                            )
-                        }
-                    >
-                        <PanelField
-                            label="Seed"
-                            kind="number"
-                            value={typeof values.seed === "number" ? values.seed : LAYOUT_SEED}
-                            step={1}
-                            decimalScale={0}
-                            onChange={(next) => {
-                                edit({ ...values, seed: Number(next) });
-                            }}
-                        />
-                    </FieldRow>
-                </PanelLabelsProvider>
-            </div>
-            <Button
-                size="compact-xs"
-                variant="default"
-                onClick={() => {
-                    const next = { ...values, seed: randomSeed() };
-                    setValues(next);
-                    apply(next);
-                }}
-            >
-                Reshuffle
-            </Button>
-        </Group>
+        <SeedField
+            values={values}
+            edit={edit}
+            onReshuffle={() => {
+                const next = { ...values, seed: randomSeed() };
+                setValues(next);
+                apply(next);
+            }}
+        />
     ) : undefined;
 
     return (
@@ -293,51 +500,20 @@ export function LayoutForm({
                         {descriptor.description}
                     </Text>
                 )}
-                {showShape ? (
-                    <Stack gap={2}>
-                        <Text size="xs" id={`layout-shape-${descriptor.id}`}>
-                            Shape
-                        </Text>
-                        <SegmentedControl
-                            aria-labelledby={`layout-shape-${descriptor.id}`}
-                            fullWidth
-                            value={shape}
-                            data={[
-                                { value: "3d", label: "3D" },
-                                { value: "2d", label: "2D" },
-                            ]}
-                            onChange={(picked) => {
-                                pickShape(picked === "2d" ? "2d" : "3d");
-                            }}
-                        />
-                    </Stack>
-                ) : null}
+                {showShape ? <ShapeField id={descriptor.id} shape={shape} onPick={pickShape} /> : null}
                 {current.dimension === "3d" && descriptor.maxDimensions === 2 ? (
                     <Text size="xs" c="dimmed">
                         Draws flat
                     </Text>
                 ) : null}
                 {isMap ? (
-                    <Stack gap={2}>
-                        <FieldRow>
-                            <Text size="xs">Location</Text>
-                            <Button
-                                size="compact-xs"
-                                variant="default"
-                                aria-label="Location"
-                                onClick={() => {
-                                    store.set({ page: "panels", place: "data" });
-                                }}
-                            >
-                                {reads === "" ? "none" : reads}
-                            </Button>
-                        </FieldRow>
-                        {mapNote === "" ? null : (
-                            <Text size="xs" c="dimmed">
-                                {mapNote}
-                            </Text>
-                        )}
-                    </Stack>
+                    <MapLocation
+                        reads={reads}
+                        mapNote={mapNote}
+                        onLocation={() => {
+                            store.set({ page: "panels", place: "data" });
+                        }}
+                    />
                 ) : null}
                 <OptionsForm
                     session={session}
@@ -352,7 +528,7 @@ export function LayoutForm({
                                 !(isMap && LOCATION_OPTIONS.has(o.name)),
                         )
                         .map((o) =>
-                            defaultOnly(o) ? { ...o, values: o.values?.filter((v) => v.value === o.default) } : o,
+                            defaultOnly(o) ? { ...o, values: o.values?.filter((v) => v.value === drawnOnly(o)) } : o,
                         )}
                     values={inView(values)}
                     words={words}
@@ -369,18 +545,11 @@ export function LayoutForm({
                     <MapSourceFields value={values.map as BasemapConfig | null | undefined} onChange={pickMap} />
                 ) : null}
                 {error === null ? null : (
-                    <Text size="xs" c="red" role="alert">
+                    <Text size="xs" c="var(--cm-text-danger)" role="alert">
                         {error}
                     </Text>
                 )}
-                <Group justify="space-between" wrap="nowrap">
-                    <Text size="xs" c={reason === null ? "dimmed" : "red"}>
-                        {reason ?? costLine(estimate.seconds)}
-                    </Text>
-                    <Button size="xs" type="submit" disabled={!differs || reason !== null}>
-                        {differs ? "Apply" : "Applied"}
-                    </Button>
-                </Group>
+                <ApplyRow reason={reason} seconds={estimate.seconds} differs={differs} />
             </Stack>
         </form>
     );

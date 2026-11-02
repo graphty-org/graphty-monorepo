@@ -13,8 +13,9 @@
  * shows the interactive canvas instead.
  *
  * The story root has `whenDone()`, which settles once the table is drawn and, unless `live`, the element is gone (only
- * its screenshot stays); visual-review waits on it before the capture. A failure is printed as "fidelity story failed:
- * <reason>", which the capture treats as a failed story.
+ * its screenshot stays); visual-review waits on it before the capture, and the story's afterEach waits on it, so its
+ * test ends only once the story has. A failure is printed as "fidelity story failed: <reason>", which the capture
+ * treats as a failed story and the afterEach throws.
  */
 import "../../../graphty-element/index.ts";
 
@@ -153,9 +154,10 @@ interface Figure {
  * @param sample - the sample
  * @param fileUrl - where the build serves the sample file
  * @param live - show the interactive canvas instead of its screenshot
+ * @param imageBase - what the pictures the file names by relative paths are beside, when not `fileUrl`
  * @returns the story root
  */
-function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLElement {
+function render(sample: FidelitySample, fileUrl: string, live: boolean, imageBase = fileUrl): HTMLElement {
     const root = document.createElement("div");
     root.dataset.fidelity = sample.id;
     root.innerHTML = `${STYLE}<h2>${esc(sample.id)}</h2><p>${esc(sample.file)} (${esc(sample.license)})</p>`;
@@ -218,7 +220,9 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
     const done = (async (): Promise<void> => {
         try {
             const meta = oracleMeta(sample.id);
-            const decoded: Promise<void>[] = [];
+            // Decoded together at the end, never started early: a decode that fails while the sample is still
+            // importing would reject with nothing awaiting it yet, an unhandled rejection (#4512).
+            const shown: HTMLImageElement[] = [];
             if (hasOracle) {
                 const url = await oraclePngUrl(sample.id);
                 if (url === undefined) {
@@ -226,10 +230,10 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
                 }
                 const { href } = new URL(url, document.baseURI);
                 oracleImg.src = href;
-                decoded.push(oracleImg.decode());
+                shown.push(oracleImg);
                 if (overOracle) {
                     overOracle.src = href;
-                    decoded.push(overOracle.decode());
+                    shown.push(overOracle);
                 }
                 left.caption.textContent = provenance(meta);
             }
@@ -244,6 +248,7 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
                     blobUrl,
                     oracleGraphName(meta),
                     oracleFormatOptions(meta, sample.format),
+                    new URL(imageBase, document.baseURI).href,
                 );
                 const how = live ? "live canvas" : "its own screenshot";
                 middle.caption.textContent = `graphty-element, file styles (${how}); ${loaded.slice(loaded.indexOf("; ") + 2)}`;
@@ -273,7 +278,7 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
             for (const img of [graphtyImg, overGraphty]) {
                 if (img) {
                     img.src = shotUrl;
-                    decoded.push(img.decode());
+                    shown.push(img);
                 }
             }
             if (live) {
@@ -285,10 +290,10 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
                 // screenshot waited for those frames: 10 s of hsk-chars' 27 s shoot hook, against 1.7 s without (#4314).
                 host.remove();
             }
-            await Promise.all(decoded);
+            await Promise.all(shown.map((img) => img.decode()));
         } catch (e) {
             const reason = e instanceof Error ? e.message : String(e);
-            right.insertAdjacentHTML("beforeend", `<p style="color:#b00">Failed: ${esc(reason)}</p>`);
+            right.insertAdjacentHTML("beforeend", `<p class="failed" style="color:#b00">Failed: ${esc(reason)}</p>`);
             console.error(`fidelity story failed: ${sample.id}: ${reason}`);
         }
     })();
@@ -310,9 +315,10 @@ const ALL: readonly FidelitySample[] = [...SAMPLES, ...CORPUS_SAMPLES, ...SPECIM
  * A story for one sample; its stories file names it, without the format its folder already says.
  * @param id - the sample's id
  * @param fileUrl - the sample file, imported with `?url`
+ * @param imageBase - where the file sits beside the pictures it names by relative paths, when not `fileUrl`
  * @returns the story
  */
-export function fidelityStory(id: string, fileUrl: string): StoryObj {
+export function fidelityStory(id: string, fileUrl: string, imageBase?: string): StoryObj {
     const sample = ALL.find((s) => s.id === id);
     if (sample === undefined) {
         throw new Error(`${id} is not a fidelity sample`);
@@ -325,8 +331,34 @@ export function fidelityStory(id: string, fileUrl: string): StoryObj {
                 description: "Show graphty-element's interactive canvas instead of its screenshot",
             },
         },
-        render: (args) => render(sample, fileUrl, args.live === true),
+        render: (args) => render(sample, fileUrl, args.live === true, imageBase),
+        afterEach: untilDone,
     };
+}
+
+type Root = HTMLElement & { whenDone: () => Promise<void> };
+
+/**
+ * The afterEach of every fidelity story: it waits for the story to finish and throws its failure, so a story test
+ * ends only once the story has (not while the story is still importing, when the next story would unmount it
+ * mid-import) and a story that fails fails its test (#4997). An afterEach rather than a play function: Storybook runs
+ * it after the render is "completed", which is all the screenshot capture waits for within its render timeout before
+ * it waits on `whenDone()` itself with none, so a large sample may take as long as it needs, as before. As a play
+ * function the whole import counted against the render timeout, and the largest samples (cyjs-perf,
+ * gephi-worldcup) exceeded it.
+ * @param context - the story's context
+ * @param context.canvasElement - what the story is drawn in
+ */
+export async function untilDone({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> {
+    const root = canvasElement.querySelector<Root>("[data-fidelity]");
+    if (root === null) {
+        throw new Error("the story drew no root");
+    }
+    await root.whenDone();
+    const failed = root.querySelector(".failed");
+    if (failed !== null) {
+        throw new Error(failed.textContent ?? "failed");
+    }
 }
 
 /**
@@ -361,11 +393,14 @@ export function specimenStory(format: SpecimenFormat, sheetId: string, files: Re
     const id = specimenSampleId(format.id, sheetId);
     const sheet = format.sheets.find((s) => s.id === sheetId);
     if (sheet !== undefined) {
-        const url = Object.entries(files).find(([path]) => path.endsWith(`/${sheet.file}`))?.[1];
-        if (url === undefined) {
+        const [path, url] = Object.entries(files).find(([p]) => p.endsWith(`/${sheet.file}`)) ?? [];
+        if (path === undefined || url === undefined) {
             throw new Error(`${id}: the build serves no file ${sheet.file}`);
         }
-        return fidelityStory(id, url);
+        // The pictures a sheet names (`img-quadrants.png`) through the static copy of the specimens folder
+        // (.storybook/main.ts): `?url` gives each file a hashed name, or inlines a small one as a `data:` URL,
+        // so beside the sheet's own `?url` there is no picture of that name in a built Storybook (#5344).
+        return fidelityStory(id, url, `fidelity/specimens/${path.split("/").slice(-2).join("/")}`);
     }
     const category = categoryOf(sheetId);
     const absent = category === undefined ? undefined : format.absent[category];

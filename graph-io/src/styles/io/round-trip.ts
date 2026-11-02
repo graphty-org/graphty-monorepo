@@ -72,13 +72,6 @@ interface RoundTrip {
      * @returns the values read back, or null when the element is not compared
      */
     readBack(i: number, want: ElementValues): ElementValues | null;
-    /**
-     * Whether a property's value of an element may be taken from the block at all (before comparing). Default: always.
-     * @param property - the property
-     * @param wanted - the block's value
-     * @param native - the value read
-     */
-    take?(property: string, wanted: StyleValue | null, native: StyleValue | null): boolean;
 }
 
 /**
@@ -101,7 +94,7 @@ function takeBlockValues(target: StyleTarget, n: number, block: BlockValues, tri
         }
         for (const property of properties) {
             const w = want(property);
-            if (takes(trip, property, w, values[property]?.[i] ?? null, back)) {
+            if (takes(property, w, values[property]?.[i] ?? null, back)) {
                 columnOf(changed, values, property, n)[i] = w;
             }
         }
@@ -130,23 +123,18 @@ function blockGetter(
 }
 
 /**
- * Whether the block's value replaces the value read: the format allows it, they differ, and the value read is what the
- * writer writes for the block's value.
- * @param trip - the target's round trip
+ * Whether the block's value replaces the value read: they differ, and the value read is what the writer writes for the
+ * block's value. The same in every format, whether the block gives a value or none (a value the writer writes for
+ * none is the writer's, not the file's) and whether the file holds one or none (a value the writer cannot hold reads
+ * back as none).
  * @param property - the property
  * @param wanted - the block's value
  * @param native - the value read
  * @param back - the element's block values written and read back
  * @returns whether to take the block's value
  */
-function takes(
-    trip: RoundTrip,
-    property: string,
-    wanted: StyleValue | null,
-    native: StyleValue | null,
-    back: ElementValues,
-): boolean {
-    return trip.take?.(property, wanted, native) !== false && native !== wanted && native === (back(property) ?? null);
+function takes(property: string, wanted: StyleValue | null, native: StyleValue | null, back: ElementValues): boolean {
+    return native !== wanted && native === (back(property) ?? null);
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { F32, F64, GraphSnapshot, NumericVector } from "@graphty/graph-format";
+import type { F32, F64, GraphSnapshot, NumericVector, ReverseView } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
 
@@ -65,6 +65,99 @@ export function personalizedPageRank(
     return run(s, distribution(personalization, s.nodeCount, "personalization"), o);
 }
 
+/** What one power-iteration step reads, built once per call. */
+interface PowerStep {
+    readonly n: number;
+    readonly d: number;
+    readonly p: F64 | null;
+    readonly useMax: boolean;
+    readonly rev: ReverseView;
+    readonly revW: NumericVector | null;
+    readonly outW: NumericVector;
+}
+
+/**
+ * The arc weights the walk follows (null when unweighted) and each node's out-weight. Reads the
+ * f64 shadow toSnapshot keeps when a weight is not f32-exact, else the f32 arc weights.
+ * @param s - The snapshot
+ * @param rev - The reverse view
+ * @param o - Algorithm options
+ * @returns The reverse-arc weights and the out-weights
+ */
+function walkWeights(
+    s: GraphSnapshot,
+    rev: ReverseView,
+    o: PageRankOptions,
+): { revW: NumericVector | null; outW: NumericVector } {
+    const weighted = o.weighted === true && rev.weights !== null;
+    const shadow = weighted ? s.edges.byRole("weight") : null;
+    const exact = shadow?.dtype === "f64" ? shadow.data : null;
+    if (exact !== null) {
+        return { revW: gather(exact, rev.arcToEdge), outW: rowSums(s, gather(exact, s.arcToEdge)) };
+    }
+    return weighted ? { revW: rev.weights, outW: s.weightedOutDegree() } : { revW: null, outW: s.outDegree() };
+}
+
+/**
+ * The total rank held by nodes with no out-weight.
+ * @param rank - The current ranks
+ * @param outW - The out-weight of every node
+ * @param n - The node count
+ * @returns The dangling mass
+ */
+function danglingMass(rank: F64, outW: NumericVector, n: number): number {
+    let dangling = 0;
+    for (let u = 0; u < n; u++) {
+        if (outW[u] === 0) {
+            dangling += rank[u];
+        }
+    }
+    return dangling;
+}
+
+/**
+ * The rank flowing into `v` along its in-arcs, before damping.
+ * @param ps - The iteration inputs
+ * @param rank - The current ranks
+ * @param v - The node
+ * @returns The undamped inflow
+ */
+function inflow(ps: PowerStep, rank: F64, v: number): number {
+    const { rev, revW, outW } = ps;
+    let acc = 0;
+    const end = rev.rowPtr[v + 1];
+    for (let a = rev.rowPtr[v]; a < end; a++) {
+        const u = rev.colIdx[a];
+        const ow = outW[u];
+        if (ow > 0) {
+            acc += (rank[u] * (revW === null ? 1 : revW[a])) / ow;
+        }
+    }
+    return acc;
+}
+
+/**
+ * One power-iteration step from `rank` into `next`.
+ * @returns The change, by the chosen norm
+ * @param ps - The iteration inputs
+ * @param rank - The current ranks
+ * @param next - Where the new ranks go
+ */
+function powerStep(ps: PowerStep, rank: F64, next: F64): number {
+    const { n, d, p, useMax } = ps;
+    const dangling = danglingMass(rank, ps.outW, n);
+    // Teleport (1 - d) spread by p or uniformly; the dangling mass d * dangling spread uniformly,
+    // and with p scaled by p[v] on top of the uniform 1 / n, as the legacy function does.
+    const spread = 1 - d + d * dangling * (p === null ? 1 : 1 / n);
+    let delta = 0;
+    for (let v = 0; v < n; v++) {
+        next[v] = spread * (p === null ? 1 / n : p[v]) + d * inflow(ps, rank, v);
+        const change = Math.abs(next[v] - rank[v]);
+        delta = useMax ? Math.max(delta, change) : delta + change;
+    }
+    return delta;
+}
+
 /**
  * The shared power iteration.
  * @param s - The snapshot
@@ -74,24 +167,14 @@ export function personalizedPageRank(
  */
 function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResult {
     const n = s.nodeCount;
-    const d = o.dampingFactor ?? 0.85;
     const maxIter = o.maxIterations ?? 100;
     const tol = o.tolerance ?? 1e-6;
-    const useMax = o.convergenceNorm === "max";
     if (n === 0) {
         return { scores: new Float64Array(0), iterations: 0, converged: true };
     }
     const rev = s.reverse();
-    const weighted = o.weighted === true && rev.weights !== null;
-    // The f64 shadow toSnapshot keeps when a weight is not f32-exact, else the f32 arc weights.
-    const shadow = weighted ? s.edges.byRole("weight") : null;
-    const exact = shadow?.dtype === "f64" ? shadow.data : null;
-    let revW: NumericVector | null = weighted ? rev.weights : null;
-    let outW: NumericVector = weighted ? s.weightedOutDegree() : s.outDegree();
-    if (exact !== null) {
-        revW = gather(exact, rev.arcToEdge);
-        outW = rowSums(s, gather(exact, s.arcToEdge));
-    }
+    const { revW, outW } = walkWeights(s, rev, o);
+    const ps: PowerStep = { n, d: o.dampingFactor ?? 0.85, p, useMax: o.convergenceNorm === "max", rev, revW, outW };
     let rank =
         (o.initialRanks === undefined ? null : distribution(o.initialRanks, n, "initialRanks")) ??
         new Float64Array(n).fill(o.initialRanks === undefined ? 1 / n : 0);
@@ -99,30 +182,7 @@ function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResul
     let it = 0;
     let converged = false;
     for (; it < maxIter && !converged; it++) {
-        let dangling = 0;
-        for (let u = 0; u < n; u++) {
-            if (outW[u] === 0) {
-                dangling += rank[u];
-            }
-        }
-        // Teleport (1 - d) spread by p or uniformly; the dangling mass d * dangling spread uniformly,
-        // and with p scaled by p[v] on top of the uniform 1 / n, as the legacy function does.
-        const spread = 1 - d + d * dangling * (p === null ? 1 : 1 / n);
-        let delta = 0;
-        for (let v = 0; v < n; v++) {
-            let acc = 0;
-            const end = rev.rowPtr[v + 1];
-            for (let a = rev.rowPtr[v]; a < end; a++) {
-                const u = rev.colIdx[a];
-                const ow = outW[u];
-                if (ow > 0) {
-                    acc += (rank[u] * (revW === null ? 1 : revW[a])) / ow;
-                }
-            }
-            next[v] = spread * (p === null ? 1 / n : p[v]) + d * acc;
-            const change = Math.abs(next[v] - rank[v]);
-            delta = useMax ? Math.max(delta, change) : delta + change;
-        }
+        const delta = powerStep(ps, rank, next);
         [rank, next] = [next, rank];
         converged = delta < tol;
     }

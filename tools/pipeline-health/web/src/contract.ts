@@ -21,6 +21,7 @@
  * | `/v1/page/overview?range=1h\|6h\|24h`                   | {@link OverviewResponse}   |
  * | `/v1/page/<category page>?range=1h\|6h\|24h`            | {@link PageResponse}       |
  * | `/v1/page/costs?range=7d\|28d`                          | {@link PageResponse}       |
+ * | `/v1/page/issues?range=28d\|all`                        | {@link PageResponse}       |
  * | `/v1/page/<page>/<section>?range=7d\|28d[&kind=...]`    | {@link SectionResponse}    |
  * | `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d`    | {@link TestHistoryResponse}|
  * | `/v1/run/<run id>`                                      | {@link RunResponse}        |
@@ -35,12 +36,18 @@ export type Range = "1h" | "6h" | "24h";
 /** The slow measures' own choice (section 8): Costs, shard times and flake hotspots. */
 export type SlowRange = "7d" | "28d";
 
+/** The Issues page's history: the last 28 days by day, or every issue's history by week. */
+export type IssueRange = "28d" | "all";
+
 /** The seven categories, in pipeline order (section 2.2). */
 export const CATEGORY_IDS = ["master", "pull-requests", "ci", "flaky", "releases", "costs", "data-sources"] as const;
 export type CategoryId = (typeof CATEGORY_IDS)[number];
 
-/** The ten views (section 2.6): the overview, the seven categories, and Runners and Local runs under CI. */
-export type PageId = "overview" | CategoryId | "runners" | "local-runs";
+/**
+ * The eleven views (section 2.6): the overview, the seven categories, Runners and Local runs under CI, and Issues,
+ * which shows facts and no SLA state.
+ */
+export type PageId = "overview" | CategoryId | "runners" | "local-runs" | "issues";
 
 /** An SLA state. NO DATA (`nodata`) counts as yellow in a rollup but is drawn gray and hatched (3.1). */
 export type SlaState = "ok" | "warn" | "bad" | "nodata";
@@ -53,7 +60,7 @@ export type SlaState = "ok" | "warn" | "bad" | "nodata";
  * - `few`: a rate whose last hour holds fewer than its minimum n; out of the rollup.
  * - `partial`: its source covers less than its window; out of the rollup.
  * - `idle`: its activity stopped by design (n=0); out of the rollup.
- * - `slow`: a slow measure, drawn with its own window, never sets a state.
+ * - `slow`: sent by APIs built before 7- and 28-day members were judged; read as out of the rollup.
  * - `info`: informational until it has fired on real data.
  */
 export type MemberState = SlaState | "notsetup" | "few" | "partial" | "idle" | "slow" | "info";
@@ -62,10 +69,10 @@ export type MemberState = SlaState | "notsetup" | "few" | "partial" | "idle" | "
 export type CategoryState = SlaState | "idle";
 
 /** An ISO 8601 time in UTC. */
-export type Iso = string;
+export type Iso = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
 
 /** A hash route of the page, such as `/ci/runners` or `/master/red`, or an absolute https URL. */
-export type Route = string;
+export type Route = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
 
 /** A parameter of a {@link Fact}: numbers in the unit its code names, ids, names of data, ISO times. */
 export type Param = string | number | boolean | null | readonly (string | number)[];
@@ -100,7 +107,8 @@ export interface NumberValue {
 }
 
 export interface WordValue {
-    word: "passed" | "failed" | "yes" | "no" | "filed" | "skipped";
+    /** `quiet`: the weekly stress run found nothing three weeks running. */
+    word: "passed" | "failed" | "yes" | "no" | "filed" | "skipped" | "quiet";
     /** "filed 0": a count after the word. */
     n?: number;
 }
@@ -178,17 +186,28 @@ export const MEMBER_IDS = [
     "ci.superseded",
     "ci.chronic_jobs",
     "ci.bench_regressions",
+    "ci.screenshot_set_age",
+    "ci.slice_base_budget",
+    "ci.slice_idle_budget",
+    "ci.slice_idle_hour_budget",
+    "ci.slice_contended",
+    "ci.slice_queue_wait",
     "flaky.blocked",
     "flaky.no_issue",
     "flaky.flake_rate",
     "flaky.net_new",
     "flaky.detected_to_fixed",
     "releases.lanes_red",
+    "releases.review_wait",
     "releases.workflows_failing",
     "releases.train_skipped",
     "releases.tagged_not_npm",
     "releases.train_first_pass",
     "releases.channels",
+    "releases.review_lag",
+    "releases.slots_unreviewed",
+    "releases.green_clean",
+    "releases.nightly_promotions",
     "costs.spend",
     "costs.t4",
     "costs.llm",
@@ -260,6 +279,11 @@ export interface CategoryStatus {
     others: MemberRef[];
     /** The headline measure under the block (section 2.3). */
     headline: Member;
+    /**
+     * The member that set the state, as a full row, when it is not the headline: the overview shows it under the
+     * block in the headline's place, so the number under a colored block is the one that colored it.
+     */
+    driver?: Member;
 }
 
 /** One episode of the last 24 h: a member that went past its target (section 2.4). */
@@ -272,6 +296,13 @@ export interface Episode {
     start: Iso;
     /** `null` while ongoing. */
     end: Iso | null;
+    /** The episode began before the history the engine keeps, or at a time it cannot tell: `start` is a bound. */
+    startUnknown?: boolean;
+    /**
+     * Still open (`end` is null), but the member is not judged now (too few samples, no data): the page says so
+     * rather than "ongoing", because the member's row shows no state that could set its category's color.
+     */
+    notJudgedNow?: boolean;
     /** What happened: the member, its value and the cause when the collector knows it. */
     fact: Fact;
     link: Route;
@@ -316,12 +347,49 @@ export interface StatusResponse {
 export interface OverviewResponse extends StatusResponse {
     page: "overview";
     range: Range;
+    /** Canary, Nightly and Production, in that order; absent from payloads built before the channels were. */
+    channels?: ChannelTile[];
+    /** The Issues page's headline; absent when no issue is stored and from payloads built before it was. */
+    issues?: IssuesSummary;
+}
+
+/** Open bugs now and 28 days ago, and the issues opened and closed in the last 28 days. */
+export interface IssuesSummary {
+    bugs: number;
+    bugs28dAgo: number;
+    critical: number;
+    critical28dAgo: number;
+    opened: number;
+    closed: number;
+}
+
+/** A release channel: canary.graphty.app, nightly.graphty.app, graphty.app. */
+export type ChannelId = "canary" | "nightly" | "production";
+
+/**
+ * How one release attempt ended: deployed or promoted (`ok`), failed (`bad`), passed but not promoted (`held`, a
+ * nightly candidate waiting for screenshot approval), or cancelled.
+ */
+export type ChannelOutcome = "ok" | "bad" | "held" | "cancelled";
+
+/** One channel's tile on the overview (#4460): its state, what it serves, and its recent release attempts. */
+export interface ChannelTile {
+    id: ChannelId;
+    /** The newest attempt's outcome (held is `warn`); `nodata` when no attempt is recorded. */
+    state: "ok" | "warn" | "bad" | "nodata";
+    /** The commit the channel serves now; `null` when it is not known. */
+    sha: string | null;
+    /** When the newest successful attempt deployed or promoted; `null` when none is recorded. */
+    at: Iso | null;
+    /** Its recent release attempts, oldest first (at most 14). */
+    attempts: { at: Iso; outcome: ChannelOutcome; run: number; sha?: string }[];
+    link: Route;
 }
 
 /** `GET /v1/page/<page>?range=`: one category page, or Runners or Local runs (section 2.6). */
 export interface PageResponse {
     page: Exclude<PageId, "overview">;
-    range: Range | SlowRange;
+    range: Range | SlowRange | IssueRange;
     generated: Iso;
     state: CategoryState;
     setBy?: MemberRef;
@@ -357,7 +425,14 @@ interface SectionBase {
 }
 
 export type Section =
-    StripSection | TableSection | BarsSection | JobsSection | ShardsSection | TreeSection | EmptySection;
+    | StripSection
+    | TableSection
+    | BarsSection
+    | JobsSection
+    | ShardsSection
+    | TreeSection
+    | SeriesSection
+    | EmptySection;
 
 /** A strip by minute: master's state over the range (Master builds). */
 export interface StripSection extends SectionBase {
@@ -372,7 +447,7 @@ export interface StripSection extends SectionBase {
  * A table. The page names the table's columns by section id; each row maps a column key to a cell.
  * Tables: master/red, master/shared, pull-requests/owner, runners/superseded, ci/chronic, ci/non-gating,
  * ci/benchmarks, releases/lanes,
- * releases/trains, releases/workflows, costs/money, costs/unit, data-sources/stress,
+ * releases/trains, releases/workflows, costs/money, costs/unit, flaky/stress,
  * data-sources/sources, data-sources/not-set-up.
  */
 export interface TableSection extends SectionBase {
@@ -433,10 +508,20 @@ export interface JobsSection extends SectionBase {
     start: Iso;
     running: number[];
     queued: number[];
+    /**
+     * Per bucket: the peak running and queued counts, the longest queued job (ms) and the saturated time (ms);
+     * null where the collector wrote nothing. The 7 d runner history (`runners/jobs`) is tuned from these.
+     */
+    runningMax?: (number | null)[];
+    queuedMax?: (number | null)[];
+    longestQueuedMs?: (number | null)[];
+    saturatedMs?: (number | null)[];
     /** The plan's limit, from config (`slas.json`). */
     limit: number;
-    /** The observed peak: a label beside the limit, never a threshold. */
+    /** The observed peak of running jobs: a label beside the limit, never a threshold. */
     peak: { n: number; at: Iso };
+    /** The observed peak of queued jobs; absent from payloads built before it was. */
+    peakQueued?: { n: number; at: Iso };
 }
 
 /** Shard and test-file times (section 6), a slow section. */
@@ -491,6 +576,25 @@ export interface TreeNode {
     children?: TreeNode[];
 }
 
+/**
+ * Counts per time bucket (Issues): a stock as lines (`lines`) or as bands stacked up from zero (`area`), counts per
+ * bucket stacked by kind (`stacked`), or a flow (`flow`): opened above a zero line, closed below it, and their
+ * difference as a line. Buckets are UTC days (`1d`) or weeks from Monday (`1w`) from `start`; the last one is partial
+ * and ends at `generated`.
+ */
+export interface SeriesSection extends SectionBase {
+    kind: "series";
+    chart: "lines" | "area" | "stacked" | "flow";
+    step: "1d" | "1w";
+    /** The first bucket's start. */
+    start: Iso;
+    /**
+     * Oldest first; `key` is a label code the page names ("issues.prio.critical"). A count per bucket has one value
+     * per bucket; a stock (`lines`, `area`) has one more, its count at `start` and then at each bucket's end.
+     */
+    series: { key: string; values: number[] }[];
+}
+
 /** A section that states an absence ("no quarantine entries"). */
 export interface EmptySection extends SectionBase {
     kind: "empty";
@@ -535,11 +639,24 @@ export interface RunResponse {
     jobs: { name: string; conclusion: string | null; created: Iso; started: Iso | null; completed: Iso | null }[];
 }
 
-/** The path of an API route, relative to the API base. */
+/** The live health API, the page's data source unless VITE_HEALTH_API_URL names another. */
+export const LIVE_API = "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com";
+
+/**
+ * The dev server's same-origin path to the API (vite.config.ts proxies it), so a dev server on any host
+ * reads the live data without that host being on the API's CORS list.
+ */
+export const DEV_API_PATH = "/health-api";
+
+/**
+ * The path of an API route, relative to the API base.
+ * @param route - The route and its parameters.
+ * @returns The path with its query string.
+ */
 export function apiPath(
     route:
         | { kind: "status" }
-        | { kind: "page"; page: PageId; range: Range | SlowRange }
+        | { kind: "page"; page: PageId; range: Range | SlowRange | IssueRange }
         | { kind: "section"; page: Exclude<PageId, "overview">; section: string; range: SlowRange; runKind?: string }
         | { kind: "test-history"; file: string; test?: string; range: SlowRange }
         | { kind: "run"; id: number },
@@ -550,16 +667,17 @@ export function apiPath(
         case "page":
             return `/v1/page/${route.page}?range=${route.range}`;
         case "section":
-            return (
-                `/v1/page/${route.page}/${route.section}?range=${route.range}` +
-                (route.runKind ? `&kind=${route.runKind}` : "")
-            );
+            return `/v1/page/${route.page}/${route.section}?range=${route.range}${
+                route.runKind ? `&kind=${route.runKind}` : ""
+            }`;
         case "test-history": {
             const q = new URLSearchParams({ file: route.file, range: route.range });
-            if (route.test) q.set("test", route.test);
+            if (route.test) {
+                q.set("test", route.test);
+            }
             return `/v1/test-history?${q.toString()}`;
         }
-        case "run":
+        default:
             return `/v1/run/${route.id}`;
     }
 }

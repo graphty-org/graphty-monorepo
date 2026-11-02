@@ -340,3 +340,25 @@ function kindOfValue(value: boolean | number | string): TextDtype {
     }
     return Number.isInteger(value) && value >= -2147483648 && value <= 2147483647 ? "i32" : "f64";
 }
+
+/**
+ * `JSON.stringify` typed as it behaves: it returns undefined, not text, for undefined, a function
+ * or a symbol, which a value read from a file or passed by a caller can be.
+ * @param value - the value
+ * @returns its JSON text, or undefined when it has none
+ */
+export function jsonText(value: unknown): string | undefined {
+    return JSON.stringify(value);
+}
+
+/**
+ * An item of an array, typed as it behaves: undefined past the end (a short row of a malformed
+ * file) or for a capture group that took no part in a regular expression match, though the
+ * array's type says otherwise. Unlike `Array.prototype.at`, a negative index is undefined too.
+ * @param items - the array, or a regular expression match
+ * @param index - the index
+ * @returns the item, or undefined when there is none
+ */
+export function itemAt<T>(items: ArrayLike<T>, index: number): T | undefined {
+    return items[index];
+}

@@ -95,6 +95,7 @@ export type {
     FindOptions,
     FindResult,
     FindValueRow,
+    GraphFraming,
     GraphSession,
     GraphSettingKey,
     GraphStatistics,
@@ -470,6 +471,7 @@ export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";
 export type {
     RuleCheck,
     SelectionApi,
+    SelectionApplyOptions,
     SelectionAttributeStatistics,
     SelectionCause,
     SelectionDelta,
@@ -489,6 +491,11 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 export type { RuleSide, SourceKey, TextMatchMode } from "./src/catalog/types";
 export type {
     AttributeLeafNodes,
+    FilterCondition,
+    FilterConditionCount,
+    FilterConditionInput,
+    FilterConditionMatches,
+    FilterEffect,
     FilterResult,
     FilterStep,
     RuleTree,

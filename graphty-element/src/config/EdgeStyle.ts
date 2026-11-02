@@ -47,6 +47,13 @@ export const EdgeArrowTypes = z.enum([
     "open-cross-delta",
     // the inverted triangle's outline (Graphviz oinv, invempty)
     "open-inverted",
+    // half-open's arm drawn as one thin stroke, the line running on under it to where it meets the line
+    // (Cytoscape HALF_TOP), and that barb on the line's other side (HALF_BOTTOM)
+    "half-barb",
+    "half-barb-flipped",
+    // a vee turned round: its point on the line, its two corners toward the node and its notch empty, with no tine
+    // along the line (vis-network crow)
+    "inverted-vee",
 ]);
 
 const ArrowStyle = z.strictObject({
@@ -79,6 +86,16 @@ const ArrowStyle = z.strictObject({
      */
     gap: z.number().nonnegative().optional(),
     /**
+     * More caps drawn in a row behind this one, as Graphviz draws `boxdotnormal` and `lteeoldiamond`: cap types
+     * separated by spaces, nearest this one first, each drawn from where the one before it ends, pointing the same way,
+     * in this cap's colour and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
+     * the half it keeps (as `side`), then `*` and its size (as `size`; unset, this cap's), then `x` and its width (as
+     * `width`): `"dot normal"`, `"open-diamond:left*1.2x0.7"`. A word that is not a cap type draws nothing. Unset,
+     * this cap alone. At most 8 are drawn; later ones are left out. A cap drawn part-way along (`position`) draws its
+     * row there too.
+     */
+    stack: z.string().optional(),
+    /**
      * The colour to draw the cap in, or unset to follow the line it caps.
      *
      * NO DEFAULT, DELIBERATELY, and the absence is load-bearing. `Edge` draws a cap with
@@ -107,7 +124,7 @@ const ArrowStyle = z.strictObject({
 });
 
 /** A cap drawn part-way along the line: an end cap's settings, with no caption. */
-const MidArrowStyle = ArrowStyle.omit({ text: true, textDistance: true, gap: true });
+const MidArrowStyle = ArrowStyle.omit({ text: true, textDistance: true, gap: true, stack: true });
 
 /**
  * Every line pattern the edge renderer can draw, in schema order.
@@ -312,6 +329,13 @@ const LineStyle = z.strictObject({
      */
     supportUnit: z.number().nonnegative().optional(),
     /**
+     * What unit the support's lengths and forces are in: `"unit"` (when unset), `supportUnit`'s;
+     * `"drawing"`, the drawing's own, the size at which the forces hold the drawn nodes in balance,
+     * so a curve bows among nodes any layout placed as among nodes those forces placed themselves
+     * (a file whose program lays its nodes out under the same forces, drawn by another layout).
+     */
+    supportScale: z.enum(["unit", "drawing"]).optional(),
+    /**
      * The path the line takes between its nodes, whether or not it is curved: unset, the active
      * layout's choice (the `location-map` layout raises arcs over a flat map in 3D and draws
      * great-circle arcs on its globe; every other layout, and the 2D view, a straight line);
@@ -322,8 +346,9 @@ const LineStyle = z.strictObject({
     route: z.enum(["straight", "arc", "great-circle"]).optional(),
     /**
      * How high a raised route (`route` "arc" or "great-circle") rises at its middle, as a share of
-     * the distance between its ends along the map or the globe. Unset, 0.25 for an arc and 0.1 for a
-     * great circle; 0 draws it flat.
+     * the straight distance between its ends (across the map for an arc). Unset, 0.25 for an arc
+     * and 0.1 for a great circle, which then rises at most a fifth of the globe's radius; 0 draws it
+     * flat.
      */
     arcHeight: z.number().nonnegative().optional(),
     /**
@@ -384,6 +409,13 @@ export const EdgeStyle = z.strictObject({
     arrowMiddleTail: MidArrowStyle.optional(),
     line: LineStyle.optional(),
     label: RichTextStyle.prefault({ location: "top" }).optional(),
+    /**
+     * A second label drawn beside the line's middle (Graphviz's `xlabel` on an edge that also has a label), switched
+     * on by its words. It is drawn in the label's look -- font, size, color, outline -- and any field set here wins
+     * over the label's. Unset `location`, it sits up and left of the line's middle, its lower right corner on it, or
+     * centered where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
+     */
+    xlabel: RichTextStyle.optional(),
     /**
      * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
      * Drawn only when it names a colour. `scale` is a multiple of twice the line's width; the

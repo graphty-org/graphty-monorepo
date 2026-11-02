@@ -12,6 +12,7 @@ import { parse as parseYaml } from "yaml";
 import {
     approvalsIn,
     attemptOf,
+    cancelWithNote,
     due,
     fixForwardMerges,
     PAID_RETEST_MAX_MS,
@@ -134,6 +135,43 @@ describe("release-due approval merges since the last green build", () => {
         assert.equal(resumesDue(merges, store)[0].run, false, "the store records it promoted");
     });
 
+    // #4445: the approval of 42992d937e97 merged while the repository's Actions token had spent its hourly budget;
+    // the dispatch failed with "HTTP 403: API rate limit exceeded for installation", was logged as a warning, the job
+    // passed and the promotion never started.
+    const dispatch = (failures) => {
+        const log = join(dir, "gh.log");
+        const count = join(dir, "dispatches");
+        rmSync(log, { force: true });
+        writeFileSync(count, "0");
+        writeFileSync(
+            join(bin, "gh"),
+            `#!/bin/bash\necho "$*" >> ${log}\ncase "$*" in\n` +
+                `"run list"*) echo '${JSON.stringify([{ headSha: green }])}';;\n` +
+                `"workflow run"*) n=$(( $(cat ${count}) + 1 )); echo $n > ${count}\n` +
+                `  if [ $n -le ${failures} ]; then echo "HTTP 403: API rate limit exceeded for installation." >&2; exit 1; fi;;\n` +
+                `*) ;;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const out = spawnSync("node", [new URL("./release-due.mjs", import.meta.url).pathname], {
+            cwd: dir,
+            encoding: "utf8",
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r", GRAPHTY_RESULTS: "0" },
+        });
+        const calls = readFileSync(log, "utf8")
+            .split("\n")
+            .filter((l) => l.startsWith("workflow run"));
+        return { out, calls };
+    };
+
+    it("fails the job, naming gh's error, when the promotion cannot be dispatched", () => {
+        const { out, calls } = dispatch(1);
+        assert.equal(calls.length, 1);
+        assert.match(calls[0], new RegExp(`mode=promote-nightly -f candidate=${candidate} -f accept=${approval}`));
+        assert.equal(out.status, 1, "a missed promotion fails the job");
+        assert.match(out.stdout, /::error::gh workflow run release\.yml .*HTTP 403: API rate limit exceeded/);
+        assert.equal(dispatch(0).out.status, 0, "a dispatched promotion passes");
+    });
+
     it("reads only HEAD without a green build to start from", () => {
         assert.doesNotMatch(dryRun([]), promotes);
         g("switch", "-q", "-c", "alone", approvalMerge);
@@ -171,6 +209,21 @@ describe("release-due approvals since the last green build", () => {
         assert.equal(due[0].run, true);
     });
 
+    it("finds no approval in a merge of a rolling approval", () => {
+        const rolling = {
+            approval: P,
+            commits: [
+                {
+                    sha: P,
+                    parents: [H],
+                    subject: `test(workspace): rolling approval of visual baselines rendered at ${H.slice(0, 12)}`,
+                },
+            ],
+        };
+        assert.deepEqual(approvalsIn([rolling]), []);
+        assert.deepEqual(resumesDue([rolling], store), []);
+    });
+
     it("promotes a candidate once, with its newest approval", () => {
         const older = { ...approvalMerge, approval: "0ld" };
         assert.deepEqual(approvalsIn([approvalMerge, unrelated, older]), [{ candidate: H, accept: P }]);
@@ -180,5 +233,40 @@ describe("release-due approvals since the last green build", () => {
         const due = resumesDue([unrelated, approvalMerge], { ...store, hold: { head: "other", issue: 4104 } });
         assert.equal(due[0].run, false);
         assert.equal(due[0].comment, 4104);
+    });
+});
+
+describe("release-due cancel note", () => {
+    const note = "https://github.com/o/r/issues/12#issuecomment-345";
+    const gh = (cancelFails) => {
+        const calls = [];
+        const fn = (args) => {
+            calls.push(args.join(" "));
+            if (cancelFails && args[0] === "run") throw new Error("run 9 has already completed");
+            return "";
+        };
+        return { calls, fn };
+    };
+
+    it("keeps the note when the cancel goes through", () => {
+        const { calls, fn } = gh(false);
+        cancelWithNote(9, () => note, fn);
+        assert.deepEqual(calls, ["run cancel 9"]);
+    });
+
+    // #3644: a note left on a run that was not cancelled hides that run's real failure from release-watch
+    it("deletes the note when the cancel fails, and cancels even when the note fails", () => {
+        const failed = gh(true);
+        cancelWithNote(9, () => note, failed.fn);
+        assert.deepEqual(failed.calls, ["run cancel 9", "api -X DELETE repos/{owner}/{repo}/issues/comments/345"]);
+        const noNote = gh(false);
+        cancelWithNote(
+            9,
+            () => {
+                throw new Error("HTTP 502");
+            },
+            noNote.fn,
+        );
+        assert.deepEqual(noNote.calls, ["run cancel 9"]);
     });
 });

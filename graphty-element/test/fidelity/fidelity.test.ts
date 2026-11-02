@@ -19,7 +19,15 @@
  * The flag set is recorded in each scene's provenance, since a GPU also changes which force layout
  * implementation runs.
  */
-import { Color3, Color4, InstancedMesh, type Mesh, StandardMaterial } from "@babylonjs/core";
+import {
+    type AbstractMesh,
+    Color3,
+    Color4,
+    InstancedMesh,
+    type Mesh,
+    StandardMaterial,
+    Vector3,
+} from "@babylonjs/core";
 import { afterAll, afterEach, assert, describe, it } from "vitest";
 import { commands, page } from "vitest/browser";
 
@@ -27,7 +35,6 @@ import { compareSample, compareScenes, type SampleResult } from "../../../graph-
 import { SAMPLES } from "../../../graph-io/test/fidelity/samples";
 import type { Property, Scene } from "../../../graph-io/test/fidelity/scene";
 import type { Graph } from "../../src/Graph";
-import { NodeEffects } from "../../src/meshes/NodeEffects";
 import { drawnScene, GPU, mountSample, nodeKeys, readJson, referenceScenes, unmount } from "./mount";
 import { type Floors, gateMessages, gateReportText, judgeKey, type KeyGate, type KnownFailures } from "./oracle/floors";
 import { renderReport, type ReportSample, type SelfCheck } from "./report";
@@ -113,11 +120,17 @@ const FAULTS: readonly Fault[] = [
         },
     },
     {
-        name: "a glow turned on around every node",
+        // Not a glow: a glow is a blurred halo, not a line round the node, so it is no border (extract-scene.ts
+        // `drawnBorderOf`). A widened ring is what a border width reader must catch (issue #5364).
+        name: "every border ring drawn three times as large",
         property: "borderWidth",
+        sample: "gexf-miserables",
         plant: (graph) => {
             for (const node of graph.getDataManager().nodes.values()) {
-                NodeEffects.applyGlowEffect(node.mesh, { glow: { color: "#ff00ff", strength: 1 } });
+                const ring = (node as unknown as { border: AbstractMesh | null }).border;
+                if (ring !== null) {
+                    ring.scaling = ring.scaling.multiply(new Vector3(3, 3, 1));
+                }
             }
         },
     },

@@ -47,6 +47,18 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
     readonly weight?: boolean | string | null | undefined;
     /** Accepted for compatibility with Gephi's options and not used yet. */
     readonly dissuadeHubs?: boolean | undefined;
+    /**
+     * Approximate the repulsion with a Barnes-Hut tree, as Gephi does: a group of nodes far enough away repels as one
+     * body at its centre of mass. Each iteration then costs O(n log n) instead of O(n^2), so graphs of thousands of
+     * nodes settle in a fraction of the time, with a slightly different drawing. The CPU simulation reads it; a
+     * GPU simulation computes every pair. Default false.
+     */
+    readonly barnesHutOptimize?: boolean | undefined;
+    /**
+     * The Barnes-Hut opening angle: a group repels as one body when its width over its distance is below it. Lower
+     * is closer to every pair and slower; Gephi uses 1.2 too. Read only with `barnesHutOptimize`. Default 1.2.
+     */
+    readonly barnesHutTheta?: number | undefined;
 }
 
 /** Design 9.3 FruchtermanReingoldOptions. */
@@ -93,6 +105,15 @@ export interface LayoutSimulation {
     readonly settled: boolean;
     /** The same bitmap layout as a bool column with role "fixed". */
     setFixed(mask: NodeMask): void;
+    /**
+     * Takes rows out of the forces, in the same bitmap layout: an inert row never moves and exerts no force on any
+     * other row -- no repulsion and no pull along its edges -- and it is left out of the centroid, the spread and every
+     * count the simulation keeps, so the rest lay out as if it were absent. For a node the owner places itself, such
+     * as a group drawn round its members. Call it after load(); a same-size reload keeps it, a new node count clears it. The mask is copied; an all-zero mask makes every row live again. Optional, so an
+     * accelerator written before it still type-checks; every simulation in this package and in
+     * `@graphty/webgpu-graph-algorithms` implements it.
+     */
+    setInert?(mask: NodeMask): void;
     /** A drag during the simulation: one node's scene-unit position. */
     setPosition(index: number, x: number, y: number, z: number): void;
     dispose(): void;

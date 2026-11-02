@@ -18,8 +18,12 @@ const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
  */
 export function editDotNodeFill(written: Uint8Array): Uint8Array | null {
     const text = decode(written);
-    // the color's six digits only: an alpha after them stays, so only the fill changes
-    const match = /\bfillcolor="(#[0-9A-Fa-f]{6})/.exec(text);
+    // a node statement's fill only: a `graph [...]` line's fillcolor is the root's or a cluster's (issue #3099), and
+    // `node [...]` is the defaults; the color's six digits only, so an alpha after them stays
+    const match =
+        /^[ \t]*(?!(?:graph|node|edge)\b)(?:"(?:[^"\\\n]|\\.)*"|[\w.]+)[ \t]*\[[^\n]*?\bfillcolor="(#[0-9A-Fa-f]{6})/m.exec(
+            text,
+        );
     if (match === null) {
         return null;
     }

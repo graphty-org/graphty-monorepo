@@ -1863,10 +1863,11 @@ export interface LoadDraft {
      */
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
     /**
-     * Load the held rows as one undoable step, without reading the source again. For a graph
-     * file (every table `fixed`), a load with no `mapping` loads what `data.import` of the same
-     * source loads, and also sets `data.knownFields.nodeLabelPath` to the file's `label` field
-     * when no label path is configured.
+     * Load the held rows as one undoable step, without reading the source again. A load with no
+     * `mapping` loads what `data.import` of the same source loads: for a graph file (every table
+     * `fixed`) it sets `data.knownFields.nodeLabelPath` to `label` when no label path is configured
+     * and the load is not a merge, as `data.import` does; a CSV file's id and endpoint cells load
+     * as text, as `data.import` reads them.
      * @param choices - The column roles, how to treat the graph already there, and the rest.
      * @returns Settles once the rows are in the graph.
      */
@@ -2658,6 +2659,40 @@ export interface ProjectConfig {
      * @since 3.36.0
      */
     readonly layoutTransition?: LayoutTransitionConfig;
+    /**
+     * How far the 2D view is turned: the angle the whole drawing (nodes, edges and labels alike) is
+     * turned counterclockwise on screen, in degrees, about the view's center. Absent (the default),
+     * the drawing is upright. Every fit frames the turned drawing, and the 3D view ignores it. A
+     * file's own turn sets it on import, as Graphviz's `rotate=90` and `landscape` do (90).
+     *
+     * ```ts
+     * await session.config.set({ viewRotation: 90 }); // a quarter turn, as Graphviz draws landscape
+     * ```
+     * @since 3.38.0
+     */
+    readonly viewRotation?: number;
+    /**
+     * How the element frames the graph on its own and on `zoomToFit()`: after a load, a layout change and a 2D/3D
+     * switch. Absent (the default), every visible node is framed whole with its labels, inside a small margin.
+     * `extent: "centers"` frames the nodes' centers alone, so a big node at the edge of the graph may run past the
+     * canvas and labels are not counted. `padding`, in CSS pixels, is the room kept clear at each end of the canvas's
+     * shorter side (the longer side keeps the same share), in place of the margin. A file's own framing sets it on
+     * import when the load asks for it (file style option `framing: "file"`): sigma.js fits node centers 30 px in.
+     *
+     * ```ts
+     * await session.config.set({ framing: { extent: "centers", padding: 30 } }); // as sigma.js frames a graph
+     * ```
+     * @since 3.38.0
+     */
+    readonly framing?: GraphFraming;
+}
+
+/** How the element frames the graph: see {@link ProjectConfig.framing}. */
+export interface GraphFraming {
+    /** What each node counts as: `"drawn"` the box it is drawn in, with its labels; `"centers"` its center alone. */
+    readonly extent: "drawn" | "centers";
+    /** CSS pixels kept clear at each end of the canvas's shorter side, 0 or more; absent, a small margin. */
+    readonly padding?: number;
 }
 
 /** Where a finished run's layer lands: see {@link ProjectConfig.runPlacement}. */
@@ -2688,6 +2723,10 @@ export interface ProjectConfigPatch {
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     /** See {@link ProjectConfig.layoutTransition}; `undefined` turns transitions off. */
     readonly layoutTransition?: LayoutTransitionConfig;
+    /** See {@link ProjectConfig.viewRotation}; `undefined` turns the view upright. */
+    readonly viewRotation?: number;
+    /** See {@link ProjectConfig.framing}; `undefined` returns to the element's own framing. */
+    readonly framing?: GraphFraming;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
@@ -2914,9 +2953,20 @@ export interface SessionEventMap {
     /**
      * Project state changed: the slices written and what wrote them. Fires synchronously, as
      * soon as the state has changed and before the picture has caught up; the per-domain events
-     * (`style:changed` and the rest) follow once it has.
+     * (`style:changed` and the rest) follow once it has, then `project:derived`.
      */
     "project:changed": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
+    /**
+     * The picture has caught up with every project change made so far: published once nothing is
+     * left to derive or repaint -- after the per-domain events, and after any repaint the element
+     * put off or started on its own -- with every slice changed or derived since the last one
+     * (changes made in one burst share one event; `cause` is the latest change's). THE event
+     * for a consumer that re-reads derived state -- `styles.legend()`, `styles.counts()`,
+     * `styles.explain()` -- after any change, including an edit to data alone, which publishes no
+     * `style:changed`. Read on `project:changed`, those answer for the previous pass.
+     * @since 3.37.0
+     */
+    "project:derived": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
     /**
      * A kept set was created, renamed, redefined or removed: one event per set a write touched,
      * after the write committed. A write that was refused publishes nothing.
@@ -3110,8 +3160,10 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
- * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id |
- * | `visibility.steps` | none: several steps changed at once, or a reorder |
+ * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id (an edit made through `setSteps`) |
+ * | `visibility.condition-add`, `visibility.condition-on`, `visibility.condition-off`, `visibility.condition-remove` | `id`: the filter condition's id; `effect`: its effect (`"keep"`, `"exclude"` or `"select"`) |
+ * | `visibility.condition-edit` | `id`; `effect`: its effect after the edit; `previousEffect`: its effect before |
+ * | `visibility.steps` | none: several steps or conditions changed at once, or a reorder |
  * | `visibility.playback` | none: how `session.time` moves windows changed |
  * | `time.field` | `column`: the column designated as the time field |
  * | `time.clear-field` | none |
@@ -3207,6 +3259,11 @@ export type HistoryCode =
     | "visibility.step-on"
     | "visibility.step-off"
     | "visibility.step-remove"
+    | "visibility.condition-add"
+    | "visibility.condition-edit"
+    | "visibility.condition-on"
+    | "visibility.condition-off"
+    | "visibility.condition-remove"
     | "visibility.steps"
     | "visibility.playback"
     | "time.field"
@@ -3433,6 +3490,12 @@ export interface CommandOutcomeMap {
     "visibility.context": Promise<void>;
     /** Settles once the steps are recorded and the pass that evaluates the masks has run. */
     "visibility.steps": Promise<void>;
+    /**
+     * Settles once the conditions are recorded and the pass that evaluates the masks has run.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    "visibility.conditions": Promise<void>;
     /** Settles once the playback settings are recorded. */
     "visibility.playback": Promise<void>;
     /** The new set's id, once it is recorded. */
@@ -3616,8 +3679,9 @@ export interface SessionLayout {
     setDimension(dimension: "2d" | "3d"): Promise<void>;
     /**
      * Whether a layout option changes the drawing in a view, as a coded fact: the location map's
-     * `surface` is `setting.notIn2d`, because the 2D view always draws its flat map. A form shows
-     * an option not in effect disabled, with words for the code.
+     * `mapDimension` is `setting.notIn2d`, because the 2D view always draws its 2D map; then
+     * `params.drawn` is the value the view draws instead (`"2d"`). A form shows an option not in
+     * effect disabled, or offering only that value, with words for the code.
      * @param id - The layout's catalogue id.
      * @param option - The option's name.
      * @param dimension - The view the layout would be drawn in; the view's dimension now when absent.

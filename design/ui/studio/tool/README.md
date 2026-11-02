@@ -509,6 +509,76 @@ needs to look at it again; only the diverged ones need a walker.
 Participants' sessions are never replayed: a participant drives every step. Pilots, detours,
 keyboard walks and the re-walks after a fix replay.
 
+## The scripted dry run
+
+A dry-run pass starts with the app's scripted routes (`graphty/acceptance/`, one per task half: the
+success path as real clicks and keys on the GPU, with outcome checks read through graphty-element's
+API), not with an agent:
+
+```bash
+node $T/dry-run-pass.mjs --dist <frozen build> --out <main checkout>/tmp/design-studio/tier3/<pass>/script
+```
+
+It runs every route (about a minute for tier 3's 30), keeps the screen each one ended on, and
+compares it with the same route's in the newest earlier pass beside `--out`, with the drawing and
+the status bar covered: the drawing may still be settling when a route ends (what it shows is what the
+outcome checks read), and the autosave chip says "saving..." or "saved" depending on when its write
+lands. A screen that changed is run once more, and one that differs between two runs of the
+same build is marked `unstable` instead of `changed`. `summary.json` in `--out` lists each route's
+task, result, reason, screenshots (`<route>.png`, and `<route>.ui.png` with those covered),
+`change` (`same`, `changed`, `new` or `unstable`) and diff image. The design studio's workflow sends
+a pilot agent only to a task whose route failed or has none, and the `changed` and `new` screens and the
+broken walks to one reviewer (below). `node --test $T/dry-run-pass.test.mjs` checks how it finds the earlier pass.
+
+### The reviewer
+
+`dry-run-review.mjs` turns a pass into one request for a fresh-context agent, and checks its answer:
+
+```bash
+node $T/dry-run-review.mjs request <pass>/script [--base <ref>] [--study <tier dir>]
+node $T/dry-run-review.mjs verdicts <pass>/script
+```
+
+`request` picks the routes whose end screen changed or is new and those whose walk broke before its
+outcome checks, and writes `review-request.md` (the reviewer's whole prompt, with each route's new and
+earlier screen, diff image and accessibility tree) beside `summary.json`, exiting 3. With nothing to
+judge it writes nothing and exits 0: no agent is started. A failed outcome check is a bug with no
+judge (exit 1), and an `unstable` screen is not judged. A route the machine stopped (the browser not on
+the NVIDIA card, no worker reached it) has no screen: the pass could not run, exit 4, and nothing is
+judged. The agent gives each route one verdict -- `bug`, `intended` (naming the commit or answer-key
+line that explains it), `usability` or `cannot-tell` -- with a reason and the screenshots it rests on,
+in `verdicts.json`; `verdicts` checks it (evidence only from that route's own files, an `intended` cite
+only a commit of the branch, or with no `--base` any commit, or an existing `file:line`) and exits 1
+while a bug or cannot-tell remains. Exit 2 from either command is a failure of the tool or the answer,
+never a result. The design studio's workflow runs it after the scripted
+pass and adds every verdict but `intended` to its task's defects.
+
+On a long-running branch, its agent runs the same thing itself, never automatically: a pass on a build of
+the branch's base, then one on the branch's head beside it (so the head's earlier pass is the base's), then
+the request with `--base`, which adds the branch's commits and changed files so `intended` can name a commit:
+
+The base build is a worktree at the base with graphty built in it (`git worktree add tmp/<task>/base
+origin/master`, `pnpm install --frozen-lockfile`, then `pnpm exec nx run graphty:build`); its
+`graphty/dist` is `<base build>`. Run the tool from the branch's own worktree: `--base` reads that
+repository's git. For a targeted run, give both passes `--only <route>[,<route>]` with the routes the
+change touches; with no `--only` every route runs twice.
+
+```bash
+node $T/dry-run-pass.mjs --dist <base build> --out tmp/<task>/acceptance/base/script
+node $T/dry-run-pass.mjs --dist graphty/dist --out tmp/<task>/acceptance/head/script
+node $T/dry-run-review.mjs request tmp/<task>/acceptance/head/script --base origin/master
+```
+
+Exit 3: give the agent a fresh-context subagent the request file's path; it writes `verdicts.json`.
+`node --test $T/dry-run-review.test.mjs` checks the selection and the answer check.
+
+What a `same` screen does not show: the drawing and the status bar are covered, so a drawing problem
+the outcome checks cannot read (labels gone, nodes off screen, a blank canvas) or an error chip in the
+status bar reads as `same` and no reviewer looks at it. An `unstable` screen is logged and not
+reviewed, so a real change on a route that also flickers between runs is hidden until the route is
+made stable. Pilots walk the detours and the keyboard walk; a route that passes is not looked at
+screen by screen.
+
 ## Checking the tool
 
 ```bash

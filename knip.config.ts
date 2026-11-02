@@ -23,6 +23,8 @@ const config: KnipConfig = {
                 "vitest.shared.config.ts",
                 // First setup file of the packages' browser test projects (named in their vitest configs)
                 "vitest.browser-coverage-setup.ts",
+                // Every package's wait guard setup file (named in their vitest configs)
+                "vitest.wait-guard-setup.ts",
                 // Serves map tiles from a fixture in the browser test projects (vitest.map-tiles.mjs)
                 "vitest.map-tiles-setup.ts",
                 "docs/.vitepress/config.ts",
@@ -41,7 +43,6 @@ const config: KnipConfig = {
             project: ["*.ts", "*.js", "tools/**/*.{ts,js,cjs,sh}"],
             ignoreDependencies: [
                 // Nx plugins are used dynamically
-                "@nx/react",
                 "@nx/js",
                 // Coverage merging (used in tools/merge-coverage.sh via pnpm exec)
                 "lcov-result-merger",
@@ -316,7 +317,9 @@ const config: KnipConfig = {
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
                 // nothing externalises it), so each is a devDependency that production source imports.
                 // Only `lint:knip:prod` would report them, as unlisted.
-                ...(production ? ["lodash", "ngraph.random", "@graphty/remote-logger"] : []),
+                ...(production
+                    ? ["lodash", "ngraph.random", "@graphty/remote-logger", "@jsonhero/json-infer-types"]
+                    : []),
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",

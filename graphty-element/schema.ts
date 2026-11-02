@@ -99,6 +99,7 @@ export type {
     BasemapSourceId,
     BasemapStatus,
     EdgeStyleConfig,
+    GlobeLook,
     GraphBackgroundConfig,
     GraphSelectionStyleConfig,
     GraphSelectionStyleInput,

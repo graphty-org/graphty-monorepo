@@ -12,85 +12,14 @@
  * copy. Run "npm run build" (tsc -p tsconfig.build.json) first so that dist/src/ exists;
  * scripts/bundle-types.js then writes one d.ts shim per entry that re-exports the declarations
  * under dist/src/.
+ *
+ * The build itself is tools/build-bundle.mjs, shared with the other multi-entry packages.
  */
 
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { build } from "vite";
 
+import { buildBundle } from "../../tools/build-bundle.mjs";
 import { ENTRIES } from "./entries.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const packageRoot = path.resolve(__dirname, "..");
-
-/**
- * Every package listed in dependencies or peerDependencies is external to the
- * bundle, including its subpaths.
- */
-function externalDependencies() {
-    const packageJson = JSON.parse(readFileSync(path.resolve(packageRoot, "package.json"), "utf8"));
-    const names = new Set([
-        ...Object.keys(packageJson.dependencies ?? {}),
-        ...Object.keys(packageJson.peerDependencies ?? {}),
-    ]);
-    return (id) => {
-        for (const name of names) {
-            if (id === name || id.startsWith(`${name}/`)) {
-                return true;
-            }
-        }
-        return false;
-    };
-}
-
-async function buildBundle() {
-    try {
-        const entry = Object.fromEntries(
-            Object.entries(ENTRIES).map(([name, source]) => [name, path.resolve(packageRoot, source)]),
-        );
-        await build({
-            configFile: false,
-            logLevel: "warn",
-            build: {
-                lib: {
-                    entry,
-                    formats: ["es"],
-                    fileName: (_format, entryName) => `${entryName}.js`,
-                },
-                outDir: path.resolve(packageRoot, "dist"),
-                emptyOutDir: false, // Keep the tsc output under dist/src/
-                rollupOptions: {
-                    external: externalDependencies(),
-                    output: {
-                        preserveModules: false,
-                        chunkFileNames: "chunks/[name]-[hash].js",
-                    },
-                },
-                minify: false,
-                sourcemap: true,
-            },
-        });
-
-        console.log(`Successfully built dist/{${Object.keys(ENTRIES).join(",")}}.js`);
-
-        const result = spawnSync(process.execPath, [path.resolve(__dirname, "bundle-types.js")], {
-            stdio: "inherit",
-        });
-
-        if (result.error) {
-            throw result.error;
-        }
-
-        if (result.status !== 0) {
-            throw new Error(`bundle-types.js exited with status ${String(result.status)}`);
-        }
-    } catch (error) {
-        console.error("Error building bundle:", error);
-        process.exit(1);
-    }
-}
-
-buildBundle();
+await buildBundle({ build, packageRoot: path.resolve(import.meta.dirname, ".."), entries: ENTRIES });

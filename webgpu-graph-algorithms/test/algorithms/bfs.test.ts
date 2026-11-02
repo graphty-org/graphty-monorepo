@@ -302,7 +302,6 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
     for (const fixture of FIXTURES) {
         for (const directed of [false, true]) {
             const kind = directed ? "directed" : "undirected";
-            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 38 s on CI's lavapipe, 23 s on lavapipe on the dev box under load, 15 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
             it(`${fixture.name} (${kind}): depth exact, parent by the smallest-predecessor rule, order grouped and sorted, counts, run twice`, async (t) => {
                 const ctx = await context(t);
                 const s = snapshotOf(fixture.edges, {
@@ -315,7 +314,7 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
                     await checkRun(ctx, `${fixture.name} ${kind} from ${source}`, s, source);
                 }
                 ctx.release(s);
-            }, 300_000);
+            });
         }
     }
 
@@ -832,7 +831,6 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         ctx.release(isolated);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 20 s on CI's lavapipe, 11 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
     it("windowed (P8-T12, DEP-P8-E lifted): at a FAKED 1 MiB binding limit (>= 8 windows, the hub row straddling two) the traversal from the hub and from a leaf gives depth, parent, order and the counts bitwise equal to the unwindowed run's and the oracle's -- at the default cadence, at cadence 1 and with bottom-up forced -- with no ring overrun; a directed snapshot whose reverse adjacency exceeds the binding limit is E_TOO_LARGE before any device work", async (t) => {
         const ctx = await context(t);
         const scale = gpuScale();
@@ -922,17 +920,15 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         });
         expect(ctx.residency.stats().snapshots).toBe(1);
         ctx.release(directed);
-    }, 600_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 14 s on CI's lavapipe, more than a third of the 30 s budget; tracked in #1636
     it("the sabotage check passes on the real kernels (factor 0)", async (t) => {
         const ctx = await context(t);
         const report = await bfsReport(ctx);
         expect(report.worst).toBe(0);
         assertCheckPasses(report);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 10 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
     it("gate (PD-7): the scaled 1,000 x 1,000 grid and the 10,000-degree star from the hub map exactly ceil(levels / 32) + 1 staging buffers each, on an adopted device after the self-check", async (t) => {
         requireGpu(t);
         const { device } = await acquireRaw();
@@ -973,5 +969,5 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         }
         expect(counter.live, "live buffers after release + dispose").toBe(0);
         counter.restore();
-    }, 600_000);
+    });
 });

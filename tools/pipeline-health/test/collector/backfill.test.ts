@@ -1,24 +1,25 @@
 // The four-week backfill against recorded GitHub responses (no network): paging, the cursor, the throttle, the
 // stops, the needs: wait rule, and the run and test-history indexes it and ingest write.
 import { describe, expect, it } from "vitest";
-import { backfill, FLAKY_CURSOR, PRS_CURSOR, runsCursor, type BackfillOptions } from "../../src/collector/backfill.js";
+
+import { backfill, type BackfillOptions, FLAKY_CURSOR, PRS_CURSOR, runsCursor } from "../../src/collector/backfill.js";
 import { GitHub } from "../../src/collector/github.js";
 import {
     flakyTestItem,
+    type GhJob,
+    type GhRun,
     toJobItem,
     toRunItem,
     workflowFile,
-    type GhJob,
-    type GhRun,
 } from "../../src/collector/parse.js";
 import { runDrill, testHistory } from "../../src/model/drill.js";
 import {
     DAY,
     homeKey,
     MIN,
-    sourceKey,
     type ShardRunItem,
     type SourceItem,
+    sourceKey,
     type TestItem,
 } from "../../src/model/items.js";
 import { getCursor, putRaw, recordSource, setCursor } from "../../src/model/raw.js";
@@ -26,8 +27,8 @@ import { MemoryStore } from "../../src/model/store.js";
 import { fakeGitHub, fixture, NOW } from "./fake-github.js";
 
 const REPO = "graphty-org/graphty-monorepo";
-const master = fixture<GhRun>("run-master-40239928447.json");
-const masterJobs = fixture<{ jobs: GhJob[] }>("jobs-master-40239928447.json").jobs;
+const master = fixture("run-master-40239928447.json") as GhRun;
+const masterJobs = (fixture("jobs-master-40239928447.json") as { jobs: GhJob[] }).jobs;
 
 /** Seven runs on 2026-10-25 (a closed day) and two on 2026-10-26 (today), each with the recorded master jobs. */
 function history(): GhRun[] {
@@ -65,56 +66,81 @@ function fake(
     const runs = opts.runs ?? history();
     const f = {
         urls: [] as string[],
-        fetch: async (url: string, init?: RequestInit): Promise<Response> => {
-            f.urls.push(url);
-            const u = new URL(url);
-            const headers = {
-                "content-type": "application/json",
-                "x-ratelimit-remaining": String(opts.remaining ?? 4000),
-                "x-ratelimit-limit": "5000",
-            };
-            const reply = (body: unknown) => new Response(JSON.stringify(body), { headers });
-            if (/\/actions\/runs$/.test(u.pathname) && u.searchParams.get("created")) {
-                // A day ("2026-10-25") or a range ("a..b"), newest first; past `listed` runs a page comes back empty.
-                const created = u.searchParams.get("created")!;
-                const [from, to] = created.split("..");
-                const day = runs
-                    .filter((r) => (to ? r.created_at >= from && r.created_at <= to : r.created_at.startsWith(created)))
-                    .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
-                const per = Number(u.searchParams.get("per_page"));
-                const page = Number(u.searchParams.get("page"));
-                const shown = day.slice(0, opts.listed ?? Infinity);
-                return reply({ total_count: day.length, workflow_runs: shown.slice((page - 1) * per, page * per) });
-            }
-            const ids =
-                opts.suites &&
-                (JSON.parse(String(init?.body ?? "{}")) as { variables?: { ids?: string[] } }).variables?.ids;
-            if (u.pathname === "/graphql" && ids) {
-                return reply({ data: { nodes: ids.map((id) => opts.suites![id] ?? null) } });
-            }
-            const jobs = /\/actions\/runs\/(\d+)\/jobs$/.exec(u.pathname);
-            if (jobs && opts.jobs?.[Number(jobs[1])]) return reply({ jobs: opts.jobs[Number(jobs[1])] });
-            if (jobs && Number(jobs[1]) < 40_000) {
-                const id = Number(jobs[1]);
-                const list = masterJobs.map((j, k) => ({ ...j, id: id * 100 + k, run_id: id }));
-                return reply({ total_count: list.length, jobs: list });
-            }
-            return base.fetch(url, init);
-        },
+        fetch: (url: string, init?: RequestInit): Promise<Response> =>
+            Promise.resolve().then(() => {
+                f.urls.push(url);
+                const u = new URL(url);
+                const headers = {
+                    "content-type": "application/json",
+                    "x-ratelimit-remaining": String(opts.remaining ?? 4000),
+                    "x-ratelimit-limit": "5000",
+                };
+                const reply = (body: unknown) => new Response(JSON.stringify(body), { headers });
+                const listing = /\/actions\/(?:workflows\/([^/]+)\/)?runs$/.exec(u.pathname);
+                if (listing && u.searchParams.get("created")) {
+                    // A day ("2026-10-25") or a range ("a..b"), newest first; past `listed` runs a page comes back empty.
+                    // A workflow's list (actions/workflows/<file>/runs) holds only that workflow's runs.
+                    const created = u.searchParams.get("created")!;
+                    const [from, to] = created.split("..");
+                    const day = runs
+                        .filter((r) => !listing[1] || workflowFile(r.path) === listing[1])
+                        .filter((r) =>
+                            to ? r.created_at >= from && r.created_at <= to : r.created_at.startsWith(created),
+                        )
+                        .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
+                    const per = Number(u.searchParams.get("per_page"));
+                    const page = Number(u.searchParams.get("page"));
+                    const shown = day.slice(0, opts.listed ?? Infinity);
+                    return reply({ total_count: day.length, workflow_runs: shown.slice((page - 1) * per, page * per) });
+                }
+                if (u.pathname === "/graphql") {
+                    // GitHub refuses a query that leaves a required (`$x: T!`) variable out.
+                    const { query, variables } = JSON.parse(init?.body as string) as {
+                        query: string;
+                        variables: Record<string, unknown>;
+                    };
+                    const missing = [...query.matchAll(/\$(\w+): \w+!/g)].filter(([, v]) => variables[v] === undefined);
+                    if (missing.length) {
+                        throw new Error(`graphql: required variable $${missing[0][1]} not provided`);
+                    }
+                }
+                const ids =
+                    opts.suites &&
+                    (JSON.parse((init?.body as string | undefined) ?? "{}") as { variables?: { ids?: string[] } })
+                        .variables?.ids;
+                if (u.pathname === "/graphql" && ids) {
+                    return reply({ data: { nodes: ids.map((id) => opts.suites![id] ?? null) } });
+                }
+                const jobs = /\/actions\/runs\/(\d+)\/jobs$/.exec(u.pathname);
+                if (jobs && opts.jobs?.[Number(jobs[1])]) {
+                    return reply({ jobs: opts.jobs[Number(jobs[1])] });
+                }
+                if (jobs && Number(jobs[1]) < 40_000) {
+                    const id = Number(jobs[1]);
+                    const list = masterJobs.map((j, k) => ({ ...j, id: id * 100 + k, run_id: id }));
+                    return reply({ total_count: list.length, jobs: list });
+                }
+                return base.fetch(url, init);
+            }),
     };
     return f;
 }
 
 /** A clock that only moves when the backfill sleeps (or a test moves it). */
 function clock() {
-    const c = { t: NOW, slept: 0, now: () => c.t, sleep: async (ms: number) => void ((c.t += ms), (c.slept += ms)) };
+    const c = {
+        t: NOW,
+        slept: 0,
+        now: () => c.t,
+        sleep: (ms: number) => Promise.resolve(void ((c.t += ms), (c.slept += ms))),
+    };
     return c;
 }
 
 function options(store: MemoryStore, f: ReturnType<typeof fake>, c = clock()): BackfillOptions & { gh: GitHub } {
     return {
         store,
-        gh: new GitHub(async () => "t", f.fetch),
+        gh: new GitHub(() => Promise.resolve("t"), f.fetch),
         repos: [REPO],
         repo: REPO,
         days: 2,
@@ -145,7 +171,7 @@ describe("backfill", () => {
         // 2026-10-25: 7 runs in pages of 3 (3, 3, 1). 2026-10-24: one empty page.
         expect(
             listCalls(f.urls).map(
-                (u) => new URL(u).searchParams.get("created") + "/" + new URL(u).searchParams.get("page"),
+                (u) => `${new URL(u).searchParams.get("created")}/${new URL(u).searchParams.get("page")}`,
             ),
         ).toEqual(["2026-10-25/1", "2026-10-25/2", "2026-10-25/3", "2026-10-24/1"]);
         // Past the range's first day: done.
@@ -156,9 +182,80 @@ describe("backfill", () => {
 
         // A second run loads nothing.
         const g = fake();
-        await backfill({ ...options(store, g), gh: new GitHub(async () => "t", g.fetch) });
+        await backfill({ ...options(store, g), gh: new GitHub(() => Promise.resolve("t"), g.fetch) });
         expect(g.urls.filter((u) => !u.endsWith("/access_tokens"))).toEqual([]);
         expect(homes(store, "run")).toHaveLength(7);
+    });
+
+    it("repairs only the given days' runs of the given workflows, whatever the cursors say", async () => {
+        // 2026-10-09 to 10-15 each had over 1,000 runs; the first backfill read each day in one query, GitHub listed
+        // only the newest 1,000, and the cursor moved on, so 18 of the month's paid LLM steps were never loaded.
+        const store = new MemoryStore();
+        const release = (id: number, i: number) => ({
+            ...master,
+            id,
+            path: ".github/workflows/release.yml",
+            created_at: `2026-10-25T0${i}:00:00Z`,
+        });
+        const f = fake({ runs: [...history(), release(3000, 1), release(3001, 2)] });
+        await setCursor(store, runsCursor(REPO), JSON.stringify({ day: "2026-09-01", page: 1 }), NOW);
+        const r = await backfill({
+            ...options(store, f),
+            repair: { days: ["2026-10-25"], workflows: ["release.yml"] },
+        });
+        expect(r).toMatchObject({ done: true, runs: 2 });
+        expect(
+            homes(store, "run")
+                .map((i) => i.pk)
+                .sort(),
+        ).toEqual([`R#run#${REPO}/3000`, `R#run#${REPO}/3001`]);
+        expect(f.urls.every((u) => !u.includes("/actions/runs?") && !u.endsWith("/graphql"))).toBe(true);
+        expect(JSON.parse((await getCursor(store, runsCursor(REPO)))!)).toEqual({ day: "2026-09-01", page: 1 });
+        expect(await getCursor(store, PRS_CURSOR)).toBeUndefined();
+    });
+
+    it("a repair stopped at its deadline continues where it stopped, and once done reads nothing", async () => {
+        // 2026-10-29: every invocation of a repair started again at its first day and workflow, re-read the same 419
+        // runs until its deadline, and spent the day's write budget writing them over and over.
+        const release = (id: number, day: string, i: number) => ({
+            ...master,
+            id,
+            path: ".github/workflows/release.yml",
+            created_at: `${day}T0${i}:00:00Z`,
+        });
+        const runs = [
+            ...[0, 1, 2, 3].map((i) => release(3000 + i, "2026-10-24", i)),
+            ...[0, 1].map((i) => release(3100 + i, "2026-10-25", i)),
+        ];
+        const repair = { days: ["2026-10-24", "2026-10-25"], workflows: ["release.yml"] };
+        const store = new MemoryStore();
+        const c = clock();
+        // 1 s a call: 2026-10-24's first page (a list and 3 runs' jobs) is written; the deadline falls in its second.
+        const first = await backfill({
+            ...options(store, fake({ runs }), c),
+            perHour: 3600,
+            deadline: NOW + 4_000,
+            repair,
+        });
+        expect(first).toMatchObject({ done: false, stopped: "deadline", runs: 3 });
+
+        const g = fake({ runs });
+        const second = await backfill({ ...options(store, g), repair });
+        expect(second).toMatchObject({ done: true, runs: 3 });
+        const listed = g.urls.filter((u) => u.includes("/workflows/release.yml/runs?"));
+        expect(
+            listed.map((u) => `${new URL(u).searchParams.get("created")}/${new URL(u).searchParams.get("page")}`),
+        ).toEqual(["2026-10-24/2", "2026-10-25/1"]);
+        expect(homes(store, "run")).toHaveLength(6);
+
+        const h = fake({ runs });
+        expect(await backfill({ ...options(store, h), repair })).toMatchObject({ done: true, runs: 0 });
+        expect(h.urls).toEqual([]);
+        // A different repair starts from its own beginning.
+        const k = fake({ runs });
+        expect(
+            await backfill({ ...options(store, k), repair: { days: ["2026-10-25"], workflows: ["release.yml"] } }),
+        ).toMatchObject({ done: true, runs: 2 });
     });
 
     it("stops at the days the earlier oldest-first backfill loaded (its cursor's day, reloaded whole)", async () => {
@@ -237,6 +334,40 @@ describe("backfill", () => {
         expect(await store.get(homeKey(live[1]))).toMatchObject({ hang: true });
     });
 
+    it("restarted, re-reads the range and gives job rows stored without a run kind the one recorded now (#4480)", async () => {
+        // A CodeQL default-setup scan of a pull request (event dynamic on refs/pull/<n>/head), whose jobs were stored
+        // before #4125 recorded a run kind; the live store's runs cursor stood at {"day":"2026-10-10","page":41}.
+        const scan: GhRun = {
+            ...master,
+            id: 1500,
+            path: "dynamic/github-code-scanning/codeql",
+            event: "dynamic",
+            head_branch: "refs/pull/4100/head",
+            created_at: "2026-10-25T09:00:00Z",
+        };
+        const runs = [...history(), scan];
+        const old = masterJobs.map((j, k) =>
+            toJobItem({ ...j, id: scan.id * 100 + k, run_id: scan.id }, REPO, "codeql"),
+        );
+        const store = new MemoryStore();
+        await putRaw(store, old, NOW);
+        await setCursor(store, runsCursor(REPO), JSON.stringify({ day: "2026-10-10", page: 41 }), NOW);
+        await setCursor(store, FLAKY_CURSOR, "2026-10-09", NOW);
+        await setCursor(store, PRS_CURSOR, "done", NOW);
+        const stale = async () => (await store.get(homeKey(old[0]))) as { load?: string; offMaster?: boolean };
+
+        // Invoked again as it was, it reads nothing and the rows keep no run kind.
+        const f = fake({ runs });
+        expect(await backfill(options(store, f))).toMatchObject({ done: true, runs: 0 });
+        expect(listCalls(f.urls)).toEqual([]);
+        expect((await stale()).load).toBeUndefined();
+
+        const g = fake({ runs });
+        expect(await backfill({ ...options(store, g), restart: true })).toMatchObject({ done: true, runs: 8 });
+        expect(await stale()).toMatchObject({ load: "pr", offMaster: true });
+        expect(await getCursor(store, PRS_CURSOR)).toBe("done");
+    });
+
     it("moves the collector's history start back to its first day once done, also when re-run after finishing", async () => {
         const firstAt = async (s: MemoryStore) => ((await s.get(sourceKey("collector"))) as SourceItem).firstAt;
         const start = Math.floor((NOW - 2 * DAY) / DAY) * DAY;
@@ -271,7 +402,11 @@ describe("backfill", () => {
         expect(JSON.parse((await getCursor(store, runsCursor(REPO)))!)).toEqual({ day: "2026-10-25", page: 2 });
 
         const g = fake();
-        const second = await backfill({ ...o, gh: new GitHub(async () => "t", g.fetch), deadline: undefined });
+        const second = await backfill({
+            ...o,
+            gh: new GitHub(() => Promise.resolve("t"), g.fetch),
+            deadline: undefined,
+        });
         expect(second.done).toBe(true);
         expect(new URL(listCalls(g.urls)[0]).searchParams.get("page")).toBe("2");
         expect(new URL(listCalls(g.urls)[0]).searchParams.get("created")).toBe("2026-10-25");
@@ -298,6 +433,86 @@ describe("backfill", () => {
         expect(r).toMatchObject({ done: false, stopped: "write_budget", items: 0 });
         expect(homes(store, "run")).toHaveLength(0);
         expect(await getCursor(store, runsCursor(REPO))).toBeUndefined();
+    });
+});
+
+describe("the all-issues load", () => {
+    /** Two pages of issues by update time, the second last updated in March, as ISSUE_QUERY answers them. */
+    const pages = [
+        [
+            { number: 5000, updatedAt: "2026-10-25T10:00:00Z", createdAt: "2026-10-20T10:00:00Z", closedAt: null },
+            { number: 40, updatedAt: "2026-05-01T10:00:00Z", createdAt: "2026-04-01T10:00:00Z", closedAt: null },
+        ],
+        [
+            {
+                number: 1,
+                updatedAt: "2026-03-06T10:00:00Z",
+                createdAt: "2026-03-05T10:00:00Z",
+                closedAt: "2026-03-06T10:00:00Z",
+            },
+        ],
+    ];
+    function issueFake() {
+        const f = fake();
+        const { urls } = f;
+        return {
+            urls,
+            queries: [] as string[],
+            fetch(url: string, init?: RequestInit): Promise<Response> {
+                const body = JSON.parse((init?.body as string | undefined) ?? "{}") as {
+                    query?: string;
+                    variables?: { cursor?: string | null };
+                };
+                if (body.query) {
+                    this.queries.push(body.query);
+                }
+                if (!body.query?.includes("issues(")) {
+                    return f.fetch(url, init);
+                }
+                urls.push(url);
+                const k = body.variables?.cursor ? 1 : 0;
+                const nodes = pages[k].map((x) => ({
+                    ...x,
+                    title: `issue ${x.number}`,
+                    state: x.closedAt ? "CLOSED" : "OPEN",
+                    stateReason: x.closedAt ? "COMPLETED" : null,
+                    labels: { nodes: [{ name: "bug" }] },
+                }));
+                const recent = { nodes, pageInfo: { hasNextPage: k === 0, endCursor: "c1" } };
+                return Promise.resolve(
+                    new Response(JSON.stringify({ data: { repository: { recent }, held: { nodes: [] } } }), {
+                        headers: { "content-type": "application/json" },
+                    }),
+                );
+            },
+        };
+    }
+
+    it("loads every issue whatever its update time, reads nothing else, and marks no old bucket dirty", async () => {
+        const store = new MemoryStore();
+        const f = issueFake();
+        const o = {
+            ...options(store, fake()),
+            gh: new GitHub(
+                () => Promise.resolve("t"),
+                (u, i) => f.fetch(u, i),
+            ),
+        };
+        const r = await backfill({ ...o, issues: "all" });
+        expect(r).toMatchObject({ done: true, items: 3, runs: 0, flaky: 0 });
+        expect(homes(store, "issue").map((i) => i.number)).toEqual(expect.arrayContaining([1, 40, 5000]));
+        expect(await store.query("ISSUES")).toHaveLength(3);
+        expect(homes(store, "run")).toHaveLength(0);
+        expect(homes(store, "pr")).toHaveLength(0);
+        expect(f.urls.filter((u) => u.includes("/actions/"))).toEqual([]);
+        expect(f.queries.every((q) => q.includes("issues("))).toBe(true);
+        const marks = (await store.query("DIRTY")).map((m) => m.start as number);
+        expect(marks.length).toBeGreaterThan(0);
+        expect(marks.every((t) => t >= NOW - 28 * DAY)).toBe(true);
+        // Again: the same rows, nothing more.
+        expect(await backfill({ ...o, issues: "all" })).toMatchObject({ done: true, items: 3 });
+        expect(homes(store, "issue")).toHaveLength(3);
+        expect(await store.query("ISSUES")).toHaveLength(3);
     });
 });
 
@@ -386,7 +601,7 @@ describe("drill-down indexes", () => {
 
 describe("the flaky-history phase", () => {
     type Rec = { runs: GhRun[]; suites: Record<string, Suite> };
-    const rec = fixture<Rec>("flaky-annotations.json");
+    const rec = fixture("flaky-annotations.json") as Rec;
     // The recorded runs: two ci.yml runs of 2026-10-25 with real [FLAKY] lines, and one of 2026-10-24 whose only
     // [FLAKY] lines come from the tool tests in its Checks job (fixtures of test-quarantine.mjs, not CI shards).
     const flakyRows = (s: MemoryStore) =>
@@ -400,7 +615,7 @@ describe("the flaky-history phase", () => {
         const store = new MemoryStore();
         const r = await backfill(opts(store, fake({ runs: rec.runs, suites: rec.suites })));
         expect(r.flaky).toBe(3);
-        const rows = flakyRows(store).map(({ pk: _pk, sk: _sk, ...t }) => t as unknown as TestItem);
+        const rows = flakyRows(store).map(({ pk: _pk, sk: _sk, ...t }) => t);
         const byId = new Map(rows.map((t) => [t.id, t]));
         // tools/results/client.mjs postFlaky(): invocation `<run>.<attempt>.<GITHUB_JOB>.<shard>.1`, family the shard's
         expect(
@@ -471,13 +686,14 @@ describe("flakyTestItem", () => {
         for (const m of [
             "[FLAKY-UNRELATED] layout: layout/test/a.test.ts > d > t failed and passed; this pull request did not touch it. Base check: gh workflow run base-check.yml",
             "[QUARANTINED] layout: layout/test/a.test.ts > d > t failed and passed; issue #12",
-        ])
+        ]) {
             expect(flakyTestItem(m, "Test (small-node)", run, 1, 0)).toMatchObject({
                 file: "layout/test/a.test.ts",
                 name: "d > t",
                 family: "layout",
                 invocation: "1.1.test.layout.1",
             });
+        }
     });
 
     it("skips a test that failed both times, other annotations and jobs that are no test shard", () => {

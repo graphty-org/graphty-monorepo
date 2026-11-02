@@ -815,10 +815,12 @@ export function raisedArc(src: Xyz, dst: Xyz, height: number): number[] {
 /**
  * A great-circle arc over a globe centered on the origin (`line.route` "great-circle"): along the
  * great circle between the two ends' directions, its distance from the center running from one
- * end's to the other's, lifted at the middle by `height` times the arc's length (sin(pi t)).
+ * end's to the other's, lifted at the middle by `height` times the straight-line distance between
+ * the ends (sin(pi t)). The lift grows with the distance and stays modest: at most `2 height`
+ * radii, for ends on opposite sides of the globe.
  * @param src - Where the edge starts.
  * @param dst - Where it ends.
- * @param height - The lift as a share of the arc's length.
+ * @param height - The lift as a share of the straight-line distance between the ends.
  * @returns The points, flat x, y, z, both ends included; the straight line when the ends are in
  *     one direction from the center, or in opposite ones.
  */
@@ -837,7 +839,7 @@ export function greatCircleArc(src: Xyz, dst: Xyz, height: number): number[] {
         return straight;
     }
 
-    const lift = height * angle * ((ra + rb) / 2);
+    const lift = height * Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z);
     const pieces = Math.min(
         RAISED_STEPS,
         Math.max(Math.ceil(angle / ARC_TURN_PER_PIECE - 1e-9), fanArcPieces(angle * ((ra + rb) / 2), lift)),

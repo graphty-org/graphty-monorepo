@@ -23,9 +23,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Les Miserables in the workspace, with the starting rows.
  * @returns The session.
@@ -34,14 +31,11 @@ async function openSample(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -75,7 +69,7 @@ async function layerOf(
  * @param modifier - A key held while clicking (several rows).
  */
 async function clickRow(name: string, modifier?: "Control"): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     const row = await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
     if (modifier === undefined) {
         await userEvent.click(row);
@@ -92,7 +86,7 @@ async function clickRow(name: string, modifier?: "Control"): Promise<void> {
  * @returns The row button.
  */
 async function whichRow(kind: "nodes" | "edges" = "nodes"): Promise<HTMLElement> {
-    return screen.findByRole("button", { name: new RegExp(`^Which ${kind}, `) }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("button", { name: new RegExp(`^Which ${kind}, `) });
 }
 
 /**
@@ -223,7 +217,7 @@ describe("the combined Style panel", () => {
             where: { kind: "text", reads: "data.name", mode: "substring", text: "Mme" },
         });
         await clickRow("Mme");
-        const list = await screen.findByRole("tablist", { name: "Style for" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("tablist", { name: "Style for" });
         const node = within(list).getByRole("tab", { name: "Node" });
         const edge = within(list).getByRole("tab", { name: /^Edge/ });
         assert.include(edge.textContent ?? "", "not styled", "a kind that is off says so");

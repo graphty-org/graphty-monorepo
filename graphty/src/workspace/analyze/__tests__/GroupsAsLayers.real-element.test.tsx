@@ -18,9 +18,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * The workspace on Les Miserables.
  * @param store - The workspace's store.
@@ -31,14 +28,11 @@ async function openScene(
 ): Promise<GraphSession> {
     await page.viewport(1440, 900);
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -65,14 +59,11 @@ describe("a grouping run from Analyze", () => {
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
         await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
         await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
-        const runId = await waitFor(
-            () => {
-                const run = session.runs.list().find((r) => r.algorithm === "louvain");
-                assert.equal(run?.status, "succeeded");
-                return run?.id ?? "";
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const runId = await waitFor(() => {
+            const run = session.runs.list().find((r) => r.algorithm === "louvain");
+            assert.equal(run?.status, "succeeded");
+            return run?.id ?? "";
+        });
         await session.styles.settled();
 
         const tree = await screen.findByRole("tree", { name: "Style layers" });
@@ -141,28 +132,22 @@ describe("a grouping run from Analyze", () => {
         await userEvent.tripleClick(resolution);
         await userEvent.keyboard("1.2{Enter}");
 
-        const runId = await waitFor(
-            () => {
-                const found = session.runs.list().find((r) => r.algorithm === "louvain");
-                assert.equal(found?.status, "succeeded");
-                return found?.id ?? "";
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const runId = await waitFor(() => {
+            const found = session.runs.list().find((r) => r.algorithm === "louvain");
+            assert.equal(found?.status, "succeeded");
+            return found?.id ?? "";
+        });
         const run = session.runs.get(runId);
         assert.equal(run?.params.resolution, 1.2, "the run used the value typed before Enter");
         const groups = run?.result?.summary().groups?.length ?? 0;
         assert.isAbove(groups, 1);
-        await waitFor(
-            () => {
-                // The run's name carries the setting that differs from the default.
-                assert.equal(
-                    store.get().announcement,
-                    `Louvain (resolution 1.2) finished: ${String(groups)} groups, each a layer in the Louvain folder of Style layers`,
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            // The run's name carries the setting that differs from the default.
+            assert.equal(
+                store.get().announcement,
+                `Louvain (resolution 1.2) finished: ${String(groups)} groups, each a layer in the Louvain folder of Style layers`,
+            );
+        });
 
         // Focus came back to Analyze by the popover closing, not by the reader: no tooltip shows.
         assert.equal(document.activeElement, analyze);

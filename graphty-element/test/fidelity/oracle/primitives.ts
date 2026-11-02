@@ -31,6 +31,11 @@ export interface PGradient {
     kind: "linear" | "radial";
     stops: PStop[];
     angle: number | null;
+    /**
+     * A linear gradient read off a picture's pixels (`pictureGradient`), whose direction is known only up to a half
+     * turn: one run the other way from its other end is the same picture. Absent for a gradient a program wrote.
+     */
+    halfTurn?: true;
 }
 
 /** A fill: a flat color, or a gradient (its first stop is also its `color`). */
@@ -150,6 +155,11 @@ export interface Prim {
     tag: string;
     kind: "shape" | "path" | "text" | "image";
     box: PBox;
+    /**
+     * An image's: the gradient its pixels are (`pictureGradient`), as a program draws a gradient fill as a picture
+     * (Cytoscape desktop's gradient custom graphics). Absent for everything else.
+     */
+    gradient?: PGradient;
     /** The outline sampled by arc length (shapes and paths), in the side's frame. */
     points: Pt[];
     closed: boolean;
@@ -237,14 +247,17 @@ export interface PNode {
 /**
  * Arrowhead shape classes a reader can tell apart, read from the outline in the frame of the line it caps: a triangle
  * pointing on along the line, one pointing back ("inverted"), a concave arrow ("vee": an arrow with a notch, a
- * chevron), a crow's foot, a diamond, a circle, a box, a bar across the line ("tee"), half an arrow on one side of the
- * line, half a disc with its flat side across the tip ("half-circle", or its round side alone). "other" matches nothing.
+ * chevron), a crow's foot (tines spreading toward the node, one of them along the line), a vee pointing back with no
+ * tine along the line ("inverted-vee", vis-network's crow), a diamond, a circle, a box, a bar across the line ("tee"),
+ * half an arrow on one side of the line, half a disc with its flat side across the tip ("half-circle", or its round
+ * side alone). "other" matches nothing.
  */
 export type ArrowShape =
     | "triangle"
     | "inverted"
     | "vee"
     | "crow"
+    | "inverted-vee"
     | "diamond"
     | "circle"
     | "box"
@@ -283,6 +296,12 @@ export interface PArrow {
      * Pajek's `arrowPosition`), whose place is judged along the line, never from the line's end.
      */
     partWay?: boolean;
+    /**
+     * An end's arrowhead: the break between where its line stops and where the head itself first meets the line, as a
+     * share of the head's length (0 where they meet). Cytoscape desktop runs the line on under its half arrows to where
+     * the barb meets it; graphty stopped it at the head's back, short of a barb that meets the line only near its tip.
+     */
+    lineGap?: number;
 }
 
 /** An edge as drawn. */
@@ -372,6 +391,18 @@ export interface PScene {
 export const compareIds = (a: string, b: string): number => Number(a > b) - Number(a < b);
 
 /**
+ * The id of an oracle shape no graph element owns (a stray, a group read off a box), from what it is and where the
+ * program drew it: its tag and its box in the oracle's own frame, rounded to whole pixels (`rect@10,20,110,60`). The
+ * oracle is a fixed file, so the id stays the same whatever the association leaves unmatched before it; a position in
+ * a list would renumber every later shape when one more or one fewer is matched.
+ * @param tag - what the shape is
+ * @param box - its box in the oracle's frame
+ * @returns the id
+ */
+export const shapeId = (tag: string, box: PBox): string =>
+    `${tag}@${[box.x0, box.y0, box.x1, box.y1].map((v) => String(Math.round(v) || 0)).join(",")}`;
+
+/**
  * The dash class of a dash array, from its dashes and its gaps relative to the line's width. A round or square line
  * cap draws each dash half a width longer at either end, so into its gaps; gaps that add to a tenth of the pattern or
  * less read as a solid line. Dashes no longer than one and a half widths (or pixels, for a hairline) are dots; long
@@ -419,6 +450,44 @@ export function boxOfPoints(pts: readonly Pt[]): PBox {
         box.y1 = Math.max(box.y1, y);
     }
     return box;
+}
+
+/**
+ * Places for the nodes a drawing has none for, from their neighbours': each at the middle of its neighbours that have
+ * one, taken in rounds so a node whose neighbours have none waits for them. A node with fewer than two placed
+ * neighbours stays without: one neighbour says nothing of where beside it the node stood. A position-matched drawing moves graphty's nodes to where the program drew them, and a node the
+ * program's drawing does not show (drawn wholly under another, as in a dense clique) would otherwise stay where graphty's
+ * own layout put it, far from the drawing it is moved into.
+ * @param placed - the nodes that have a place
+ * @param ids - every node
+ * @param edges - the edges, as their two nodes
+ * @returns a place for each node in `ids` without one that could be given one
+ */
+export function placeUndrawn(
+    placed: ReadonlyMap<string, Pt>,
+    ids: readonly string[],
+    edges: readonly (readonly [string, string])[],
+): Map<string, Pt> {
+    const at = new Map(placed);
+    const out = new Map<string, Pt>();
+    let waiting = ids.filter((id) => !at.has(id));
+    for (let grew = true; grew && waiting.length > 0;) {
+        const round = waiting.flatMap((id): [string, Pt][] => {
+            const near = edges
+                .filter((e) => e.includes(id))
+                .map(([a, b]) => at.get(a === id ? b : a))
+                .filter((p): p is Pt => p !== undefined);
+            const mean = (k: 0 | 1): number => near.reduce((sum, p) => sum + p[k], 0) / near.length;
+            return near.length < 2 ? [] : [[id, [mean(0), mean(1)]]];
+        });
+        for (const [id, p] of round) {
+            at.set(id, p);
+            out.set(id, p);
+        }
+        grew = round.length > 0;
+        waiting = waiting.filter((id) => !at.has(id));
+    }
+    return out;
 }
 
 /** The tag of a primitive read as an outline a program drew as a filled path (`outlinePaintedAsFill`). */
@@ -748,7 +817,8 @@ const patternResult = (dashClass: DashClass, width: number | null, box: PBox): P
  * custom graphic's text, stringApp's enhanced label, as glyph paths, its halo stroked and its letters filled): three
  * pieces or more in a row at least half again as wide as it is tall, set close side by side (the median gap between
  * one and the next under half the row's height), and unlike one another (their outlines' lengths vary by 0.15 of
- * their mean or more). A line or a border drawn in pieces repeats one piece, spaced by a dash's gap.
+ * their mean or more, or under three quarters of them are alike). A line or a border drawn in pieces repeats one
+ * piece, spaced by a dash's gap.
  * @param subpaths - the subpaths, sampled
  * @returns whether they are lettering
  */
@@ -765,7 +835,10 @@ export function isLettering(subpaths: readonly (readonly Pt[])[]): boolean {
     const lengths = subpaths.map((q) => lengthOf(q));
     const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
     const spread = Math.sqrt(lengths.reduce((s, l) => s + (l - mean) ** 2, 0) / lengths.length);
-    if (spread < 0.15 * mean) {
+    // the most pieces alike (outlines within 0.15 of one's length): a word repeats a letter or two (TET3's two Ts keep
+    // its spread at 0.15), a line or a border in pieces is nearly all one piece
+    const alike = Math.max(...lengths.map((l) => lengths.filter((k) => Math.abs(k - l) <= 0.15 * l).length));
+    if (spread < 0.15 * mean && alike >= 0.75 * lengths.length) {
         return false;
     }
     const byX = [...boxes].sort((a, b) => a.x0 - b.x0);
@@ -1032,18 +1105,7 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
         return "other";
     }
     // where the outline crosses the line square to the axis at t, back (0) to tip (1)
-    const crossings = (t: number): number[] => {
-        const at = a0 + t * L;
-        const xs: number[] = [];
-        for (let i = 0; i < outline.length; i++) {
-            const j = (i + 1) % outline.length;
-            // half open, so a vertex on the line is crossed once, not once by each side meeting there
-            if (a[i] <= at !== a[j] <= at) {
-                xs.push(c[i] + ((at - a[i]) / (a[j] - a[i])) * (c[j] - c[i]));
-            }
-        }
-        return xs.sort((x, y) => x - y);
-    };
+    const crossings = (t: number): number[] => crossingsAt(a, c, a0 + t * L);
     const ts = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
     const w = ts.map((t) => {
         const xs = crossings(t);
@@ -1084,7 +1146,13 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
     }
     // a triangle pointing back widens evenly towards the tip; a half circle is most of its width by its middle
     if (tip > back + 0.3 && middle < 0.75) {
-        return cover(0.8) < 0.75 ? "crow" : "inverted";
+        if (cover(0.8) >= 0.75) {
+            return "inverted";
+        }
+        // a crow's foot has a tine along the line between its outer two, crossed near its tip as a third run (Graphviz's
+        // crow draws it as a spike of no width, crossed twice at one place); a vee turned back (vis-network's crow) has
+        // its notch empty there
+        return crossings(0.85).length >= 6 ? "crow" : "inverted-vee";
     }
     // half a disc, flat across the tip: sqrt(1 - (1 - t)^2) wide, 0.44 near its back, 0.87 at its middle, all of it at
     // the tip
@@ -1093,6 +1161,61 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
         return "half-circle";
     }
     return crossedDelta(outline, a, c, dir) ? "cross-delta" : "other";
+}
+
+/**
+ * Where a closed outline crosses a line square to an axis, across the axis, in order.
+ * @param a - each point's place along the axis
+ * @param c - each point's place across it
+ * @param at - the place along the axis
+ * @returns the places across it
+ */
+function crossingsAt(a: readonly number[], c: readonly number[], at: number): number[] {
+    const xs: number[] = [];
+    for (let i = 0; i < a.length; i++) {
+        const j = (i + 1) % a.length;
+        // half open, so a vertex on the line is crossed once, not once by each side meeting there
+        if (a[i] <= at !== a[j] <= at) {
+            xs.push(c[i] + ((at - a[i]) / (a[j] - a[i])) * (c[j] - c[i]));
+        }
+    }
+    return xs.sort((x, y) => x - y);
+}
+
+/** A barb no thicker than this share of its length, across its middle, is a stroke drawn as a fill. */
+const STROKED_BARB = 0.1;
+
+/**
+ * Whether a filled outline is a barb drawn as a stroke: a strip of even width, its thickest across the middle of its
+ * long axis (its two points farthest apart) at most `STROKED_BARB` of its length. Cytoscape desktop exports its
+ * HALF_TOP and HALF_BOTTOM as such a strip, one open stroked barb, where a half arrow drawn filled is a wedge.
+ * @param outline - the outline, in drawing order
+ * @returns true for a stroked barb
+ */
+export function strokedBarb(outline: readonly Pt[]): boolean {
+    let [p, q, d] = [outline[0], outline[0], 0];
+    for (const u of outline) {
+        for (const v of outline) {
+            const uv = Math.hypot(v[0] - u[0], v[1] - u[1]);
+            if (uv > d) {
+                [p, q, d] = [u, v, uv];
+            }
+        }
+    }
+    if (outline.length < 3 || !(d > 1e-9)) {
+        return false;
+    }
+    const [ux, uy] = [(q[0] - p[0]) / d, (q[1] - p[1]) / d];
+    const a = outline.map(([x, y]) => (x - p[0]) * ux + (y - p[1]) * uy);
+    const c = outline.map(([x, y]) => -(x - p[0]) * uy + (y - p[1]) * ux);
+    // across its middle only: a stroke's ends (a cap, the foot it stands on) are wider than its run
+    const thickest = Math.max(
+        ...[0.3, 0.4, 0.5, 0.6, 0.7].map((t) => {
+            const xs = crossingsAt(a, c, t * d);
+            return xs.length < 2 ? 0 : (xs.at(-1) ?? 0) - xs[0];
+        }),
+    );
+    return thickest <= STROKED_BARB * d;
 }
 
 /**

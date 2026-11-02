@@ -11,12 +11,21 @@ import { assert, describe, it, vi } from "vitest";
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../../src/catalog/layouts";
 import { graphvizAvailability } from "../../src/layout/graphviz/availability";
 import { GRAPHVIZ_ENGINES, GRAPHVIZ_NODE_BUDGETS } from "../../src/layout/graphviz/engines";
-import { clusterMargins, edgeBends, fromJson } from "../../src/layout/graphviz/fromJson";
+import {
+    clusterMargins,
+    edgeBends,
+    edgeLabelPlaces,
+    edgeLabelsLeftOut,
+    fromJson,
+    nodeXlabelPlaces,
+} from "../../src/layout/graphviz/fromJson";
 import { runGraphviz } from "../../src/layout/graphviz/host";
 import { classify, layout } from "../../src/layout/graphviz/loader";
 import { graphvizStructure } from "../../src/layout/graphviz/structure";
 import { toDot } from "../../src/layout/graphviz/toDot";
-import { graphvizAttributes, graphvizError } from "../../src/layout/GraphvizLayoutEngine";
+import { graphvizAttributes, graphvizError, layoutStructure } from "../../src/layout/GraphvizLayoutEngine";
+import type { SnapshotLayoutInput } from "../../src/layout/SnapshotLayoutEngine";
+import type { Node } from "../../src/Node";
 import { recommendLayout } from "../../src/session";
 import { FILE_GRAPH_VALUE } from "../../src/session/commands/data";
 import { dispatcherOf } from "../../src/session/GraphSession";
@@ -589,7 +598,10 @@ describe("the recommendation for a Graphviz file", () => {
         assert.strictEqual(advice?.layout.id, "graphviz-dot");
         assert.strictEqual(advice?.fact.code, "recommend.graphviz-file");
         assert.strictEqual(advice?.fact.params.engine, "dot");
-        assert.deepEqual(advice?.options, { attributes: { rankdir: "LR", clusterrank: "none" } });
+        assert.deepEqual(advice?.options, {
+            attributes: { rankdir: "LR", clusterrank: "none" },
+            nodeSize: "label",
+        });
     });
 
     it("draws the engine the file names", () => {
@@ -600,7 +612,7 @@ describe("the recommendation for a Graphviz file", () => {
 
         assert.strictEqual(advice?.layout.id, "graphviz-neato");
         assert.strictEqual(advice?.fact.params.engine, "neato");
-        assert.isUndefined(advice?.options, "nothing to pass on");
+        assert.deepEqual(advice?.options, { nodeSize: "label" }, "no graph attribute to pass on");
     });
 
     it("names the engine a file of another format asks for in its layout value", () => {
@@ -610,6 +622,7 @@ describe("the recommendation for a Graphviz file", () => {
         });
 
         assert.strictEqual(advice?.layout.id, "graphviz-twopi");
+        assert.isUndefined(advice?.options, "its nodes carry no Graphviz label attributes to size them by");
     });
 
     it("says the package is missing and takes the next rule's arrangement", () => {
@@ -656,6 +669,24 @@ describe("the recommendation for a Graphviz file", () => {
         assert.isUndefined(gml?.options);
     });
 
+    it("reads graph-io's layout fact before the file's format and attributes", () => {
+        const fact = { tool: "graphviz", program: "circo", ownFormat: false, settings: { mindist: "2" } } as const;
+        const drawn = recommendLayout(connected, {
+            file: { format: "graphml", attributes: { layout: "neato" }, layout: fact },
+            graphvizAvailable: true,
+        });
+        const placed = recommendLayout(connected, { file: { layout: fact }, graphvizAvailable: true, placedNodes: 30 });
+        const other = recommendLayout(connected, {
+            file: { format: "dot", layout: { tool: "yed", program: "hierarchic", ownFormat: true, settings: {} } },
+            graphvizAvailable: true,
+        });
+
+        assert.strictEqual(drawn?.layout.id, "graphviz-circo");
+        assert.deepEqual(drawn?.options, { attributes: { mindist: "2" } }, "not Graphviz's own format: no label sizes");
+        assert.isUndefined(placed?.options, "Graphviz routes the edges only of a file in its own format");
+        assert.strictEqual(other?.layout.id, "force", "a layout of another tool is not drawn with Graphviz");
+    });
+
     it("ignores files that are not Graphviz files, and never recommends a Graphviz layout on its own", () => {
         const advice = recommendLayout(connected, {
             file: { format: "gexf", attributes: {} },
@@ -683,8 +714,422 @@ describe("a DOT file loaded with layout recommended", () => {
         assert.deepEqual(values.get(FILE_GRAPH_VALUE), {
             format: "dot",
             attributes: { layout: "neato", rankdir: "LR" },
+            layout: {
+                tool: "graphviz",
+                program: "neato",
+                ownFormat: true,
+                direction: "right",
+                settings: { rankdir: "LR" },
+            },
         });
         assert.strictEqual(session.layout.id, "force", "Node has no Worker, so Graphviz is unavailable");
         session.dispose();
+    });
+});
+
+/**
+ * Where Graphviz put each node of a json answer, by name, centered on its bounding box, in points.
+ * @param json - the `-Tjson` text
+ * @returns the centers by name
+ */
+function centersByName(json: string): Map<string, [number, number]> {
+    const parsed = JSON.parse(json) as { bb: string; objects: { name: string; pos?: string }[] };
+    const [x0, y0, x1, y1] = parsed.bb.split(",").map(Number);
+    const out = new Map<string, [number, number]>();
+    for (const { name, pos } of parsed.objects) {
+        if (pos !== undefined) {
+            const [x, y] = pos.split(",").map(Number);
+            out.set(name, [x - (x0 + x1) / 2, y - (y0 + y1) / 2]);
+        }
+    }
+
+    return out;
+}
+
+describe("nodes Graphviz sizes to their labels (nodeSize: label)", () => {
+    const ids = ["a", "b", "c", "d"];
+    const rowOf = (id: string | number): number => ids.indexOf(String(id));
+
+    it("hands over each node's own label, font, shape and size, its name for no label, and nothing for \\G", () => {
+        const structure = graphvizStructure(
+            rowOf,
+            [],
+            new Map(),
+            [],
+            new Map<number, Record<string, unknown>>([
+                [
+                    0,
+                    { label: String.raw`two\nlines`, fontname: "Helvetica", fontsize: 9, shape: "plain", color: "red" },
+                ],
+                [1, { width: 2 }],
+                [2, { label: String.raw`\N is c` }],
+                [3, { label: String.raw`\N in \G` }],
+            ]),
+            { idOf: (row) => ids[row] },
+        );
+
+        assert.isTrue(structure.labelSized);
+        assert.deepEqual(structure.nodeAttributes?.get(0), {
+            shape: "plain",
+            label: String.raw`two\nlines`,
+            fontsize: "9",
+            fontname: "Helvetica",
+        });
+        assert.deepEqual(structure.nodeAttributes?.get(1), { width: "2", label: "b" }, "Graphviz's \\N, its name");
+        assert.deepEqual(structure.nodeAttributes?.get(2), { label: "c is c" });
+        // the graph's name is not the element's to know: the node goes at the size it is drawn
+        assert.isFalse(structure.nodeAttributes?.has(3));
+    });
+
+    it("writes a label-sized node with Graphviz's own defaults, its label as written, an HTML label unquoted", () => {
+        const dot = toDot(graph(true, TRIANGLE), {}, [1, 1, 1], undefined, new Map(), {
+            labelSized: true,
+            nodeAttributes: new Map<number, Record<string, string>>([
+                [0, { label: String.raw`say "hi"\n`, shape: "box" }],
+                [1, { label: "<<b>bold</b>>" }],
+            ]),
+        });
+
+        assert.include(
+            dot,
+            String.raw`n0 [shape="box", fixedsize="false", width="0.75", height="0.5", label="say \"hi\"\n"];`,
+        );
+        assert.include(
+            dot,
+            'n1 [shape="ellipse", fixedsize="false", width="0.75", height="0.5", label=<<b>bold</b>>];',
+        );
+        assert.include(dot, "n2 [width=1, height=1];", "a node with nothing to size it by keeps its drawn size");
+    });
+
+    it("lays the nodes out where Graphviz lays out the file itself", async () => {
+        const file = String.raw`digraph { node [fontname="Helvetica", fontsize=9, shape=box];
+            a [label="a rather long label"]; b [label="two\nlines"]; c; d [shape=ellipse];
+            a -> b; a -> c; b -> d; c -> d; a -> d }`;
+        const pairs: [string, string][] = [
+            ["a", "b"],
+            ["a", "c"],
+            ["b", "d"],
+            ["c", "d"],
+            ["a", "d"],
+        ];
+        const snapshot = graph(true, pairs);
+        const font = { fontname: "Helvetica", fontsize: 9 };
+        const structure = graphvizStructure(
+            (id) => snapshot.ids.indexOf(id),
+            // in the file's order, as an element hands its edges over
+            pairs.map(([srcId, dstId]) => ({ srcId, dstId, data: {} })),
+            new Map(),
+            [],
+            new Map<number, Record<string, unknown>>(
+                [
+                    { label: "a rather long label", shape: "box", ...font },
+                    { label: String.raw`two\nlines`, shape: "box", ...font },
+                    { shape: "box", ...font },
+                    { shape: "ellipse", ...font },
+                ].map((data, k) => [snapshot.ids.requireIndex(ids[k]), data]),
+            ),
+            { idOf: (row) => String(snapshot.ids.idOf(row)) },
+        );
+        const ours = await layout(toDot(snapshot, {}, [0.2, 0.2, 0.2, 0.2], undefined, new Map(), structure), "dot");
+        const theirs = await layout(file, "dot");
+
+        assert.isTrue(ours.ok && theirs.ok);
+        const mine = centersByName(ours.ok ? ours.json : "{}");
+        const own = centersByName(theirs.ok ? theirs.json : "{}");
+        for (const id of ids) {
+            const [x, y] = mine.get(`n${snapshot.ids.requireIndex(id)}`) ?? [Number.NaN, Number.NaN];
+            const [ox, oy] = own.get(id) ?? [Number.NaN, Number.NaN];
+            assert.closeTo(x, ox, 0.01, `${id} x`);
+            assert.closeTo(y, oy, 0.01, `${id} y`);
+        }
+    });
+
+    it("is what a layout's nodeSize: label hands over, and drawn sizes stay the default", () => {
+        const snapshot = graph(true, [["a", "b"]]);
+        const input = { stored: snapshot } as unknown as SnapshotLayoutInput;
+        const nodes = [
+            { id: "a", data: { shape: "box" } },
+            { id: "b", data: {} },
+        ] as unknown as Node[];
+
+        const sized = layoutStructure(input, nodes, [], new Map(), false, true);
+        assert.isTrue(sized.labelSized);
+        assert.deepEqual(sized.nodeAttributes?.get(snapshot.ids.requireIndex("a")), { shape: "box", label: "a" });
+        assert.deepEqual(sized.nodeAttributes?.get(snapshot.ids.requireIndex("b")), { label: "b" });
+
+        const drawn = layoutStructure(input, nodes, [], new Map());
+        assert.isUndefined(drawn.labelSized);
+        assert.isUndefined(drawn.nodeAttributes);
+        const option = layoutDescriptor("graphviz-dot")?.options.find(({ name }) => name === "nodeSize");
+        assert.strictEqual(option?.default, "drawn");
+    });
+
+    it("never turns a quoted label into a syntax error: record ports, stray angle brackets, odd backslashes", async () => {
+        const labels = [
+            "<f0>|<f1>",
+            "<in> left|<out> right",
+            "<x < y>",
+            "<b>x</b>",
+            String.raw`a\"b`,
+            String.raw`a\\"b`,
+            "<<b>bold</b>>",
+        ];
+        const ids = labels.map((_, k) => `v${k}`);
+        const snapshot = graph(
+            true,
+            ids.slice(1).map((id, k) => [ids[k], id]),
+        );
+        const dot = toDot(snapshot, {}, undefined, undefined, new Map(), {
+            labelSized: true,
+            nodeAttributes: new Map(
+                labels.map((label, k): [number, Record<string, string>] => [
+                    snapshot.ids.requireIndex(ids[k]),
+                    k < 2 ? { label, shape: "record" } : { label },
+                ]),
+            ),
+        });
+
+        const result = await layout(dot, "dot");
+        assert.isTrue(result.ok, `Graphviz read every label: ${result.ok ? "" : JSON.stringify(result)}`);
+        assert.include(dot, 'label="<f0>|<f1>"', "a record label is quoted, not read as HTML");
+        assert.include(dot, "label=<<b>bold</b>>", "an HTML label stays HTML");
+    });
+
+    it("hands over an empty label as empty, not as the node's name", () => {
+        const structure = graphvizStructure(rowOf, [], new Map(), [], new Map([[0, { label: "" }]]), {
+            idOf: (row) => ids[row],
+        });
+
+        assert.deepEqual(structure.nodeAttributes?.get(0), { label: "" });
+    });
+
+    it("hands over a cluster's label place, which a graph's labelloc gives its clusters too", () => {
+        const structure = graphvizStructure(rowOf, [], new Map([[3, { label: "g", labelloc: "b" }]]), []);
+
+        assert.deepEqual(structure.groupAttributes?.get(3), { label: "g", labelloc: "b" });
+    });
+});
+
+describe("where Graphviz put each edge label read back", () => {
+    it("reads each edge's lp as along and across its two nodes' centers, and none for an edge with no label", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "n0", pos: "0,0" },
+                { name: "n1", pos: "100,0" },
+            ],
+            edges: [
+                { id: "e0", pos: "0,0 100,0", lp: "50,20" },
+                { id: "e1", pos: "100,0 0,0", lp: "25,-10" },
+                { id: "e2", pos: "0,0 100,0" },
+                { id: "e3", pos: "0,0 0,0", lp: "5,5" },
+            ],
+        });
+        const places = edgeLabelPlaces(json, [
+            { src: 0, dst: 1 },
+            { src: 1, dst: 0 },
+            { src: 0, dst: 1 },
+            { src: 0, dst: 0 },
+        ]);
+
+        assert.deepEqual([...places.keys()], [0, 1], "no lp, or a loop with no line to measure along, reads none");
+        assert.deepEqual(places.get(0), [0.5, 0.2]);
+        // from n1 toward n0: 75 points along of 100, and 10 below the line is to its left going that way
+        const [along, across] = places.get(1) ?? [Number.NaN, Number.NaN];
+        assert.closeTo(along, 0.75, 1e-9);
+        assert.closeTo(across, 0.1, 1e-9);
+    });
+
+    it("reads the place dot gives a labelled edge", async () => {
+        const snapshot = graph(true, [["a", "b"]]);
+        const edges = [{ src: 0, dst: 1, attributes: { label: "a label" } }];
+        const reply = await layout(toDot(snapshot, {}, undefined, undefined, new Map(), { edges }), "dot");
+
+        assert.isTrue(reply.ok);
+        const [along, across] = edgeLabelPlaces(reply.ok ? reply.json : "{}", edges).get(0) ?? [Number.NaN, Number.NaN];
+        assert.closeTo(along, 0.5, 0.1, "about halfway down the edge");
+        assert.isAbove(Math.abs(across), 0.05, "beside the line, not on it");
+    });
+
+    it("reads an edge's external, head and tail label places as its label place is read", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "n0", pos: "0,0" },
+                { name: "n1", pos: "100,0" },
+            ],
+            // Graphviz's own names, as its json writes them
+            edges: [
+                JSON.parse(
+                    '{ "id": "e0", "pos": "0,0 100,0", "xlp": "50,-20", "head_lp": "90,10", "tail_lp": "10,10" }',
+                ),
+            ],
+        });
+        const edges = [{ src: 0, dst: 1 }];
+
+        assert.deepEqual(edgeLabelPlaces(json, edges).get(0), undefined, "no lp");
+        assert.deepEqual(edgeLabelPlaces(json, edges, "xlp").get(0), [0.5, -0.2]);
+        assert.deepEqual(edgeLabelPlaces(json, edges, "head_lp").get(0), [0.9, 0.1]);
+        assert.deepEqual(edgeLabelPlaces(json, edges, "tail_lp").get(0), [0.1, 0.1]);
+    });
+
+    it("hands an edge's xlabel, headlabel and taillabel to Graphviz, which places each (issue #5273)", async () => {
+        const snapshot = graph(true, [["a", "b"]]);
+        const structure = graphvizStructure(
+            (id) => ["a", "b"].indexOf(String(id)),
+            [
+                {
+                    srcId: "a",
+                    dstId: "b",
+                    data: {
+                        xlabel: "outside",
+                        headlabel: "<<b>H</b>>",
+                        taillabel: "T",
+                        labelfontsize: 14,
+                        color: "red",
+                    },
+                },
+            ],
+            new Map(),
+            [],
+        );
+        const edges = structure.edges ?? [];
+        assert.deepEqual(edges[0].attributes, {
+            xlabel: "outside",
+            headlabel: "H",
+            taillabel: "T",
+            labelfontsize: "14",
+        });
+        const reply = await layout(toDot(snapshot, {}, undefined, undefined, new Map(), structure), "dot");
+
+        assert.isTrue(reply.ok);
+        const json = reply.ok ? reply.json : "{}";
+        const [xAlong] = edgeLabelPlaces(json, edges, "xlp").get(0) ?? [Number.NaN];
+        const [headAlong] = edgeLabelPlaces(json, edges, "head_lp").get(0) ?? [Number.NaN];
+        const [tailAlong] = edgeLabelPlaces(json, edges, "tail_lp").get(0) ?? [Number.NaN];
+        assert.closeTo(xAlong, 0.5, 0.25, "the external label about halfway along");
+        assert.isAbove(headAlong, 0.5, "the head label near the target");
+        assert.isBelow(tailAlong, 0.5, "the tail label near the source");
+    });
+
+    it("reads where Graphviz puts a node's external label, from the node's center, right and down", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "n0", pos: "100,50", xlp: "80,70" },
+                { name: "n1", pos: "10,10" },
+                { name: "cluster", pos: "1,1", xlp: "2,2" },
+            ],
+        });
+        assert.deepEqual([...nodeXlabelPlaces(json)], [[0, [-20, -20]]]);
+    });
+
+    it("hands a node's xlabel to Graphviz, which places it outside the node", async () => {
+        const snapshot = graph(true, [["a", "b"]]);
+        const structure = graphvizStructure(
+            (id) => ["a", "b"].indexOf(String(id)),
+            [{ srcId: "a", dstId: "b", data: {} }],
+            new Map(),
+            [],
+            new Map([[0, { xlabel: "outside" }]]),
+        );
+        assert.deepEqual(structure.nodeAttributes?.get(0), { xlabel: "outside" });
+        const reply = await layout(toDot(snapshot, {}, undefined, undefined, new Map(), structure), "dot");
+
+        assert.isTrue(reply.ok);
+        const places = nodeXlabelPlaces(reply.ok ? reply.json : "{}");
+        assert.deepEqual([...places.keys()], [0]);
+        const [right, down] = places.get(0) ?? [Number.NaN, Number.NaN];
+        // Graphviz's default node is 54 by 36 points: the label's center is past its half width or half height
+        assert.isTrue(Math.abs(right) > 27 || Math.abs(down) > 18, `outside the node: ${String([right, down])}`);
+    });
+
+    it("reads an external label Graphviz gave no place (forcelabels=false, no room) as left out", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "n0", pos: "100,50", xlabel: "kept", xlp: "80,70" },
+                { name: "n1", pos: "10,10", xlabel: "dropped" },
+                { name: "n2", pos: "10,10" },
+            ],
+        });
+        assert.deepEqual(
+            [...nodeXlabelPlaces(json)],
+            [
+                [0, [-20, -20]],
+                [1, null],
+            ],
+        );
+    });
+
+    it("leaves out, with the graph's forcelabels=false, an xlabel Graphviz has no room for", async () => {
+        // a long label on a node ringed by sixteen small ones, touching: every place beside it covers one of them
+        const ring = Array.from({ length: 16 }, (_, i) => {
+            const a = (i * Math.PI) / 8;
+            return `n${i + 1} [pos="${(30 * Math.cos(a)).toFixed(2)},${(30 * Math.sin(a)).toFixed(2)}!"];`;
+        });
+        const dot = (force: string): string =>
+            `graph { graph [forcelabels=${force}, inputscale=72]; ` +
+            `node [shape=circle, width=0.1667, height=0.1667, fixedsize=true, label="", fontsize=10]; ` +
+            `n0 [shape=ellipse, width=0.5, height=0.5, pos="0,0!", xlabel="a long external label"]; ${ring.join(" ")} }`;
+        const dropped = await layout(dot("false"), "neato");
+        assert.isTrue(dropped.ok);
+        assert.deepEqual([...nodeXlabelPlaces(dropped.ok ? dropped.json : "{}")], [[0, null]]);
+        const forced = await layout(dot("true"), "neato");
+        assert.isArray(nodeXlabelPlaces(forced.ok ? forced.json : "{}").get(0), "placed when forced");
+    });
+
+    it("reads the edge labels Graphviz drew nothing for (forcelabels=false, no room) as left out", () => {
+        const text = (x: number, y: number): unknown[] => [{ op: "T", pt: [x, y], text: "t" }];
+        const json = JSON.stringify({
+            edges: [
+                // its label drawn beside a kept xlabel; its end labels drawn
+                {
+                    id: "e0",
+                    label: "m",
+                    lp: "50,40",
+                    xlabel: "x",
+                    xlp: "90,10",
+                    _ldraw_: [...text(50, 37), ...text(90, 7)],
+                    headlabel: "h",
+                    _hldraw_: text(1, 1),
+                    taillabel: "t",
+                    _tldraw_: text(2, 2),
+                },
+                // a stale lp, no end label drawings and no xlp: all four dropped
+                { id: "e1", label: "m", lp: "0,0", xlabel: "x", headlabel: "h", taillabel: "t" },
+                // the label dropped beside a kept xlabel: the only text is the xlabel's
+                { id: "e2", label: "m", lp: "0,0", xlabel: "x", xlp: "90,10", _ldraw_: text(90, 7) },
+                // an xlabel with no label is drawn as the label
+                { id: "e3", xlabel: "x" },
+                { id: "e4" },
+            ],
+        });
+        assert.deepEqual(
+            [...edgeLabelsLeftOut(json)],
+            [
+                [1, ["xlabel", "label", "headLabel", "tailLabel"]],
+                [2, ["label"]],
+                [3, ["label", "xlabel"]],
+            ],
+        );
+    });
+
+    it("leaves out, with the graph's forcelabels=false, the edge labels Graphviz has no room for", async () => {
+        // an edge across a ring of sixteen small touching nodes: every place for its labels covers one of them
+        const ring = Array.from({ length: 16 }, (_, i) => {
+            const a = (i * Math.PI) / 8;
+            return `n${i} [pos="${(30 * Math.cos(a)).toFixed(2)},${(30 * Math.sin(a)).toFixed(2)}!"];`;
+        });
+        const dot = (force: string): string =>
+            `digraph { graph [forcelabels=${force}, inputscale=72]; ` +
+            `node [shape=circle, width=0.1667, height=0.1667, fixedsize=true, label="", fontsize=10]; ` +
+            `edge [fontsize=10]; ${ring.join(" ")} n0 -> n8 [id=e0, label="a long middle label here", ` +
+            `xlabel="a long external edge label", headlabel="a long head label", taillabel="a long tail label"]; }`;
+        const dropped = await layout(dot("false"), "neato");
+        assert.isTrue(dropped.ok);
+        assert.deepEqual(
+            [...edgeLabelsLeftOut(dropped.ok ? dropped.json : "{}")],
+            [[0, ["xlabel", "label", "headLabel", "tailLabel"]]],
+        );
+        const forced = await layout(dot("true"), "neato");
+        assert.isTrue(forced.ok);
+        assert.deepEqual([...edgeLabelsLeftOut(forced.ok ? forced.json : "{}")], [], "placed when forced");
     });
 });

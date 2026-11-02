@@ -186,7 +186,7 @@ describe("retries", () => {
             bareContext({ fetch: quota, retry: { retries: 2 } }, { endpoint: API }).ctx.fetch("/a"),
         );
         expect(q.issue?.code).toBe("E_SOURCE_QUOTA");
-        expect(q.issue?.params).toEqual({ retryAfterMs: 0 });
+        expect(q.issue?.params).toEqual({ origin: API, retryAfterMs: 0 });
         expect(quota.calls).toHaveLength(3);
         const down = replayFetch([{ url: `${API}/a`, status: 503 }]);
         const d = await rejection(
@@ -229,8 +229,8 @@ describe("retries", () => {
 describe("status mapping", () => {
     it.each([
         [401, "E_SOURCE_AUTH", { origin: API, status: 401, scheme: "Basic", serverCode: null }],
-        [403, "E_SOURCE_FORBIDDEN", { status: 403, serverCode: null }],
-        [404, "E_SOURCE_NOT_FOUND", { what: "url", value: `${API}/a` }],
+        [403, "E_SOURCE_FORBIDDEN", { origin: API, status: 403, serverCode: null }],
+        [404, "E_SOURCE_NOT_FOUND", { origin: API, what: "url", value: `${API}/a` }],
         [400, "E_FETCH", { url: `${API}/a`, status: 400 }],
     ])("maps %i to %s", async (status, code, params) => {
         const fetch = replayFetch([{ url: `${API}/a`, status, headers: { "www-authenticate": 'Basic realm="x"' } }]);
@@ -252,7 +252,7 @@ describe("status mapping", () => {
     it("refuses a body that is not JSON", async () => {
         const fetch = replayFetch([{ url: `${API}/a`, body: "<html>", headers: { "content-type": "text/html" } }]);
         const err = await rejection(bareContext({ fetch }, { endpoint: API }).ctx.fetchJson("/a"));
-        expect(err.issue?.params).toEqual({ expected: "json", contentType: "text/html" });
+        expect(err.issue?.params).toEqual({ origin: API, expected: "json", contentType: "text/html" });
     });
 });
 
@@ -292,7 +292,7 @@ describe("cancellation and timeouts", () => {
         const err = await rejection(created.ctx.fetch("/a"));
         created.dispose();
         expect(err.issue?.code).toBe("E_SOURCE_TIMEOUT");
-        expect(err.issue?.params).toEqual({ timeoutMs: 5, serverSide: false });
+        expect(err.issue?.params).toEqual({ origin: API, timeoutMs: 5, serverSide: false });
     });
 });
 

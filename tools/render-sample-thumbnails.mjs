@@ -46,6 +46,8 @@ import { gunzipSync } from "node:zlib";
 
 import { chromium } from "playwright";
 
+import { WAIT_GUARD_MS } from "./test-wait-guard.mjs";
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dataDir = path.join(root, "graph-samples/dist/data/v1");
 const hostedDir = path.join(root, "graph-samples/public-data/v1");
@@ -433,6 +435,7 @@ try {
                 layout: job.layout,
                 width: WIDTH,
                 height: HEIGHT,
+                waitGuardMs: WAIT_GUARD_MS,
             });
             writeFileSync(path.resolve(outDir, job.file), Buffer.from(picture, "base64"));
             console.log(`${job.file} (${job.layout.engine ?? job.layout.id}, ${job.records.nodes.length} nodes)`);
@@ -458,9 +461,11 @@ process.exit(failed === 0 ? 0 : 1);
  * @param job.width - the picture's width in pixels
  * @param job.height - the picture's height in pixels
  * @param job.emphasis - darker lines and larger nodes for a dense picture, or null
+ * @param job.waitGuardMs - the monorepo's one hang guard, which ends a stable-frame wait that hangs
  * @returns the WebP picture, base64
  */
-async function draw({ name, data, layout, width, height, emphasis }) {
+async function draw({ name, data, layout, width, height, emphasis, waitGuardMs }) {
+    globalThis.__GRAPHTY_WAIT_GUARD_MS__ = waitGuardMs;
     await globalThis.customElements.whenDefined("graphty-element");
     const element = globalThis.document.querySelector("graphty-element");
     const { session } = element;
@@ -485,7 +490,7 @@ async function draw({ name, data, layout, width, height, emphasis }) {
     });
     await session.data.import({ type: "json", name, config: { data } });
     await session.runs.start("louvain");
-    await element.waitForStableFrame({ timeoutMs: 120_000 });
+    await element.waitForStableFrame();
     const shot = await element.captureScreenshot({
         format: "webp",
         quality: 0.85,

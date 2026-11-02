@@ -6,7 +6,7 @@
 import { Menu, ScrollArea } from "@mantine/core";
 import { screen, within } from "@testing-library/react";
 import React from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { ToggleIconButton } from "../../../src/components/buttons";
@@ -19,7 +19,6 @@ import {
     type TreeNodeData,
 } from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";
-import { TOOLTIP_WAIT } from "../../waits";
 
 afterEach(resetHarness);
 
@@ -309,21 +308,59 @@ describe("Tree: keyboard", () => {
     it("jumps by type-ahead, and a quick run of keys matches a longer prefix", async () => {
         await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} />);
         await tabIn();
-        // The type-ahead window is read from Date.now(): hold the clock still and move it by hand.
-        let now = Date.now();
-        vi.setSystemTime(now);
+        // The type-ahead pause is read from when each key was typed (event.timeStamp): move that
+        // forward by hand to make a pause.
+        let later = 0;
+        const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
+        vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
+            return (timeStamp?.call(this) as number) + later;
+        });
         try {
             await userEvent.keyboard("l");
             expect(focused()).toBe("leaf");
             // A new run starts once the 500ms type-ahead window has passed.
-            vi.setSystemTime((now += 600));
+            later += 600;
             await userEvent.keyboard("g");
             expect(focused()).toBe("group");
-            vi.setSystemTime((now += 600));
+            later += 600;
             await userEvent.keyboard("{Home}ot");
             expect(focused()).toBe("other");
         } finally {
-            vi.useRealTimers();
+            vi.restoreAllMocks();
+        }
+    });
+
+    it("keeps a quick run of keys one run on a busy page (#3534)", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} />);
+        await tabIn();
+        // The page is busy for 700ms after it takes "g" (a redraw elsewhere), and "r" was typed
+        // 100ms after "g", while it was busy: the browser hands "r" over only once the page is free.
+        // The busy page is its clock: once "g" is taken, performance.now() reads 700ms later, so
+        // the page handles "r" 700ms after "g" without the test holding the main thread.
+        let gAt = 0;
+        let busyFor = 0;
+        const now = performance.now.bind(performance);
+        vi.spyOn(performance, "now").mockImplementation(() => now() + busyFor);
+        const busy = (event: KeyboardEvent): void => {
+            if (event.key === "g") {
+                gAt = event.timeStamp;
+                busyFor = 700;
+            }
+        };
+        // The keys are real, but their typed time is set here: a reader's "r" is stamped when it
+        // was typed, 100ms after "g", which is what this stands in for.
+        const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
+        vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
+            return this instanceof KeyboardEvent && this.key === "r" ? gAt + 100 : (timeStamp?.call(this) as number);
+        });
+        globalThis.addEventListener("keydown", busy);
+        try {
+            // "gr" is Group; "r" alone, from Group, would be Rect.
+            await userEvent.keyboard("gr");
+            expect(focused()).toBe("group");
+        } finally {
+            globalThis.removeEventListener("keydown", busy);
+            vi.restoreAllMocks();
         }
     });
 
@@ -888,11 +925,14 @@ describe("Tree: pointer", () => {
 describe("Tree: pointer drag (touch, mouse)", () => {
     const FLAT: TreeNodeData[] = ["A", "B", "C", "D"].map((n) => ({ id: n.toLowerCase(), name: n }));
     const HOLD = 600;
-    const wait = (ms: number): Promise<void> =>
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        new Promise((resolve) => {
-            setTimeout(resolve, ms);
-        });
+    // The hold runs on setTimeout. A fake one that keeps pace with the real clock leaves every other
+    // timer (the row menu's transitions) running as usual and steps the hold exactly.
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
 
     /**
      * Send one pointer event at a point, to whatever is drawn there.
@@ -933,7 +973,7 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         await renderThemed(<Tree items={FLAT} onMove={onMove} />);
         const a = middle("A");
         send("pointerdown", a.x, a.y);
-        await wait(HOLD);
+        vi.advanceTimersByTime(HOLD);
         send("pointermove", a.x, a.y + 12);
         await vi.waitFor(() => {
             expect(row("A")).toHaveAttribute("data-dragging");
@@ -954,7 +994,7 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         const a = middle("A");
         send("pointerdown", a.x, a.y);
         send("pointermove", a.x, a.y + 20);
-        await wait(HOLD);
+        vi.advanceTimersByTime(HOLD);
         const to = afterC();
         send("pointermove", to.x, to.y);
         expect(screen.queryByTestId("tree-drop-line")).toBeNull();
@@ -967,7 +1007,7 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         await renderThemed(<Tree items={FLAT} onMove={onMove} canDrop={() => false} />);
         const a = middle("A");
         send("pointerdown", a.x, a.y);
-        await wait(HOLD);
+        vi.advanceTimersByTime(HOLD);
         send("pointermove", a.x, a.y + 12);
         const to = afterC();
         send("pointermove", to.x, to.y);
@@ -982,7 +1022,7 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         await renderThemed(<Tree items={items} onMove={onMove} />);
         const a = middle("A");
         send("pointerdown", a.x, a.y);
-        await wait(HOLD);
+        vi.advanceTimersByTime(HOLD);
         send("pointermove", a.x, a.y + 12);
         expect(row("A")).not.toHaveAttribute("data-dragging");
         const to = afterC();
@@ -1003,7 +1043,7 @@ describe("Tree: pointer drag (touch, mouse)", () => {
         );
         const b = middle("B");
         send("pointerdown", b.x, b.y);
-        await wait(HOLD);
+        vi.advanceTimersByTime(HOLD);
         await vi.waitFor(() => {
             expect(screen.getByRole("menuitem", { name: "Delete B" })).toBeVisible();
         });
@@ -1376,7 +1416,7 @@ describe("ResultRow", () => {
         expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
         expect(name.getBoundingClientRect().right).toBeLessThanOrEqual(viewport.getBoundingClientRect().right);
         await userEvent.hover(name);
-        const tip = await screen.findByRole("tooltip", {}, TOOLTIP_WAIT);
+        const tip = await screen.findByRole("tooltip", {});
         expect(tip.textContent).toContain(long);
     });
 });

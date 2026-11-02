@@ -58,7 +58,7 @@ import { GraphtyError, isGraphtyError } from "../errors";
 import { type EnabledFeatures, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
-import { type InputCounters, inputCountersOf } from "./attributes";
+import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
@@ -624,6 +624,12 @@ class Session implements ElementSession {
                 cause: change.cause,
             });
             beside?.(change);
+        };
+        this.dispatcher.events.caughtUp = (change) => {
+            publish(this.watchers, "project:derived", {
+                slices: change.slices as readonly ProjectSlice[],
+                cause: change.cause,
+            });
         };
         // A command that replaces the project is announced before it runs (autosave keeps the
         // work it replaces); chained, because a test may spy here too.
@@ -1439,19 +1445,27 @@ function layoutOf(
             await dispatch({ op: "view.dimension", dimension });
         },
         optionInEffect: (id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect => {
-            const ignored = (dimension ?? choice().dimension) === "2d" && IGNORED_IN_2D_OPTIONS.has(`${id}.${option}`);
+            const drawn =
+                (dimension ?? choice().dimension) === "2d" ? IGNORED_IN_2D_OPTIONS.get(`${id}.${option}`) : undefined;
+            const params: Record<string, string> = { setting: option };
+            if (drawn !== undefined) {
+                params.drawn = drawn;
+            }
             return Object.freeze({
-                inEffect: !ignored,
-                code: ignored ? "setting.notIn2d" : "setting.inEffect",
-                params: Object.freeze({ setting: option }),
+                inEffect: drawn === undefined,
+                code: drawn === undefined ? "setting.inEffect" : "setting.notIn2d",
+                params: Object.freeze(params),
             });
         },
         locationColumns: locate,
     });
 }
 
-/** The layout options the 2D view ignores, as `<layout>.<option>`: it always draws the location map flat. */
-const IGNORED_IN_2D_OPTIONS: ReadonlySet<string> = new Set(["location-map.surface"]);
+/**
+ * The layout options the 2D view ignores, as `<layout>.<option>`, with the value it draws instead:
+ * it always draws the location map's 2D map.
+ */
+const IGNORED_IN_2D_OPTIONS: ReadonlyMap<string, string> = new Map([["location-map.mapDimension", "2d"]]);
 
 function viewsOf(dispatcher: Dispatcher): SessionViews {
     const held = dispatcher.state.views;
@@ -1556,6 +1570,12 @@ function configOf(
         },
         get layoutTransition() {
             return read().layoutTransition;
+        },
+        get viewRotation() {
+            return read().viewRotation;
+        },
+        get framing() {
+            return read().framing;
         },
         // Read from the controller, not from a value frozen at construction: the policy and the
         // threshold are changed at runtime through the session's accessors and the element's
@@ -2534,6 +2554,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     };
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
     const snapshot = (): GraphSnapshot => store.store.getSnapshot();
+    const dataRevision = dataRevisionOf(snapshot, inputs);
     dispatcher.arrangement.bind({
         snapshot,
         get positions() {
@@ -2607,6 +2628,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         {
             revision: () => inputs.tick.value,
+            dataRevision,
             // Read through a call: the resolver is built below.
             resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
             // And the query engine, below that.
@@ -2846,6 +2868,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
     /** The timeline's hooks, built after the runs it re-runs; read through calls until then. */
     let timeline: TimeInternals | null = null;
+    /** Told when the reader changes the selection by hand: the select conditions switch off. */
+    let onHandSelection: (() => void) | null = null;
     const visibility = createVisibilityApi({
         snapshot,
         instants: (path: Path) => timeline?.instants(path) ?? null,
@@ -2879,6 +2903,22 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             repaintGhosts();
         },
         onMaskVersion: advanceTick,
+        selection: {
+            current: () => ({
+                nodes: requireSelection(selection).nodeMembers().ids(),
+                edges: requireSelection(selection).edgeMembers().ids(),
+            }),
+            replace: (ids, cause) => {
+                requireSelection(selection).applyNow(
+                    { nodes: [...ids.nodes], edges: [...ids.edges] },
+                    "replace",
+                    cause,
+                );
+            },
+            onHandChange: (listener) => {
+                onHandSelection = listener;
+            },
+        },
     });
 
     const defaultScope: Scope = runsOptions.defaultScope ?? "visible";
@@ -3077,6 +3117,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const time = createTimeApi({
         snapshot,
         token: () => dispatcher.state.graph.token,
+        dataRevision,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         knownFields: () => {
             const known = readProject().data.knownFields;
@@ -3244,6 +3285,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, "selection:changed", delta);
             // A hover layer that falls back to the selection follows it too.
             repaintHover();
+            if (delta.cause === "user") {
+                onHandSelection?.();
+            }
         },
         onHover: (before, after) => {
             const nodes = [before, after].flatMap((id) => {
@@ -3479,6 +3523,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // The passes a selection or pointer change starts without awaiting: `settled()` waits for
         // those already asked for when it is called.
         idle: painter.idle,
+        // Live sets a freeze queued for a later frame: `settled()` resolves them now (issue #3667).
+        resolveQueuedSets: () => {
+            notifier.drain();
+        },
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
         // empty picture on a graph that is plainly painted.
@@ -3700,6 +3748,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             () => keptSets.list(),
         ),
         inputTick: () => inputs.tick.value,
+        dataRevision,
         snapshot,
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,

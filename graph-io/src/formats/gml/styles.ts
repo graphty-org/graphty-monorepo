@@ -56,12 +56,12 @@ import type {
 import type { LossNote } from "../../types.js";
 import { GRAPHVIZ_GLYPH_SHAPES } from "../dot/drawing.js";
 import {
-    graphvizArrowValue,
     graphvizHasNoOutline,
     graphvizOutline,
     graphvizRouteBends,
     PERIPHERY_GAP,
     putGlyph,
+    readEdgeArrow,
     SHAPE_PERIPHERIES,
 } from "../dot/styles.js";
 import { gephiRules } from "../gexf/styles.js";
@@ -209,12 +209,20 @@ function graphText(snapshot: GraphSnapshot, name: string): string | null {
 }
 
 /**
- * A node label's `anchor` as a label position: yEd's `n`, `s`, `e`, `w` and the corners `nw`, `ne`, `sw`, `se` place it
- * outside the node; `c` and the inside places `t`, `b`, `l`, `r`, `tl`, `tr`, `bl`, `br` keep it inside, which graphty
- * draws centered.
+ * A node label's `anchor` as a label position, as in yFiles' InteriorLabelModel and ExteriorLabelModel: `c` and the
+ * places `t`, `b`, `l`, `r`, `tl`, `tr`, `bl`, `br` are inside the node; `n`, `s`, `e`, `w` and the corners `nw`,
+ * `ne`, `sw`, `se` are outside it.
  */
 const GML_ANCHORS: ReadonlyMap<string, string> = new Map([
-    ...["c", "t", "b", "l", "r", "tl", "tr", "bl", "br"].map((a): [string, string] => [a, "center"]),
+    ["c", "center"],
+    ["t", "inside-top"],
+    ["b", "inside-bottom"],
+    ["l", "inside-left"],
+    ["r", "inside-right"],
+    ["tl", "inside-top-left"],
+    ["tr", "inside-top-right"],
+    ["bl", "inside-bottom-left"],
+    ["br", "inside-bottom-right"],
     ["n", "top"],
     ["s", "bottom"],
     ["e", "right"],
@@ -224,6 +232,9 @@ const GML_ANCHORS: ReadonlyMap<string, string> = new Map([
     ["sw", "bottom-left"],
     ["se", "bottom-right"],
 ]);
+
+/** A node label position as yEd's GML `anchor`, every neutral position having one. */
+const GML_ANCHOR_OF: ReadonlyMap<string, string> = new Map([...GML_ANCHORS].map(([a, p]) => [p, a]));
 
 /** Node keys only yEd writes: its group hierarchy. */
 const YED_NODE_KEYS: readonly string[] = ["isGroup", "gid"];
@@ -630,8 +641,8 @@ function readGv2gmlNode(g: Rec, writer: GmlWriter, put: Put, at: At): void {
 
 /**
  * Reads the second outline Graphviz draws round a `doublecircle`, `doubleoctagon` or `tripleoctagon` (shapes.c):
- * `PERIPHERY_GAP` points outside the first, in its color, width and dashes, as the DOT reader reads it. graphty draws
- * one outer ring, so a third outline is noted as not carried.
+ * `PERIPHERY_GAP` points outside the first, in its color, width and dashes, as the DOT reader reads it (a
+ * `tripleoctagon`'s third outline as a second ring).
  * @param g - the record
  * @param shape - its Graphviz shape, lowercase
  * @param style - its outline's dashes, as read
@@ -661,7 +672,7 @@ function readGv2gmlRings(g: Rec, shape: string, style: string | null, writer: Gm
         put("outerBorderStyle", style);
     }
     if (count > 2) {
-        noteAt(at("outerBorderWidth"), STYLE_ISSUE.NOT_CARRIED, `type ${shape}`);
+        put("outerBorderCount", count - 1);
     }
 }
 
@@ -816,12 +827,7 @@ function readGv2gmlEdge(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         ["target", g.targetArrow, ends[1]],
         ["source", g.sourceArrow, ends[0]],
     ] as const) {
-        const name = typeof raw === "string" ? raw : "normal";
-        const arrow = on ? graphvizArrowValue(name, at(`${end}Arrow`)) : null;
-        put(`${end}Arrow`, arrow === null ? "none" : arrow.value);
-        if (arrow?.side !== null && arrow?.side !== undefined) {
-            put(`${end}ArrowSide`, arrow.side);
-        }
+        readEdgeArrow(end, typeof raw === "string" ? raw : null, on, put, at);
     }
 }
 
@@ -958,21 +964,22 @@ function readElement(
     put: Put,
     at: At,
 ): void {
-    let text = false;
+    // set by putLabel, which TypeScript does not see change it
+    let text = false as boolean;
     const putLabel: Put = (property, value) => {
         text ||= property === "label" && value !== null;
         put(property, value);
     };
+    // gv2gml writes no graphics before a layout; Graphviz still draws its defaults (a digraph's arrowheads)
     if (isRec(g)) {
         (target === "node" ? readNodeGraphics : readEdgeGraphics)(g, writer, put, at);
+    } else if (writer.vocabulary === "graphviz" && target === "edge") {
+        readEdgeGraphics({}, writer, put, at);
     }
     if (lg !== null && lg !== undefined) {
         readLabelGraphics(lg, writer, target === "node", putLabel, at);
     }
-    // the GML draft draws the label key; Cytoscape reads it as the node's name, which its default style shows
-    const drawn =
-        writer.vocabulary === "cytoscape" ? target === "node" : writer.labelKey && (isRec(g) || lg !== undefined);
-    if (!text && drawn && label !== null && label !== undefined) {
+    if (!text && labelKeyDrawn(target, writer, isRec(g) || lg !== undefined) && label !== null && label !== undefined) {
         put(
             "label",
             writer.vocabulary === "graphviz" ? graphvizText(label, at("label")) : canonText(label, at("label")),
@@ -983,6 +990,22 @@ function readElement(
             put("labelPosition", "center");
         }
     }
+}
+
+/**
+ * Whether the writer's program draws an element's `label` key: the GML draft draws it on an element with graphics;
+ * Cytoscape reads it as the node's name, which its default style shows, and Graphviz labels every node (its label
+ * default is \N, the node's name).
+ * @param target - nodes or edges
+ * @param writer - the writer
+ * @param hasGraphics - whether the element has `graphics` or `LabelGraphics`
+ * @returns whether the label is drawn
+ */
+function labelKeyDrawn(target: StyleTarget, writer: GmlWriter, hasGraphics: boolean): boolean {
+    if (writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz") {
+        return target === "node";
+    }
+    return writer.labelKey && hasGraphics;
 }
 
 /** The font size GraphIO::drawSVG draws every label in (SVGSettings), by which it sets a cluster's label off its box. */
@@ -1047,6 +1070,13 @@ function labelOf(snapshot: GraphSnapshot, writer: GmlWriter, target: StyleTarget
     const label = cellOf(table, "label", i);
     if (writer.vocabulary === "cytoscape" && target === "node" && (label === undefined || label === "")) {
         return String(snapshot.ids.idOf(i));
+    }
+    // gv2gml writes `label` only once a layout has set it; Graphviz draws `\N`, the `name` gv2gml always writes. A
+    // layout writes every node's label (its `\N` default too) and its graphics, so a laid-out node gv2gml wrote with
+    // no `label` has an empty one and Graphviz draws none
+    const laidOut = isRec(cellOf(table, "graphics", i));
+    if (writer.vocabulary === "graphviz" && target === "node" && label === undefined && !laidOut) {
+        return cellOf(table, "name", i);
     }
     return label;
 }
@@ -1318,7 +1348,10 @@ function readValues(
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const out = valueColumns(n);
-        if (!table.has("graphics") && !table.has("LabelGraphics") && writer.vocabulary !== "cytoscape") {
+        // Cytoscape names every element, and Graphviz labels every node and arrows a digraph's edges, with or
+        // without graphics (gv2gml writes graphics only once a layout ran)
+        const drawnBare = writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz";
+        if (!table.has("graphics") && !table.has("LabelGraphics") && !drawnBare) {
             return out.values;
         }
         for (let i = 0; i < n; i++) {
@@ -1520,6 +1553,7 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelFont",
         "labelWeight",
         "labelItalic",
+        "labelPosition",
     ] as const),
     edge: Object.freeze([
         "color",
@@ -1574,7 +1608,7 @@ const OWNED: Readonly<Record<"node" | "edge" | "label", ReadonlySet<string>>> = 
         "target_arrow",
         "smoothBends",
     ]),
-    label: new Set(["text", "color", "fill", "fontSize", "fontName", "fontStyle", "visible"]),
+    label: new Set(["text", "color", "fill", "fontSize", "fontName", "fontStyle", "visible", "anchor"]),
 };
 
 /** One element's value of a property. */
@@ -1704,6 +1738,11 @@ function labelGraphics(get: Get): Rec | null {
         const style = (weight === "bold" ? "bold" : "") + (italic === true ? "italic" : "");
         lg.fontStyle = style.length === 0 ? "plain" : style;
     }
+    // a node label's place
+    const anchor = GML_ANCHOR_OF.get(String(get("labelPosition")));
+    if (anchor !== undefined) {
+        lg.anchor = anchor;
+    }
     return lg;
 }
 
@@ -1734,7 +1773,7 @@ function merged(old: unknown, owned: ReadonlySet<string>, written: Rec): Rec | u
  * @returns the value, or undefined (an unset cell)
  */
 function mergedLabels(old: unknown, written: Rec | null): unknown {
-    const labels = Array.isArray(old) ? old : [old];
+    const labels: unknown[] = Array.isArray(old) ? old : [old];
     const head = merged(labels[0], OWNED.label, written ?? {});
     const rest = labels.slice(1).filter((l) => l !== null && l !== undefined);
     if (rest.length === 0) {

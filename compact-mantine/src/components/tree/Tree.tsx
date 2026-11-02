@@ -7,6 +7,7 @@ import { PANEL_GRID } from "../../constants/panel";
 import { useLabels, useNumberFormatter } from "../../i18n";
 import { UiGlyph } from "../../icons";
 import { useCompactStyles } from "../../theme/useCompactStyles";
+import { TypeAheadRun } from "../../utils/type-ahead-run";
 import { shieldDragSelection } from "../chrome/dragSelectionShield";
 import { ContextMenu } from "../overlays/ContextMenu";
 import { joinPress } from "../pressGesture";
@@ -685,7 +686,7 @@ export function Tree({
     const latest = useRef({ rows, canDrop, onMove, announce });
     latest.current = { rows, canDrop, onMove, announce };
     const pendingFocus = useRef(false);
-    const typeahead = useRef({ text: "", at: 0 });
+    const [typeahead] = useState(() => new TypeAheadRun(TYPEAHEAD_MS));
     const rootRef = useRef<HTMLDivElement>(null);
 
     const virtual = rows.length > VIRTUALIZE_AT;
@@ -949,12 +950,9 @@ export function Tree({
         TYPEAHEAD_KEY.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
 
     const typeAhead = (event: React.KeyboardEvent<HTMLDivElement>, i: number): void => {
-        const now = Date.now();
-        const t = typeahead.current;
-        t.text = now - t.at > TYPEAHEAD_MS ? event.key : t.text + event.key;
-        t.at = now;
-        const needle = t.text.toLocaleLowerCase();
-        const start = t.text.length === 1 ? i + 1 : i;
+        const text = typeahead.add(event);
+        const needle = text.toLocaleLowerCase();
+        const start = text.length === 1 ? i + 1 : i;
         const ordered = [...rows.slice(start), ...rows.slice(0, start)];
         moveFocus(ordered.find((r) => r.node.name.toLocaleLowerCase().startsWith(needle))?.node.id);
     };

@@ -50,9 +50,10 @@ From the main checkout, `/home/apowers/Projects/graphty-monorepo`:
 
 ```bash
 git fetch -q --prune --no-tags origin
-# Keep the main checkout on master, so new sessions read master's CLAUDE.md, skills and settings.
+# Keep the main checkout on master, so new sessions read master's CLAUDE.md, skills and settings. A merge, not a
+# fast-forward: `tools/live.sh workspace <commit>` puts a branch's change there before its pull request lands.
 [ "$(git symbolic-ref -q --short HEAD)" = master ] && [ -z "$(git status --porcelain -uno)" ] &&
-  git merge -q --ff-only origin/master || echo "main checkout NOT following master: $(git symbolic-ref -q --short HEAD)"
+  git merge -q --no-edit origin/master || echo "main checkout NOT following master: $(git symbolic-ref -q --short HEAD)"
 jq -r '"broker \(.fetchedAt) error=\(.error)", (.pullRequests[] | "#\(.number) \(.head) -> \(.base) draft=\(.draft) \(.state) \(.labels|join(","))")' tmp/pr-status/status.json
 d=tmp/${ROUND:-pipeline-round}; mkdir -p "$d"
 gh api graphql -f query='{
@@ -117,19 +118,43 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > holds the commands you ran and what they showed; keep it in tmp/<name>/, because an untracked file in the worktree
 > is refused), write `pipeline-round: opened <branch> <url>` on the issue, and
 > stop -- never wait for CI, never merge, never push to master; never git stash, reset, restore, clean or check out
-> files; never cherry-pick or rebase (merge instead); never wait, sleep or poll inside a turn; at most a few gh calls,
+> files; never cherry-pick or rebase (merge instead); never amend a commit (the commit hook has already pushed it: make a new one); never wait, sleep or poll inside a turn; at most a few gh calls,
 > never one per pull request in a loop, and on a 403 rate limit stop and say so; act as graphty-agent only and never
 > read the owner's credentials; commits are signed and conventional with no attribution trailers; never touch
 > visual-baselines/, and never change parameters.chromatic, visual-review/trusted/, visual-review/passkeys.json or
 > the gate step and visual job in ci.yml to make a check pass; decide every two-way door yourself and say the choice in the commit message; a breaking change or a one-way decision: commit
 > nothing, comment the question on the issue with the `needs-decision` label, and stop. Before your final tests:
 > `git fetch origin`, `git merge origin/master` (never rebase), `pnpm install --frozen-lockfile`, resolve any conflict
-> keeping both intents, then run the affected lint, build and tests (`pnpm run test:changed --base origin/master`)
-> and `node tools/sonar-gate.mjs` on the merged code and commit. Run long commands through `tools/low-priority.sh`;
+> keeping both intents, then run the affected lint, typecheck and build, and only the test files you touched or
+> wrote plus those that exercise the code you changed, never whole shards (CI runs the rest, owner 2026-10-25;
+> `pnpm run test:changed --dry-run --base origin/master` names the candidates). Then run `pnpm run check:quick`
+> once in the background (CI's Checks job, the selected tests and `node tools/sonar-gate.mjs`; it catches the
+> repository-wide rules a narrow run misses -- every public method classified, every kernel test run twice, the
+> shard lists -- which sent a third of 2026-11-01's pull requests back from CI) and fix what it reports, then commit. A change that adds a graphty-element channel or a
+> graph-io style property also lists it in the graphty app's channel records (`graphty/src/workspace/style/words.ts`,
+> `style/coverage.ts`, `inspector/words.ts`), regenerates graph-io's docs (`npm run docs:reference`) and runs
+> `pnpm run lint:knip` and `npm run api:report` before its pull request. A long-lived branch (open more than about two days,
+> more than a day of work, or a merge of master that brought app or graphty-element changes or conflicts), or any
+> branch after a large change (a refactor of a shared component, a dependency or lockfile upgrade, a change to
+> graphty-element's styling, layout or rendering), whose change reaches the graphty app also runs
+> `pnpm run check:quick --with-dry-run` (the app's dry run on the NVIDIA card; or `pnpm exec nx run graphty:build`
+> then `node graphty/acceptance/run.mjs`, faster when the quick check runs whole test shards) and fixes every failed
+> route before opening its pull request. Everything that runs on this machine goes live at once, never after CI
+> (owner, 2026-10-11, 2026-10-22, 2026-11-01; CLAUDE.md "Where a change takes effect"): a tool
+> `tools/live.sh --list` names, and the workspace files every session reads from the main checkout (CLAUDE.md, the
+> skills, `.claude/settings.json`; tool `workspace`). Right after the commit, run
+> `tools/live.sh <tool> "$(git rev-parse HEAD)"` (the commit, not the branch name, which live.sh would read from
+> GitHub before the push lands), open the pull request in parallel as the record, and say in the Proof what is
+> live. Run long commands through `tools/low-priority.sh`;
 > start each long run once and end your turn; do not re-check it again and again. When you stop, done or not, write
 > where the work stands on the branch's issue:
 > `node tools/branch-note.mjs update --done "<what is done>" --left "<what is left>" --next "<the next step>"`.
-> Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL.
+> Scratch files go in tmp/<name>/. Report the branch, head sha and pull request URL. A change to the graphty app's
+> UI follows the owner's UI rules: no sentences as UI in the data screens (use Figma patterns: property rows, chips,
+> dropdowns, + sections, pop-overs, context menus); every hotkey has a visible button showing its key; never remove
+> or restyle owner-approved UI; compact-mantine's look stays locked to Figma. A guard or hook that refuses a command
+> is never worked around (no script, no other tool doing the same thing): stop and report it; a false positive is
+> fixed in the guard (2026-11-01, #5518).
 
 ## Escalation
 

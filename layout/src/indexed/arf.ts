@@ -29,6 +29,86 @@ export interface ArfOptions {
     readonly center?: ArrayLike<number> | undefined;
 }
 
+/** The working arrays and constants of one {@link arf} run. */
+interface ArfState {
+    /** Positions, `dim` per node. */
+    readonly p: Float64Array;
+    /** This iteration's force per node. */
+    readonly change: Float64Array;
+    /** Scratch: p_i - p_j. */
+    readonly diff: Float64Array;
+    /** neighbour[j] === i + 1 when j is a neighbour of i. */
+    readonly neighbour: Int32Array;
+    readonly rowPtr: ArrayLike<number>;
+    readonly colIdx: ArrayLike<number>;
+    readonly dim: number;
+    readonly n: number;
+    /** The repulsion, scaling * sqrt(n). */
+    readonly rho: number;
+    /** The neighbour spring strength. */
+    readonly a: number;
+}
+
+/**
+ * Add the force of node j on node i to `change`.
+ * @param st - the run's state
+ * @param i - the node moved
+ * @param j - the other node
+ */
+function arfPair(st: ArfState, i: number, j: number): void {
+    const { p, change, diff, dim } = st;
+    let squares = 0;
+    for (let k = 0; k < dim; k++) {
+        diff[k] = p[dim * i + k] - p[dim * j + k];
+        squares += diff[k] * diff[k];
+    }
+    const dist = Math.sqrt(squares) || 0.01;
+    const spring = st.neighbour[j] === i + 1 ? st.a : 1;
+    for (let k = 0; k < dim; k++) {
+        // diff points from j to i: the spring pulls i toward j, the repulsion pushes it away
+        change[dim * i + k] += (st.rho / dist) * diff[k] - spring * diff[k];
+    }
+}
+
+/**
+ * Fill `change` with every node's summed force.
+ * @param st - the run's state
+ */
+function arfChange(st: ArfState): void {
+    const { rowPtr, colIdx, neighbour, n } = st;
+    st.change.fill(0);
+    for (let i = 0; i < n; i++) {
+        for (let arc = rowPtr[i]; arc < rowPtr[i + 1]; arc++) {
+            neighbour[colIdx[arc]] = i + 1;
+        }
+        for (let j = 0; j < n; j++) {
+            if (i !== j) {
+                arfPair(st, i, j);
+            }
+        }
+    }
+}
+
+/**
+ * Move every node by its force times `dt`.
+ * @param st - the run's state
+ * @param dt - the step
+ * @returns the summed force length
+ */
+function arfMove(st: ArfState, dt: number): number {
+    const { p, change, dim, n } = st;
+    let error = 0;
+    for (let i = 0; i < n; i++) {
+        let squares = 0;
+        for (let k = 0; k < dim; k++) {
+            p[dim * i + k] += change[dim * i + k] * dt;
+            squares += change[dim * i + k] * change[dim * i + k];
+        }
+        error += Math.sqrt(squares);
+    }
+    return error;
+}
+
 /**
  * The attractive and repulsive forces layout (networkx's `arf_layout`). Without `scale` or `center` its result is not
  * rescaled: the forces settle at their own scale, which `scaling` sets. With either, the farthest node ends `scale`
@@ -55,47 +135,25 @@ export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
         }
     }
 
-    const { rowPtr, colIdx } = s;
-    const rho = scaling * Math.sqrt(n);
+    const st: ArfState = {
+        p,
+        change: new Float64Array(dim * n),
+        diff: new Float64Array(dim),
+        // neighbour[j] === i + 1 marks j as a neighbour of i, so no row needs clearing
+        neighbour: new Int32Array(n),
+        rowPtr: s.rowPtr,
+        colIdx: s.colIdx,
+        dim,
+        n,
+        rho: scaling * Math.sqrt(n),
+        a,
+    };
     const dt = 1e-3;
     const etol = 1e-6;
-    const change = new Float64Array(dim * n);
-    const diff = new Float64Array(dim);
-    // neighbour[j] === i + 1 marks j as a neighbour of i, so no row needs clearing
-    const neighbour = new Int32Array(n);
     let error = etol + 1;
     for (let iter = 0; error > etol && iter < maxIter; iter++) {
-        change.fill(0);
-        for (let i = 0; i < n; i++) {
-            for (let arc = rowPtr[i]; arc < rowPtr[i + 1]; arc++) {
-                neighbour[colIdx[arc]] = i + 1;
-            }
-            for (let j = 0; j < n; j++) {
-                if (i === j) {
-                    continue;
-                }
-                let squares = 0;
-                for (let k = 0; k < dim; k++) {
-                    diff[k] = p[dim * i + k] - p[dim * j + k];
-                    squares += diff[k] * diff[k];
-                }
-                const dist = Math.sqrt(squares) || 0.01;
-                const spring = neighbour[j] === i + 1 ? a : 1;
-                for (let k = 0; k < dim; k++) {
-                    // diff points from j to i: the spring pulls i toward j, the repulsion pushes it away
-                    change[dim * i + k] += (rho / dist) * diff[k] - spring * diff[k];
-                }
-            }
-        }
-        error = 0;
-        for (let i = 0; i < n; i++) {
-            let squares = 0;
-            for (let k = 0; k < dim; k++) {
-                p[dim * i + k] += change[dim * i + k] * dt;
-                squares += change[dim * i + k] * change[dim * i + k];
-            }
-            error += Math.sqrt(squares);
-        }
+        arfChange(st);
+        error = arfMove(st, dt);
     }
     if (options.scale !== undefined || options.center !== undefined) {
         rescaleInPlace(p, dim, options.scale ?? 1, options.center);

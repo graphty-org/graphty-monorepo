@@ -132,6 +132,26 @@ jobs:
             - name: The hide transition, stall detection and persist()
               timeout-minutes: 10
               run: pnpm exec vitest run --project=lifecycle test/lifecycle/safari.test.ts -t "hidden|stalled|persist"
+            # A session that never starts (#5564) leaves nothing in the step's log: keep safaridriver's own session
+            # logs (--diagnose, safaridriver.ts) and the system log of Safari, WebKit and the automation daemons.
+            - name: Collect safaridriver's logs and the system log of a failed run
+              if: failure()
+              timeout-minutes: 5
+              run: |
+                  mkdir -p test-results/safari
+                  cp -R ~/Library/Logs/com.apple.WebDriver test-results/safari/ 2>/dev/null || echo "no safaridriver logs"
+                  log show --last 30m --style compact --info --debug \
+                      --predicate 'process CONTAINS "Safari" OR process CONTAINS "WebKit" OR process == "safaridriver" OR process == "webinspectord" OR process == "launchservicesd"' \
+                      > test-results/safari/system.log || true
+                  ps -axww -o pid=,ppid=,lstart=,command= > test-results/safari/processes.txt
+            - name: Keep the logs of a failed run
+              if: failure()
+              uses: actions/upload-artifact@v7
+              with:
+                  name: safari-diagnostics
+                  path: graphty-element/test-results/safari
+                  if-no-files-found: ignore
+                  retention-days: 7
 
     ios:
         name: Safari on iOS (Simulator)

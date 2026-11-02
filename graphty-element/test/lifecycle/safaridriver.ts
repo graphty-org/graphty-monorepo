@@ -51,6 +51,16 @@ function freePort(): Promise<number> {
 }
 
 /**
+ * Safari's processes, WebKit's, safaridriver's and the Web Inspector daemon's, one per line, for the log.
+ * A session that fails to start (#5564) is diagnosed from what was running around it.
+ * @returns The processes, or "none".
+ */
+function safariProcesses(): string {
+    const found = processes().filter((p) => /Safari|WebKit|safaridriver|webinspectord/.test(p.cmdline));
+    return found.length === 0 ? "none" : found.map((p) => `\n  ${p.pid} ${p.ppid} ${p.cmdline}`).join("");
+}
+
+/**
  * Launch Safari once, wait until it has loaded a page, and quit it, unless Safari is already running.
  *
  * safaridriver gives Safari a fixed 30 seconds to launch and connect when a session is created. On a
@@ -88,8 +98,10 @@ async function warmSafari(): Promise<void> {
     }
 
     console.log(`[safari] first launch loaded a page after ${Date.now() - started} ms`);
+    const killed = Date.now();
     await promisify(execFile)("killall", ["Safari"]);
     await quit;
+    console.log(`[safari] first launch quit after ${Date.now() - killed} ms; still running: ${safariProcesses()}`);
 }
 
 /**
@@ -99,7 +111,11 @@ async function warmSafari(): Promise<void> {
 export async function startSafariDriver(): Promise<SafariDriver> {
     await warmSafari();
     const port = await freePort();
-    const driver: ChildProcess = ownChild(spawn("safaridriver", ["--port", String(port)], { stdio: "ignore" }));
+    // --diagnose: safaridriver logs every session to ~/Library/Logs/com.apple.WebDriver, which the macOS
+    // workflow keeps when a step fails.
+    const driver: ChildProcess = ownChild(
+        spawn("safaridriver", ["--port", String(port), "--diagnose"], { stdio: "ignore" }),
+    );
     const exited = new Promise<void>((resolve) => driver.once("exit", () => resolve()));
     const base = `http://127.0.0.1:${port}`;
 
@@ -136,6 +152,8 @@ export async function startSafariDriver(): Promise<SafariDriver> {
         async session() {
             const { sessionId } = await call<{ sessionId: string }>("POST", "/session", {
                 capabilities: { alwaysMatch: { browserName: "safari" } },
+            }).catch((error: unknown) => {
+                throw new Error(`${String(error)}\nrunning: ${safariProcesses()}`, { cause: error });
             });
             const at = `/session/${sessionId}`;
             return {

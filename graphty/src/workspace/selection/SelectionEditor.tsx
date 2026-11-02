@@ -142,10 +142,7 @@ interface SelectionEditorProps {
     readonly titleMenu?: readonly SelectionMenuItem[];
     /** Drawn first in the title pane (a new filter card's Nodes | Edges). */
     readonly titleExtra?: React.ReactNode;
-    /**
-     * A new selection goes: its value picker closed with nothing chosen, it was left with no step,
-     * or Cancel closed the workspace it was opened in. The host takes it away and moves focus.
-     */
+    /** The value picker closed with nothing chosen on a selection with no step (a new card goes). */
     readonly onEmptyCancel?: () => void;
     /** Space on the title row: switches the host's on box (a filter card's), which takes no Tab stop. */
     readonly onTitleToggle?: () => void;
@@ -194,7 +191,7 @@ const SPEAK_AFTER_MS = 500;
  * @param props.lead - drawn first in the title row
  * @param props.titleMenu - the title pane's "..." items
  * @param props.titleExtra - drawn first in the title pane
- * @param props.onEmptyCancel - a new selection goes (left with no step, or Cancel on it)
+ * @param props.onEmptyCancel - the selection was left with no step where it never had one
  * @param props.onTitleToggle - Space on the title row
  * @param props.titleOff - the host's on box is off
  * @returns The editor
@@ -268,10 +265,6 @@ export function SelectionEditor({
     const outlineColumn = useRef<HTMLDivElement>(null);
     // What the workspace restores on Cancel, and where focus returns when it closes.
     const openedWith = useRef<UnionLeaf | null>(null);
-    // Opened on a selection that did not exist yet (a new filter card, on its arrival): Cancel takes
-    // it away. A later opening restores what it held, as for any card.
-    const openedNew = useRef(false);
-    const openings = useRef(0);
     // The place it was opened in: leaving it closes the workspace as Done (spec 3.0).
     const place = useWorkspaceState((state) => state.place);
     const openedIn = useRef(place);
@@ -326,8 +319,6 @@ export function SelectionEditor({
         if (!open) {
             openedIn.current = store.get().place;
             openedWith.current = reading.rule;
-            openedNew.current = onEmptyCancel !== undefined && openings.current === 0;
-            openings.current += 1;
             opener.current = from;
             if (!quiet) {
                 say(`Editing ${[name, ownerName].filter((each) => each !== undefined).join(", ")}`);
@@ -364,18 +355,12 @@ export function SelectionEditor({
     };
     /**
      * Closes the workspace: Done keeps every edit; Cancel restores the selection as it was when it
-     * opened, as one undo step. A new filter card left with no step goes, and Cancel on a new card
-     * takes it away: there was no card when the workspace opened.
+     * opened, as one undo step. A new filter card left with no step goes.
      * @param how - "done" or "cancel".
      */
     const close = (how: "done" | "cancel"): void => {
         const back = openedWith.current;
-        const left = how === "cancel" && back !== null ? back : reading.rule;
-        const goes =
-            onEmptyCancel !== undefined &&
-            (how === "cancel" ? openedNew.current : left.branches.every((branch) => branch.steps.length === 0));
-        const restore =
-            !goes && how === "cancel" && back !== null && JSON.stringify(back) !== JSON.stringify(reading.rule);
+        const restore = how === "cancel" && back !== null && JSON.stringify(back) !== JSON.stringify(reading.rule);
         if (restore) {
             onChange(back);
         }
@@ -385,11 +370,6 @@ export function SelectionEditor({
         setSelected(null);
         setAdding(null);
         setKeepShape(false);
-        if (goes) {
-            say("Filter not added");
-            onEmptyCancel();
-            return;
-        }
         say(how === "done" ? `Done, ${formatNumber(reading.total.count)} of ${formatNumber(of)}` : "Cancelled");
         const from = opener.current;
         focusAfter.current = [
@@ -399,6 +379,10 @@ export function SelectionEditor({
                 : [`[data-row="${CSS.escape(from)}"]`, `[data-selects="${CSS.escape(from)}"]`]),
             `[data-row="${TITLE}"]`,
         ];
+        const left = how === "cancel" && back !== null ? back : reading.rule;
+        if (onEmptyCancel !== undefined && left.branches.every((branch) => branch.steps.length === 0)) {
+            onEmptyCancel();
+        }
     };
     closeRef.current = close;
     // A new filter card opens the workspace at once: on its title (Nodes | Edges) with its value

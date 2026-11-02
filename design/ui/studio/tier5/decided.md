@@ -851,3 +851,31 @@ above; none reverses one.
   the frame of the click or key that started them, before the blocking work, until
   `waitForPainted()` resolves. Why: on 50,000 nodes each edit blocked input 3 to 17 s with nothing on
   screen (T79 B), which `criteria.md` "Large graphs" calls a hang.
+
+## Dry run pass 2, 2026-11-02 (Design Director)
+
+From the triage of the re-walks on 797a4f6b47 (`dry-run-r1-2.md`). Each entry narrows an entry above;
+none reverses one.
+
+- **Focus after a new filter card goes** (Cancel, Escape on its empty value picker, Done with no
+  step): to the control that opened the card when that control opens filters and is still on screen
+  (the canvas toolbar's Filters, Add filter, an attribute's Filter to...), else to Add filter; never
+  to the page body, Quick actions or Main menu. Cancel and Escape read the same record. Narrows the
+  placement entry "focus returned to what opened it" and pass 1's "Cancel on a new filter card takes
+  the card away": a card made from Quick actions has no opener left on screen once the palette
+  closes. Why: pass 1's fix recorded whatever held focus and sent it to Main menu
+  (`rejected-fixes.md`, cancel-new-card); Escape on a card opened from the toolbar's Filters landed on
+  the sidebar's "+" (T75 B detour-4, T77 B touched-34).
+- **Opening the workspace on a large graph** is an edit that blocks input (pass 1, "An edit that
+  blocks input shows that it is working first"), including right after a new layer is added, while
+  its name field is open: the workspace or "Drawing" is on screen within 1 s of the click. A reading
+  of the style stack that nothing has changed since the last read is answered from what
+  graphty-element already holds. The frame that says "Drawing" shows the input's own result (a ticked
+  box ticked), so nobody clicks again. Why: opening Which nodes on 50,000 nodes drew nothing for 1.3 s
+  (T79 B touched-40), a hang by `criteria.md` "Large graphs"; and a box drawn empty for 20 s after its
+  click invites a second click that unticks it.
+- **The blank band under the workspace preview is the hidden data table's place**, not a second table:
+  item 8's "the data table and the matches strip drawn together" is closed on 797a4f6b47. The band is
+  cosmetic and goes to the backlog, first in line for bar 9's calm-first check. Why: pass 1's
+  main-table fix hides the table and keeps its place so the canvas is not resized; the one table drawn
+  under the preview is the matches strip (the engineer's re-walk of 1c02b8a883).

@@ -5,12 +5,20 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-02 (tier 5 dry run pass 1 triaged on baac78342b: 319 defects, 7 fix units).
+Last updated: 2026-11-02 (tier 5 dry run pass 2 triaged on 797a4f6b47: 93 defects, 2 fix units).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
 2026-10-30 (five times) and 2026-11-02; the full earlier text is in this file's git history.
 
 ## Top of mind
 
+- (2026-11-02) DRY RUN PASS 2 TRIAGED (`tier5/dry-run-r1-2.md`): 93 defects on 797a4f6b47; 3 fix now
+  in 2 units, all repeats: cancel-new-card (refix of the reverted 0ec56d2f3b with a focus record that
+  only keeps a control that opens filters, else Add filter) and open-busy-sign (opening Which nodes on
+  50,000 nodes blocks 1.3 s: graphty-element's uncached `styles.agreement`). 8 decided, 1 design
+  question, 81 backlog (14 "decided, not built"). The next pass re-walks those units' routes only.
+- (2026-11-02) Item 8 status on 797a4f6b47: covered claim, count base and two tables closed (the blank
+  band under the preview is the hidden table's kept place, cosmetic, first in the backlog for bar 9);
+  the 50,000-node sign is open only on opening the workspace.
 - (2026-11-02) DRY RUN PASS 1 TRIAGED (`tier5/dry-run-r1-1.md`): 319 pilot defects on baac78342b; 33 fix
   now in 7 units (covered-claim, main-table, test-mode, reference-names, cancel-new-card,
   style-count-base, busy-sign), 7 decided, 4 design questions, 275 backlog (50 of them "decided, not
@@ -91,6 +99,16 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Decisions and reasons
 
+- **2026-11-02, dry run pass 2 triage** (`tier5/dry-run-r1-2.md`, entries in `tier5/decided.md`
+  "Dry run pass 2"). Fix now: Cancel on a new filter card (spoils the card count T71, T77, T79 grade;
+  its pass 1 fix was reverted for a focus regression) and opening Which nodes on 50,000 nodes with no
+  sign for 1.3 s (item 8, "Large graphs"). Settled: focus after a new card goes returns to its opener
+  only when that opener opens filters, else Add filter; opening the workspace counts as a blocking
+  edit, and the "Drawing" frame shows the input's own result; the band under the preview is the hidden
+  table's place, not item 8's two tables. Not taken: the T76 A hand-built hover edge layer that draws no
+  color (a real wrong drawing, but T76 has no sessions; first in the backlog); search selecting a
+  filtered-out node (T77 A; out-of-scope selection is decided, interaction-patterns.md line 342);
+  overlays covering a node (the canvas is the frame).
 - **2026-11-02, dry run pass 1 triage** (`tier5/dry-run-r1-1.md`, entries in `tier5/decided.md`). Fix
   now: the false "covered" claim (8 pilots; a repeat of polish round 1's element fix), the data table
   drawn under the workspace and keeping the last card's Matches only after Done (T75 A read 549 for
@@ -138,6 +156,12 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (dry run pass 2) -- Worked: reading the previous pass's fix commits and the engineer's
+  re-walk notes before classing (they explained the blank band as the hidden table's kept place, showed
+  that T73 A's "data table still draws" was the matches strip, and had already found the open-workspace
+  block's mechanism); one data list generating both the triage tables and the backlog section, with an
+  assert on the total (93). Did not work: citing interaction-patterns.md line 333 for the T77 A search
+  before reading on; line 342 decides the opposite (an out-of-scope selection is allowed and marked).
 - 2026-11-02 (dry run pass 1) -- Worked: reading `criteria.md` item 8 before classing (it turned four
   "friction" candidates into round blockers); reading the source behind each unit before naming files
   (the main table follows `editingSelection`, which an editor at rest keeps; the date mode is lost
@@ -162,6 +186,10 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Thinking
 
+- **2026-11-02, dry run pass 2:** both fix-now items were leftovers of pass 1, not new problems: one
+  fix reverted, one fix that covered edits but not opening. A pass converges when each fix's acceptance
+  names every entry route the decided behavior covers (Quick actions and the toolbar as openers;
+  opening as well as editing), so write those routes into the unit, not only the pilot's.
 - **2026-11-02, dry run pass 1:** the pilots found more "decided, not built" than new problems. A fix
   round that is graded on spoils alone leaves those standing (tier 4's lesson again), so the backlog
   carries them as their own first section and the decide-and-fix loop must take them before deciding
@@ -186,7 +214,8 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 ## Sources
 
 - Tier 5: `tier5/{criteria,tasks,answers,roster,decided,owner-feedback-2026-11-01,placement-study}.md`;
-  dry run triage `tier5/dry-run-r1-1.md` and `tier5/backlog.md`; pilots under the main checkout's
+  dry run triages `tier5/dry-run-r1-{1,2}.md`, `tier5/backlog.md`, `tier5/rejected-fixes.md`; pass 2
+  pilots under the main checkout's `tmp/design-studio/tier5/r1d1/pilot/`; pilots under the main checkout's
   `tmp/design-studio/tier5/r1/pilot/<task>/`;
   reviews in `notes/{researcher,user,redteam}.md` (81e993f52d, 65a6f779a1, 6946dd5032); frozen build
   `tmp/design-studio/tier5/builds/tier5-r1d1-d13c2ff3da` (main checkout); rejected-card build copy

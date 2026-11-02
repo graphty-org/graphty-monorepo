@@ -101,6 +101,120 @@ function aborted(algorithm: string, batchId?: number): WebGpuGraphError {
 }
 
 /**
+ * Refuses a maxIterations that is not a positive integer.
+ * @param maxIterations - the option
+ * @param algorithm - the caller's name
+ */
+function checkMaxIterations(maxIterations: number, algorithm: string): void {
+    if (!Number.isInteger(maxIterations) || maxIterations < 1) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${algorithm}: maxIterations must be a positive integer`, {
+            argument: "maxIterations",
+            value: maxIterations,
+            expected: "a positive integer",
+        });
+    }
+}
+
+/**
+ * Throws E_ABORTED when the caller's signal was aborted.
+ * @param options - the run options
+ * @param algorithm - the caller's name
+ * @param batchId - the last submitted batch, when one exists
+ */
+function throwIfAborted(options: GpuRunOptions | undefined, algorithm: string, batchId?: number): void {
+    if (options?.signal?.aborted) {
+        throw aborted(algorithm, batchId);
+    }
+}
+
+/**
+ * The teleport vector: the personalization, or the uniform 1 / n.
+ * @param n - the node count
+ * @param personalization - the normalised personalization, or null
+ * @param dest - the caller's destination, if any
+ * @returns the vector
+ */
+function teleportVector(n: number, personalization: F32 | null, dest: F32 | null): F32 {
+    const scores = dest ?? new Float32Array(n);
+    if (personalization === null) {
+        scores.fill(1 / n);
+    } else {
+        scores.set(personalization);
+    }
+    return scores;
+}
+
+/**
+ * The result once a batch converged or ran the last iteration, else null.
+ * @param back - the batch's readback bytes
+ * @param offsets - where the header, the header of the last pull and the scores sit in it
+ * @param offsets.header - the folded header
+ * @param offsets.lastHeader - the header as the last pull left it
+ * @param offsets.scores - the scores
+ * @param progress - the node count, the iterations run, the budget and the caller's destination
+ * @param progress.n - the node count
+ * @param progress.iterationsRun - the iterations run
+ * @param progress.maxIterations - the budget
+ * @param progress.dest - the caller's destination, if any
+ * @param options - onProgress
+ * @returns the result, or null to run another batch
+ */
+function resultIfDone(
+    back: ArrayBuffer,
+    offsets: { readonly header: number; readonly lastHeader: number; readonly scores: number },
+    progress: {
+        readonly n: number;
+        readonly iterationsRun: number;
+        readonly maxIterations: number;
+        readonly dest: F32 | null;
+    },
+    options: GpuRunOptions | undefined,
+): GpuPageRankResult | null {
+    const { n, iterationsRun, maxIterations, dest } = progress;
+    const folded = PR_PARTIAL.read(new DataView(back), offsets.header);
+    const firstConverged = folded.firstConverged as number;
+    const converged = firstConverged !== U32_MAX;
+    if (!converged && iterationsRun < maxIterations) {
+        return null;
+    }
+    const scores = dest ?? new Float32Array(n);
+    scores.set(new Float32Array(back, offsets.scores, n));
+    if (converged && iterationsRun < maxIterations) {
+        options?.onProgress?.(maxIterations, maxIterations);
+    }
+    return {
+        scores,
+        iterations: converged ? firstConverged : iterationsRun,
+        converged,
+        danglingMass: PR_PARTIAL.read(new DataView(back), offsets.lastHeader).danglingMass as number,
+        precision: "f32",
+    };
+}
+
+/**
+ * The cores the run reads: weighted: false runs the unweighted algorithm on BOTH sides, so the normaliser sums 1 per
+ * arc and the pull folds 1.
+ * @param useWeights - whether the run reads the weights
+ * @param core - the forward core
+ * @param rev - the reverse core
+ * @returns the pull's weights option and the two cores
+ */
+function weightingOf(
+    useWeights: boolean,
+    core: CoreBinding,
+    rev: CoreBinding,
+): { weights: Binding | null | undefined; weightedCore: CoreBinding; weightedRev: CoreBinding } {
+    if (useWeights) {
+        return { weights: undefined, weightedCore: core, weightedRev: rev };
+    }
+    return {
+        weights: null,
+        weightedCore: { ...core, weights: null, hasWeights: false },
+        weightedRev: { ...rev, weights: null, hasWeights: false },
+    };
+}
+
+/**
  * The shared driver: `personalization` is the normalised vector of personalizedPageRank or null for the uniform
  * 1 / n of pageRank.
  * @param ctx - the context
@@ -124,17 +238,9 @@ async function run(
     const maxIterations = options?.maxIterations ?? 100;
     const tolerance = options?.tolerance ?? 1e-6;
     const useWeights = options?.weighted !== false;
-    if (!Number.isInteger(maxIterations) || maxIterations < 1) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${algorithm}: maxIterations must be a positive integer`, {
-            argument: "maxIterations",
-            value: maxIterations,
-            expected: "a positive integer",
-        });
-    }
+    checkMaxIterations(maxIterations, algorithm);
     const dest = checkDest(options?.dest, n, algorithm);
-    if (options?.signal?.aborted) {
-        throw aborted(algorithm);
-    }
+    throwIfAborted(options, algorithm);
     if (n === 0) {
         options?.onProgress?.(maxIterations, maxIterations);
         return {
@@ -148,21 +254,13 @@ async function run(
     const core = coreOf(ctx, s, algorithm);
     if (s.arcCount === 0) {
         // every node is dangling: the whole mass is redistributed by pv each iteration, so pv is the fixed point
-        const scores = dest ?? new Float32Array(n);
-        if (personalization === null) {
-            scores.fill(1 / n);
-        } else {
-            scores.set(personalization);
-        }
+        const scores = teleportVector(n, personalization, dest);
         options?.onProgress?.(maxIterations, maxIterations);
         return { scores, iterations: 0, converged: true, danglingMass: 1, precision: "f32" };
     }
     const view = ctx.residency.view(s, "reverse");
     const rev = coreOfView(view, view.scalars.arcCount[0]);
-    // weighted: false runs the unweighted algorithm on BOTH sides: the normaliser sums 1 per arc and the pull folds 1
-    const weights: Binding | null | undefined = useWeights ? undefined : null;
-    const weightedCore: CoreBinding = useWeights ? core : { ...core, weights: null, hasWeights: false };
-    const weightedRev: CoreBinding = useWeights ? rev : { ...rev, weights: null, hasWeights: false };
+    const { weights, weightedCore, weightedRev } = weightingOf(useWeights, core, rev);
     const scope = algorithmScope(ctx, algorithm, RING_SLOTS);
     let uploaded: ArrayBinding | null = null;
     try {
@@ -209,6 +307,32 @@ async function run(
         const coefficients = { alpha, beta: 1 - alpha, uniformP: 1 / n };
         let cur = 0;
         let iterationsRun = 0;
+        const measureParams = (i: number): { binding: Binding; offset: number } =>
+            scope.params(PR_PARAMS, {
+                n,
+                groups,
+                iteration: iterationsRun + i + 1,
+                trackConvergence: 1,
+                convergeThreshold: tolerance * n,
+            });
+        // the scale + finalize of an iteration, measuring the error of the one before it
+        const recordMeasure = (
+            pass: GPUComputePassEncoder,
+            params: { binding: Binding; offset: number },
+            c: number,
+        ): void => {
+            const scaleBound = scale.bind({
+                rankIn: rank[c],
+                rankPrev: rank[1 - c],
+                outWeightSum: outWeightSumBinding,
+                xNorm: xNormBinding,
+                partials: partialsBinding,
+                P: params.binding,
+            });
+            scale.dispatch(pass, scaleBound, scalePlan, [params.offset]);
+            const finalizeBound = finalize.bind({ partials: partialsBinding, P: params.binding });
+            finalize.dispatch(pass, finalizeBound, finalizePlan, [params.offset]);
+        };
         for (;;) {
             const k = Math.min(PR_BATCH, maxIterations - iterationsRun);
             const batch = new CommandBatch(ctx, algorithm);
@@ -219,33 +343,9 @@ async function run(
             const last = iterationsRun + k === maxIterations;
             // the scale + finalize of iteration i measures the error of iteration i - 1 (PD-9), so the last batch
             // runs them once more, with no pull, to measure the error of iteration maxIterations itself
-            for (let i = 0; i < k + (last ? 1 : 0); i++) {
-                const params = scope.params(PR_PARAMS, {
-                    n,
-                    groups,
-                    iteration: iterationsRun + i + 1,
-                    trackConvergence: 1,
-                    convergeThreshold: tolerance * n,
-                });
+            for (let i = 0; i < k; i++) {
                 const other = 1 - cur;
-                if (i === k) {
-                    batch.copy(partialsBinding, lastHeaderBinding, PR_PARTIAL.byteLength);
-                    pass = batch.pass("convergence");
-                }
-                const scaleBound = scale.bind({
-                    rankIn: rank[cur],
-                    rankPrev: rank[other],
-                    outWeightSum: outWeightSumBinding,
-                    xNorm: xNormBinding,
-                    partials: partialsBinding,
-                    P: params.binding,
-                });
-                scale.dispatch(pass, scaleBound, scalePlan, [params.offset]);
-                const finalizeBound = finalize.bind({ partials: partialsBinding, P: params.binding });
-                finalize.dispatch(pass, finalizeBound, finalizePlan, [params.offset]);
-                if (i === k) {
-                    break;
-                }
+                recordMeasure(pass, measureParams(i), cur);
                 pull.record(
                     pass,
                     weightedRev,
@@ -259,6 +359,12 @@ async function run(
                 );
                 cur = other;
             }
+            if (last) {
+                const params = measureParams(k);
+                batch.copy(partialsBinding, lastHeaderBinding, PR_PARTIAL.byteLength);
+                pass = batch.pass("convergence");
+                recordMeasure(pass, params, cur);
+            }
             batch.endPass();
             const headerRequest = batch.readback(partials, 0, PR_PARTIAL.byteLength);
             const lastHeaderRequest = last ? batch.readback(lastHeader, 0, PR_PARTIAL.byteLength) : headerRequest;
@@ -268,26 +374,16 @@ async function run(
             const back = await submitted.readback;
             iterationsRun += k;
             ctx.assertReady();
-            if (options?.signal?.aborted) {
-                throw aborted(algorithm, submitted.id);
-            }
+            throwIfAborted(options, algorithm, submitted.id);
             options?.onProgress?.(iterationsRun, maxIterations);
-            const folded = PR_PARTIAL.read(new DataView(back), headerRequest.offset);
-            const firstConverged = folded.firstConverged as number;
-            const converged = firstConverged !== U32_MAX;
-            if (converged || iterationsRun >= maxIterations) {
-                const scores = dest ?? new Float32Array(n);
-                scores.set(new Float32Array(back, scoresRequest.offset, n));
-                if (converged && iterationsRun < maxIterations) {
-                    options?.onProgress?.(maxIterations, maxIterations);
-                }
-                return {
-                    scores,
-                    iterations: converged ? firstConverged : iterationsRun,
-                    converged,
-                    danglingMass: PR_PARTIAL.read(new DataView(back), lastHeaderRequest.offset).danglingMass as number,
-                    precision: "f32",
-                };
+            const done = resultIfDone(
+                back,
+                { header: headerRequest.offset, lastHeader: lastHeaderRequest.offset, scores: scoresRequest.offset },
+                { n, iterationsRun, maxIterations, dest },
+                options,
+            );
+            if (done !== null) {
+                return done;
             }
         }
     } finally {

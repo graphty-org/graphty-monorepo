@@ -221,7 +221,8 @@ describe("Filter cards on the real element", () => {
             assert.equal(session.visibility.summary.visibleEdges, 5);
         });
         const excluded = await card(/value/);
-        await userEvent.click(excluded.getByRole("button", { name: "value min 9" }));
+        // A card that removes is named with its verb (repolish 2): "Except value min 9".
+        await userEvent.click(excluded.getByRole("button", { name: /value min 9/ }));
         const row = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-step-row[data-row]");
             assert.isNotNull(found);

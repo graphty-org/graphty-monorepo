@@ -6,9 +6,9 @@ import { PopoutManager } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { FormatDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import React from "react";
 import { assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";

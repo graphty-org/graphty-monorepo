@@ -389,50 +389,9 @@ export function checkCapabilities(
         checkEdgeStructure(snapshot, caps, options, note);
     }
 
-    const unrepresentable = countUnrepresentableIds(snapshot, caps.idCharset);
-    if (unrepresentable > 0) {
-        if (caps.idCharset === "dense-1-based") {
-            note(
-                LOSS.ID_RENUMBERED,
-                options.sanitizeIds === "mangle"
-                    ? `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value`
-                    : `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N and ids kept as labels of the nodes without a label value (a node with one loses its id)`,
-                null,
-                unrepresentable,
-            );
-        } else if (options.sanitizeIds === "mangle") {
-            note(
-                LOSS.ID_MANGLED,
-                `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
-                null,
-                unrepresentable,
-            );
-        } else {
-            note(
-                LOSS.ID_CHARSET,
-                `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so the save fails unless sanitizeIds is "mangle"`,
-                null,
-                unrepresentable,
-            );
-        }
-    }
-
+    checkIdCharset(snapshot, caps, options, note);
     if (extras.idsReadBack !== undefined) {
-        let retyped = 0;
-        for (let i = 0; i < snapshot.nodeCount; i++) {
-            const id = snapshot.ids.idOf(i);
-            if (coerceIdText(String(id), extras.idsReadBack) !== id) {
-                retyped++;
-            }
-        }
-        if (retyped > 0) {
-            note(
-                LOSS.ID_TEXT_TYPE,
-                `${retyped} node id${plural(retyped)} ${agree(retyped, "reads", "read")} back with another type (a number as text, or text as a number)`,
-                null,
-                retyped,
-            );
-        }
+        checkIdsReadBack(snapshot, extras.idsReadBack, note);
     }
 
     if (edges) {
@@ -444,23 +403,127 @@ export function checkCapabilities(
     if (edges) {
         checkColumns(snapshot.edges, "edge", caps, extras, note);
     }
-    const graphColumns = tables.includes("graph") ? snapshot.graph.names() : [];
-    if (graphColumns.length > 0) {
-        if (caps.graphAttributes) {
-            checkColumns(snapshot.graph, "graph", caps, extras, note);
-        } else {
-            notes.push(
-                Object.freeze({
-                    code: LOSS.GRAPH_ATTRIBUTES,
-                    message: `${graphColumns.length} graph attribute${plural(graphColumns.length)} cannot be written`,
-                    column: null,
-                    count: graphColumns.length,
-                    columns: Object.freeze([...graphColumns]),
-                }),
-            );
+    checkGraphColumns(snapshot, caps, extras, tables, notes, note);
+    checkExtensionTables(snapshot, caps, tables, note);
+    return notes;
+}
+
+/**
+ * The id-charset check of checkCapabilities(): the node ids the format cannot hold as they are.
+ * @param snapshot - the snapshot about to be exported
+ * @param caps - the exporter's capabilities
+ * @param options - the resolved common export options
+ * @param note - the recorder
+ */
+function checkIdCharset(
+    snapshot: GraphSnapshot,
+    caps: ExportCapabilities,
+    options: ResolvedExportOptions,
+    note: NoteFn,
+): void {
+    const unrepresentable = countUnrepresentableIds(snapshot, caps.idCharset);
+    if (unrepresentable <= 0) {
+        return;
+    }
+    if (caps.idCharset === "dense-1-based") {
+        note(
+            LOSS.ID_RENUMBERED,
+            options.sanitizeIds === "mangle"
+                ? `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value`
+                : `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N and ids kept as labels of the nodes without a label value (a node with one loses its id)`,
+            null,
+            unrepresentable,
+        );
+    } else if (options.sanitizeIds === "mangle") {
+        note(
+            LOSS.ID_MANGLED,
+            `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
+            null,
+            unrepresentable,
+        );
+    } else {
+        note(
+            LOSS.ID_CHARSET,
+            `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so the save fails unless sanitizeIds is "mangle"`,
+            null,
+            unrepresentable,
+        );
+    }
+}
+
+/**
+ * The id read-back check of checkCapabilities(): the node ids the format's importer reads back with another type.
+ * @param snapshot - the snapshot about to be exported
+ * @param readBack - how the format's importer coerces id text
+ * @param note - the recorder
+ */
+function checkIdsReadBack(snapshot: GraphSnapshot, readBack: IdCoercion, note: NoteFn): void {
+    let retyped = 0;
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        const id = snapshot.ids.idOf(i);
+        if (coerceIdText(String(id), readBack) !== id) {
+            retyped++;
         }
     }
+    if (retyped > 0) {
+        note(
+            LOSS.ID_TEXT_TYPE,
+            `${retyped} node id${plural(retyped)} ${agree(retyped, "reads", "read")} back with another type (a number as text, or text as a number)`,
+            null,
+            retyped,
+        );
+    }
+}
 
+/**
+ * The graph-table check of checkCapabilities(): the graph attributes, checked as columns or lost whole.
+ * @param snapshot - the snapshot about to be exported
+ * @param caps - the exporter's capabilities
+ * @param extras - format facts the capabilities table does not carry
+ * @param tables - the tables the export writes
+ * @param notes - the notes, for the note that carries its column list
+ * @param note - the recorder
+ */
+function checkGraphColumns(
+    snapshot: GraphSnapshot,
+    caps: ExportCapabilities,
+    extras: CheckExtras,
+    tables: readonly ("node" | "edge" | "graph")[],
+    notes: LossNote[],
+    note: NoteFn,
+): void {
+    const graphColumns = tables.includes("graph") ? snapshot.graph.names() : [];
+    if (graphColumns.length === 0) {
+        return;
+    }
+    if (caps.graphAttributes) {
+        checkColumns(snapshot.graph, "graph", caps, extras, note);
+        return;
+    }
+    notes.push(
+        Object.freeze({
+            code: LOSS.GRAPH_ATTRIBUTES,
+            message: `${graphColumns.length} graph attribute${plural(graphColumns.length)} cannot be written`,
+            column: null,
+            count: graphColumns.length,
+            columns: Object.freeze([...graphColumns]),
+        }),
+    );
+}
+
+/**
+ * The extension-table check of checkCapabilities(): dynamic values and other extension tables.
+ * @param snapshot - the snapshot about to be exported
+ * @param caps - the exporter's capabilities
+ * @param tables - the tables the export writes
+ * @param note - the recorder
+ */
+function checkExtensionTables(
+    snapshot: GraphSnapshot,
+    caps: ExportCapabilities,
+    tables: readonly ("node" | "edge" | "graph")[],
+    note: NoteFn,
+): void {
     for (const [name, table] of snapshot.extensions) {
         // "temporal:node:<column>" is the node table's, "temporal:edge:<column>" the edge table's;
         // any other extension table is the graph's.
@@ -469,25 +532,22 @@ export function checkCapabilities(
         if (!tables.includes(owner)) {
             continue;
         }
-        if (name.startsWith("temporal:")) {
-            if (caps.temporal !== "dynamic-values") {
-                note(
-                    LOSS.DYNAMIC_VALUES,
-                    `dynamic values of "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
-                    name,
-                    table.rowCount,
-                );
-            }
-        } else {
+        if (!name.startsWith("temporal:")) {
             note(
                 LOSS.EXTENSION_TABLE,
                 `extension table "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
                 name,
                 table.rowCount,
             );
+        } else if (caps.temporal !== "dynamic-values") {
+            note(
+                LOSS.DYNAMIC_VALUES,
+                `dynamic values of "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
+                name,
+                table.rowCount,
+            );
         }
     }
-    return notes;
 }
 
 /**
@@ -1190,44 +1250,7 @@ export function sanitizeIds(snapshot: GraphSnapshot, charset: IdCharset, mode: "
             { reason: "charset", charset, count: bad.length, id: first, index: bad[0] },
         );
     }
-    const written = new Map<number, NodeId>();
-    if (charset === "nmtoken") {
-        const used = new Set<string>();
-        for (let i = 0; i < n; i++) {
-            const id = ids.idOf(i);
-            if (isRepresentableId(id, charset)) {
-                used.add(String(id));
-            }
-        }
-        for (const i of bad) {
-            const base = mangleNmtoken(String(ids.idOf(i)));
-            let candidate = base;
-            let k = 2;
-            while (used.has(candidate)) {
-                candidate = `${base}_${k}`;
-                k++;
-            }
-            used.add(candidate);
-            written.set(i, candidate);
-        }
-    } else {
-        const used = new Set<number>();
-        for (let i = 0; i < n; i++) {
-            const id = ids.idOf(i);
-            if (typeof id === "number" && Number.isSafeInteger(id)) {
-                used.add(id);
-            }
-        }
-        let next = 0;
-        for (const i of bad) {
-            while (used.has(next)) {
-                next++;
-            }
-            used.add(next);
-            written.set(i, next);
-            next++;
-        }
-    }
+    const written = charset === "nmtoken" ? mangleNmtokenIds(ids, bad) : mangleIntegerIds(ids, bad);
     return {
         charset,
         changed: bad.length,
@@ -1235,6 +1258,64 @@ export function sanitizeIds(snapshot: GraphSnapshot, charset: IdCharset, mode: "
         isChanged: (i: number): boolean => written.has(i),
         originalAt: (i: number): NodeId => ids.idOf(i),
     };
+}
+
+/**
+ * The NMTOKEN ids sanitizeIds() writes for the ids the charset cannot hold: each mangled, then suffixed `_2`, `_3`...
+ * until unused.
+ * @param ids - the snapshot's id map
+ * @param bad - the indices of the ids to rewrite, ascending
+ * @returns the written id per rewritten index
+ */
+function mangleNmtokenIds(ids: GraphSnapshot["ids"], bad: readonly number[]): Map<number, NodeId> {
+    const written = new Map<number, NodeId>();
+    const used = new Set<string>();
+    for (let i = 0; i < ids.size; i++) {
+        const id = ids.idOf(i);
+        if (isRepresentableId(id, "nmtoken")) {
+            used.add(String(id));
+        }
+    }
+    for (const i of bad) {
+        const base = mangleNmtoken(String(ids.idOf(i)));
+        let candidate = base;
+        let k = 2;
+        while (used.has(candidate)) {
+            candidate = `${base}_${k}`;
+            k++;
+        }
+        used.add(candidate);
+        written.set(i, candidate);
+    }
+    return written;
+}
+
+/**
+ * The integer ids sanitizeIds() writes for the ids the charset cannot hold: the smallest unused non-negative integers
+ * in index order.
+ * @param ids - the snapshot's id map
+ * @param bad - the indices of the ids to rewrite, ascending
+ * @returns the written id per rewritten index
+ */
+function mangleIntegerIds(ids: GraphSnapshot["ids"], bad: readonly number[]): Map<number, NodeId> {
+    const written = new Map<number, NodeId>();
+    const used = new Set<number>();
+    for (let i = 0; i < ids.size; i++) {
+        const id = ids.idOf(i);
+        if (typeof id === "number" && Number.isSafeInteger(id)) {
+            used.add(id);
+        }
+    }
+    let next = 0;
+    for (const i of bad) {
+        while (used.has(next)) {
+            next++;
+        }
+        used.add(next);
+        written.set(i, next);
+        next++;
+    }
+    return written;
 }
 
 /**

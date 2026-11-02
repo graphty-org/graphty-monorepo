@@ -1289,20 +1289,7 @@ async function networks2(
         return report.fail(CYS_ISSUE.NOT_SESSION, "the session has no cysession.xml");
     }
     const tree = await readXmlTree(await session.read(layout.cysession, report), layout.cysession.name, report, inner);
-    const documentVersion = tree.attrs.get("documentVersion") ?? "";
-    if (documentVersion.length > 0 && !/^\d+(\.\d+)*$/.test(documentVersion.trim())) {
-        report.warning(
-            "validation-error",
-            XGMML_ISSUE.DOCUMENT_VERSION,
-            `${layout.cysession.name}: documentVersion "${documentVersion}" does not parse; the session is read as Cytoscape 2.x`,
-        );
-    }
-    if (documentVersion.startsWith("3")) {
-        report.fail(
-            CYS_ISSUE.VERSION,
-            `cysession.xml has documentVersion ${documentVersion} and no version marker: the 2011 Cytoscape 3.0 pre-release layout, which no released Cytoscape reads`,
-        );
-    }
+    checkDocumentVersion2(tree, layout.cysession.name, report);
     const byDecoded = new Map<string, SessionEntry>();
     for (const [path, entry] of layout.files) {
         byDecoded.set(path, entry);
@@ -1313,49 +1300,10 @@ async function networks2(
     const missing: string[] = [];
     const named = new Set<SessionEntry>();
     for (const record of elementsNamed(tree, "network")) {
-        const given = record.attrs.get("id");
-        const filename = record.attrs.get("filename") ?? (given === undefined ? undefined : `${given}.xgmml`);
-        if (given === "Network Root") {
-            continue;
+        const choice = choice2Of(record, byDecoded, named, missing, report, layout.cysession.name);
+        if (choice !== null) {
+            choices.push(choice);
         }
-        if (filename === undefined) {
-            sessionRecord(
-                report,
-                layout.cysession.name,
-                "a <network> has neither an id nor a filename; it is not read",
-            );
-            continue;
-        }
-        const id = given ?? urlDecode(filename.replace(/\.xgmml$/i, ""));
-        if (given === undefined) {
-            sessionRecord(
-                report,
-                layout.cysession.name,
-                `a <network> for ${filename} has no id; it is named "${id}" after its file`,
-            );
-        }
-        const file = byDecoded.get(filename);
-        if (file === undefined) {
-            missing.push(filename);
-            continue;
-        }
-        if (named.has(file)) {
-            sessionRecord(
-                report,
-                layout.cysession.name,
-                `the <network> "${id}" names ${filename}, which an earlier record already names; it is not read a second time`,
-            );
-            continue;
-        }
-        named.add(file);
-        const parent = record.children.find((c) => c.name === "parent")?.attrs.get("id") ?? null;
-        choices.push({
-            era: "2",
-            file,
-            name: id,
-            record,
-            parent: parent === "Network Root" || parent === "NULL" ? null : parent,
-        });
     }
     if (missing.length > 0) {
         report.warning(
@@ -1373,6 +1321,86 @@ async function networks2(
         );
     }
     return choices.sort((a, b) => order.indexOf(a.file) - order.indexOf(b.file));
+}
+
+/**
+ * The documentVersion checks of networks2(): W_XGMML_DOCUMENT_VERSION for a version that does not parse, and
+ * E_CYS_VERSION for the Cytoscape 3.0 pre-release layout.
+ * @param tree - the cysession.xml tree
+ * @param entry - the cysession.xml entry name
+ * @param report - the report
+ */
+function checkDocumentVersion2(tree: XmlNode, entry: string, report: ImportReportBuilder): void {
+    const documentVersion = tree.attrs.get("documentVersion") ?? "";
+    if (documentVersion.length > 0 && !/^\d+(\.\d+)*$/.test(documentVersion.trim())) {
+        report.warning(
+            "validation-error",
+            XGMML_ISSUE.DOCUMENT_VERSION,
+            `${entry}: documentVersion "${documentVersion}" does not parse; the session is read as Cytoscape 2.x`,
+        );
+    }
+    if (documentVersion.startsWith("3")) {
+        report.fail(
+            CYS_ISSUE.VERSION,
+            `cysession.xml has documentVersion ${documentVersion} and no version marker: the 2011 Cytoscape 3.0 pre-release layout, which no released Cytoscape reads`,
+        );
+    }
+}
+
+/**
+ * The network one cysession.xml `<network>` record names, for networks2(): null for `Network Root`, a record with
+ * neither id nor filename, a file the session does not hold (added to `missing`) or one an earlier record named.
+ * @param record - the `<network>` record
+ * @param byDecoded - the session's entries by path, as written and URL-decoded
+ * @param named - the entries earlier records named; the entry this record names is added
+ * @param missing - the file names the session does not hold; this record's is added
+ * @param report - the report
+ * @param entry - the cysession.xml entry name
+ * @returns the network, or null when the record names none to read
+ */
+function choice2Of(
+    record: XmlNode,
+    byDecoded: ReadonlyMap<string, SessionEntry>,
+    named: Set<SessionEntry>,
+    missing: string[],
+    report: ImportReportBuilder,
+    entry: string,
+): Choice2 | null {
+    const given = record.attrs.get("id");
+    const filename = record.attrs.get("filename") ?? (given === undefined ? undefined : `${given}.xgmml`);
+    if (given === "Network Root") {
+        return null;
+    }
+    if (filename === undefined) {
+        sessionRecord(report, entry, "a <network> has neither an id nor a filename; it is not read");
+        return null;
+    }
+    const id = given ?? urlDecode(filename.replace(/\.xgmml$/i, ""));
+    if (given === undefined) {
+        sessionRecord(report, entry, `a <network> for ${filename} has no id; it is named "${id}" after its file`);
+    }
+    const file = byDecoded.get(filename);
+    if (file === undefined) {
+        missing.push(filename);
+        return null;
+    }
+    if (named.has(file)) {
+        sessionRecord(
+            report,
+            entry,
+            `the <network> "${id}" names ${filename}, which an earlier record already names; it is not read a second time`,
+        );
+        return null;
+    }
+    named.add(file);
+    const parent = record.children.find((c) => c.name === "parent")?.attrs.get("id") ?? null;
+    return {
+        era: "2",
+        file,
+        name: id,
+        record,
+        parent: parent === "Network Root" || parent === "NULL" ? null : parent,
+    };
 }
 
 /**

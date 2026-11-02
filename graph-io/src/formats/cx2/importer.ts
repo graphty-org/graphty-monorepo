@@ -78,6 +78,7 @@ import { DirectionResolver } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
 import {
+    type AspectEvent,
     cxId,
     CxStructure,
     declareFresh,
@@ -438,20 +439,31 @@ function convertScalar(
                 ? value
                 : BAD;
         case "long":
-            if (value instanceof ExactInteger) {
-                if (long === "string") {
-                    return value.digits;
-                }
-                onPrecision(value.digits);
-                return Number(value.digits);
-            }
-            if (typeof value === "number" && Number.isInteger(value)) {
-                return long === "string" ? String(value) : value;
-            }
-            return BAD;
+            return convertLong(value, long, onPrecision);
         default:
             return BAD;
     }
+}
+
+/**
+ * Convert one value declared long.
+ * @param value - the value (never null)
+ * @param long - the importer's `long` option
+ * @param onPrecision - called for a long beyond 2^53
+ * @returns the value to store, or BAD
+ */
+function convertLong(value: unknown, long: "f64" | "string", onPrecision: (digits: string) => void): unknown {
+    if (value instanceof ExactInteger) {
+        if (long === "string") {
+            return value.digits;
+        }
+        onPrecision(value.digits);
+        return Number(value.digits);
+    }
+    if (typeof value === "number" && Number.isInteger(value)) {
+        return long === "string" ? String(value) : value;
+    }
+    return BAD;
 }
 
 /**
@@ -504,6 +516,13 @@ function shown(value: unknown): string {
 }
 
 // ============================================================ the document as read
+
+/** The values of one visual property column of the bypasses, in row order, and each row's index. */
+interface BypassColumn {
+    readonly rows: number[];
+    readonly values: unknown[];
+    readonly at: Map<number, number>;
+}
 
 /** A parsed aspect element with where it came from. */
 interface Held {
@@ -561,37 +580,153 @@ async function readDocument(
     report: ImportReportBuilder,
     options: ResolvedImportOptions,
 ): Promise<Cx2Document> {
-    const structure = new CxStructure(report);
-    const doc: Cx2Document = {
-        version: "",
-        hasFragments: false,
-        nodes: [],
-        edges: [],
-        declarations: [],
-        networkAttributes: [],
-        nodeBypasses: [],
-        edgeBypasses: [],
-        cartesianLayout: [],
-        opaque: new Map(),
-        structure,
-    };
-    let descriptor = false;
-    let elementsSeen = false;
+    const scan = new Cx2Scan(report);
     let sinceCheck = 0;
-    const opaquePrecision = keptPrecision(report, "meta.extra.cx2.opaque");
-    const collect = (aspect: string, value: unknown, text: string, line: number, exact: boolean, depth = 1): void => {
-        structure.element(aspect, value, line);
+    try {
+        for await (const event of scanAspects(textChunks(input, report, options), report)) {
+            if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
+                sinceCheck = 0;
+                throwIfAborted(options.signal);
+            }
+            scan.event(event);
+        }
+    } catch (err) {
+        if (err instanceof JsonScanError) {
+            report.fail(err.empty ? EMPTY_INPUT_CODE : SYNTAX_CODE, err.message, { line: err.line });
+        }
+        throw err;
+    }
+    if (!scan.descriptor) {
+        report.fail(CX2_ISSUE.NO_DESCRIPTOR, "the document is an empty array; a CX2 document starts with a descriptor");
+    }
+    return scan.doc;
+}
+
+/** The state of readDocument()'s scan: the document collected so far and what it has seen. */
+class Cx2Scan {
+    readonly doc: Cx2Document;
+    /** Whether the descriptor was read. */
+    descriptor = false;
+    private elementsSeen = false;
+    private readonly structure: CxStructure;
+    private readonly opaquePrecision: (digits: string) => void;
+
+    /**
+     * Start a scan.
+     * @param report - the report
+     */
+    constructor(private readonly report: ImportReportBuilder) {
+        this.structure = new CxStructure(report);
+        this.doc = {
+            version: "",
+            hasFragments: false,
+            nodes: [],
+            edges: [],
+            declarations: [],
+            networkAttributes: [],
+            nodeBypasses: [],
+            edgeBypasses: [],
+            cartesianLayout: [],
+            opaque: new Map(),
+            structure: this.structure,
+        };
+        this.opaquePrecision = keptPrecision(report, "meta.extra.cx2.opaque");
+    }
+
+    /**
+     * Take one scanner event.
+     * @param event - the event
+     */
+    event(event: AspectEvent): void {
+        const { report, structure } = this;
+        switch (event.kind) {
+            case "root":
+                report.fail(
+                    CX2_ISSUE.NO_DESCRIPTOR,
+                    `a CX2 document is a JSON array; found ${event.object ? "an object" : shown(event.value)}`,
+                    { line: event.line },
+                );
+                break;
+            case "member":
+                if (!this.descriptor) {
+                    readDescriptor(event.value, event.line, this.doc, report);
+                    this.descriptor = true;
+                    break;
+                }
+                memberAspect(event.value, event.line, structure, report, (aspect, value) => {
+                    this.collect(aspect, value, event.text, event.line, event.exact, 2);
+                });
+                break;
+            case "block":
+                this.block(event);
+                break;
+            case "element":
+                this.collect(event.aspect, event.value, event.text, event.line, event.exact);
+                break;
+            case "deep":
+                reportTooDeep(report, event);
+                if (!this.descriptor) {
+                    readDescriptor(null, event.line, this.doc, report);
+                }
+                break;
+            case "extraKeys":
+                report.error(
+                    "parse-error",
+                    BAD_ASPECT_BLOCK_CODE,
+                    `the "${event.aspect}" block holds more keys (${event.keys.join(", ")}) whose values are not arrays; an aspect block has one key, the others are skipped`,
+                    { line: event.line, element: event.aspect },
+                );
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
+     * Take the start of an aspect block.
+     * @param event - the block event
+     */
+    private block(event: AspectEvent & { kind: "block" }): void {
+        const { report } = this;
+        const { aspect, line } = event;
+        reportSharedBlock(report, event);
+        if (!this.descriptor) {
+            const cx1 =
+                aspect === "numberVerification" || aspect === "metaData"
+                    ? "; this looks like CX version 1 (read it with the cx importer)"
+                    : "";
+            report.fail(
+                CX2_ISSUE.NO_DESCRIPTOR,
+                `the document starts with a "${aspect}" block, not a descriptor with CXVersion${cx1}`,
+                { line },
+            );
+        }
+        this.structure.block(aspect, line);
+    }
+
+    /**
+     * Collect one element of an aspect.
+     * @param aspect - the aspect
+     * @param value - the element
+     * @param text - its JSON text
+     * @param line - its line
+     * @param exact - whether the value may hold an ExactInteger
+     * @param depth - the depth of the element's own keys in the text
+     */
+    private collect(aspect: string, value: unknown, text: string, line: number, exact: boolean, depth = 1): void {
+        const { doc, report } = this;
+        this.structure.element(aspect, value, line);
         switch (aspect) {
             case "nodes":
-                elementsSeen = true;
+                this.elementsSeen = true;
                 doc.nodes.push({ value, line, inexact: inexactBits(text, ["id"], depth) });
                 return;
             case "edges":
-                elementsSeen = true;
+                this.elementsSeen = true;
                 doc.edges.push({ value, line, inexact: inexactBits(text, ["id", "s", "t"], depth) });
                 return;
             case "attributeDeclarations":
-                if (elementsSeen) {
+                if (this.elementsSeen) {
                     report.warnOnce(
                         "validation-error",
                         ASPECT_ORDER_CODE,
@@ -604,7 +739,7 @@ async function readDocument(
                 doc.declarations.push({ value, line, inexact: 0 });
                 return;
             case "networkAttributes":
-                elementsSeen = true;
+                this.elementsSeen = true;
                 doc.networkAttributes.push({ value, line, inexact: 0 });
                 return;
             case "nodeBypasses":
@@ -617,81 +752,26 @@ async function readDocument(
                 doc.cartesianLayout.push({ value, line, inexact: 0 });
                 return;
             default:
-                if (STRUCTURE_ASPECTS.has(aspect)) {
-                    return;
-                }
-                if (!doc.opaque.has(aspect)) {
-                    doc.opaque.set(aspect, []);
-                }
-                doc.opaque.get(aspect)?.push(exact ? plainJson(value, opaquePrecision) : value);
+                this.collectOpaque(aspect, value, exact);
         }
-    };
-    try {
-        for await (const event of scanAspects(textChunks(input, report, options), report)) {
-            if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
-                sinceCheck = 0;
-                throwIfAborted(options.signal);
-            }
-            switch (event.kind) {
-                case "root":
-                    report.fail(
-                        CX2_ISSUE.NO_DESCRIPTOR,
-                        `a CX2 document is a JSON array; found ${event.object ? "an object" : shown(event.value)}`,
-                        { line: event.line },
-                    );
-                    break;
-                case "member":
-                    if (!descriptor) {
-                        readDescriptor(event.value, event.line, doc, report);
-                        descriptor = true;
-                        break;
-                    }
-                    memberAspect(event.value, event.line, structure, report, (aspect, value) => {
-                        collect(aspect, value, event.text, event.line, event.exact, 2);
-                    });
-                    break;
-                case "block":
-                    reportSharedBlock(report, event);
-                    if (!descriptor) {
-                        report.fail(
-                            CX2_ISSUE.NO_DESCRIPTOR,
-                            `the document starts with a "${event.aspect}" block, not a descriptor with CXVersion${event.aspect === "numberVerification" || event.aspect === "metaData" ? "; this looks like CX version 1 (read it with the cx importer)" : ""}`,
-                            { line: event.line },
-                        );
-                    }
-                    structure.block(event.aspect, event.line);
-                    break;
-                case "element":
-                    collect(event.aspect, event.value, event.text, event.line, event.exact);
-                    break;
-                case "deep":
-                    reportTooDeep(report, event);
-                    if (!descriptor) {
-                        readDescriptor(null, event.line, doc, report);
-                    }
-                    break;
-                case "extraKeys":
-                    report.error(
-                        "parse-error",
-                        BAD_ASPECT_BLOCK_CODE,
-                        `the "${event.aspect}" block holds more keys (${event.keys.join(", ")}) whose values are not arrays; an aspect block has one key, the others are skipped`,
-                        { line: event.line, element: event.aspect },
-                    );
-                    break;
-                default:
-                    break;
-            }
-        }
-    } catch (err) {
-        if (err instanceof JsonScanError) {
-            report.fail(err.empty ? EMPTY_INPUT_CODE : SYNTAX_CODE, err.message, { line: err.line });
-        }
-        throw err;
     }
-    if (!descriptor) {
-        report.fail(CX2_ISSUE.NO_DESCRIPTOR, "the document is an empty array; a CX2 document starts with a descriptor");
+
+    /**
+     * Keep an element of an aspect this importer does not read, verbatim.
+     * @param aspect - the aspect
+     * @param value - the element
+     * @param exact - whether the value may hold an ExactInteger
+     */
+    private collectOpaque(aspect: string, value: unknown, exact: boolean): void {
+        const { opaque } = this.doc;
+        if (STRUCTURE_ASPECTS.has(aspect)) {
+            return;
+        }
+        if (!opaque.has(aspect)) {
+            opaque.set(aspect, []);
+        }
+        opaque.get(aspect)?.push(exact ? plainJson(value, this.opaquePrecision) : value);
     }
-    return doc;
 }
 
 /**
@@ -1215,26 +1295,7 @@ class Cx2Reader {
             );
             return;
         }
-        let type: Cx2Type | null;
-        if (raw.d === undefined) {
-            type = cx2Type("string");
-            report.warning(
-                "unsupported",
-                UNKNOWN_ATTR_TYPE_CODE,
-                `the declaration of "${name}" has no type; read as string (the Java reader's rule)`,
-                where,
-            );
-        } else {
-            type = typeof raw.d === "string" ? cx2Type(raw.d) : null;
-            if (type === null) {
-                report.warning(
-                    "unsupported",
-                    UNKNOWN_ATTR_TYPE_CODE,
-                    `the type ${shown(raw.d)} of "${name}" is not a CX2 type; the column is inferred from its values`,
-                    where,
-                );
-            }
-        }
+        const type = this.declaredType(name, raw.d, where);
         const existing = table.byName.get(name);
         if (existing !== undefined) {
             if (existing.type?.d !== type?.d) {
@@ -1282,6 +1343,38 @@ class Cx2Reader {
             handle: INVALID_INDEX as ColumnHandle,
             undeclared: false,
         });
+    }
+
+    /**
+     * The type of a declaration: string when it has none, null (inferred from the values) when
+     * it is not a CX2 type.
+     * @param name - the attribute name
+     * @param d - the declaration's d
+     * @param where - the location
+     * @param where.line - the line
+     * @param where.element - the attribute
+     * @returns the type, or null
+     */
+    private declaredType(name: string, d: unknown, where: { line: number; element: string }): Cx2Type | null {
+        if (d === undefined) {
+            this.report.warning(
+                "unsupported",
+                UNKNOWN_ATTR_TYPE_CODE,
+                `the declaration of "${name}" has no type; read as string (the Java reader's rule)`,
+                where,
+            );
+            return cx2Type("string");
+        }
+        const type = typeof d === "string" ? cx2Type(d) : null;
+        if (type === null) {
+            this.report.warning(
+                "unsupported",
+                UNKNOWN_ATTR_TYPE_CODE,
+                `the type ${shown(d)} of "${name}" is not a CX2 type; the column is inferred from its values`,
+                where,
+            );
+        }
+        return type;
     }
 
     /**
@@ -1368,38 +1461,43 @@ class Cx2Reader {
 
     /** Declare the declared node and edge columns. */
     private declareColumns(): void {
-        const restore = this.options.restoreMangledIds;
         for (const domain of ["node", "edge"] as const) {
             for (const decl of this.decls[domain].byName.values()) {
-                if (domain === "node" && restore && decl.name === ORIGINAL_ID_ATTRIBUTE) {
-                    continue;
-                }
-                if (domain === "edge" && decl.name === this.options.weightFrom) {
-                    continue;
-                }
-                const column: ColumnDecl =
-                    decl.type === null
-                        ? {
-                              name: decl.name,
-                              dtype: "json",
-                              nullable: true,
-                              origin: { format: CX2_FORMAT, id: decl.alias },
-                          }
-                        : {
-                              ...this.columnDecl(decl.type),
-                              name: decl.name,
-                              origin: { format: CX2_FORMAT, id: decl.alias, type: decl.type.d },
-                          };
-                if (decl.hasDefault) {
-                    // a type nothing settled (no values) keeps its default as written, in the json column
-                    column.default = decl.type === null ? decl.rawDefault : decl.defaultValue;
-                }
-                if (domain === "node" && decl.name === "name") {
-                    column.role = "label";
-                }
-                decl.handle = declareResolved(this.sink, domain, column, this.report).handle;
+                this.declareColumn(domain, decl);
             }
         }
+    }
+
+    /**
+     * Declare one declared column (not the restored id or the weightFrom column).
+     * @param domain - node or edge
+     * @param decl - the declaration
+     */
+    private declareColumn(domain: "node" | "edge", decl: Declaration): void {
+        if (this.notAColumn(domain, decl.name)) {
+            return;
+        }
+        const column: ColumnDecl =
+            decl.type === null
+                ? {
+                      name: decl.name,
+                      dtype: "json",
+                      nullable: true,
+                      origin: { format: CX2_FORMAT, id: decl.alias },
+                  }
+                : {
+                      ...this.columnDecl(decl.type),
+                      name: decl.name,
+                      origin: { format: CX2_FORMAT, id: decl.alias, type: decl.type.d },
+                  };
+        if (decl.hasDefault) {
+            // a type nothing settled (no values) keeps its default as written, in the json column
+            column.default = decl.type === null ? decl.rawDefault : decl.defaultValue;
+        }
+        if (domain === "node" && decl.name === "name") {
+            column.role = "label";
+        }
+        decl.handle = declareResolved(this.sink, domain, column, this.report).handle;
     }
 
     /**
@@ -1855,101 +1953,164 @@ class Cx2Reader {
         element: string,
         line: number,
     ): void {
-        const { report } = this;
-        const table = this.decls[domain];
         for (const key of Object.keys(attrs)) {
-            const value = attrs[key];
-            if (key === "") {
-                report.error(
-                    "validation-error",
-                    BAD_VALUE_CODE,
-                    `${element}: v holds an attribute with an empty name; skipped`,
-                    { line, element },
-                );
-                continue;
-            }
-            const resolved = table.resolve(key);
-            const name = resolved?.decl.name ?? key;
-            if (domain === "node" && this.options.restoreMangledIds && name === ORIGINAL_ID_ATTRIBUTE) {
-                continue;
-            }
-            if (domain === "edge" && name === this.options.weightFrom) {
-                continue;
-            }
-            if (key === "id") {
-                report.warnOnce(
-                    "validation-error",
-                    CX2_ISSUE.RESERVED_KEY,
-                    `${element}: the attribute name "id" is reserved in v; read as an ordinary attribute`,
-                    { line, element },
-                    `${CX2_ISSUE.RESERVED_KEY}:${domain}`,
-                );
-            }
-            if (
-                resolved !== null &&
-                !resolved.viaAlias &&
-                resolved.decl.alias !== null &&
-                resolved.decl.alias !== key
-            ) {
-                if (hasOwn(attrs, resolved.decl.alias)) {
-                    report.warning(
-                        "validation-error",
-                        DUPLICATE_ATTRIBUTE_CODE,
-                        `${element}: "${name}" is given under its alias and its full name; the alias wins`,
-                        { line, element },
-                    );
-                    continue;
-                }
-                report.warnOnce(
-                    "coercion",
-                    CX2_ISSUE.ALIAS_BYPASSED,
-                    `${element}: the full name "${name}" is used although its alias "${resolved.decl.alias}" is declared; read as the same attribute`,
-                    { line, element },
-                    `${CX2_ISSUE.ALIAS_BYPASSED}:${domain}:${name}`,
-                );
-            }
-            if (value === null || value === undefined) {
-                continue;
-            }
-            if (resolved === null) {
-                continue;
-            }
-            const { decl } = resolved;
-            if (decl.undeclared) {
-                report.warnOnce(
-                    "validation-error",
-                    CX2_ISSUE.UNDECLARED_ATTRIBUTE,
-                    `the ${domain} attribute "${key}" is not declared; its type is inferred from the values`,
-                    { line, element: key },
-                    `${CX2_ISSUE.UNDECLARED_ATTRIBUTE}:${domain}:${key}`,
-                );
-            }
-            const converted =
-                decl.type === null
-                    ? plainJson(value, (digits) => {
-                          this.precision(name, digits);
-                      })
-                    : convertValue(value, decl.type, this.options.long, (digits) => {
-                          this.precision(name, digits);
-                      });
-            if (converted === BAD) {
-                report.error(
-                    "validation-error",
-                    BAD_VALUE_CODE,
-                    `${element}: "${name}" is ${shown(value)}, not a ${decl.type?.d ?? "value"}; the cell is unset`,
-                    { line, element },
-                );
-                continue;
-            }
-            try {
-                if (domain === "node") {
-                    this.sink.setNodeValue(decl.handle, row, converted);
-                } else {
-                    this.sink.setEdgeValue(decl.handle, row, converted);
-                }
-            } catch (err) {
-                report.recordError(err, { line, element });
-            }
+            this.writeAttribute(domain, row, attrs, key, { line, element });
+        }
+    }
+
+    /**
+     * Whether a column is not written from the elements' v: the restored original id of a node
+     * or an edge's weightFrom attribute.
+     * @param domain - node or edge
+     * @param name - the attribute name
+     * @returns true when the attribute is skipped
+     */
+    private notAColumn(domain: "node" | "edge", name: string): boolean {
+        if (domain === "node") {
+            return this.options.restoreMangledIds && name === ORIGINAL_ID_ATTRIBUTE;
+        }
+        return name === this.options.weightFrom;
+    }
+
+    /**
+     * Write one attribute of an element's v.
+     * @param domain - node or edge
+     * @param row - the row
+     * @param attrs - the v object
+     * @param key - the attribute's key
+     * @param where - the element's location
+     * @param where.line - its line
+     * @param where.element - the element name
+     */
+    private writeAttribute(
+        domain: "node" | "edge",
+        row: number,
+        attrs: Record<string, unknown>,
+        key: string,
+        where: { line: number; element: string },
+    ): void {
+        const { report } = this;
+        const { line, element } = where;
+        const value = attrs[key];
+        if (key === "") {
+            report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `${element}: v holds an attribute with an empty name; skipped`,
+                { line, element },
+            );
+            return;
+        }
+        const resolved = this.decls[domain].resolve(key);
+        const name = resolved?.decl.name ?? key;
+        if (this.notAColumn(domain, name)) {
+            return;
+        }
+        if (key === "id") {
+            report.warnOnce(
+                "validation-error",
+                CX2_ISSUE.RESERVED_KEY,
+                `${element}: the attribute name "id" is reserved in v; read as an ordinary attribute`,
+                { line, element },
+                `${CX2_ISSUE.RESERVED_KEY}:${domain}`,
+            );
+        }
+        if (resolved !== null && this.shadowedByAlias(domain, attrs, key, resolved, where)) {
+            return;
+        }
+        if (value === null || value === undefined || resolved === null) {
+            return;
+        }
+        const { decl } = resolved;
+        if (decl.undeclared) {
+            report.warnOnce(
+                "validation-error",
+                CX2_ISSUE.UNDECLARED_ATTRIBUTE,
+                `the ${domain} attribute "${key}" is not declared; its type is inferred from the values`,
+                { line, element: key },
+                `${CX2_ISSUE.UNDECLARED_ATTRIBUTE}:${domain}:${key}`,
+            );
+        }
+        const onPrecision = (digits: string): void => {
+            this.precision(name, digits);
+        };
+        const converted =
+            decl.type === null
+                ? plainJson(value, onPrecision)
+                : convertValue(value, decl.type, this.options.long, onPrecision);
+        if (converted === BAD) {
+            report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `${element}: "${name}" is ${shown(value)}, not a ${decl.type?.d ?? "value"}; the cell is unset`,
+                { line, element },
+            );
+            return;
+        }
+        try {
+            this.setValue(domain, decl.handle, row, converted);
+        } catch (err) {
+            report.recordError(err, { line, element });
+        }
+    }
+
+    /**
+     * Check a key that is the full name of an attribute declared with an alias: skipped when the
+     * element also gives the alias (the alias wins), else read with a warning.
+     * @param domain - node or edge
+     * @param attrs - the v object
+     * @param key - the key
+     * @param resolved - the declaration the key names
+     * @param resolved.decl - the declaration
+     * @param resolved.viaAlias - whether the key was its alias
+     * @param where - the element's location
+     * @param where.line - its line
+     * @param where.element - the element name
+     * @returns true when the key is skipped
+     */
+    private shadowedByAlias(
+        domain: "node" | "edge",
+        attrs: Record<string, unknown>,
+        key: string,
+        resolved: { readonly decl: Declaration; readonly viaAlias: boolean },
+        where: { line: number; element: string },
+    ): boolean {
+        const { alias, name } = resolved.decl;
+        if (resolved.viaAlias || alias === null || alias === key) {
+            return false;
+        }
+        const { element } = where;
+        if (hasOwn(attrs, alias)) {
+            this.report.warning(
+                "validation-error",
+                DUPLICATE_ATTRIBUTE_CODE,
+                `${element}: "${name}" is given under its alias and its full name; the alias wins`,
+                { line: where.line, element },
+            );
+            return true;
+        }
+        this.report.warnOnce(
+            "coercion",
+            CX2_ISSUE.ALIAS_BYPASSED,
+            `${element}: the full name "${name}" is used although its alias "${alias}" is declared; read as the same attribute`,
+            { line: where.line, element },
+            `${CX2_ISSUE.ALIAS_BYPASSED}:${domain}:${name}`,
+        );
+        return false;
+    }
+
+    /**
+     * Set one cell of a node or edge column.
+     * @param domain - node or edge
+     * @param handle - the column
+     * @param row - the row
+     * @param value - the value
+     */
+    private setValue(domain: "node" | "edge", handle: ColumnHandle, row: number, value: unknown): void {
+        if (domain === "node") {
+            this.sink.setNodeValue(handle, row, value);
+        } else {
+            this.sink.setEdgeValue(handle, row, value);
         }
     }
 
@@ -2156,67 +2317,90 @@ class Cx2Reader {
             return;
         }
         for (const [name, raw] of Object.entries(value)) {
-            if (raw === null || raw === undefined) {
-                continue;
-            }
-            const decl = this.decls.network.byName.get(name);
-            const element = `networkAttributes.${name}`;
-            if (decl === undefined) {
-                this.report.warnOnce(
-                    "validation-error",
-                    CX2_ISSUE.UNDECLARED_ATTRIBUTE,
-                    `the network attribute "${name}" is not declared; its column is inferred from the value`,
-                    { line, element: name },
-                    `${CX2_ISSUE.UNDECLARED_ATTRIBUTE}:network:${name}`,
-                );
-            }
-            if (
-                (name === "name" || name === "description") &&
-                typeof raw === "string" &&
-                decl?.type?.d !== "list_of_string"
-            ) {
-                // the graph's own name and description: GraphMeta, written back from there
-                continue;
-            }
-            try {
-                const seen: Seen = { kind: undefined, list: undefined };
-                observe(seen, raw);
-                const type = decl?.type ?? inferredType(seen);
-                if (type === null) {
-                    this.sink.setGraphValue(
-                        name,
-                        plainJson(raw, (digits) => {
-                            this.precision(name, digits);
-                        }),
-                        {
-                            dtype: "json",
-                            origin: { format: CX2_FORMAT, id: null },
-                        },
-                    );
-                    continue;
-                }
-                const converted = convertValue(raw, type, this.options.long, (digits) => {
-                    this.precision(name, digits);
-                });
-                if (converted === BAD) {
-                    this.report.error(
-                        "validation-error",
-                        BAD_VALUE_CODE,
-                        `${element} is ${shown(raw)}, not a ${type.d}; unset`,
-                        { line, element },
-                    );
-                    continue;
-                }
-                const scalar = scalarDtype(type.scalar, this.options.long);
-                this.sink.setGraphValue(name, converted, {
-                    dtype: type.list ? "list" : scalar,
-                    ...(type.list ? { itemDtype: scalar } : {}),
-                    origin: { format: CX2_FORMAT, id: null, type: type.d },
-                });
-            } catch (err) {
-                this.report.recordError(err, { line, element });
-            }
+            this.writeNetworkAttribute(name, raw, line);
         }
+    }
+
+    /**
+     * Write one network attribute (not the graph's own name or description, which go to GraphMeta).
+     * @param name - the attribute name
+     * @param raw - its value
+     * @param line - the element's line
+     */
+    private writeNetworkAttribute(name: string, raw: unknown, line: number): void {
+        if (raw === null || raw === undefined) {
+            return;
+        }
+        const decl = this.decls.network.byName.get(name);
+        const element = `networkAttributes.${name}`;
+        if (decl === undefined) {
+            this.report.warnOnce(
+                "validation-error",
+                CX2_ISSUE.UNDECLARED_ATTRIBUTE,
+                `the network attribute "${name}" is not declared; its column is inferred from the value`,
+                { line, element: name },
+                `${CX2_ISSUE.UNDECLARED_ATTRIBUTE}:network:${name}`,
+            );
+        }
+        if (
+            (name === "name" || name === "description") &&
+            typeof raw === "string" &&
+            decl?.type?.d !== "list_of_string"
+        ) {
+            // the graph's own name and description: GraphMeta, written back from there
+            return;
+        }
+        try {
+            this.setNetworkValue(name, raw, decl?.type, { line, element });
+        } catch (err) {
+            this.report.recordError(err, { line, element });
+        }
+    }
+
+    /**
+     * Set one graph value, typed by its declaration or, without one, by the value.
+     * @param name - the attribute name
+     * @param raw - its value (never null)
+     * @param declared - the declared type: null for a type that is not CX2's, undefined when undeclared
+     * @param where - the location
+     * @param where.line - the line
+     * @param where.element - the element name
+     */
+    private setNetworkValue(
+        name: string,
+        raw: unknown,
+        declared: Cx2Type | null | undefined,
+        where: { line: number; element: string },
+    ): void {
+        const onPrecision = (digits: string): void => {
+            this.precision(name, digits);
+        };
+        const seen: Seen = { kind: undefined, list: undefined };
+        observe(seen, raw);
+        const type = declared ?? inferredType(seen);
+        if (type === null) {
+            this.sink.setGraphValue(name, plainJson(raw, onPrecision), {
+                dtype: "json",
+                origin: { format: CX2_FORMAT, id: null },
+            });
+            return;
+        }
+        const converted = convertValue(raw, type, this.options.long, onPrecision);
+        if (converted === BAD) {
+            this.report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `${where.element} is ${shown(raw)}, not a ${type.d}; unset`,
+                where,
+            );
+            return;
+        }
+        const scalar = scalarDtype(type.scalar, this.options.long);
+        this.sink.setGraphValue(name, converted, {
+            dtype: type.list ? "list" : scalar,
+            ...(type.list ? { itemDtype: scalar } : {}),
+            origin: { format: CX2_FORMAT, id: null, type: type.d },
+        });
     }
 
     /**
@@ -2226,61 +2410,10 @@ class Cx2Reader {
      */
     private readBypasses(domain: "node" | "edge", entries: readonly Held[]): void {
         const rows = domain === "node" ? this.nodeRows : this.edgeRows;
-        const columns = new Map<string, { rows: number[]; values: unknown[]; at: Map<number, number> }>();
+        const columns = new Map<string, BypassColumn>();
         for (const held of entries) {
             this.checkAbort();
-            const { value, line } = held;
-            if (!isRecord(value) || !isRecord(value.v)) {
-                this.report.error(
-                    "parse-error",
-                    BAD_ASPECT_BLOCK_CODE,
-                    `a ${domain}Bypasses element is not an object with an id and a v object; skipped`,
-                    { line, element: `${domain}Bypasses` },
-                );
-                continue;
-            }
-            const row = this.rowOf(rows, value.id);
-            if (row === undefined) {
-                this.dangle(`${domain} bypass`);
-                continue;
-            }
-            for (const [property, raw] of Object.entries(value.v)) {
-                if (raw === null || raw === undefined) {
-                    continue;
-                }
-                if (property === "") {
-                    this.report.error(
-                        "validation-error",
-                        BAD_VALUE_CODE,
-                        `a ${domain}Bypasses element holds a visual property with an empty name; skipped`,
-                        { line, element: `${domain}Bypasses` },
-                    );
-                    continue;
-                }
-                let column = columns.get(property);
-                if (column === undefined) {
-                    column = { rows: [], values: [], at: new Map() };
-                    columns.set(property, column);
-                }
-                const plain = plainJson(raw);
-                const index = column.at.get(row);
-                if (index === undefined) {
-                    column.at.set(row, column.rows.length);
-                    column.rows.push(row);
-                    column.values.push(plain);
-                    continue;
-                }
-                if (JSON.stringify(column.values[index]) !== JSON.stringify(plain)) {
-                    this.report.warnOnce(
-                        "validation-error",
-                        DUPLICATE_ATTRIBUTE_CODE,
-                        `a ${domain} has the visual property "${property}" in two ${domain}Bypasses elements; the later wins`,
-                        { line, element: property },
-                        `${DUPLICATE_ATTRIBUTE_CODE}:bypass:${domain}:${property}`,
-                    );
-                }
-                column.values[index] = plain;
-            }
+            this.collectBypass(domain, rows, columns, held);
         }
         for (const [property, { rows: targets, values }] of columns) {
             const decl: ColumnDecl = {
@@ -2292,13 +2425,95 @@ class Cx2Reader {
             };
             const handle = declareFresh(this.sink, domain, decl, this.report);
             for (let i = 0; i < targets.length; i++) {
-                if (domain === "node") {
-                    this.sink.setNodeValue(handle, targets[i], values[i]);
-                } else {
-                    this.sink.setEdgeValue(handle, targets[i], values[i]);
-                }
+                this.setValue(domain, handle, targets[i], values[i]);
             }
         }
+    }
+
+    /**
+     * Collect the visual property values of one bypass element into their columns.
+     * @param domain - node or edge
+     * @param rows - the rows of the domain's elements by id
+     * @param columns - the columns, by property
+     * @param held - the bypass element
+     */
+    private collectBypass(
+        domain: "node" | "edge",
+        rows: Map<NodeId, number>,
+        columns: Map<string, BypassColumn>,
+        held: Held,
+    ): void {
+        const { value, line } = held;
+        if (!isRecord(value) || !isRecord(value.v)) {
+            this.report.error(
+                "parse-error",
+                BAD_ASPECT_BLOCK_CODE,
+                `a ${domain}Bypasses element is not an object with an id and a v object; skipped`,
+                { line, element: `${domain}Bypasses` },
+            );
+            return;
+        }
+        const row = this.rowOf(rows, value.id);
+        if (row === undefined) {
+            this.dangle(`${domain} bypass`);
+            return;
+        }
+        for (const [property, raw] of Object.entries(value.v)) {
+            if (raw === null || raw === undefined) {
+                continue;
+            }
+            if (property === "") {
+                this.report.error(
+                    "validation-error",
+                    BAD_VALUE_CODE,
+                    `a ${domain}Bypasses element holds a visual property with an empty name; skipped`,
+                    { line, element: `${domain}Bypasses` },
+                );
+                continue;
+            }
+            let column = columns.get(property);
+            if (column === undefined) {
+                column = { rows: [], values: [], at: new Map() };
+                columns.set(property, column);
+            }
+            this.bypassValue(domain, column, property, row, plainJson(raw), line);
+        }
+    }
+
+    /**
+     * Put one visual property value in its column; a second value for the same row wins.
+     * @param domain - node or edge
+     * @param column - the property's column
+     * @param property - the property
+     * @param row - the row
+     * @param plain - the value
+     * @param line - the element's line
+     */
+    private bypassValue(
+        domain: "node" | "edge",
+        column: BypassColumn,
+        property: string,
+        row: number,
+        plain: unknown,
+        line: number,
+    ): void {
+        const index = column.at.get(row);
+        if (index === undefined) {
+            column.at.set(row, column.rows.length);
+            column.rows.push(row);
+            column.values.push(plain);
+            return;
+        }
+        if (JSON.stringify(column.values[index]) !== JSON.stringify(plain)) {
+            this.report.warnOnce(
+                "validation-error",
+                DUPLICATE_ATTRIBUTE_CODE,
+                `a ${domain} has the visual property "${property}" in two ${domain}Bypasses elements; the later wins`,
+                { line, element: property },
+                `${DUPLICATE_ATTRIBUTE_CODE}:bypass:${domain}:${property}`,
+            );
+        }
+        column.values[index] = plain;
     }
 
     // ------------------------------------------------------------ aspects, status, metadata

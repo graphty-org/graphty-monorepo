@@ -187,7 +187,7 @@ function gradientProperties(gradient: Gradient, written: Ramp): { values: Record
     const ramp = gradient.radial ? radialRamp(written, numberOr(gradient.options.cy_radius, 0.5)) : written;
     const values: Record<string, StyleValue> = {
         fill: ramp.colors[0],
-        fillGradient: ramp.colors[ramp.colors.length - 1],
+        fillGradient: ramp.colors.at(-1) ?? ramp.colors[0],
         fillGradientStops: ramp.stops.map((s) => String(num6(s))).join(" "),
     };
     if (ramp.colors.length > 2) {
@@ -217,8 +217,8 @@ export function readCytoscapeGradientsAndImages(
     notes: StyleNotes,
 ): void {
     const put = (property: string, i: number, v: StyleValue): void => {
-        const column = (out[property] ??= new Array<StyleValue | null>(n).fill(null)) as (StyleValue | null)[];
-        column[i] = v;
+        out[property] ??= new Array<StyleValue | null>(n).fill(null);
+        (out[property] as (StyleValue | null)[])[i] = v;
     };
     for (let i = 0; i < n; i++) {
         const values = SLOTS.map((slot) => graphicOf(slot, i));

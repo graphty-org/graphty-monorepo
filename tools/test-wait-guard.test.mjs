@@ -1,6 +1,6 @@
 // node --test tools/test-wait-guard.test.mjs
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
@@ -8,6 +8,7 @@ import { Linter } from "eslint";
 
 import rule from "./eslint-rules/no-test-timing.mjs";
 import { guardViWaits, TEST_GUARD_MS, WAIT_GUARD_MS, withTestGuards } from "./test-wait-guard.mjs";
+import { trackedFiles } from "./tracked-files.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 const SETUP = "../vitest.wait-guard-setup.ts";
@@ -77,13 +78,7 @@ test("vi.waitFor and vi.waitUntil always wait until the guard, whatever a call n
 });
 
 test("every vitest config in the repository is wrapped in withTestGuards", () => {
-    const configs = readdirSync(ROOT, { withFileTypes: true })
-        .filter((d) => d.isDirectory() && !d.name.startsWith(".") && d.name !== "node_modules")
-        .flatMap((d) =>
-            readdirSync(join(ROOT, d.name))
-                .filter((f) => /^vitest(\.[\w-]+)?\.config\.(ts|mts|mjs|js)$/.test(f))
-                .map((f) => join(d.name, f)),
-        );
+    const configs = trackedFiles(/^[^./][^/]*\/vitest(\.[\w-]+)?\.config\.(ts|mts|mjs|js)$/);
     assert.ok(configs.length >= 10, `found only ${configs.length} configs`);
     for (const file of configs) {
         assert.match(readFileSync(join(ROOT, file), "utf8"), /export default withTestGuards\(/, file);

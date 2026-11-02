@@ -2615,6 +2615,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         // In order, so an end never lands before the view it ends; `settled()` waits on the chain.
+        viewPending++;
         viewPasses = viewPasses
             .then(() => repaint(request, PASS_CONTEXT))
             .then(
@@ -2622,10 +2623,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 (error: unknown) => {
                     console.error("[graphty] Could not repaint a branches view.", error);
                 },
-            );
+            )
+            .finally(() => {
+                viewPending--;
+            });
     };
     /** The branches view's repaints, chained. */
     let viewPasses: Promise<void> = Promise.resolve();
+    /** How many of {@link viewPasses} have not landed yet. */
+    let viewPending = 0;
 
     /**
      * The layers a branches view draws, bottom first: the rest faint, then each branch from the
@@ -2824,9 +2830,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             lastPainted.set(versionsOf(own), prepared);
             return prepared;
         }
-        // A layer edited while a branches view suspends it is not painted until the view ends, so
-        // the stack's readings (counts, the legend) read what it last painted, never "nothing".
-        return branchesShown === null ? prepared : (lastPainted.get(versionsOf(own)) ?? prepared);
+        // A layer edited while a branches view suspends it is not painted until the view ends and
+        // its repaint lands, so until then the stack's readings (counts, agreement, the legend)
+        // read what it last painted, never "nothing" -- which would read it as covered by a layer
+        // below on every element it matches.
+        return branchesShown === null && viewPending === 0
+            ? prepared
+            : (lastPainted.get(versionsOf(own)) ?? prepared);
     };
 
     /**
@@ -2981,7 +2991,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
             return { count, of: edges ? whole.edgeCount : whole.nodeCount };
         },
-        reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), explainSources),
+        reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), countSources()),
         reached: (id, channel) => {
             const binding = byId().get(id)?.layer.encode?.[channel];
             if (binding === undefined || !("by" in binding)) {

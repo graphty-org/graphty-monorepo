@@ -654,10 +654,10 @@ export const P3_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; 
  */
 export function toleranceOf(id: string): number {
     if (WRITE) {
-        const spec = P3_TOLERANCE_CAPS[id];
-        if (spec === undefined) {
+        if (!(id in P3_TOLERANCE_CAPS)) {
             throw new Error(`${id}: not a P3 tolerance id`);
         }
+        const spec = P3_TOLERANCE_CAPS[id];
         return spec.cap;
     }
     return noiseFloorFor(id).value;
@@ -1163,11 +1163,11 @@ export function traceError(
 ): number {
     let worst = 0;
     for (let k = from; k < to; k++) {
-        const g: ForceAtlas2TraceRecord | undefined = gpu[k];
-        const o: OracleTraceRecord | undefined = oracle[k];
-        if (g === undefined || o === undefined) {
+        if (k >= gpu.length || k >= oracle.length) {
             return Number.POSITIVE_INFINITY;
         }
+        const g = gpu[k];
+        const o = oracle[k];
         worst = Math.max(
             worst,
             rel(g.swing, o.swing, 1e-9),
@@ -1208,11 +1208,11 @@ export function statsFoldError(
 ): number {
     let worst = 0;
     for (let k = from; k < to; k++) {
-        const g = stats[k];
-        const o: OracleTraceRecord | undefined = oracle[k];
-        if (g === undefined || o === undefined) {
+        if (k >= stats.length || k >= oracle.length) {
             return Number.POSITIVE_INFINITY;
         }
+        const g = stats[k];
+        const o = oracle[k];
         const floor = Math.max(o.rmsRadius, SCALAR_ABS_FLOOR);
         worst = Math.max(
             worst,
@@ -1652,11 +1652,11 @@ export function distributionalError(a: Readonly<Record<string, number>>, b: Read
     const av: number[] = [];
     const bv: number[] = [];
     for (const key of keys) {
-        const x = a[key];
-        const y = b[key];
-        if (x === undefined || y === undefined) {
+        if (!(key in a) || !(key in b)) {
             return Number.POSITIVE_INFINITY;
         }
+        const x = a[key];
+        const y = b[key];
         av.push(x);
         bv.push(y);
     }

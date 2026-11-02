@@ -514,9 +514,9 @@ describe("communities and clustering", () => {
 
     it("teraHAC and hierarchicalClustering refuse more than maxNodes nodes with E_TOO_LARGE", () => {
         const e = graph(BARBELL).elements();
-        const refusal = expect.objectContaining({
+        const refusal: unknown = expect.objectContaining({
             code: "E_TOO_LARGE",
-            params: expect.objectContaining({ maxNodes: 5 }),
+            params: expect.objectContaining({ maxNodes: 5 }) as unknown,
         });
         expect(() => e.graphtyTeraHAC({ maxNodes: 5 })).toThrow(refusal);
         expect(() => e.graphtyHierarchicalClustering({ maxNodes: 5 })).toThrow(refusal);
@@ -892,6 +892,13 @@ describe("library fixes found by the docs review", () => {
         expect(() => cy.graphtyKruskalMST((() => 1) as never)).toThrow(
             "graphtyKruskalMST: takes one options object; pass a weight function as { weight: fn }",
         );
+    });
+
+    it("refuses null options with its own message, synchronously and asynchronously", async () => {
+        const cy = graph(BARBELL);
+        const message = "graphtyPageRank: takes one options object; pass a weight function as { weight: fn }";
+        expect(() => cy.graphtyPageRank(null as never)).toThrow(message);
+        await expect(cy.graphtyPageRankAsync(null as never)).rejects.toThrow(message);
     });
 
     it("throws on a negative weight in Dijkstra and A*, which would otherwise hang or be wrong", async () => {

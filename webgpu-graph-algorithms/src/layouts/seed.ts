@@ -79,7 +79,7 @@ function resolveCenter(center: ArrayLike<number> | null): [number, number, numbe
  * @param dim - 2 or 3
  * @param scale - the scene scale
  */
-function checkSeedArgs(n: number, positions: F32, dim: 2 | 3, scale: number): void {
+function checkSeedArgs(n: number, positions: F32, dim: number, scale: number): void {
     if (dim !== 2 && dim !== 3) {
         throw new WebGpuGraphError("E_INVALID_ARGUMENT", `dim must be 2 or 3, got ${String(dim)}`, {
             argument: "dim",

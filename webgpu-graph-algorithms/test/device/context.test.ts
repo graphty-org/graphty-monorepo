@@ -672,7 +672,7 @@ describe("GpuContext: uncaptured errors, loss, disposers, release", () => {
             await ctx.device.queue.onSubmittedWorkDone();
             expect(seen).toHaveLength(1);
             expect(seen[0].code).toBe("E_VALIDATION");
-            expect(seen[0].details.label).toBe(ctx.device.label ?? "");
+            expect(seen[0].details.label).toBe((ctx.device.label as string | undefined) ?? "");
             expect(String(seen[0].details.message)).toMatch(/1024|binding/i);
             expect(ctx.takePendingError()).toBeNull();
             ctx.assertReady();

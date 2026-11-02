@@ -2240,9 +2240,13 @@ export function associate(
                           pairs.map((q) => q.to),
                       )
                     : null;
-            return refit === null
+            // the refit is a least-squares fit of body centers, which a few bodies drawn off their node's center (a
+            // shadow, an event ring) can turn and shift enough to lose a body the first frame found
+            // (yed-graphml-specimen-node-shapes-p3's corner anchor): it stands only where it finds as many
+            const again = refit === null ? null : matchBodies(guideNodes, pool, through(refit), containers);
+            return again === null || refit === null || again.size < first.size
                 ? { framed: first, groupFrame: at.t }
-                : { framed: matchBodies(guideNodes, pool, through(refit), containers), groupFrame: refit };
+                : { framed: again, groupFrame: refit };
         };
         // The free texts both draw frame the drawing too (a specimen sheet's captions, where its nodes carry no
         // labels), when they find more bodies than the frame without them: a program may set every caption off its

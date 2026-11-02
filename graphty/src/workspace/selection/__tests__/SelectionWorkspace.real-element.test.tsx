@@ -211,7 +211,7 @@ describe("the sidebar outline at rest and the workspace (check 39)", () => {
         );
         await userEvent.click(editButton());
         const ws = await opened();
-        assert.strictEqual(ws.getAttribute("role"), "region");
+        assert.include(screen.getAllByRole("region"), ws, "a region, its role implicit in its section");
         assert.isNull(document.querySelector(".mantine-Overlay-root, [data-scrim]"), "no scrim");
         assert.isNull(document.querySelector("[aria-modal='true']"), "not a dialog");
         // The inspector beside it is visible and takes a click: the layer's Fill changes.

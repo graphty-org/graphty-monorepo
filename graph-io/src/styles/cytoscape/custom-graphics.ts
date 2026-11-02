@@ -154,6 +154,55 @@ function radialRamp(ramp: Ramp, radius: number): Ramp {
 }
 
 /**
+ * A number as written, or a default where it is none.
+ * @param v - the value
+ * @param fallback - the default
+ * @returns the number
+ */
+const numberOr = (v: unknown, fallback: number): number => {
+    const x = Number(v);
+    return v === undefined || v === null || !Number.isFinite(x) ? fallback : x;
+};
+
+/**
+ * Whether a radial gradient's focus is off the node's middle.
+ * @param center - `cy_center`, fractions of the node's box
+ * @returns whether it is
+ */
+function offMiddle(center: unknown): boolean {
+    if (typeof center !== "object" || center === null) {
+        return false;
+    }
+    const c = center as { x?: unknown; y?: unknown };
+    return numberOr(c.x, 0.5) !== 0.5 || numberOr(c.y, 0.5) !== 0.5;
+}
+
+/**
+ * One node's fill gradient properties from its gradient custom graphic.
+ * @param gradient - the gradient
+ * @param written - its ramp as written
+ * @returns the properties and whether its focus is off the node's middle
+ */
+function gradientProperties(gradient: Gradient, written: Ramp): { values: Record<string, StyleValue>; off: boolean } {
+    const ramp = gradient.radial ? radialRamp(written, numberOr(gradient.options.cy_radius, 0.5)) : written;
+    const values: Record<string, StyleValue> = {
+        fill: ramp.colors[0],
+        fillGradient: ramp.colors[ramp.colors.length - 1],
+        fillGradientStops: ramp.stops.map((s) => String(num6(s))).join(" "),
+    };
+    if (ramp.colors.length > 2) {
+        values.fillGradientColors = ramp.colors.join(" ");
+    }
+    if (gradient.radial) {
+        values.fillGradientKind = "radial";
+    } else {
+        // counter-clockwise from left to right; the neutral angle turns clockwise on the screen
+        values.fillGradientAngle = num6(((-numberOr(gradient.options.cy_angle, 0) % 360) + 360) % 360);
+    }
+    return { values, off: gradient.radial && offMiddle(gradient.options.cy_center) };
+}
+
+/**
  * Sets each node's fill gradient from the first gradient among its custom graphics, and its `image` from the first
  * picture among them.
  * @param out - the node values per property, changed in place
@@ -167,48 +216,31 @@ export function readCytoscapeGradientsAndImages(
     graphicOf: (slot: string, i: number) => unknown,
     notes: StyleNotes,
 ): void {
-    const col = (property: string): (StyleValue | null)[] => {
-        const existing = out[property];
-        if (existing !== undefined) {
-            return existing as (StyleValue | null)[];
-        }
-        const fresh = new Array<StyleValue | null>(n).fill(null);
-        out[property] = fresh;
-        return fresh;
+    const put = (property: string, i: number, v: StyleValue): void => {
+        const column = (out[property] ??= new Array<StyleValue | null>(n).fill(null)) as (StyleValue | null)[];
+        column[i] = v;
     };
     for (let i = 0; i < n; i++) {
         const values = SLOTS.map((slot) => graphicOf(slot, i));
         const image = values.map(imageOf).find((v) => v !== null);
         if (image !== undefined) {
-            col("image")[i] = image;
+            put("image", i, image);
         }
         const gradient = values.map(gradientOf).find((v) => v !== null);
         const written = gradient === undefined ? null : rampOf(gradient.options);
         if (gradient === undefined || written === null) {
             continue;
         }
-        const radius = Number(gradient.options.cy_radius);
-        const ramp = gradient.radial ? radialRamp(written, Number.isFinite(radius) ? radius : 0.5) : written;
-        col("fill")[i] = ramp.colors[0];
-        col("fillGradient")[i] = ramp.colors.at(-1) ?? null;
-        if (ramp.colors.length > 2) {
-            col("fillGradientColors")[i] = ramp.colors.join(" ");
+        const { values: properties, off } = gradientProperties(gradient, written);
+        for (const [property, v] of Object.entries(properties)) {
+            put(property, i, v);
         }
-        col("fillGradientStops")[i] = ramp.stops.map((s) => String(num6(s))).join(" ");
-        if (gradient.radial) {
-            col("fillGradientKind")[i] = "radial";
-            const c = gradient.options.cy_center as { x?: unknown; y?: unknown } | null | undefined;
-            if (c !== null && c !== undefined && (Number(c.x ?? 0.5) !== 0.5 || Number(c.y ?? 0.5) !== 0.5)) {
-                // ponytail: graphty's radial fill runs from the node's middle; a focus off it is drawn centered
-                notes.add(STYLE_ISSUE.APPROXIMATED, "node", "fillGradientKind", {
-                    sample: JSON.stringify(c),
-                    element: i,
-                });
-            }
-        } else {
-            const angle = Number(gradient.options.cy_angle);
-            // counter-clockwise from left to right; the neutral angle turns clockwise on the screen
-            col("fillGradientAngle")[i] = num6(((-(Number.isFinite(angle) ? angle : 0) % 360) + 360) % 360);
+        if (off) {
+            // ponytail: graphty's radial fill runs from the node's middle; a focus off it is drawn centered
+            notes.add(STYLE_ISSUE.APPROXIMATED, "node", "fillGradientKind", {
+                sample: JSON.stringify(gradient.options.cy_center),
+                element: i,
+            });
         }
     }
 }

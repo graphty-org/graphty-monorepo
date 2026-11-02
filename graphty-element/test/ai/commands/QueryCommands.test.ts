@@ -5,9 +5,10 @@
 
 import { assert, beforeEach, describe, it } from "vitest";
 
-import { findNodes, queryGraph } from "../../../src/ai/commands/QueryCommands";
+import { findNodes, getSchema, queryGraph } from "../../../src/ai/commands/QueryCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
+import { createMockGraphContext } from "../../helpers/mock-graph-context";
 import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 
 describe("QueryCommands", () => {
@@ -118,6 +119,72 @@ describe("QueryCommands", () => {
 
         it("tells the model the cap exists", () => {
             assert.include(findNodes.description, "50");
+        });
+    });
+
+    describe("getSchema", () => {
+        /**
+         * A graph whose nodes carry two types and a numeric score, and whose edges carry a
+         * weight and no type.
+         * @returns The graph.
+         */
+        function typedGraph(): Graph {
+            return createMockGraphContext({
+                nodeCount: 6,
+                edgeCount: 4,
+                nodeData: (i) => ({ type: i % 2 === 0 ? "person" : "place", score: i }),
+                edgeData: (i) => ({ weight: i }),
+            });
+        }
+
+        it("lists the node types", async () => {
+            const result = await getSchema.execute(typedGraph(), { query: "nodeTypes" }, context);
+            assert.strictEqual(result.success, true);
+            assert.deepStrictEqual(result.data, { nodeTypes: ["person", "place"] });
+            assert.strictEqual(result.message, "Found 2 node types: person, place");
+        });
+
+        it("says there are no edge types when edges carry none", async () => {
+            const result = await getSchema.execute(typedGraph(), { query: "edgeTypes" }, context);
+            assert.strictEqual(result.success, true);
+            assert.deepStrictEqual(result.data, { edgeTypes: [] });
+            assert.include(result.message, "No distinct edge types found");
+        });
+
+        it("describes each node property as a line", async () => {
+            const result = await getSchema.execute(typedGraph(), { query: "nodeProperties" }, context);
+            assert.strictEqual(result.success, true);
+            assert.match(result.message, /^Node properties:\n- /);
+            assert.match(result.message, /- score: (number|integer)/);
+        });
+
+        it("describes each edge property as a line", async () => {
+            const result = await getSchema.execute(typedGraph(), { query: "edgeProperties" }, context);
+            assert.strictEqual(result.success, true);
+            assert.match(result.message, /^Edge properties:\n- /);
+            assert.match(result.message, /- weight: (number|integer)/);
+        });
+
+        it("summarizes the whole schema", async () => {
+            const result = await getSchema.execute(typedGraph(), { query: "all" }, context);
+            assert.strictEqual(result.success, true);
+            assert.match(
+                result.message,
+                /^Graph Schema Summary:\n- 6 nodes with \d+ properties\n- 4 edges with \d+ properties/,
+            );
+            assert.include(result.message, "\n\nNode types: person, place");
+            assert.notInclude(result.message, "Edge types:");
+            assert.include(result.message, "\n\nEdge properties: ");
+            const data = result.data as { nodeTypes: string[]; edgeTypes: string[]; nodeCount: number };
+            assert.deepStrictEqual(data.nodeTypes, ["person", "place"]);
+            assert.deepStrictEqual(data.edgeTypes, []);
+            assert.strictEqual(data.nodeCount, 6);
+        });
+
+        it("refuses an unknown query", async () => {
+            const result = await getSchema.execute(typedGraph(), { query: "nope" }, context);
+            assert.strictEqual(result.success, false);
+            assert.strictEqual(result.message, "Unknown schema query type: nope");
         });
     });
 });

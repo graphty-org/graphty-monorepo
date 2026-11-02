@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import type { Graph } from "../../Graph";
 import { SchemaExtractor } from "../schema/SchemaExtractor";
+import type { PropertySummary, SchemaSummary } from "../schema/types";
 import { CONNECTED_BY_SYNTAX, isMatchAllSelector, matchingNodeIds, noMatchMessage, SELECTOR_SYNTAX } from "./selectors";
 import type { CommandResult, GraphCommand } from "./types";
 
@@ -180,6 +181,100 @@ const SchemaQueryTypeSchema = z
     .describe("Type of schema information to retrieve");
 
 /**
+ * Collect the unique string values of one property, for when enum detection fails (for
+ * example, a sample too small for statistical detection).
+ * @param items - The nodes or edges to read.
+ * @param propertyName - The property to collect.
+ * @param maxUnique - Above this many unique values the property is not categorical.
+ * @returns The sorted unique values, or none when there are too many.
+ */
+function collectUniqueValues(
+    items: Iterable<{ data?: Record<string, unknown> }>,
+    propertyName: string,
+    maxUnique = 20,
+): string[] {
+    const values = new Set<string>();
+    for (const item of items) {
+        const value = item.data?.[propertyName];
+        if (typeof value === "string") {
+            values.add(value);
+            if (values.size > maxUnique) {
+                return []; // Too many unique values
+            }
+        }
+    }
+    return Array.from(values).sort();
+}
+
+/**
+ * The values of the `type` property: its detected enum values, or, when none were detected
+ * (small sample), the unique values collected from the items.
+ * @param properties - The node or edge property summaries.
+ * @param items - Reads the nodes or edges, called only when the fallback is needed.
+ * @returns The type values.
+ */
+function typeValues(
+    properties: PropertySummary[],
+    items: () => Iterable<{ data?: Record<string, unknown> }>,
+): string[] {
+    const typeProperty = properties.find((p) => p.name === "type");
+    const types = typeProperty?.enumValues ?? [];
+    return types.length === 0 ? collectUniqueValues(items(), "type") : types;
+}
+
+/**
+ * One property as a line of the property listing: its name and type, then its values and range.
+ * @param p - The property summary.
+ * @returns The description.
+ */
+function describeProperty(p: PropertySummary): string {
+    let desc = `${p.name}: ${p.type}`;
+    if (p.enumValues && p.enumValues.length > 0) {
+        desc += ` (values: ${p.enumValues.join(", ")})`;
+    }
+
+    if (p.range) {
+        desc += ` (range: ${p.range.min}-${p.range.max})`;
+    }
+
+    return desc;
+}
+
+/**
+ * The schema summary message of the `all` query.
+ * @param schema - The extracted schema.
+ * @param nodeTypes - The node type values.
+ * @param edgeTypes - The edge type values.
+ * @returns The message.
+ */
+function schemaSummaryMessage(schema: SchemaSummary, nodeTypes: string[], edgeTypes: string[]): string {
+    const nodeProps = schema.nodeProperties.map((p) => p.name);
+    const edgeProps = schema.edgeProperties.map((p) => p.name);
+
+    let message = `Graph Schema Summary:
+- ${schema.nodeCount} nodes with ${schema.nodeProperties.length} properties
+- ${schema.edgeCount} edges with ${schema.edgeProperties.length} properties`;
+
+    if (nodeTypes.length > 0) {
+        message += `\n\nNode types: ${nodeTypes.join(", ")}`;
+    }
+
+    if (edgeTypes.length > 0) {
+        message += `\n\nEdge types: ${edgeTypes.join(", ")}`;
+    }
+
+    if (nodeProps.length > 0) {
+        message += `\n\nNode properties: ${nodeProps.join(", ")}`;
+    }
+
+    if (edgeProps.length > 0) {
+        message += `\n\nEdge properties: ${edgeProps.join(", ")}`;
+    }
+
+    return message;
+}
+
+/**
  * Command to get schema information about the graph data.
  * Returns information about node types, edge types, and available properties.
  */
@@ -206,36 +301,9 @@ export const getSchema: GraphCommand = {
             const schema = extractor.extract();
             const dataManager = graph.getDataManager();
 
-            // Helper to collect unique values for a property when enum detection fails
-            // (e.g., sample size too small for statistical detection)
-            const collectUniqueValues = (
-                items: Iterable<{ data?: Record<string, unknown> }>,
-                propertyName: string,
-                maxUnique = 20,
-            ): string[] => {
-                const values = new Set<string>();
-                for (const item of items) {
-                    const value = item.data?.[propertyName];
-                    if (typeof value === "string") {
-                        values.add(value);
-                        if (values.size > maxUnique) {
-                            return []; // Too many unique values
-                        }
-                    }
-                }
-                return Array.from(values).sort();
-            };
-
             switch (query) {
                 case "nodeTypes": {
-                    // Find the 'type' property in node properties and get its enum values
-                    const typeProperty = schema.nodeProperties.find((p) => p.name === "type");
-                    let types = typeProperty?.enumValues ?? [];
-
-                    // Fallback: if no enum values detected (small sample), collect manually
-                    if (types.length === 0) {
-                        types = collectUniqueValues(dataManager.nodes.values(), "type");
-                    }
+                    const types = typeValues(schema.nodeProperties, () => dataManager.nodes.values());
 
                     if (types.length === 0) {
                         return Promise.resolve({
@@ -254,14 +322,7 @@ export const getSchema: GraphCommand = {
                 }
 
                 case "edgeTypes": {
-                    // Find the 'type' property in edge properties and get its enum values
-                    const typeProperty = schema.edgeProperties.find((p) => p.name === "type");
-                    let types = typeProperty?.enumValues ?? [];
-
-                    // Fallback: if no enum values detected (small sample), collect manually
-                    if (types.length === 0) {
-                        types = collectUniqueValues(dataManager.edges.values(), "type");
-                    }
+                    const types = typeValues(schema.edgeProperties, () => dataManager.edges.values());
 
                     if (types.length === 0) {
                         return Promise.resolve({
@@ -280,18 +341,7 @@ export const getSchema: GraphCommand = {
                 }
 
                 case "nodeProperties": {
-                    const props = schema.nodeProperties.map((p) => {
-                        let desc = `${p.name}: ${p.type}`;
-                        if (p.enumValues && p.enumValues.length > 0) {
-                            desc += ` (values: ${p.enumValues.join(", ")})`;
-                        }
-
-                        if (p.range) {
-                            desc += ` (range: ${p.range.min}-${p.range.max})`;
-                        }
-
-                        return desc;
-                    });
+                    const props = schema.nodeProperties.map(describeProperty);
 
                     const lines = props.map((p) => `- ${p}`).join("\n");
                     return Promise.resolve({
@@ -302,18 +352,7 @@ export const getSchema: GraphCommand = {
                 }
 
                 case "edgeProperties": {
-                    const props = schema.edgeProperties.map((p) => {
-                        let desc = `${p.name}: ${p.type}`;
-                        if (p.enumValues && p.enumValues.length > 0) {
-                            desc += ` (values: ${p.enumValues.join(", ")})`;
-                        }
-
-                        if (p.range) {
-                            desc += ` (range: ${p.range.min}-${p.range.max})`;
-                        }
-
-                        return desc;
-                    });
+                    const props = schema.edgeProperties.map(describeProperty);
 
                     if (props.length === 0) {
                         return Promise.resolve({
@@ -332,43 +371,9 @@ export const getSchema: GraphCommand = {
                 }
 
                 case "all": {
-                    // Get node types (with fallback for small samples)
-                    const nodeTypeProperty = schema.nodeProperties.find((p) => p.name === "type");
-                    let nodeTypes = nodeTypeProperty?.enumValues ?? [];
-                    if (nodeTypes.length === 0) {
-                        nodeTypes = collectUniqueValues(dataManager.nodes.values(), "type");
-                    }
-
-                    // Get edge types (with fallback for small samples)
-                    const edgeTypeProperty = schema.edgeProperties.find((p) => p.name === "type");
-                    let edgeTypes = edgeTypeProperty?.enumValues ?? [];
-                    if (edgeTypes.length === 0) {
-                        edgeTypes = collectUniqueValues(dataManager.edges.values(), "type");
-                    }
-
-                    // Format properties
-                    const nodeProps = schema.nodeProperties.map((p) => p.name);
-                    const edgeProps = schema.edgeProperties.map((p) => p.name);
-
-                    let message = `Graph Schema Summary:
-- ${schema.nodeCount} nodes with ${schema.nodeProperties.length} properties
-- ${schema.edgeCount} edges with ${schema.edgeProperties.length} properties`;
-
-                    if (nodeTypes.length > 0) {
-                        message += `\n\nNode types: ${nodeTypes.join(", ")}`;
-                    }
-
-                    if (edgeTypes.length > 0) {
-                        message += `\n\nEdge types: ${edgeTypes.join(", ")}`;
-                    }
-
-                    if (nodeProps.length > 0) {
-                        message += `\n\nNode properties: ${nodeProps.join(", ")}`;
-                    }
-
-                    if (edgeProps.length > 0) {
-                        message += `\n\nEdge properties: ${edgeProps.join(", ")}`;
-                    }
+                    const nodeTypes = typeValues(schema.nodeProperties, () => dataManager.nodes.values());
+                    const edgeTypes = typeValues(schema.edgeProperties, () => dataManager.edges.values());
+                    const message = schemaSummaryMessage(schema, nodeTypes, edgeTypes);
 
                     return Promise.resolve({
                         success: true,

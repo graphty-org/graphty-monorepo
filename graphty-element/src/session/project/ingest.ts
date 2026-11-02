@@ -1679,30 +1679,58 @@ export class Ingest<K extends KnownEdge> {
                 continue;
             }
 
-            if (policy !== "keep") {
-                const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
-                if (!replacing && this.knownEdgeFor(srcNodeId, dstNodeId, recordId) !== null) {
-                    continue;
-                }
-
-                const pairs = seenPairs.get(srcNodeId) ?? new Set<NodeIdType>();
-                seenPairs.set(srcNodeId, pairs);
-                const repeatsBatch = isStorableRecordId(recordId) ? seenIds.has(recordId) : pairs.has(dstNodeId);
-                if (repeatsBatch) {
-                    continue;
-                }
-
-                if (isStorableRecordId(recordId)) {
-                    seenIds.add(recordId);
-                }
-
-                pairs.add(dstNodeId);
+            if (
+                policy !== "keep" &&
+                this.folds(edge, recordIdPath, srcNodeId, dstNodeId, replacing, seenIds, seenPairs)
+            ) {
+                continue;
             }
 
             adding++;
         }
 
         return adding;
+    }
+
+    /**
+     * Whether an edge record folds into an edge the graph holds or one earlier in the batch, and
+     * if not, remember it as seen.
+     * @param edge - the record
+     * @param recordIdPath - where its record id is, or null when none is configured
+     * @param srcNodeId - its source
+     * @param dstNodeId - its target
+     * @param replacing - true when every held edge is about to be removed
+     * @param seenIds - the record ids earlier in the batch
+     * @param seenPairs - the endpoint pairs earlier in the batch, by source
+     * @returns true when it adds nothing
+     */
+    private folds(
+        edge: Record<string | number, unknown>,
+        recordIdPath: string | null,
+        srcNodeId: NodeIdType,
+        dstNodeId: NodeIdType,
+        replacing: boolean,
+        seenIds: Set<string | number>,
+        seenPairs: Map<NodeIdType, Set<NodeIdType>>,
+    ): boolean {
+        const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
+        if (!replacing && this.knownEdgeFor(srcNodeId, dstNodeId, recordId) !== null) {
+            return true;
+        }
+
+        const pairs = seenPairs.get(srcNodeId) ?? new Set<NodeIdType>();
+        seenPairs.set(srcNodeId, pairs);
+        const repeatsBatch = isStorableRecordId(recordId) ? seenIds.has(recordId) : pairs.has(dstNodeId);
+        if (repeatsBatch) {
+            return true;
+        }
+
+        if (isStorableRecordId(recordId)) {
+            seenIds.add(recordId);
+        }
+
+        pairs.add(dstNodeId);
+        return false;
     }
 
     /**

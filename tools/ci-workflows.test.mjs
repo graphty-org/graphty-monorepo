@@ -115,11 +115,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 25 jobs", () => {
+    it("runs every shard exactly once on a full run, in 27 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 25);
+        assert.equal(include.length, 27);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -193,10 +193,13 @@ describe("the test matrix", () => {
     // decode and every story errors (#4989). The test job pulls a matrix entry's "lfs" (see ci.yml below).
     it("names the Git LFS files a shard reads, alone, in its group and in a light-check bin", () => {
         const oracles = "graph-io/test/fidelity/oracles/*.png";
-        assert.equal(SHARDS.find((s) => s.shard === "graph-io-storybook").lfs, oracles);
-        assert.equal(plan(PACKAGES).find((e) => e.shard === "small-browser").lfs, oracles);
+        for (const n of [1, 2]) {
+            assert.equal(plan(PACKAGES).find((e) => e.shard === `graph-io-storybook-${n}`).lfs, oracles);
+        }
+        const fake = (shard, lfs) => ({ shard, package: shard, "test-command": "true", lfs });
+        assert.equal(groupEntry("g", [fake("a", oracles), fake("b"), fake("c", "x/*.png")]).lfs, `${oracles},x/*.png`);
         assert.equal(plan(["graph-samples"])[0].lfs, "", "a group whose members read no LFS file pulls none");
-        const bin = { name: "graph-io-storybook-1", shard: "graph-io-storybook", command: "true", files: [] };
+        const bin = { name: "graph-io-storybook-9", shard: "graph-io-storybook-1", command: "true", files: [] };
         assert.equal(plan(["graph-io"], undefined, { bins: [bin] }).find((e) => e.shard === bin.name).lfs, oracles);
     });
 
@@ -1756,7 +1759,7 @@ describe("ci.yml", () => {
         assert.equal(build.match(/echo "light=true"/g).length, 2);
         assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 25, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 27, "a full run is every shard");
         // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
         // WRITES pick a token on master; they skip nothing)
         for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
@@ -1874,7 +1877,7 @@ describe("verification runs of ci.yml", () => {
         assert.equal(called.status, 0, called.stderr);
         assert.equal(called.out.full, "true");
         assert.equal(called.out.light, undefined, "a verification run is not light");
-        assert.equal(called.out["test-count"], "25");
+        assert.equal(called.out["test-count"], "27");
         const master = planStep({ EVENT: "push" });
         assert.equal(master.status, 0, master.stderr);
         assert.equal(master.out.light, "true");

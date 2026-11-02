@@ -23,30 +23,32 @@ picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360d
 Trimmed again 2026-11-02: the 2026-10-30 study tool facts (scripted bars, the gate's walk
 folders, the wording check, the matcher's role names, data panel selectors, `REAL_WARM_POOL=0`,
 one background script per re-walk): `git show 42601df9bf:design/ui/studio/notes/engineer.md`.
+Trimmed again 2026-11-02 (file at 31 KB): the tier 4 round 1 close, its cheapest bar fixes, two
+lessons, the round 1 screenshot audit and the open date-card and mixed-glyph defects:
+`git show 0ec56d2f3b:design/ui/studio/notes/engineer.md`.
 
-- (2026-11-02) A test's mode is the step's own (decided.md, "Dry run pass 1"). Two causes. (1) An
-  element defect: a `measure` step's run was keyed by its whole rule, test included
-  (`definitionKey` in `graphty-element/src/session/scope/stepRuns.ts`), so By position (which
-  writes an inert test) made `reading.run` null, `stepCard` returned no card, the pane lost its
-  select, bars and boxes and focus fell out (T74 A and B). Fixed in the element: the key leaves the
-  test out. (2) The mode lived in NumberCard's local state and the date card read its mode back from
-  the bounds, which cannot say it (no date, or Between with only a "to"). Added `UnionStep.mode?:
-  string` (additive, opaque, the element never reads it; owner-decisions.md "decided by the team");
-  `StepPane` writes `modeOf(card)` with every card commit and `stepCard` applies it (`withMode` in
-  `selection/values.ts`). A date mode change carries the typed date (`dateModeOf` in WhichPicker:
-  Before and After share one date, Between takes Before's as "to" and After's as "from"); a mode
-  pick moves focus to the mode's first box (`useFocusAfterMode`), so "By position; type 5" works.
-  Tests: element `watch-steps.test.ts` ("keeps its run ... keeps its mode", fails on the old key);
-  app `SelectionWorkspace.real-element.test.tsx` ("a test's mode is the step's own") and
-  `DateCard.real-element.test.tsx` ("keeps the mode picked ..."); both app tests hang at the wait
-  guard on the old sources (the box never appears), so stop such a run rather than sit on it.
-  Walked on a fresh `graphty/dist` into `design/ui/studio/tmp/r1-dry1-test-mode/`: T74A "PageRank:
-  Influence top 5", 5 of 24, v02 v05 v09 v13 v21, reopened By position 5; T74B 3 of 11 G02 G03
-  G04; T72B After stays After, Before 2000 then Between keeps "to 2000", from 1990 gives 3 (G01 G05
-  G09); T70B Before 2000 3 of 11; T77B before 2005 3 of 7. `--rewalk` of T70B and T77B diverges at
-  step 1 or 2 on the table's dropped Group column (1c02b8a883), not on this fix. Still open: a
-  Between step with only its "to" reads on its row as "before 2001" (the row words come from the
-  rule, not the mode); true, but not the reader's words.
+- (2026-11-02) RE-WALK, main-table and test-mode fixes (1c02b8a883, a6257fe0c7) on a rebuilt
+  `graphty/dist` (stamp a6257fe0c7), `design/ui/studio/tmp/r1-dry1-recheck-main-table/`: no
+  regression, every acceptance holds. Method that worked: `sweep.sh` replays the pilot routes 4 at a
+  time with `REAL_REPLAY_TOLERANCE=1000` (the hidden data table changes every screen's control
+  list, so only printed output and names count) and `--end-on-diverge`; a step that only did
+  nothing in the pilot is dropped with `drop.py` and the route replayed again; the fix walks in
+  `tmp/r1-dry1-test-mode/` replay with `--keep` and serve as the continuation. After Done the data
+  table lists what the canvas draws (T75A 112 of 549, T71B 6 and 3, T70B 7, T77B 9, T70A d3 15 of
+  24); under an open workspace F6 cycles workspace, preview, inspector, status, top bar, rail and
+  never the table; Tab never reaches it; after Done it is back as it was. T74A/B By position 5 and
+  3 (5 of 24, 3 of 11 G02 G03 G04) reopen as By position; By position by keys puts focus in "how
+  many". Dates: Between to After keeps 1990, After to Between, Between 1990 to 1999 is 3 of 11 and
+  reopens so. Observations, not regressions: (a) By position 7, By value, By position again comes
+  back empty (`top: undefined` on the switch, as before the fix); (b) Between "to 1999" to Before
+  gives "before 1999", dropping 1999 itself (the same text, a different bound, as decided.md says
+  the date moves); (c) By value after a brush shows the min at full precision
+  (0.0279617489842932) once focus moves into it; (d) F6 into the data table now lands on the column
+  header last used (the setup's "installed"), not on the Nodes tab: `panelTarget` restores the
+  control that last had focus, which now survives because the table no longer re-renders under an
+  editor (likely mechanism, not proven); (e) "5 of 24 nodes" is announced twice on Enter.
+  The fix itself: the element keys a measure step's run without its test (`stepRuns.ts`), and
+  `UnionStep.mode?: string` (additive, opaque) holds the mode; details `git show a6257fe0c7`.
 
 - (2026-11-02) A 50,000-node edit shows "Drawing" before it blocks (decided.md "Dry run pass 1").
   App only: `SelectionEditor.tsx` hands every edit, Done, Cancel and Escape on one painted frame
@@ -65,6 +67,23 @@ one background script per re-walk): `git show 42601df9bf:design/ui/studio/notes/
   it lives: graphty-element caches `agreement` per style and input revision (as a reading over an
   unchanged stack), or the app stops re-reading it on renders that change nothing it reads.
   `REAL_PROFILE=1` + `tmp/busy-sign/prof.mjs` in the studio worktree found it.
+
+- (2026-11-02) REGRESSION in the cancel-new-card fix (0ec56d2f3b), re-walked on `graphty/dist`
+  (stamps 92a64cffe5 and 0ec56d2f3b, both hold it) in
+  `design/ui/studio/tmp/r1-dry1-recheck-cancel-new-card/`: a new filter card opened from Quick
+  actions (Ctrl+K, "filter", Enter), then Cancel (or Escape on its empty picker), sends focus to
+  "Main menu" (or the toolbar's "Quick actions"), not "Add filter" as the frozen build did
+  (`keyboard-sr/16.png`; frozen: `keyboard-sr-frozen/`). Mechanism: `FiltersSection.open` records
+  `document.activeElement` when the card is made; from the palette that is the body or the control
+  the palette hands focus back to, never a filter control, and `backToOpener` focuses any connected
+  element outside `.dp-filter` (body.focus() does nothing, so focus falls to the first stop).
+  Fix: remember the opener only when it is a control that opens filters (toolbar Filters, Add
+  filter, an attribute's Filter to...), or fall back to Add filter when it is the body or inside a
+  closed popup. Everything else held: T79A d3 and T70B d5 end with no card and no top-bar mark,
+  Enter on the returned focus opens a new card (focus was on Add filter); T77B d2 Cancel on an
+  existing card restores "telemetry yes" 7 of 11 and keeps it, Undo then reads "Undo editing the
+  filter"; a once-new card reopened and Cancelled restores its rule (the born flag resets on close);
+  T77B d3 toolbar Filters, Escape keeps focus on toolbar Filters; layer editor Done unchanged.
 
 - (2026-11-02) The data table never takes an editor's selection (decided.md, "Dry run pass 1").
   Cause: `TableDock` read the store's `editingSelection` (Group column, "Matches only", whole-graph
@@ -119,43 +138,6 @@ one background script per re-walk): `git show 42601df9bf:design/ui/studio/notes/
   no Fill "Covered by" and no key "covered by" for the edited layer on any; the key's count equals
   Which nodes. Where the key still says "covered by", it is under the LOWER layer, which the edited
   layer truly paints over (T70A, T73A) -- correct.
-- (2026-10-30) Tier 4 round 1 closed; the studio stopped at its 1-round cap with bars 2, 3, 5, 6
-  and 7 failing (`tier4/rounds/round-1/insights.md`). No severity 3 or 4 survived the skeptic
-  checks. Most severe open problem (sev 2): the join preview tags the wrong rows -- the
-  unknown-end row looks "left out" though Join adds it as an empty node, and a repeated key is
-  tagged as added. Fix there first: the preview must show exactly what Join will do.
-- (2026-10-30) Cheapest bar fixes when work resumes: bar 6 -- the joined source row clips the
-  approved "17/19 rows joined" ratio and cuts the second file's name (one layout fix: truncate the
-  name last, never the ratio; also "17 of 19 joined" beside 18 edges reads as a contradiction).
-  Bar 5 -- the table's Nodes tab `aria-controls` names a panel that is never rendered (axe
-  critical on 14 of 16 screens): render the panel or drop the attribute, in compact-mantine if the
-  Tabs component is the cause.
-- (2026-10-30) Lesson: choices that act before the reader decides cost the most -- the unknown
-  end defaults to "Add nodes" after Join, a new filter card starts on Hide, "Leave out" does not
-  say it deletes. Prefer showing the choice before the act over picking a default for it.
-- (2026-10-30) Lesson: one fact drawn two ways sends readers to a second menu. Setting a column as
-  the time must change its header kind glyph to date (the timeline already draws dates); place
-  roles need a header chip; a filter card's count must use one basis under Hide and Select.
-- (2026-10-30) The study tool printed `tooltip: null` on hovers that open a popover (the issue
-  mark's fix list), which produced false findings and wrong turns. `real.mjs` must report an open
-  popover or hover card before any further round. A tool line is a claim; check the screenshot.
-
-- (2026-10-30) Round 1 screenshot audit on 79ed770292 at 1200x900 and 900x700:
-  `tier4/rounds/round-1/expert/engineer.md`. No severity 3 or 4. Top severity 2s, all app: the
-  table dock header overflows at 900 (issues chip drawn over the Edges tab, Edges tab gone with a
-  Hide card on, "Columns:..." cut); source names cut to ONE letter after a join ("d..", "f...");
-  kind glyphs differ between table header and Fields/Filters lists (still); Export Columns chip
-  "1 of 1" for Edges while the table says 3 of 3; at 900 the canvas toolbar covers a third of the
-  drawing. Fix order if a fix pass comes: header row overflow, source name truncating last, the
-  export column count, the one glyph map.
-
-- (2026-10-29) OPEN DEFECT in the date card (`DateCard` in `style/WhichPicker.tsx`): changing its
-  match (Before -> After) clears the box but the filter keeps the old bounds. Fix: a date card with
-  no bound writes no condition; test by real input switching the match.
-- (2026-10-29) Still open: a mixed column draws the mixed glyph in the table but Aa in Fields
-  (`TypeGlyph` has no "mixed"); unticking every load in a Data source card leaves the last rule.
-  Seen 2026-10-30: after a join the first file's row loses its issue chip while the table still
-  says "With issues 2".
 
 ## Working facts and open defects
 
@@ -292,73 +274,12 @@ date)` lost its kind and column arguments: a text or number time field shows its
   worktree also reverts other agents' uncommitted hunks; build a patch from `git show HEAD:<file>`
   with only your own edits and `git apply --cached` it to commit just those.
 
-- 2026-10-30 worked (screenshot audit): `bars.mjs <out> --dist <frozen> --tier 4 --size <WxH>`
-  walks the nine data screens at any size and adds the cut-text check (bar10 in bars.json) for
-  free; then plain `real.mjs` walks with `REAL_VIEWPORT` for the states it skips (cards, header
-  menu, export scopes), each walk in one background script, one browser at a time. Without
-  `REAL_SCHEME` the sessions open light, the bars walk dark: both themes for nothing.
-- 2026-10-30 did not work (names in audit walks): "Expand gauges.csv" is not there while the group
-  is open; a column name with the Filters picker open is ambiguous (header button vs option): use
-  `role=option:<name>`; "Add a condition" exists only once a value is ticked; with the picker open,
-  a bare `--click installed` sorted the table instead.
-- 2026-10-30: design-studio screenshots never go into git (`tools/check-committed-images.mjs`);
-  commit only the audit's .md, naming screenshots by path.
-
-- 2026-10-30 worked: verifying the browser gate with ten `--start`s in one background script, each
-  holding its browser for two `--wait` steps, counting `node ... real.mjs --serve|--warm`
-  processes once a second (count the node processes only; the gate's bash wrapper repeats the
-  command line): at most 8, every session ended, `BROWSER_SLOTS=17` refused (exit 2).
-- 2026-10-30 did not work: `--expect "Add source"` and `--expect "1 issue in ..."`: `--expect`
-  text does not read accessible names; an icon button needs `--expect role=button:<name>`.
-- 2026-10-30 did not work: a shell heredoc whose text holds a timed polling loop is refused by the
-  foreground-wait hook even when it only writes a file; write the script with the Write tool.
-
-- 2026-10-30 worked: one background script replaying every route in turn, plus a Monitor on its
-  results file; a foreground wait loop is refused by the hook, so check the file between other work.
-- 2026-10-30 worked: a strip of each screenshot's Filters column and selection header
-  (`tmp/u1-select-count/strip.py`) reads chip counts and "N nodes selected" side by side.
-
-- 2026-10-29 worked: `--replay <route> <folder> --keep` on a route that ends just short of the
-  changed screen, then hand `--step`s (With issues, Tab, ArrowRight, `--read`) to reach it; the
-  pilot's own success routes stop one click before the fix shows.
-
-- 2026-10-29 did not work: a background wait loop on `pgrep -f "<pattern>"` matches its own shell
-  command line and never ends; wait on a file the job writes instead.
-
-- 2026-10-29 worked: replaying the fix author's own re-walk folders (they carry the hand steps past
-  the pilot's divergence) gives a full-length match check of the new screens in one pass.
-
-- 2026-10-29 worked: a `--replay` without `--end-on-diverge` stays open on the diverged
-  screen; carry on by hand with `--step`, then `--end`. `--end-on-diverge` when only the first
-  changed screen matters.
-- 2026-10-29 worked: a real-element test that loads a 1,000-edge chain CSV with one padded value at
-  the default (= narrowest, `PANEL_MIN` 240) left panel and compares the chips' boxes
-  (`SourceIssues.real-element.test.tsx`); it failed on the old CSS (edge chip right 267 > issue
-  chip left 215). Did not work: first fix (name `min-width: 0` + button min-width auto) -- the
-  name's full text width moved into the button's min size and the chips left the panel.
-- 2026-10-29: Targeted re-walk of the refused-row, date-condition and weight-role fixes on a fresh
-  build (sessions in `design/ui/studio/tmp/r1-dry1-recheck-U2/`). Worked: yeast from its address
-  331/361 with no chip (T60B-success/07.png), sources.graphml clean; Before 2005 + Select marks
-  G01, G02, G09 and 5 in all (T65B-path/14.png); a style layer's Which nodes takes the date card
-  (T65B-style/20.png); km set in Fields and by the header's Role > Weight both open Shortest path
-  on km and the path totals 14.1 km (T64B-success-analyze/43.png, T64B-role-weight/22.png); trips
-  closer reads as PageRank's default and Shortest path lists it disabled, never "farther".
-  Did not work: switching a date card's match leaves stale bounds (see Top of mind 00). Lesson:
-  `--replay` "matches" ignore a combobox's value and a card's body (None -> km, text card -> date
-  card both "matched"), so look at the screenshots at every step a fix should change.
-
-- 2026-10-29 worked: a Mantine `Autocomplete` for a date box (suggestions: the column's dates as
-  the table writes them). Its role is `combobox`, not `textbox`: a test that looks for a textbox
-  misses it.
-- 2026-10-29 did not work at first: parsing every keystroke with `session.time.parse` -- "2" read
-  as 2 ms, so a Before card was written before the year was typed; fixed by refusing bare numbers
-  shorter than a year.
-
-- 2026-10-29 worked: a node vitest probe loading the studio file through `{ url }` (fetch stubbed)
-  and `{ file }` reproduced "6 rows refused" in both, so the bug was never the address path or a
-  second read. The 6 were `E_COLUMN_TYPE` on lines 179 and 329 ("null" in three double columns).
-- 2026-10-29 did not work: `npm run build` in graph-io for the element's tests (writes `dist/src`).
-
+- Entries dated 2026-10-29 and 2026-10-30 (screenshot audit with bars.mjs, names in audit walks,
+  the browser gate check, replay with --keep and --end-on-diverge, background re-walk scripts, the
+  date Autocomplete, the 1,000-node real-element test): `git show 0ec56d2f3b:design/ui/studio/notes/engineer.md`.
+- 2026-11-02 worked: comparing a keyboard path in two `--sr` sessions, the fixed `graphty/dist`
+  and the frozen build, side by side: the `focus:` lines show a focus-return regression that a
+  pointer walk (no focus ring after a click) cannot.
 - Entries dated 2026-10-21 and earlier (bars.mjs sizes, real.mjs keys and starts, builds while
   other agents rebuild, Escape and focus traces, live regions, disabled-state proofs), in full:
   `git show 51d0e57509:design/ui/studio/notes/engineer.md`.
@@ -399,3 +320,16 @@ Full reasons, tests and walks: `git show b14af76f0e:design/ui/studio/notes/engin
 - Learned: bars 2 and 3 failed partly on the answer key's definition and on the tool's
   `tooltip: null`, not on the design. Check a failing bar's evidence before building a fix for it.
 - Learned: every participant is the same model, so a failure is strong evidence and a pass weak.
+
+## 2026-11-02 Busy-sign re-walk on the committed build (f6ab091f47)
+
+- `graphty/dist` was older than f6ab091f47 and still held the reverted cancel-new-card fix (stamp
+  0ec56d2f3b), so the earlier busy-sign re-walk ran on a build with that fix. Rebuilt (stamp
+  f6ab091f476b; it also carries another agent's uncommitted, additive `UnionStep.mode` element
+  change). Replayed T79B success into `design/ui/studio/tmp/r1-dry1-recheck-busy-sign/`: steps 1 to 7
+  matched the pilot. In the glance 300 ms after ticking Otter Creek (`08-glance.png`), the header
+  reads "Drawing" with the old count, 50,000. Ending the session stopped the replay at Done (step 8).
+  That stop came from the end, not from the build.
+  Still to re-walk: T79B success from Done on, T79B detour-3, T79A success, and both keyboard walks
+  (Enter, Escape, Tab and Shift+Tab). Script: `tmp/busy-sign-recheck/run.sh` (`--end-on-diverge`,
+  `REAL_GLANCE_MS=300`).

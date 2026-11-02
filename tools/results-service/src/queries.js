@@ -500,9 +500,9 @@ const NEWEST_STEPS = `WITH k AS (SELECT DISTINCT json_extract(value, '$[0]') AS 
 const NEWEST_TASKS = `WITH k AS (SELECT DISTINCT json_extract(value, '$[0]') AS workflow, json_extract(value, '$[1]') AS task
       FROM json_each(?2))
     SELECT e.workflow, e.job, e.step, e.task, e.sha, e.ms, e.started_at FROM k JOIN duration e INDEXED BY duration_task
-      ON e.kind = ?1 AND e.workflow = k.workflow AND e.task = k.task
+      ON e.kind = ?1 AND e.workflow = k.workflow AND e.task = k.task AND e.task != ''
      WHERE coalesce(e.conclusion, '') != 'cancelled' AND e.started_at >= coalesce((SELECT x.started_at FROM duration x INDEXED BY duration_task
-       WHERE x.kind = ?1 AND x.workflow = k.workflow AND x.task = k.task
+       WHERE x.kind = ?1 AND x.workflow = k.workflow AND x.task = k.task AND x.task != ''
          AND x.started_at >= ?3 AND coalesce(x.conclusion, '') != 'cancelled' ORDER BY x.started_at DESC LIMIT 1 OFFSET 14), ?3)`;
 
 /**

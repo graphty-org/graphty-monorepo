@@ -97,8 +97,10 @@ describe("A yes-or-no column", () => {
             caseSensitive: true,
         });
         assert.equal(session.visibility.summary.visibleNodes, 3);
-        // Named as its row says it.
-        await screen.findByRole("group", { name: /trained yes/ });
+        // Named as its row says it, Yes as the table writes it (ws-polish 2).
+        await within(await screen.findByRole("list", { name: "Filters" })).findByRole("group", {
+            name: /^trained Yes/,
+        });
     });
 
     it("reads Yes and No in a node's values, the selection's summary and Find's value rows", async () => {

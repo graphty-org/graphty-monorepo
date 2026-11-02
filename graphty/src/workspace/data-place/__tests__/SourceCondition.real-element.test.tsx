@@ -145,7 +145,12 @@ describe("picking nodes by a condition card from the Data place", () => {
         assert.equal(source?.kind, "source");
         assert.deepEqual(source?.sources, [people.key]);
         assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
-        // The card is named for the load, not its key, and counts the nodes it keeps.
+        // The card is named for the load, not its key, and counts the nodes it keeps, at rest: while
+        // its workspace is open the sidebar keeps only its title row (ws-polish 2).
+        const open = document.querySelector<HTMLElement>(".sel-ws");
+        if (open !== null) {
+            await userEvent.click(within(open).getByRole("button", { name: "Done" }));
+        }
         // The card itself: the Data sources section names the load too.
         const card = await waitFor(() => {
             const found = [

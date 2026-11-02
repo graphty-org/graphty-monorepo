@@ -185,8 +185,9 @@ describe("Each kind of filter card", () => {
         await realKeys.click(text);
         await realKeys.keyboard("GAL");
         await screen.findByRole("listbox");
-        // The first Escape closes the list of names; the next writes the text and ends picking.
-        await realKeys.keyboard("{Escape}{Escape}");
+        // The first Escape closes the list of names; the next writes the text and goes to the card's
+        // title row (ws-polish 2: never Done from the pane); the third ends picking.
+        await realKeys.keyboard("{Escape}{Escape}{Escape}");
         await waitFor(() => {
             assert.isNull(document.querySelector("[data-step-pane]"), "picking ended");
         });

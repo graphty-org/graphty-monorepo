@@ -1534,7 +1534,11 @@ export function SelectionEditor({
         };
         placeCanvas();
         canvas.dataset.selPreview = "";
-        const observer = new ResizeObserver(placeCanvas);
+        // Placed on the next frame: resizing the canvas inside the observer's own delivery would
+        // loop the page's resize observers (graphty-element's follows the canvas).
+        const observer = new ResizeObserver(() => {
+            requestAnimationFrame(placeCanvas);
+        });
         observer.observe(cell);
         observer.observe(canvas);
         // The element resizes its canvas on its own observer; the framing reads the new size after it.

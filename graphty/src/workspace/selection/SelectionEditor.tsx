@@ -1368,7 +1368,7 @@ export function SelectionEditor({
     // or a menu closes itself; then Advanced; then focus goes from the pane to its outline row;
     // then the workspace closes as Done.
     const wsKeys = (event: React.KeyboardEvent<HTMLElement>): void => {
-        if (event.key !== "Escape" || event.defaultPrevented) {
+        if (event.key !== "Escape" || (event.defaultPrevented && event.eventPhase !== Event.CAPTURING_PHASE)) {
             return;
         }
         const target = event.target as HTMLElement;
@@ -1416,6 +1416,22 @@ export function SelectionEditor({
                       }}
                       onKeyDownCapture={(event) => {
                           escaped.current = event.key === "Escape";
+                          // Escape in a pane's box keeps its text (it is written as focus leaves the
+                          // box) and goes to the box's row, unless the box's own list is open: a box
+                          // must never take Escape as "discard what I typed" (spec 3.4).
+                          const target = event.target as HTMLElement;
+                          if (
+                              event.key === "Escape" &&
+                              target.matches("input, textarea") &&
+                              target.closest(".sel-ws-props") !== null &&
+                              target.closest("[data-portal]") === null &&
+                              target.getAttribute("aria-expanded") !== "true" &&
+                              !("expanded" in target.dataset)
+                          ) {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              wsKeys(event);
+                          }
                       }}
                       onKeyDown={wsKeys}
                   >

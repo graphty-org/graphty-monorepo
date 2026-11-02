@@ -73,6 +73,153 @@ function resolveCenter(center: ArrayLike<number> | null): [number, number, numbe
 }
 
 /**
+ * Checks seedPositions' dim, positions length and scale.
+ * @param n - the node count
+ * @param positions - the owner's stride-3 array
+ * @param dim - 2 or 3
+ * @param scale - the scene scale
+ */
+function checkSeedArgs(n: number, positions: F32, dim: 2 | 3, scale: number): void {
+    if (dim !== 2 && dim !== 3) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `dim must be 2 or 3, got ${String(dim)}`, {
+            argument: "dim",
+            value: dim,
+            expected: "2 or 3",
+        });
+    }
+    if (positions.length !== 3 * n) {
+        throw new WebGpuGraphError(
+            "E_INVALID_ARGUMENT",
+            `positions has ${positions.length} entries, expected ${3 * n}`,
+            {
+                argument: "positions",
+                value: positions.length,
+                expected: 3 * n,
+            },
+        );
+    }
+    if (!Number.isFinite(scale) || scale <= 0) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `scale must be a finite number > 0, got ${scale}`, {
+            argument: "scale",
+            value: scale,
+            expected: "a finite number > 0",
+        });
+    }
+}
+
+/** The rows' classification and the per-axis box of their finite components (scene units). */
+interface RowCensus {
+    readonly lo: number[];
+    readonly hi: number[];
+    readonly finiteRows: number;
+    readonly unseededRows: number;
+}
+
+/**
+ * Widens the per-axis box by one row's finite components.
+ * @param positions - the owner's stride-3 array
+ * @param i - the row
+ * @param dim - 2 or 3
+ * @param lo - the per-axis minimum (written)
+ * @param hi - the per-axis maximum (written)
+ * @returns true when every one of the row's `dim` components is finite
+ */
+function addRowToBox(positions: F32, i: number, dim: 2 | 3, lo: number[], hi: number[]): boolean {
+    let finite = true;
+    for (let axis = 0; axis < dim; axis++) {
+        const v = positions[3 * i + axis];
+        if (!Number.isFinite(v)) {
+            finite = false;
+            continue;
+        }
+        if (v < lo[axis]) {
+            lo[axis] = v;
+        }
+        if (v > hi[axis]) {
+            hi[axis] = v;
+        }
+    }
+    return finite;
+}
+
+/**
+ * Classifies the rows and collects the per-axis box of the finite components (scene units).
+ * @param positions - the owner's stride-3 array
+ * @param n - the node count
+ * @param dim - 2 or 3
+ * @returns the box and the finite and unseeded row counts
+ */
+function censusRows(positions: F32, n: number, dim: 2 | 3): RowCensus {
+    const lo = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
+    const hi = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
+    let finiteRows = 0;
+    for (let i = 0; i < n; i++) {
+        if (addRowToBox(positions, i, dim, lo, hi)) {
+            finiteRows++;
+        }
+    }
+    return { lo, hi, finiteRows, unseededRows: n - finiteRows };
+}
+
+/**
+ * The per-axis draw box in layout units: the range box, or the finite components' box where an axis has one, a
+ * zero-width axis padded to the range box's width centered on it.
+ * @param census - the rows' census
+ * @param dim - 2 or 3
+ * @param c - the scene center
+ * @param scale - the scene scale
+ * @param range - "fa2" for [-1, 1), "fr" for [0, 1)
+ * @returns the box's low and high corners
+ */
+function drawBox(
+    census: RowCensus,
+    dim: 2 | 3,
+    c: readonly number[],
+    scale: number,
+    range: "fa2" | "fr",
+): { boxLo: number[]; boxHi: number[] } {
+    const rangeLo = range === "fr" ? 0 : -1;
+    const rangeHi = 1;
+    const boxLo = [rangeLo, rangeLo, rangeLo];
+    const boxHi = [rangeHi, rangeHi, rangeHi];
+    if (census.finiteRows === 0) {
+        return { boxLo, boxHi };
+    }
+    const { lo, hi } = census;
+    for (let axis = 0; axis < dim; axis++) {
+        if (!(Number.isFinite(lo[axis]) && Number.isFinite(hi[axis]))) {
+            continue;
+        }
+        boxLo[axis] = (lo[axis] - c[axis]) / scale;
+        boxHi[axis] = (hi[axis] - c[axis]) / scale;
+        if (boxLo[axis] === boxHi[axis]) {
+            // a zero-width axis (one finite row, or every finite row on one line) would stack every drawn
+            // row on that coordinate: pad it to the range box's width, centered on it
+            const half = (rangeHi - rangeLo) / 2;
+            boxLo[axis] -= half;
+            boxHi[axis] += half;
+        }
+    }
+    return { boxLo, boxHi };
+}
+
+/**
+ * Whether any of a row's `dim` components is not finite.
+ * @param positions - the owner's stride-3 array
+ * @param i - the row
+ * @param dim - 2 or 3
+ * @returns true when the row needs seeding
+ */
+function rowUnseeded(positions: F32, i: number, dim: 2 | 3): boolean {
+    for (let axis = 0; axis < dim; axis++) {
+        if (!Number.isFinite(positions[3 * i + axis])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * Seeds the unseeded rows of the owner's stride-3 SCENE array in index order (spec 9.3 seedPositions, 7.14 `pos`,
  * 7.19 topology change): a row is unseeded when any of its `dim` components is not finite; every such component
  * draws one LCG value; when NO row is fully finite the draw is uniform in [-1, 1) layout units per axis (`range:
@@ -105,93 +252,16 @@ export function seedPositions(
     range: "fa2" | "fr",
 ): void {
     const n = s.nodeCount;
-    if (dim !== 2 && dim !== 3) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `dim must be 2 or 3, got ${String(dim)}`, {
-            argument: "dim",
-            value: dim,
-            expected: "2 or 3",
-        });
-    }
-    if (positions.length !== 3 * n) {
-        throw new WebGpuGraphError(
-            "E_INVALID_ARGUMENT",
-            `positions has ${positions.length} entries, expected ${3 * n}`,
-            {
-                argument: "positions",
-                value: positions.length,
-                expected: 3 * n,
-            },
-        );
-    }
-    if (!Number.isFinite(scale) || scale <= 0) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `scale must be a finite number > 0, got ${scale}`, {
-            argument: "scale",
-            value: scale,
-            expected: "a finite number > 0",
-        });
-    }
+    checkSeedArgs(n, positions, dim, scale);
     const c = resolveCenter(center);
-
-    // classify the rows and collect the per-axis box of the finite components (scene units)
-    const lo = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
-    const hi = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
-    let finiteRows = 0;
-    let unseededRows = 0;
-    for (let i = 0; i < n; i++) {
-        let finite = true;
-        for (let axis = 0; axis < dim; axis++) {
-            const v = positions[3 * i + axis];
-            if (Number.isFinite(v)) {
-                if (v < lo[axis]) {
-                    lo[axis] = v;
-                }
-                if (v > hi[axis]) {
-                    hi[axis] = v;
-                }
-            } else {
-                finite = false;
-            }
-        }
-        if (finite) {
-            finiteRows++;
-        } else {
-            unseededRows++;
-        }
-    }
-    if (unseededRows === 0) {
+    const census = censusRows(positions, n, dim);
+    if (census.unseededRows === 0) {
         return;
     }
-
-    // the per-axis draw box in layout units
-    const rangeLo = range === "fr" ? 0 : -1;
-    const rangeHi = 1;
-    const boxLo = [rangeLo, rangeLo, rangeLo];
-    const boxHi = [rangeHi, rangeHi, rangeHi];
-    if (finiteRows > 0) {
-        for (let axis = 0; axis < dim; axis++) {
-            if (Number.isFinite(lo[axis]) && Number.isFinite(hi[axis])) {
-                boxLo[axis] = (lo[axis] - c[axis]) / scale;
-                boxHi[axis] = (hi[axis] - c[axis]) / scale;
-                if (boxLo[axis] === boxHi[axis]) {
-                    // a zero-width axis (one finite row, or every finite row on one line) would stack every drawn
-                    // row on that coordinate: pad it to the range box's width, centered on it
-                    const half = (rangeHi - rangeLo) / 2;
-                    boxLo[axis] -= half;
-                    boxHi[axis] += half;
-                }
-            }
-        }
-    }
-
+    const { boxLo, boxHi } = drawBox(census, dim, c, scale, range);
     const rng = new Lcg(seed);
     for (let i = 0; i < n; i++) {
-        let unseeded = false;
-        for (let axis = 0; axis < dim; axis++) {
-            if (!Number.isFinite(positions[3 * i + axis])) {
-                unseeded = true;
-            }
-        }
-        if (!unseeded) {
+        if (!rowUnseeded(positions, i, dim)) {
             continue;
         }
         for (let axis = 0; axis < dim; axis++) {

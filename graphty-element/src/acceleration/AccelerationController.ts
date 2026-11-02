@@ -567,15 +567,7 @@ export class AccelerationController {
 
         const { accelerator } = this;
         if (accelerator === null) {
-            if (required) {
-                throw this.#noAcceleratorError(work);
-            }
-
-            return {
-                accelerated: false,
-                reason: this.#reason ?? this.#missingAcceleratorReason(),
-                ...(this.#code === undefined ? {} : { code: this.#code }),
-            };
+            return this.#withoutAccelerator(work, required);
         }
 
         if (work.nodeCount < this.#minNodes) {
@@ -601,11 +593,48 @@ export class AccelerationController {
 
         // Last, after the feature test: a floor is a statement about a capability the accelerator
         // has, and an accelerator without the member is reported as that, not as "too small".
+        if (!this.#explicitMinNodes && !required) {
+            const belowFloor = this.#belowMeasuredFloor(work);
+            if (belowFloor !== undefined) {
+                return belowFloor;
+            }
+        }
+
+        return { accelerated: true, accelerator, precision: accelerator.precision ?? DEFAULT_ACCELERATOR_PRECISION };
+    }
+
+    /**
+     * The decision when no accelerator is attached: thrown under `"required"`, the CPU otherwise.
+     * @param work - The capability the work needs and the size of the graph it is over.
+     * @param required - Whether the policy is `"required"`.
+     * @returns The CPU decision, with the reason and code the accelerator went missing for.
+     * @throws A `GraphtyError` with `E_NO_ACCELERATOR` when the policy is `"required"`.
+     */
+    #withoutAccelerator(work: AcceleratedWork, required: boolean): AccelerationDecision {
+        if (required) {
+            throw this.#noAcceleratorError(work);
+        }
+
+        return {
+            accelerated: false,
+            reason: this.#reason ?? this.#missingAcceleratorReason(),
+            ...(this.#code === undefined ? {} : { code: this.#code }),
+        };
+    }
+
+    /**
+     * The built-in measured floors, checked only while the consumer has not set a threshold and
+     * the policy is not `"required"`: the node floor, then edge density, then source-edges.
+     * @param work - The capability the work needs and the size of the graph it is over.
+     * @returns The CPU decision of the first floor the work is below, or undefined when it clears
+     * every floor.
+     */
+    #belowMeasuredFloor(work: AcceleratedWork): AccelerationDecision | undefined {
         const capability = work.capability as FlooredCapability;
         const floor =
             (work.weighted === false ? ACCELERATION_MIN_NODES_UNWEIGHTED_BY_CAPABILITY[capability] : undefined) ??
             ACCELERATION_MIN_NODES_BY_CAPABILITY[capability];
-        if (floor !== undefined && !this.#explicitMinNodes && !required && work.nodeCount < floor) {
+        if (floor !== undefined && work.nodeCount < floor) {
             return {
                 accelerated: false,
                 reason:
@@ -618,7 +647,7 @@ export class AccelerationController {
         const densityFloor = ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY[work.capability as FlooredCapability];
         const edges = work.edgeCount ?? 0;
         const density = work.nodeCount > 0 ? (edges * edges) / work.nodeCount : 0;
-        if (densityFloor !== undefined && !this.#explicitMinNodes && !required && density < densityFloor) {
+        if (densityFloor !== undefined && density < densityFloor) {
             return {
                 accelerated: false,
                 reason:
@@ -630,13 +659,7 @@ export class AccelerationController {
         }
 
         const sourceFloor = ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY[work.capability as FlooredCapability];
-        if (
-            sourceFloor !== undefined &&
-            work.sourceEdges !== undefined &&
-            !this.#explicitMinNodes &&
-            !required &&
-            work.sourceEdges < sourceFloor
-        ) {
+        if (sourceFloor !== undefined && work.sourceEdges !== undefined && work.sourceEdges < sourceFloor) {
             return {
                 accelerated: false,
                 reason:
@@ -646,7 +669,7 @@ export class AccelerationController {
             };
         }
 
-        return { accelerated: true, accelerator, precision: accelerator.precision ?? DEFAULT_ACCELERATOR_PRECISION };
+        return undefined;
     }
 
     /**

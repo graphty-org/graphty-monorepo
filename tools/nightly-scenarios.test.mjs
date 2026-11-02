@@ -1054,6 +1054,8 @@ const FLAT_OK = {
         "story-tests uploads a visual-<project>-<attempt> for every matrix project (a skip marker included), so visual-* always matches several",
     "ci.yml/visual-flaky":
         "story-tests uploads a visual-<project>-<attempt> for every matrix project, and visual-flaky-report.mjs reads a flat results.json too",
+    "ci.yml/many-pictures":
+        "story-tests uploads a visual-<project>-<attempt> for every matrix project, and many-pictures.sh reads a flat results.json too",
 };
 
 describe("the nightly path's static rules", () => {

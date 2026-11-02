@@ -58,9 +58,10 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.labelItalic": TEXT_FIELD,
     "node.halo": NOT_PLACED,
     "node.unlit": NOT_PLACED,
-    "node.width": NOT_PLACED,
-    "node.height": NOT_PLACED,
-    "node.depth": NOT_PLACED,
+    "node.width": at("Nodes, Shape, Width"),
+    "node.height": at("Nodes, Shape, Height"),
+    "node.depth": at("Nodes, Shape, Depth"),
+    "node.relativeExtents": at("Nodes, Shape, Scale with size"),
     "node.planar": NOT_PLACED,
     "node.zIndex": NOT_PLACED,
     "node.drawOrder": NOT_PLACED,
@@ -466,6 +467,7 @@ export const VARY_DECISIONS = {
  */
 export const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
     "node.wireframe": VARY_DECISIONS.yesOrNo,
+    "node.relativeExtents": VARY_DECISIONS.yesOrNo,
     "node.visible": VARY_DECISIONS.yesOrNo,
     "edge.visible": VARY_DECISIONS.yesOrNo,
     "edge.curvature": VARY_DECISIONS.yesOrNo,

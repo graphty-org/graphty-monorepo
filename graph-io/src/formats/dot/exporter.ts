@@ -466,6 +466,22 @@ function positionNotes(snapshot: GraphSnapshot, position: Column | null, note: D
     }
 }
 
+/**
+ * Visit every set cell of a string or dict column as a "value" text; other columns have none.
+ * @param column - the column
+ * @param visit - the visitor
+ */
+function visitTextCells(column: Column, visit: (text: string, kind: string) => void): void {
+    if (column.dtype !== "string" && column.dtype !== "dict") {
+        return;
+    }
+    for (let r = 0; r < column.length; r++) {
+        if (column.isSet(r)) {
+            visit(column.value(r) as string, "value");
+        }
+    }
+}
+
 class ExportPlan {
     private readonly snapshot: GraphSnapshot;
 
@@ -842,22 +858,12 @@ class ExportPlan {
         for (const columns of [this.nodeColumns, this.edgeColumns, this.graphColumns]) {
             for (const column of columns) {
                 visit(this.attributeName(column), "attribute name");
-                if (column.dtype === "string" || column.dtype === "dict") {
-                    for (let r = 0; r < column.length; r++) {
-                        if (column.isSet(r)) {
-                            visit(column.value(r) as string, "value");
-                        }
-                    }
-                }
+                visitTextCells(column, visit);
             }
         }
         for (const column of [this.edgeId, this.sourcePort, this.targetPort]) {
-            if (column !== null && (column.dtype === "string" || column.dtype === "dict")) {
-                for (let r = 0; r < column.length; r++) {
-                    if (column.isSet(r)) {
-                        visit(column.value(r) as string, "value");
-                    }
-                }
+            if (column !== null) {
+                visitTextCells(column, visit);
             }
         }
     }

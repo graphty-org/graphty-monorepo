@@ -1528,54 +1528,59 @@ export class RichTextLabel {
 
         // Handle legacy gradient properties
         if (this.options.backgroundGradient) {
-            let gradient: CanvasGradient;
-
-            // Use content area coordinates for gradient to ensure it's positioned correctly
-            const gradientX = this.contentArea.x;
-            const gradientY = this.contentArea.y;
-            const gradientWidth = this.contentArea.width;
-            const gradientHeight = this.contentArea.height;
-
-            if (this.options.backgroundGradientType === "radial") {
-                const centerX = gradientX + gradientWidth / 2;
-                const centerY = gradientY + gradientHeight / 2;
-                const radius = Math.max(gradientWidth, gradientHeight) / 2;
-                gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-            } else {
-                switch (this.options.backgroundGradientDirection) {
-                    case "horizontal":
-                        gradient = ctx.createLinearGradient(gradientX, gradientY, gradientX + gradientWidth, gradientY);
-                        break;
-                    case "diagonal":
-                        gradient = ctx.createLinearGradient(
-                            gradientX,
-                            gradientY,
-                            gradientX + gradientWidth,
-                            gradientY + gradientHeight,
-                        );
-                        break;
-                    case "vertical":
-                    default:
-                        gradient = ctx.createLinearGradient(
-                            gradientX,
-                            gradientY,
-                            gradientX,
-                            gradientY + gradientHeight,
-                        );
-                        break;
-                }
-            }
-
-            const colors = this.options.backgroundGradientColors;
-            for (let i = 0; i < colors.length; i++) {
-                gradient.addColorStop(i / (colors.length - 1), colors[i] ?? "transparent");
-            }
-            ctx.fillStyle = gradient;
+            ctx.fillStyle = this._legacyBackgroundGradient(ctx);
         } else {
             ctx.fillStyle = typeof bgColor === "string" ? bgColor : "transparent";
         }
 
         ctx.fill();
+    }
+
+    /**
+     * The gradient the legacy `backgroundGradient*` options describe, over the content area.
+     * @param ctx - The canvas context the gradient is made for.
+     * @returns The gradient, with its color stops added.
+     */
+    private _legacyBackgroundGradient(ctx: CanvasRenderingContext2D): CanvasGradient {
+        let gradient: CanvasGradient;
+
+        // Use content area coordinates for gradient to ensure it's positioned correctly
+        const gradientX = this.contentArea.x;
+        const gradientY = this.contentArea.y;
+        const gradientWidth = this.contentArea.width;
+        const gradientHeight = this.contentArea.height;
+
+        if (this.options.backgroundGradientType === "radial") {
+            const centerX = gradientX + gradientWidth / 2;
+            const centerY = gradientY + gradientHeight / 2;
+            const radius = Math.max(gradientWidth, gradientHeight) / 2;
+            gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+        } else {
+            switch (this.options.backgroundGradientDirection) {
+                case "horizontal":
+                    gradient = ctx.createLinearGradient(gradientX, gradientY, gradientX + gradientWidth, gradientY);
+                    break;
+                case "diagonal":
+                    gradient = ctx.createLinearGradient(
+                        gradientX,
+                        gradientY,
+                        gradientX + gradientWidth,
+                        gradientY + gradientHeight,
+                    );
+                    break;
+                case "vertical":
+                default:
+                    gradient = ctx.createLinearGradient(gradientX, gradientY, gradientX, gradientY + gradientHeight);
+                    break;
+            }
+        }
+
+        const colors = this.options.backgroundGradientColors;
+        for (let i = 0; i < colors.length; i++) {
+            gradient.addColorStop(i / (colors.length - 1), colors[i] ?? "transparent");
+        }
+
+        return gradient;
     }
 
     private _drawProgressBar(ctx: CanvasRenderingContext2D): void {

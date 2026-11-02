@@ -854,15 +854,25 @@ function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote
             try {
                 writeResultField(out, result, field, name, ranks);
             } catch (error) {
-                notes.push({
-                    code: "W_RESULT_FIELD_DROPPED",
-                    message: `the result field ${name} could not be written: ${error instanceof Error ? error.message : String(error)}`,
-                    column: name,
-                    count: null,
-                });
+                notes.push(droppedFieldNote(name, error));
             }
         }
     }
+}
+
+/**
+ * The note for a result field that could not be written.
+ * @param name - The column name.
+ * @param error - What writing it threw.
+ * @returns The note.
+ */
+function droppedFieldNote(name: string, error: unknown): LossNote {
+    return {
+        code: "W_RESULT_FIELD_DROPPED",
+        message: `the result field ${name} could not be written: ${error instanceof Error ? error.message : String(error)}`,
+        column: name,
+        count: null,
+    };
 }
 
 /**

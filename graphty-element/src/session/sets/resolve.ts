@@ -300,6 +300,81 @@ function largestComponent(labels: ComponentLabels, nodeCount: number): U32 {
 }
 
 /**
+ * The node half of the `"visible"` scope: every node when the context has no visibility.
+ * @param context - What the resolution reads.
+ * @returns The node half.
+ */
+function visibleHalf(context: ResolveContext): NodeHalf {
+    const n = context.snapshot.nodeCount;
+    const { visibility } = context;
+    if (visibility === undefined) {
+        return { nodes: makeMask(n, true), constraint: null, all: true, missingNodes: 0 };
+    }
+
+    return {
+        // A copy: a resolution owns its bitmaps, so the cache can count and drop them.
+        nodes: packMask(visibility.nodes(), n).slice(),
+        constraint: packMask(visibility.edges(), context.snapshot.edgeCount),
+        all: false,
+        missingNodes: 0,
+    };
+}
+
+/**
+ * The node half of a saved scope `{set}`: a kept definition, else the saved record followed.
+ * @param scope - The specification.
+ * @param scope.set - The saved scope's id.
+ * @param context - What the resolution reads.
+ * @param seen - The saved ids already followed, which is how a cycle is caught.
+ * @returns The node half.
+ * @throws A `GraphtyError` for a removed set whose record was dropped, an unknown id, or a ring.
+ */
+function savedSetHalf(scope: { set: ScopeId }, context: ResolveContext, seen: Set<ScopeId>): NodeHalf {
+    const record = context.saved?.get(scope.set);
+    const kept = record === undefined ? keptDefinition(scope.set, context) : undefined;
+    if (kept !== undefined) {
+        return halfOf(resolveKept(scope.set, kept, context, [...seen]));
+    }
+
+    const removed = record === undefined ? context.sets?.tombstone?.(scope.set) : undefined;
+    if (removed !== undefined) {
+        // Detached, and its record dropped because nothing named it: a pass resolves it to
+        // nothing; a caller that needs members is refused.
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `The set "${removed.name}" was removed and its record was not kept, so it holds nothing. Choose another set.`,
+            source: "run",
+            target: { kind: "scope", id: scope.set },
+            details: { scope, reason: "missing-set", id: scope.set, name: removed.name },
+        });
+    }
+
+    if (record === undefined) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `No set has the id "${scope.set}". A set id is the one session.sets.create returned.`,
+            source: "run",
+            target: { kind: "scope", id: scope.set },
+            details: { scope, available: [...(context.saved?.keys() ?? [])] },
+        });
+    }
+
+    if (seen.has(scope.set)) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `The saved scope "${scope.set}" contains itself, so it names no elements.`,
+            source: "run",
+            target: { kind: "scope", id: scope.set },
+            details: { scope, chain: [...seen, scope.set] },
+        });
+    }
+
+    seen.add(scope.set);
+
+    return resolveNodeHalf(record.spec, context, seen);
+}
+
+/**
  * The node half of one `Scope`, following saved scopes to what they hold.
  * @param scope - The specification.
  * @param context - What the resolution reads.
@@ -316,18 +391,7 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
     }
 
     if (scope === "visible") {
-        const { visibility } = context;
-        if (visibility === undefined) {
-            return { nodes: makeMask(n, true), constraint: null, all: true, missingNodes: 0 };
-        }
-
-        return {
-            // A copy: a resolution owns its bitmaps, so the cache can count and drop them.
-            nodes: packMask(visibility.nodes(), n).slice(),
-            constraint: packMask(visibility.edges(), context.snapshot.edgeCount),
-            all: false,
-            missingNodes: 0,
-        };
+        return visibleHalf(context);
     }
 
     if (scope === "selection") {
@@ -351,48 +415,7 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
     }
 
     if ("set" in scope) {
-        const record = context.saved?.get(scope.set);
-        const kept = record === undefined ? keptDefinition(scope.set, context) : undefined;
-        if (kept !== undefined) {
-            return halfOf(resolveKept(scope.set, kept, context, [...seen]));
-        }
-
-        const removed = record === undefined ? context.sets?.tombstone?.(scope.set) : undefined;
-        if (removed !== undefined) {
-            // Detached, and its record dropped because nothing named it: a pass resolves it to
-            // nothing; a caller that needs members is refused.
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `The set "${removed.name}" was removed and its record was not kept, so it holds nothing. Choose another set.`,
-                source: "run",
-                target: { kind: "scope", id: scope.set },
-                details: { scope, reason: "missing-set", id: scope.set, name: removed.name },
-            });
-        }
-
-        if (record === undefined) {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `No set has the id "${scope.set}". A set id is the one session.sets.create returned.`,
-                source: "run",
-                target: { kind: "scope", id: scope.set },
-                details: { scope, available: [...(context.saved?.keys() ?? [])] },
-            });
-        }
-
-        if (seen.has(scope.set)) {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `The saved scope "${scope.set}" contains itself, so it names no elements.`,
-                source: "run",
-                target: { kind: "scope", id: scope.set },
-                details: { scope, chain: [...seen, scope.set] },
-            });
-        }
-
-        seen.add(scope.set);
-
-        return resolveNodeHalf(record.spec, context, seen);
+        return savedSetHalf(scope, context, seen);
     }
 
     const nodes = makeMask(n);
@@ -970,21 +993,56 @@ function bindSeeded(plan: BindingPlan, snapshot: GraphSnapshot, rowOf: Int32Arra
     resolveCounters.edgeRowVisits += count;
     if (isMonotonic(snapshot, ids)) {
         resolveCounters.bindMerges++;
-        let at = 0;
-        for (let e = 0; e < count && at < counters.length; e++) {
-            while (at < counters.length && counters[at] < ids[e]) {
-                at++;
-            }
-
-            for (; at < counters.length && counters[at] === ids[e]; at++) {
-                rowOf[seeded[at]] = e;
-            }
-        }
-
+        bindByMerge(counters, seeded, ids, count, rowOf);
         return;
     }
 
     resolveCounters.bindSearches++;
+    bindBySearch(counters, seeded, ids, count, rowOf);
+}
+
+/**
+ * Bind seeded members against an ascending edge-id column: a linear merge.
+ * @param counters - Seeded counters, ascending.
+ * @param seeded - The member each counter belongs to.
+ * @param ids - The edge-id column.
+ * @param count - The edge rows.
+ * @param rowOf - Written: the row of each member found.
+ */
+function bindByMerge(
+    counters: Float64Array,
+    seeded: Uint32Array,
+    ids: ArrayLike<number>,
+    count: number,
+    rowOf: Int32Array,
+): void {
+    let at = 0;
+    for (let e = 0; e < count && at < counters.length; e++) {
+        while (at < counters.length && counters[at] < ids[e]) {
+            at++;
+        }
+
+        for (; at < counters.length && counters[at] === ids[e]; at++) {
+            rowOf[seeded[at]] = e;
+        }
+    }
+}
+
+/**
+ * Bind seeded members against an unordered edge-id column: a binary search per row.
+ * @param counters - Seeded counters, ascending.
+ * @param seeded - The member each counter belongs to.
+ * @param ids - The edge-id column.
+ * @param count - The edge rows.
+ * @param rowOf - Written: the row of each member found.
+ */
+function bindBySearch(
+    counters: Float64Array,
+    seeded: Uint32Array,
+    ids: ArrayLike<number>,
+    count: number,
+    rowOf: Int32Array,
+): void {
     for (let e = 0; e < count; e++) {
         let low = 0;
         let high = counters.length;
@@ -1017,10 +1075,72 @@ function bindByIdentity(
     rowOf: Int32Array,
 ): void {
     const { snapshot } = context;
-    const ids = context.ids ?? snapshot.ids;
     const ordered = pairsOrdered(snapshot);
     const n = snapshot.nodeCount;
     const pairKey = (s: number, t: number): number => (ordered || s <= t ? s * n + t : t * n + s);
+    const { byPair, hashes } = membersByPair(members, which, context, ordered, pairKey);
+    if (byPair.size === 0) {
+        return;
+    }
+
+    resolveCounters.identityPasses++;
+    resolveCounters.edgeRowVisits += snapshot.edgeCount;
+    const columns = identityColumnsOf(snapshot);
+    const { src, dst } = snapshot.edgeList();
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        const candidates = byPair.get(pairKey(src[e], dst[e]));
+        if (candidates === undefined) {
+            continue;
+        }
+
+        for (const i of candidates) {
+            if (identityMatches(members.at(i) as EdgeMember, hashes.get(i), columns, e)) {
+                rowOf[i] = rowOf[i] === EDGE_MISSING ? e : EDGE_AMBIGUOUS;
+            }
+        }
+    }
+}
+
+/**
+ * Whether an edge row is the edge a member names: by its identity hash when the member names an
+ * id, else by its ordinal among the edges of its endpoint pair.
+ * @param member - The member.
+ * @param hash - Its identity hash, when it names an id.
+ * @param columns - The snapshot's identity columns.
+ * @param e - The edge row.
+ * @returns Whether the row matches.
+ */
+function identityMatches(
+    member: EdgeMember,
+    hash: LanePair | undefined,
+    columns: ReturnType<typeof identityColumnsOf>,
+    e: number,
+): boolean {
+    const { edgeHash, edgeOrdinal, edgeAmong } = columns;
+    return hash === undefined
+        ? member.ordinal !== undefined && edgeOrdinal[e] === member.ordinal && edgeAmong[e] === member.among
+        : edgeHash[2 * e] === hash.a && edgeHash[2 * e + 1] === hash.b;
+}
+
+/**
+ * The members to bind, grouped by their endpoint pair, with the identity hash of each that names
+ * an id. A member whose end the graph does not hold is left out.
+ * @param members - Every member.
+ * @param which - The members to bind.
+ * @param context - What the resolution reads.
+ * @param ordered - Whether endpoint pairs are ordered (a directed graph).
+ * @param pairKey - The key of an endpoint pair.
+ * @returns Pair key to members, and member to identity hash.
+ */
+function membersByPair(
+    members: EdgeMemberList,
+    which: readonly number[],
+    context: ResolveContext,
+    ordered: boolean,
+    pairKey: (s: number, t: number) => number,
+): { byPair: Map<number, number[]>; hashes: Map<number, LanePair> } {
+    const { snapshot } = context;
+    const ids = context.ids ?? snapshot.ids;
     const byPair = new Map<number, number[]>();
     const hashes = new Map<number, LanePair>();
     for (const i of which) {
@@ -1048,32 +1168,7 @@ function bindByIdentity(
         }
     }
 
-    if (byPair.size === 0) {
-        return;
-    }
-
-    resolveCounters.identityPasses++;
-    resolveCounters.edgeRowVisits += snapshot.edgeCount;
-    const { edgeHash, edgeOrdinal, edgeAmong } = identityColumnsOf(snapshot);
-    const { src, dst } = snapshot.edgeList();
-    for (let e = 0; e < snapshot.edgeCount; e++) {
-        const candidates = byPair.get(pairKey(src[e], dst[e]));
-        if (candidates === undefined) {
-            continue;
-        }
-
-        for (const i of candidates) {
-            const member = members.at(i) as EdgeMember;
-            const hash = hashes.get(i);
-            const match =
-                hash === undefined
-                    ? member.ordinal !== undefined && edgeOrdinal[e] === member.ordinal && edgeAmong[e] === member.among
-                    : edgeHash[2 * e] === hash.a && edgeHash[2 * e + 1] === hash.b;
-            if (match) {
-                rowOf[i] = rowOf[i] === EDGE_MISSING ? e : EDGE_AMBIGUOUS;
-            }
-        }
-    }
+    return { byPair, hashes };
 }
 
 /**

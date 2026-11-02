@@ -230,131 +230,139 @@ function displayLog(sessionId: string, log: LogEntry, quiet: boolean): void {
 }
 
 /**
- * Handle incoming HTTP request.
+ * Read a POSTed log batch, store it, show it in the terminal and answer the browser.
  * @param req - The incoming HTTP request
  * @param res - The HTTP response object
- * @param host - The server hostname
- * @param port - The server port number
- * @param useHttps - Whether HTTPS is being used
  * @param quiet - If true, suppress terminal output
- * @param logReceiveOnly - If true, only serve /log POST and /health GET endpoints
  */
-function handleRequest(
+function receiveLogBatch(req: http.IncomingMessage, res: http.ServerResponse, quiet: boolean): void {
+    let body = "";
+    req.on("data", (chunk: Buffer) => {
+        body += chunk.toString();
+    });
+    req.on("end", () => {
+        try {
+            const data = JSON.parse(body) as LogBatch;
+            const { sessionId, logs, projectMarker, worktreePath, pageUrl } = data;
+
+            const storage = getLogStorage();
+            const isNewSession = !storage.hasSession(sessionId);
+
+            // Show new session banner
+            if (isNewSession && !quiet) {
+                // eslint-disable-next-line no-console
+                console.log(
+                    `\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`,
+                );
+                // eslint-disable-next-line no-console
+                console.log(`${colors.bright}${colors.magenta}  NEW SESSION: ${sessionId}${colors.reset}`);
+                // eslint-disable-next-line no-console
+                console.log(
+                    `${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`,
+                );
+            }
+
+            // Add logs to storage
+            storage.addLogs(sessionId, logs, { projectMarker, worktreePath, pageUrl });
+
+            // Display each log in terminal
+            for (const log of logs) {
+                displayLog(sessionId, log, quiet);
+            }
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: true }));
+        } catch (error) {
+            if (!quiet) {
+                console.error("Error parsing log data:", error);
+            }
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid JSON" }));
+        }
+    });
+}
+
+/**
+ * Serve the browser-ready script bundle, prefixed with this server's URL.
+ * @param req - The incoming HTTP request
+ * @param res - The HTTP response object
+ * @param defaultHost - The host:port to use when the request has no Host header
+ * @param protocol - "https" or "http"
+ */
+function serveBrowserBundle(
     req: http.IncomingMessage,
     res: http.ServerResponse,
-    host: string,
-    port: number,
-    useHttps: boolean,
-    quiet: boolean,
-    logReceiveOnly: boolean = false,
+    defaultHost: string,
+    protocol: string,
 ): void {
-    // CORS headers
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-    if (req.method === "OPTIONS") {
-        res.writeHead(204);
-        res.end();
-        return;
-    }
-
-    const url = req.url ?? "/";
-    const protocol = useHttps ? "https" : "http";
-
-    // Handle log endpoint - receive logs from browser
-    if (url === "/log" && req.method === "POST") {
-        let body = "";
-        req.on("data", (chunk: Buffer) => {
-            body += chunk.toString();
-        });
-        req.on("end", () => {
-            try {
-                const data = JSON.parse(body) as LogBatch;
-                const { sessionId, logs, projectMarker, worktreePath, pageUrl } = data;
-
-                const storage = getLogStorage();
-                const isNewSession = !storage.hasSession(sessionId);
-
-                // Show new session banner
-                if (isNewSession && !quiet) {
-                    // eslint-disable-next-line no-console
-                    console.log(
-                        `\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`,
-                    );
-                    // eslint-disable-next-line no-console
-                    console.log(`${colors.bright}${colors.magenta}  NEW SESSION: ${sessionId}${colors.reset}`);
-                    // eslint-disable-next-line no-console
-                    console.log(
-                        `${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`,
-                    );
-                }
-
-                // Add logs to storage
-                storage.addLogs(sessionId, logs, { projectMarker, worktreePath, pageUrl });
-
-                // Display each log in terminal
-                for (const log of logs) {
-                    displayLog(sessionId, log, quiet);
-                }
-
-                res.writeHead(200, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ success: true }));
-            } catch (error) {
-                if (!quiet) {
-                    console.error("Error parsing log data:", error);
-                }
-                res.writeHead(400, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "Invalid JSON" }));
-            }
-        });
-        return;
-    }
-
-    // Health check endpoint (always available)
-    if (url === "/health" && req.method === "GET") {
-        const health = getLogStorage().getHealth();
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: health.status, sessions: health.sessionCount }));
-        return;
-    }
-
-    // Serve browser-ready script bundle (available in all modes including logReceiveOnly)
-    if ((url === "/remote-logger.js" || url.startsWith("/remote-logger.js?")) && req.method === "GET") {
-        const bundle = loadBrowserBundle();
-        if (!bundle) {
-            res.writeHead(404, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Browser bundle not found. Run 'npm run build' first." }));
-            return;
-        }
-
-        const hostHeader = req.headers.host ?? `${host}:${port}`;
-        const serverUrl = `${protocol}://${hostHeader}`;
-        const configPrefix = `window.__REMOTE_LOG_SERVER_URL__="${serverUrl}";\n`;
-
-        res.writeHead(200, {
-            "Content-Type": "application/javascript",
-            "Cache-Control": "no-cache",
-        });
-        res.end(configPrefix + bundle);
-        return;
-    }
-
-    // Reverse proxy with auto-injection (available in all modes including logReceiveOnly)
-    if (url.startsWith("/proxy/") && sharedProxy) {
-        const targetUrl = decodeURIComponent(url.substring("/proxy/".length));
-        const hostHeader = req.headers.host ?? `${host}:${port}`;
-        sharedProxy.handleRequest(req, res, targetUrl, protocol, hostHeader);
-        return;
-    }
-
-    // In logReceiveOnly mode, only /log, /health, /remote-logger.js, and /proxy/ are available
-    if (logReceiveOnly) {
+    const bundle = loadBrowserBundle();
+    if (!bundle) {
         res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Not found (log receive only mode)" }));
+        res.end(JSON.stringify({ error: "Browser bundle not found. Run 'npm run build' first." }));
         return;
     }
 
+    const hostHeader = req.headers.host ?? defaultHost;
+    const serverUrl = `${protocol}://${hostHeader}`;
+    const configPrefix = `window.__REMOTE_LOG_SERVER_URL__="${serverUrl}";\n`;
+
+    res.writeHead(200, {
+        "Content-Type": "application/javascript",
+        "Cache-Control": "no-cache",
+    });
+    res.end(configPrefix + bundle);
+}
+
+/**
+ * Serve the last N logs across all sessions (`?n=`, `?errors=true`).
+ * @param res - The HTTP response object
+ * @param urlObj - The parsed request URL
+ */
+function serveRecentLogs(res: http.ServerResponse, urlObj: URL): void {
+    let count: number;
+    try {
+        count = parseIntegerSetting("n", urlObj.searchParams.get("n") || "50", 1);
+    } catch (error) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: (error as Error).message }));
+        return;
+    }
+    const errorsOnly = urlObj.searchParams.get("errors") === "true";
+
+    const storage = getLogStorage();
+    const filter = errorsOnly ? { level: "ERROR" } : {};
+    const recentLogs = storage.getRecentLogs(count, filter);
+    const totalLogs = storage.getLogs(filter).length;
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+        JSON.stringify(
+            {
+                total: totalLogs,
+                showing: recentLogs.length,
+                logs: recentLogs,
+            },
+            null,
+            2,
+        ),
+    );
+}
+
+/**
+ * Serve the log viewer endpoints (/logs, /logs/recent, /logs/errors, /logs/clear), or a 404.
+ * @param req - The incoming HTTP request
+ * @param res - The HTTP response object
+ * @param url - The request path and query
+ * @param origin - protocol://host:port of this server, the base for parsing `url`
+ * @param quiet - If true, suppress terminal output
+ */
+function serveViewerRoute(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    url: string,
+    origin: string,
+    quiet: boolean,
+): void {
     // Handle logs viewer endpoint - GET all logs
     if (url === "/logs" && req.method === "GET") {
         const allLogs = getLogStorage().getAllLogsBySession();
@@ -365,34 +373,7 @@ function handleRequest(
 
     // Handle recent logs endpoint - GET last N logs across all sessions
     if (url.startsWith("/logs/recent") && req.method === "GET") {
-        const urlObj = new URL(url, `${protocol}://${host}:${port}`);
-        let count: number;
-        try {
-            count = parseIntegerSetting("n", urlObj.searchParams.get("n") || "50", 1);
-        } catch (error) {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: (error as Error).message }));
-            return;
-        }
-        const errorsOnly = urlObj.searchParams.get("errors") === "true";
-
-        const storage = getLogStorage();
-        const filter = errorsOnly ? { level: "ERROR" } : {};
-        const recentLogs = storage.getRecentLogs(count, filter);
-        const totalLogs = storage.getLogs(filter).length;
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-            JSON.stringify(
-                {
-                    total: totalLogs,
-                    showing: recentLogs.length,
-                    logs: recentLogs,
-                },
-                null,
-                2,
-            ),
-        );
+        serveRecentLogs(res, new URL(url, origin));
         return;
     }
 
@@ -429,6 +410,77 @@ function handleRequest(
     // Default: 404
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Not found" }));
+}
+
+/**
+ * Handle incoming HTTP request.
+ * @param req - The incoming HTTP request
+ * @param res - The HTTP response object
+ * @param host - The server hostname
+ * @param port - The server port number
+ * @param useHttps - Whether HTTPS is being used
+ * @param quiet - If true, suppress terminal output
+ * @param logReceiveOnly - If true, only serve /log POST and /health GET endpoints
+ */
+function handleRequest(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    host: string,
+    port: number,
+    useHttps: boolean,
+    quiet: boolean,
+    logReceiveOnly: boolean = false,
+): void {
+    // CORS headers
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+        res.writeHead(204);
+        res.end();
+        return;
+    }
+
+    const url = req.url ?? "/";
+    const protocol = useHttps ? "https" : "http";
+
+    // Handle log endpoint - receive logs from browser
+    if (url === "/log" && req.method === "POST") {
+        receiveLogBatch(req, res, quiet);
+        return;
+    }
+
+    // Health check endpoint (always available)
+    if (url === "/health" && req.method === "GET") {
+        const health = getLogStorage().getHealth();
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: health.status, sessions: health.sessionCount }));
+        return;
+    }
+
+    // Serve browser-ready script bundle (available in all modes including logReceiveOnly)
+    if ((url === "/remote-logger.js" || url.startsWith("/remote-logger.js?")) && req.method === "GET") {
+        serveBrowserBundle(req, res, `${host}:${port}`, protocol);
+        return;
+    }
+
+    // Reverse proxy with auto-injection (available in all modes including logReceiveOnly)
+    if (url.startsWith("/proxy/") && sharedProxy) {
+        const targetUrl = decodeURIComponent(url.substring("/proxy/".length));
+        const hostHeader = req.headers.host ?? `${host}:${port}`;
+        sharedProxy.handleRequest(req, res, targetUrl, protocol, hostHeader);
+        return;
+    }
+
+    // In logReceiveOnly mode, only /log, /health, /remote-logger.js, and /proxy/ are available
+    if (logReceiveOnly) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Not found (log receive only mode)" }));
+        return;
+    }
+
+    serveViewerRoute(req, res, url, `${protocol}://${host}:${port}`, quiet);
 }
 
 /**

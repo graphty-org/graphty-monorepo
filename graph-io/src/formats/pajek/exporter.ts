@@ -542,62 +542,102 @@ function checkCells(planned: readonly PlannedColumn[], domain: "node" | "edge", 
         if (slot === "position" || slot === "spells") {
             continue;
         }
-        const { name } = column.meta;
-        let badText = 0;
-        let nonFinite = 0;
-        let typed = 0;
-        for (let r = 0; r < column.length; r++) {
-            if (!column.isSet(r)) {
-                continue;
+        pushCellNotes(countCellIssues(column, slot), column.meta.name, domain, notes);
+    }
+}
+
+/** The counts of one column's cells that cannot be written or read back typed. */
+interface CellIssues {
+    readonly badText: number;
+    readonly nonFinite: number;
+    readonly typed: number;
+}
+
+/**
+ * Count one column's text cells with a quote or line break, non-finite numeric cells, and parameter
+ * text that reads back as a number or a boolean.
+ * @param column - the column
+ * @param slot - its slot in the plan
+ * @returns the counts
+ */
+function countCellIssues(column: Column, slot: PlannedColumn["slot"]): CellIssues {
+    let badText = 0;
+    let nonFinite = 0;
+    let typed = 0;
+    const numeric = column.dtype === "f64" || column.dtype === "f32";
+    const textual = column.dtype === "string" || column.dtype === "dict";
+    for (let r = 0; r < column.length; r++) {
+        if (!column.isSet(r)) {
+            continue;
+        }
+        if (numeric) {
+            if (isNonFiniteCell(column, r)) {
+                nonFinite++;
             }
-            if (column.dtype === "f64" || column.dtype === "f32") {
-                const value = column.value(r);
-                if (typeof value === "number") {
-                    if (!Number.isFinite(value)) {
-                        nonFinite++;
-                    }
-                } else if (value !== undefined && !Array.from(value).every((v) => Number.isFinite(v))) {
-                    nonFinite++;
-                }
-            } else if (column.dtype === "string" || column.dtype === "dict") {
-                const text = column.value(r) as string;
-                if (!isPajekLabel(text)) {
-                    badText++;
-                } else if (slot === "param" && inferTextDtype(text) !== "string") {
-                    typed++;
-                }
+        } else if (textual) {
+            const text = column.value(r) as string;
+            if (!isPajekLabel(text)) {
+                badText++;
+            } else if (slot === "param" && inferTextDtype(text) !== "string") {
+                typed++;
             }
         }
-        if (badText > 0) {
-            notes.push(
-                note(
-                    PAJEK_LOSS.TEXT,
-                    `${badText} value${plural(badText)} of ${domain} column "${name}" hold a double quote or a line break; Pajek cannot write them`,
-                    name,
-                    badText,
-                ),
-            );
-        }
-        if (typed > 0) {
-            notes.push(
-                note(
-                    PAJEK_LOSS.TEXT_INFERRED,
-                    `${typed} value${plural(typed)} of ${domain} column "${name}" look like numbers or booleans; Pajek parameters are untyped and they read back as such`,
-                    name,
-                    typed,
-                ),
-            );
-        }
-        if (nonFinite > 0) {
-            notes.push(
-                note(
-                    PAJEK_LOSS.NONFINITE_AS_TEXT,
-                    `${nonFinite} non-finite value${plural(nonFinite)} of ${domain} column "${name}" ${agree(nonFinite, "is", "are")} written as text`,
-                    name,
-                    nonFinite,
-                ),
-            );
-        }
+    }
+    return { badText, nonFinite, typed };
+}
+
+/**
+ * Whether a numeric cell (a scalar or a vector) holds a non-finite value.
+ * @param column - the f32 or f64 column
+ * @param r - the row
+ * @returns true when the value, or any of its components, is not finite
+ */
+function isNonFiniteCell(column: Column, r: number): boolean {
+    const value = column.value(r) as number | ArrayLike<number> | undefined;
+    if (typeof value === "number") {
+        return !Number.isFinite(value);
+    }
+    return value !== undefined && !Array.from(value).every((v) => Number.isFinite(v));
+}
+
+/**
+ * Add the notes of one column's cell counts.
+ * @param counts - the counts
+ * @param name - the column name
+ * @param domain - node or edge
+ * @param notes - the note list
+ */
+function pushCellNotes(counts: CellIssues, name: string, domain: "node" | "edge", notes: LossNote[]): void {
+    const { badText, nonFinite, typed } = counts;
+    if (badText > 0) {
+        notes.push(
+            note(
+                PAJEK_LOSS.TEXT,
+                `${badText} value${plural(badText)} of ${domain} column "${name}" hold a double quote or a line break; Pajek cannot write them`,
+                name,
+                badText,
+            ),
+        );
+    }
+    if (typed > 0) {
+        notes.push(
+            note(
+                PAJEK_LOSS.TEXT_INFERRED,
+                `${typed} value${plural(typed)} of ${domain} column "${name}" look like numbers or booleans; Pajek parameters are untyped and they read back as such`,
+                name,
+                typed,
+            ),
+        );
+    }
+    if (nonFinite > 0) {
+        notes.push(
+            note(
+                PAJEK_LOSS.NONFINITE_AS_TEXT,
+                `${nonFinite} non-finite value${plural(nonFinite)} of ${domain} column "${name}" ${agree(nonFinite, "is", "are")} written as text`,
+                name,
+                nonFinite,
+            ),
+        );
     }
 }
 
@@ -951,31 +991,8 @@ function* writeLines(snapshot: GraphSnapshot, edgePlan: readonly PlannedColumn[]
     const folding = pairFolding(snapshot, { foldMutual: true });
     const weights = explicitWeights(snapshot);
     const { src, dst } = snapshot.edgeList();
-    let relation: Column | null = null;
-    let edgeSpells: Column | null = null;
-    const edgeParams: Column[] = [];
-    for (const { column, slot } of edgePlan) {
-        switch (slot) {
-            case "relation":
-                relation = column;
-                break;
-            case "spells":
-                edgeSpells = column;
-                break;
-            case "param":
-                edgeParams.push(column);
-                break;
-            case "label":
-            case "position":
-            case "shape":
-            case "skip":
-                break;
-            default: {
-                const name: string = slot;
-                throw new Error(`unknown slot ${name}`);
-            }
-        }
-    }
+    const slots = edgeSlotsOf(edgePlan);
+    const { relation } = slots;
     const relationNumbers = new Map<string, number>();
     let currentKind: "arcs" | "edges" | null = null;
     let currentRelation: string | null = null;
@@ -992,39 +1009,105 @@ function* writeLines(snapshot: GraphSnapshot, edgePlan: readonly PlannedColumn[]
             currentKind = kind;
             currentRelation = relationName;
             sectionOpen = true;
-            const keyword = kind === "arcs" ? "*Arcs" : "*Edges";
-            if (relationName === null) {
-                yield `${keyword}\n`;
-            } else {
-                let number = relationNumbers.get(relationName);
-                if (number === undefined) {
-                    number = relationNumbers.size + 1;
-                    relationNumbers.set(relationName, number);
-                }
-                yield `${keyword} :${number} ${quotePajekLabel(relationName)}\n`;
-            }
+            yield sectionHeader(kind, relationName, relationNumbers);
         }
-        let line = `${src[e] + 1} ${dst[e] + 1}`;
-        const weight = weights.text(e);
-        if (weight !== null) {
-            line += ` ${weight}`;
-        }
-        for (const column of edgeParams) {
-            if (column.isSet(e)) {
-                line += ` ${column.meta.name} ${quotePajekLabel(cellText(column, e))}`;
-            }
-        }
-        if (edgeSpells !== null) {
-            const spells = spellsText(edgeSpells, e);
-            if (spells !== null) {
-                line += ` ${spells}`;
-            }
-        }
-        yield `${line}\n`;
+        yield edgeLine(e, `${src[e] + 1} ${dst[e] + 1}`, weights.text(e), slots);
     }
     if (!sectionOpen) {
         yield snapshot.directed ? "*Arcs\n" : "*Edges\n";
     }
+}
+
+/** The edge columns by slot: the relation, the spells and the parameters, in plan order. */
+interface EdgeSlots {
+    readonly relation: Column | null;
+    readonly spells: Column | null;
+    readonly params: readonly Column[];
+}
+
+/**
+ * Sort the edge plan's columns by slot.
+ * @param edgePlan - the edge column plan
+ * @returns the edge columns by slot
+ */
+function edgeSlotsOf(edgePlan: readonly PlannedColumn[]): EdgeSlots {
+    let relation: Column | null = null;
+    let spells: Column | null = null;
+    const params: Column[] = [];
+    for (const { column, slot } of edgePlan) {
+        switch (slot) {
+            case "relation":
+                relation = column;
+                break;
+            case "spells":
+                spells = column;
+                break;
+            case "param":
+                params.push(column);
+                break;
+            case "label":
+            case "position":
+            case "shape":
+            case "skip":
+                break;
+            default: {
+                const name: string = slot;
+                throw new Error(`unknown slot ${name}`);
+            }
+        }
+    }
+    return { relation, spells, params };
+}
+
+/**
+ * The header line of an `*Arcs` / `*Edges` section, numbering each relation name on first use.
+ * @param kind - arcs or edges
+ * @param relationName - the section's relation name, or null
+ * @param relationNumbers - the relation numbers given so far, by name (updated)
+ * @returns the header line
+ */
+function sectionHeader(
+    kind: "arcs" | "edges",
+    relationName: string | null,
+    relationNumbers: Map<string, number>,
+): string {
+    const keyword = kind === "arcs" ? "*Arcs" : "*Edges";
+    if (relationName === null) {
+        return `${keyword}\n`;
+    }
+    let number = relationNumbers.get(relationName);
+    if (number === undefined) {
+        number = relationNumbers.size + 1;
+        relationNumbers.set(relationName, number);
+    }
+    return `${keyword} :${number} ${quotePajekLabel(relationName)}\n`;
+}
+
+/**
+ * One edge line: its endpoints, weight, parameters and interval.
+ * @param e - the edge index
+ * @param endpoints - the endpoints text ("source target", 1-based)
+ * @param weight - the weight text, or null when not written
+ * @param slots - the edge columns by slot
+ * @returns the line
+ */
+function edgeLine(e: number, endpoints: string, weight: string | null, slots: EdgeSlots): string {
+    let line = endpoints;
+    if (weight !== null) {
+        line += ` ${weight}`;
+    }
+    for (const column of slots.params) {
+        if (column.isSet(e)) {
+            line += ` ${column.meta.name} ${quotePajekLabel(cellText(column, e))}`;
+        }
+    }
+    if (slots.spells !== null) {
+        const spells = spellsText(slots.spells, e);
+        if (spells !== null) {
+            line += ` ${spells}`;
+        }
+    }
+    return `${line}\n`;
 }
 
 /**

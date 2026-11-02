@@ -8,6 +8,7 @@
  *
  * Test code only; nothing here is graphty-element API.
  */
+import { pictureGradient, type Pixels } from "./picture-gradient";
 import {
     boxOfPoints,
     dashClassOf,
@@ -887,6 +888,26 @@ function subpathsOf(el: SVGGraphicsElement, m: DOMMatrix): Pt[][] | null {
     }
 }
 
+/**
+ * Whether an element sits in a branch of a `<switch>` the browser does not draw: it draws the switch's first branch
+ * only (draw.io ends every export with a switch whose first branch is an empty `<g>` and whose second is the warning
+ * "Text is not SVG - cannot display", never on the canvas). A fallback beside a first branch that is a foreignObject
+ * stays: it stands for the HTML label drawn there, which this reader cannot read (draw.io's labels).
+ * @param el - the element
+ * @returns whether it is not drawn
+ */
+function inUndrawnBranch(el: Element): boolean {
+    // ponytail: the first child is the drawn one; conditions (systemLanguage, requiredExtensions) are not evaluated,
+    // since no oracle program writes one that fails
+    for (let c = el; c.parentElement !== null; c = c.parentElement) {
+        const drawn = c.parentElement.localName === "switch" ? c.parentElement.firstElementChild : c;
+        if (drawn !== c && drawn?.localName !== "foreignObject") {
+            return true;
+        }
+    }
+    return false;
+}
+
 /** The SVG primitives of a document, in document order. */
 export interface SvgPrimitives {
     width: number;
@@ -897,9 +918,10 @@ export interface SvgPrimitives {
 /**
  * Reads every visible drawing primitive of an SVG document.
  * @param svgText - the SVG file's text
+ * @param pictures - the pictures it embeds, decoded, by their `href`: an image whose pixels are a gradient carries it
  * @returns its rendered size and its primitives
  */
-export function readSvgPrimitives(svgText: string): SvgPrimitives {
+export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string, Pixels> = new Map()): SvgPrimitives {
     const parsed = new DOMParser().parseFromString(svgText, "image/svg+xml");
     const error = parsed.querySelector("parsererror");
     if (error !== null) {
@@ -946,6 +968,9 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             if (
                 el.closest("defs, marker, clipPath, mask, pattern, symbol, title, desc, metadata, #PajekSig") !== null
             ) {
+                continue;
+            }
+            if (inUndrawnBranch(el)) {
                 continue;
             }
             const cs = getComputedStyle(el);
@@ -1000,7 +1025,11 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 continue;
             }
             if (tag === "image") {
+                const href = el.getAttribute("href") ?? el.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+                const pixels = href === null ? undefined : pictures.get(href.replace(/\s+/g, ""));
+                const gradient = pixels === undefined ? null : pictureGradient(pixels);
                 prims.push({
+                    ...(gradient === null ? {} : { gradient }),
                     index: i,
                     tag,
                     kind: "image",

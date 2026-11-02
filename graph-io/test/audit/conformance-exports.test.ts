@@ -46,6 +46,7 @@ import {
     type CommonExportOptions,
     type CommonImportOptions,
     type ExportCapabilities,
+    type FileLayout,
     type GraphChoiceOptions,
     type GraphExporter,
     type GraphImporter,
@@ -119,6 +120,8 @@ interface DesignGraphImporter<Opts = unknown> {
     styles?(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles | null;
     // added after the design: the file-positions hook (design/positions/file-positions.md)
     positions?(snapshot: GraphSnapshot, ctx: PositionReadContext): ImporterPositions | null;
+    // added after the design: the layout the file asks for (issue #2496)
+    layout?(snapshot: GraphSnapshot): FileLayout | null;
 }
 interface DesignExportCapabilities {
     readonly mixedDirection: boolean;

@@ -134,6 +134,116 @@ function edgeOrderedRows(
 }
 
 /**
+ * The breadth-first order the left nodes search in: roots in node order, neighbours in row order.
+ * @param start - The row offsets
+ * @param nbr - The neighbours, row by row
+ * @param nodeCount - The node count
+ * @returns Every node in search order
+ */
+function breadthFirstOrder(start: Uint32Array, nbr: Uint32Array, nodeCount: number): Uint32Array {
+    const order = new Uint32Array(nodeCount);
+    const reached = new Uint8Array(nodeCount);
+    let tail = 0;
+    for (let r = 0; r < nodeCount; r++) {
+        if (reached[r] === 1) {
+            continue;
+        }
+        reached[r] = 1;
+        let head = tail;
+        order[tail++] = r;
+        while (head < tail) {
+            const u = order[head++];
+            for (let k = start[u]; k < start[u + 1]; k++) {
+                if (reached[nbr[k]] === 0) {
+                    reached[nbr[k]] = 1;
+                    order[tail++] = nbr[k];
+                }
+            }
+        }
+    }
+    return order;
+}
+
+/** The state of Kuhn's search, built once per call. */
+interface KuhnState {
+    start: Uint32Array;
+    nbr: Uint32Array;
+    right: NodeMask;
+    matching: U32;
+    mateOfRight: Uint32Array;
+    seen: Uint32Array;
+    /** The DFS stack of left nodes. */
+    stack: Uint32Array;
+    /** The neighbour cursor per stacked node. */
+    cursor: Uint32Array;
+    /** The right node taken to descend from each stacked node. */
+    via: Uint32Array;
+}
+
+/**
+ * Advances the stacked node `x` to its next unseen right neighbour.
+ * @returns The neighbour, or INVALID_INDEX when `x` has none left
+ * @param st - The run state, updated in place
+ * @param x - The stacked left node
+ * @param stamp - The mark of this search
+ */
+function nextUnseenRight(st: KuhnState, x: number, stamp: number): number {
+    const { start, nbr, cursor, seen, right } = st;
+    while (cursor[x] < start[x + 1]) {
+        const v = nbr[cursor[x]++];
+        if (seen[v] !== stamp && maskTest(right, v)) {
+            seen[v] = stamp;
+            return v;
+        }
+    }
+    return INVALID_INDEX;
+}
+
+/**
+ * One iterative depth-first search for an augmenting path from `root`, flipping the path when
+ * one is found.
+ * @returns Whether the matching grew
+ * @param st - The run state, updated in place
+ * @param root - The node the search starts from
+ * @param stamp - The mark of this search
+ */
+function augmentFrom(st: KuhnState, root: number, stamp: number): boolean {
+    const { start, stack, cursor, via, mateOfRight } = st;
+    let top = 0;
+    stack[top++] = root;
+    cursor[root] = start[root];
+    let free = INVALID_INDEX;
+    while (top > 0) {
+        const x = stack[top - 1];
+        const v = nextUnseenRight(st, x, stamp);
+        if (v === INVALID_INDEX) {
+            top--;
+            continue;
+        }
+        const next = mateOfRight[v];
+        if (next === INVALID_INDEX) {
+            free = v;
+            break;
+        }
+        via[x] = v;
+        stack[top++] = next;
+        cursor[next] = start[next];
+    }
+    if (free === INVALID_INDEX) {
+        return false;
+    }
+    // Flip the path: the top node takes the free right node, every node below takes the right
+    // node it descended through.
+    for (let k = top - 1; k >= 0; k--) {
+        const x = stack[k];
+        const w = k === top - 1 ? free : via[x];
+        st.matching[x] = w;
+        mateOfRight[w] = x;
+    }
+    return true;
+}
+
+/**
  * Maximum matching of a bipartite graph by augmenting paths (Kuhn's algorithm, O(V E)).
  *
  * Tie rule: among the equally large matchings it returns the one 2.x returned. Left nodes search
@@ -157,79 +267,26 @@ export function maximumBipartiteMatching(
     const { nodeCount } = s;
     const { start, nbr } = edgeOrderedRows(views, nodeCount, s.edgeCount);
     // The breadth-first order the left nodes search in.
-    const order = new Uint32Array(nodeCount);
-    const reached = new Uint8Array(nodeCount);
-    let tail = 0;
-    for (let r = 0; r < nodeCount; r++) {
-        if (reached[r] === 1) {
-            continue;
-        }
-        reached[r] = 1;
-        let head = tail;
-        order[tail++] = r;
-        while (head < tail) {
-            const u = order[head++];
-            for (let k = start[u]; k < start[u + 1]; k++) {
-                if (reached[nbr[k]] === 0) {
-                    reached[nbr[k]] = 1;
-                    order[tail++] = nbr[k];
-                }
-            }
-        }
-    }
-    const matching = new Uint32Array(nodeCount).fill(INVALID_INDEX);
-    const mateOfRight = new Uint32Array(nodeCount).fill(INVALID_INDEX);
-    const seen = new Uint32Array(nodeCount);
-    // The DFS stack of left nodes; the neighbour cursor per stacked node; the right node taken to
-    // descend from each stacked node.
-    const stack = new Uint32Array(nodeCount);
-    const cursor = new Uint32Array(nodeCount);
-    const via = new Uint32Array(nodeCount);
+    const order = breadthFirstOrder(start, nbr, nodeCount);
+    const st: KuhnState = {
+        start,
+        nbr,
+        right,
+        matching: new Uint32Array(nodeCount).fill(INVALID_INDEX),
+        mateOfRight: new Uint32Array(nodeCount).fill(INVALID_INDEX),
+        seen: new Uint32Array(nodeCount),
+        stack: new Uint32Array(nodeCount),
+        cursor: new Uint32Array(nodeCount),
+        via: new Uint32Array(nodeCount),
+    };
     let size = 0;
     for (let i = 0; i < nodeCount; i++) {
         const root = order[i];
-        if (!maskTest(left, root)) {
-            continue;
+        if (maskTest(left, root) && augmentFrom(st, root, i + 1)) {
+            size++;
         }
-        const stamp = i + 1;
-        let top = 0;
-        stack[top++] = root;
-        cursor[root] = start[root];
-        let free = INVALID_INDEX;
-        search: while (top > 0) {
-            const x = stack[top - 1];
-            while (cursor[x] < start[x + 1]) {
-                const v = nbr[cursor[x]++];
-                if (seen[v] === stamp || !maskTest(right, v)) {
-                    continue;
-                }
-                seen[v] = stamp;
-                const next = mateOfRight[v];
-                if (next === INVALID_INDEX) {
-                    free = v;
-                    break search;
-                }
-                via[x] = v;
-                stack[top++] = next;
-                cursor[next] = start[next];
-                continue search;
-            }
-            top--;
-        }
-        if (free === INVALID_INDEX) {
-            continue;
-        }
-        // Flip the path: the top node takes the free right node, every node below takes the right
-        // node it descended through.
-        for (let k = top - 1; k >= 0; k--) {
-            const x = stack[k];
-            const v = k === top - 1 ? free : via[x];
-            matching[x] = v;
-            mateOfRight[v] = x;
-        }
-        size++;
     }
-    return { matching, size };
+    return { matching: st.matching, size };
 }
 
 /**

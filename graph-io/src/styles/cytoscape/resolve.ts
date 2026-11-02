@@ -25,6 +25,7 @@ import type {
 } from "../types.js";
 import { isStyleValue } from "../vocabulary.js";
 import { readCytoscapeCharts } from "./charts.js";
+import { readCytoscapeGradientsAndImages } from "./custom-graphics.js";
 import {
     arrowGap,
     arrowProportion,
@@ -524,13 +525,15 @@ export function resolveCytoscape(
             }
             return typeof v === "object" && v !== null ? JSON.stringify(v) : null;
         };
+        const graphicOf = (slot: string, i: number): unknown => {
+            const v = one(slot, raw, "pieColors", i);
+            return typeof v === "string" && v.startsWith("{") ? (JSON.parse(v) as unknown) : v;
+        };
+        readCytoscapeGradientsAndImages(out, n, graphicOf, notes);
         readCytoscapeCharts(
             out,
             n,
-            (slot, i) => {
-                const v = one(slot, raw, "pieColors", i);
-                return typeof v === "string" && v.startsWith("{") ? (JSON.parse(v) as unknown) : v;
-            },
+            graphicOf,
             (column, i) => elements.value(column, i),
             s.dependencies.get("nodeCustomGraphicsSizeSync") !== false,
         );

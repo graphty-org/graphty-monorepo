@@ -144,6 +144,38 @@ function importsOf(source) {
 }
 
 /**
+ * Reports, through `report`, every root binary a package's scripts run.
+ * @param pkg - the package's package.json
+ * @param bins - executable name to the root dependency that provides it
+ * @param report - called with the dependency and where it is used
+ */
+function checkScripts(pkg, bins, report) {
+    for (const [script, line] of Object.entries(pkg.scripts ?? {})) {
+        for (const exe of commandsOf(line)) {
+            const dep = bins.get(exe);
+            if (dep !== undefined) {
+                report(dep, `script "${script}" runs ${exe}`);
+            }
+        }
+    }
+}
+
+/**
+ * Reports, through `report`, every package a workspace's *.config.* files import.
+ * @param pkgDir - the workspace directory
+ * @param report - called with the dependency and the config file name
+ */
+function checkConfigs(pkgDir, report) {
+    for (const file of readdirSync(pkgDir)) {
+        if (/\.config\.(?:[cm]?[jt]s)$/.test(file)) {
+            for (const dep of importsOf(readFileSync(join(pkgDir, file), "utf8"))) {
+                report(dep, file);
+            }
+        }
+    }
+}
+
+/**
  * Checks every workspace under a root.
  * @param rootDir - the workspace root (holds package.json and pnpm-workspace.yaml)
  * @returns one line per undeclared use
@@ -167,21 +199,8 @@ function check(rootDir) {
                 problems.push(`${dir}: ${where} uses ${dep}, which only the root package.json declares`);
             }
         };
-        for (const [script, line] of Object.entries(pkg.scripts ?? {})) {
-            for (const exe of commandsOf(line)) {
-                const dep = bins.get(exe);
-                if (dep !== undefined) {
-                    report(dep, `script "${script}" runs ${exe}`);
-                }
-            }
-        }
-        for (const file of readdirSync(join(rootDir, dir))) {
-            if (/\.config\.(?:[cm]?[jt]s)$/.test(file)) {
-                for (const dep of importsOf(readFileSync(join(rootDir, dir, file), "utf8"))) {
-                    report(dep, file);
-                }
-            }
-        }
+        checkScripts(pkg, bins, report);
+        checkConfigs(join(rootDir, dir), report);
     }
     return problems;
 }

@@ -87,6 +87,7 @@ const DECLARED = [
     "node.width",
     "node.height",
     "node.depth",
+    "node.relativeExtents",
     "node.planar",
     "node.zIndex",
     "node.drawOrder",
@@ -388,8 +389,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty-three node channels and one hundred and fifty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 183);
+    it("splits into one hundred and eighty-four node channels and one hundred and fifty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 184);
         assert.strictEqual(channelsFor("edge").length, 151);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

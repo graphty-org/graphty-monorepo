@@ -10,6 +10,11 @@
 //   2. runs and jobs, from yesterday back (cursor backfill#<repo>#newest; today is the live collector's)
 //   3. pull requests and issues updated in the range (cursor backfill#prs-issues)
 //
+// Or, with "issues": "all", only every issue the repository has, whenever it was last updated: the Issues page counts
+// open issues over their whole history, which the 28-day range leaves out. It marks no bucket older than the refold
+// window dirty, so it costs no recompute of old days; it is idempotent, so a stopped call is simply invoked again.
+//   aws lambda invoke ... --payload '{"mode":"backfill","issues":"all"}' /dev/stdout
+//
 //   aws lambda invoke --profile graphty --region us-east-2 --function-name graphty-health-backfill \
 //       --cli-binary-format raw-in-base64-out --payload '{"mode":"backfill","days":28}' /dev/stdout
 //   (add "restart": true to the first call's payload to read the range again from the start, rewriting its rows)
@@ -21,7 +26,7 @@
 // created_at for every job with no dependency arithmetic.
 
 import rates from "../../config/rates.json" with { type: "json" };
-import { cursorKey, DAILY_ROW_LIMIT, DAY, homeKey, type RawItem, type TestItem } from "../model/items.js";
+import { cursorKey, DAILY_ROW_LIMIT, DAY, homeKey, type RawItem, REFOLD_MS, type TestItem } from "../model/items.js";
 import { getCursor, putRaw, recordSource, setCursor, takeQuota } from "../model/raw.js";
 import type { Store } from "../model/store.js";
 import { type GitHub, runJobs } from "./github.js";
@@ -75,6 +80,8 @@ export interface BackfillOptions {
      * stored before them lack). Pass it on the first call only; the calls after it continue from the new cursors.
      */
     restart?: boolean;
+    /** Load every issue of `repo`, whatever its update time, and nothing else (the Issues page's history). */
+    issues?: "all";
     log?: (line: string) => void;
     sleep?: (ms: number) => Promise<void>;
     /** The clock the throttle and the deadline read (tests pass a fake one). */
@@ -170,19 +177,21 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
         await gate();
         return o.gh.rest<T>(path);
     };
-    const write = async (out: RawItem[]): Promise<void> => {
+    const write = async (out: RawItem[], markSince?: number): Promise<void> => {
         if (out.length && !(await takeQuota(o.store, out.length, o.now, o.rowLimit ?? DAILY_ROW_LIMIT / 2))) {
             throw new Stop("write_budget");
         }
-        await putRaw(o.store, out, o.now, { merge: true });
+        await putRaw(o.store, out, o.now, { merge: true, ...(markSince === undefined ? {} : { markSince }) });
         r.items += out.length;
     };
     const first = Math.floor((o.now - o.days * DAY) / DAY) * DAY;
 
     try {
         const ctx: Ctx = { o, perPage, gate, get, write, r, log };
-        if (o.repair) {
-            await repairRuns(ctx, o.repair.days, o.repair.workflows);
+        if (o.repair || o.issues === "all") {
+            await (o.repair
+                ? repairRuns(ctx, o.repair.days, o.repair.workflows)
+                : pullRequestsAndIssues(o, gate, (out) => write(out, o.now - REFOLD_MS), 0, true));
             r.done = true;
             r.calls = o.gh.calls - calls0;
             return r;
@@ -218,7 +227,7 @@ interface Ctx {
     perPage: number;
     gate: () => Promise<void>;
     get: <T>(path: string) => Promise<T | undefined>;
-    write: (out: RawItem[]) => Promise<void>;
+    write: (out: RawItem[], markSince?: number) => Promise<void>;
     r: BackfillReport;
     log: (line: string) => void;
 }
@@ -532,16 +541,18 @@ async function runItems(
  * @param gate - waits until the next request is allowed, or throws Stop
  * @param write - writes rows under the write budget
  * @param first - epoch ms of the range's first day
+ * @param issuesOnly - read no pull requests (the all-issues load, with `first` 0)
  */
 async function pullRequestsAndIssues(
     o: BackfillOptions,
     gate: () => Promise<void>,
     write: (out: RawItem[]) => Promise<void>,
     first: number,
+    issuesOnly = false,
 ): Promise<void> {
     const [owner, name] = o.repo.split("/");
     for (const [query, vars] of [
-        [PR_QUERY, { withOpen: false }],
+        ...(issuesOnly ? [] : ([[PR_QUERY, { withOpen: false }]] as const)),
         [
             ISSUE_QUERY,
             {

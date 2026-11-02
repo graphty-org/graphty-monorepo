@@ -347,6 +347,18 @@ class ByteDecoder {
                 { byteOffset: 0 },
             );
         }
+        if (!this.useDeclared(head)) {
+            this.use("utf-8", true);
+        }
+    }
+
+    /**
+     * Read an input with no BOM, no option and no UTF-16 byte pattern by its declared encoding,
+     * when it declares one this platform decodes other than UTF-8 or UTF-16.
+     * @param head - the first bytes
+     * @returns true when the declared encoding was chosen; false leaves the UTF-8 default to the caller
+     */
+    private useDeclared(head: Uint8Array): boolean {
         const declared = this.declared(head, "windows-1252");
         if (declared !== null) {
             const canonical = canonicalEncoding(declared);
@@ -369,10 +381,10 @@ class ByteDecoder {
                 // a declared UTF-8 gets the undeclared treatment: tools often write the default
                 // prolog over Latin-1 bytes
                 this.use(canonical, false);
-                return;
+                return true;
             }
         }
-        this.use("utf-8", true);
+        return false;
     }
 
     /**

@@ -669,6 +669,24 @@ describe("the recommendation for a Graphviz file", () => {
         assert.isUndefined(gml?.options);
     });
 
+    it("reads graph-io's layout fact before the file's format and attributes", () => {
+        const fact = { tool: "graphviz", program: "circo", ownFormat: false, settings: { mindist: "2" } } as const;
+        const drawn = recommendLayout(connected, {
+            file: { format: "graphml", attributes: { layout: "neato" }, layout: fact },
+            graphvizAvailable: true,
+        });
+        const placed = recommendLayout(connected, { file: { layout: fact }, graphvizAvailable: true, placedNodes: 30 });
+        const other = recommendLayout(connected, {
+            file: { format: "dot", layout: { tool: "yed", program: "hierarchic", ownFormat: true, settings: {} } },
+            graphvizAvailable: true,
+        });
+
+        assert.strictEqual(drawn?.layout.id, "graphviz-circo");
+        assert.deepEqual(drawn?.options, { attributes: { mindist: "2" } }, "not Graphviz's own format: no label sizes");
+        assert.isUndefined(placed?.options, "Graphviz routes the edges only of a file in its own format");
+        assert.strictEqual(other?.layout.id, "force", "a layout of another tool is not drawn with Graphviz");
+    });
+
     it("ignores files that are not Graphviz files, and never recommends a Graphviz layout on its own", () => {
         const advice = recommendLayout(connected, {
             file: { format: "gexf", attributes: {} },
@@ -696,6 +714,13 @@ describe("a DOT file loaded with layout recommended", () => {
         assert.deepEqual(values.get(FILE_GRAPH_VALUE), {
             format: "dot",
             attributes: { layout: "neato", rankdir: "LR" },
+            layout: {
+                tool: "graphviz",
+                program: "neato",
+                ownFormat: true,
+                direction: "right",
+                settings: { rankdir: "LR" },
+            },
         });
         assert.strictEqual(session.layout.id, "force", "Node has no Worker, so Graphviz is unavailable");
         session.dispose();

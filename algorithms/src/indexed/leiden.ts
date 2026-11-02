@@ -97,6 +97,144 @@ function shuffled(n: number, rand: () => number): U32 {
     return order;
 }
 
+/** Per-visit tally of the weight from one node to each community, stamped so it never needs clearing. */
+interface Tally {
+    readonly acc: F64;
+    readonly stamp: Int32Array;
+    readonly touched: U32;
+}
+
+/**
+ * An empty tally over n communities.
+ * @param n - The node count
+ * @returns The tally
+ */
+function tallyOf(n: number): Tally {
+    return { acc: new Float64Array(n), stamp: new Int32Array(n).fill(-1), touched: new Uint32Array(n) };
+}
+
+/** The local-moving work queue: a ring of node ids, with `queued` marking the nodes in it. */
+/** The communities of a fast local move, with the modularity gain's constants. */
+interface Communities {
+    /** Total degree of every community. */
+    readonly tot: F64;
+    /** Size of every community. */
+    readonly size: U32;
+    /** Empty communities, the next to use last. */
+    readonly empty: number[];
+    /** Resolution gamma. */
+    readonly resolution: number;
+    /** Twice the total edge weight. */
+    readonly m2: number;
+}
+
+interface Ring {
+    readonly queue: U32;
+    readonly queued: Uint8Array;
+    readonly capacity: number;
+    head: number;
+    tail: number;
+}
+
+/**
+ * Sum the weight from u to each neighbouring community, self-loops skipped.
+ * @param level - The level
+ * @param comm - Community of every node
+ * @param t - The tally, written for this visit
+ * @param u - The node
+ * @param visit - The visit number
+ * @returns The communities listed in `t.touched`
+ */
+function tallyNeighbourCommunities(level: Level, comm: U32, t: Tally, u: number, visit: number): number {
+    const { rowPtr, colIdx } = level.s;
+    const { acc, stamp, touched } = t;
+    let cnt = 0;
+    for (let a = rowPtr[u], end = rowPtr[u + 1]; a < end; a++) {
+        const v = colIdx[a];
+        if (v === u) {
+            continue;
+        }
+        const c = comm[v];
+        if (stamp[c] !== visit) {
+            stamp[c] = visit;
+            acc[c] = 0;
+            touched[cnt++] = c;
+        }
+        acc[c] += level.arcW[a];
+    }
+    return cnt;
+}
+
+/**
+ * The community u (taken out of `cu`) moves to: the neighbouring one with the largest modularity
+ * gain, or an empty one when every gain is negative. Takes the chosen empty community off `empty`.
+ * @param t - The tally of u's visit
+ * @param cnt - Communities in the tally
+ * @param cu - u's community
+ * @param ku - u's weighted degree
+ * @param cs - The communities without u, and the gain's constants
+ * @param visit - The visit number
+ * @returns The chosen community
+ */
+function chooseCommunity(t: Tally, cnt: number, cu: number, ku: number, cs: Communities, visit: number): number {
+    const { acc, stamp, touched } = t;
+    const { tot, size, empty, resolution, m2 } = cs;
+    let best = cu;
+    let bestGain = (stamp[cu] === visit ? acc[cu] : 0) - (resolution * ku * tot[cu]) / m2;
+    for (let i = 0; i < cnt; i++) {
+        const c = touched[i];
+        const gain = acc[c] - (resolution * ku * tot[c]) / m2;
+        if (c !== cu && gain > bestGain) {
+            bestGain = gain;
+            best = c;
+        }
+    }
+    // An empty community gains 0; when u's own is empty now, staying already is that choice.
+    if (size[cu] > 0 && bestGain < 0) {
+        best = empty[empty.length - 1];
+    }
+    if (best !== cu && size[best] === 0) {
+        empty.pop();
+    }
+    return best;
+}
+
+/**
+ * Queue again every neighbour of u not queued and outside u's new community.
+ * @param level - The level
+ * @param comm - Community of every node
+ * @param ring - The work queue
+ * @param u - The node that moved
+ * @param best - Its new community
+ */
+function requeueOutside(level: Level, comm: U32, ring: Ring, u: number, best: number): void {
+    const { rowPtr, colIdx } = level.s;
+    const { queue, queued, capacity } = ring;
+    for (let a = rowPtr[u], end = rowPtr[u + 1]; a < end; a++) {
+        const v = colIdx[a];
+        if (queued[v] === 0 && comm[v] !== best) {
+            queued[v] = 1;
+            queue[ring.tail] = v;
+            ring.tail = ring.tail + 1 === capacity ? 0 : ring.tail + 1;
+        }
+    }
+}
+
+/**
+ * The communities of `0..n-1` that hold no node, highest first.
+ * @param size - Size of every community
+ * @returns The empty ones, so the lowest is popped first
+ */
+function emptyCommunities(size: U32): number[] {
+    const empty: number[] = [];
+    for (let c = size.length - 1; c >= 0; c--) {
+        if (size[c] === 0) {
+            empty.push(c);
+        }
+    }
+    return empty;
+}
+
 /**
  * Leiden's fast local moving: nodes wait in a queue started as a seeded shuffle; a visited node
  * moves to the neighbouring community (or an empty one) with the largest modularity gain, and when
@@ -108,70 +246,33 @@ function shuffled(n: number, rand: () => number): U32 {
  * @param m2 - Twice the total edge weight
  */
 function moveNodesFast(level: Level, comm: U32, rand: () => number, resolution: number, m2: number): void {
-    const { s, arcW, deg } = level;
-    const { nodeCount: n, rowPtr, colIdx } = s;
+    const { s, deg } = level;
+    const n = s.nodeCount;
     const tot = new Float64Array(n);
     const size = new Uint32Array(n);
     for (let u = 0; u < n; u++) {
         tot[comm[u]] += deg[u];
         size[comm[u]]++;
     }
-    const empty: number[] = [];
-    for (let c = n - 1; c >= 0; c--) {
-        if (size[c] === 0) {
-            empty.push(c);
-        }
-    }
-    const acc = new Float64Array(n);
-    const stamp = new Int32Array(n).fill(-1);
-    const touched = new Uint32Array(n);
+    const empty = emptyCommunities(size);
+    const cs: Communities = { tot, size, empty, resolution, m2 };
+    const t = tallyOf(n);
     const capacity = n + 1;
     const queue = new Uint32Array(capacity);
     queue.set(shuffled(n, rand));
-    const queued = new Uint8Array(n).fill(1);
-    let head = 0;
-    let tail = n;
+    const ring: Ring = { queue, queued: new Uint8Array(n).fill(1), capacity, head: 0, tail: n };
     let visit = 0;
-    while (head !== tail) {
-        const u = queue[head];
-        head = head + 1 === capacity ? 0 : head + 1;
-        queued[u] = 0;
+    while (ring.head !== ring.tail) {
+        const u = queue[ring.head];
+        ring.head = ring.head + 1 === capacity ? 0 : ring.head + 1;
+        ring.queued[u] = 0;
         visit++;
         const cu = comm[u];
         const ku = deg[u];
         tot[cu] -= ku;
         size[cu]--;
-        let cnt = 0;
-        for (let a = rowPtr[u], end = rowPtr[u + 1]; a < end; a++) {
-            const v = colIdx[a];
-            if (v === u) {
-                continue;
-            }
-            const c = comm[v];
-            if (stamp[c] !== visit) {
-                stamp[c] = visit;
-                acc[c] = 0;
-                touched[cnt++] = c;
-            }
-            acc[c] += arcW[a];
-        }
-        let best = cu;
-        let bestGain = (stamp[cu] === visit ? acc[cu] : 0) - (resolution * ku * tot[cu]) / m2;
-        for (let i = 0; i < cnt; i++) {
-            const c = touched[i];
-            const gain = acc[c] - (resolution * ku * tot[c]) / m2;
-            if (c !== cu && gain > bestGain) {
-                bestGain = gain;
-                best = c;
-            }
-        }
-        // An empty community gains 0; when u's own is empty now, staying already is that choice.
-        if (size[cu] > 0 && bestGain < 0) {
-            best = empty[empty.length - 1];
-        }
-        if (best !== cu && size[best] === 0) {
-            empty.pop();
-        }
+        const cnt = tallyNeighbourCommunities(level, comm, t, u, visit);
+        const best = chooseCommunity(t, cnt, cu, ku, cs, visit);
         tot[best] += ku;
         size[best]++;
         if (best === cu) {
@@ -181,15 +282,188 @@ function moveNodesFast(level: Level, comm: U32, rand: () => number, resolution: 
         if (size[cu] === 0) {
             empty.push(cu);
         }
+        requeueOutside(level, comm, ring, u, best);
+    }
+}
+
+/** The refined partition while refinement runs: every node starts alone. */
+interface Refinement {
+    /** Sub-community of every node. */
+    readonly ref: U32;
+    /** Total degree of every sub-community. */
+    readonly refTot: F64;
+    /** Size of every sub-community. */
+    readonly refSize: U32;
+    /** Weight from each sub-community to the rest of its community. */
+    readonly ext: F64;
+}
+
+/**
+ * The singleton refinement of a level's communities.
+ * @param level - The level
+ * @param comm - Community of every node
+ * @returns Every node alone in its sub-community
+ */
+function singletonRefinement(level: Level, comm: U32): Refinement {
+    const { s, arcW, deg } = level;
+    const { nodeCount: n, rowPtr, colIdx } = s;
+    const ref = new Uint32Array(n);
+    const refTot = new Float64Array(n);
+    const refSize = new Uint32Array(n);
+    const ext = new Float64Array(n);
+    for (let u = 0; u < n; u++) {
+        ref[u] = u;
+        refTot[u] = deg[u];
+        refSize[u] = 1;
         for (let a = rowPtr[u], end = rowPtr[u + 1]; a < end; a++) {
             const v = colIdx[a];
-            if (queued[v] === 0 && comm[v] !== best) {
-                queued[v] = 1;
-                queue[tail] = v;
-                tail = tail + 1 === capacity ? 0 : tail + 1;
+            if (v !== u && comm[v] === comm[u]) {
+                ext[u] += arcW[a];
             }
         }
     }
+    return { ref, refTot, refSize, ext };
+}
+
+/**
+ * Sum the weight from v to each sub-community of its own community c, stamped by v.
+ * @param level - The level
+ * @param comm - Community of every node
+ * @param ref - Sub-community of every node
+ * @param t - The tally, written for this visit
+ * @param v - The node
+ * @param c - Its community
+ * @returns The sub-communities listed in `t.touched`
+ */
+function tallySubCommunities(level: Level, comm: U32, ref: U32, t: Tally, v: number, c: number): number {
+    const { rowPtr, colIdx } = level.s;
+    const { acc, stamp, touched } = t;
+    let cnt = 0;
+    for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
+        const x = colIdx[a];
+        if (x === v || comm[x] !== c) {
+            continue;
+        }
+        const r = ref[x];
+        if (stamp[r] !== v) {
+            stamp[r] = v;
+            acc[r] = 0;
+            touched[cnt++] = r;
+        }
+        acc[r] += level.arcW[a];
+    }
+    return cnt;
+}
+
+/**
+ * Keep, at the front of `t.touched`, the well-connected sub-communities with a non-negative gain.
+ * @param t - The tally of v's visit
+ * @param cnt - Sub-communities in the tally
+ * @param rf - The refinement
+ * @param cTot - Total degree of v's community
+ * @param kv - v's weighted degree
+ * @param resolution - Resolution gamma
+ * @param m2 - Twice the total edge weight
+ * @returns The candidates kept
+ */
+function keepCandidates(
+    t: Tally,
+    cnt: number,
+    rf: Refinement,
+    cTot: number,
+    kv: number,
+    resolution: number,
+    m2: number,
+): number {
+    const { touched } = t;
+    const { refTot, ext } = rf;
+    let kept = 0;
+    for (let j = 0; j < cnt; j++) {
+        const r = touched[j];
+        const gain = gainOf(t, rf, r, kv, resolution, m2);
+        if (gain >= 0 && ext[r] >= (resolution * refTot[r] * (cTot - refTot[r])) / m2) {
+            touched[kept++] = r;
+        }
+    }
+    return kept;
+}
+
+/**
+ * The modularity gain of moving v into sub-community r.
+ * @param t - The tally of v's visit
+ * @param rf - The refinement
+ * @param r - A sub-community in the tally
+ * @param kv - v's weighted degree
+ * @param resolution - Resolution gamma
+ * @param m2 - Twice the total edge weight
+ * @returns The gain
+ */
+function gainOf(t: Tally, rf: Refinement, r: number, kv: number, resolution: number, m2: number): number {
+    return t.acc[r] - (resolution * kv * rf.refTot[r]) / m2;
+}
+
+/**
+ * The unnormalised draw weight of sub-community r: exp of its gain over the best, in modularity
+ * units, divided by theta.
+ * @param t - The tally of v's visit
+ * @param rf - The refinement
+ * @param r - A candidate
+ * @param kv - v's weighted degree
+ * @param resolution - Resolution gamma
+ * @param m2 - Twice the total edge weight
+ * @param maxGain - The best candidate's gain
+ * @returns The weight
+ */
+function drawWeight(
+    t: Tally,
+    rf: Refinement,
+    r: number,
+    kv: number,
+    resolution: number,
+    m2: number,
+    maxGain: number,
+): number {
+    return detExp(((gainOf(t, rf, r, kv, resolution, m2) - maxGain) * 2) / m2 / THETA);
+}
+
+/**
+ * Draw the target among the kept candidates with probability exp(gain in modularity units /
+ * theta), shifted by the best gain so exp never overflows.
+ * @param t - The tally, its candidates at the front of `touched`
+ * @param kept - Candidates kept, at least 1
+ * @param rf - The refinement
+ * @param kv - v's weighted degree
+ * @param resolution - Resolution gamma
+ * @param m2 - Twice the total edge weight
+ * @param rand - Generator
+ * @returns The sub-community drawn
+ */
+function drawCandidate(
+    t: Tally,
+    kept: number,
+    rf: Refinement,
+    kv: number,
+    resolution: number,
+    m2: number,
+    rand: () => number,
+): number {
+    const { touched } = t;
+    let maxGain = -Infinity;
+    for (let j = 0; j < kept; j++) {
+        maxGain = Math.max(maxGain, gainOf(t, rf, touched[j], kv, resolution, m2));
+    }
+    let total = 0;
+    for (let j = 0; j < kept; j++) {
+        total += drawWeight(t, rf, touched[j], kv, resolution, m2, maxGain);
+    }
+    let draw = rand() * total;
+    for (let j = 0; j < kept - 1; j++) {
+        draw -= drawWeight(t, rf, touched[j], kv, resolution, m2, maxGain);
+        if (draw < 0) {
+            return touched[j];
+        }
+    }
+    return touched[kept - 1];
 }
 
 /**
@@ -209,31 +483,15 @@ function moveNodesFast(level: Level, comm: U32, rand: () => number, resolution: 
  * @returns The sub-community of every node, labelled by a member's index (not dense)
  */
 function refine(level: Level, comm: U32, rand: () => number, resolution: number, m2: number): U32 {
-    const { s, arcW, deg } = level;
-    const { nodeCount: n, rowPtr, colIdx } = s;
+    const { s, deg } = level;
+    const n = s.nodeCount;
     const commTot = new Float64Array(n);
     for (let u = 0; u < n; u++) {
         commTot[comm[u]] += deg[u];
     }
-    const ref = new Uint32Array(n);
-    const refTot = new Float64Array(n);
-    const refSize = new Uint32Array(n);
-    // Weight from each sub-community to the rest of its community.
-    const ext = new Float64Array(n);
-    for (let u = 0; u < n; u++) {
-        ref[u] = u;
-        refTot[u] = deg[u];
-        refSize[u] = 1;
-        for (let a = rowPtr[u], end = rowPtr[u + 1]; a < end; a++) {
-            const v = colIdx[a];
-            if (v !== u && comm[v] === comm[u]) {
-                ext[u] += arcW[a];
-            }
-        }
-    }
-    const acc = new Float64Array(n);
-    const stamp = new Int32Array(n).fill(-1);
-    const touched = new Uint32Array(n);
+    const rf = singletonRefinement(level, comm);
+    const { ref, refTot, refSize, ext } = rf;
+    const t = tallyOf(n);
     const order = shuffled(n, rand);
     for (let i = 0; i < n; i++) {
         const v = order[i];
@@ -242,58 +500,49 @@ function refine(level: Level, comm: U32, rand: () => number, resolution: number,
         if (refSize[v] !== 1 || ext[v] < (resolution * kv * (commTot[c] - kv)) / m2) {
             continue;
         }
-        let cnt = 0;
-        for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
-            const x = colIdx[a];
-            if (x === v || comm[x] !== c) {
-                continue;
-            }
-            const r = ref[x];
-            if (stamp[r] !== v) {
-                stamp[r] = v;
-                acc[r] = 0;
-                touched[cnt++] = r;
-            }
-            acc[r] += arcW[a];
-        }
-        // Candidates: well-connected sub-communities with a non-negative gain, drawn with probability
-        // exp(gain in modularity units / theta), shifted by the best gain so exp never overflows.
-        const gainOf = (r: number): number => acc[r] - (resolution * kv * refTot[r]) / m2;
-        let maxGain = -Infinity;
-        let kept = 0;
-        for (let j = 0; j < cnt; j++) {
-            const r = touched[j];
-            const gain = gainOf(r);
-            if (gain >= 0 && ext[r] >= (resolution * refTot[r] * (commTot[c] - refTot[r])) / m2) {
-                touched[kept++] = r;
-                maxGain = Math.max(maxGain, gain);
-            }
-        }
+        const cnt = tallySubCommunities(level, comm, ref, t, v, c);
+        const kept = keepCandidates(t, cnt, rf, commTot[c], kv, resolution, m2);
         if (kept === 0) {
             continue;
         }
-        const weight = (r: number): number => detExp(((gainOf(r) - maxGain) * 2) / m2 / THETA);
-        let total = 0;
-        for (let j = 0; j < kept; j++) {
-            total += weight(touched[j]);
-        }
-        let draw = rand() * total;
-        let best = touched[kept - 1];
-        for (let j = 0; j < kept - 1; j++) {
-            draw -= weight(touched[j]);
-            if (draw < 0) {
-                best = touched[j];
-                break;
-            }
-        }
+        const best = drawCandidate(t, kept, rf, kv, resolution, m2, rand);
         ref[v] = best;
         refSize[v] = 0;
         refSize[best]++;
         refTot[best] += kv;
         // The edges between v and its new sub-community are now inside it.
-        ext[best] += ext[v] - 2 * acc[best];
+        ext[best] += ext[v] - 2 * t.acc[best];
     }
     return ref;
+}
+
+/**
+ * Contract a level by `blocks`, each aggregate node starting in the community of its members, and
+ * move `top` to the new level.
+ * @param level - The level
+ * @param blocks - The aggregate node of every node of the level
+ * @param dense - Dense community of every node of the level
+ * @param top - Which node of the level holds each original node; moved to the next level
+ * @returns The next level and the dense community of each of its nodes
+ */
+function aggregate(level: Level, blocks: U32, dense: U32, top: U32): { level: Level; comm: U32 } {
+    const d = level.s.contract(blocks);
+    const { nodeRemap, edgeRemap } = d;
+    const next = d.snapshot;
+    const edgeW = new Float64Array(next.edgeCount);
+    for (let e = 0; e < level.edgeW.length; e++) {
+        edgeW[edgeRemap === null ? e : edgeRemap[e]] += level.edgeW[e];
+    }
+    const nextComm = new Uint32Array(next.nodeCount);
+    for (let u = 0; u < level.s.nodeCount; u++) {
+        nextComm[nodeRemap === null ? u : nodeRemap[u]] = dense[u];
+    }
+    if (nodeRemap !== null) {
+        for (let u = 0; u < top.length; u++) {
+            top[u] = nodeRemap[top[u]];
+        }
+    }
+    return { level: levelOf(next, edgeW), comm: renumberPartition(nextComm).labels };
 }
 
 /**
@@ -336,24 +585,7 @@ function pass(
             // the next level is smaller.
             blocks = dense.labels;
         }
-        const d = level.s.contract(blocks);
-        const { nodeRemap, edgeRemap } = d;
-        const next = d.snapshot;
-        const edgeW = new Float64Array(next.edgeCount);
-        for (let e = 0; e < level.edgeW.length; e++) {
-            edgeW[edgeRemap === null ? e : edgeRemap[e]] += level.edgeW[e];
-        }
-        const nextComm = new Uint32Array(next.nodeCount);
-        for (let u = 0; u < level.s.nodeCount; u++) {
-            nextComm[nodeRemap === null ? u : nodeRemap[u]] = dense.labels[u];
-        }
-        if (nodeRemap !== null) {
-            for (let u = 0; u < n0; u++) {
-                top[u] = nodeRemap[top[u]];
-            }
-        }
-        comm = renumberPartition(nextComm).labels;
-        level = levelOf(next, edgeW);
+        ({ level, comm } = aggregate(level, blocks, dense.labels, top));
     }
     const out = new Uint32Array(n0);
     for (let u = 0; u < n0; u++) {

@@ -408,6 +408,79 @@ function hasAdjacentParallels(rowPtr: U32, colIdx: U32, nodeCount: number): bool
 // ============================================================ the sort
 
 /**
+ * Step 8's weight predicates over the edges: every edge lands on at least one arc, so the per-value
+ * predicates over the stored arc weights equal those over the f32-rounded edge weights. Throws
+ * E_INVALID_WEIGHT on a NaN weight (through `scanStoredWeights`).
+ * @param edgeWeights - the per-edge weights, or null when unweighted
+ * @param edgeCount - the edge count
+ * @returns whether every weight is one, none is negative and every one is finite
+ */
+function weightPredicates(
+    edgeWeights: SortInput["weights"],
+    edgeCount: number,
+): { allOne: boolean; nonNegative: boolean; finite: boolean } {
+    if (edgeWeights === null || edgeCount === 0) {
+        return { allOne: true, nonNegative: true, finite: true };
+    }
+    const bounds = new Float64Array([Infinity, -Infinity]);
+    scanStoredWeights(edgeWeights, edgeCount, bounds);
+    const min = bounds[0];
+    const max = bounds[1];
+    return { allOne: min === 1 && max === 1, nonNegative: min >= 0, finite: min > -Infinity && max < Infinity };
+}
+
+/**
+ * Steps 5 and 6 of a non-identity sort: pass 1 scatters the arcs by target, pass 2 by source into
+ * the rows, filling `colIdx`, both permutations and the f32 weights.
+ * @param input - the per-edge arrays
+ * @param arcCount - the arc count
+ * @param counts - the per-node counts of the first pass; both are overwritten
+ * @param counts.targetStart - per node, the arcs that target it (prefix-summed here)
+ * @param counts.rowCount - the row counts, already prefix-summed into rowPtr (reused as the cursor)
+ * @param core - the allocated core
+ * @param permutations - the core's permutation arrays
+ * @param permutations.arcToEdge - arc -> edge
+ * @param permutations.edgeToArc - edge -> arc
+ * @returns whether two arcs of one row share a target (a multigraph)
+ */
+function sortByTwoPasses(
+    input: SortInput,
+    arcCount: number,
+    counts: { targetStart: U32; rowCount: U32 },
+    core: CoreArrays,
+    permutations: { arcToEdge: U32; edgeToArc: U32 },
+): boolean {
+    const { directed, nodeCount, edgeCount, src, dst } = input;
+    const { targetStart, rowCount } = counts;
+    const { rowPtr, colIdx, weights } = core;
+    const { arcToEdge, edgeToArc } = permutations;
+    // step 5: pass 1 by target; `rowCount` is reused as the pass-1 cursor
+    prefixSum(targetStart, nodeCount);
+    const cursor = rowCount;
+    cursor.set(targetStart);
+    const byTarget = new Uint32Array(2 * arcCount);
+    let declared: U32 | null = null;
+    if (directed) {
+        scatterDirectedByTarget(src, dst, edgeCount, cursor, byTarget);
+    } else {
+        declared = new Uint32Array((arcCount + 31) >>> 5);
+        scatterUndirectedByTarget(src, dst, edgeCount, cursor, byTarget, declared);
+    }
+    // step 6: pass 2 by source into the rows; the cursor now walks rowPtr
+    cursor.set(rowPtr);
+    if (declared === null) {
+        scatterDirectedBySource(nodeCount, targetStart, byTarget, cursor, colIdx, arcToEdge);
+        invertPermutation(arcToEdge, edgeToArc);
+    } else {
+        scatterUndirectedBySource(nodeCount, { targetStart, byTarget, declared }, cursor, colIdx, arcToEdge, edgeToArc);
+    }
+    if (weights !== null && input.weights !== null) {
+        gatherWeights(arcToEdge, input.weights, weights);
+    }
+    return hasAdjacentParallels(rowPtr, colIdx, nodeCount);
+}
+
+/**
  * Sort a per-edge list into a CSR core (design section 6.3 steps 3-6 and 8). Directed input that is
  * already in CSR order takes the identity path (one count + scan + copy, no permutation arrays,
  * `flags.arcToEdgeIsIdentity`); everything else takes the two counting-sort passes. Undirected input
@@ -424,18 +497,7 @@ export function sortIntoCore(input: SortInput, useArena: boolean): SortResult {
 
     // step 8's weight predicates, over the edges: every edge lands on at least one arc, so the
     // per-value predicates over the stored arc weights equal those over the f32-rounded edge weights
-    let allOne = true;
-    let nonNegative = true;
-    let finite = true;
-    if (edgeWeights !== null && edgeCount > 0) {
-        const bounds = new Float64Array([Infinity, -Infinity]);
-        scanStoredWeights(edgeWeights, edgeCount, bounds);
-        const min = bounds[0];
-        const max = bounds[1];
-        allOne = min === 1 && max === 1;
-        nonNegative = min >= 0;
-        finite = min > -Infinity && max < Infinity;
-    }
+    const { allOne, nonNegative, finite } = weightPredicates(edgeWeights, edgeCount);
 
     // steps 3-6 counts: one sequential pass over the edges yields both prefix sums and the loop count
     const targetStart = new Uint32Array(nodeCount + 1);
@@ -461,37 +523,7 @@ export function sortIntoCore(input: SortInput, useArena: boolean): SortResult {
             weights.set(edgeWeights.subarray(0, edgeCount));
         }
     } else if (arcToEdge !== null && edgeToArc !== null) {
-        // step 5: pass 1 by target; `rowCount` is reused as the pass-1 cursor
-        prefixSum(targetStart, nodeCount);
-        const cursor = rowCount;
-        cursor.set(targetStart);
-        const byTarget = new Uint32Array(2 * arcCount);
-        let declared: U32 | null = null;
-        if (directed) {
-            scatterDirectedByTarget(src, dst, edgeCount, cursor, byTarget);
-        } else {
-            declared = new Uint32Array((arcCount + 31) >>> 5);
-            scatterUndirectedByTarget(src, dst, edgeCount, cursor, byTarget, declared);
-        }
-        // step 6: pass 2 by source into the rows; the cursor now walks rowPtr
-        cursor.set(rowPtr);
-        if (declared === null) {
-            scatterDirectedBySource(nodeCount, targetStart, byTarget, cursor, colIdx, arcToEdge);
-            invertPermutation(arcToEdge, edgeToArc);
-        } else {
-            scatterUndirectedBySource(
-                nodeCount,
-                { targetStart, byTarget, declared },
-                cursor,
-                colIdx,
-                arcToEdge,
-                edgeToArc,
-            );
-        }
-        if (weights !== null && edgeWeights !== null) {
-            gatherWeights(arcToEdge, edgeWeights, weights);
-        }
-        multigraph = hasAdjacentParallels(rowPtr, colIdx, nodeCount);
+        multigraph = sortByTwoPasses(input, arcCount, { targetStart, rowCount }, core, { arcToEdge, edgeToArc });
     } else {
         // allocateCoreArrays materialises both permutations whenever the sort is not the identity
         throw new GraphFormatError("E_UNSUPPORTED", "unreachable: a non-identity core without permutation arrays", {

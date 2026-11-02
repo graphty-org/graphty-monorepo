@@ -75,6 +75,44 @@ function invalidId(field: string, value: unknown, rule: IdCoercion): GraphFormat
 }
 
 /**
+ * The "canonical" id rule: numbers stay numbers, a string spelling a canonical safe integer becomes
+ * that number, any other string stays a string.
+ * @param value - the cell value
+ * @param field - which cell, for the error message
+ * @returns the id
+ */
+function canonicalId(value: unknown, field: string): NodeId {
+    if (typeof value === "number") {
+        return value;
+    }
+    if (typeof value !== "string") {
+        throw invalidId(field, value, "canonical");
+    }
+    // "-0" is excluded so the rule stays injective on text (-0 and 0 are one id)
+    if (CANONICAL_INTEGER.test(value) && value !== "-0") {
+        const n = Number(value);
+        return Number.isSafeInteger(n) ? n : value;
+    }
+    return value;
+}
+
+/**
+ * The "string" id rule: strings stay, numbers, booleans, bigints and null become their String().
+ * @param value - the cell value
+ * @param field - which cell, for the error message
+ * @returns the id
+ */
+function stringId(value: unknown, field: string): NodeId {
+    if (typeof value === "string") {
+        return value;
+    }
+    if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint" || value === null) {
+        return String(value);
+    }
+    throw invalidId(field, value, "string");
+}
+
+/**
  * Apply an id coercion rule to one id cell (design section 4.1). The result still goes through the
  * builder's own id validation (E_INVALID_ID for anything that is not a finite number or a well-formed
  * string), so this function only converts; it rejects the shapes a rule cannot convert.
@@ -91,31 +129,9 @@ export function coerceId(value: unknown, rule: IdCoercion, field: string): NodeI
             }
             throw invalidId(field, value, rule);
         case "canonical":
-            if (typeof value === "number") {
-                return value;
-            }
-            if (typeof value === "string") {
-                // "-0" is excluded so the rule stays injective on text (-0 and 0 are one id)
-                if (CANONICAL_INTEGER.test(value) && value !== "-0") {
-                    const n = Number(value);
-                    return Number.isSafeInteger(n) ? n : value;
-                }
-                return value;
-            }
-            throw invalidId(field, value, rule);
+            return canonicalId(value, field);
         case "string":
-            if (typeof value === "string") {
-                return value;
-            }
-            if (
-                typeof value === "number" ||
-                typeof value === "boolean" ||
-                typeof value === "bigint" ||
-                value === null
-            ) {
-                return String(value);
-            }
-            throw invalidId(field, value, rule);
+            return stringId(value, field);
         case "number":
             if (typeof value === "number") {
                 return value;
@@ -465,7 +481,7 @@ function pushNodes(builder: GraphBuilder, rules: RecordRules, nodes: Iterable<Re
  * @param edges - the edge records
  */
 function pushEdges(builder: GraphBuilder, rules: RecordRules, edges: Iterable<RecordRow>): void {
-    const { nodeId, edgeWeight, attributes } = rules;
+    const { edgeWeight, attributes } = rules;
     let position = 0;
     for (const record of edges) {
         const source = endpointOf(record, rules.edgeSource, SOURCE_KEYS);
@@ -485,26 +501,61 @@ function pushEdges(builder: GraphBuilder, rules: RecordRules, edges: Iterable<Re
             );
         }
         const weight = edgeWeight === null ? undefined : weightOf(record, edgeWeight, position);
-        let edge: number;
-        if (nodeId === null) {
-            const u = positionalEndpoint(builder, source.value, "source", position);
-            const v = positionalEndpoint(builder, target.value, "target", position);
-            edge = builder.addEdgeByIndex(u, v, weight);
-        } else {
-            edge = builder.addEdge(
-                coerceId(source.value, rules.ids, "source"),
-                coerceId(target.value, rules.ids, "target"),
-                weight,
-            );
-        }
+        const edge = addRecordEdge(builder, rules, source.value, target.value, weight, position);
         if (attributes.readsAttributes) {
-            for (const key of Object.keys(record)) {
-                if (key !== source.key && key !== target.key && key !== edgeWeight) {
-                    attributes.write(builder, "edge", edge, key, record[key]);
-                }
-            }
+            writeEdgeAttributes(builder, rules, record, edge, source.key, target.key);
         }
         position++;
+    }
+}
+
+/**
+ * Add one edge record's edge: by index for positional nodes, else by coerced id.
+ * @param builder - the builder
+ * @param rules - the resolved rules
+ * @param source - the source cell value
+ * @param target - the target cell value
+ * @param weight - the weight, or undefined
+ * @param position - the record position, for errors
+ * @returns the edge index
+ */
+function addRecordEdge(
+    builder: GraphBuilder,
+    rules: RecordRules,
+    source: unknown,
+    target: unknown,
+    weight: number | undefined,
+    position: number,
+): number {
+    if (rules.nodeId === null) {
+        const u = positionalEndpoint(builder, source, "source", position);
+        const v = positionalEndpoint(builder, target, "target", position);
+        return builder.addEdgeByIndex(u, v, weight);
+    }
+    return builder.addEdge(coerceId(source, rules.ids, "source"), coerceId(target, rules.ids, "target"), weight);
+}
+
+/**
+ * Write every key of an edge record other than its endpoints and weight as an edge attribute.
+ * @param builder - the builder
+ * @param rules - the resolved rules
+ * @param record - the edge record
+ * @param edge - the edge index
+ * @param sourceKey - the key the source was read from
+ * @param targetKey - the key the target was read from
+ */
+function writeEdgeAttributes(
+    builder: GraphBuilder,
+    rules: RecordRules,
+    record: RecordRow,
+    edge: number,
+    sourceKey: string,
+    targetKey: string,
+): void {
+    for (const key of Object.keys(record)) {
+        if (key !== sourceKey && key !== targetKey && key !== rules.edgeWeight) {
+            rules.attributes.write(builder, "edge", edge, key, record[key]);
+        }
     }
 }
 

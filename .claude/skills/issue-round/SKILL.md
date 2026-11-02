@@ -141,6 +141,11 @@ Each: signal, meaning, action. Add to this list (see the next section).
   `test_history`. When a later commit plainly fixed it (and, for a test, nothing has failed since), close it
   with that evidence in a `pipeline-round:` comment instead of starting a job, and pick the next issue in the
   same round. When unsure, start the job: its subagent verifies first.
+- **Sending an open pull request back for changes.** Its auto-merge is armed, and auto-merge merges the first
+  green commit: turn it off first (`gh pr merge <n> --disable-auto`), then send the job back, and re-arm it
+  (`gh pr merge <n> --auto --merge`) when the fix is pushed. On 2026-11-01 #5639 merged with a lowered floor and a
+  network-dependent test while its fix was being written; the fix commit landed on the branch after the merge and
+  reached master only through a later pull request (#5645).
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, the Release status
   issue, `Release held:` issues and `lane red on master` issues.
 

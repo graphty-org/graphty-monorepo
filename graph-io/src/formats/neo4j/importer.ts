@@ -717,86 +717,121 @@ class Neo4jImportSession {
      */
     private declareSection(reader: RecordReader, count: number): Section {
         const { line } = reader;
-        const fields: HeaderField[] = [];
         try {
-            for (let i = 0; i < count; i++) {
-                fields.push(parseHeaderField(reader.cells[i]));
-            }
-            const kinds = new Map<FieldKind, number[]>();
-            fields.forEach((field, i) => {
-                const list = kinds.get(field.kind);
-                if (list === undefined) {
-                    kinds.set(field.kind, [i]);
-                } else {
-                    list.push(i);
-                }
-            });
-            const ids = kinds.get("ID") ?? [];
-            const starts = kinds.get("START_ID") ?? [];
-            const ends = kinds.get("END_ID") ?? [];
-            const isNode = ids.length > 0;
-            const isRelationship = starts.length > 0 || ends.length > 0;
-            if (isNode && isRelationship) {
-                throw headerError("a header mixes :ID with :START_ID / :END_ID");
-            }
-            if (!isNode && !isRelationship) {
-                const apoc = fields.some((f) => f.name === "_id" || f.name === "_start");
-                throw headerError(
-                    apoc
-                        ? "a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _end, _type), which is not the neo4j-admin import format"
-                        : "a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)",
-                );
-            }
-            if (this.expectedKind !== null && this.expectedKind !== (isNode ? "node" : "relationship")) {
-                this.report.warning(
-                    "validation-error",
-                    SECTION_KIND_CODE,
-                    `a ${isNode ? "node" : "relationship"} header in a file given as ${this.expectedKind === "node" ? "nodes" : "relationships"}; read by its header`,
-                    { line },
-                );
-            }
-            checkPropertyNames(fields);
-            this.ignoredColumns += (kinds.get("IGNORE") ?? []).length;
-            if (isNode) {
-                if (ids.length > 1) {
-                    throw headerError("a node header has more than one :ID column");
-                }
-                if (kinds.has("TYPE")) {
-                    throw headerError("a node header cannot have a :TYPE column");
-                }
-                return this.declareNodeSection(fields, ids[0], kinds.get("LABEL") ?? [], line);
-            }
-            if (starts.length !== 1 || ends.length !== 1) {
-                throw headerError("a relationship header needs exactly one :START_ID and one :END_ID column");
-            }
-            if (kinds.has("LABEL")) {
-                throw headerError("a relationship header cannot have a :LABEL column");
-            }
-            const types = kinds.get("TYPE") ?? [];
-            if (types.length > 1) {
-                throw headerError("a relationship header has more than one :TYPE column");
-            }
-            return this.declareRelationshipSection(
-                fields,
-                starts[0],
-                ends[0],
-                types.length === 1 ? types[0] : -1,
-                line,
-            );
+            return this.declareSectionFields(reader, count, line);
         } catch (err) {
             if (err instanceof GraphFormatError && !(err instanceof ImportError)) {
-                // a header written with another delimiter reads as one cell holding it
-                const other = [";", "|", "\t", ","].find(
-                    (d) => d !== reader.delimiter && reader.cells.slice(0, count).some((c) => c.includes(d)),
-                );
-                const hint =
-                    other === undefined
-                        ? ""
-                        : `; if the file is delimited by ${JSON.stringify(other)}, pass the delimiter option`;
-                this.report.fail(HEADER_CODE, `${err.message}${hint}`, { line }, { cause: err.code });
+                this.reportHeaderFailure(reader, count, line, err);
             }
             throw err;
         }
+    }
+
+    /**
+     * Parse the header cells, check the section shape and declare the section's columns.
+     * @param reader - the reader positioned on the header
+     * @param count - the number of header cells
+     * @param line - the header line
+     * @returns the section
+     */
+    private declareSectionFields(reader: RecordReader, count: number, line: number): Section {
+        const fields: HeaderField[] = [];
+        for (let i = 0; i < count; i++) {
+            fields.push(parseHeaderField(reader.cells[i]));
+        }
+        const kinds = cellsByKind(fields);
+        const isNode = (kinds.get("ID") ?? []).length > 0;
+        const isRelationship = (kinds.get("START_ID") ?? []).length > 0 || (kinds.get("END_ID") ?? []).length > 0;
+        checkSectionShape(fields, isNode, isRelationship);
+        this.warnSectionKind(isNode, line);
+        checkPropertyNames(fields);
+        this.ignoredColumns += (kinds.get("IGNORE") ?? []).length;
+        return isNode
+            ? this.declareNodeHeader(fields, kinds, line)
+            : this.declareRelationshipHeader(fields, kinds, line);
+    }
+
+    /**
+     * Warn when a header's kind differs from the kind its file was given as.
+     * @param isNode - whether the header is a node header
+     * @param line - the header line
+     */
+    private warnSectionKind(isNode: boolean, line: number): void {
+        const kind = isNode ? "node" : "relationship";
+        if (this.expectedKind === null || this.expectedKind === kind) {
+            return;
+        }
+        const given = this.expectedKind === "node" ? "nodes" : "relationships";
+        this.report.warning(
+            "validation-error",
+            SECTION_KIND_CODE,
+            `a ${kind} header in a file given as ${given}; read by its header`,
+            { line },
+        );
+    }
+
+    /**
+     * Check a node header's special columns and declare its section.
+     * @param fields - the parsed header
+     * @param kinds - the header cells by field kind
+     * @param line - the header line
+     * @returns the section
+     */
+    private declareNodeHeader(fields: readonly HeaderField[], kinds: Map<FieldKind, number[]>, line: number): Section {
+        const ids = kinds.get("ID") ?? [];
+        if (ids.length > 1) {
+            throw headerError("a node header has more than one :ID column");
+        }
+        if (kinds.has("TYPE")) {
+            throw headerError("a node header cannot have a :TYPE column");
+        }
+        return this.declareNodeSection(fields, ids[0], kinds.get("LABEL") ?? [], line);
+    }
+
+    /**
+     * Check a relationship header's special columns and declare its section.
+     * @param fields - the parsed header
+     * @param kinds - the header cells by field kind
+     * @param line - the header line
+     * @returns the section
+     */
+    private declareRelationshipHeader(
+        fields: readonly HeaderField[],
+        kinds: Map<FieldKind, number[]>,
+        line: number,
+    ): Section {
+        const starts = kinds.get("START_ID") ?? [];
+        const ends = kinds.get("END_ID") ?? [];
+        if (starts.length !== 1 || ends.length !== 1) {
+            throw headerError("a relationship header needs exactly one :START_ID and one :END_ID column");
+        }
+        if (kinds.has("LABEL")) {
+            throw headerError("a relationship header cannot have a :LABEL column");
+        }
+        const types = kinds.get("TYPE") ?? [];
+        if (types.length > 1) {
+            throw headerError("a relationship header has more than one :TYPE column");
+        }
+        return this.declareRelationshipSection(fields, starts[0], ends[0], types.length === 1 ? types[0] : -1, line);
+    }
+
+    /**
+     * Fail the import on a malformed header, with a delimiter hint when the header cells hold another delimiter.
+     * @param reader - the reader positioned on the header
+     * @param count - the number of header cells
+     * @param line - the header line
+     * @param err - the header error
+     */
+    private reportHeaderFailure(reader: RecordReader, count: number, line: number, err: GraphFormatError): void {
+        // a header written with another delimiter reads as one cell holding it
+        const other = [";", "|", "\t", ","].find(
+            (d) => d !== reader.delimiter && reader.cells.slice(0, count).some((c) => c.includes(d)),
+        );
+        const hint =
+            other === undefined
+                ? ""
+                : `; if the file is delimited by ${JSON.stringify(other)}, pass the delimiter option`;
+        this.report.fail(HEADER_CODE, `${err.message}${hint}`, { line }, { cause: err.code });
     }
 
     /**
@@ -1196,6 +1231,91 @@ class Neo4jImportSession {
     }
 
     /**
+     * Resolve a relationship row's endpoints, reporting an empty, invalid or wrong-space endpoint.
+     * @param section - the section
+     * @param reader - the reader positioned on the row
+     * @returns the qualified endpoints and the row's element text, or null when the row is skipped
+     */
+    private relationshipEndpoints(
+        section: RelationshipSection,
+        reader: RecordReader,
+    ): { source: NodeId; target: NodeId; element: string } | null {
+        const { report } = this;
+        const { cells, quoted, line } = reader;
+        const startText = cells[section.startCell];
+        const endText = cells[section.endCell];
+        const startMissing = startText.length === 0 && !quoted[section.startCell];
+        if (startMissing || (endText.length === 0 && !quoted[section.endCell])) {
+            report.error(
+                "missing-value",
+                MISSING_ENDPOINT_CODE,
+                `empty ${startMissing ? ":START_ID" : ":END_ID"} cell`,
+                {
+                    line,
+                },
+            );
+            return null;
+        }
+        const element = `${startText}->${endText}`;
+        const start = this.coerceId(startText, line);
+        const end = start === null ? null : this.coerceId(endText, line);
+        if (start === null || end === null) {
+            return null;
+        }
+        const source = qualify(start, section.startSpace);
+        const target = qualify(end, section.endSpace);
+        let wrongSpace: string | null = null;
+        if (this.wrongSpace(source, section.startSpaceCode)) {
+            wrongSpace = startText;
+        } else if (this.wrongSpace(target, section.endSpaceCode)) {
+            wrongSpace = endText;
+        }
+        if (wrongSpace !== null) {
+            report.error(
+                "missing-value",
+                ENDPOINT_SPACE_CODE,
+                `endpoint ${wrongSpace} is not a node of its declared id space (a node of another id space has that id); the row is skipped`,
+                { line, element },
+            );
+            return null;
+        }
+        return { source, target, element };
+    }
+
+    /**
+     * Write a relationship's `:TYPE` cell, warning on an empty one.
+     * @param section - the section
+     * @param cells - the row's cells
+     * @param edge - the edge index
+     * @param line - the row line
+     * @param element - the row's element text
+     */
+    private setRelationshipType(
+        section: RelationshipSection,
+        cells: readonly string[],
+        edge: number,
+        line: number,
+        element: string,
+    ): void {
+        if (section.typeCell < 0) {
+            return;
+        }
+        const type = cells[section.typeCell];
+        if (type.length > 0) {
+            this.guarded(line, element, () => {
+                this.sink.setEdgeValue(this.typeHandle, edge, type);
+            });
+        } else {
+            this.report.warning(
+                "missing-value",
+                MISSING_TYPE_CODE,
+                "empty :TYPE cell; neo4j-admin requires a relationship type, the relationship is kept without one",
+                { line, element },
+            );
+        }
+    }
+
+    /**
      * Push one relationship row.
      * @param section - the section
      * @param reader - the reader positioned on the row
@@ -1220,46 +1340,12 @@ class Neo4jImportSession {
             report.counts.skippedEdges++;
             return;
         }
-        const startText = cells[section.startCell];
-        const endText = cells[section.endCell];
-        const startMissing = startText.length === 0 && !quoted[section.startCell];
-        if (startMissing || (endText.length === 0 && !quoted[section.endCell])) {
-            report.error(
-                "missing-value",
-                MISSING_ENDPOINT_CODE,
-                `empty ${startMissing ? ":START_ID" : ":END_ID"} cell`,
-                {
-                    line,
-                },
-            );
+        const endpoints = this.relationshipEndpoints(section, reader);
+        if (endpoints === null) {
             report.counts.skippedEdges++;
             return;
         }
-        const element = `${startText}->${endText}`;
-        const start = this.coerceId(startText, line);
-        const end = start === null ? null : this.coerceId(endText, line);
-        if (start === null || end === null) {
-            report.counts.skippedEdges++;
-            return;
-        }
-        const source = qualify(start, section.startSpace);
-        const target = qualify(end, section.endSpace);
-        let wrongSpace: string | null = null;
-        if (this.wrongSpace(source, section.startSpaceCode)) {
-            wrongSpace = startText;
-        } else if (this.wrongSpace(target, section.endSpaceCode)) {
-            wrongSpace = endText;
-        }
-        if (wrongSpace !== null) {
-            report.error(
-                "missing-value",
-                ENDPOINT_SPACE_CODE,
-                `endpoint ${wrongSpace} is not a node of its declared id space (a node of another id space has that id); the row is skipped`,
-                { line, element },
-            );
-            report.counts.skippedEdges++;
-            return;
-        }
+        const { source, target, element } = endpoints;
         let weight: number | undefined;
         if (section.weightCell >= 0) {
             try {
@@ -1290,21 +1376,7 @@ class Neo4jImportSession {
             report.counts.nodes++;
             this.placeholders.push({ id, index: sink.indexOf(id) });
         }
-        if (section.typeCell >= 0) {
-            const type = cells[section.typeCell];
-            if (type.length > 0) {
-                this.guarded(line, element, () => {
-                    sink.setEdgeValue(this.typeHandle, edge, type);
-                });
-            } else {
-                report.warning(
-                    "missing-value",
-                    MISSING_TYPE_CODE,
-                    "empty :TYPE cell; neo4j-admin requires a relationship type, the relationship is kept without one",
-                    { line, element },
-                );
-            }
-        }
+        this.setRelationshipType(section, cells, edge, line, element);
         this.writeProperties("edge", section.properties, edge, line, element);
         this.reportPrecision(line, element);
         report.counts.edges++;
@@ -1695,6 +1767,45 @@ function emptyValue(spec: DeclaredTypeSpec): unknown {
         return "";
     }
     return undefined;
+}
+
+/**
+ * The header cells grouped by field kind, in cell order.
+ * @param fields - the parsed header
+ * @returns the cell indices of each kind present
+ */
+function cellsByKind(fields: readonly HeaderField[]): Map<FieldKind, number[]> {
+    const kinds = new Map<FieldKind, number[]>();
+    fields.forEach((field, i) => {
+        const list = kinds.get(field.kind);
+        if (list === undefined) {
+            kinds.set(field.kind, [i]);
+        } else {
+            list.push(i);
+        }
+    });
+    return kinds;
+}
+
+/**
+ * Check that a header is either a node header or a relationship header, not both or neither.
+ * @param fields - the parsed header
+ * @param isNode - whether it has an `:ID` cell
+ * @param isRelationship - whether it has a `:START_ID` or `:END_ID` cell
+ */
+function checkSectionShape(fields: readonly HeaderField[], isNode: boolean, isRelationship: boolean): void {
+    if (isNode && isRelationship) {
+        throw headerError("a header mixes :ID with :START_ID / :END_ID");
+    }
+    if (isNode || isRelationship) {
+        return;
+    }
+    const apoc = fields.some((f) => f.name === "_id" || f.name === "_start");
+    throw headerError(
+        apoc
+            ? "a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _end, _type), which is not the neo4j-admin import format"
+            : "a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)",
+    );
 }
 
 /**

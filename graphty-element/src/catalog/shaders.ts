@@ -613,6 +613,7 @@ const CARD_COVERS: readonly Channel[] = [
     "node.width",
     "node.height",
     "node.depth",
+    "node.relativeExtents",
     "node.planar",
     "node.borderColor",
     "node.borderWidth",

@@ -436,6 +436,86 @@ describe("backfill", () => {
     });
 });
 
+describe("the all-issues load", () => {
+    /** Two pages of issues by update time, the second last updated in March, as ISSUE_QUERY answers them. */
+    const pages = [
+        [
+            { number: 5000, updatedAt: "2026-10-25T10:00:00Z", createdAt: "2026-10-20T10:00:00Z", closedAt: null },
+            { number: 40, updatedAt: "2026-05-01T10:00:00Z", createdAt: "2026-04-01T10:00:00Z", closedAt: null },
+        ],
+        [
+            {
+                number: 1,
+                updatedAt: "2026-03-06T10:00:00Z",
+                createdAt: "2026-03-05T10:00:00Z",
+                closedAt: "2026-03-06T10:00:00Z",
+            },
+        ],
+    ];
+    function issueFake() {
+        const f = fake();
+        const { urls } = f;
+        return {
+            urls,
+            queries: [] as string[],
+            fetch(url: string, init?: RequestInit): Promise<Response> {
+                const body = JSON.parse((init?.body as string | undefined) ?? "{}") as {
+                    query?: string;
+                    variables?: { cursor?: string | null };
+                };
+                if (body.query) {
+                    this.queries.push(body.query);
+                }
+                if (!body.query?.includes("issues(")) {
+                    return f.fetch(url, init);
+                }
+                urls.push(url);
+                const k = body.variables?.cursor ? 1 : 0;
+                const nodes = pages[k].map((x) => ({
+                    ...x,
+                    title: `issue ${x.number}`,
+                    state: x.closedAt ? "CLOSED" : "OPEN",
+                    stateReason: x.closedAt ? "COMPLETED" : null,
+                    labels: { nodes: [{ name: "bug" }] },
+                }));
+                const recent = { nodes, pageInfo: { hasNextPage: k === 0, endCursor: "c1" } };
+                return Promise.resolve(
+                    new Response(JSON.stringify({ data: { repository: { recent }, held: { nodes: [] } } }), {
+                        headers: { "content-type": "application/json" },
+                    }),
+                );
+            },
+        };
+    }
+
+    it("loads every issue whatever its update time, reads nothing else, and marks no old bucket dirty", async () => {
+        const store = new MemoryStore();
+        const f = issueFake();
+        const o = {
+            ...options(store, fake()),
+            gh: new GitHub(
+                () => Promise.resolve("t"),
+                (u, i) => f.fetch(u, i),
+            ),
+        };
+        const r = await backfill({ ...o, issues: "all" });
+        expect(r).toMatchObject({ done: true, items: 3, runs: 0, flaky: 0 });
+        expect(homes(store, "issue").map((i) => i.number)).toEqual(expect.arrayContaining([1, 40, 5000]));
+        expect(await store.query("ISSUES")).toHaveLength(3);
+        expect(homes(store, "run")).toHaveLength(0);
+        expect(homes(store, "pr")).toHaveLength(0);
+        expect(f.urls.filter((u) => u.includes("/actions/"))).toEqual([]);
+        expect(f.queries.every((q) => q.includes("issues("))).toBe(true);
+        const marks = (await store.query("DIRTY")).map((m) => m.start as number);
+        expect(marks.length).toBeGreaterThan(0);
+        expect(marks.every((t) => t >= NOW - 28 * DAY)).toBe(true);
+        // Again: the same rows, nothing more.
+        expect(await backfill({ ...o, issues: "all" })).toMatchObject({ done: true, items: 3 });
+        expect(homes(store, "issue")).toHaveLength(3);
+        expect(await store.query("ISSUES")).toHaveLength(3);
+    });
+});
+
 describe("the needs: wait rule", () => {
     it("a job behind needs: is created when its last dependency finishes, so its wait is started - created", () => {
         const byName = new Map(masterJobs.map((j) => [j.name, j]));

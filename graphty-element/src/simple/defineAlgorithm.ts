@@ -97,6 +97,76 @@ const warnedLongTask = new Set<string>();
 type NoOptions = { readonly [K in never]: never };
 
 /**
+ * Refuse a `passes` that does not name a declared integer option.
+ * @param verb - The verb checking.
+ * @param id - The definition's id.
+ * @param passes - What the author passed.
+ * @param byName - The declared options by name.
+ */
+function checkPasses(
+    verb: "defineAlgorithm",
+    id: string,
+    passes: unknown,
+    byName: ReadonlyMap<string, OptionDescriptor>,
+): asserts passes is string | undefined {
+    if (passes === undefined || (typeof passes === "string" && byName.get(passes)?.type === "integer")) {
+        return;
+    }
+
+    const found = typeof passes === "string" ? byName.get(passes) : undefined;
+    let why = ", which is not declared.";
+    if (typeof passes !== "string") {
+        why = ".";
+    } else if (found !== undefined) {
+        why = `, a "${found.type}" option.`;
+    }
+
+    throw badDefinition(
+        verb,
+        id,
+        "passes",
+        `"passes" must name a declared "integer" option; got ${describeValue(passes)}${why}`,
+    );
+}
+
+/**
+ * Refuse a `weights` whose option is not a declared edge attribute or whose meaning is unknown.
+ * @param verb - The verb checking.
+ * @param id - The definition's id.
+ * @param weights - What the author passed.
+ * @param byName - The declared options by name.
+ */
+function checkWeights(
+    verb: "defineAlgorithm",
+    id: string,
+    weights: { option?: unknown; meaning?: unknown } | undefined,
+    byName: ReadonlyMap<string, OptionDescriptor>,
+): void {
+    if (weights === undefined) {
+        return;
+    }
+
+    const option = typeof weights.option === "string" ? byName.get(weights.option) : undefined;
+    if (option?.type !== "attribute" || option.on !== "edge") {
+        throw badDefinition(
+            verb,
+            id,
+            "weights.option",
+            `"weights.option" must name a declared "attribute" option with on: "edge"; got ${describeValue(weights.option)}.`,
+        );
+    }
+
+    if (weights.meaning !== "distance" && weights.meaning !== "strength") {
+        throw badDefinition(
+            verb,
+            id,
+            "weights.meaning",
+            `"weights.meaning" must be "distance" or "strength"; got ${describeValue(weights.meaning)}.`,
+        );
+    }
+}
+
+/**
  * Check a definition and expand it, refusing a malformed one with E_BAD_COMMAND.
  * @param definition - What the author passed.
  * @returns The checked definition.
@@ -136,44 +206,9 @@ function checkAlgorithm(definition: unknown): CheckedAlgorithm {
     const byName = new Map(options.map((option) => [option.name, option]));
 
     const { passes } = checked;
-    if (passes !== undefined && (typeof passes !== "string" || byName.get(passes)?.type !== "integer")) {
-        const found = typeof passes === "string" ? byName.get(passes) : undefined;
-        let why = ", which is not declared.";
-        if (typeof passes !== "string") {
-            why = ".";
-        } else if (found !== undefined) {
-            why = `, a "${found.type}" option.`;
-        }
-
-        throw badDefinition(
-            verb,
-            id,
-            "passes",
-            `"passes" must name a declared "integer" option; got ${describeValue(passes)}${why}`,
-        );
-    }
-
+    checkPasses(verb, id, passes, byName);
     const weights = checked.weights as { option?: unknown; meaning?: unknown } | undefined;
-    if (weights !== undefined) {
-        const option = typeof weights.option === "string" ? byName.get(weights.option) : undefined;
-        if (option?.type !== "attribute" || option.on !== "edge") {
-            throw badDefinition(
-                verb,
-                id,
-                "weights.option",
-                `"weights.option" must name a declared "attribute" option with on: "edge"; got ${describeValue(weights.option)}.`,
-            );
-        }
-
-        if (weights.meaning !== "distance" && weights.meaning !== "strength") {
-            throw badDefinition(
-                verb,
-                id,
-                "weights.meaning",
-                `"weights.meaning" must be "distance" or "strength"; got ${describeValue(weights.meaning)}.`,
-            );
-        }
-    }
+    checkWeights(verb, id, weights, byName);
 
     const name = displayName(checked);
     return {
@@ -272,6 +307,232 @@ function knownEntries(
     return known;
 }
 
+/** How long the author's code held the page during one run. */
+interface HoldClock {
+    /** The longest the author's code held the page without handing it back. */
+    longest: number;
+    /** When the author's code last got the page back. */
+    resumed: number;
+}
+
+/**
+ * Call a whole-graph function once, timed, and await what it returns. A cancelled run's abort and
+ * an element error pass through; anything else it throws is the author's failure.
+ * @param algorithm - The checked definition.
+ * @param view - The graph view the run reads.
+ * @param context - What the author's function is handed.
+ * @param run - What the element gave the run.
+ * @param clock - Written: how long the call held the page.
+ * @returns What the function returned.
+ */
+async function callWholeGraph(
+    algorithm: CheckedAlgorithm,
+    view: GraphView,
+    context: AlgorithmContext<unknown>,
+    run: AlgorithmRunContext,
+    clock: HoldClock,
+): Promise<unknown> {
+    try {
+        clock.resumed = performance.now();
+        const pending = algorithm.compute(view, context);
+        clock.longest = Math.max(clock.longest, performance.now() - clock.resumed);
+        return await pending;
+    } catch (error) {
+        // A cancelled run's abort passes through as it is: it is not the author's failure.
+        if (run.signal.aborted || isGraphtyError(error)) {
+            throw error;
+        }
+
+        throw extensionFailed({ id: algorithm.id, member: algorithm.member, source: "run" }, error);
+    }
+}
+
+/**
+ * Run a whole-graph function ("nodes" or "groups") once and keep the values it returned for
+ * nodes, noting the true or false values it left out.
+ * @param algorithm - The checked definition.
+ * @param view - The graph view the run reads.
+ * @param context - What the author's function is handed.
+ * @param run - What the element gave the run.
+ * @param clock - Written: how long the call held the page.
+ * @param notes - Written: the run's notes.
+ * @returns The node values and the group field's type.
+ */
+async function wholeGraph(
+    algorithm: CheckedAlgorithm,
+    view: GraphView,
+    context: AlgorithmContext<unknown>,
+    run: AlgorithmRunContext,
+    clock: HoldClock,
+    notes: string[],
+): Promise<{ nodes: ResultElementValues[]; groupType: "integer" | "string" }> {
+    const { member } = algorithm;
+    const returned = await callWholeGraph(algorithm, view, context, run, clock);
+    const nodes: ResultElementValues[] = [];
+    let groupType: "integer" | "string" = "integer";
+    let booleans = 0;
+    for (const [node, value] of knownEntries(algorithm, view, returned, notes)) {
+        if (typeof value === "boolean") {
+            booleans++;
+        }
+
+        if (member === "nodes" && measured(value)) {
+            nodes.push({ id: node, values: { value } });
+        } else if (member === "groups" && (typeof value === "string" || measured(value))) {
+            if (typeof value === "string" || !Number.isInteger(value)) {
+                groupType = "string";
+            }
+
+            nodes.push({ id: node, values: { group: value } });
+        }
+    }
+
+    if (booleans > 0) {
+        notes.push(booleansNote(algorithm, booleans));
+    }
+
+    return { nodes, groupType };
+}
+
+/**
+ * The note for the true or false values a whole-graph function returned, which were left out.
+ * @param algorithm - The checked definition.
+ * @param booleans - How many nodes it returned true or false for.
+ * @returns The note.
+ */
+function booleansNote(algorithm: CheckedAlgorithm, booleans: number): string {
+    const { id, member } = algorithm;
+    const wanted = member === "groups" ? "a group is a number or a string" : "a score is a number";
+    return (
+        `${id}: ${member}() returned true or false for ${String(booleans)} ${booleans === 1 ? "node" : "nodes"}; ` +
+        `${wanted}, so they were left out.`
+    );
+}
+
+/**
+ * The notes a finished run closes with: nothing measured, the view's warnings, a long hold of the
+ * page, and the paths the run read.
+ * @param algorithm - The checked definition.
+ * @param view - The graph view the run read.
+ * @param counts - The elements the function was asked about, those it measured, and the longest
+ *     hold of the page in milliseconds.
+ * @param counts.total - The elements the function was asked about.
+ * @param counts.measured - The elements it measured.
+ * @param counts.longest - The longest hold of the page in milliseconds.
+ * @param notes - Written: the run's notes.
+ */
+function closingNotes(
+    algorithm: CheckedAlgorithm,
+    view: GraphView,
+    counts: { total: number; measured: number; longest: number },
+    notes: string[],
+): void {
+    const { id, member } = algorithm;
+    const kind = member === "edge" ? "edge" : "node";
+    if (counts.total > 0 && counts.measured === 0) {
+        notes.push(`${id}: no ${kind} was measured -- did the function return NaN or undefined for every ${kind}?`);
+    }
+
+    notes.push(...viewWarnings(view));
+    if (counts.longest > LONG_TASK_MS) {
+        const fix =
+            member === "node" || member === "edge"
+                ? "each call should take a moment, with the slow work moved to a whole-graph function."
+                : "await context.progress(i / n) inside its loop.";
+        const advice = `${id}: ${member}() held the page for over ${String(LONG_TASK_MS)} ms at a time; ${fix}`;
+        notes.push(advice);
+        if (!warnedLongTask.has(id)) {
+            warnedLongTask.add(id);
+            console.warn(advice);
+        }
+    }
+
+    // The paths the run read, listed as its inputs; the weight it records is the path it READ as
+    // a weight, not the one it declared (simple-tier.md 2.3 rule 13). ponytail: a note until the
+    // run record grows an inputs list with the advanced contract's input.columnAt (section 6).
+    const inputs = viewInputs(view);
+    if (inputs.length > 0) {
+        const read = inputs.map(({ target, path }) => `${target} ${JSON.stringify(path)}`).join(", ");
+        notes.push(`${id} read: ${read}.`);
+    }
+}
+
+/**
+ * One call of a per-element function, timed, with a promise refused: the element owns the loop,
+ * so the function must answer at once.
+ * @param algorithm - The checked definition.
+ * @param context - What the author's function is handed.
+ * @param clock - Written: how long the call held the page.
+ * @param subject - What it was called for, as a message names it.
+ * @param element - The node or edge.
+ * @returns The score.
+ */
+function callPerElement(
+    algorithm: CheckedAlgorithm,
+    context: AlgorithmContext<unknown>,
+    clock: HoldClock,
+    subject: string,
+    element: unknown,
+): unknown {
+    const { id, member } = algorithm;
+    const call = { id, member, subject, source: "run" as const };
+    const started = performance.now();
+    const score = callAuthor(call, () => algorithm.compute(element, context));
+    clock.longest = Math.max(clock.longest, performance.now() - started);
+    if (score instanceof Promise) {
+        // Its outcome is never used; a later rejection must not surface as an unhandled one.
+        score.catch(() => undefined);
+        throw new GraphtyError({
+            code: "E_EXTENSION_FAILED",
+            message:
+                `${id}: ${member}() returned a Promise for ${subject}; it must return the score itself. ` +
+                'Remove "async", or write a "nodes" function for work that has to wait.',
+            source: "run",
+            details: { extension: id, member, subject },
+        });
+    }
+
+    return score;
+}
+
+/**
+ * Run a per-element function ("node" or "edge") over every node or edge, in chunks, keeping the
+ * measured scores.
+ * @param algorithm - The checked definition.
+ * @param view - The graph view the run reads.
+ * @param context - What the author's function is handed.
+ * @param run - What the element gave the run.
+ * @param clock - Written: how long the calls held the page.
+ * @returns The node and edge values.
+ */
+async function eachElement(
+    algorithm: CheckedAlgorithm,
+    view: GraphView,
+    context: AlgorithmContext<unknown>,
+    run: AlgorithmRunContext,
+    clock: HoldClock,
+): Promise<{ nodes: ResultElementValues[]; edges: ResultElementValues<string>[] }> {
+    const nodes: ResultElementValues[] = [];
+    const edges: ResultElementValues<string>[] = [];
+    if (algorithm.member === "node") {
+        await forEachChunked(run, algorithm.name, view.nodes(), (node) => {
+            const score = callPerElement(algorithm, context, clock, `node ${quoteId(node.id)}`, node);
+            if (measured(score)) {
+                nodes.push({ id: node.id, values: { value: score } });
+            }
+        });
+    } else {
+        await forEachChunked(run, algorithm.name, view.edges(), (edge) => {
+            const score = callPerElement(algorithm, context, clock, `edge ${JSON.stringify(edge.id)}`, edge);
+            if (measured(score)) {
+                edges.push({ id: edge.id, values: { value: score } });
+            }
+        });
+    }
+
+    return { nodes, edges };
+}
+
 /**
  * One run of a definition: the view, the up-front option checks, the author's function, and the
  * output the advanced tier publishes.
@@ -295,9 +556,7 @@ async function execute(
     checkViewOptions(view, id, algorithm.options, options);
 
     const notes: string[] = [];
-    /** The longest the author's code held the page without handing it back. */
-    let longest = 0;
-    let resumed = performance.now();
+    const clock: HoldClock = { longest: 0, resumed: performance.now() };
     let convergence: { converged: boolean; iterations: number } | undefined;
     let lastYield = performance.now();
     const context: AlgorithmContext<unknown> = {
@@ -305,7 +564,7 @@ async function execute(
         graph: view,
         signal: run.signal,
         async progress(fraction) {
-            longest = Math.max(longest, performance.now() - resumed);
+            clock.longest = Math.max(clock.longest, performance.now() - clock.resumed);
             run.signal.throwIfAborted();
             run.report({ phase: name, completed: Number.isFinite(fraction) ? fraction : 0, total: 1 });
             if (performance.now() - lastYield >= YIELD_BUDGET_MS) {
@@ -314,7 +573,7 @@ async function execute(
             }
 
             run.signal.throwIfAborted();
-            resumed = performance.now();
+            clock.resumed = performance.now();
         },
         note(text) {
             notes.push(text);
@@ -324,124 +583,42 @@ async function execute(
         },
     };
 
-    const nodes: ResultElementValues[] = [];
-    const edges: ResultElementValues<string>[] = [];
-    let groupType: "integer" | "string" = "integer";
-    let total = view.nodeCount;
+    const total = member === "edge" ? view.edgeCount : view.nodeCount;
+    const { nodes, edges, groupType } =
+        member === "node" || member === "edge"
+            ? { ...(await eachElement(algorithm, view, context, run, clock)), groupType: "integer" as const }
+            : { ...(await wholeGraph(algorithm, view, context, run, clock, notes)), edges: [] };
+    closingNotes(algorithm, view, { total, measured: nodes.length + edges.length, longest: clock.longest }, notes);
 
-    /**
-     * One call of a per-element function, timed, with a promise refused: the element owns the
-     * loop, so the function must answer at once.
-     * @param subject - What it was called for, as a message names it.
-     * @param element - The node or edge.
-     * @returns The score.
-     */
-    const perElement = (subject: string, element: unknown): unknown => {
-        const call = { id, member, subject, source: "run" as const };
-        const started = performance.now();
-        const score = callAuthor(call, () => algorithm.compute(element, context));
-        longest = Math.max(longest, performance.now() - started);
-        if (score instanceof Promise) {
-            // Its outcome is never used; a later rejection must not surface as an unhandled one.
-            score.catch(() => undefined);
-            throw new GraphtyError({
-                code: "E_EXTENSION_FAILED",
-                message:
-                    `${id}: ${member}() returned a Promise for ${subject}; it must return the score itself. ` +
-                    'Remove "async", or write a "nodes" function for work that has to wait.',
-                source: "run",
-                details: { extension: id, member, subject },
-            });
-        }
+    return outputOf(algorithm, view, { nodes, edges, groupType, notes, convergence });
+}
 
-        return score;
-    };
-
-    if (member === "node") {
-        await forEachChunked(run, name, view.nodes(), (node) => {
-            const score = perElement(`node ${quoteId(node.id)}`, node);
-            if (measured(score)) {
-                nodes.push({ id: node.id, values: { value: score } });
-            }
-        });
-    } else if (member === "edge") {
-        total = view.edgeCount;
-        await forEachChunked(run, name, view.edges(), (edge) => {
-            const score = perElement(`edge ${JSON.stringify(edge.id)}`, edge);
-            if (measured(score)) {
-                edges.push({ id: edge.id, values: { value: score } });
-            }
-        });
-    } else {
-        let returned: unknown;
-        try {
-            resumed = performance.now();
-            const pending = algorithm.compute(view, context);
-            longest = Math.max(longest, performance.now() - resumed);
-            returned = await pending;
-        } catch (error) {
-            // A cancelled run's abort passes through as it is: it is not the author's failure.
-            if (run.signal.aborted || isGraphtyError(error)) {
-                throw error;
-            }
-
-            throw extensionFailed({ id, member, source: "run" }, error);
-        }
-
-        let booleans = 0;
-        for (const [node, value] of knownEntries(algorithm, view, returned, notes)) {
-            if (typeof value === "boolean") {
-                booleans++;
-            }
-
-            if (member === "nodes" && measured(value)) {
-                nodes.push({ id: node, values: { value } });
-            } else if (member === "groups" && (typeof value === "string" || measured(value))) {
-                if (typeof value === "string" || !Number.isInteger(value)) {
-                    groupType = "string";
-                }
-
-                nodes.push({ id: node, values: { group: value } });
-            }
-        }
-
-        if (booleans > 0) {
-            const wanted = member === "groups" ? "a group is a number or a string" : "a score is a number";
-            notes.push(
-                `${id}: ${member}() returned true or false for ${String(booleans)} ${booleans === 1 ? "node" : "nodes"}; ` +
-                    `${wanted}, so they were left out.`,
-            );
-        }
-    }
-
+/**
+ * The output the advanced tier publishes for a finished run.
+ * @param algorithm - The checked definition.
+ * @param view - The graph view the run read.
+ * @param run - What the run produced.
+ * @param run.nodes - The node values.
+ * @param run.edges - The edge values.
+ * @param run.groupType - The group field's type.
+ * @param run.notes - The run's notes.
+ * @param run.convergence - What the author reported about convergence, if anything.
+ * @returns The output.
+ */
+function outputOf(
+    algorithm: CheckedAlgorithm,
+    view: GraphView,
+    run: {
+        nodes: ResultElementValues[];
+        edges: ResultElementValues<string>[];
+        groupType: "integer" | "string";
+        notes: string[];
+        convergence: { converged: boolean; iterations: number } | undefined;
+    },
+): AlgorithmOutput {
+    const { member, name } = algorithm;
+    const { nodes, edges, groupType, notes, convergence } = run;
     const kind = member === "edge" ? "edge" : "node";
-    if (total > 0 && nodes.length + edges.length === 0) {
-        notes.push(`${id}: no ${kind} was measured -- did the function return NaN or undefined for every ${kind}?`);
-    }
-
-    notes.push(...viewWarnings(view));
-    if (longest > LONG_TASK_MS) {
-        const fix =
-            member === "node" || member === "edge"
-                ? "each call should take a moment, with the slow work moved to a whole-graph function."
-                : "await context.progress(i / n) inside its loop.";
-        const advice = `${id}: ${member}() held the page for over ${String(LONG_TASK_MS)} ms at a time; ${fix}`;
-        notes.push(advice);
-        if (!warnedLongTask.has(id)) {
-            warnedLongTask.add(id);
-            console.warn(advice);
-        }
-    }
-
-    // The paths the run read, listed as its inputs; the weight it records is the path it READ as
-    // a weight, not the one it declared (simple-tier.md 2.3 rule 13). ponytail: a note until the
-    // run record grows an inputs list with the advanced contract's input.columnAt (section 6).
-    const inputs = viewInputs(view);
-    if (inputs.length > 0) {
-        const read = inputs.map(({ target, path }) => `${target} ${JSON.stringify(path)}`).join(", ");
-        notes.push(`${id} read: ${read}.`);
-    }
-
     const [weight] = viewWeightPaths(view);
     const fields =
         member === "groups"

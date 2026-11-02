@@ -559,9 +559,33 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
 
     return {
         meshKey: key.join(""),
-        style: fillDefaults(bag, NODE_BASE),
+        style: resolveRelativeExtents(fillDefaults(bag, NODE_BASE)),
         color: filled ? null : color,
     };
+}
+
+/**
+ * A style whose `shape.relativeExtents` is on, with its width, height and depth multiplied by its
+ * size, so everything that draws or measures the node reads one absolute extent per axis. The
+ * flag is kept as a record of what was asked; nothing downstream reads it.
+ * @param style - The node's style.
+ * @returns The same style, or a copy with absolute extents.
+ */
+function resolveRelativeExtents(style: NodeStyleConfig): NodeStyleConfig {
+    if (style.shape?.relativeExtents !== true) {
+        return style;
+    }
+
+    const shape = { ...style.shape };
+    const size = shape.size ?? 1;
+    for (const axis of ["width", "height", "depth"] as const) {
+        const value = shape[axis];
+        if (value !== undefined) {
+            shape[axis] = value * size;
+        }
+    }
+
+    return { ...style, shape };
 }
 
 /**

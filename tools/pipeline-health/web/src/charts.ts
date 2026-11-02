@@ -3,7 +3,17 @@
  * minute strip, tree rows, and the jobs chart. Each chart carries its values as a visually hidden
  * table, so a screen reader gets the numbers the picture shows.
  */
-import type { BarsSection, Cell, Iso, JobsSection, ShardRow, Spark, StripSection, TreeNode } from "./contract";
+import type {
+    BarsSection,
+    Cell,
+    Iso,
+    JobsSection,
+    SeriesSection,
+    ShardRow,
+    Spark,
+    StripSection,
+    TreeNode,
+} from "./contract";
 import { esc, fmtN, fmtTime, fmtUnit, sentence, stripTags } from "./text";
 
 const CHEV = `<svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><path d="M2 2l6 6-6 6" /></svg>`;
@@ -224,9 +234,26 @@ export function sortedBars(
 }
 
 const HOUR = 3600_000;
+const DAY = 24 * HOUR;
 
 /**
- * Hour ticks under a time chart, and "now" at the end when the chart ends at the data's time.
+ * The step between ticks and how a tick reads: hours ("14:00") on a chart of a day or less, days ("10-25") on a
+ * longer one, every 7 days up to two months and every 28 days past that.
+ * @param span - The chart's span, in milliseconds.
+ * @returns The step in milliseconds and the label of a tick.
+ */
+function tickStep(span: number): { every: number; label: (t: number) => string } {
+    if (span > 3 * DAY) {
+        return { every: span > 60 * DAY ? 28 * DAY : 7 * DAY, label: (t) => new Date(t).toISOString().slice(5, 10) };
+    }
+    return {
+        every: span > 12 * HOUR ? 3 * HOUR : HOUR,
+        label: (t) => fmtTime(new Date(t).toISOString()).slice(-5),
+    };
+}
+
+/**
+ * Ticks under a time chart, and "now" at the end when the chart ends at the data's time.
  * @param from - The chart's start, in epoch milliseconds.
  * @param to - The chart's end, in epoch milliseconds.
  * @param nowLabel - Whether to label the right end "now".
@@ -234,16 +261,14 @@ const HOUR = 3600_000;
  */
 function ticks(from: number, to: number, nowLabel: boolean): string {
     const span = to - from;
-    const out = [`<span style="left: 0%">${fmtTime(new Date(from).toISOString()).slice(-5)}</span>`];
-    const every = span > 12 * HOUR ? 3 * HOUR : HOUR;
+    const { every, label } = tickStep(span);
+    const out = [`<span style="left: 0%">${label(from)}</span>`];
     // A tick closer than 0.6 of a step to either end label would touch it.
     for (let t = Math.ceil(from / every) * every; t < to - every * 0.6; t += every) {
         if (t - from < every * 0.6) {
             continue;
         }
-        out.push(
-            `<span style="left: ${r1(((t - from) / span) * 100)}%">${fmtTime(new Date(t).toISOString()).slice(-5)}</span>`,
-        );
+        out.push(`<span style="left: ${r1(((t - from) / span) * 100)}%">${label(t)}</span>`);
     }
     if (nowLabel) {
         out.push(`<span style="left: 100%; transform: translateX(-100%)">now</span>`);
@@ -371,4 +396,339 @@ export function treeRows(nodes: TreeNode[], href: (route: string) => string, dep
             return `<div class="hrow">${cols.replace(CHEV, "<span></span>")}</div>`;
         })
         .join("");
+}
+
+/**
+ * A series' color class: the last part of its key ("issues.prio.critical" draws as `k-critical`).
+ * @param key - The series' label code.
+ * @returns The class name.
+ */
+const seriesClass = (key: string): string => `k-${key.slice(key.lastIndexOf(".") + 1).replaceAll("_", "-")}`;
+
+/** The Issues charts' plot width in viewBox units; every one of them shares it, so a date sits at one x in all. */
+const PLOT = 960;
+
+/**
+ * A nice axis top for counts: the largest value plus a tenth, rounded up to a step of 1, 2 or 5 times a power of 10
+ * that cuts the axis into about five.
+ * @param max - The largest value drawn.
+ * @returns The axis top, at least 1.
+ */
+function niceTop(max: number): number {
+    const top = Math.max(1, max * 1.1);
+    const pow = 10 ** Math.floor(Math.log10(top / 5));
+    const step = [1, 2, 5, 10].map((m) => m * pow).find((x) => x >= top / 5) ?? 10 * pow;
+    return Math.ceil(top / step) * step;
+}
+
+/**
+ * A series chart's legend: a key per series, named by the page.
+ * @param s - The series section.
+ * @param name - Names a series by its key.
+ * @returns The legend's HTML.
+ */
+function seriesLegend(s: SeriesSection, name: (key: string) => string): string {
+    const key = (k: string): string =>
+        `<span class="li"><span class="lk ${seriesClass(k)}"></span>${esc(name(k))}</span>`;
+    return `<p class="legend">${s.series.map((x) => key(x.key)).join("")}</p>`;
+}
+
+/**
+ * Whether a series chart draws a stock (a count at moments: its start and each bucket's end) rather than a count per
+ * bucket.
+ * @param s - The series section.
+ * @returns True for `lines` and `area`.
+ */
+const isStock = (s: SeriesSection): boolean => s.chart === "lines" || s.chart === "area";
+
+/**
+ * A series chart's buckets: where the first starts, their size and how many there are (a stock has one value more).
+ * @param s - The series section.
+ * @returns The first start, the bucket size and count, all in epoch milliseconds.
+ */
+function bucketsOf(s: SeriesSection): { from: number; size: number; n: number } {
+    const len = s.series[0]?.values.length ?? 0;
+    return {
+        from: Date.parse(s.start),
+        size: s.step === "1w" ? 7 * DAY : DAY,
+        n: isStock(s) ? Math.max(0, len - 1) : len,
+    };
+}
+
+/**
+ * The moment of a stock's value, or the bucket of a count, as a row or a tooltip reads it.
+ * @param s - The series section.
+ * @param i - The value's index.
+ * @returns "2026-10-05", "week of 2026-10-05" or "now".
+ */
+function whenOf(s: SeriesSection, i: number): string {
+    const { from, size, n } = bucketsOf(s);
+    if (isStock(s)) {
+        return i === n ? "now" : new Date(from + i * size).toISOString().slice(0, 10);
+    }
+    return `${s.step === "1w" ? "week of " : ""}${new Date(from + i * size).toISOString().slice(0, 10)}`;
+}
+
+/**
+ * The sum of the series at one index.
+ * @param list - The series.
+ * @param i - The index.
+ * @returns The sum.
+ */
+const total = (list: SeriesSection["series"], i: number): number => list.reduce((a, x) => a + (x.values[i] ?? 0), 0);
+
+/**
+ * Each value as a visually hidden table, one column per series.
+ * @param s - The series section.
+ * @param name - Names a series by its key.
+ * @param caption - The table's caption.
+ * @returns The hidden table.
+ */
+function seriesTable(s: SeriesSection, name: (key: string) => string, caption: string): string {
+    const len = s.series[0]?.values.length ?? 0;
+    let first = s.step === "1w" ? "week starting" : "day";
+    if (isStock(s)) {
+        first = "at the start of";
+    }
+    return hiddenTable(
+        caption,
+        [first, ...s.series.map((x) => name(x.key))],
+        Array.from({ length: len }, (_, i) => [
+            whenOf(s, i).replace("week of ", ""),
+            ...s.series.map((x) => x.values[i] ?? 0),
+        ]),
+    );
+}
+
+/**
+ * A tooltip strip: one invisible column per value whose title lists the values there (and their total where the
+ * series stack), for a pointer. A stock's column is centered on its moment, a count's covers its bucket.
+ * @param s - The series section.
+ * @param name - Names a series by its key.
+ * @returns The columns' SVG.
+ */
+function hoverColumns(s: SeriesSection, name: (key: string) => string): string {
+    const { n } = bucketsOf(s);
+    const stock = isStock(s);
+    const w = PLOT / Math.max(1, n);
+    const stacked = s.chart === "stacked" || s.chart === "area";
+    return Array.from({ length: stock ? n + 1 : n }, (_, i) => {
+        const title = [whenOf(s, i), ...s.series.map((x) => `${name(x.key)}: ${fmtN(x.values[i] ?? 0)}`)];
+        if (stacked) {
+            title.push(`total: ${fmtN(total(s.series, i))}`);
+        }
+        const x0 = Math.max(0, stock ? (i - 0.5) * w : i * w);
+        const x1 = Math.min(PLOT, stock ? (i + 0.5) * w : (i + 1) * w);
+        return `<rect class="hit" x="${r1(x0)}" y="0" width="${r1(x1 - x0)}" height="120"><title>${esc(title.join("\n"))}</title></rect>`;
+    }).join("");
+}
+
+/**
+ * A count axis left on a plot: its top, its middle (when a whole number) and 0, with faint lines at the middle and 0.
+ * @param top - The axis top.
+ * @param y - A count's height on the 120 px plot.
+ * @returns The gridlines' SVG and the labels' HTML.
+ */
+function countAxis(top: number, y: (v: number) => number): { svg: string; html: string } {
+    const marks = Number.isInteger(top / 2) && top >= 2 ? [top, top / 2, 0] : [top, 0];
+    return {
+        svg: marks
+            .slice(1)
+            .map((v) => `<line class="grid" x1="0" y1="${y(v)}" x2="${PLOT}" y2="${y(v)}" />`)
+            .join(""),
+        html: marks.map((v) => `<span class="cl" style="top: ${r1(y(v) - 6)}px; left: 4px">${fmtN(v)}</span>`).join(""),
+    };
+}
+
+/**
+ * End labels right of a plot, each at its value's height and at least 14 px from the next (the chart is 120 px tall).
+ * @param items - Each label's height on the 120 px plot and its HTML.
+ * @returns The labels' HTML.
+ */
+function endLabels(items: { y: number; html: string }[]): string {
+    const placed = items.map((x) => ({ ...x, top: x.y - 8 }));
+    placed.sort((a, b) => a.top - b.top);
+    for (let i = 1; i < placed.length; i++) {
+        placed[i].top = Math.max(placed[i].top, placed[i - 1].top + 14);
+    }
+    // Pushed below the plot: move the lowest back up to its bottom and the rest up with it, 14 px apart.
+    for (let i = placed.length - 1; i >= 0; i--) {
+        placed[i].top = Math.min(placed[i].top, i === placed.length - 1 ? 106 : placed[i + 1].top - 14);
+    }
+    return placed.map((p) => `<span class="cl ink end" style="top: ${r1(p.top)}px">${p.html}</span>`).join("");
+}
+
+/**
+ * Stacked bands of a stock, the first series at the bottom: each band's polygon, and its end label at the middle of
+ * its last height with the total above them all.
+ * @param s - The series section, chart `area`.
+ * @param name - Names a series by its key.
+ * @param x - A value's x.
+ * @param y - A count's height on the plot.
+ * @returns The bands' SVG and the end labels' items.
+ */
+function bands(
+    s: SeriesSection,
+    name: (key: string) => string,
+    x: (i: number) => number,
+    y: (v: number) => number,
+): { svg: string; ends: { y: number; html: string }[] } {
+    const len = s.series[0]?.values.length ?? 0;
+    let below = Array.from({ length: len }, () => 0);
+    const svg: string[] = [];
+    const ends: { y: number; html: string }[] = [];
+    for (const sr of s.series) {
+        const above = below.map((v, i) => v + (sr.values[i] ?? 0));
+        const top = above.map((v, i) => `${x(i)},${y(v)}`);
+        const bottom = below.map((v, i) => `${x(i)},${y(v)}`).reverse();
+        svg.push(`<polygon class="${seriesClass(sr.key)}" points="${[...top, ...bottom].join(" ")}" />`);
+        ends.push({
+            y: y(((below.at(-1) ?? 0) + (above.at(-1) ?? 0)) / 2),
+            html: `${fmtN(sr.values.at(-1) ?? 0)} ${esc(name(sr.key))}`,
+        });
+        below = above;
+    }
+    ends.push({ y: y(below.at(-1) ?? 0), html: `<b>${fmtN(below.at(-1) ?? 0)} in all</b>` });
+    return { svg: svg.join(""), ends };
+}
+
+/**
+ * A stock as lines on one fitted axis (Issues: open issues by type), the first series the total, drawn darkest; or
+ * as bands stacked up from zero (`area`: open bugs by priority), whose top edge is the total. A value sits at its
+ * moment: the range's start, then each bucket's end; each line or band ends in its value and name, right of the plot.
+ * @param s - The series section, chart `lines` or `area`.
+ * @param name - Names a series by its key.
+ * @returns The legend, chart, ticks and hidden table.
+ */
+export function lineChart(s: SeriesSection, name: (key: string) => string): string {
+    const { from, size, n } = bucketsOf(s);
+    const area = s.chart === "area";
+    const len = s.series[0]?.values.length ?? 0;
+    const peak = area
+        ? Math.max(0, ...Array.from({ length: len }, (_, i) => total(s.series, i)))
+        : Math.max(0, ...s.series.flatMap((x) => x.values));
+    const max = niceTop(peak);
+    const y = (v: number): number => r1(118 - (Math.min(v, max) / max) * 116);
+    const x = (i: number): number => r1(n > 0 ? (i * PLOT) / n : PLOT);
+    const drawn = area
+        ? bands(s, name, x, y)
+        : {
+              svg: s.series
+                  .map(
+                      (sr) =>
+                          `<polyline class="${seriesClass(sr.key)}" points="${sr.values.map((v, i) => [x(i), y(v)].join(",")).join(" ")}" />`,
+                  )
+                  .join(""),
+              ends: s.series.map((sr) => ({
+                  y: y(sr.values.at(-1) ?? 0),
+                  html: `${fmtN(sr.values.at(-1) ?? 0)} ${esc(name(sr.key))}`,
+              })),
+          };
+    const axis = countAxis(max, y);
+    return [
+        seriesLegend(s, name),
+        `<div class="chart lines"><svg viewBox="0 0 ${PLOT} 120" preserveAspectRatio="none" aria-hidden="true">${axis.svg}${drawn.svg}${hoverColumns(s, name)}</svg>`,
+        `${axis.html}${endLabels(drawn.ends)}</div>`,
+        ticks(from, from + n * size, false),
+        seriesTable(s, name, "open at the start of each bucket, and now"),
+    ].join("");
+}
+
+/**
+ * Columns of stacked series from a zero line, up (`dir` 1) or down (-1).
+ * @param list - The series, the first next to the zero line.
+ * @param dir - 1 up, -1 down.
+ * @param g - The zero line's height, the px per count and each column's width.
+ * @param g.zero - The zero line's height.
+ * @param g.scale - Px per count.
+ * @param g.w - Each column's width.
+ * @returns The columns' SVG.
+ */
+function columns(list: SeriesSection["series"], dir: 1 | -1, g: { zero: number; scale: number; w: number }): string {
+    const out: string[] = [];
+    const n = list[0]?.values.length ?? 0;
+    for (let i = 0; i < n; i++) {
+        let at = 0;
+        for (const sr of list) {
+            const h = (sr.values[i] ?? 0) * g.scale;
+            const yTop = dir === 1 ? g.zero - at - h : g.zero + at;
+            if (h > 0) {
+                out.push(
+                    `<rect class="${seriesClass(sr.key)}" x="${r1(i * g.w + 1)}" y="${r1(yTop)}" width="${r1(Math.max(1, g.w - 2))}" height="${r1(h)}" />`,
+                );
+            }
+            at += h;
+        }
+    }
+    return out.join("");
+}
+
+/**
+ * A flow chart's marks over its columns: the zero line, the last series (opened less closed) as a line with dots on
+ * a halo that keeps it clear of the columns, and the axis: opened at the top, 0 at the zero line, closed at the
+ * bottom (one scale both ways).
+ * @param s - The series section, chart `flow`.
+ * @param name - Names a series by its key.
+ * @param g - The zero line's height, the px per count, each column's width and the two halves' extents.
+ * @param g.zero - The zero line's height.
+ * @param g.scale - Px per count.
+ * @param g.w - Each column's width.
+ * @param g.topUp - The upper half's extent.
+ * @param g.topDown - The lower half's extent.
+ * @returns The marks' SVG and the dots' and labels' HTML.
+ */
+function flowMarks(
+    s: SeriesSection,
+    name: (key: string) => string,
+    g: { zero: number; scale: number; w: number; topUp: number; topDown: number },
+): { svg: string; html: string } {
+    const net = s.series.at(-1);
+    const values = net?.values ?? [];
+    const cls = seriesClass(net?.key ?? "");
+    const y = (v: number): number => r1(g.zero - v * g.scale);
+    const points = values.map((v, i) => `${r1((i + 0.5) * g.w)},${y(v)}`).join(" ");
+    const dots = values
+        .map(
+            (v, i) =>
+                `<span class="ndot ${cls}" style="left: ${r1(((i + 0.5) / Math.max(1, values.length)) * 100)}%; top: ${y(v)}px"></span>`,
+        )
+        .join("");
+    const label = (top: string, text: string): string => `<span class="cl" style="${top}; left: 4px">${text}</span>`;
+    return {
+        svg: `<line class="zero" x1="0" y1="${g.zero}" x2="${PLOT}" y2="${g.zero}" /><polyline class="halo" points="${points}" /><polyline class="${cls}" points="${points}" />`,
+        html: [
+            `<div class="netdots">${dots}</div>`,
+            label("top: -4px", `${fmtN(g.topUp)} ${esc(name(s.series[0]?.key ?? ""))}`),
+            label(`top: ${r1(g.zero - 6)}px`, "0"),
+            label("bottom: -4px", `${fmtN(g.topDown)} closed`),
+        ].join(""),
+    };
+}
+
+/**
+ * Counts per bucket as columns (Issues). `stacked`: every series stacked up from the base. `flow`: opened above a
+ * zero line, the closed series stacked below it, and the last series (opened less closed) as a line of dots.
+ * @param s - The series section, chart `stacked` or `flow`.
+ * @param name - Names a series by its key.
+ * @returns The legend, chart, ticks and hidden table.
+ */
+export function barChart(s: SeriesSection, name: (key: string) => string): string {
+    const { from, size, n } = bucketsOf(s);
+    const flow = s.chart === "flow";
+    const up = flow ? s.series.slice(0, 1) : s.series;
+    const down = flow ? s.series.slice(1, -1) : [];
+    const idx = Array.from({ length: n }, (_, i) => i);
+    const topUp = niceTop(Math.max(0, ...idx.map((i) => total(up, i))));
+    const topDown = down.length ? niceTop(Math.max(0, ...idx.map((i) => total(down, i)))) : 0;
+    // The zero line sits where the two halves meet, each half fitted to its own largest column.
+    const scale = 116 / (topUp + topDown);
+    const g = { zero: r1(2 + topUp * scale), scale, w: PLOT / Math.max(1, n), topUp, topDown };
+    const marks = flow ? flowMarks(s, name, g) : countAxis(topUp, (v) => r1(g.zero - v * scale));
+    return [
+        seriesLegend(s, name),
+        `<div class="chart cols"><svg viewBox="0 0 ${PLOT} 120" preserveAspectRatio="none" aria-hidden="true">`,
+        `${columns(up, 1, g)}${columns(down, -1, g)}${marks.svg}${hoverColumns(s, name)}</svg>${marks.html}</div>`,
+        ticks(from, from + n * size, false),
+        seriesTable(s, name, flow ? "opened and closed per bucket" : "opened per bucket"),
+    ].join("");
 }

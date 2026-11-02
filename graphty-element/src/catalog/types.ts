@@ -663,6 +663,7 @@ export type Channel =
     | "node.width"
     | "node.height"
     | "node.depth"
+    | "node.relativeExtents"
     | "node.planar"
     | "node.zIndex"
     | "node.drawOrder"

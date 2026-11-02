@@ -111,6 +111,9 @@ function pageOf(segs: string[]): Omit<Here, "range" | "q"> {
     if (segs[0] === "flaky" && segs[1] === "test") {
         return { page: "test" };
     }
+    if (segs[0] === "issues") {
+        return { page: "issues", section: segs[1] };
+    }
     if ((CATEGORY_IDS as readonly string[]).includes(segs[0] ?? "")) {
         return { page: segs[0] as CategoryId, section: segs[1] };
     }
@@ -123,6 +126,9 @@ function rangeOf(page: Here["page"], r: string): Here["range"] {
     }
     if (page === "test") {
         return r === "28d" ? "28d" : "7d";
+    }
+    if (page === "issues") {
+        return r === "all" ? "all" : "28d";
     }
     return r === "6h" || r === "24h" ? r : "1h";
 }

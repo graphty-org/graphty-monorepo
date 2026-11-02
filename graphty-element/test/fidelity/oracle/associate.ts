@@ -34,6 +34,7 @@ import {
     type PStray,
     type Pt,
     type PText,
+    shapeId,
     strokedBarb,
     taperPaintedAsFill,
 } from "./primitives";
@@ -337,6 +338,9 @@ function toOutline(p: Pt, outline: readonly Pt[]): number {
     return best;
 }
 
+/** How much of a node's box, and of a picture's, the two share for the picture to be the node's face. */
+const FACE_COVERED = 0.9;
+
 /** A node built from the primitives that draw it. */
 function nodeFrom(
     id: string,
@@ -372,7 +376,22 @@ function nodeFrom(
     const stroked = all
         .filter((s) => s.stroke !== null)
         .sort((a, b) => off(a) - off(b) || area(b.box) - area(a.box) || a.index - b.index)[0];
-    const pictures = shapes.filter((s) => s.kind === "image").map((s) => s.box);
+    // a gradient painted as a picture over the node's whole face (Cytoscape desktop's gradient custom graphics) is the
+    // node's fill as a reader sees it, not a picture on it
+    const overlap = (a: PBox, b: PBox): number =>
+        Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) *
+        Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+    const painted = shapes.find(
+        (s) =>
+            s.gradient !== undefined &&
+            overlap(s.box, box) >= FACE_COVERED * Math.max(area(s.box), area(box)) &&
+            area(box) > 0,
+    );
+    const paintedFill =
+        painted?.gradient === undefined
+            ? null
+            : { color: painted.gradient.stops[0]?.color ?? "#000000", opacity: 1, gradient: painted.gradient };
+    const pictures = shapes.filter((s) => s.kind === "image" && s !== painted).map((s) => s.box);
     const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : null;
     const node: PNode = {
         id,
@@ -383,7 +402,7 @@ function nodeFrom(
         h: bh(box),
         // a dot (an outline of no size, drawn by its round-capped stroke) has no shape to read
         shape,
-        fill: filled?.fill ?? null,
+        fill: paintedFill ?? filled?.fill ?? null,
         stroke: stroked?.stroke ?? null,
         ring:
             ringPrim === null || ringPrim.stroke === null
@@ -2239,9 +2258,13 @@ export function associate(
                           pairs.map((q) => q.to),
                       )
                     : null;
-            return refit === null
+            // the refit is a least-squares fit of body centers, which a few bodies drawn off their node's center (a
+            // shadow, an event ring) can turn and shift enough to lose a body the first frame found
+            // (yed-graphml-specimen-node-shapes-p3's corner anchor): it stands only where it finds as many
+            const again = refit === null ? null : matchBodies(guideNodes, pool, through(refit), containers);
+            return again === null || refit === null || again.size < first.size
                 ? { framed: first, groupFrame: at.t }
-                : { framed: matchBodies(guideNodes, pool, through(refit), containers), groupFrame: refit };
+                : { framed: again, groupFrame: refit };
         };
         // The free texts both draw frame the drawing too (a specimen sheet's captions, where its nodes carry no
         // labels), when they find more bodies than the frame without them: a program may set every caption off its
@@ -3176,7 +3199,8 @@ export function associate(
             }
             take(p);
             groups.push({
-                id: `box-${String(p.index)}`,
+                // named by its box, not its place in the list of shapes read
+                id: shapeId("box", p.box),
                 box: p.box,
                 fill: p.fill,
                 stroke: p.stroke,

@@ -87,13 +87,15 @@ const timesOf = (r: RawItem): [string, number][] =>
  * @param nowMs - current time
  * @param opts - write options
  * @param opts.merge - keep the live-collector-only fields of the stored copy when the new record leaves them out
+ * @param opts.markSince - mark no bucket older than this dirty (the all-issues backfill: rollups older than the
+ *   refold window are never rebuilt from raw items, and marking them would cost a recompute each)
  * @returns the number of items written
  */
 export async function putRaw(
     store: Store,
     items: RawItem[],
     nowMs: number,
-    opts: { merge?: boolean } = {},
+    opts: { merge?: boolean; markSince?: number } = {},
 ): Promise<number> {
     const ops: BatchOp[] = [];
     const dirty = new Set<number>();
@@ -128,6 +130,9 @@ export async function putRaw(
         }
     }
     for (const start of dirty) {
+        if (opts.markSince !== undefined && start < floorTo(opts.markSince, "5m")) {
+            continue;
+        }
         ops.push({ put: { ...dirtyKey(start), start, markedAt: nowMs } });
     }
     await store.batch(ops);

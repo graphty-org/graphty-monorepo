@@ -330,6 +330,21 @@ interface IdScan {
 }
 
 /**
+ * The offset an identity map would have: 0 for no ids, the first id when it is a safe integer, else
+ * null (the ids cannot be an identity).
+ * @param ids - the ids in index order
+ * @param size - how many there are
+ * @returns the candidate offset, or null
+ */
+function identityOffsetOf(ids: ArrayLike<NodeId>, size: number): number | null {
+    if (size === 0) {
+        return 0;
+    }
+    const first = ids[0];
+    return typeof first === "number" && Number.isSafeInteger(first) ? first : null;
+}
+
+/**
  * One pass over the first `size` ids that decides the storage kind. The ids are assumed valid
  * (finite numbers or strings).
  * @param ids - the ids in index order
@@ -341,36 +356,28 @@ function scanIds(ids: ArrayLike<NodeId>, size: number): IdScan {
     let allStrings = true;
     let allDenseIntegers = true;
     let maxId = -1;
-    let offset = 0;
-    let identity = true;
-    if (size > 0) {
-        const first = ids[0];
-        if (typeof first === "number" && Number.isSafeInteger(first)) {
-            offset = first;
-        } else {
-            identity = false;
-        }
-    }
+    const start = identityOffsetOf(ids, size);
+    const offset = start ?? 0;
+    let identity = start !== null;
     for (let i = 0; i < size; i++) {
         const id = ids[i];
-        if (typeof id === "number") {
-            allStrings = false;
-            if (identity && id !== i + offset) {
-                identity = false;
-            }
-            if (allDenseIntegers) {
-                if (Number.isInteger(id) && id >= 0 && id < MAX_COUNT) {
-                    if (id > maxId) {
-                        maxId = id;
-                    }
-                } else {
-                    allDenseIntegers = false;
-                }
-            }
-        } else {
+        if (typeof id !== "number") {
             allNumbers = false;
             identity = false;
             allDenseIntegers = false;
+            continue;
+        }
+        allStrings = false;
+        if (identity && id !== i + offset) {
+            identity = false;
+        }
+        if (!allDenseIntegers) {
+            continue;
+        }
+        if (!Number.isInteger(id) || id < 0 || id >= MAX_COUNT) {
+            allDenseIntegers = false;
+        } else if (id > maxId) {
+            maxId = id;
         }
     }
     if (!allNumbers) {
@@ -904,6 +911,43 @@ interface FromF64Options {
 }
 
 /**
+ * Check that every id is finite (E_INVALID_ID) and rewrite -0 entries to 0 in a copy.
+ * @param values - one id per index
+ * @param size - how many there are
+ * @returns the values, or a copy without -0 when any entry was -0
+ */
+function finiteIdsOf(values: F64, size: number): F64 {
+    let negativeZero = false;
+    for (let i = 0; i < size; i++) {
+        const v = values[i];
+        if (!Number.isFinite(v)) {
+            throw new GraphFormatError(
+                "E_INVALID_ID",
+                `invalid node id ${String(v)} at index ${i}: not a finite number`,
+                {
+                    id: v,
+                    index: i,
+                    reason: "non-finite",
+                },
+            );
+        }
+        if (Object.is(v, -0)) {
+            negativeZero = true;
+        }
+    }
+    if (!negativeZero) {
+        return values;
+    }
+    const numbers = values.slice();
+    for (let i = 0; i < size; i++) {
+        if (numbers[i] === 0) {
+            numbers[i] = 0;
+        }
+    }
+    return numbers;
+}
+
+/**
  * Build a map from numeric ids in a Float64Array (the `ids: F64` form of `fromEdgeArrays` /
  * `fromCsr`), choosing identity, dense or numeric in one pass. A numeric map adopts the array as its
  * typed representation.
@@ -920,35 +964,7 @@ export function nodeIdMapFromF64(values: F64, options: FromF64Options = {}): Nod
         });
     }
     const validate = options.validate !== false;
-    let numbers = values;
-    if (validate) {
-        let negativeZero = false;
-        for (let i = 0; i < size; i++) {
-            const v = values[i];
-            if (!Number.isFinite(v)) {
-                throw new GraphFormatError(
-                    "E_INVALID_ID",
-                    `invalid node id ${String(v)} at index ${i}: not a finite number`,
-                    {
-                        id: v,
-                        index: i,
-                        reason: "non-finite",
-                    },
-                );
-            }
-            if (Object.is(v, -0)) {
-                negativeZero = true;
-            }
-        }
-        if (negativeZero) {
-            numbers = values.slice();
-            for (let i = 0; i < size; i++) {
-                if (numbers[i] === 0) {
-                    numbers[i] = 0;
-                }
-            }
-        }
-    }
+    const numbers = validate ? finiteIdsOf(values, size) : values;
     const scan = scanIds(numbers, size);
     const kind = kindOf(scan, size);
     switch (kind) {
@@ -1239,6 +1255,67 @@ function mixedFromTyped(parts: NodeIdMapTypedParts, validate: ValidationLevel): 
 // ============================================================ typed form, gather, remap
 
 /**
+ * The F64 of a numeric map, materialised from the decoded ids (and cached) on first use.
+ * @param storage - the storage of a numeric map
+ * @param size - the id count
+ * @returns the numbers
+ */
+function numericTypedOf(storage: NodeIdMapStorage, size: number): F64 {
+    if (storage.numbers !== null) {
+        return storage.numbers;
+    }
+    const decoded = storage.decoded as readonly NodeId[];
+    const numbers = new Float64Array(size);
+    for (let i = 0; i < size; i++) {
+        const id = decoded[i];
+        if (typeof id !== "number") {
+            throw new GraphFormatError("E_INVALID_ID", `numeric id map holds a ${typeof id} at index ${i}`, {
+                index: i,
+                found: typeof id,
+            });
+        }
+        numbers[i] = id;
+    }
+    storage.numbers = numbers;
+    claimHolder(numbers.buffer);
+    return numbers;
+}
+
+/**
+ * The tags, numbers and Utf8 store of a mixed map, materialised from the decoded ids (and cached)
+ * on first use.
+ * @param storage - the storage of a mixed map
+ * @param size - the id count
+ * @returns the three typed slots
+ */
+function mixedTypedOf(storage: NodeIdMapStorage, size: number): { tags: U8; numbers: F64; strings: Utf8Store } {
+    if (storage.tags !== null && storage.numbers !== null && storage.strings !== null) {
+        return { tags: storage.tags, numbers: storage.numbers, strings: storage.strings };
+    }
+    const decoded = storage.decoded as readonly NodeId[];
+    const tags = new Uint8Array(size);
+    const numbers = new Float64Array(size);
+    for (let i = 0; i < size; i++) {
+        const id = decoded[i];
+        if (typeof id === "number") {
+            numbers[i] = id;
+        } else {
+            tags[i] = 1;
+        }
+    }
+    const { offsets, utf8 } = encodeUtf8Rows(decoded, size);
+    storage.tags = tags;
+    storage.numbers = numbers;
+    const strings = Utf8Store.fromEncoded(offsets, utf8);
+    storage.strings = strings;
+    // the map is the first holder of the buffers it materialises (design section 9.1)
+    for (const buffer of [tags.buffer, numbers.buffer, offsets.buffer, utf8.buffer]) {
+        claimHolder(buffer);
+    }
+    return { tags, numbers, strings };
+}
+
+/**
  * The typed (wire) representation of a map (design section 4.5), materialising and caching whatever
  * the map only held in decoded form: the F64 of a numeric map, the Utf8 store of a string map, the
  * tags + numbers + Utf8 store of a mixed map. The dense inverse and the reverse Map are never part
@@ -1273,31 +1350,11 @@ export function nodeIdMapToTyped(map: NodeIdMap): NodeIdMapTypedParts {
                 utf8: null,
             };
         case "numeric": {
-            if (storage.numbers === null) {
-                const decoded = storage.decoded as readonly NodeId[];
-                const numbers = new Float64Array(size);
-                for (let i = 0; i < size; i++) {
-                    const id = decoded[i];
-                    if (typeof id !== "number") {
-                        throw new GraphFormatError(
-                            "E_INVALID_ID",
-                            `numeric id map holds a ${typeof id} at index ${i}`,
-                            {
-                                index: i,
-                                found: typeof id,
-                            },
-                        );
-                    }
-                    numbers[i] = id;
-                }
-                storage.numbers = numbers;
-                claimHolder(numbers.buffer);
-            }
             return {
                 kind,
                 size,
                 offset: 0,
-                values: storage.numbers,
+                values: numericTypedOf(storage, size),
                 tags: null,
                 numbers: null,
                 offsets: null,
@@ -1318,36 +1375,16 @@ export function nodeIdMapToTyped(map: NodeIdMap): NodeIdMapTypedParts {
             };
         }
         case "mixed": {
-            if (storage.tags === null || storage.numbers === null || storage.strings === null) {
-                const decoded = storage.decoded as readonly NodeId[];
-                const tags = new Uint8Array(size);
-                const numbers = new Float64Array(size);
-                for (let i = 0; i < size; i++) {
-                    const id = decoded[i];
-                    if (typeof id === "number") {
-                        numbers[i] = id;
-                    } else {
-                        tags[i] = 1;
-                    }
-                }
-                const { offsets, utf8 } = encodeUtf8Rows(decoded, size);
-                storage.tags = tags;
-                storage.numbers = numbers;
-                storage.strings = Utf8Store.fromEncoded(offsets, utf8);
-                // the map is the first holder of the buffers it materialises (design section 9.1)
-                for (const buffer of [tags.buffer, numbers.buffer, offsets.buffer, utf8.buffer]) {
-                    claimHolder(buffer);
-                }
-            }
+            const { tags, numbers, strings } = mixedTypedOf(storage, size);
             return {
                 kind,
                 size,
                 offset: 0,
                 values: null,
-                tags: storage.tags,
-                numbers: storage.numbers,
-                offsets: storage.strings.offsets,
-                utf8: storage.strings.utf8,
+                tags,
+                numbers,
+                offsets: strings.offsets,
+                utf8: strings.utf8,
             };
         }
         default:

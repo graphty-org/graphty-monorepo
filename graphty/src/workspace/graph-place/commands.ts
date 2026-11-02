@@ -3,6 +3,7 @@ import type { GraphSession, StyleRow, StyleRowPin } from "@graphty/graphty-eleme
 import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
 import { focusInspectorTitle, focusIsLost } from "../frame/focus";
 import type { GLYPHS } from "../glyphs";
+import { errorWords } from "../project/words";
 import { addLayer, deleteRow, duplicateRow, orNotice, selectWhatItPaints, ungroup } from "./actions";
 import { FIND_BOX_ID } from "./FindBox";
 import { findTreeRow, isBaseRow } from "./rows";
@@ -132,8 +133,9 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
                     workspace.set({ inspected: { kind: "layer-row", id } });
                 }
             } catch (error) {
-                const why = error instanceof Error ? ` ${error.message}` : "";
-                workspace.set({ notice: { message: `Could not duplicate ${row.name}.${why}`, error: true } });
+                workspace.set({
+                    notice: { message: errorWords(`Could not duplicate ${row.name}`, error), error: true },
+                });
             }
         },
     },

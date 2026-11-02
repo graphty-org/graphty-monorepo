@@ -22,6 +22,8 @@
  * throws. Recommending one of those would hand a consumer a name that does not work.
  */
 
+import { dotFileLayout, type FileLayout } from "@graphty/graph-io";
+
 import { LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import type { LayoutDescriptor, LayoutId } from "../catalog/types";
 import { GRAPHVIZ_NODE_BUDGETS, graphvizLayoutId, isGraphvizEngine } from "../layout/graphviz/engines";
@@ -117,12 +119,20 @@ export interface LayoutRecommendationOptions {
      */
     readonly largeGraphThreshold?: number;
     /**
-     * What the loaded file said about the whole graph: its format (`"dot"`) and its graph-level
-     * attributes (`layout`, `rankdir`, ...). A Graphviz file without coordinates is drawn by the
-     * Graphviz engine it names. Omitted, nothing is known about the file.
+     * What the loaded file said about the whole graph. A file whose `layout` names Graphviz and
+     * which has no coordinates is drawn by the Graphviz program it names. Omitted, nothing is known
+     * about the file.
+     *
+     * `layout` is graph-io's fact (`importer.layout(snapshot)`, since 3.35.0). Without it, the
+     * layout is read from `format` and the graph-level `attributes` as a DOT file's (`format:
+     * "dot"`; `layout`, `rankdir`, ...).
      * @since 3.29.0
      */
-    readonly file?: { readonly format?: string; readonly attributes?: Readonly<Record<string, unknown>> };
+    readonly file?: {
+        readonly format?: string;
+        readonly attributes?: Readonly<Record<string, unknown>>;
+        readonly layout?: FileLayout;
+    };
     /**
      * Whether the Graphviz layouts can run here (`graphvizAvailability()`). Omitted counts as not
      * available.
@@ -137,44 +147,6 @@ export interface LayoutRecommendationOptions {
      */
     readonly locations?: boolean;
 }
-
-/** The graph attributes a Graphviz file passes on to the engine that draws it. */
-const GRAPHVIZ_FILE_ATTRIBUTES = [
-    "rankdir",
-    "nodesep",
-    "ranksep",
-    "splines",
-    "overlap",
-    "sep",
-    "esep",
-    "start",
-    "mode",
-    "model",
-    "K",
-    "root",
-    "mindist",
-    "newrank",
-    "clusterrank",
-    "ordering",
-    "ratio",
-    "pack",
-    "packmode",
-    "concentrate",
-    "maxiter",
-    "epsilon",
-    "defaultdist",
-    "searchsize",
-    "mclimit",
-    "nslimit",
-    "remincross",
-    "levelsgap",
-    "repulsiveforce",
-    "smoothing",
-    "quadtree",
-    "beautify",
-    "center",
-    "forcelabels",
-] as const;
 
 /** The graph attributes Graphviz's routes between placed nodes follow: the kind of line, and how far they keep from the nodes. */
 const ROUTE_ATTRIBUTES = ["splines", "sep", "esep"] as const;
@@ -331,8 +303,9 @@ export function recommendLayout(
         return withGraphvizRoutes(recommendByRules(input), options, statistics);
     }
 
-    const engine = graphvizEngineFor(options.file);
-    if (engine !== null) {
+    const layout = fileLayoutOf(options.file);
+    const engine = graphvizEngineOf(layout);
+    if (layout !== null && engine !== null) {
         const params = { ...factOf("recommend.graphviz-file", input).params, engine };
         const descriptor = LAYOUT_DESCRIPTORS.find((candidate) => candidate.id === graphvizLayoutId(engine));
         if (options.graphvizAvailable !== true) {
@@ -343,12 +316,11 @@ export function recommendLayout(
         }
 
         if (descriptor !== undefined && statistics.nodeCount <= GRAPHVIZ_NODE_BUDGETS[engine]) {
-            const attributes = fileAttributes(options.file?.attributes);
             return Object.freeze({
                 layout: descriptor,
                 reason: "The file is a Graphviz file with no coordinates, so it is drawn by the engine it names.",
                 fact: { code: "recommend.graphviz-file" as const, params },
-                ...graphvizFileOptions(attributes, options.file?.format === "dot"),
+                ...graphvizFileOptions(layout.settings, layout.ownFormat),
             });
         }
     }
@@ -357,35 +329,63 @@ export function recommendLayout(
 }
 
 /**
- * The options a Graphviz file is drawn with: its graph attributes, and for a DOT file, whose nodes carry the attributes
- * Graphviz sizes them by, nodes at the size Graphviz gives them, as Graphviz lays the file out itself.
- * @param attributes - the file's graph attributes the engine reads
- * @param dot - whether the file is a DOT file
+ * The options a Graphviz file is drawn with: its layout settings, and for a file in Graphviz's own format, whose nodes
+ * carry the attributes Graphviz sizes them by, nodes at the size Graphviz gives them, as Graphviz lays the file out itself.
+ * @param settings - the file's layout settings
+ * @param ownFormat - whether the file is in Graphviz's own format
  * @returns the recommendation's `options`, or nothing when there are none
  */
 function graphvizFileOptions(
-    attributes: Readonly<Record<string, string>>,
-    dot: boolean,
+    settings: Readonly<Record<string, string>>,
+    ownFormat: boolean,
 ): { options?: Readonly<Record<string, unknown>> } {
     const options = {
-        ...(Object.keys(attributes).length === 0 ? {} : { attributes }),
-        ...(dot ? { nodeSize: "label" } : {}),
+        ...(Object.keys(settings).length === 0 ? {} : { attributes: { ...settings } }),
+        ...(ownFormat ? { nodeSize: "label" } : {}),
     };
     return Object.keys(options).length === 0 ? {} : { options: Object.freeze(options) };
 }
 
 /**
- * The Graphviz engine a file asks for: its `layout` attribute, or dot for a DOT file that names none.
+ * The Graphviz engine a file asks for: the program its layout names, or dot for a program this element does not run.
  * @param file - what the file said about the graph
- * @returns the engine, or null when the file is not a Graphviz file
+ * @returns the engine, or null when the file asks for no Graphviz layout
  */
 export function graphvizEngineFor(file: LayoutRecommendationOptions["file"]): GraphvizEngineName | null {
-    const named = file?.attributes?.layout;
-    if (isGraphvizEngine(named)) {
-        return named;
+    return graphvizEngineOf(fileLayoutOf(file));
+}
+
+/**
+ * The Graphviz engine a file's layout names.
+ * @param layout - the file's layout
+ * @returns the engine, or null when the layout is not Graphviz's
+ */
+function graphvizEngineOf(layout: FileLayout | null): GraphvizEngineName | null {
+    if (layout?.tool !== "graphviz") {
+        return null;
     }
 
-    return file?.format === "dot" ? "dot" : null;
+    return isGraphvizEngine(layout.program) ? layout.program : "dot";
+}
+
+/**
+ * The layout a file asks for: graph-io's fact when the caller passed it, else read from a caller's
+ * `{ format, attributes }` as graph-io reads a DOT file's graph attributes, as this option was
+ * read before the fact existed: a DOT file, or another file whose `layout` names a Graphviz engine.
+ * @param file - what the file said about the graph
+ * @returns the layout, or null when the file asks for none
+ */
+function fileLayoutOf(file: LayoutRecommendationOptions["file"]): FileLayout | null {
+    if (file?.layout !== undefined) {
+        return file.layout;
+    }
+
+    const attributes = file?.attributes ?? {};
+    if (file?.format === "dot") {
+        return dotFileLayout(attributes);
+    }
+
+    return isGraphvizEngine(attributes.layout) ? { ...dotFileLayout(attributes), ownFormat: false } : null;
 }
 
 /**
@@ -402,9 +402,11 @@ function withGraphvizRoutes(
     options: LayoutRecommendationOptions,
     statistics: GraphStatistics,
 ): LayoutRecommendation | undefined {
+    const layout = fileLayoutOf(options.file);
     const routed =
         advice?.layout.id === "fixed" &&
-        options.file?.format === "dot" &&
+        layout?.tool === "graphviz" &&
+        layout.ownFormat &&
         options.graphvizAvailable === true &&
         statistics.edgeCount > 0 &&
         statistics.nodeCount <= GRAPHVIZ_NODE_BUDGETS.neato;
@@ -413,7 +415,7 @@ function withGraphvizRoutes(
               ...advice,
               options: Object.freeze({
                   edgeRoutes: "graphviz",
-                  graphvizAttributes: fileAttributes(options.file?.attributes, ROUTE_ATTRIBUTES),
+                  graphvizAttributes: routeSettings(layout.settings),
               }),
           })
         : advice;
@@ -423,20 +425,16 @@ function withGraphvizRoutes(
 type GraphvizEngineName = Parameters<typeof graphvizLayoutId>[0];
 
 /**
- * The file's graph attributes a Graphviz engine reads, as Graphviz text.
- * @param attributes - the file's graph attributes
- * @param names - the attributes to pass on
+ * The layout settings Graphviz's routes between placed nodes follow.
+ * @param settings - the file's layout settings
  * @returns the ones passed on
  */
-function fileAttributes(
-    attributes: Readonly<Record<string, unknown>> | undefined,
-    names: readonly string[] = GRAPHVIZ_FILE_ATTRIBUTES,
-): Record<string, string> {
+function routeSettings(settings: Readonly<Record<string, string>>): Record<string, string> {
     const out: Record<string, string> = {};
-    for (const name of names) {
-        const value = attributes?.[name];
-        if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-            out[name] = String(value);
+    for (const name of ROUTE_ATTRIBUTES) {
+        const value = settings[name];
+        if (value !== undefined) {
+            out[name] = value;
         }
     }
 

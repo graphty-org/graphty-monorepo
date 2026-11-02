@@ -866,31 +866,20 @@ export class XgmmlEmitter {
     ): void {
         const merging = seen.size > 0;
         const names = new Set<string>();
-        if (record.name !== null) {
-            if (!(merging && seen.has("name"))) {
-                columns.addText(row, "name", record.name, where);
-            }
-            names.add("name");
-        }
-        for (const [key, value] of record.xmlAttrs) {
+        const addText = (key: string, value: string): void => {
             if (!(merging && seen.has(key))) {
                 columns.addText(row, key, value, where);
             }
             names.add(key);
+        };
+        if (record.name !== null) {
+            addText("name", record.name);
+        }
+        for (const [key, value] of record.xmlAttrs) {
+            addText(key, value);
         }
         for (const att of record.atts) {
-            if (
-                this.skipAtt(record, att) ||
-                (this.nameLabel[record.kind] && isNameAtt(att)) ||
-                (merging && att.name !== null && seen.has(att.name))
-            ) {
-                continue;
-            }
-            if (record.kind === "node" && att.name === "__isGroup" && record.nested.length > 0 && isCyTrue(att.value)) {
-                // the group is the containment itself (parent / parents and xgmml.subgraph)
-                continue;
-            }
-            if (att.hasGraph && att.name === null) {
+            if (!this.isAttColumn(record, att, merging, seen)) {
                 continue;
             }
             columns.addAtt(row, att, where);
@@ -901,6 +890,29 @@ export class XgmmlEmitter {
         for (const name of names) {
             seen.add(name);
         }
+    }
+
+    /**
+     * Whether an element's att becomes a column (skipAtt may warn, so it is tested first).
+     * @param record - the node or edge
+     * @param att - the att
+     * @param merging - whether an earlier declaration of the same node set names
+     * @param seen - the names set by earlier declarations
+     * @returns true to add the att as a column
+     */
+    private isAttColumn(record: NodeRec | EdgeRec, att: AttRec, merging: boolean, seen: Set<string>): boolean {
+        if (
+            this.skipAtt(record, att) ||
+            (this.nameLabel[record.kind] && isNameAtt(att)) ||
+            (merging && att.name !== null && seen.has(att.name))
+        ) {
+            return false;
+        }
+        if (record.kind === "node" && att.name === "__isGroup" && record.nested.length > 0 && isCyTrue(att.value)) {
+            // the group is the containment itself (parent / parents and xgmml.subgraph)
+            return false;
+        }
+        return !(att.hasGraph && att.name === null);
     }
 
     /**
@@ -1727,30 +1739,7 @@ class Containment {
                     continue;
                 }
                 for (const graph of record.nested) {
-                    const atts = graph.atts.filter((a) => a.name !== null);
-                    if (graph.id !== null || graph.label !== null || atts.length > 0) {
-                        this.subgraphs.set(row.index, {
-                            id: graph.id,
-                            label: graph.label,
-                            atts: Object.fromEntries(atts.map((a) => [a.name, attJson(a)])),
-                        });
-                    }
-                    for (const member of graph.members) {
-                        if (member.kind !== "node") {
-                            continue;
-                        }
-                        const id = member.id ?? (member.href === null ? null : localRef(member.href));
-                        const child = id === null ? undefined : this.emitter.rowOf(id);
-                        if (child === undefined) {
-                            if (id === null || !this.emitter.missingMember(row.id, id)) {
-                                unknown++;
-                            }
-                            continue;
-                        }
-                        if (child.index >= 0) {
-                            this.link(child.index, row.index, member.line);
-                        }
-                    }
+                    unknown += this.resolveGraph(row, graph);
                 }
             }
         }
@@ -1761,6 +1750,41 @@ class Containment {
                 `${this.emitter.prefix()}${unknown} group member${plural(unknown)} ${agree(unknown, "names", "name")} no node of this graph`,
             );
         }
+    }
+
+    /**
+     * Record one nested graph of a group node: its subgraph value and its node members.
+     * @param row - the group node's row
+     * @param graph - the nested graph
+     * @returns the number of members that name no node of this graph
+     */
+    private resolveGraph(row: NodeRow, graph: GraphRec): number {
+        const atts = graph.atts.filter((a) => a.name !== null);
+        if (graph.id !== null || graph.label !== null || atts.length > 0) {
+            this.subgraphs.set(row.index, {
+                id: graph.id,
+                label: graph.label,
+                atts: Object.fromEntries(atts.map((a) => [a.name, attJson(a)])),
+            });
+        }
+        let unknown = 0;
+        for (const member of graph.members) {
+            if (member.kind !== "node") {
+                continue;
+            }
+            const id = member.id ?? (member.href === null ? null : localRef(member.href));
+            const child = id === null ? undefined : this.emitter.rowOf(id);
+            if (child === undefined) {
+                if (id === null || !this.emitter.missingMember(row.id, id)) {
+                    unknown++;
+                }
+                continue;
+            }
+            if (child.index >= 0) {
+                this.link(child.index, row.index, member.line);
+            }
+        }
+        return unknown;
     }
 
     /**
@@ -1821,29 +1845,36 @@ class Containment {
 
     /** Declare and write the parent (or parents) and subgraph columns. */
     write(): void {
-        const sink = this.emitter.target;
-        if (this.parents.size > 0) {
-            const multi = [...this.parents.values()].some((list) => list.length > 1);
-            const handle = this.emitter.declare("node", {
-                name: multi ? PARENTS_COLUMN : PARENT_COLUMN,
-                dtype: multi ? "list" : "u32",
-                itemDtype: multi ? "u32" : undefined,
-                role: multi ? "parents" : "parent",
-                refersTo: "node",
-                nullable: true,
-                origin: { format: FORMAT, id: null, title: null, type: "graph", namespace: null },
-            });
-            if (handle !== null) {
-                for (const [child, list] of this.parents) {
-                    sink.setNodeValue(handle, child, multi ? list : list[0]);
-                }
-            }
-        }
+        this.writeParents();
         if (this.subgraphs.size > 0) {
             const column = new JsonColumn(this.emitter, "node", SUBGRAPH_COLUMN, XGMML_ORIGIN_NAMESPACE, "graph");
             for (const [index, value] of this.subgraphs) {
                 column.set(index, value);
             }
+        }
+    }
+
+    /** Declare and write the parent (or parents) column. */
+    private writeParents(): void {
+        if (this.parents.size === 0) {
+            return;
+        }
+        const multi = [...this.parents.values()].some((list) => list.length > 1);
+        const shape = multi
+            ? ({ name: PARENTS_COLUMN, dtype: "list", itemDtype: "u32", role: "parents" } as const)
+            : ({ name: PARENT_COLUMN, dtype: "u32", itemDtype: undefined, role: "parent" } as const);
+        const handle = this.emitter.declare("node", {
+            ...shape,
+            refersTo: "node",
+            nullable: true,
+            origin: { format: FORMAT, id: null, title: null, type: "graph", namespace: null },
+        });
+        if (handle === null) {
+            return;
+        }
+        const sink = this.emitter.target;
+        for (const [child, list] of this.parents) {
+            sink.setNodeValue(handle, child, multi ? list : list[0]);
         }
     }
 }

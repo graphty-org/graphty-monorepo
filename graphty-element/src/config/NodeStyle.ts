@@ -239,6 +239,10 @@ export const NodeStyle = z.strictObject({
             width: z.number().nonnegative().optional(),
             height: z.number().nonnegative().optional(),
             depth: z.number().nonnegative().optional(),
+            // Read `width`, `height` and `depth` as multiples of `size`, so changing the size keeps
+            // the stretch: width 2 at size 3 is drawn 6 wide. Unset or false reads them as extents.
+            // A painted style carries the extents already multiplied, with this flag beside them.
+            relativeExtents: z.boolean().optional(),
             // Draw the node thin along z, as a flat shape facing a 2D camera, even in a 3D view.
             planar: z.boolean().optional(),
             // Drawing order in a 2D view: below 0 draws the node behind every edge and every node

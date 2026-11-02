@@ -4,7 +4,7 @@ import { type CodedFactParam, isGraphtyError } from "@graphty/graphty-element/se
 
 import { codeWords } from "../server/words";
 import { formatCount } from "../settings/numberFormat";
-import { modelWords } from "../style/words";
+import { modelWords, REFUSAL_WORDS } from "../style/words";
 
 const THIS_YEAR = new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -152,9 +152,59 @@ const LOAD_REASONS: Readonly<Record<string, (details: Details) => string>> = {
     E_DISPOSED: () => "the project closed before it finished",
 };
 
+/** Why a join choice was refused (`E_BAD_COMMAND` with a `reason`), by that reason. */
+const COMMAND_REASONS: Readonly<Record<string, (details: Details) => string>> = {
+    "unknown-column": (details) => {
+        const column = text(details.column);
+        return column === undefined ? "the table has no such column" : `the table has no column ${column}`;
+    },
+    keys: (details) => (details.shape === "edges" ? "a join of edges takes two keys" : "a join takes a key"),
+};
+
 /**
- * Why a file or graph did not open or add, in the app's words, from the element's code and
- * details; never the element's message, which is for people debugging (#5362). graphty-element
+ * Why the element refused, as a clause, from its code and details.
+ * @param code - the error's code.
+ * @param details - the error's details.
+ * @returns the clause, or undefined when the app has no words for the code.
+ */
+function reasonWords(code: string, details: Details): string | undefined {
+    if (code === "E_BAD_COMMAND") {
+        return COMMAND_REASONS[text(details.reason) ?? ""]?.(details);
+    }
+    return LOAD_REASONS[code]?.(details) ?? (REFUSAL_WORDS as Readonly<Record<string, string | undefined>>)[code];
+}
+
+/**
+ * A failure notice in the app's words, from the element's code and details; never the error's
+ * message, which is English for people debugging and ignores the reader's Number format (#5362,
+ * #5574). A code the app has no words for shows as itself.
+ * @param lead - what failed, as the notice starts: "Could not add a folder", "Nodes could not be opened".
+ * @param error - what was thrown.
+ * @returns "Could not add a folder: its layer is locked.", or "Could not add a folder (E_X)."
+ */
+export function errorWords(lead: string, error: unknown): string {
+    if (!isGraphtyError(error)) {
+        return `${lead}.`;
+    }
+    const { code, details } = error;
+    if (code === "E_PARSE_FAILED") {
+        const line = num(details.line);
+        const where = line === undefined ? "" : ` near line ${formatCount(line)}`;
+        return `${lead}: the file is incomplete or damaged${where}, so nothing was read. Ask for the file again.`;
+    }
+    const params = details as Readonly<Record<string, CodedFactParam>>;
+    if (code.startsWith("E_MODEL_")) {
+        return `${lead}. ${modelWords({ code, params })}`;
+    }
+    if (code.startsWith("E_SOURCE_")) {
+        return `${lead}: ${codeWords({ code, params })}.`;
+    }
+    const reason = reasonWords(code, details);
+    return reason === undefined ? `${lead} (${code}).` : `${lead}: ${reason}.`;
+}
+
+/**
+ * Why a file or graph did not open or add, in the app's words (`errorWords`). graphty-element
  * refuses a file it could not read whole with `E_PARSE_FAILED` and the line it broke at; nothing
  * of it is kept.
  * @param name - what the reader calls it.
@@ -163,24 +213,5 @@ const LOAD_REASONS: Readonly<Record<string, (details: Details) => string>> = {
  * @returns the notice's sentence.
  */
 export function notReadWords(name: string, error: unknown, verb: "opened" | "added"): string {
-    if (!isGraphtyError(error)) {
-        return `${name} could not be ${verb}.`;
-    }
-    const { code, details } = error;
-    if (code === "E_PARSE_FAILED") {
-        const line = num(details.line);
-        const where = line === undefined ? "" : ` near line ${formatCount(line)}`;
-        return `${name} could not be ${verb}: the file is incomplete or damaged${where}, so nothing was read. Ask for the file again.`;
-    }
-    const params = details as Readonly<Record<string, CodedFactParam>>;
-    if (code.startsWith("E_MODEL_")) {
-        return `${name} could not be ${verb}. ${modelWords({ code, params })}`;
-    }
-    if (code.startsWith("E_SOURCE_")) {
-        return `${name} could not be ${verb}: ${codeWords({ code, params })}.`;
-    }
-    const reason = LOAD_REASONS[code];
-    return reason === undefined
-        ? `${name} could not be ${verb} (${code}).`
-        : `${name} could not be ${verb}: ${reason(details)}.`;
+    return errorWords(`${name} could not be ${verb}`, error);
 }

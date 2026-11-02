@@ -5,12 +5,12 @@
 //   PAGE#<page>#<range>                      GET /v1/page/<page>?range=<range>            (overview too)
 //   PAGE#<page>/<section>#<range>[#<kind>]   GET /v1/page/<page>/<section>?range=<range>[&kind=<kind>]
 
-import type { PageId, Range, SlowRange } from "../../web/src/contract.js";
+import type { IssueRange, PageId, Range, SlowRange } from "../../web/src/contract.js";
 import type { Key } from "../model/store.js";
 
 export type ViewRoute =
     | { kind: "status" }
-    | { kind: "page"; page: PageId; range: Range | SlowRange }
+    | { kind: "page"; page: PageId; range: Range | SlowRange | IssueRange }
     | { kind: "section"; page: Exclude<PageId, "overview">; section: string; range: SlowRange; runKind?: string };
 
 /**

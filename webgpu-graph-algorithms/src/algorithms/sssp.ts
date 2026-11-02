@@ -470,6 +470,168 @@ export async function predecessorPass(input: PredecessorPassInput): Promise<Pred
 }
 
 /**
+ * Reads and checks the tuning knobs.
+ * @param tuning - the knobs
+ * @returns the rounds per submit
+ */
+function checkTuning(tuning: SsspTuning): number {
+    const roundsPerSubmit = tuning.roundsPerSubmit ?? MAX_LEVELS_PER_SUBMIT;
+    if (!Number.isInteger(roundsPerSubmit) || roundsPerSubmit < 1 || roundsPerSubmit > MAX_LEVELS_PER_SUBMIT) {
+        throw new WebGpuGraphError(
+            "E_INVALID_ARGUMENT",
+            `${ALGORITHM}: roundsPerSubmit must be an integer in [1, ${MAX_LEVELS_PER_SUBMIT}]`,
+            {
+                argument: "roundsPerSubmit",
+                value: roundsPerSubmit,
+                expected: `an integer in [1, ${MAX_LEVELS_PER_SUBMIT}]`,
+            },
+        );
+    }
+    if (tuning.delta !== undefined && !(Number.isFinite(tuning.delta) && tuning.delta > 0)) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${ALGORITHM}: delta must be a finite positive number`, {
+            argument: "delta",
+            value: tuning.delta,
+            expected: "a finite positive number",
+        });
+    }
+    return roundsPerSubmit;
+}
+
+/**
+ * Refuses weights with no bit-pattern order: a negative one, a NaN or an infinity.
+ * @param vector - the weights in use
+ */
+function assertOrderableWeights(vector: WeightVector): void {
+    if (!vector.nonNegative) {
+        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: a negative weight has no shortest path here`, {
+            feature: "sssp.negativeWeights",
+            hint: "use bellmanFord",
+        });
+    }
+    if (!vector.finite) {
+        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: a NaN or infinite weight has no bit-pattern order`, {
+            feature: "sssp.nonFiniteWeights",
+        });
+    }
+}
+
+/**
+ * Refuses a near-far queue whose two halves do not fit one binding (the relax is never windowed).
+ * @param cap - the entries per half
+ * @param limit - the binding limit in bytes
+ */
+function assertQueueFits(cap: number, limit: number): void {
+    if (8 * cap > limit) {
+        throw new WebGpuGraphError(
+            "E_TOO_LARGE",
+            `${ALGORITHM}: the near-far queue of ${cap} entries per half needs ${8 * cap} bytes, above the ${limit}-byte binding limit (the relax is never windowed)`,
+            { needed: 8 * cap, limit, path: "sssp.queue", algorithm: ALGORITHM },
+        );
+    }
+}
+
+/**
+ * Reads the done word: 0 runs on, 1 is done, 2 is a raw pile that overflowed its half and anything else the f32
+ * threshold absorbing the delta (both thrown, with the counters block read for the message).
+ * @param ctx - the context
+ * @param counters - the counters block
+ * @param done - the done word
+ * @param cap - the entries per half
+ * @param deltaBits - the delta's bit pattern
+ * @returns true when the rounds are done
+ */
+async function roundsDone(
+    ctx: GpuContext,
+    counters: Binding,
+    done: number,
+    cap: number,
+    deltaBits: number,
+): Promise<boolean> {
+    if (done === 1) {
+        return true;
+    }
+    if (done === 0) {
+        return false;
+    }
+    const block = FRONTIER_COUNTERS.read(
+        new DataView(
+            await ctx.readback.read(counters.buffer, FRONTIER_COUNTERS.byteLength, undefined, counters.offset),
+        ),
+    );
+    if (done === 2) {
+        const needed = Math.max(wordOf(block, "nextFrontierCount"), wordOf(block, "nextFarCount"));
+        throw new WebGpuGraphError(
+            "E_TOO_LARGE",
+            `${ALGORITHM}: a raw pile of ${needed} entries overflowed its ${cap}-entry half`,
+            { needed, limit: cap, path: "sssp.pile", algorithm: ALGORITHM },
+        );
+    }
+    throw new WebGpuGraphError(
+        "E_UNSUPPORTED",
+        `${ALGORITHM}: the f32 threshold ${wordOf(block, "thresholdBits")} absorbed the delta ${deltaBits} (as bit patterns); the far pile can no longer be bucketed`,
+        { feature: "sssp.thresholdAbsorbed", hint: "the distances outgrew the delta's f32 precision" },
+    );
+}
+
+/**
+ * Refuses a run whose done flag never rose within the submits its rounds allow.
+ * @param submits - the submits so far
+ * @param maxSubmits - the submits allowed
+ * @param maxRounds - the rounds allowed (for the message)
+ */
+function assertSubmitBound(submits: number, maxSubmits: number, maxRounds: number): void {
+    if (submits > maxSubmits) {
+        throw new WebGpuGraphError(
+            "E_VALIDATION",
+            `${ALGORITHM}: the done flag never rose in ${submits} submits (at most ${maxRounds} rounds)`,
+            { label: `${ALGORITHM}/rounds`, message: `the done flag never rose in ${submits} submits` },
+        );
+    }
+}
+
+/**
+ * The reached count: the finite distances.
+ * @internal
+ * @param dist - the distances
+ * @returns how many are finite
+ */
+export function countReached(dist: F32): number {
+    let reachedCount = 0;
+    for (const d of dist) {
+        if (d !== Infinity) {
+            reachedCount += 1;
+        }
+    }
+    return reachedCount;
+}
+
+/**
+ * The default delta (PD-22) from the vector in use; an all-zero vector would land every relaxation on the far pile.
+ * @param sum - the weights' sum
+ * @param arcCount - the arc count
+ * @param n - the node count
+ * @returns the delta before f32 rounding
+ */
+function defaultDelta(sum: number, arcCount: number, n: number): number {
+    return sum === 0 ? 1 : (SSSP_DELTA_FACTOR * (sum / arcCount)) / (arcCount / n);
+}
+
+/**
+ * (2) of PD-27: every reached non-source node has an admitted in-arc under non-negative weights, so an orphan is a
+ * kernel bug.
+ * @param orphans - the orphan word
+ */
+function assertNoOrphans(orphans: number): void {
+    if (orphans !== 0) {
+        throw new WebGpuGraphError(
+            "E_VALIDATION",
+            `${ALGORITHM}: ${orphans} reached node(s) the predecessor key never reached (a kernel bug)`,
+            { label: `${ALGORITHM}/pred`, message: `${orphans} orphan(s) in the predecessor pass` },
+        );
+    }
+}
+
+/**
  * Single-source shortest paths with the test knobs of PD-26's shape; `sssp` is this with an empty tuning.
  * @internal
  * @param ctx - the context whose device runs the kernels
@@ -490,25 +652,7 @@ export async function ssspWithTuning(
     await assertDeviceComputes(ctx);
     const n = s.nodeCount;
     assertSource(ALGORITHM, source, n);
-    const roundsPerSubmit = tuning.roundsPerSubmit ?? MAX_LEVELS_PER_SUBMIT;
-    if (!Number.isInteger(roundsPerSubmit) || roundsPerSubmit < 1 || roundsPerSubmit > MAX_LEVELS_PER_SUBMIT) {
-        throw new WebGpuGraphError(
-            "E_INVALID_ARGUMENT",
-            `${ALGORITHM}: roundsPerSubmit must be an integer in [1, ${MAX_LEVELS_PER_SUBMIT}]`,
-            {
-                argument: "roundsPerSubmit",
-                value: roundsPerSubmit,
-                expected: `an integer in [1, ${MAX_LEVELS_PER_SUBMIT}]`,
-            },
-        );
-    }
-    if (tuning.delta !== undefined && !(Number.isFinite(tuning.delta) && tuning.delta > 0)) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${ALGORITHM}: delta must be a finite positive number`, {
-            argument: "delta",
-            value: tuning.delta,
-            expected: "a finite positive number",
-        });
-    }
+    const roundsPerSubmit = checkTuning(tuning);
     const dest = checkDest(ALGORITHM, options?.dest, n);
     const vector = resolveWeights(ALGORITHM, s, options?.weights);
     const cutoff = normaliseCutoff(ALGORITHM, options?.cutoff);
@@ -518,17 +662,7 @@ export async function ssspWithTuning(
     if (vector === null || vector.allOne) {
         return unitWeightRoute(ctx, s, source, cutoff, dest, options);
     }
-    if (!vector.nonNegative) {
-        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: a negative weight has no shortest path here`, {
-            feature: "sssp.negativeWeights",
-            hint: "use bellmanFord",
-        });
-    }
-    if (!vector.finite) {
-        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: a NaN or infinite weight has no bit-pattern order`, {
-            feature: "sssp.nonFiniteWeights",
-        });
-    }
+    assertOrderableWeights(vector);
     const { arcCount } = s;
     const core = ctx.residency.core(s);
     const limit = ctx.caps.limits.maxStorageBufferBindingSize;
@@ -536,17 +670,9 @@ export async function ssspWithTuning(
     // the raw halves: cap entries each, the far half at word cap so its byte offset is 256-aligned; one binding
     // of both halves is what the relax kernel sees, so the whole buffer is held to the binding limit (DEP-P8-E)
     const cap = Math.ceil(Math.max(1, arcCount) / HALF_ALIGN) * HALF_ALIGN;
-    if (8 * cap > limit) {
-        throw new WebGpuGraphError(
-            "E_TOO_LARGE",
-            `${ALGORITHM}: the near-far queue of ${cap} entries per half needs ${8 * cap} bytes, above the ${limit}-byte binding limit (the relax is never windowed)`,
-            { needed: 8 * cap, limit, path: "sssp.queue", algorithm: ALGORITHM },
-        );
-    }
+    assertQueueFits(cap, limit);
     // PD-22: the delta from the vector in use; an all-zero vector would land every relaxation on the far pile
-    const delta = Math.fround(
-        tuning.delta ?? (vector.sum === 0 ? 1 : (SSSP_DELTA_FACTOR * (vector.sum / arcCount)) / (arcCount / n)),
-    );
+    const delta = Math.fround(tuning.delta ?? defaultDelta(vector.sum, arcCount, n));
     const deltaBits = bitsOf(delta);
     const maxRounds = n + Math.ceil(vector.sum / delta) + 1;
     const maxSubmits = Math.ceil((maxRounds + 1) / roundsPerSubmit) + 1;
@@ -669,45 +795,13 @@ export async function ssspWithTuning(
                 throw aborted(ALGORITHM, submitted.id);
             }
             options?.onProgress?.(Math.min(roundsRecorded, maxRounds), maxRounds);
-            if (inspect !== null && tuning.onRound !== undefined) {
-                tuning.onRound(roundsRecorded - 1, FRONTIER_COUNTERS.read(new DataView(back), inspect.offset));
+            if (inspect !== null) {
+                tuning.onRound?.(roundsRecorded - 1, FRONTIER_COUNTERS.read(new DataView(back), inspect.offset));
             }
-            const done = new Uint32Array(back, doneRequest.offset, 1)[0];
-            if (done === 1) {
+            if (await roundsDone(ctx, counters, new Uint32Array(back, doneRequest.offset, 1)[0], cap, deltaBits)) {
                 break;
             }
-            if (done !== 0) {
-                const block = FRONTIER_COUNTERS.read(
-                    new DataView(
-                        await ctx.readback.read(
-                            counters.buffer,
-                            FRONTIER_COUNTERS.byteLength,
-                            undefined,
-                            counters.offset,
-                        ),
-                    ),
-                );
-                if (done === 2) {
-                    const needed = Math.max(wordOf(block, "nextFrontierCount"), wordOf(block, "nextFarCount"));
-                    throw new WebGpuGraphError(
-                        "E_TOO_LARGE",
-                        `${ALGORITHM}: a raw pile of ${needed} entries overflowed its ${cap}-entry half`,
-                        { needed, limit: cap, path: "sssp.pile", algorithm: ALGORITHM },
-                    );
-                }
-                throw new WebGpuGraphError(
-                    "E_UNSUPPORTED",
-                    `${ALGORITHM}: the f32 threshold ${wordOf(block, "thresholdBits")} absorbed the delta ${deltaBits} (as bit patterns); the far pile can no longer be bucketed`,
-                    { feature: "sssp.thresholdAbsorbed", hint: "the distances outgrew the delta's f32 precision" },
-                );
-            }
-            if (submits > maxSubmits) {
-                throw new WebGpuGraphError(
-                    "E_VALIDATION",
-                    `${ALGORITHM}: the done flag never rose in ${submits} submits (at most ${maxRounds} rounds)`,
-                    { label: `${ALGORITHM}/rounds`, message: `the done flag never rose in ${submits} submits` },
-                );
-            }
+            assertSubmitBound(submits, maxSubmits, maxRounds);
         }
 
         // the predecessor pass (PD-11, PD-27) under the plateau rule
@@ -725,23 +819,10 @@ export async function ssspWithTuning(
             source,
             mode: 0,
         });
-        if (passed.orphans !== 0) {
-            // (2) of PD-27: every reached non-source node has an admitted in-arc under non-negative weights
-            throw new WebGpuGraphError(
-                "E_VALIDATION",
-                `${ALGORITHM}: ${passed.orphans} reached node(s) the predecessor key never reached (a kernel bug)`,
-                { label: `${ALGORITHM}/pred`, message: `${passed.orphans} orphan(s) in the predecessor pass` },
-            );
-        }
+        assertNoOrphans(passed.orphans);
         const distOut = dest ?? new Float32Array(n);
         distOut.set(passed.dist);
-        let reachedCount = 0;
-        for (const d of distOut) {
-            if (d !== Infinity) {
-                reachedCount += 1;
-            }
-        }
-        return { dist: distOut, predArc: passed.predArc, reachedCount };
+        return { dist: distOut, predArc: passed.predArc, reachedCount: countReached(distOut) };
     } finally {
         scope.dispose();
     }

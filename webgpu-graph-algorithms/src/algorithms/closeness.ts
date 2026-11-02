@@ -132,6 +132,33 @@ function inverse(sum: number): number {
 }
 
 /**
+ * The sum of one search's finite distances to the other nodes, or, for a sampled run, each distance added into the
+ * reached node's total instead.
+ * @param dist - the search's distances
+ * @param source - its source
+ * @param totals - a sampled run's per-node totals (written), or null
+ * @param harmonic - sum reciprocal distances
+ * @returns the source's sum (0 on a sampled run)
+ */
+function sumDistances(dist: F32, source: number, totals: Float64Array | null, harmonic: boolean): number {
+    let sum = 0;
+    for (let v = 0; v < dist.length; v++) {
+        const d = dist[v];
+        if (v === source || d === Infinity) {
+            continue;
+        }
+        if (totals !== null) {
+            totals[v] += d;
+        } else if (!harmonic) {
+            sum += d;
+        } else if (d > 0) {
+            sum += 1 / d;
+        }
+    }
+    return sum;
+}
+
+/**
  * The one-search-per-source route: one `sssp` per source, the sums reduced on the host. With `sources` (a sampled run
  * on an undirected snapshot) each search adds its distances into the sums of the nodes it reaches instead of its own.
  * @param ctx - the context
@@ -159,19 +186,7 @@ async function perSourceRoute(
         }
         const source = sources === null ? i : sources[i];
         const { dist } = await sssp(ctx, s, source, { signal: options?.signal });
-        let sum = 0;
-        for (let v = 0; v < n; v++) {
-            const d = dist[v];
-            if (v !== source && d !== Infinity) {
-                if (totals !== null) {
-                    totals[v] += d;
-                } else if (!harmonic) {
-                    sum += d;
-                } else if (d > 0) {
-                    sum += 1 / d;
-                }
-            }
-        }
+        const sum = sumDistances(dist, source, totals, harmonic);
         if (totals === null) {
             scores[source] = harmonic ? sum : inverse(sum);
         }
@@ -474,6 +489,85 @@ function checkSources(s: GraphSnapshot, sources: readonly number[] | undefined):
 }
 
 /**
+ * Refuses the placeholder `maxIterations` / `tolerance` when defined.
+ * @param options - the run options
+ */
+function refusePlaceholders(options: HitsOptionsLike | undefined): void {
+    for (const key of ["maxIterations", "tolerance"] as const) {
+        if (options?.[key] !== undefined) {
+            throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: ${key} has no meaning for an exact traversal`, {
+                option: key,
+                hint: "closeness is an exact traversal; the option has no meaning here",
+            });
+        }
+    }
+}
+
+/**
+ * Reads and checks the levels-per-submit knob.
+ * @param tuning - the knobs
+ * @returns the levels per submit
+ */
+function checkLevelsPerSubmit(tuning: ClosenessTuning): number {
+    const levelsPerSubmit = tuning.levelsPerSubmit ?? MAX_LEVELS_PER_SUBMIT;
+    if (!Number.isInteger(levelsPerSubmit) || levelsPerSubmit < 1 || levelsPerSubmit > MAX_LEVELS_PER_SUBMIT) {
+        throw new WebGpuGraphError(
+            "E_INVALID_ARGUMENT",
+            `${ALGORITHM}: levelsPerSubmit must be an integer in [1, ${MAX_LEVELS_PER_SUBMIT}]`,
+            {
+                argument: "levelsPerSubmit",
+                value: levelsPerSubmit,
+                expected: `an integer in [1, ${MAX_LEVELS_PER_SUBMIT}]`,
+            },
+        );
+    }
+    return levelsPerSubmit;
+}
+
+/**
+ * Refuses weights that have no shortest-path distance to sum: a negative one, a NaN or an infinity.
+ * @param s - the snapshot
+ * @param weighted - whether the run sums the weights
+ */
+function assertSummableWeights(s: GraphSnapshot, weighted: boolean): void {
+    if (weighted && !s.flags.nonNegativeWeights) {
+        throw new WebGpuGraphError(
+            "E_UNSUPPORTED",
+            `${ALGORITHM}: a negative weight has no shortest-path distance to sum`,
+            {
+                feature: "closenessCentrality.negativeWeights",
+                hint: "pass weighted: false to ignore the column",
+            },
+        );
+    }
+    if (weighted && !s.flags.finiteWeights) {
+        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: a NaN or infinite weight has no shortest path`, {
+            feature: "closenessCentrality.nonFiniteWeights",
+        });
+    }
+}
+
+/**
+ * The route of a run: a sampled run, or one whose matrix does not fit, searches per source when weighted and by
+ * levels otherwise; an exact run that fits takes the pinned route, else the all-pairs route when weighted or small.
+ * The level route never sums weights.
+ * @param n - the node count
+ * @param noAllPairs - the run is sampled or its matrix does not fit
+ * @param weighted - whether the run sums the weights
+ * @param tuning - the knobs (`route`)
+ * @returns the route
+ */
+function chooseRoute(n: number, noAllPairs: boolean, weighted: boolean, tuning: ClosenessTuning): ClosenessRoute {
+    let route: ClosenessRoute;
+    if (noAllPairs) {
+        route = weighted ? "per-source" : "levels";
+    } else {
+        route = tuning.route ?? (weighted || n <= ALL_PAIRS_MAX_NODES ? "all-pairs" : "levels");
+    }
+    return route === "levels" && weighted ? "per-source" : route;
+}
+
+/**
  * Closeness with the test knobs; `closenessCentrality` is this with an empty tuning.
  * @internal
  * @param ctx - the context whose device runs the kernels
@@ -490,14 +584,7 @@ export async function closenessWithTuning(
 ): Promise<GpuClosenessResult> {
     ctx.assertReady();
     await assertDeviceComputes(ctx);
-    for (const key of ["maxIterations", "tolerance"] as const) {
-        if (options?.[key] !== undefined) {
-            throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: ${key} has no meaning for an exact traversal`, {
-                option: key,
-                hint: "closeness is an exact traversal; the option has no meaning here",
-            });
-        }
-    }
+    refusePlaceholders(options);
     const n = s.nodeCount;
     const sources = checkSources(s, options?.sources);
     const harmonic = options?.harmonic === true;
@@ -507,48 +594,15 @@ export async function closenessWithTuning(
             hint: "run the CPU port, or drop the sources for the exact harmonic score",
         });
     }
-    const levelsPerSubmit = tuning.levelsPerSubmit ?? MAX_LEVELS_PER_SUBMIT;
-    if (!Number.isInteger(levelsPerSubmit) || levelsPerSubmit < 1 || levelsPerSubmit > MAX_LEVELS_PER_SUBMIT) {
-        throw new WebGpuGraphError(
-            "E_INVALID_ARGUMENT",
-            `${ALGORITHM}: levelsPerSubmit must be an integer in [1, ${MAX_LEVELS_PER_SUBMIT}]`,
-            {
-                argument: "levelsPerSubmit",
-                value: levelsPerSubmit,
-                expected: `an integer in [1, ${MAX_LEVELS_PER_SUBMIT}]`,
-            },
-        );
-    }
+    const levelsPerSubmit = checkLevelsPerSubmit(tuning);
     const scores = checkDest(ALGORITHM, options?.dest, n) ?? new Float32Array(n);
     const weighted = (options?.weighted ?? s.flags.weighted) && s.weights !== null && !s.flags.allWeightsOne;
     if (options?.signal?.aborted) {
         throw aborted(ALGORITHM);
     }
-    if (weighted && !s.flags.nonNegativeWeights) {
-        throw new WebGpuGraphError(
-            "E_UNSUPPORTED",
-            `${ALGORITHM}: a negative weight has no shortest-path distance to sum`,
-            {
-                feature: "closenessCentrality.negativeWeights",
-                hint: "pass weighted: false to ignore the column",
-            },
-        );
-    }
-    if (weighted && !s.flags.finiteWeights) {
-        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: a NaN or infinite weight has no shortest path`, {
-            feature: "closenessCentrality.nonFiniteWeights",
-        });
-    }
+    assertSummableWeights(s, weighted);
     const fits = n > 0 && n <= allPairsCeiling(ctx.caps.limits).maxNodes;
-    let route: ClosenessRoute;
-    if (sources !== null || !fits) {
-        route = weighted ? "per-source" : "levels";
-    } else {
-        route = tuning.route ?? (weighted || n <= ALL_PAIRS_MAX_NODES ? "all-pairs" : "levels");
-    }
-    if (route === "levels" && weighted) {
-        route = "per-source";
-    }
+    const route = chooseRoute(n, sources !== null || !fits, weighted, tuning);
     tuning.onRoute?.(route);
     if (route === "all-pairs") {
         return allPairsRoute(ctx, s, scores, weighted, harmonic, options);

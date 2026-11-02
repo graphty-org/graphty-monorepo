@@ -178,6 +178,62 @@ function identityResult(n: number, dest: U32 | null): GpuLabelResult {
 }
 
 /**
+ * Refuses a graph whose node count the scrambled labels cannot hold.
+ * @param n - the node count
+ */
+function assertScrambleFits(n: number): void {
+    if (n > SCRAMBLE_LIMIT) {
+        throw new WebGpuGraphError(
+            "E_TOO_LARGE",
+            `${ALGORITHM}: ${n} nodes, above the ${SCRAMBLE_LIMIT} the labels allow`,
+            {
+                needed: n,
+                limit: SCRAMBLE_LIMIT,
+                path: "the scrambled labels",
+                algorithm: ALGORITHM,
+            },
+        );
+    }
+}
+
+/**
+ * The starting labels: every vertex its own, scrambled.
+ * @param n - the node count
+ * @returns the labels
+ */
+function initialLabels(n: number): Uint32Array<ArrayBuffer> {
+    const initial = new Uint32Array(n);
+    for (let v = 0; v < n; v++) {
+        initial[v] = fmix32(v);
+    }
+    return initial;
+}
+
+/**
+ * Refuses a submit in which a hash probe of the workgroup tier exhausted its bound.
+ * @param exhausted - the exhausted word read back
+ */
+function assertProbesHeld(exhausted: number): void {
+    if (exhausted !== 0) {
+        throw new WebGpuGraphError("E_VALIDATION", `${ALGORITHM}: a hash probe exhausted its bound`, {
+            label: `${ALGORITHM}/group-by-key`,
+            message: "a compare-exchange loop of the workgroup tier ran out of steps",
+        });
+    }
+}
+
+/**
+ * Throws E_ABORTED when the caller's signal was aborted after a submit.
+ * @param options - the run options
+ * @param batchId - the submitted batch
+ */
+function throwIfAborted(options: GpuRunOptions | undefined, batchId: number): void {
+    if (options?.signal?.aborted) {
+        throw new WebGpuGraphError("E_ABORTED", `${ALGORITHM}: the signal was aborted`, { batchId });
+    }
+}
+
+/**
  * Label propagation on the device (see the file header).
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (its edge list is uploaded through ctx.residency, or found there)
@@ -202,18 +258,7 @@ export async function labelPropagation(
         options?.onProgress?.(1, 1);
         return identityResult(n, dest);
     }
-    if (n > SCRAMBLE_LIMIT) {
-        throw new WebGpuGraphError(
-            "E_TOO_LARGE",
-            `${ALGORITHM}: ${n} nodes, above the ${SCRAMBLE_LIMIT} the labels allow`,
-            {
-                needed: n,
-                limit: SCRAMBLE_LIMIT,
-                path: "the scrambled labels",
-                algorithm: ALGORITHM,
-            },
-        );
-    }
+    assertScrambleFits(n);
     // the hash region of the workgroup tier is bound whole: refuse a graph it outgrows before any device work
     const plan = planGroupRows(neighbourBound(s));
     assertBindable(ctx, 4 * plan.regionWords, "the group-by hash region", ALGORITHM);
@@ -249,11 +294,7 @@ export async function labelPropagation(
         const groupBy = await prepareGroupByKeyRow(scope);
         const step = await ctx.pipelines.kernel(kernelSpec("lpa-step"));
         const nodePlan = plan1d(n, wg, ctx.caps);
-        const initial = new Uint32Array(n);
-        for (let v = 0; v < n; v++) {
-            initial[v] = fmix32(v);
-        }
-        queue.writeBuffer(labelsA.buffer, 0, initial);
+        queue.writeBuffer(labelsA.buffer, 0, initialLabels(n));
 
         let { batch } = build;
         let first = true;
@@ -302,21 +343,12 @@ export async function labelPropagation(
                 assertBuildSorted(bytes, build, ALGORITHM);
                 first = false;
             }
-            if (new Uint32Array(bytes, exhaustedRequest.offset, 1)[0] !== 0) {
-                throw new WebGpuGraphError("E_VALIDATION", `${ALGORITHM}: a hash probe exhausted its bound`, {
-                    label: `${ALGORITHM}/group-by-key`,
-                    message: "a compare-exchange loop of the workgroup tier ran out of steps",
-                });
-            }
+            assertProbesHeld(new Uint32Array(bytes, exhaustedRequest.offset, 1)[0]);
             const moves = new Uint32Array(bytes, movesRequest.offset, k);
             done += k;
             const lastTwo = k >= 2 ? moves[k - 2] + moves[k - 1] : previousLast + moves[0];
             previousLast = moves[k - 1];
-            if (options?.signal?.aborted) {
-                throw new WebGpuGraphError("E_ABORTED", `${ALGORITHM}: the signal was aborted`, {
-                    batchId: submitted.id,
-                });
-            }
+            throwIfAborted(options, submitted.id);
             options?.onProgress?.(done, maxIterations);
             if (lastTwo === 0 || done >= maxIterations) {
                 break;

@@ -393,6 +393,49 @@ describe("measure steps and runs", () => {
         assert.deepEqual(executions.sizes, [IDS.length]);
     });
 
+    it("a measure step keeps its run when its test goes from none to an untouched one, and keeps its mode", async () => {
+        const executions: Executions = { sizes: [], hold: false };
+        const session = await lesMis(executions);
+        const { test: _test, ...untested } = TOP_BY_MEASURE;
+        const ruleWith = (step: UnionLeaf["branches"][number]["steps"][number]): UnionLeaf => ({
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [{ start: "all", steps: [step] }],
+        });
+        const ran = await new Promise<StepsReading>((resolve) => {
+            const each = session.scope.watchSteps(ruleWith({ op: "keep", rule: untested }), (reading) => {
+                if (
+                    reading.branches[0].steps[0].run !== null &&
+                    reading.branches[0].steps[0].reason?.code === "test-unset"
+                ) {
+                    each.end();
+                    resolve(reading);
+                }
+            });
+        });
+        const { run } = ran.branches[0].steps[0];
+        assert.isNotNull(run);
+        // An untouched range: still inert, still the same run, and the step's mode is kept as given.
+        const step = { op: "keep" as const, mode: "top", rule: { ...untested, test: { kind: "range" as const } } };
+        const watch = session.scope.watchSteps(ruleWith(step), () => undefined);
+        assert.strictEqual(watch.current.branches[0].steps[0].reason?.code, "test-unset");
+        assert.strictEqual(watch.current.branches[0].steps[0].run, run);
+        watch.end();
+        assert.deepEqual(executions.sizes, [IDS.length], "never computed again");
+        const layer = await session.styles.add({
+            name: "Kept",
+            target: "node",
+            selector: { match: "rule", where: ruleWith(step) },
+            set: { "node.color": "#d55e00" },
+        });
+        const where = session.styles.get(layer.id)?.selector;
+        assert.strictEqual(
+            where?.match === "rule" && where.where.kind === "union" ? where.where.branches[0].steps[0].mode : undefined,
+            "top",
+        );
+    });
+
     it("counts what each branch draws: overlap goes to the first branch, and a branch off draws none", async () => {
         const session = await lesMis();
         const near: RuleTree = { kind: "hops", of: { nodes: ["Valjean"] }, max: 1 };

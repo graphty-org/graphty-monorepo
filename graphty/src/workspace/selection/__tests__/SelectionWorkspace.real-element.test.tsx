@@ -575,6 +575,54 @@ describe("By position switches only on an explicit choice (check 46, fix 6)", ()
     });
 });
 
+describe("a test's mode is the step's own", () => {
+    it("By position on a Results value picked in the editor stays, by click and by Enter, and takes a number", async () => {
+        const { session } = await openSample();
+        const layer = await openLayer(session, "Top");
+        await userEvent.click(editButton());
+        const ws = await opened();
+        // A layer that paints everything opens on its new step's Value field.
+        await userEvent.click(await within(ws).findByRole("button", { name: "Value" }));
+        await pickValue("pagerank");
+        const mode = (): HTMLInputElement => within(ws).getByRole("combobox", { name: "PageRank test" });
+        await userEvent.click(await within(ws).findByRole("combobox", { name: "PageRank test" }));
+        await userEvent.click(await screen.findByRole("option", { name: "By position" }));
+        const box = await within(ws).findByRole("textbox", { name: "PageRank: how many" });
+        assert.strictEqual(mode().value, "By position");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, box, "focus goes on to the number");
+        });
+        await userEvent.keyboard("5{Enter}");
+        await waitFor(() => {
+            const step = unionOf(session, layer.id)?.branches[0]?.steps[0];
+            assert.strictEqual((step?.rule as { test?: { top?: number } }).test?.top, 5);
+            assert.strictEqual(step?.mode, "top");
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(layer.id).matched, 5);
+        // By value, then By position again by the keyboard: the mode stays, and focus with it.
+        await userEvent.click(mode());
+        await userEvent.click(await screen.findByRole("option", { name: "By value" }));
+        await waitFor(() => {
+            assert.strictEqual(mode().value, "By value");
+        });
+        mode().focus();
+        await userEvent.keyboard("{ArrowDown}");
+        await screen.findByRole("option", { name: "By position" });
+        await userEvent.keyboard("{ArrowDown}{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(mode().value, "By position");
+            assert.strictEqual(
+                document.activeElement,
+                within(ws).queryByRole("textbox", { name: "PageRank: how many" }),
+                "focus is on the step's number box",
+            );
+        });
+        const step = unionOf(session, layer.id)?.branches[0]?.steps[0];
+        assert.strictEqual(step?.mode, "top", "the step holds By position before it has a number");
+    });
+});
+
 describe("the workspace as a region (check 47)", () => {
     it("is named by its title, sits in the F6 ring, is announced, and Cancel is a Tab from Clear", async () => {
         const { session, heard } = await openSample();

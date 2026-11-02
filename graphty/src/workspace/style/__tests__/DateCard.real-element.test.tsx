@@ -164,4 +164,80 @@ describe("the date condition card", () => {
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(layer.id).matched, 3);
     });
+
+    it("keeps the mode picked, and the date typed, across Before, After and Between", async () => {
+        const session = await openWithDates("graph");
+        const layer = await session.styles.add({
+            name: "Span",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#d55e00" },
+        });
+        await session.styles.settled();
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Span, / }));
+        await startCondition();
+        await userEvent.click(await screen.findByRole("option", { name: /^installed(,|$)/ }));
+        const card = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-step-pane]");
+            assert.isNotNull(found);
+            return found;
+        });
+        const mode = (): HTMLInputElement => within(card).getByRole("combobox", { name: "installed: how to match" });
+        const pick = async (label: string): Promise<void> => {
+            await userEvent.click(mode());
+            await userEvent.click(await screen.findByRole("option", { name: label }));
+        };
+        const step = (): { rule?: RuleTree; mode?: string } | undefined => {
+            const selector = session.styles.get(layer.id)?.selector;
+            return selector?.match === "rule" && selector.where.kind === "union"
+                ? selector.where.branches[0]?.steps[0]
+                : undefined;
+        };
+        // After, with no date yet, stays After: the step holds it.
+        await pick("After");
+        await waitFor(() => {
+            assert.strictEqual(step()?.mode, "after");
+        });
+        assert.strictEqual(mode().value, "After");
+        const after = within(card).getByRole("combobox", { name: "installed after, a date or a year" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, after, "focus goes on to the date");
+        });
+        // Before 2005, then Between: 2005 stays, as Between's "to".
+        await pick("Before");
+        await typeBefore2005(card);
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepEqual(step()?.rule, BEFORE_2005);
+        });
+        await pick("Between");
+        await waitFor(() => {
+            assert.strictEqual(mode().value, "Between");
+            assert.strictEqual(
+                within(card).getByRole<HTMLInputElement>("combobox", { name: "installed to, a date or a year" }).value,
+                "2005",
+            );
+        });
+        assert.strictEqual(step()?.mode, "between");
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(layer.id).matched, 4, "through the end of 2005");
+        await userEvent.click(within(card).getByRole("combobox", { name: "installed from, a date or a year" }));
+        await userEvent.keyboard("2000{Enter}");
+        await waitFor(() => {
+            const rule = step()?.rule as { min?: number; max?: number };
+            assert.deepEqual([rule.min, rule.max], [Date.UTC(2000, 0, 1), Date.UTC(2006, 0, 1) - 1]);
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(layer.id).matched, 3, "2003, 2004 and 2005");
+        // Back to After: Between's "from" is After's date.
+        await pick("After");
+        await waitFor(() => {
+            assert.strictEqual(
+                within(card).getByRole<HTMLInputElement>("combobox", { name: "installed after, a date or a year" })
+                    .value,
+                "2000",
+            );
+        });
+    });
 });

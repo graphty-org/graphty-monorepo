@@ -171,9 +171,10 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
     const cancelled = new Set<string>();
 
     const measureOf = (step: UnionStep): MeasureLeaf | null => (step.rule.kind === "measure" ? step.rule : null);
+    // A measure's test is not part of what it computes: setting or changing it keeps the run.
     const definitionKey = (step: UnionStep, within: string): string =>
         JSON.stringify([
-            step.rule,
+            step.rule.kind === "measure" ? { ...step.rule, test: undefined } : step.rule,
             step.computedOn ?? "base",
             within,
             ...(step.links === undefined ? [] : [step.links]),

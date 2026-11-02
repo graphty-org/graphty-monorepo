@@ -2342,6 +2342,27 @@ function checkDrafts(
 }
 
 /**
+ * After the reader picks a card's mode, focus goes on to the mode's first box, so what is typed
+ * next is its number or date. Only while focus is in the card: an undo that changes the mode
+ * moves no focus.
+ * @param body - the card's body.
+ * @param match - the card's mode.
+ */
+function useFocusAfterMode(body: React.RefObject<HTMLDivElement | null>, match: string): void {
+    const shown = useRef(match);
+    useEffect(() => {
+        if (shown.current === match) {
+            return;
+        }
+        shown.current = match;
+        const card = body.current;
+        if (card?.contains(document.activeElement) === true) {
+            card.querySelector<HTMLElement>("input:not([type=hidden]):not([readonly])")?.focus();
+        }
+    }, [body, match]);
+}
+
+/**
  * A number card: between two values (a range slider and two boxes, unclamped), or the highest N of
  * all the elements, or has / has no value. A box holds what is typed until the card can take it: a
  * text that is no number, or a from above its to, says why under the boxes and writes nothing.
@@ -2355,7 +2376,7 @@ function checkDrafts(
  */
 function NumberCard({
     session,
-    card: heldCard,
+    card,
     side,
     onChange,
     variant,
@@ -2366,13 +2387,12 @@ function NumberCard({
     onChange: OnCard;
     variant?: CardVariant;
 }>): React.JSX.Element {
-    // A step's mode is the reader's explicit choice (selection spec 3.5): By position chosen starts
-    // untouched, so the step reads No test, and By value chosen again brings back its range.
-    const [stepMode, setStepMode] = useState<"range" | "top" | null>(null);
+    // A step's mode is the reader's explicit choice (selection spec 3.5), kept by the step: By
+    // position chosen starts untouched, so the step reads No test, and By value chosen again brings
+    // back its range.
     const lastRange = useRef<{ min?: number; max?: number }>({});
-    const untouched = heldCard.match === "range" && heldCard.min === undefined && heldCard.max === undefined;
-    const card =
-        variant === "step" && stepMode === "top" && untouched ? { ...heldCard, match: "top" as const } : heldCard;
+    const body = useRef<HTMLDivElement>(null);
+    useFocusAfterMode(body, card.match);
     const { name, path, range, within, missing: given } = card.field;
     // Counted over the selection's base when the card has one, so a filtered-out node is not.
     const missing = useMemo(
@@ -2501,10 +2521,9 @@ function NumberCard({
             if (match === card.match) {
                 return;
             }
-            setStepMode(match);
             if (match === "top") {
                 lastRange.current = { min: card.min, max: card.max };
-                onChange({ ...card, match: "range", min: undefined, max: undefined, top: undefined });
+                onChange({ ...card, match: "top", min: undefined, max: undefined, top: undefined });
                 return;
             }
             onChange({ ...card, match: "range", top: undefined, ...lastRange.current });
@@ -2519,7 +2538,7 @@ function NumberCard({
     };
     const value: [number, number] = [Math.max(low, card.min ?? low), Math.min(high, card.max ?? high)];
     return (
-        <Stack gap={4} data-card-body>
+        <Stack gap={4} data-card-body ref={body}>
             {variant === "step" ? (
                 // A step's test (selection spec 5): By value, a brush over the values' bars; By
                 // position, the highest N. A select that shows its mode, above the histogram, so a
@@ -2670,6 +2689,53 @@ function boxText(box: DateBox, card: Extract<Card, { type: "date" }>): string {
     return box === "after" ? endWords(card.min) : startWords(card.min);
 }
 
+/** The boxes each date mode draws. */
+const DATE_BOXES: Readonly<Record<string, readonly DateBox[]>> = {
+    before: ["before"],
+    after: ["after"],
+    between: ["from", "to"],
+};
+
+/** The box of the other modes that holds the same date: Before's is Between's "to", After's its "from". */
+const SAME_DATE: Readonly<Record<DateBox, DateBox>> = { before: "to", to: "before", after: "from", from: "after" };
+
+/**
+ * A date card in a new mode, keeping the date already typed: Before and After share one date,
+ * Between takes Before's as its "to" and After's as its "from", and Before or After takes
+ * Between's "to" or "from". To or from has a value, or has none, the bounds stay as they were.
+ * @param session - the element's session, which reads a box's text as a span.
+ * @param card - the card.
+ * @param match - the new mode.
+ * @returns the card.
+ */
+function dateModeOf(
+    session: GraphSession,
+    card: Extract<Card, { type: "date" }>,
+    match: Extract<Card, { type: "date" }>["match"],
+): Extract<Card, { type: "date" }> {
+    const from = DATE_BOXES[card.match] ?? [];
+    const to = DATE_BOXES[match] ?? [];
+    if (from.length === 0 || to.length === 0) {
+        return { ...card, match };
+    }
+    const next: Extract<Card, { type: "date" }> = { ...card, match, min: undefined, max: undefined };
+    const bounds: { min?: number; max?: number } = {};
+    for (const box of to) {
+        // Between's boxes each take only their own date; Before or After the other box's at need.
+        const sources = to.length === 1 ? [SAME_DATE[box], ...from] : [SAME_DATE[box]];
+        const text = sources
+            .filter((each) => from.includes(each))
+            .map((each) => boxText(each, card))
+            .find((each) => each !== "");
+        const span = text === undefined ? null : spanOf(session, text);
+        if (span !== null) {
+            const { key, value } = boundOf(box, span);
+            bounds[key] = value;
+        }
+    }
+    return { ...next, ...bounds };
+}
+
 /**
  * A date card: Before, After or Between, with boxes that take a date or a year as the time field
  * reads them ("2005", "2005-03-01", "Mar 1, 2005"), offering the column's dates as the table writes
@@ -2694,6 +2760,8 @@ function DateCard({
     onChange: OnCard;
 }>): React.JSX.Element {
     const { name, path, on } = card.field;
+    const body = useRef<HTMLDivElement>(null);
+    useFocusAfterMode(body, card.match);
     const [drafts, setDrafts] = useState<Partial<Record<DateBox, string>>>({});
     const [refused, setRefused] = useState<DateBox | null>(null);
     const messageId = useId();
@@ -2773,7 +2841,7 @@ function DateCard({
         );
     };
     return (
-        <Stack gap={4} data-card-body>
+        <Stack gap={4} data-card-body ref={body}>
             <MatchSelect
                 name={name}
                 value={card.match}
@@ -2786,12 +2854,7 @@ function DateCard({
                 onChange={(match) => {
                     setDrafts({});
                     setRefused(null);
-                    onChange({
-                        ...card,
-                        match: match as typeof card.match,
-                        min: match === "before" ? undefined : card.min,
-                        max: match === "after" ? undefined : card.max,
-                    });
+                    onChange(dateModeOf(session, card, match as typeof card.match));
                 }}
             />
             {card.match === "before" && box("before", `${name} before, a date or a year`)}

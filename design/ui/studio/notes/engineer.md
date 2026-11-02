@@ -24,6 +24,30 @@ Trimmed again 2026-11-02: the 2026-10-30 study tool facts (scripted bars, the ga
 folders, the wording check, the matcher's role names, data panel selectors, `REAL_WARM_POOL=0`,
 one background script per re-walk): `git show 42601df9bf:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) A test's mode is the step's own (decided.md, "Dry run pass 1"). Two causes. (1) An
+  element defect: a `measure` step's run was keyed by its whole rule, test included
+  (`definitionKey` in `graphty-element/src/session/scope/stepRuns.ts`), so By position (which
+  writes an inert test) made `reading.run` null, `stepCard` returned no card, the pane lost its
+  select, bars and boxes and focus fell out (T74 A and B). Fixed in the element: the key leaves the
+  test out. (2) The mode lived in NumberCard's local state and the date card read its mode back from
+  the bounds, which cannot say it (no date, or Between with only a "to"). Added `UnionStep.mode?:
+  string` (additive, opaque, the element never reads it; owner-decisions.md "decided by the team");
+  `StepPane` writes `modeOf(card)` with every card commit and `stepCard` applies it (`withMode` in
+  `selection/values.ts`). A date mode change carries the typed date (`dateModeOf` in WhichPicker:
+  Before and After share one date, Between takes Before's as "to" and After's as "from"); a mode
+  pick moves focus to the mode's first box (`useFocusAfterMode`), so "By position; type 5" works.
+  Tests: element `watch-steps.test.ts` ("keeps its run ... keeps its mode", fails on the old key);
+  app `SelectionWorkspace.real-element.test.tsx` ("a test's mode is the step's own") and
+  `DateCard.real-element.test.tsx` ("keeps the mode picked ..."); both app tests hang at the wait
+  guard on the old sources (the box never appears), so stop such a run rather than sit on it.
+  Walked on a fresh `graphty/dist` into `design/ui/studio/tmp/r1-dry1-test-mode/`: T74A "PageRank:
+  Influence top 5", 5 of 24, v02 v05 v09 v13 v21, reopened By position 5; T74B 3 of 11 G02 G03
+  G04; T72B After stays After, Before 2000 then Between keeps "to 2000", from 1990 gives 3 (G01 G05
+  G09); T70B Before 2000 3 of 11; T77B before 2005 3 of 7. `--rewalk` of T70B and T77B diverges at
+  step 1 or 2 on the table's dropped Group column (1c02b8a883), not on this fix. Still open: a
+  Between step with only its "to" reads on its row as "before 2001" (the row words come from the
+  rule, not the mode); true, but not the reader's words.
+
 - (2026-11-02) A 50,000-node edit shows "Drawing" before it blocks (decided.md "Dry run pass 1").
   App only: `SelectionEditor.tsx` hands every edit, Done, Cancel and Escape on one painted frame
   later, opens the workspace from local state and names it in the store after the paint, and holds

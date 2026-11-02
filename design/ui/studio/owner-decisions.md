@@ -4,6 +4,22 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-02 -- Decided by the team: a selection step keeps its test's mode (graphty-element)
+
+**What.** Additive. `UnionStep.mode?: string`: the consumer's own name for how the step's test is
+edited. graphty-element validates it as a string, keeps it with the step (copies, saves, undo) and
+never reads it. Also a fix, no API change: a `measure` step's run no longer depends on its test, so
+setting or changing the test (from none to an untouched range, say) keeps the run the step reads.
+
+**Why.** `tier5/decided.md`, "Dry run pass 1", "A test's mode is the step's own": By value | By
+position and Before | After | Between are kept by the step from the moment they are picked, before
+any bound. The rule cannot say it: an untouched By position is the same inert leaf as an untouched
+By value, a date test with no date is the same leaf in all three modes, and Between with only its
+"to" is the same leaf as Before. A test-mode enum on the element would put the app's controls into
+the element's model, so the field is an opaque string, as a branch's `name` is. The run fix: the
+step's run was keyed by its whole rule, test included, so an inert test lost the run and the app
+had no values to draw the test with (T74 A and B).
+
 ## 2026-11-02 -- Decided by the team: a layer's count over the graph the filter leaves (graphty-element)
 
 **What.** Additive. `StyleCounts.visible?: { matched, of }` -- what the layer's selector selects

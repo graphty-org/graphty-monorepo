@@ -2735,6 +2735,7 @@ export interface UnionStep {
     readonly frozenFrom?: "selection" | "hovered-or-selected";
     readonly id?: string;
     readonly links?: RuleTree;
+    readonly mode?: string;
     readonly on?: boolean;
     readonly op: "add" | "keep" | "except";
     readonly rule: RuleTree;

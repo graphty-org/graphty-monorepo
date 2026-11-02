@@ -377,6 +377,60 @@ export function stepCard(
     side: Side,
     within?: UnionLeaf["within"],
 ): StepCardRead {
+    const read = testCard(session, step, reading, side, within);
+    return read.card === null ? read : { ...read, card: withMode(read.card, step.mode) };
+}
+
+/**
+ * A card in the mode its step holds: the mode is the reader's pick, kept before any bound is set
+ * (By position with no number yet) and where the bounds cannot say it (Between with only its "to").
+ * @param card - the card its rule draws.
+ * @param mode - the step's mode.
+ * @returns the card.
+ */
+function withMode(card: Card, mode: string | undefined): Card {
+    if (card.type === "number" && mode === "top" && card.match === "range") {
+        return card.min === undefined && card.max === undefined ? { ...card, match: "top" } : card;
+    }
+    const dated =
+        card.type === "date" && (card.match === "before" || card.match === "after" || card.match === "between");
+    if (!dated || (mode !== "before" && mode !== "after" && mode !== "between")) {
+        return card;
+    }
+    // A bound the mode has no box for is not the reader's: the rule's bounds win.
+    const fits = mode === "between" || (mode === "before" ? card.min === undefined : card.max === undefined);
+    return fits ? { ...card, match: mode } : card;
+}
+
+/**
+ * The mode a step keeps for its card: a number test's By value or By position, a date test's
+ * Before, After or Between; none for any other test.
+ * @param card - the card as edited.
+ * @returns the mode.
+ */
+export function modeOf(card: Card): string | undefined {
+    if (card.type === "number" && (card.match === "range" || card.match === "top")) {
+        return card.match;
+    }
+    return card.type === "date" && card.match !== "present" && card.match !== "absent" ? card.match : undefined;
+}
+
+/**
+ * The card a step's rule draws, before its mode is applied.
+ * @param session - the element's session.
+ * @param step - the step.
+ * @param reading - its reading.
+ * @param side - the selection's side.
+ * @param within - the selection's base.
+ * @returns the card and its field.
+ */
+function testCard(
+    session: GraphSession,
+    step: UnionStep,
+    reading: StepReading | undefined,
+    side: Side,
+    within?: UnionLeaf["within"],
+): StepCardRead {
     const fields = [
         ...stepFields(session, side, within),
         ...stepFields(session, side === "node" ? "edge" : "node", within),

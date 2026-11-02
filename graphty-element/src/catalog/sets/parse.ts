@@ -633,7 +633,7 @@ function checkMeasure(value: Loose, walker: Walker): void {
 
 /** The fields a union branch and a union step define. */
 const BRANCH_FIELDS = ["id", "name", "color", "on", "start", "steps"];
-const STEP_FIELDS = ["id", "op", "on", "rule", "computedOn", "links", "ends", "frozenFrom"];
+const STEP_FIELDS = ["id", "op", "on", "rule", "computedOn", "links", "ends", "frozenFrom", "mode"];
 
 /** The leaf kinds that speak only nodes, or hold a selection: a step's `links` refuses them. */
 const NOT_EDGE_KINDS = new Set([
@@ -738,7 +738,7 @@ function checkUnion(value: Loose, walker: Walker): void {
 
             walker.fields(step, "unionStep", STEP_FIELDS);
             unique(step.id, "step");
-            checkFlagAndText(step, []);
+            checkFlagAndText(step, ["mode"]);
             checkStepEnums(step);
             walker.inStep++;
             try {
@@ -765,7 +765,7 @@ function checkFlagAndText(value: Loose, texts: readonly string[]): void {
 
     for (const name of texts) {
         if (value[name] !== undefined && typeof value[name] !== "string") {
-            throw bad(`A union branch's ${name} is a string.`, { [name]: value[name] });
+            throw bad(`A union branch's or step's ${name} is a string.`, { [name]: value[name] });
         }
     }
 }

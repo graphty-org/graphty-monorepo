@@ -45,6 +45,7 @@ import { SelectionMenuItems } from "./SelectionMenu";
 import {
     type Host,
     isRelative,
+    modeOf,
     pickerFields,
     type PickSection,
     pickSections,
@@ -614,7 +615,7 @@ export function StepPane({
     const commit = (next: Card | null = draft): void => {
         setDraft(null);
         if (next !== null) {
-            onStep({ rule: ruleOfCard(step, next) });
+            onStep({ rule: ruleOfCard(step, next), mode: modeOf(next) });
         }
     };
     const onCard = (next: Card): void => {

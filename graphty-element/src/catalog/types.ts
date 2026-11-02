@@ -2301,6 +2301,11 @@ export interface UnionStep {
     readonly ends?: "both" | "either";
     /** Written by the element when it froze a live reference on a write that cannot follow one. */
     readonly frozenFrom?: "selection" | "hovered-or-selected";
+    /**
+     * The consumer's own name for how the step's test is edited -- a mode picked before any bound
+     * is set, say. The element keeps it with the step (copies, saves, undo) and never reads it.
+     */
+    readonly mode?: string;
 }
 
 /**

@@ -1076,8 +1076,8 @@ describe("the stylesheet emitter", () => {
         const back = readCytoscapeStyles({ elements: coreElements(s, em), style: em.stylesheet, snapshot: s });
         const got = resolved(back, s);
         const want = resolved(ex, s);
-        expect(want["node.labelOpacity"]?.[0]).toBe(0.2);
-        expect(want["node.borderOpacity"]?.[0]).toBe(0.25);
+        expect(want["node.labelOpacity"][0]).toBe(0.2);
+        expect(want["node.borderOpacity"][0]).toBe(0.25);
         for (const [k, col] of Object.entries(want)) {
             expect(
                 col.map((v, i) => v ?? got[k][i] ?? null),

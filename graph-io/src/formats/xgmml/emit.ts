@@ -14,6 +14,7 @@ import { throwIfAborted } from "../../common/input.js";
 import { type ResolvedImportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { type ImportReportBuilder, type IssueLocation } from "../../common/report.js";
+import { itemAt } from "../../common/text.js";
 import { parseWeightText } from "../../common/weights.js";
 import { flipY } from "../../positions/convert.js";
 import { ColumnSet } from "./columns.js";
@@ -1282,7 +1283,7 @@ export class XgmmlEmitter {
             return;
         }
         ids.forEach((id, row) => {
-            const e = this.edgeIndex[row];
+            const e = itemAt(this.edgeIndex, row);
             if (id !== undefined && e !== undefined) {
                 try {
                     this.sink.setEdgeValue(handle, e, id);
@@ -1336,12 +1337,12 @@ export class XgmmlEmitter {
      */
     private writeMeta(graph: GraphRec | null): void {
         const g = graph ?? this.doc.root;
-        const { rdf } = this.doc;
-        const name = this.extras.graphName ?? g.label ?? rdf.title ?? g.id ?? undefined;
+        const metadata: Partial<Record<string, string>> = this.doc.rdf;
+        const name = this.extras.graphName ?? g.label ?? metadata.title ?? g.id ?? undefined;
         this.sink.setMeta({
             name: name ?? undefined,
-            description: rdf.description ?? undefined,
-            created: rdf.date ?? undefined,
+            description: metadata.description ?? undefined,
+            created: metadata.date ?? undefined,
             sourceFormat: this.extras.sourceFormat ?? FORMAT,
             sourceVersion: this.dialect.versionText ?? undefined,
             weightOrigin: this.weighted
@@ -1351,7 +1352,7 @@ export class XgmmlEmitter {
                 [META_KEY]: {
                     graphId: g.id,
                     directed: this.doc.root.attrs.get("directed") ?? null,
-                    rdf: Object.keys(rdf).length > 0 ? { ...rdf } : null,
+                    rdf: Object.keys(metadata).length > 0 ? { ...metadata } : null,
                 },
                 ...this.extras.metaExtra,
             },

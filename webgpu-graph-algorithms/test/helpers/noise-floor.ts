@@ -298,7 +298,7 @@ export function noiseFloorFor(testId: string): { readonly value: number; readonl
             `noise floor: ${noiseFloorFile()} does not exist, so there is no committed tolerance for "${testId}"`,
         );
     }
-    const entry = doc.tolerances[testId];
+    const entry = testId in doc.tolerances ? doc.tolerances[testId] : undefined;
     if (entry === undefined) {
         throw new Error(
             `noise floor: no committed tolerance for test id "${testId}" -- a tolerance without a floor is a finding (spec 11.9 item 3)`,

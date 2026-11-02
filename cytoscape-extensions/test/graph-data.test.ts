@@ -338,7 +338,7 @@ describe("generated graphs", () => {
         await a.graphtyGenerate("barabasi-albert", { n: 30, m: 2, seed: 1 });
         await b.graphtyGenerate("barabasi-albert", { n: 30, m: 2, seed: 1 });
         expect(a.edges().map((e) => e.id())).toEqual(b.edges().map((e) => e.id()));
-        expect(a.edges()[0]?.id()).toBe("e0");
+        expect(a.edges().first().id()).toBe("e0");
         expect(await a.graphtyExport("graphml")).toBe(await b.graphtyExport("graphml"));
     });
 
@@ -411,7 +411,7 @@ describe("integer ids in the integer-id formats", () => {
             const back = core();
             await back.graphtyImport(text, format);
             expect(back.nodes().map((n) => n.id())).toEqual(["0", "1", "2", "3"]);
-            expect(back.nodes().every((n) => Object.keys(n.data()).length === 1)).toBe(true);
+            expect(back.nodes().every((n) => Object.keys(n.data() as object).length === 1)).toBe(true);
         }
     });
 

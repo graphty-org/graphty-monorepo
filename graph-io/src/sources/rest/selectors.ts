@@ -5,6 +5,8 @@
  * dependencies.
  */
 
+import { itemAt } from "../../common/text.js";
+
 /** One step of a selector: a key, and whether its value's array is flattened. */
 interface Step {
     readonly key: string;
@@ -35,7 +37,7 @@ export function parseSelector(selector: string): readonly Step[] | null {
                 steps = null;
                 break;
             }
-            steps.push({ key: m[1], flatten: m[2] !== undefined });
+            steps.push({ key: m[1], flatten: itemAt(m, 2) !== undefined });
         }
     }
     PARSED.set(selector, steps);

@@ -450,11 +450,13 @@ export function isGraphIsomorphic(
     s2: GraphSnapshot,
     options: IsomorphismOptions = {},
 ): IsomorphismResult {
-    let mapping: U32 | null = null;
+    // collected in an array, not a local the callback reassigns, so the check below reads the real state
+    const found: U32[] = [];
     search(s1, s2, options, (m) => {
-        mapping = m.slice();
+        found.push(m.slice());
         return true;
     });
+    const mapping = found.length > 0 ? found[0] : null;
     return { isomorphic: mapping !== null, mapping };
 }
 

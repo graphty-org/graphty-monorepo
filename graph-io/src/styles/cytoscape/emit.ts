@@ -673,7 +673,7 @@ const DRAWN_SO: ReadonlyMap<string, StyleValue> = new Map<string, StyleValue>([
 function drawnSo(
     p: string,
     values: readonly (StyleValue | null)[],
-    drawn: Readonly<Record<string, StyleValue>>,
+    drawn: Readonly<Partial<Record<string, StyleValue>>>,
 ): boolean {
     const way = DRAWN_SO.get(p) ?? drawn[p];
     return way !== undefined && values.every((v) => v === null || v === way);
@@ -952,7 +952,9 @@ function cytoscapeMapping(
             table: m.table.map(([k, v]) => [k, write(v)]),
         };
     }
-    if (m.kind === "continuous") {
+    // the mapping is the caller's, so its kind can be any value
+    const { kind }: { kind: unknown } = m;
+    if (kind === "continuous") {
         const points: CytoscapeContinuousPoint[] = m.points.map((pt: ContinuousPoint) => ({
             at: pt.at,
             below: write(pt.below),
@@ -1048,7 +1050,8 @@ function passthroughMapping(
  * @returns the mapping CX2 reads back
  */
 function cx2Points(m: Extract<Mapping, { kind: "continuous" }>, approx: () => void): Mapping {
-    let changed = false;
+    // set inside the map callback, which TypeScript does not see change it
+    let changed = false as boolean;
     const points = m.points.map((pt) => {
         if (pt.value === pt.below || pt.value === pt.above) {
             return pt;

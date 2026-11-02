@@ -138,15 +138,13 @@ export const KeyboardShortcuts: Story = {
 };
 
 /**
- * The main menu's Open sample submenu in the light scheme, with Les Miserables open: its row
- * checked and saying "Open now", the other samples giving their sizes. A light app draws this
- * menu on compact-mantine's menu surface, so the picture shows the checked glyph and the row text
- * on that surface. The reader opens the sample from the start screen, then the menu and the
- * submenu, by clicks.
+ * The main menu's Open sample submenu with Les Miserables open: its row checked and saying "Open
+ * now", the other samples giving their sizes. The light mode's picture shows the checked glyph and
+ * the row text on compact-mantine's light menu surface. The reader opens the sample from the start
+ * screen, then the menu and the submenu, by clicks.
  */
-export const OpenSampleMenuLight: Story = {
+export const OpenSampleMenu: Story = {
     ...freshStore(),
-    globals: { colorScheme: "light" },
     play: async ({ canvasElement }) => {
         const page = within(canvasElement.ownerDocument.body);
         await userEvent.click(await page.findByRole("button", { name: sampleTile("Les Miserables") }));

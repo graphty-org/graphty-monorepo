@@ -48,7 +48,7 @@ export { SplitButton, ToggleIconButton } from "./components/buttons";
 // scrub gesture a number field's handle uses, for a property row whose label scrubs its value, and
 // the check column of a themed list's option, for an option drawn with more than its label.
 export { ComboInput, FileSource, pickFiles, SearchInput, useFileDrop, VariablePill } from "./components/inputs";
-export { focusWithRing, ListboxCheck } from "./components/inputs/listbox";
+export { FieldCaret, focusWithRing, ListboxCheck } from "./components/inputs/listbox";
 export { type ScrubCallbacks, useScrub } from "./components/inputs/useScrub";
 export { LISTBOX_CLASS_NAMES } from "./theme/components/inputs";
 

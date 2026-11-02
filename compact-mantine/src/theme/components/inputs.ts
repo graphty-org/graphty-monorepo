@@ -2,6 +2,7 @@ import {
     Autocomplete,
     Combobox,
     FileInput,
+    InputBase,
     InputClearButton,
     InputWrapper,
     JsonInput,
@@ -191,6 +192,16 @@ function listVars(
     return { root: {}, wrapper: compactVarsForSize(scale, size) };
 }
 
+/**
+ * Whether an InputBase is drawn as a button (a trigger that opens a picker): its polymorphic
+ * `component`, which InputBase's props type does not name.
+ * @param props - the field's props
+ * @returns true for a button
+ */
+function isButtonTrigger(props: unknown): boolean {
+    return (props as { component?: unknown } | undefined)?.component === "button";
+}
+
 export const inputComponentExtensions = {
     // Every field's wrapper is also styled under this name (Mantine's useStyles names it
     // ["InputWrapper", "Select"]), so this one entry themes the label of every field.
@@ -230,6 +241,21 @@ export const inputComponentExtensions = {
             return listVars(compactInputScale, props?.size);
         },
         classNames: listFieldClassNames("outlined", "cm-select"),
+    }),
+
+    // A trigger built on InputBase as a button (a value or reference field that opens a picker):
+    // the Select's field and size, so it reads as the select it acts as. Only a button: TextInput
+    // and NumberInput render InputBase too, and keep their own look. The caller draws FieldCaret.
+    InputBase: InputBase.extend({
+        vars: (_theme, props) => {
+            if (!isButtonTrigger(props)) {
+                return { root: {}, wrapper: {} };
+            }
+            ensureFocusModality();
+            return listVars(compactInputScale, props.size);
+        },
+        classNames: (theme, props) =>
+            isButtonTrigger(props) ? listFieldClassNames("outlined", "cm-select")(theme, props) : {},
     }),
 
     NativeSelect: NativeSelect.extend({

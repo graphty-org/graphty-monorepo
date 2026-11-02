@@ -441,6 +441,8 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "LabelsProvider",
     "ListboxCheck",
     "LISTBOX_CLASS_NAMES",
+    // The select trigger's caret, for a field built on InputBase as a button
+    "FieldCaret",
     "parseLocaleNumber",
     "useCollator",
     "useLabels",

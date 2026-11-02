@@ -1271,7 +1271,9 @@ export function AddCondition({
         },
         onDropdownOpen: () => {
             // As wide as the cards it adds to, so the list stays inside the inspector (or the Data place).
-            const column = (button.current ?? document.activeElement)?.closest(".ws-which-open, .dp, .sel-editor");
+            const column = (button.current ?? document.activeElement)?.closest(
+                ".ws-which-open, .dp, .sel-ws-props, .sel-ws-outline, .sel-editor",
+            );
             if (column instanceof HTMLElement && column.clientWidth > 0) {
                 setWidth(column.clientWidth);
             }
@@ -1545,7 +1547,7 @@ export function AddCondition({
                                             const inUse = used.includes(key);
                                             // The icon the Vary by list draws for the same value; the node id reads as text.
                                             const Glyph = glyphOf(field.kind);
-                                            return (
+                                            const fieldOption = (
                                                 <Combobox.Option
                                                     key={key}
                                                     value={key}
@@ -1558,22 +1560,21 @@ export function AddCondition({
                                                         ...(inUse ? ["already a condition"] : []),
                                                     ].join(", ")}
                                                 >
-                                                    <Tooltip
-                                                        label={field.tip}
-                                                        disabled={field.tip === undefined}
-                                                        position="right"
-                                                        openDelay={300}
-                                                    >
-                                                        <div>
-                                                            <OptionLine
-                                                                glyph={Glyph}
-                                                                name={field.name}
-                                                                fact={field.fact}
-                                                                used={inUse}
-                                                            />
-                                                        </div>
-                                                    </Tooltip>
+                                                    <OptionLine
+                                                        glyph={Glyph}
+                                                        name={field.name}
+                                                        fact={field.fact}
+                                                        used={inUse}
+                                                    />
                                                 </Combobox.Option>
+                                            );
+                                            // Its plain words, as its tooltip (selection spec 3.5).
+                                            return field.tip === undefined ? (
+                                                fieldOption
+                                            ) : (
+                                                <Tooltip key={key} label={field.tip} position="right" openDelay={300}>
+                                                    <div>{fieldOption}</div>
+                                                </Tooltip>
                                             );
                                         })}
                                     </Combobox.Group>
@@ -1621,17 +1622,15 @@ function ExtraOption({ item }: Readonly<{ item: ExtraItem }>): React.JSX.Element
             disabled={item.unusable !== undefined}
             aria-label={[item.name, item.fact, item.unusable].filter((each) => each !== undefined).join(", ")}
         >
-            <Tooltip label={item.tip} disabled={item.tip === undefined} position="right" openDelay={300}>
-                <div>
-                    <OptionLine glyph={item.glyph} name={item.name} fact={item.fact} />
-                </div>
-            </Tooltip>
+            <OptionLine glyph={item.glyph} name={item.name} fact={item.fact} />
         </Combobox.Option>
     );
-    return item.unusable === undefined ? (
+    // A reason it cannot be picked here, else its plain words (selection spec 3.5), as its tooltip.
+    const tip = item.unusable ?? item.tip;
+    return tip === undefined ? (
         option
     ) : (
-        <Tooltip label={item.unusable} position="right">
+        <Tooltip label={tip} position="right" openDelay={item.unusable === undefined ? 300 : 0}>
             <div>{option}</div>
         </Tooltip>
     );

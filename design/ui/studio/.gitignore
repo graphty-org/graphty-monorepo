@@ -19,3 +19,5 @@ tmp/
 **/rounds/round-*/expert/**
 **/rounds/round-*/repro/**
 !**/rounds/round-*/**/
+!**/rounds/**/*.md
+!**/rounds/**/*.json

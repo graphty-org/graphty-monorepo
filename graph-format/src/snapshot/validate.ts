@@ -387,16 +387,13 @@ export function checkI7Counts(s: GraphSnapshot): void {
 }
 
 /**
- * I7 (pairing part): every arc u -> v with u !== v has exactly one mate v -> u with the same logical
- * edge and weight, a self-loop edge has exactly one arc, and every edge appears once (loop) or twice
- * (mates). The lockstep walk of design section 6.4. Full level.
- * @param s - the snapshot
+ * Count how many arcs each logical edge holds, throwing I7 the moment one passes two.
+ * @param arcCount - the arc count
+ * @param edgeCount - the edge count
+ * @param arcToEdge - the arc-to-edge map
+ * @returns the per-edge arc counts
  */
-export function checkI7Pairing(s: GraphSnapshot): void {
-    if (s.directed) {
-        return;
-    }
-    const { nodeCount, arcCount, edgeCount, rowPtr, colIdx, weights, arcToEdge } = s;
+function countEdgeOccurrences(arcCount: number, edgeCount: number, arcToEdge: GraphSnapshot["arcToEdge"]): Uint8Array {
     const occurrences = new Uint8Array(edgeCount);
     for (let a = 0; a < arcCount; a++) {
         const e = arcToEdge[a];
@@ -408,88 +405,157 @@ export function checkI7Pairing(s: GraphSnapshot): void {
         }
         occurrences[e]++;
     }
-    const cursor = rowPtr.slice(0, nodeCount);
-    for (let u = 0; u < nodeCount; u++) {
-        const end = rowPtr[u + 1];
-        let a = cursor[u];
-        if (a < rowPtr[u] || a > end) {
-            throw invariantViolation("I7", `row ${u} was over-consumed by mates from earlier rows`, { row: u });
+    return occurrences;
+}
+
+/**
+ * I7 for a run of self-loop arcs [a, g) in row u: each loop edge has exactly one arc.
+ * @param s - the snapshot
+ * @param occurrences - the per-edge arc counts
+ * @param u - the row
+ * @param a - the run's first arc
+ * @param g - one past the run's last arc
+ */
+function checkSelfLoopRun(s: GraphSnapshot, occurrences: Uint8Array, u: number, a: number, g: number): void {
+    const { arcToEdge } = s;
+    for (let i = a; i < g; i++) {
+        if (occurrences[arcToEdge[i]] !== 1) {
+            throw invariantViolation("I7", `self-loop edge ${arcToEdge[i]} has more than one arc`, {
+                row: u,
+                arc: i,
+                edge: arcToEdge[i],
+            });
         }
-        while (a < end) {
-            const v = colIdx[a];
-            let g = a + 1;
-            while (g < end && colIdx[g] === v) {
-                g++;
-            }
-            const k = g - a;
-            if (v === u) {
-                for (let i = a; i < g; i++) {
-                    if (occurrences[arcToEdge[i]] !== 1) {
-                        throw invariantViolation("I7", `self-loop edge ${arcToEdge[i]} has more than one arc`, {
-                            row: u,
-                            arc: i,
-                            edge: arcToEdge[i],
-                        });
-                    }
-                }
-            } else {
-                if (v < u) {
-                    throw invariantViolation("I7", `arc ${a} in row ${u} targets ${v} but row ${v} holds no mate`, {
-                        row: u,
-                        arc: a,
-                        target: v,
-                    });
-                }
-                const b = cursor[v];
-                const rowEnd = rowPtr[v + 1];
-                for (let i = 0; i < k; i++) {
-                    const arc = a + i;
-                    const mate = b + i;
-                    if (mate >= rowEnd || colIdx[mate] !== u) {
-                        throw invariantViolation(
-                            "I7",
-                            `arc ${arc} in row ${u} targeting ${v} has no mate in row ${v}`,
-                            {
-                                row: u,
-                                arc,
-                                target: v,
-                            },
-                        );
-                    }
-                    if (arcToEdge[mate] !== arcToEdge[arc]) {
-                        throw invariantViolation(
-                            "I7",
-                            `arcs ${arc} and ${mate} should share a logical edge but hold ${arcToEdge[arc]} and ${arcToEdge[mate]}`,
-                            { row: u, arc, mate },
-                        );
-                    }
-                    if (occurrences[arcToEdge[arc]] !== 2) {
-                        throw invariantViolation("I7", `edge ${arcToEdge[arc]} of arc ${arc} does not have two arcs`, {
-                            row: u,
-                            arc,
-                            edge: arcToEdge[arc],
-                        });
-                    }
-                    if (weights !== null && weights[arc] !== weights[mate]) {
-                        throw invariantViolation(
-                            "I7",
-                            `arcs ${arc} and ${mate} carry different weights ${weights[arc]} and ${weights[mate]}`,
-                            { row: u, arc, mate },
-                        );
-                    }
-                }
-                if (b + k < rowEnd && colIdx[b + k] === u) {
-                    throw invariantViolation("I7", `row ${v} holds more arcs to ${u} than row ${u} holds to ${v}`, {
-                        row: v,
-                        arc: b + k,
-                        target: u,
-                    });
-                }
-                cursor[v] = b + k;
-            }
-            a = g;
+    }
+}
+
+/**
+ * I7 for one arc u -> v and its candidate mate in row v: the mate exists, points back at u, shares
+ * the logical edge and the weight, and that edge has exactly two arcs.
+ * @param s - the snapshot
+ * @param occurrences - the per-edge arc counts
+ * @param u - the arc's row
+ * @param v - the arc's target
+ * @param arc - the arc
+ * @param mate - the candidate mate arc in row v
+ */
+function checkMate(s: GraphSnapshot, occurrences: Uint8Array, u: number, v: number, arc: number, mate: number): void {
+    const { rowPtr, colIdx, weights, arcToEdge } = s;
+    if (mate >= rowPtr[v + 1] || colIdx[mate] !== u) {
+        throw invariantViolation("I7", `arc ${arc} in row ${u} targeting ${v} has no mate in row ${v}`, {
+            row: u,
+            arc,
+            target: v,
+        });
+    }
+    if (arcToEdge[mate] !== arcToEdge[arc]) {
+        throw invariantViolation(
+            "I7",
+            `arcs ${arc} and ${mate} should share a logical edge but hold ${arcToEdge[arc]} and ${arcToEdge[mate]}`,
+            { row: u, arc, mate },
+        );
+    }
+    if (occurrences[arcToEdge[arc]] !== 2) {
+        throw invariantViolation("I7", `edge ${arcToEdge[arc]} of arc ${arc} does not have two arcs`, {
+            row: u,
+            arc,
+            edge: arcToEdge[arc],
+        });
+    }
+    if (weights !== null && weights[arc] !== weights[mate]) {
+        throw invariantViolation(
+            "I7",
+            `arcs ${arc} and ${mate} carry different weights ${weights[arc]} and ${weights[mate]}`,
+            { row: u, arc, mate },
+        );
+    }
+}
+
+/**
+ * I7 for a run of k arcs [a, a + k) in row u targeting v !== u: they pair in lockstep with the next
+ * k unconsumed arcs of row v, and row v holds no further arc back to u. Advances row v's cursor.
+ * @param s - the snapshot
+ * @param occurrences - the per-edge arc counts
+ * @param cursor - the next unconsumed arc of every row
+ * @param u - the row
+ * @param v - the target
+ * @param a - the run's first arc
+ * @param k - the run's length
+ */
+function checkMateRun(
+    s: GraphSnapshot,
+    occurrences: Uint8Array,
+    cursor: U32,
+    u: number,
+    v: number,
+    a: number,
+    k: number,
+): void {
+    if (v < u) {
+        throw invariantViolation("I7", `arc ${a} in row ${u} targets ${v} but row ${v} holds no mate`, {
+            row: u,
+            arc: a,
+            target: v,
+        });
+    }
+    const b = cursor[v];
+    for (let i = 0; i < k; i++) {
+        checkMate(s, occurrences, u, v, a + i, b + i);
+    }
+    if (b + k < s.rowPtr[v + 1] && s.colIdx[b + k] === u) {
+        throw invariantViolation("I7", `row ${v} holds more arcs to ${u} than row ${u} holds to ${v}`, {
+            row: v,
+            arc: b + k,
+            target: u,
+        });
+    }
+    cursor[v] = b + k;
+}
+
+/**
+ * I7 for row u: walk its runs of equal targets, checking loops and consuming mates from later rows.
+ * @param s - the snapshot
+ * @param occurrences - the per-edge arc counts
+ * @param cursor - the next unconsumed arc of every row
+ * @param u - the row
+ */
+function checkPairingRow(s: GraphSnapshot, occurrences: Uint8Array, cursor: U32, u: number): void {
+    const { rowPtr, colIdx } = s;
+    const end = rowPtr[u + 1];
+    let a = cursor[u];
+    if (a < rowPtr[u] || a > end) {
+        throw invariantViolation("I7", `row ${u} was over-consumed by mates from earlier rows`, { row: u });
+    }
+    while (a < end) {
+        const v = colIdx[a];
+        let g = a + 1;
+        while (g < end && colIdx[g] === v) {
+            g++;
         }
-        cursor[u] = end;
+        if (v === u) {
+            checkSelfLoopRun(s, occurrences, u, a, g);
+        } else {
+            checkMateRun(s, occurrences, cursor, u, v, a, g - a);
+        }
+        a = g;
+    }
+    cursor[u] = end;
+}
+
+/**
+ * I7 (pairing part): every arc u -> v with u !== v has exactly one mate v -> u with the same logical
+ * edge and weight, a self-loop edge has exactly one arc, and every edge appears once (loop) or twice
+ * (mates). The lockstep walk of design section 6.4. Full level.
+ * @param s - the snapshot
+ */
+export function checkI7Pairing(s: GraphSnapshot): void {
+    if (s.directed) {
+        return;
+    }
+    const occurrences = countEdgeOccurrences(s.arcCount, s.edgeCount, s.arcToEdge);
+    const cursor = s.rowPtr.slice(0, s.nodeCount);
+    for (let u = 0; u < s.nodeCount; u++) {
+        checkPairingRow(s, occurrences, cursor, u);
     }
 }
 

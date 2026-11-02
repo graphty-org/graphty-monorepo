@@ -1,4 +1,4 @@
-import { expandEdges, GraphBuilder, type GraphSnapshot, maskTest } from "@graphty/graph-format";
+import { expandEdges, type F64, GraphBuilder, type GraphSnapshot, maskTest } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { bipartiteFlowNetwork, maxFlow, type MaxFlowResult, minSTCut } from "../../../src/indexed/flow.js";
@@ -145,7 +145,7 @@ function fixtures(): FlowFixture[] {
 }
 
 /** The per-arc f64 capacity override the facade will pass, or undefined when f32 is exact. */
-function exactWeights(s: GraphSnapshot): Float64Array | undefined {
+function exactWeights(s: GraphSnapshot): F64 | undefined {
     const shadow = s.edges.byRole("weight");
     return shadow?.dtype === "f64" ? expandEdges(s, shadow.data) : undefined;
 }

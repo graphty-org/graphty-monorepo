@@ -1,4 +1,4 @@
-import { GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { GraphBuilder, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 import { plantedPartitionGraph } from "@graphty/graph-samples/generators";
 import { describe, expect, it } from "vitest";
 
@@ -82,7 +82,7 @@ function cliquePair(size: number, bridged: boolean): GraphSnapshot {
     return snapshotOf(edges);
 }
 
-function freeSeeds(n: number): Uint32Array {
+function freeSeeds(n: number): U32 {
     return new Uint32Array(n).fill(INVALID_INDEX);
 }
 

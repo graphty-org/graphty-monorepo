@@ -52,7 +52,7 @@ describe("Rescale Layout", () => {
 
         it("should handle single node", () => {
             const positions = { node1: [3, 4] };
-            const rescaled = rescaleLayout(positions, 2, [0, 0]);
+            const rescaled = rescaleLayout(positions, 2, [0, 0]) as PositionMap;
 
             // Single node should be placed at center
             assert.deepEqual(rescaled.node1, [0, 0]);
@@ -209,7 +209,7 @@ describe("Rescale Layout", () => {
                 "item:1": [1, 2],
             };
 
-            const rescaled = rescaleLayoutDict(positions, 0.5, [0, 0]);
+            const rescaled = rescaleLayoutDict(positions, 0.5);
 
             assert.isDefined(rescaled["user:1"]);
             assert.isDefined(rescaled["user:2"]);
@@ -225,7 +225,7 @@ describe("Rescale Layout", () => {
                 C: [-5, -5],
             };
 
-            const rescaled = rescaleLayout(positions, 0, [7, 7]);
+            const rescaled = rescaleLayout(positions, 0, [7, 7]) as PositionMap;
 
             // All nodes should collapse to center
             assert.deepEqual(rescaled.A, [7, 7]);
@@ -259,7 +259,7 @@ describe("Rescale Layout", () => {
             };
 
             const original: unknown = JSON.parse(JSON.stringify(positions));
-            const rescaled = rescaleLayout(positions, 2);
+            const rescaled = rescaleLayout(positions, 2) as PositionMap;
 
             // Original should be unchanged
             assert.deepEqual(positions, original);

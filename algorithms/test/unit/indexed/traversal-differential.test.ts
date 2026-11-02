@@ -17,7 +17,7 @@ import { depthFirstSearch, hasCycle, topologicalSort } from "../../../src/indexe
 import { condensation, stronglyConnectedComponents } from "../../../src/indexed/scc.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
-import type { NodeId } from "../../helpers/legacy-types.js";
+import type { BFSResult, NodeId, TraversalResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { legacyArcOrder } from "../../helpers/to-snapshot.js";
 import {

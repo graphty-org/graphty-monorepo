@@ -727,8 +727,9 @@ reviews above judged their build, so nothing of it was left unverified.
   brush is inset 8 px so its thumbs end at the boxes' edges.
 - **Reopening** selects the step last edited, else the first step; the title only with no step.
 - **Sidebar Edit** hides the count while it is drawn. Long counts read short ("200k of 200k"); a
-  title keeps at least 8 characters; a relative row's value gives way to 8 characters before its
-  reference, and no state word is cut. The workspace outline's rows keep their state word when
+  title keeps at least 8 characters; a relative row keeps its condition whole, its reference gives
+  way, and no state word is cut (the scale review asked the condition to give way first; the
+  owner's review asked it whole, which is kept). The workspace outline's rows keep their state word when
   selected.
 - **Pickers under fields never flip** up over the header. While a step is added, All nodes is
   hidden and only the new row is lit (the row selected before comes back if nothing is picked).

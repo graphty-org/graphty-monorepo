@@ -1776,6 +1776,8 @@ const TEST_FOCUS: readonly string[] = [
     ".sel-ws-props .sel-test-box [data-first-focus]",
     ".sel-ws-props .sel-test-box input:not([type=hidden], [readonly])",
     ".sel-ws-props .sel-test-box button:not([data-cancel])",
+    // A select's own box (Yes or No), which is read-only.
+    ".sel-ws-props .sel-test-box input:not([type=hidden])",
 ];
 
 /** Where focus goes in a pane that was entered: its first box to type in, else its first control. */

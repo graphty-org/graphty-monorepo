@@ -230,8 +230,8 @@ groups read as alternatives at rest.
   "Within 2 hops | Valjean", "Is in | Selected (3)", "While | Watchlist has nodes". A long node name
   truncates first. With no reference, While reads its whole value, "While ... has nodes", with no
   test column, and its value field always reads "While ... has nodes". When space runs out the
-  condition gives way to about 8 characters, then the reference; the state word is never cut (all
-  are in the row's tooltip).
+  reference gives way with an ellipsis; the condition and the state word are never cut (all are in
+  the row's tooltip).
 - A value keeps normal ink in every state (Off, No test, Run); every row ends with its state word,
   the selected row too, as the sidebar's does.
 - **Numeric tests** use the Min and Max boxes' words: "min 10", "max 1", "3 to 7", "top 10".

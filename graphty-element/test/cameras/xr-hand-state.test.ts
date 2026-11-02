@@ -219,9 +219,9 @@ describe("XRInputHandler hand state", () => {
         assert.closeTo(zooms[1], expectedZoom([0, 4], [0, 8]), 1e-9);
     });
 
-    test("a hand pinching beside an open trigger restarts the gesture every frame", () => {
-        // Pins today's behavior: the controller and the tracked hand share one pinch flag, so the
-        // open trigger reads the hand's pinch as its own release and resets the gesture each frame.
+    test("hands pinching beside open triggers drive the gesture", () => {
+        // A controller and a tracked hand keep separate pinch states, so an open trigger does not
+        // read the hand's pinch as its own release and reset the gesture each frame (#5649).
         controller("left", 0, { pressed: false, value: 0 });
         controller("right", 1, { pressed: false, value: 0 });
         hand("left", 0, PINCHED);
@@ -233,7 +233,30 @@ describe("XRInputHandler hand state", () => {
         handler.update();
         hand("right", 4, PINCHED);
         handler.update();
-        assert.deepEqual(zooms, []);
+        assert.equal(zooms.length, 2);
+        assert.closeTo(zooms[0], expectedZoom([0, 2], [0, 3]), 1e-9);
+        assert.closeTo(zooms[1], expectedZoom([0, 3], [0, 4]), 1e-9);
+    });
+
+    test("one hand pinching beside an open trigger zooms and rotates the camera with the other trigger", () => {
+        vi.restoreAllMocks();
+        const left = controller("left", 0, { pressed: true, value: 1 });
+        controller("right", 5, { pressed: false, value: 0 });
+        hand("right", 1, PINCHED);
+        handTracking = true;
+        start();
+        const scale = pivot.pivot.scaling.x;
+        const rotation = (pivot.pivot.rotationQuaternion ?? pivot.pivot.rotation.toQuaternion()).clone();
+        handler.update();
+        // Hands move apart and the pair turns: the left grip drops below the right hand.
+        moveGrip(left, -0.5);
+        (left.grip as TransformNode).position.y = 0.5;
+        hand("right", 1.5, PINCHED);
+        handler.update();
+        assert.isBelow(pivot.pivot.scaling.x, scale, "hands apart zoom out");
+        const turned = pivot.pivot.rotationQuaternion;
+        assert.isNotNull(turned);
+        assert.isFalse(turned?.equalsWithEpsilon(rotation, 1e-6), "the pair turning rotates the camera");
     });
 
     test("a controller's trigger wins over a pinching hand", () => {

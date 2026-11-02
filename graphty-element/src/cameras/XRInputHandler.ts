@@ -85,8 +85,11 @@ export class XRInputHandler {
     private previousDistance: number | null = null;
     private previousDirection: Vector3 | null = null;
 
-    // Track previous pinch state for hysteresis
-    private wasPinching: Record<string, boolean> = { left: false, right: false };
+    // Previous pinch state, kept per input: a controller and a tracked hand on the same side are
+    // read every frame, so one shared flag would read the hand's pinch as the trigger's release
+    // and reset the gesture each frame (#5649).
+    private wasTriggerPinching: Record<string, boolean> = { left: false, right: false };
+    private wasHandPinching: Record<string, boolean> = { left: false, right: false };
 
     // Hand tracking feature reference
     private handTrackingFeature: unknown = null;
@@ -253,7 +256,8 @@ export class XRInputHandler {
         this.rightStick = { x: 0, y: 0 };
         this.leftHand = null;
         this.rightHand = null;
-        this.wasPinching = { left: false, right: false };
+        this.wasTriggerPinching = { left: false, right: false };
+        this.wasHandPinching = { left: false, right: false };
         this.handTrackingFeature = null;
         this.resetGestureState();
     }
@@ -610,11 +614,11 @@ export class XRInputHandler {
         const triggerValue = trigger.value ?? 0;
         if (trigger.pressed === true || triggerValue > 0.5) {
             // Log when trigger state changes
-            if (!this.wasPinching[handedness]) {
+            if (!this.wasTriggerPinching[handedness]) {
                 logger.debug("Trigger press", { handedness, value: triggerValue });
             }
 
-            this.wasPinching[handedness] = true;
+            this.wasTriggerPinching[handedness] = true;
             return {
                 position: gripPos.clone(),
                 rotation: grip.rotationQuaternion?.clone() ?? Quaternion.Identity(),
@@ -623,9 +627,9 @@ export class XRInputHandler {
             };
         }
 
-        if (this.wasPinching[handedness]) {
+        if (this.wasTriggerPinching[handedness]) {
             logger.debug("Trigger release", { handedness, value: triggerValue });
-            this.wasPinching[handedness] = false;
+            this.wasTriggerPinching[handedness] = false;
             this.resetGestureState();
         }
 
@@ -674,7 +678,7 @@ export class XRInputHandler {
         }
 
         const pinchDist = Vector3.Distance(thumbTip.position, indexTip.position);
-        const wasP = this.wasPinching[handedness];
+        const wasP = this.wasHandPinching[handedness];
         const isP = isPinching(pinchDist, wasP);
         if (isP !== wasP) {
             logger.debug(isP ? "Pinch start" : "Pinch end", { handedness, distance: pinchDist });
@@ -683,7 +687,7 @@ export class XRInputHandler {
             }
         }
 
-        this.wasPinching[handedness] = isP;
+        this.wasHandPinching[handedness] = isP;
         if (!isP) {
             return null;
         }

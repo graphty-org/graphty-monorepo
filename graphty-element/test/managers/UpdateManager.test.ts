@@ -2,7 +2,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
-import { nodeFramingBox, UpdateManager } from "../../src/managers/UpdateManager";
+import { nodeFramingBox, styleBudgetFor, UpdateManager } from "../../src/managers/UpdateManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
@@ -387,5 +387,14 @@ describe("UpdateManager", () => {
                 "layoutManager.step() should not be called when layout is not running",
             );
         });
+    });
+});
+
+describe("styleBudgetFor", () => {
+    it("keeps a short frame's repaint to 16 ms and gives a slow frame a share of its length, capped", () => {
+        assert.strictEqual(styleBudgetFor(16), 16);
+        assert.strictEqual(styleBudgetFor(33), 16);
+        assert.strictEqual(styleBudgetFor(400), 100, "a slow frame's repaint takes a quarter of it");
+        assert.strictEqual(styleBudgetFor(2000), 250, "however slow, never more than 250 ms");
     });
 });

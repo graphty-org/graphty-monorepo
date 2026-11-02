@@ -271,6 +271,27 @@ const LAYOUT_FRAME_BUDGET_MS = 40;
  */
 const STYLE_FRAME_BUDGET_MS = 16;
 
+/**
+ * The share of a slow frame a repaint may take on top of it, and the most it ever takes.
+ *
+ * A fixed 16 ms is right while frames are short, and starves the repaint when they are long for
+ * another reason -- a software GPU, a scene of 50,000 nodes: at a frame every 1.5 s, 16 ms of paint
+ * per frame was 1% of the time, and a 50,000 node preview took minutes to reach the screen. A
+ * quarter of the last frame settles at a third of the frame's own drawing (the frame grows by a
+ * third, never doubles), and the cap bounds it however slow the frame was.
+ */
+const STYLE_FRAME_SHARE = 0.25;
+const STYLE_FRAME_BUDGET_MAX_MS = 250;
+
+/**
+ * How long one frame spends applying a repaint, from how long the last frame took.
+ * @param frameMs - The last frame's length.
+ * @returns The budget: {@link STYLE_FRAME_BUDGET_MS} for a short frame, a share of a long one.
+ */
+export function styleBudgetFor(frameMs: number): number {
+    return Math.max(STYLE_FRAME_BUDGET_MS, Math.min(frameMs * STYLE_FRAME_SHARE, STYLE_FRAME_BUDGET_MAX_MS));
+}
+
 /** How many nodes are painted between two looks at the clock. */
 const NODE_PAINT_BATCH = 128;
 
@@ -1772,7 +1793,7 @@ export class UpdateManager implements Manager {
             // frame time (`Graph.update()` with no argument), so it has no frame to keep short and
             // applies the whole repaint, as a caller drawing one frame to read the result expects.
             // In the minimum-work mode a frame applies one batch of each kind and leaves the rest.
-            const budget = minimumWorkPerFrame() ? 0 : STYLE_FRAME_BUDGET_MS;
+            const budget = minimumWorkPerFrame() ? 0 : styleBudgetFor(frameMs);
             this.syncStyles(frameMs > 0 ? budget : Number.POSITIVE_INFINITY);
         });
     }

@@ -8,6 +8,7 @@ import { assert, describe, it } from "vitest";
 
 import type { UnionLeaf } from "../../../src/catalog/types";
 import { createGraphSession, type GraphSession } from "../../../src/session";
+import type { ElementSession } from "../../../src/session/types";
 import { lesMiserables } from "../../helpers/les-miserables";
 
 const LES_MISERABLES = await lesMiserables();
@@ -179,6 +180,49 @@ describe("styles.showBranches", () => {
     });
 });
 
+describe("a branches view that draws what is drawn already", () => {
+    it("keeps its layers, so a step with no test or the same rule again repaints nothing", async () => {
+        const { session } = await painted();
+        const branchLayers = (): unknown[] =>
+            (session as ElementSession).styles
+                .compiled()
+                .filter((entry) => entry.layer.id.startsWith("graphty-branches-"));
+        session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint" });
+        await session.styles.settled();
+        const before = branchLayers();
+
+        session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint" });
+        const [branch] = NEAR_VALJEAN.branches;
+        const untested: UnionLeaf = {
+            ...NEAR_VALJEAN,
+            branches: [
+                {
+                    ...branch,
+                    name: "Renamed",
+                    steps: [...branch.steps, { op: "keep", rule: { kind: "range", attribute: "data.x" } as never }],
+                },
+            ],
+        };
+        session.styles.showBranches({ rule: untested, rest: "faint" });
+        await session.styles.settled();
+        const after = branchLayers();
+        assert.strictEqual(after.length, before.length);
+        after.forEach((entry, at) => {
+            assert.strictEqual(entry, before[at], `layer ${String(at)} is the same object: nothing to repaint`);
+        });
+
+        const narrowed: UnionLeaf = {
+            ...NEAR_VALJEAN,
+            branches: [
+                { ...branch, steps: [{ op: "add", rule: { kind: "hops", of: { nodes: ["Myriel"] }, max: 1 } }] },
+            ],
+        };
+        session.styles.showBranches({ rule: narrowed, rest: "faint" });
+        await session.styles.settled();
+        assert.notStrictEqual(branchLayers().at(-3), before.at(-3), "a step that changes the members is a new layer");
+    });
+});
+
 describe("a branches view holding a filter condition", () => {
     it("keeps what the held condition removes drawn faint, still not visible, until the view ends", async () => {
         const { session } = await painted();
@@ -206,6 +250,46 @@ describe("a branches view holding a filter condition", () => {
         await session.styles.settled();
         assert.strictEqual(opacity(), before, "ending the view lets the condition go");
         assert.strictEqual(session.visibility.summary.visibleNodes, visible);
+    });
+
+    it("over the full graph draws a member another condition removes in its color, the rest faint", async () => {
+        const { session } = await painted();
+        // Another card removes Napoleon and Myriel; the edited card removes Cravatte and Myriel.
+        // Myriel is within 1 hop of Valjean; Napoleon and Child1 are not, and Child1 stays.
+        await session.visibility.addCondition({
+            effect: "exclude",
+            rule: { kind: "neighborhood", seeds: ["Napoleon"], depth: 1 },
+        });
+        const { id } = await session.visibility.addCondition({
+            effect: "exclude",
+            rule: { kind: "neighborhood", seeds: ["Cravatte"], depth: 1 },
+        });
+        const visible = session.visibility.summary.visibleNodes;
+        const opacity = (node: string): { value: unknown; layerId: string | undefined } => {
+            const explained = session.styles.explain({ node });
+            return {
+                value: (explained.merged as Record<string, unknown>)["node.opacity"],
+                layerId: explained.channels.find((each) => each.channel === "node.opacity")?.layerId,
+            };
+        };
+
+        const view = session.styles.showBranches({
+            rule: { ...NEAR_VALJEAN, within: "graph" },
+            rest: "faint",
+            hold: id,
+            base: "full",
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.visibility.summary.visibleNodes, visible, "what is visible does not change");
+        assert.strictEqual(colorOf(session, "Myriel").value, "#009E73", "a removed member is drawn in its color");
+        assert.strictEqual(opacity("Myriel").value, 1, "at full strength");
+        assert.strictEqual(opacity("Napoleon").value, 0.2, "what another condition removes is drawn faint");
+        assert.notStrictEqual(
+            opacity("Napoleon").layerId,
+            opacity("Child1").layerId,
+            "as a ghost, not as the rest that stays",
+        );
+        view.end();
     });
 });
 

@@ -139,6 +139,7 @@ import type { Resolution } from "../sets/resolve";
 import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
+import { inertReason } from "../visibility/union";
 import { beneathAuthored, placementLayers } from "./autoApply";
 import {
     channelDescriptor,
@@ -455,6 +456,16 @@ export interface BranchesView {
      * @beta
      */
     readonly mark?: string;
+    /**
+     * What the view is drawn over: `"visible"` (the default) draws what the filter leaves, and
+     * `"full"` lifts every filter condition while the view is shown, so a selection counted on the
+     * full graph is drawn there: what the conditions remove is drawn faint, as ghosts, and a
+     * branch's members are drawn in its color even when a condition removes them. What is visible
+     * does not change, and nothing is recorded.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly base?: "visible" | "full";
 }
 
 /**
@@ -1579,8 +1590,11 @@ export interface StylesSources {
      * @param shown - Whether one is drawn now.
      */
     readonly onBranchesShown?: (shown: boolean) => void;
-    /** Holds a filter condition while a branches view is drawn, or lets it go with null. */
-    readonly holdCondition?: (id: string | null) => void;
+    /**
+     * Holds a filter condition while a branches view is drawn, or lets it go with null; `all`
+     * lifts every condition (a view drawn over the full graph).
+     */
+    readonly holdCondition?: (id: string | null, all?: boolean) => void;
     /**
      * A number that moves whenever the data or the run results change, which is half of what
      * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
@@ -2575,7 +2589,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param view - The view.
      * @returns The layers.
      */
-    const branchLayers = (view: BranchesView): CompiledLayer[] => {
+    const branchLayers = (view: BranchesView): { layers: CompiledLayer[]; keys: string[] } => {
         const rule = (sources.admitRule?.(view.rule) ?? view.rule) as UnionLeaf;
         if (typeof rule !== "object" || (rule as { kind?: unknown }).kind !== "union") {
             throw badCommand("showBranches draws a union leaf.", { rule: view.rule });
@@ -2605,10 +2619,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
             const faint = marked && branch.id !== view.mark;
             const faintOpacity = target === "node" ? 0.2 : 0.15;
+            // What the branch holds, with the steps that change nothing (off, or no test yet) left
+            // out: a step added with no test, or a name, leaves the layer the same, and the view
+            // the same picture with no repaint.
+            const { name: _name, color: _color, ...held } = branch;
+            const steps = branch.steps.filter((step) => step.on !== false && inertReason(step.rule) === null);
             specs.push({
                 name: branch.name ?? branch.id ?? "Branch",
                 target,
-                selector: { match: "rule", where: { ...rule, branches: [branch] } },
+                selector: { match: "rule", where: { ...rule, branches: [{ ...held, steps }] } },
                 set: {
                     [`${target}.color`]: branch.color,
                     [`${target}.opacity`]: faint ? faintOpacity : 1,
@@ -2617,8 +2636,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         // A ghost (what a held condition would remove, or what lies outside the time window) is
-        // drawn faint, a member keeping its branch's color.
-        specs.push(
+        // drawn faint, a member keeping its branch's color. Over the full graph a ghost that a
+        // branch holds is a member like any other, so the branches are drawn over the ghosts.
+        const restLayers = view.rest === "faint" ? 2 : 0;
+        const ghostAt = view.base === "full" ? restLayers : specs.length;
+        specs.splice(
+            ghostAt,
+            0,
             {
                 name: "Held",
                 target: "node",
@@ -2633,7 +2657,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             },
         );
 
-        return specs.map((spec, at) => {
+        const layers = specs.map((spec, at) => {
             const checked = check(spec, `graphty-branches-${String(at)}`);
             if (checked.layer === null) {
                 throw badCommand("showBranches could not draw this selection.", { errors: checked.result.errors });
@@ -2641,7 +2665,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
             return checked.layer;
         });
+        // What each layer draws, by which it is the same layer as the one a view drew before.
+        const keys = specs.map(({ name: _name, ...drawn }) => JSON.stringify(drawn));
+        return { layers, keys };
     };
+
+    /** What each layer of the view drawn now draws (see `branchLayers`). */
+    let shownKeys: readonly string[] = [];
 
     /**
      * The stack as it paints without a branches view: a hidden row's layers read as disabled, and
@@ -4662,11 +4692,19 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         showBranches(view: BranchesView): { end(): void } {
-            const layers = branchLayers(view);
+            const made = branchLayers(view);
+            // A layer that draws what the view drawn now draws is kept, the same object, so a view
+            // that changes nothing on the canvas repaints nothing (a step with no test, the same
+            // rule handed again).
+            const kept = branchesShown?.layers ?? [];
+            const layers = made.layers.map((layer, at) =>
+                kept[at] !== undefined && shownKeys[at] === made.keys[at] ? kept[at] : layer,
+            );
+            shownKeys = made.keys;
             const before = painting(current());
             const shown = { layers, view: Object.freeze({ ...view }) };
             branchesShown = shown;
-            sources.holdCondition?.(view.hold ?? null);
+            sources.holdCondition?.(view.hold ?? null, view.base === "full");
             repaintBetween(before, painting(current()));
             // A view that replaces another is a change too: a reader of `shownBranches` hears it.
             sources.onBranchesShown?.(true);

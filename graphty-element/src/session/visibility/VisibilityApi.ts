@@ -529,8 +529,9 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * still decides what is visible, but what it would remove stays drawn, as ghosts. Records no
      * step. Null lets it go.
      * @param id - The condition, or null.
+     * @param all - Lift every condition, not only this one: the view is drawn over the full graph.
      */
-    hold(id: string | null): void;
+    hold(id: string | null, all?: boolean): void;
 }
 
 /** What is drawn, one mask per kind. */
@@ -774,6 +775,9 @@ function sameInputs(a: readonly unknown[], b: readonly unknown[]): boolean {
 
 /** Nothing read besides the graph. */
 const NO_INPUTS: readonly unknown[] = Object.freeze([]);
+
+/** No condition: what a view over the full graph draws by. One array, so the combined rule is kept. */
+const NO_CONDITIONS: readonly FilterCondition[] = Object.freeze([]);
 
 /**
  * Whether two tags name the same masks.
@@ -1242,11 +1246,14 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     /** The condition a reader is editing, whose removals stay drawn as ghosts (`hold`). */
     let held: string | null = null;
+    /** Whether every condition is lifted while one is held (a view over the full graph). */
+    let heldAll = false;
     /** The held condition's rule-less stand-in: the rule the rest draws by, by its inputs. */
     let heldRule: {
         readonly conditions: readonly FilterCondition[];
         readonly filter: RuleTree | null;
         readonly held: string;
+        readonly all: boolean;
         readonly rule: RuleTree | null;
     } | null = null;
 
@@ -1258,19 +1265,23 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const drawnRuleNow = (): RuleTree | null => {
         const { filter, conditions } = dispatcher.state.visibility;
         const holding = conditions.find((each) => each.id === held);
-        if (held === null || holding === undefined || !holding.on || holding.effect === "select") {
+        const lifts = heldAll ? held !== null : holding !== undefined && holding.on && holding.effect !== "select";
+        if (held === null || !lifts) {
             return ruleNow();
         }
 
-        if (heldRule?.conditions !== conditions || heldRule.filter !== filter || heldRule.held !== held) {
+        if (
+            heldRule?.conditions !== conditions ||
+            heldRule.filter !== filter ||
+            heldRule.held !== held ||
+            heldRule.all !== heldAll
+        ) {
             heldRule = {
                 conditions,
                 filter,
                 held,
-                rule: combinedRule(
-                    filter,
-                    conditions.filter((each) => each.id !== held),
-                ),
+                all: heldAll,
+                rule: combinedRule(filter, heldAll ? NO_CONDITIONS : conditions.filter((each) => each.id !== held)),
             };
         }
 
@@ -2278,12 +2289,13 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return ghosts !== null && ghosts[target][index] === 1;
         },
 
-        hold(id: string | null): void {
-            if (held === id) {
+        hold(id: string | null, all = false): void {
+            if (held === id && heldAll === (id !== null && all)) {
                 return;
             }
 
             held = id;
+            heldAll = id !== null && all;
             sources.onSlide?.();
         },
     };

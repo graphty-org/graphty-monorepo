@@ -3580,8 +3580,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onBranchesShown: (shown) => {
             publish(watchers, "style:branches-shown-changed", { shown });
         },
-        holdCondition: (id) => {
-            visibility.hold(id);
+        holdCondition: (id, all) => {
+            visibility.hold(id, all);
         },
         disposed: teardown.signal,
     });

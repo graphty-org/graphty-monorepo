@@ -734,6 +734,7 @@ describe("measure steps and runs", () => {
             session.scope.cancelRun(rule, step.id);
         });
         assert.strictEqual(cancelled.branches[0].steps[0].reason?.code, "run-needed");
+        assert.isNumber(cancelled.branches[0].steps[0].reason?.params.estimateMs, "a cancelled run keeps its estimate");
         executions.release?.();
     });
 

@@ -387,6 +387,7 @@ export interface BindingStop {
 
 // @beta
 export interface BranchesView {
+    readonly base?: "visible" | "full";
     readonly hold?: string;
     readonly mark?: string;
     readonly rest?: "faint" | "plain";

@@ -281,6 +281,19 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
     };
 
     /**
+     * Why a cancelled or removed run waits: for Run, with its estimate when there is one, as a run
+     * held back before it began says it.
+     * @param leaf - The measure.
+     * @param params - The bound params.
+     * @param scope - What it reads.
+     * @returns The reason.
+     */
+    const runNeeded = (leaf: MeasureLeaf, params: Readonly<Record<string, unknown>>, scope: Scope): CodedFact => {
+        const estimateMs = sources.estimateMs(leaf.algorithm, params, scope);
+        return { code: "run-needed", params: estimateMs === undefined ? {} : { estimateMs } };
+    };
+
+    /**
      * Start a step's own computation over a scope.
      * @param key - Its cache key.
      * @param leaf - The measure.
@@ -360,7 +373,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
             inputKeys.set(`${definition}#${inputKey(input)}`, key);
         }
         if (cancelled.has(definition) && !consent.has(definition)) {
-            return { gate: { state: "pending", reason: { code: "run-needed", params: {} } } };
+            return { gate: { state: "pending", reason: runNeeded(leaf, params, scope) } };
         }
 
         const entry = local.get(key);
@@ -424,7 +437,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         // Removed in Analyze, or cancelled: never restarted unasked.
         if (known !== undefined && (run === undefined || run.status === "removed" || run.status === "canceled")) {
             if (!consent.has(key)) {
-                return pending({ code: "run-needed", params: {} });
+                return pending(runNeeded(leaf, params, scope));
             }
         }
 

@@ -91,6 +91,12 @@ export interface FileStyleOptions {
      */
     readonly lengths?: "median" | "file" | "spacing";
     /**
+     * Whether label sizes take the factor `lengths` scales every other length by: `"proportional"` (the default)
+     * keeps each label's size against its node as the file draws it; `"file"` keeps the file's label sizes as they
+     * are, whatever the other lengths are scaled by.
+     */
+    readonly labelSizes?: "proportional" | "file";
+    /**
      * How a load that replaces the graph frames it: `"element"` (the default) leaves the project setting `framing`
      * as it is; `"file"` sets it to how the program that draws the file frames it, when graph-io states that (sigma.js
      * fits node centers 30 px in from the canvas's shorter side), and back to the element's own framing when not.
@@ -1737,11 +1743,12 @@ function lengthFactors(input: TranslateInput): LengthFactors {
 
     // Labels in canvas px over fitted positions are that many px per unit of the positions.
     const perLabelUnit = scene / (input.labelPxPerUnit ?? 1);
+    const keptLabels = input.options.labelSizes === "file";
     return {
         node: scene / SCENE_PER_UNIT.node,
         edge: scene / SCENE_PER_UNIT.edge,
-        label: (size) => labelSizePx(perLabelUnit * size),
-        letter: perLabelUnit,
+        label: keptLabels ? null : (size) => labelSizePx(perLabelUnit * size),
+        letter: keptLabels ? null : perLabelUnit,
         scene,
     };
 }

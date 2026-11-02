@@ -13,8 +13,13 @@ import { createSampleElement, importSample, PRE_STEPS, sampleData, SEED } from "
 
 declare module "vitest/browser" {
     interface BrowserCommands {
-        /** Answers each picture a sample names on the internet from its committed copy (vitest.config.ts). */
+        /**
+         * Answers each picture a sample names on the internet from its committed copy, and refuses any other
+         * internet request (vitest.config.ts SAMPLE_PICTURES).
+         */
         serveSamplePictures: () => Promise<void>;
+        /** The internet requests refused since the last call. */
+        takeRefusedSamplePictures: () => Promise<string[]>;
     }
 }
 
@@ -81,7 +86,8 @@ export async function mountSample(
     formatOptions?: Readonly<Record<string, unknown>>,
 ): Promise<{ element: Graphty; sha256: string; command: string }> {
     unmount();
-    // a picture the sample names on the internet is answered from its committed copy: no test reaches the network
+    // a picture the sample names on the internet is answered from its committed copy, and any other internet request
+    // is refused and fails the load below: no fidelity run reaches the network
     await commands.serveSamplePictures();
     const { sha256, data } = await readSample(sample.file);
     blobUrl = URL.createObjectURL(data);
@@ -94,6 +100,14 @@ export async function mountSample(
     // the file's own address on the test server, so a picture it names beside it is found (graph-io/test/<file>)
     const fileUrl = new URL(`../${sample.file}`, new URL(samplesNotes, document.baseURI)).href;
     const loaded = await importSample(element, sample.format, blobUrl, graphName, formatOptions, fileUrl);
+    const refused = await commands.takeRefusedSamplePictures();
+    if (refused.length > 0) {
+        throw new Error(
+            `${sample.id} asked the internet for ${refused.join(", ")}. A fidelity run never reaches the network: ` +
+                "commit the picture under graph-io/test/fidelity/pictures/ and map its URL in SAMPLE_PICTURES " +
+                "(graphty-element/vitest.config.ts), or record the node as a known failure.",
+        );
+    }
     const command = `${loaded}, url = ${sample.file}${sample.file.endsWith(".gz") ? " gunzipped" : ""}; 2D, ${String(size.width)}x${String(size.height)}, layoutConfig.seed ${String(SEED)}, layout preSteps ${String(PRE_STEPS)}, GRAPHTY_BROWSER_GPU=${GPU}`;
     return { element, sha256, command };
 }

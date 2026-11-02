@@ -16,7 +16,18 @@ oracles sit in `oracles/` with the samples' and are judged by the same oracle re
 A sample that names a picture by a URL on the internet is drawn without the network: graphty-element's fidelity
 harness answers the URL from a copy in `pictures/` (`SAMPLE_PICTURES` in `graphty-element/vitest.config.ts`).
 `pictures/cytoscape-logo.png` is the cytoscape.js logo (MIT), which the Cytoscape samples' custom graphics and image
-annotations name.
+annotations name. Any other request to the internet is refused, and the sample fails naming the URL: a picture a
+sample starts to load is committed here (with its license) and mapped, or its node is recorded as a known failure.
+
+Other samples name pictures on the internet that graphty never loads, so none is copied here:
+
+- `cx-ddram`: `idekerlab.ucsd.edu/ddram/ddram_legend.png`, inside the network's HTML `description`, which is not
+  drawn. The legend states no license of its own (the network is CC BY-NC-ND 4.0).
+- `xgmml-networkportal-nsoxphos`: the `baliga.systemsbiology.net` cluster pictures, a plain `imgURL` column no style
+  maps to a picture. They answer 404 today.
+- `gexf-miserables`: two Wikimedia Commons illustrations (public domain), a plain `image` column no style maps.
+- `gexf-specimen-images-charts`: `graphty.app/favicon.png`, an `image` shape's uri, drawn as the node's disc as
+  Gephi draws it (no picture). It answers 404 today.
 
 Where a route matches elements by something other than the file's own id, the comparer maps it:
 

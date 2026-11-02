@@ -38,7 +38,7 @@ import { shardCacheDir } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
-import { mapTileCommands } from "../vitest.map-tiles.mjs";
+import { isTileServer, mapTileCommands } from "../vitest.map-tiles.mjs";
 
 /**
  * Each pre-push gate shard's own Vite dependency cache (tools/test-slots.mjs shardCacheDir()), set
@@ -312,34 +312,86 @@ const heldRequestCommands: {
 /**
  * The pictures the style fidelity samples name by a URL on the internet (a Cytoscape custom graphic or image
  * annotation pointing at the cytoscape.js logo), each answered from a copy committed beside the samples
- * (graph-io/test/fidelity/pictures/), so what graphty draws, and how it scores, never depends on the network.
+ * (graph-io/test/fidelity/pictures/), so what graphty draws, and how it scores, never depends on the network. Any
+ * other internet request a fidelity run makes is refused, and the harness fails the sample naming the URL.
  */
 const SAMPLE_PICTURES: Readonly<Record<string, string>> = {
     "https://raw.githubusercontent.com/cytoscape/cytoscape.js/master/documentation/img/cytoscape-logo.png":
         "../graph-io/test/fidelity/pictures/cytoscape-logo.png",
 };
 
-/** The browser contexts the sample pictures are served in. */
-const servingPictures = new WeakSet<object>();
+/** Hosts the test server answers itself: never the internet. */
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"]);
 
 /**
- * The command the style fidelity harness (test/fidelity/mount.ts) runs before it loads a sample, in the `fidelity`
+ * Whether a request goes to the internet.
+ * @param url - the request's URL.
+ * @returns true for an http(s) URL on a host other than the test server's.
+ */
+const isInternet = (url: URL): boolean =>
+    (url.protocol === "http:" || url.protocol === "https:") && !LOCAL_HOSTS.has(url.hostname);
+
+/** A picture's media type, from its file's extension. */
+const PICTURE_TYPES: Readonly<Record<string, string>> = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+};
+
+/** The browser contexts the sample pictures are served in, and the unmapped internet URLs each refused. */
+const refusedPictures = new WeakMap<object, string[]>();
+
+/**
+ * The commands the style fidelity harness (test/fidelity/mount.ts) runs around loading a sample, in the `fidelity`
  * and `browser` projects' `commands`.
  */
-const samplePictureCommands: { serveSamplePictures: BrowserCommand<[]> } = {
+const samplePictureCommands: {
+    serveSamplePictures: BrowserCommand<[]>;
+    takeRefusedSamplePictures: BrowserCommand<[]>;
+} = {
     /**
-     * Answers every sample picture's URL from its committed copy, once per browser context.
+     * Answers every sample picture's URL from its committed copy, and refuses (and records) any other request to the
+     * internet, once per browser context; a map tile server is left to the map tile fixture (vitest.map-tiles.mjs).
+     * Forgets what was refused before.
      * @param ctx - the browser command context.
      */
     async serveSamplePictures(ctx) {
-        if (servingPictures.has(ctx.context)) {
+        if (refusedPictures.has(ctx.context)) {
+            refusedPictures.set(ctx.context, []);
             return;
         }
-        servingPictures.add(ctx.context);
-        for (const [url, file] of Object.entries(SAMPLE_PICTURES)) {
-            const body = readFileSync(path.resolve(dirname, file));
-            await ctx.context.route(url, (route) => route.fulfill({ status: 200, contentType: "image/png", body }));
-        }
+        refusedPictures.set(ctx.context, []);
+        const pictures = new Map(
+            Object.entries(SAMPLE_PICTURES).map(([url, file]) => [
+                url,
+                {
+                    body: readFileSync(path.resolve(dirname, file)),
+                    contentType: PICTURE_TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream",
+                },
+            ]),
+        );
+        await ctx.context.route(isInternet, (route) => {
+            const url = route.request().url();
+            const picture = pictures.get(url);
+            if (picture !== undefined) {
+                return route.fulfill({ status: 200, ...picture });
+            }
+            if (isTileServer(url)) {
+                return route.fallback();
+            }
+            refusedPictures.get(ctx.context)?.push(url);
+            return route.abort("blockedbyclient");
+        });
+    },
+    /**
+     * The internet requests refused since the last call.
+     * @param ctx - the browser command context.
+     * @returns their URLs.
+     */
+    takeRefusedSamplePictures(ctx) {
+        const urls = refusedPictures.get(ctx.context) ?? [];
+        refusedPictures.set(ctx.context, []);
+        return urls;
     },
 };
 

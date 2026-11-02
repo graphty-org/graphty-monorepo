@@ -1561,7 +1561,13 @@ export function AddCondition({
                                         // scrolling the list sideways.
                                         h="auto"
                                         maw="100%"
-                                        styles={{ label: { whiteSpace: "normal", textAlign: "start" } }}
+                                        styles={{
+                                            label: {
+                                                whiteSpace: "normal",
+                                                overflowWrap: "anywhere",
+                                                textAlign: "start",
+                                            },
+                                        }}
                                         // A press in the list must not take focus from the search first.
                                         onMouseDown={(event) => {
                                             event.preventDefault();

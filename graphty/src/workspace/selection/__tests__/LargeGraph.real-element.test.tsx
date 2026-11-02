@@ -355,15 +355,25 @@ describe("the selection editor on 50,000 nodes", () => {
             assert.isNull(document.querySelector(".sel-ws-head [data-drawing]"));
         });
         const before = document.querySelector(".sel-ws-head .sel-count")?.textContent ?? null;
-        const ticked = await firstFrameAfter(session, () =>
-            userEvent.click(within(values).getAllByRole("checkbox")[0]),
-        );
+        const box = within(values).getAllByRole("checkbox")[0];
+        // The rule is handed to graphty-element (which reads it with `scope.watchSteps`, the work
+        // that blocks the page on a large graph) only once the box has finished filling: a
+        // transition still running then stays frozen at its start, an empty box, until the work ends.
+        const filling: boolean[] = [];
+        const watch = session.scope.watchSteps.bind(session.scope);
+        session.scope.watchSteps = (...args) => {
+            filling.push(box.parentElement?.getAnimations({ subtree: true }).length !== 0);
+            return watch(...args);
+        };
+        const ticked = await firstFrameAfter(session, () => userEvent.click(box));
         assert.isTrue(ticked.drawing, `a tick: Drawing in the first frame (${String(ticked.after)} ms)`);
         assert.strictEqual(ticked.count, before, "a tick: the count is read after that frame");
         await waitFor(() => {
             assert.notStrictEqual(document.querySelector(".sel-ws-head .sel-count")?.textContent ?? null, before);
             assert.isNull(document.querySelector(".sel-ws-head [data-drawing]"));
         });
+        assert.isNotEmpty(filling, "a tick: the rule was handed on");
+        assert.notInclude(filling, true, "a tick: the box had finished filling when the work started");
         const ws = document.querySelector<HTMLElement>(".sel-ws");
         if (ws === null) {
             throw new Error("the workspace is open");
@@ -377,5 +387,42 @@ describe("the selection editor on 50,000 nodes", () => {
             assert.isNull(document.querySelector(".sel-ws"));
             assert.isFalse(session.styles.showingBranches);
         });
+    });
+
+    it("opening Which nodes right after adding a layer walks no style agreement before its first frame", async () => {
+        const session = await openGenerated();
+        await session.layout.set("random");
+        // Every answer graphty-element gives; one it has not given before is a walk over 50,000 nodes.
+        const given = new Set<unknown>();
+        let walks = 0;
+        const read = session.styles.agreement.bind(session.styles);
+        session.styles.agreement = (...args) => {
+            const answer = read(...args);
+            if (!given.has(answer)) {
+                given.add(answer);
+                walks++;
+            }
+            return answer;
+        };
+        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await screen.findByRole("textbox", { name: "Layer name" });
+        const tab = await screen.findByTestId("style-tab");
+        const edit = await within(tab).findByRole("button", { name: /^Edit Which nodes/ });
+        await session.styles.settled();
+        // The walks done from the press to the first frame drawn after it.
+        let pressed = -1;
+        let framed = -1;
+        const press = (): void => {
+            pressed = walks;
+            requestAnimationFrame(() => {
+                framed = walks;
+            });
+        };
+        window.addEventListener("pointerdown", press, { capture: true, once: true });
+        const opened = await firstFrameAfter(session, () => userEvent.click(edit));
+        assert.isTrue(opened.drawing, `Drawing in the first frame (${String(opened.after)} ms)`);
+        assert.isAtLeast(pressed, 0, "the press was seen");
+        assert.strictEqual(framed - pressed, 0, "the press re-read the stack's agreement it already had");
     });
 });

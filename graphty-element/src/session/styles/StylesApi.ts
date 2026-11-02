@@ -15,7 +15,10 @@
  * consumer gets wrong once, so it is stated here, on `list`, on `move` and in the design.
  *
  * READING IS SYNCHRONOUS, WRITING IS A COMMAND. `list`, `get`, `validate`, `legend`, `explain`,
- * `agreement` and `toDocument` answer from what the session already holds and cost nothing. `add`, `update`,
+ * `agreement` and `toDocument` answer from what the session already holds, without waiting.
+ * `explain` walks the stack for one element; `agreement` walks it for every element of its scope,
+ * which on a large graph takes a noticeable time, and keeps its answer over the graph or the
+ * selection until the stack, the data, a run or the selection changes. `add`, `update`,
  * `remove`, `move`, `removeBySource`, `encode`, `highlight`, `applyTemplate` and
  * `resolveToStatic` each dispatch a command (`style.patch`, `style.encode`, `style.template`),
  * which is one undoable step in the session's history, and each returns a `Run` that can be
@@ -900,6 +903,8 @@ export interface StylesApi {
      * over the stack, so it says about each element what an explanation of that element says.
      * Two elements agree on a channel only when they carry the same value AND the same layer
      * decided it. The answer is counts, never lists of ids, and it costs one pass over the scope.
+     * Over `"graph"` or `"selection"` the answer is kept: asked again before the stack, the data, a
+     * run, the selection or an element's state changes, it is returned without another pass.
      * @param scope - The elements to read: the selection, a kept set, a list of node ids, or any
      *     other scope the session resolves.
      * @param channel - One channel to restrict the answer to. Absent, every channel something
@@ -1605,6 +1610,13 @@ export interface StylesSources {
      * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
      */
     readonly inputRevision?: () => number;
+    /**
+     * A number that moves whenever an element enters or leaves a state a `{ match: "state" }`
+     * selector reads (selected, hovered, ghosted, pinned) while a layer reads one. Absent, the
+     * readings of the stack are never kept between calls, because they could not tell when a
+     * state layer's elements moved.
+     */
+    readonly stateRevision?: () => number;
     /**
      * Aborted when the session holding the stack is disposed. Every edit still pending is
      * cancelled with it, so a caller awaiting one gets an `AbortError` rather than waiting for
@@ -2539,6 +2551,50 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns True when the element's own base layers paint nothing.
      */
     const editableBase = (): boolean => dispatcher.state.config.get("editableBase") === true;
+
+    /**
+     * Everything a reading of the whole stack (`agreement`, `counts`) depends on besides its own
+     * arguments: the stack, a branches view, the repaints that landed, the data and runs, the
+     * element states, and the settings the walk reads. Equal tokens give equal answers.
+     * @returns The token, or null when the session cannot say when element states move.
+     */
+    const readingToken = (): readonly unknown[] | null =>
+        sources.stateRevision === undefined
+            ? null
+            : [
+                  current(),
+                  branchesShown,
+                  viewPending,
+                  styleRevision,
+                  sources.inputRevision?.() ?? 0,
+                  sources.stateRevision(),
+                  editableBase(),
+                  sources.liftDrawn?.() ?? false,
+              ];
+    /** The readings answered under one token, by question; dropped when the token moves. */
+    let readings: { token: readonly unknown[]; answers: Map<string, unknown> } | null = null;
+    /**
+     * A reading of the stack, kept while nothing it reads changes: on 50,000 nodes one agreement
+     * walk takes most of a second, and a panel re-renders it on every keystroke around it.
+     * @param key - The question, spelled uniquely.
+     * @param read - Reads the answer.
+     * @returns The kept answer, or a fresh one.
+     */
+    const kept = <T>(key: string, read: () => T): T => {
+        const token = readingToken();
+        if (token === null) {
+            return read();
+        }
+        if (readings?.token.length !== token.length || readings.token.some((part, at) => !Object.is(part, token[at]))) {
+            readings = { token, answers: new Map() };
+        }
+        if (readings.answers.has(key)) {
+            return readings.answers.get(key) as T;
+        }
+        const answer = read();
+        readings.answers.set(key, answer);
+        return answer;
+    };
 
     /** One disabled stand-in per element base layer, so a repaint sees the same object each time. */
     const baseStandIns = new WeakMap<CompiledLayer, CompiledLayer>();
@@ -4802,6 +4858,50 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         });
     }
 
+    /**
+     * What `agreement` answers, read fresh; see {@link StylesApi.agreement}.
+     * @param scope - The elements to read.
+     * @param channel - One channel, or every channel.
+     * @param options - The row to read beneath, and the row to read over.
+     * @returns The answer.
+     */
+    const agreementOf = (scope: Scope, channel: Channel | undefined, options: AgreementOptions): StyleAgreement => {
+        const { below, over } = options;
+        // Read through the stack's own layers, never a branches view's: which layer decides a
+        // value does not change while a selection is being picked.
+        const read = below === undefined ? countSources() : { ...explainSources, stack: () => stackBelow(below) };
+        if (over === undefined) {
+            return styleAgreement(elementsOf(scope), read, channel);
+        }
+
+        // The row's elements: those of the scope some layer of the row matches, hidden or not.
+        const parts = layersOfRows([over]).flatMap((layer) => byId().get(layer.id) ?? []);
+        const scoped = elementsOf(scope);
+        const nodes = [...scoped.nodes];
+        const edges = [...scoped.edges];
+        const within = (target: "node" | "edge", indices: readonly number[]): number[] =>
+            indices.filter((index) =>
+                parts.some(
+                    ({ layer, selector }) =>
+                        layer.target === target && (selector.test === null || selector.test(index)),
+                ),
+            );
+        const matched = { nodes: within("node", nodes), edges: within("edge", edges) };
+        if (matched.nodes.length + matched.edges.length > 0) {
+            return { ...styleAgreement(matched, read, channel), readOver: "row" };
+        }
+
+        // It matches nothing: read the row's kinds through the layers that match every element.
+        const kinds = new Set(parts.map(({ layer }) => layer.target));
+        const floor = { ...read, stack: () => read.stack().filter((entry) => entry.selector.test === null) };
+        const every = {
+            nodes: kinds.has("node") ? nodes : [],
+            edges: kinds.has("edge") ? edges : [],
+        };
+
+        return { ...styleAgreement(every, floor, channel), readOver: "everyElement" };
+    };
+
     const api: SessionStylesApi = {
         list(): readonly Layer[] {
             return listLayers();
@@ -5421,40 +5521,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         agreement(scope: Scope, channel?: Channel, options: AgreementOptions = {}): StyleAgreement {
+            // The graph and the selection resolve from what the token covers; any other scope is
+            // read fresh.
+            if (scope !== "graph" && scope !== "selection") {
+                return agreementOf(scope, channel, options);
+            }
             const { below, over } = options;
-            // Read through the stack's own layers, never a branches view's: which layer decides a
-            // value does not change while a selection is being picked.
-            const read = below === undefined ? countSources() : { ...explainSources, stack: () => stackBelow(below) };
-            if (over === undefined) {
-                return styleAgreement(elementsOf(scope), read, channel);
-            }
-
-            // The row's elements: those of the scope some layer of the row matches, hidden or not.
-            const parts = layersOfRows([over]).flatMap((layer) => byId().get(layer.id) ?? []);
-            const scoped = elementsOf(scope);
-            const nodes = [...scoped.nodes];
-            const edges = [...scoped.edges];
-            const within = (target: "node" | "edge", indices: readonly number[]): number[] =>
-                indices.filter((index) =>
-                    parts.some(
-                        ({ layer, selector }) =>
-                            layer.target === target && (selector.test === null || selector.test(index)),
-                    ),
-                );
-            const matched = { nodes: within("node", nodes), edges: within("edge", edges) };
-            if (matched.nodes.length + matched.edges.length > 0) {
-                return { ...styleAgreement(matched, read, channel), readOver: "row" };
-            }
-
-            // It matches nothing: read the row's kinds through the layers that match every element.
-            const kinds = new Set(parts.map(({ layer }) => layer.target));
-            const floor = { ...read, stack: () => read.stack().filter((entry) => entry.selector.test === null) };
-            const every = {
-                nodes: kinds.has("node") ? nodes : [],
-                edges: kinds.has("edge") ? edges : [],
-            };
-
-            return { ...styleAgreement(every, floor, channel), readOver: "everyElement" };
+            return kept(JSON.stringify(["agreement", scope, channel ?? null, below ?? null, over ?? null]), () =>
+                agreementOf(scope, channel, options),
+            );
         },
 
         preview(

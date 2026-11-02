@@ -171,14 +171,20 @@ const ROW = "[data-row]";
 const SPEAK_AFTER_MS = 500;
 
 /**
- * Runs work once the browser has painted the frame being drawn now. An edit on a large graph blocks
+ * Runs work once the browser has painted the frame being drawn now, and the transitions that input
+ * started (a checkbox filling, its tick growing) have finished. An edit on a large graph blocks
  * the page while graphty-element evaluates it, so the frame of the click or key that starts it
- * says "Drawing" first, and the work starts after that frame is on screen.
+ * says "Drawing" first, and a control the input changed is drawn as it now is: a transition still
+ * running when the work starts stays frozen where it began, an empty box, until the work ends.
  * @param work - the work.
  */
 function afterPaint(work: () => void): void {
     requestAnimationFrame(() => {
-        setTimeout(work, 0);
+        // Transitions only: they end by themselves, where an animation (a spinner) may never.
+        const moving = document.getAnimations().filter((each) => each instanceof CSSTransition);
+        void Promise.all(moving.map((each) => each.finished.catch(() => undefined))).then(() => {
+            setTimeout(work, 0);
+        });
     });
 }
 

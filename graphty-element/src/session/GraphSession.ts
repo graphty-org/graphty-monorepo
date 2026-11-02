@@ -2549,6 +2549,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let stack: SessionStylesApi | null = null;
     // Set once the stack exists; until then no layer reads the pointer.
     let repaintHover = (): void => undefined;
+    // Moves whenever the selection, or an element's state a `{match:"state"}` layer reads, moves:
+    // the style stack keeps its readings until it does.
+    let stateRevision = 0;
     // The query engine, late-bound for the same reason: it reads the style layers' selector
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
@@ -3317,6 +3320,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         records,
         onChange: (delta) => {
+            stateRevision++;
             notifier.notify({ kind: "selection" });
             repaintSelected();
             publish(watchers, "selection:changed", delta);
@@ -3382,6 +3386,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const readsState = (): boolean =>
         stack?.compiled().some((entry) => entry.layer.selector.match === "state") ?? false;
     const repaintStates = (dirty: ElementIndices): void => {
+        if (dirty.node.length > 0 || dirty.edge.length > 0) {
+            stateRevision++;
+        }
         if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0) || !readsState()) {
             return;
         }
@@ -3579,6 +3586,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         inputRevision: () => inputs.tick.value,
+        stateRevision: () => stateRevision,
         onChange: (change) => {
             // Only the scopes the stack names stay live.
             layerScopes.keep(layerScopesOf(stack));

@@ -682,7 +682,7 @@ export function splitLines(include) {
 }
 
 /** The fields a leg of the slim test-matrix leaves out: only the Test jobs run a leg, from test-matrix-1/2. */
-const SLIM_DROPS = ["test-command", "files", "ids", "local-paths"];
+const SLIM_DROPS = new Set(["test-command", "files", "ids", "local-paths"]);
 
 /**
  * The test-matrix line: the whole plan, or, when splitLines cut it in two, a slim index of its legs that still
@@ -694,7 +694,7 @@ export function matrixLine(include) {
     const listed =
         include.length <= MATRIX_CAP
             ? include
-            : include.map((leg) => Object.fromEntries(Object.entries(leg).filter(([k]) => !SLIM_DROPS.includes(k))));
+            : include.map((leg) => Object.fromEntries(Object.entries(leg).filter(([k]) => !SLIM_DROPS.has(k))));
     return `test-matrix=${JSON.stringify({ include: listed })}`;
 }
 

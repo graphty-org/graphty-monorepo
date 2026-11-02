@@ -2055,6 +2055,12 @@ function NewStepPane({
                         }}
                         onClick={() => {
                             setOpen(true);
+                            // Forgotten once a close the press caused has had its turn (one frame).
+                            requestAnimationFrame(() => {
+                                requestAnimationFrame(() => {
+                                    pressedField.current = false;
+                                });
+                            });
                         }}
                         onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) => {
                             if (printable(event)) {

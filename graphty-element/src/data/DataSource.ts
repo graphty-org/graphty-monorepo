@@ -543,8 +543,6 @@ export abstract class DataSource {
                     controller.abort();
                 }, timeout);
 
-                // The fetch stays inline, not in an awaited helper, so an attempt settles on the same
-                // tick it always did.
                 try {
                     const response = await fetch(url, { signal: controller.signal });
                     clearTimeout(timeoutId);

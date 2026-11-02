@@ -368,7 +368,7 @@ describe("the rest source", () => {
 
     it("restSource refuses a bad mapping when it is made", () => {
         expect(() => restSource({ ...PEOPLE, version: 2 as 1 }, { id: "bad" })).toThrow(
-            expect.objectContaining({ issue: expect.objectContaining({ code: "E_SOURCE_INVALID" }) }),
+            expect.objectContaining({ issue: expect.objectContaining({ code: "E_SOURCE_INVALID" }) as unknown }),
         );
     });
 

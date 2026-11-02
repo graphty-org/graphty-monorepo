@@ -262,7 +262,8 @@ class Reader {
     private async userQuery(query: string, cursor: SourceCursor | null): Promise<Page> {
         const { params, ctx } = this;
         const parameters = params.parameters ?? {};
-        const asked = cursor?.rows ?? ctx.limits.maxNodes;
+        // the cursor is the caller's, so its rows can be anything
+        const asked: unknown = cursor?.rows ?? ctx.limits.maxNodes;
         const rows =
             asked === undefined || asked === null
                 ? null

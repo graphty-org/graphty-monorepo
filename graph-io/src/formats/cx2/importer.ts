@@ -106,6 +106,7 @@ import {
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
+import { jsonText } from "../../common/text.js";
 import { weightFromValue } from "../../common/weights.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
@@ -508,7 +509,7 @@ function shown(value: unknown): string {
     }
     let text: string;
     try {
-        text = JSON.stringify(value) ?? String(value);
+        text = jsonText(value) ?? String(value);
     } catch {
         text = String(value);
     }

@@ -3212,7 +3212,9 @@ function resolveGephiPreview(options: GexfImportOptions | undefined): Readonly<R
             found,
         });
     };
-    if (typeof preview !== "object" || preview === null || Array.isArray(preview)) {
+    // a JavaScript caller can pass any value
+    const given: unknown = preview;
+    if (typeof given !== "object" || given === null || Array.isArray(given)) {
         return bad(preview);
     }
     const out: Record<string, string> = {};

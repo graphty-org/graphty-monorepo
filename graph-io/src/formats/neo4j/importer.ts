@@ -78,6 +78,7 @@ import {
 import { agree, plural, withArticle } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { parseTemporal } from "../../common/temporal.js";
+import { itemAt } from "../../common/text.js";
 import { parseWeightText } from "../../common/weights.js";
 import {
     type CommonImportOptions,
@@ -290,7 +291,7 @@ const ORIGINAL_ID_DECL: ColumnDecl = {
     origin: { format: NEO4J, id: ":ID", title: null, type: null, namespace: null },
 };
 
-const ARRAY_DELIMITERS: Readonly<Record<string, ListSyntax>> = { ";": "semicolon", ",": "comma", "|": "pipe" };
+const ARRAY_DELIMITERS: Readonly<Partial<Record<string, ListSyntax>>> = { ";": "semicolon", ",": "comma", "|": "pipe" };
 
 /** The resolved format-specific options. */
 interface ResolvedNeo4jOptions {
@@ -1606,7 +1607,7 @@ function qualify(id: NodeId, space: string | null): NodeId {
 }
 
 /** The integer range of the narrow neo4j-admin types (Java byte and short). */
-const INTEGER_RANGES: Readonly<Record<string, readonly [number, number]>> = {
+const INTEGER_RANGES: Readonly<Partial<Record<string, readonly [number, number]>>> = {
     byte: [-128, 127],
     short: [-32768, 32767],
 };
@@ -1626,10 +1627,11 @@ function isDuration(text: string): boolean {
         return true;
     }
     const m = /^[+-]?P([^T]*)(?:T(.*))?$/i.exec(text);
-    if (m === null || m[2] === "" || (m[1] === "" && m[2] === undefined)) {
+    const time = m === null ? undefined : itemAt(m, 2);
+    if (m === null || time === "" || (m[1] === "" && time === undefined)) {
         return false;
     }
-    return unitsInOrder(m[1], "YMWD") && unitsInOrder(m[2] ?? "", "HMS");
+    return unitsInOrder(m[1], "YMWD") && unitsInOrder(time ?? "", "HMS");
 }
 
 /** The date-time form of a Cypher duration, `P2012-02-02T14:37:21.545`. */

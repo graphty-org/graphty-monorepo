@@ -20,6 +20,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { itemAt } from "../../common/text.js";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonBoolean, canonNumber, canonOpacity } from "../../styles/canon/number.js";
@@ -102,7 +103,7 @@ export const SIGMA_DEFAULT_SETTINGS: SigmaSettings = { renderEdgeLabels: false, 
 /** The writable values of one row. */
 type Row = Record<string, StyleValue | null>;
 /** Per-property values of one target, by element index. */
-type Values = Record<string, (StyleValue | null)[]>;
+type Values = Partial<Record<string, (StyleValue | null)[]>>;
 
 const TARGETS: readonly StyleTarget[] = ["node", "edge"];
 
@@ -1364,7 +1365,9 @@ function visMarkup(
  * vis-network's own options of each font modifier (vis-network 9.1.9 `NodesHandler` defaults, `font.mono`); an option
  * a modifier does not set is the label's own (Label.propagateFonts).
  */
-const VIS_MOD_DEFAULTS: Readonly<Record<string, { mod: string; face?: string; size?: number; vadjust?: number }>> = {
+const VIS_MOD_DEFAULTS: Readonly<
+    Partial<Record<string, { mod: string; face?: string; size?: number; vadjust?: number }>>
+> = {
     bold: { mod: "bold" },
     ital: { mod: "italic" },
     boldital: { mod: "bold italic" },
@@ -1390,7 +1393,8 @@ function visRuns(runs: readonly { text: string; mod: string }[], layer: VisLayer
         vadjust: typeof layer.fontVadjust === "number" && Number.isFinite(layer.fontVadjust) ? layer.fontVadjust : 0,
     };
     const mods = isJsonObject(layer.fontMods) ? layer.fontMods : {};
-    let differs = false;
+    // set inside the map callback, which TypeScript does not see change it
+    let differs = false as boolean;
     const out = runs.map((r) => {
         const run: Record<string, unknown> = { text: r.text };
         const base = VIS_MOD_DEFAULTS[r.mod];
@@ -1409,7 +1413,7 @@ function visRuns(runs: readonly { text: string; mod: string }[], layer: VisLayer
         if (modText.includes("italic")) {
             run.italic = true;
         }
-        if (face !== null && face !== own.face) {
+        if (face !== own.face) {
             run.font = face;
         }
         if (size !== own.size) {
@@ -1506,7 +1510,8 @@ function visModOptions(raw: unknown): Record<string, unknown> {
     if (typeof raw === "string") {
         const m = /^\s*(\d+(?:\.\d+)?)(?:px)?\s+(\S+)(?:\s+(\S+))?/.exec(raw.slice(0, 256));
         if (m !== null) {
-            return { size: Number(m[1]), face: m[2], ...(m[3] === undefined ? {} : { color: m[3] }) };
+            const color = itemAt(m, 3);
+            return { size: Number(m[1]), face: m[2], ...(color === undefined ? {} : { color }) };
         }
     }
     return {};
@@ -2396,7 +2401,8 @@ function visEdgeInherit(
         vals.gradientColors = `${String(borderOf(s))} ${String(borderOf(t))}`;
     }
     if (!inherits) {
-        if (vals.color === undefined) {
+        const given: Partial<Row> = vals;
+        if (given.color === undefined) {
             vals.color = VIS_EDGE_COLOR;
         }
         return null;
@@ -3550,7 +3556,7 @@ function addUntrimmedText(input: ExporterStyleInput, approximated: StyleApproxim
  */
 function visGroups(snapshot: GraphSnapshot): Record<string, Record<string, never>> | null {
     const column = snapshot.nodes.get("group");
-    if (column === null || column === undefined) {
+    if (column === null) {
         return null;
     }
     const groups = new Map<string, Record<string, never>>();

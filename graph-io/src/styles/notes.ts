@@ -3,6 +3,7 @@
  * samples, a total count and the element indexes the note covers.
  */
 
+import { jsonText } from "../common/text.js";
 import type { StyleNote, StyleNoteCode, StyleTarget } from "./types.js";
 
 /** At most this many samples per note. */
@@ -157,7 +158,7 @@ function sampleText(value: unknown): string {
         text = value;
     } else {
         try {
-            text = JSON.stringify(value) ?? typeof value;
+            text = jsonText(value) ?? typeof value;
         } catch {
             text = typeof value;
         }

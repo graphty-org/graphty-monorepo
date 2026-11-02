@@ -58,6 +58,7 @@ import {
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
+import { itemAt } from "../../common/text.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
     endsWithContinuation,
@@ -459,8 +460,9 @@ interface ResolvedOboOptions {
  * @returns the resolved options; E_UNSUPPORTED for a value outside its set
  */
 function resolveOboOptions(options: OboImportOptions | undefined): ResolvedOboOptions {
-    const obsolete = options?.obsolete ?? "keep";
-    const typedefs = options?.typedefs ?? "metadata";
+    // a JavaScript caller can pass any value
+    const obsolete: unknown = options?.obsolete ?? "keep";
+    const typedefs: unknown = options?.typedefs ?? "metadata";
     if (obsolete !== "keep" && obsolete !== "drop") {
         throw unsupported("obsolete", obsolete, ["keep", "drop"]);
     }
@@ -1270,7 +1272,7 @@ class OboReader {
             );
             return { text: tokens[0].text, xrefs: [] };
         }
-        const list = tokens[1];
+        const list = itemAt(tokens, 1);
         if (list?.kind !== "list") {
             this.tally("parse-error", OBO_ISSUE.SYNTAX, "the xref list is missing", tag, line);
             return { text: tokens[0].text, xrefs: [] };
@@ -1727,7 +1729,8 @@ class OboReader {
                 1,
             );
         }
-        const date = this.header.date?.[0];
+        const byTag: Partial<Record<string, string[]>> = this.header;
+        const date = byTag.date?.[0];
         if (
             date !== undefined &&
             /^\d{2}:\d{2}:\d{4}\s+\d{2}:\d{2}$/.test(date.trim()) &&
@@ -1750,7 +1753,8 @@ class OboReader {
      */
     meta(): GraphMetaPatch {
         const first = (tag: string): string | null => {
-            const values = this.header[tag];
+            const byTag: Partial<Record<string, string[]>> = this.header;
+            const values = byTag[tag];
             return values === undefined ? null : unescapeObo(values[0]).trim();
         };
         return {

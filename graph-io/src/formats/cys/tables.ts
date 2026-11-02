@@ -9,6 +9,7 @@
 import { type ResolvedImportOptions } from "../../common/options.js";
 import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
+import { itemAt } from "../../common/text.js";
 import { ImportError } from "../../types.js";
 import { CsvRecordReader } from "../csv/records.js";
 import { type AttRec } from "../xgmml/document.js";
@@ -16,7 +17,7 @@ import { CYS_ISSUE, FORMAT, STYLE_COLUMN_PREFIX } from "./constants.js";
 import { entryLabel } from "./session.js";
 
 /** The Cytoscape type names of the Java classes a CyCSV column can hold. */
-const JAVA_TYPES: Readonly<Record<string, string>> = {
+const JAVA_TYPES: Readonly<Partial<Record<string, string>>> = {
     "java.lang.String": "String",
     "java.lang.Long": "Long",
     "java.lang.Integer": "Integer",
@@ -448,7 +449,7 @@ export async function virtualColumnsOf(
 function joinValues(target: CyTable, targetKey: number, source: VirtualValues): Map<string, string> {
     const values = new Map<string, string>();
     for (const [key, cells] of target.rows) {
-        const join = targetKey <= 0 ? key : cells[targetKey];
+        const join = targetKey <= 0 ? key : itemAt(cells, targetKey);
         const value = join === undefined ? undefined : source.values.get(join);
         if (value !== undefined) {
             values.set(key, value);
@@ -510,7 +511,7 @@ async function resolve(
  * @returns the join value, or undefined for a missing cell
  */
 function joinOf(joinIndex: number, key: string, cells: readonly string[]): string | undefined {
-    return joinIndex === 0 ? key : cells[joinIndex];
+    return joinIndex === 0 ? key : itemAt(cells, joinIndex);
 }
 
 /**
@@ -524,8 +525,9 @@ function ownValues(source: CyTable, joinIndex: number, own: number): Map<string,
     const values = new Map<string, string>();
     for (const [key, cells] of source.rows) {
         const join = joinOf(joinIndex, key, cells);
-        if (join !== undefined && cells[own] !== undefined) {
-            values.set(join, cells[own]);
+        const value = itemAt(cells, own);
+        if (join !== undefined && value !== undefined) {
+            values.set(join, value);
         }
     }
     return values;
@@ -548,7 +550,7 @@ function rekeyChained(
 ): Map<string, string> {
     const values = new Map<string, string>();
     for (const [key, cells] of source.rows) {
-        const lookup = chainedJoin <= 0 ? key : cells[chainedJoin];
+        const lookup = chainedJoin <= 0 ? key : itemAt(cells, chainedJoin);
         const value = lookup === undefined ? undefined : inner.get(lookup);
         const join = joinOf(joinIndex, key, cells);
         if (value !== undefined && join !== undefined) {

@@ -8,6 +8,7 @@
 import { type GraphSink } from "@graphty/graph-format";
 
 import { throwIfAborted } from "../../common/input.js";
+import { itemAt } from "../../common/text.js";
 import { ImportError, type ImportReport } from "../../types.js";
 import { sleep } from "../context.js";
 import { originOf } from "../credentials.js";
@@ -679,7 +680,7 @@ export function restMethods<P>(
  * @returns the mapping, checked
  */
 function checkedMapping(mapping: unknown, ctx: SourceContext): RestMapping {
-    const [issue] = checkRestMapping(mapping);
+    const issue = itemAt(checkRestMapping(mapping), 0);
     if (issue !== undefined) {
         failOn(ctx.report, "E_SOURCE_PARAM", `the mapping is invalid at ${issue.at}`, {
             name: "mapping",
@@ -757,7 +758,7 @@ function apiKeyOf(auth: RestMapping["auth"]): Pick<SourceDescriptor, "apiKey"> {
  * @category Network sources
  */
 export function restSource(mapping: RestMapping, info: RestSourceInfo): GraphSource<Readonly<Record<string, unknown>>> {
-    const [issue] = checkRestMapping(mapping);
+    const issue = itemAt(checkRestMapping(mapping), 0);
     if (issue !== undefined) {
         failAlone("E_SOURCE_INVALID", `the mapping of ${info.id} is invalid at ${issue.at}`, {
             id: info.id,

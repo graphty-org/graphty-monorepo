@@ -98,6 +98,40 @@ describe("RichTextLabel opacity and offsets", () => {
         assert.closeTo(shifted.y - plain.y, -height / 2, height * 0.05);
     });
 
+    test("a shift of its words pins the words' own edge, not the margins round them (Pajek's text-anchor start)", () => {
+        const placed = (extra: object): { left: number; right: number; top: number; bottom: number } => {
+            const label = RichTextLabel.createLabel(scene, {
+                text: "hi",
+                attachTo: new Vector3(0, 0, 0),
+                attachPosition: "center",
+                attachOffset: 0,
+                ...extra,
+            });
+            const mesh = label.labelMesh;
+            assert.isNotNull(mesh);
+            const box = mesh.getBoundingInfo().boundingBox;
+            const [w, h] = [box.maximum.x - box.minimum.x, box.maximum.y - box.minimum.y];
+            const words = label.textBounds;
+            const [x0, y1] = [mesh.position.x - w / 2, mesh.position.y + h / 2];
+            // y is up in the scene, the words' fractions run down the plane
+            return {
+                left: x0 + words.left * w,
+                right: x0 + words.right * w,
+                top: y1 - words.top * h,
+                bottom: y1 - words.bottom * h,
+            };
+        };
+        const right = placed({ shiftX: 0.5, shiftY: 0.5, shiftOf: "words" });
+        assert.closeTo(right.left, 0, 1e-6);
+        assert.closeTo(right.top, 0, 1e-6);
+        const left = placed({ shiftX: -0.5, shiftY: -0.5, shiftOf: "words" });
+        assert.closeTo(left.right, 0, 1e-6);
+        assert.closeTo(left.bottom, 0, 1e-6);
+        // unset, the box (margins and all) is what moves: the words start a margin further on
+        const boxed = placed({ shiftX: 0.5 });
+        assert.isAbove(boxed.left, 1e-3);
+    });
+
     test("a turned label's shift turns with it, so it turns about the point the shift pins", () => {
         const at = (extra: object): Vector3 => {
             const mesh = RichTextLabel.createLabel(scene, {

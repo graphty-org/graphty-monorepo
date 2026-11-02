@@ -614,6 +614,14 @@ export function StepPane({
     // A step that waits on a run shows no count: the number would be what comes into it.
     const count = reading === undefined || reading.waiting ? undefined : reading.count;
     const missing = missingOf(step.rule);
+    // By position keeps every element tied at the cut (spec 5): when it keeps more than asked, the
+    // pane says so beside the number box.
+    // Only a group's first step: there its count is exactly what it keeps.
+    const asked = first && card?.type === "number" && card.match === "top" ? card.top : undefined;
+    const tieWords =
+        asked !== undefined && count !== undefined && count > asked
+            ? `${formatNumber(asked)} asked, ${formatNumber(count)} kept: tied`
+            : null;
     // "Include not measured" is offered only when the value has elements with no value (or is on).
     const valuePath = card !== null && "field" in card ? card.field.path : undefined;
     const givenMissing = card !== null && "field" in card ? card.field.missing : undefined;
@@ -761,6 +769,11 @@ export function StepPane({
                                     onChange={onCard}
                                     variant="step"
                                 />
+                            )}
+                            {tieWords !== null && (
+                                <Text size="sm" c="dimmed" data-ties="">
+                                    {tieWords}
+                                </Text>
                             )}
                         </>
                     )}

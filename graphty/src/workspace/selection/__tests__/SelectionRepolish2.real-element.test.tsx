@@ -439,7 +439,9 @@ describe("keys and boxes in the panes", () => {
     it("leaving the text box by Tab commits its text", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Named", { match: "everything" });
-        await userEvent.click(screen.getByRole("treeitem", { name: "Condition..." }));
+        // A layer of every node opens on its new step's pane: its value field opens the picker.
+        await userEvent.click(screen.getByRole("button", { name: /^Edit Which nodes/ }));
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("name{Enter}");
         await waitFor(() => {
@@ -479,7 +481,19 @@ describe("keys and boxes in the panes", () => {
         const label = within(verbs).getByText("Keep");
         const rowText = row("deg").querySelector<HTMLElement>(".sel-value");
         assert.equal(getComputedStyle(label).fontSize, rowText === null ? "" : getComputedStyle(rowText).fontSize);
-        const value = screen.getByRole("button", { name: /^Value: / });
-        assert.isAtLeast(value.getBoundingClientRect().height, 24);
+        // The value field is the compact Select's trigger: as tall as the pane's Select beside it.
+        await userEvent.click(row("deg").querySelector(".sel-value") ?? row("deg"));
+        const pane = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>('[data-step-pane="deg"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        const value = within(pane).getByRole("button", { name: /^Value: / });
+        const select = pane.querySelector<HTMLElement>(".mantine-Select-input");
+        assert.isNotNull(select, "the pane's By value Select");
+        assert.strictEqual(
+            Math.round(value.getBoundingClientRect().height),
+            Math.round(select?.getBoundingClientRect().height ?? 0),
+        );
     });
 });

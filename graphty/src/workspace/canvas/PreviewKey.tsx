@@ -40,16 +40,18 @@ export function PreviewKey({
             setDrawing(false);
             return undefined;
         }
-        const settle = (): void => {
-            setDrawing(false);
+        // Read on each animation frame until the element says the picture is final.
+        let frame = 0;
+        const look = (): void => {
+            const stable = element.isFrameStable;
+            setDrawing(!stable);
+            if (!stable) {
+                frame = requestAnimationFrame(look);
+            }
         };
-        const frame = requestAnimationFrame(() => {
-            setDrawing(!element.isFrameStable);
-        });
-        element.addEventListener("graphty-graph-frame-stable", settle);
+        frame = requestAnimationFrame(look);
         return () => {
             cancelAnimationFrame(frame);
-            element.removeEventListener("graphty-graph-frame-stable", settle);
         };
     }, [element, shown]);
     if (shown === null || reading === null) {

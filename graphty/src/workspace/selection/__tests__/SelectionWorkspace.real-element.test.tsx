@@ -401,7 +401,8 @@ describe("scoping by links inside the editor (check 42, fix 1)", () => {
         const expected = coreNumbers(session, (weight) => weight >= 2).filter((core) => core >= 3).length;
         await userEvent.click(editButton());
         const ws = await opened();
-        await userEvent.click(within(ws).getByRole("button", { name: "Condition..." }));
+        // A selection with no step opens on its new step's pane: its value field opens the picker.
+        await userEvent.click(await within(ws).findByRole("button", { name: "Value" }));
         // "k-core" finds Core number by the catalog's own words.
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("k-core");
@@ -442,7 +443,9 @@ describe("scoping by links inside the editor (check 42, fix 1)", () => {
             );
         });
         const row = ws.querySelector<HTMLElement>(".sel-ws-outline .sel-step-row");
-        assert.include(row?.textContent ?? "", "Links: shared_chapters min 2");
+        // The row draws the bare word Links; its name and tooltip say the condition.
+        assert.include(row?.textContent ?? "", "Links");
+        assert.include(row?.getAttribute("aria-label") ?? "", "Links: shared_chapters min 2");
         assert.lengthOf(session.visibility.conditions, 0, "no Data filter was touched");
         assert.strictEqual(session.visibility.nodes.size, 77);
         // The scoped computation is the step's own: the only Core number run in Analyze is the one
@@ -452,7 +455,7 @@ describe("scoping by links inside the editor (check 42, fix 1)", () => {
 });
 
 describe("starting over (check 44, fix 3)", () => {
-    it("Clear empties the selection to its Condition row in one press; Mod+Z restores it exactly", async () => {
+    it("Clear starts the selection over at All nodes in one press; Mod+Z restores it exactly", async () => {
         const { session } = await openSample();
         const layer = await openLayer(session, "Clear", TWO_GROUPS);
         const before = JSON.stringify(unionOf(session, layer.id));
@@ -462,7 +465,7 @@ describe("starting over (check 44, fix 3)", () => {
         await waitFor(() => {
             assert.isTrue(unionOf(session, layer.id)?.branches.every((branch) => branch.steps.length === 0));
         });
-        await within(ws).findByRole("treeitem", { name: "Condition..." });
+        await within(ws).findByRole("treeitem", { name: "All nodes" });
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
             assert.strictEqual(JSON.stringify(unionOf(session, layer.id)), before);
@@ -496,7 +499,7 @@ describe("plain words (check 45, fix 5)", () => {
         await openLayer(session, "Words");
         await userEvent.click(editButton());
         const ws = await opened();
-        await userEvent.click(within(ws).getByRole("button", { name: "Condition..." }));
+        await userEvent.click(await within(ws).findByRole("button", { name: "Value" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         for (const word of ["links", "connections"]) {
             await userEvent.keyboard(word);

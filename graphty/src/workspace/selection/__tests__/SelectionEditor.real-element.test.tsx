@@ -25,17 +25,31 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /**
- * The "Condition..." control: an empty selection's row, else the selected row's pane button.
+ * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
+ * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
+ * new step's Value field, or the selected row's pane button Condition... (spec 3.0, 3.2).
  * @param scope - where to look.
- * @returns the control.
  */
-function conditionControl(scope?: HTMLElement): HTMLElement {
-    // In the workspace while it is open (spec 3.0), else the sidebar's Condition row, which opens it.
+async function startCondition(scope?: HTMLElement): Promise<void> {
     const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
-    return (
-        within(where).queryByRole("treeitem", { name: "Condition..." }) ??
-        within(where).getByRole("button", { name: "Condition..." })
-    );
+    const row = within(where).queryByRole("treeitem", { name: "Condition..." });
+    if (row !== null) {
+        await userEvent.click(row);
+        return;
+    }
+    if (document.querySelector(".sel-ws") === null) {
+        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+    }
+    const control = await waitFor(() => {
+        const ws = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(ws, "the workspace is open");
+        const found =
+            within(ws ?? document.body).queryByRole("button", { name: "Value" }) ??
+            within(ws ?? document.body).queryByRole("button", { name: "Condition..." });
+        assert.isNotNull(found, "a new step's Value field or Condition...");
+        return found;
+    });
+    await userEvent.click(control);
 }
 
 /**
@@ -175,7 +189,7 @@ describe("the selection editor in a style layer", () => {
         // A layer of every node reads as what it paints: All nodes, and only the verbs that narrow.
         assert.isNotNull(screen.queryByRole("treeitem", { name: "Which nodes, 77 of 77 nodes" }));
         assert.isNotNull(screen.queryByRole("treeitem", { name: "All nodes" }));
-        await userEvent.click(conditionControl());
+        await startCondition();
         const search = await screen.findByRole("combobox", { name: "Find attributes, results" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, search, "the value picker opens with its search focused");
@@ -205,15 +219,17 @@ describe("the selection editor in a style layer", () => {
         assert.isAbove(expected, 0);
     });
 
-    it("Condition... then Escape leaves no step, and focus goes back to the Condition row", async () => {
+    it("the new step's picker then Escape leaves no step, and focus goes to Condition...", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Nothing", { match: "everything" });
-        await userEvent.click(conditionControl());
+        await startCondition();
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("combobox", { name: "Find attributes, results" }));
-            assert.isNotNull(document.activeElement?.closest(".sel-add-row"), "focus is on the Add row");
+            // A selection with no step opened on its new step's pane; taken back, the pane's
+            // Condition... has focus (spec 3.2).
+            assert.isNotNull(document.activeElement?.closest("[data-add]"), "focus is on Condition...");
         });
         assert.deepEqual(stepRows(), []);
         assert.deepEqual(session.styles.get(layer.id)?.selector, { match: "everything" });
@@ -232,7 +248,7 @@ describe("the selection editor in a style layer", () => {
             within(screen.getByRole("radiogroup", { name: "Verb" }))
                 .getAllByRole("radio")
                 .map((each) => each.getAttribute("value"));
-        await userEvent.click(conditionControl());
+        await startCondition();
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Isolated{Enter}");
         await waitFor(() => {
@@ -244,7 +260,7 @@ describe("the selection editor in a style layer", () => {
             assert.isNull(screen.queryByRole("radiogroup", { name: "Verb" }));
             assert.isNotNull(document.querySelector("[data-step-pane]"));
         });
-        await userEvent.click(conditionControl());
+        await startCondition();
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Degree{Enter}");
         await waitFor(() => {
@@ -334,7 +350,7 @@ describe("the selection editor in a style layer", () => {
     it("a Relative to step takes its reference from the picker, as one token", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Near Valjean", { match: "everything" });
-        await userEvent.click(conditionControl());
+        await startCondition();
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Within hops");
         await userEvent.keyboard("{Enter}");
@@ -416,7 +432,7 @@ describe("the selection editor in a filter card", () => {
             assert.equal((rule as UnionLeaf).branches[0]?.steps[0]?.op, "except");
         });
 
-        await userEvent.click(conditionControl(ws));
+        await startCondition(ws);
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Within hops");
         await userEvent.keyboard("{Enter}");

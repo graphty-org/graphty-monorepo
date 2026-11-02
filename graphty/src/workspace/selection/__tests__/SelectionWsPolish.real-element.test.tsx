@@ -148,6 +148,10 @@ describe("the key, the marked group and the counts", () => {
         await waitFor(() => {
             assert.include(key.textContent ?? "", "1, under A");
         });
+        // "Drawing" is said only until the element's picture is final.
+        await waitFor(() => {
+            assert.isNull(key.querySelector("[data-drawing]"), "the key stops saying Drawing");
+        });
         await userEvent.click(within(ws).getByRole("treeitem", { name: /^B, / }));
         await waitFor(() => {
             assert.strictEqual(session.styles.shownBranches?.mark, "b", "the selected group is marked");
@@ -343,6 +347,36 @@ describe("the style tree after an undo", () => {
             const now = session.styles.counts(layer.id).matched;
             assert.notStrictEqual(now, before, "the undo changed the layer's count");
             assert.include(rowSays(), `${String(now)} node`);
+        });
+    });
+});
+
+describe("By position with a tie", () => {
+    it("says how many it was asked for and how many it keeps", async () => {
+        const { session } = await openSample();
+        await openLayer(session, "Top", {
+            kind: "union",
+            side: "nodes",
+            within: "visible",
+            branches: [
+                {
+                    id: "t",
+                    start: "all",
+                    steps: [
+                        {
+                            id: "t1",
+                            op: "keep",
+                            rule: { kind: "threshold", path: "graphty.degree", top: 6, ties: "all" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const ws = await edit();
+        await userEvent.click(within(ws).getByRole("treeitem", { name: /^Keep, Degree/ }));
+        // Fantine and Enjolras share degree 15 at the cut: 6 asked, 7 kept.
+        await waitFor(() => {
+            assert.match(ws.querySelector("[data-ties]")?.textContent ?? "", /^6 asked, 7 kept: tied$/);
         });
     });
 });

@@ -692,7 +692,7 @@ and 39 to 47 on the mock):
 43. _The checklist stays put._ With the pointer on the 3rd row of a 5,000-value checklist, ticking
     it and the 4th and 5th leaves every row's position unchanged (pixel compare of row tops); the
     order changes only after the search is edited or the list reopens.
-44. _Starting over._ Clear empties the selection to its Condition row in one press; Mod+Z restores
+44. _Starting over._ Clear returns the selection to All nodes with no step in one press; Mod+Z restores
     it exactly. With groups A and B, deleting A leaves no row selected, the row under the pointer
     still B's group row, and a second Delete deletes nothing.
 45. _Words._ Degree's tooltip says "links at a node"; typing "links" or "connections" finds Degree,

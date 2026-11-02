@@ -20,17 +20,31 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /**
- * The "Condition..." control: an empty selection's row, else the selected row's pane button.
+ * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
+ * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
+ * new step's Value field, or the selected row's pane button Condition... (spec 3.0, 3.2).
  * @param scope - where to look.
- * @returns the control.
  */
-function conditionControl(scope?: HTMLElement): HTMLElement {
-    // In the selection workspace while it is open, else the sidebar's Condition row, which opens it.
+async function startCondition(scope?: HTMLElement): Promise<void> {
     const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
-    return (
-        within(where).queryByRole("treeitem", { name: "Condition..." }) ??
-        within(where).getByRole("button", { name: "Condition..." })
-    );
+    const row = within(where).queryByRole("treeitem", { name: "Condition..." });
+    if (row !== null) {
+        await userEvent.click(row);
+        return;
+    }
+    if (document.querySelector(".sel-ws") === null) {
+        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+    }
+    const control = await waitFor(() => {
+        const ws = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(ws, "the workspace is open");
+        const found =
+            within(ws ?? document.body).queryByRole("button", { name: "Value" }) ??
+            within(ws ?? document.body).queryByRole("button", { name: "Condition..." });
+        assert.isNotNull(found, "a new step's Value field or Condition...");
+        return found;
+    });
+    await userEvent.click(control);
 }
 
 /** Install dates for the small graph's nodes, in node order: three before 2005. */
@@ -132,7 +146,7 @@ describe("the date condition card", () => {
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Old, / }));
-        await userEvent.click(await waitFor(() => conditionControl()));
+        await startCondition();
         const option = await screen.findByRole("option", { name: /^installed(,|$)/ });
         assert.isNotNull(option.querySelector("svg.lucide-calendar"), "listed with the calendar glyph");
         await userEvent.click(option);

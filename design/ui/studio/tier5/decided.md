@@ -693,7 +693,7 @@ Two-way doors decided while fixing the workspace polish 1 reviews (`ws-polish-1-
 - **Words**: no Live heading; "Link value..."; "Text" placeholder; "Include not measured" only
   when the value has elements with no value; a reference row shows the value that matched;
   "Keep (Intersect)" as the radio's name; "Table of matches" as the header toggle's name.
-- **Edge "not styled" after a node condition** (owner 1, minor 17) was traced: nothing writes the
+- **Edge "not styled" after a node condition** (the owner review's subtitle finding) was traced: nothing writes the
   edge side. The layer's kind follows `builtParts` (graph-place/rows.ts), which counts a half with
   a condition as built, an earlier decision; it is kept, and the owner may ask for kinds by what a
   layer writes only.
@@ -701,6 +701,7 @@ Two-way doors decided while fixing the workspace polish 1 reviews (`ws-polish-1-
   25 s freeze at 50,000 nodes and label propagation's 70 to 120 s run (both need a profile at
   that size); a community step re-run on a filtered graph changing its groups, and a ticked group
   saved as a raw id; a step run's undo entry and its stale duplicate run; a Links-scoped step's
-  own values in the strip; the By position tie chip (no tie value from the element); pointing at
+  own values in the strip; the tie value in By position's line (the app says "6 asked, 7 kept:
+  tied" on a group's first step from the step's count; "at 15" needs the element); pointing at
   a sidebar row at rest marks nothing (spec 3.0 no longer promises it); the Data place's attribute
   "+" stays on the count rows.

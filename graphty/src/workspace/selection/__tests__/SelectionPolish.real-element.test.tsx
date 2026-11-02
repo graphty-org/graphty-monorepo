@@ -23,17 +23,31 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /**
- * The "Condition..." control: an empty selection's row, else the selected row's pane button.
+ * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
+ * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
+ * new step's Value field, or the selected row's pane button Condition... (spec 3.0, 3.2).
  * @param scope - where to look.
- * @returns the control.
  */
-function conditionControl(scope?: HTMLElement): HTMLElement {
-    // In the workspace while it is open (spec 3.0), else the sidebar's Condition row, which opens it.
+async function startCondition(scope?: HTMLElement): Promise<void> {
     const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
-    return (
-        within(where).queryByRole("treeitem", { name: "Condition..." }) ??
-        within(where).getByRole("button", { name: "Condition..." })
-    );
+    const row = within(where).queryByRole("treeitem", { name: "Condition..." });
+    if (row !== null) {
+        await userEvent.click(row);
+        return;
+    }
+    if (document.querySelector(".sel-ws") === null) {
+        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+    }
+    const control = await waitFor(() => {
+        const ws = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(ws, "the workspace is open");
+        const found =
+            within(ws ?? document.body).queryByRole("button", { name: "Value" }) ??
+            within(ws ?? document.body).queryByRole("button", { name: "Condition..." });
+        assert.isNotNull(found, "a new step's Value field or Condition...");
+        return found;
+    });
+    await userEvent.click(control);
 }
 
 /** Five people: a yes-or-no column, and a data column named rank. */
@@ -177,7 +191,7 @@ describe("the value picker and the cards a value opens", () => {
     it("a text card puts focus in its text box, so typing fills it", async () => {
         const session = await lesMis();
         await openLayer(session, "Named", { match: "everything" });
-        await userEvent.click(conditionControl());
+        await startCondition();
         await pickValue("name");
         await waitFor(() => {
             const active = document.activeElement;
@@ -190,7 +204,7 @@ describe("the value picker and the cards a value opens", () => {
     it("Largest component applies as picked: its pane shows no test", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Largest", { match: "everything" });
-        await userEvent.click(conditionControl());
+        await startCondition();
         await pickValue("Largest component");
         await waitFor(() => {
             assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[0]?.rule.kind, "member");
@@ -205,7 +219,7 @@ describe("the value picker and the cards a value opens", () => {
     it("an edge step reading a node value can be set to either end", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Ends", { match: "everything" }, "edge");
-        await userEvent.click(conditionControl());
+        await startCondition();
         await pickValue("name");
         await userEvent.click(await screen.findByRole("button", { name: /^Advanced/ }));
         const ends = await screen.findByRole("radiogroup", { name: "Edge ends" });
@@ -273,7 +287,7 @@ describe("the editor's verbs, groups and words", () => {
         });
         // The Add row is drawn under the group a row of which is selected.
         await userEvent.click(document.querySelector('[data-row="deg"] .sel-value') ?? document.body);
-        await userEvent.click(await waitFor(() => conditionControl()));
+        await startCondition();
         await pickValue("Isolated");
         await waitFor(() => {
             assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[1]?.op, "add", "a group of none adds");
@@ -418,12 +432,12 @@ describe("polish round 3", () => {
     it("a So far step with no test yet shows its two boxes once its own values land", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Between", { match: "everything" });
-        await userEvent.click(conditionControl());
+        await startCondition();
         await pickValue("Degree");
         await screen.findByRole("textbox", { name: "Degree from, number" });
         // A second step, so So far is offered: it reads the first step's members. The first is
         // selected, so its group's Add row is drawn.
-        await userEvent.click(conditionControl());
+        await startCondition();
         await pickValue("Betweenness");
         const second = await waitFor(() => {
             const steps = unionOf(session, layer.id)?.branches[0]?.steps ?? [];
@@ -455,7 +469,7 @@ describe("polish round 3", () => {
     it("picking a value with no test keeps the preview on in the style host", async () => {
         const session = await lesMis();
         await openLayer(session, "Lone", { match: "everything" });
-        await userEvent.click(conditionControl());
+        await startCondition();
         await pickValue("Isolated");
         await waitFor(() => {
             assert.isNotNull(document.activeElement?.closest(".sel-step-row"), "focus is on its row");

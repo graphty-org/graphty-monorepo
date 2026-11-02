@@ -28,15 +28,31 @@ import { cardFields } from "../style/cards";
 import { Workspace } from "../Workspace";
 
 /**
- * The "Condition..." control: an empty selection's row, else the selected row's pane button.
+ * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
+ * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
+ * new step's Value field, or the selected row's pane button Condition... (spec 3.0, 3.2).
  * @param scope - where to look.
- * @returns the control.
  */
-function conditionControl(scope: HTMLElement = document.body): HTMLElement {
-    return (
-        within(scope).queryByRole("treeitem", { name: "Condition..." }) ??
-        within(scope).getByRole("button", { name: "Condition..." })
-    );
+async function startCondition(scope?: HTMLElement): Promise<void> {
+    const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
+    const row = within(where).queryByRole("treeitem", { name: "Condition..." });
+    if (row !== null) {
+        await userEvent.click(row);
+        return;
+    }
+    if (document.querySelector(".sel-ws") === null) {
+        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+    }
+    const control = await waitFor(() => {
+        const ws = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(ws, "the workspace is open");
+        const found =
+            within(ws ?? document.body).queryByRole("button", { name: "Value" }) ??
+            within(ws ?? document.body).queryByRole("button", { name: "Condition..." });
+        assert.isNotNull(found, "a new step's Value field or Condition...");
+        return found;
+    });
+    await userEvent.click(control);
 }
 
 declare module "vitest/browser" {
@@ -228,7 +244,7 @@ describe("focus after a command that moves the reader", () => {
         await openRow("Groups");
         const group = cardFields(session, "node").find((field) => field.path.endsWith(".group"));
         const name = group?.name ?? "";
-        await userEvent.click(await waitFor(() => conditionControl()));
+        await startCondition();
         await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
         const values = await screen.findByRole("group", { name: new RegExp(`values$`) });
         const [first] = within(values).getAllByRole<HTMLInputElement>("checkbox");

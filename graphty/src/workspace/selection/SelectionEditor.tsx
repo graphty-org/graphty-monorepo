@@ -17,6 +17,7 @@ import {
     FieldCaret,
     focusWithRing,
     InlineRename,
+    PopoutManager,
     SegmentedControl,
     TargetTooltip,
     ToggleIconButton,
@@ -2140,21 +2141,24 @@ function GroupPane({
                 )}
             </Group>
             {multi && color !== undefined && (
-                <CompactColorInput
-                    variant="field"
-                    aria-label={`Color of ${name}`}
-                    valueText={colorName(color.slice(0, 7))}
-                    width="100%"
-                    color={color.slice(0, 7)}
-                    defaultColor={color.slice(0, 7)}
-                    showOpacity={false}
-                    showReset={false}
-                    onChangeEnd={(next) => {
-                        if (next !== undefined && next.toUpperCase() !== color.slice(0, 7).toUpperCase()) {
-                            onColor(next.toUpperCase());
-                        }
-                    }}
-                />
+                // Its own popout manager: a filter card's editor sits under none (the Data place).
+                <PopoutManager>
+                    <CompactColorInput
+                        variant="field"
+                        aria-label={`Color of ${name}`}
+                        valueText={colorName(color.slice(0, 7))}
+                        width="100%"
+                        color={color.slice(0, 7)}
+                        defaultColor={color.slice(0, 7)}
+                        showOpacity={false}
+                        showReset={false}
+                        onChangeEnd={(next) => {
+                            if (next !== undefined && next.toUpperCase() !== color.slice(0, 7).toUpperCase()) {
+                                onColor(next.toUpperCase());
+                            }
+                        }}
+                    />
+                </PopoutManager>
             )}
             <UnstyledButton
                 className="sel-advanced"

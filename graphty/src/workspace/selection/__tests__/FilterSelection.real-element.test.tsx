@@ -35,17 +35,31 @@ async function ws(): Promise<HTMLElement> {
 }
 
 /**
- * The "Condition..." control: an empty selection's row, else the selected row's pane button.
+ * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
+ * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
+ * new step's Value field, or the selected row's pane button Condition... (spec 3.0, 3.2).
  * @param scope - where to look.
- * @returns the control.
  */
-function conditionControl(scope?: HTMLElement): HTMLElement {
-    // In the workspace while it is open (spec 3.0), else the sidebar's Condition row, which opens it.
+async function startCondition(scope?: HTMLElement): Promise<void> {
     const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
-    return (
-        within(where).queryByRole("treeitem", { name: "Condition..." }) ??
-        within(where).getByRole("button", { name: "Condition..." })
-    );
+    const row = within(where).queryByRole("treeitem", { name: "Condition..." });
+    if (row !== null) {
+        await userEvent.click(row);
+        return;
+    }
+    if (document.querySelector(".sel-ws") === null) {
+        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+    }
+    const control = await waitFor(() => {
+        const ws = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(ws, "the workspace is open");
+        const found =
+            within(ws ?? document.body).queryByRole("button", { name: "Value" }) ??
+            within(ws ?? document.body).queryByRole("button", { name: "Condition..." });
+        assert.isNotNull(found, "a new step's Value field or Condition...");
+        return found;
+    });
+    await userEvent.click(control);
 }
 
 /**
@@ -179,7 +193,7 @@ describe("the import filter's cards as selections", () => {
         await userEvent.click(within(card).getByRole("treeitem", { name: /^New filter, / }));
         // The segment's radio is visually hidden: a reader clicks its label.
         await userEvent.click(await within(await ws()).findByText("Edges"));
-        await userEvent.click(await waitFor(async () => conditionControl(await ws())));
+        await startCondition(await ws());
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Self-loops");
         await userEvent.keyboard("{Enter}");

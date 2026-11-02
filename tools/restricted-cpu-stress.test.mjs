@@ -233,6 +233,10 @@ describe("the workflow", () => {
         assert.doesNotMatch(code, /visual-review|capture/);
     });
 
+    it("pulls the Git LFS files each shard reads, as ci.yml's test job does (#5443)", () => {
+        assert.match(code, /if: matrix\.lfs\n\s+run: git lfs pull --include "\$\{\{ matrix\.lfs \}\}"/);
+    });
+
     it("files nothing from a dispatch on a branch", () => {
         assert.match(code, /DRY_RUN: \$\{\{ inputs\.dry-run \|\| github\.ref != 'refs\/heads\/master' \}\}/);
     });

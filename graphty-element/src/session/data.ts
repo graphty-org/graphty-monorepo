@@ -741,6 +741,8 @@ export class SessionData implements SessionDataApi {
     private readonly neighborLists: RevisionCache<NeighborList>;
     /** The attribute walk, for the current data revision. */
     private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
+    /** Whether an edge column of a name exists, for the current data revision. */
+    private readonly edgeColumns: RevisionCache<boolean>;
     /** The descriptors with their declarations and roles laid over, and what they were laid from. */
     private attributeOverlay: {
         readonly described: readonly AttributeDescriptor[];
@@ -828,6 +830,7 @@ export class SessionData implements SessionDataApi {
         this.orders = new RevisionCache(() => pages.revision());
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
         this.attributeCache = new RevisionCache(() => pages.dataRevision());
+        this.edgeColumns = new RevisionCache(() => pages.dataRevision());
     }
 
     /**
@@ -3629,8 +3632,19 @@ export class SessionData implements SessionDataApi {
      */
     loadedWeight(): LoadedWeight | null {
         const { edgeWeightPath, edgeWeightMeaning } = this.readConfig().knownFields;
+        // Whether the designated column is an edge column: the first edge holding it answers, with
+        // no description of every record (a run asks on every start).
         const attribute = designatedWeight(edgeWeightPath, this.lastImport()?.weights.attribute ?? null, (name) =>
-            this.attributes().some((c) => c.kind === "edge" && c.name === name),
+            this.edgeColumns.get(name, () => {
+                const { edgeCount } = this.current();
+                for (let index = 0; index < edgeCount; index++) {
+                    const record = this.records?.edgeAttributes(index);
+                    if (record !== undefined && Object.hasOwn(record, name)) {
+                        return true;
+                    }
+                }
+                return false;
+            }),
         );
         return attribute === null ? null : Object.freeze({ attribute, meaning: edgeWeightMeaning });
     }

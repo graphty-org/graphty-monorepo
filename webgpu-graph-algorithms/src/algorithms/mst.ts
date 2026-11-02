@@ -37,6 +37,7 @@ import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
 import { plan1d, planGridStride } from "../kernel/dispatch.js";
 import { FILL_PARAMS, kernelSpec, MST_PARAMS, WCC_PARAMS } from "../kernels.js";
+import { viewBinding } from "../primitives/core-shape.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
@@ -186,8 +187,7 @@ export async function minimumSpanningTree(
     // core() is what records (or re-records, after a release) the snapshot in the residency; only the edge list is read
     ctx.residency.core(s, ["rowPtr"]);
     const edges = ctx.residency.view(s, "edgeList");
-    // the edge list carries a weights binding only for a weighted snapshot
-    const edgeWeight = "weights" in edges.bindings ? edges.bindings.weights : null;
+    const edgeWeight = viewBinding(edges, "weights");
     const scope = algorithmScope(ctx, ALGORITHM, RING_SLOTS);
     try {
         const wg = ctx.workgroupSize;

@@ -49,6 +49,11 @@ reaches its tests a full machine only queues it (a `waits` line, which stops the
 every job without a pull request left slots empty most of the day (2026-11-01: 2 jobs ran while CI sat idle). Start
 at least one when nothing waits and CI is not backed up.
 
+**Before saying nothing is left to take**, count every open `bug` by why it is not taken (critical, `in-progress`,
+`needs-decision` or blocked, ci-budget, owner-only paths such as `visual-review/trusted/` or compact-mantine, the
+held major, free) and put the counts in the round's last line. Every free bug must have a reason or a job. On
+2026-11-01 a round reported an empty queue while 33 open bugs were unclaimed and six of them were takeable.
+
 **Between rounds.** When one of this session's subagents reports (its pull request opened, or its job released),
 its slot is free: run steps 1 to 4 again at once rather than waiting for the next scheduled round. The `/loop`
 interval is only the fallback.
@@ -60,8 +65,15 @@ Query by priority, `high`, then `medium`, then `low`, and stop at the first that
 ```bash
 gh api graphql -f query='query($q: String!) { search(type: ISSUE, first: 30, query: $q) { nodes { ... on Issue {
   number title createdAt body labels(first: 10) { nodes { name } } } } } }' \
-  -f q='repo:graphty-org/graphty-monorepo is:open is:issue label:priority:high -label:priority:critical -label:in-progress -label:needs-decision -label:needs-info -label:blocked -label:hold -label:tracking -label:release-status -label:dead-links -label:research -label:enhancement -label:documentation sort:created-asc'
+  -f q='repo:graphty-org/graphty-monorepo is:open is:issue label:priority:high -label:priority:critical -label:in-progress -label:needs-decision -label:needs-info -label:blocked -label:hold -label:tracking -label:release-status -label:dead-links -label:research -label:enhancement sort:created-asc'
 ```
+
+**Load-sensitive failures come first, whatever their label.** An issue titled `Load-sensitive test:` or saying a test
+fails under restricted CPU is critical by the owner's rule (2026-10-22): pick it before any high issue. Never lower its
+label; its job reproduces it under `taskset -c 0`, names the mechanism and never fixes it with a longer wait. On
+2026-11-01 four such issues labelled low (#5438 to #5441) waited all day behind medium refactors.
+
+A `documentation` issue is work only when it is also a `bug` (the query keeps documentation bugs; skip the rest).
 
 Within a priority: `bug` before `infrastructure`, `effort:low` before `medium` before `high`, oldest first. Never lower
 a priority label. An issue the owner explicitly ordered (in this session, or a label he applied) comes first;

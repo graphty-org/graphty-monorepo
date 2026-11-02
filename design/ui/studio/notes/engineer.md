@@ -20,6 +20,23 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 Trimmed 2026-10-30 (the file passed 25 KB); the full earlier Top of mind (the Select-card count
 fix 71230abff1, the unknown-end mark, inspector node names, the weight re-run, Select within the
 picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360dd57f:design/ui/studio/notes/engineer.md`.
+Trimmed again 2026-11-02: the 2026-10-30 study tool facts (scripted bars, the gate's walk
+folders, the wording check, the matcher's role names, data panel selectors, `REAL_WARM_POOL=0`,
+one background script per re-walk): `git show 42601df9bf:design/ui/studio/notes/engineer.md`.
+
+- (2026-11-02) The reference search ("Within N hops of", `nodePage({ matching: { names: true } })`)
+  found nobody by name on a graph FILE with no label column: every graph-file load sets
+  `knownFields.nodeLabelPath` to `label` "whether or not this file has one" (`loadLabel` in
+  `draft.ts`, `data.import` in `data.ts`), so `names` read only a column no node holds, and only
+  ids matched. Fix in graphty-element `query.ts` `textTest`: when none of the `only` paths is a
+  column the graph answers (bare or `data.` spelling), read every searchable value, as a graph
+  with no label column already did. Test `graphty-element/test/session/page-matching-file-names.test.ts`
+  (import and draft routes; fails on baac78342b). Re-walked on a fresh build
+  (`design/ui/studio/tmp/r1-dry1-reference-names/`): "James", "Carter", "James Carter" each list
+  v02 James Carter first, Layer 1 reads 16; gauges "Cedar" lists Cedar Bend first (7); 50,000
+  nodes list "8 of 50,000" / "8 of 1,076". Still open, same root: on such a graph a node's NAME
+  (`nameOf`, the inspector, the Which row "Within 2 hops of v02") reads the absent `label` and
+  falls back to the id; the clean fix is for a load to set `label` only when the file holds it.
 
 - (2026-11-02) Tier 5: every style count reads over the graph the filter leaves. graphty-element
   added `StyleCounts.visible { matched, of }` and legend `scope.visible` (additive; `matched` and
@@ -76,35 +93,6 @@ picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360d
   drawing. Fix order if a fix pass comes: header row overflow, source name truncating last, the
   export column count, the one glyph map.
 
-- (2026-10-30) The study tool now checks tier 4's scripted bars itself. `real.mjs --end` writes
-  `data.json` (`dataState` in `measure.mjs`: counts, sources with element counts, a `sourcesOf`
-  recount and the row chips, load mappings, known fields, columns, filter cards with their chips),
-  and every download adds a `downloads.jsonl` line with the network at that moment
-  (`networkCounts`). `endstate.mjs` is bar 4's end-state check over them; `steps.mjs` is bar 7;
-  `bars.mjs --tier 4 --scheme dark|light` is bar 5's axe walk of the nine data screens (BAR5_TIER4)
-  and writes `vocabulary.json` / `spoken.json` for `wording.mjs`. Each has a `--self-test` or test
-  (`tier4.test.mjs`) that fails on a planted case and fails on zero items.
-- (2026-10-30) The gate (`--gate rounds/round-N`) now reads pilot walks from the dry run's passes
-  `rN`, `rNd1`, ... as well as the round's own folder, and a walk is the success walk only when
-  named success / path / pointer (anything else not keys/keyboard is a detour). Tier 4 needs
-  `bars` (dark) and `bars-light` (light), each `--tier 4` with every bar 5 screen at both sizes and
-  a non-empty `vocabulary.json`. On 2026-10-30 the gate on round 1 still refuses T66A (no success
-  walk on 79ed770292); the bars runs exist and fail only on the axe finding below.
-- (2026-10-30) The wording check on 79ed770292 lists 65 shared words and 1 phrase across 22
-  prompts (most from the start screen's marketing text and its links); that is the researcher's
-  "Kept on purpose" work, not a tool fault.
-- (2026-10-30) The matcher's refusal of a name shared by different kinds now offers
-  `"role=<kind>:<name>"` (with `#n` only within one kind): it used to offer "Samples#1", which it
-  then refused. `--prove` checks both, and a planted page that blocks drag events proves "the
-  drop was not delivered" is printed.
-- (2026-10-30) Data panel facts the tool relies on: source rows are `.dp-source[data-source=key]`
-  with chips in `.dp-source-chips`; filter cards are `.dp-filters > *` in condition order; both
-  draw compact-mantine's `EntityChip` (`.cm-entity-chip[data-kind] .cm-entity-text`). Filter
-  steps (`visibility.steps`) are the conditions seen another way, not another filter.
-- (2026-10-30) A re-walk after a rebuild runs with `REAL_WARM_POOL=0`: a warm browser of the same
-  build stamp keeps the app it loaded before the rebuild.
-- (2026-10-30) Queue every route of a re-walk in one background script (one browser) and judge each
-  as it lands; replays started by hand get stranded by a session end.
 - (2026-10-29) OPEN DEFECT in the date card (`DateCard` in `style/WhichPicker.tsx`): changing its
   match (Before -> After) clears the box but the filter keeps the old bounds. Fix: a date card with
   no bound writes no condition; test by real input switching the match.
@@ -302,6 +290,10 @@ date)` lost its kind and column arguments: a text or number time field shows its
   the legend's `selects`, so the key and the rows cannot drift. Did not work: a real-element test
   whose `waitFor` callback awaited `findByRole` sat with no output for 13 minutes; a synchronous
   `getByRole` inside `waitFor` is the shape the other tests use.
+
+- (2026-11-02) Worked: reproducing a reading bug by loading the study's own fixture shape through
+  `data.import` and `data.prepare(...).load()` in a happy-dom test; a test that builds nodes with
+  `addNodes` skips the load's label default and passed while the app failed.
 
 ## Sources
 

@@ -149,6 +149,8 @@ export interface QueryEngine {
      * @param mode - How to match it.
      * @param target - Nodes or edges.
      * @param only - The value paths to look in besides the ids, in place of every searchable path.
+     *   When none of them names a column the graph holds (a graph file's `label` on a file with no
+     *   label column), every searchable path is read, as without them.
      * @returns The test.
      * @throws A `GraphtyError` coded `E_BAD_COMMAND` for a regular expression that does not parse.
      */
@@ -216,7 +218,12 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         only?: readonly Path[],
     ): ((index: number) => boolean) => {
         const graph = parts.snapshot();
-        const searched = only ?? (target === "node" ? parts.searchPaths() : (parts.edgeSearchPaths?.() ?? []));
+        // A label path is a bare column name ("label") or a value path ("data.label").
+        const answers = (path: Path): boolean =>
+            parts.answers === undefined || parts.answers(path, target) || parts.answers(`data.${path}`, target);
+        const held = only?.length === 0 || only?.some(answers) === true;
+        const every = target === "node" ? parts.searchPaths : (): readonly Path[] => parts.edgeSearchPaths?.() ?? [];
+        const searched = held && only !== undefined ? only : every();
         let accepts: (value: string) => boolean;
         let paths: readonly Path[] = searched;
         let readsId = true;

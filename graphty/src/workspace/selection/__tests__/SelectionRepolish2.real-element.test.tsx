@@ -148,6 +148,14 @@ describe("the outline holds only recipe rows", () => {
         const session = await lesMis();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
         await userEvent.click(row("title").querySelector(".sel-title") ?? row("title"));
+        // The workspace opens on a step's pane (ws-polish 2); the title row selects the title pane.
+        await userEvent.click(
+            await waitFor(() => {
+                const found = document.querySelector<HTMLElement>('.sel-ws-outline [data-row="title"]');
+                assert.isNotNull(found);
+                return found ?? document.body;
+            }),
+        );
         const pane = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-pane-box");
             assert.isNotNull(found);
@@ -222,7 +230,7 @@ describe("a condition is said once", () => {
         });
     });
 
-    it("a selected row drops its state word, which its pane already shows", async () => {
+    it("a selected row keeps its state word, as the sidebar's does (ws-polish 2)", async () => {
         const session = await lesMis();
         await openLayer(session, "Untested", {
             match: "rule",
@@ -244,7 +252,8 @@ describe("a condition is said once", () => {
         });
         await userEvent.click(row("deg").querySelector(".sel-value") ?? row("deg"));
         await waitFor(() => {
-            assert.isNull(row("deg").querySelector(".sel-state"));
+            assert.strictEqual(row("deg").getAttribute("aria-selected"), "true");
+            assert.equal(row("deg").querySelector(".sel-state")?.textContent, "No test");
         });
     });
 });
@@ -416,11 +425,12 @@ describe("moving between filter cards", () => {
         await userEvent.click(title.querySelector(".sel-title") ?? title);
         await screen.findByRole("region", { name: "Degree 6 to 10 -- Filters" });
         const lower = await within(list).findByRole("group", { name: /^Isolated/ });
-        const count = lower.querySelector<HTMLElement>(".dp-filter-name .sel-count");
-        if (count === null) {
-            throw new Error("the lower card draws its count");
+        // While a card's workspace is open the other cards drop their counts (ws-polish 2): its name.
+        const name = lower.querySelector<HTMLElement>(".dp-filter-title");
+        if (name === null) {
+            throw new Error("the lower card draws its name");
         }
-        await userEvent.click(count);
+        await userEvent.click(name);
         await within(lower).findByRole("treeitem", { name: /^Isolated, / });
         await screen.findByRole("region", { name: "Isolated -- Filters" });
     });
@@ -477,8 +487,8 @@ describe("keys and boxes in the panes", () => {
             },
         });
         await userEvent.click(row("iso").querySelector(".sel-value") ?? row("iso"));
-        const verbs = await screen.findByRole("radiogroup", { name: "Verb" });
-        const label = within(verbs).getByText("Keep");
+        // A narrowing step's one verb control is its Except switch (ws-polish 2).
+        const label = (await screen.findByRole("switch", { name: /^Except/ })).closest("label") ?? document.body;
         const rowText = row("deg").querySelector<HTMLElement>(".sel-value");
         assert.equal(getComputedStyle(label).fontSize, rowText === null ? "" : getComputedStyle(rowText).fontSize);
         // The value field is the compact Select's trigger: as tall as the pane's Select beside it.

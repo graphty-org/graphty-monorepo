@@ -304,12 +304,12 @@ describe("the Data place's sidebar on the real element", () => {
                 name: new RegExp(`^auth-log\\.csv, ${String(first.counts.nodes)} nodes$`),
             }),
         );
+        // A card is a selection (tier 5): All, then a Keep step on the source.
         await waitFor(() => {
-            assert.deepEqual(session.visibility.conditions[0]?.rule, {
-                kind: "source",
-                sources: [first.key],
-                side: "nodes",
-            });
+            const rule = session.visibility.conditions[0]?.rule;
+            assert.strictEqual(rule?.kind, "union");
+            const step = rule?.kind === "union" ? rule.branches[0]?.steps[0]?.rule : undefined;
+            assert.deepInclude(step ?? {}, { kind: "source", sources: [first.key] });
         });
     });
 

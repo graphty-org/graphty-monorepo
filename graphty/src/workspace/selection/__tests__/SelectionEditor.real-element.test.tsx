@@ -124,8 +124,10 @@ function unionOf(session: GraphSession, id: string): UnionLeaf | undefined {
  * @returns their accessible names.
  */
 function stepRows(): string[] {
-    // The sidebar's read-only outline: the summary, with every row's state word (spec 3.0).
-    return [...document.querySelectorAll<HTMLElement>(".sel-rest .sel-step-row[data-row]")].map(
+    // The workspace's outline while it is open (the sidebar keeps only its title row then), else
+    // the sidebar's read-only outline; both say every row's state word (spec 3.0, 3.1).
+    const where = document.querySelector(".sel-ws") === null ? ".sel-rest" : ".sel-ws-outline";
+    return [...document.querySelectorAll<HTMLElement>(`${where} .sel-step-row[data-row]`)].map(
         (row) => row.getAttribute("aria-label") ?? "",
     );
 }
@@ -203,7 +205,7 @@ describe("the selection editor in a style layer", () => {
             assert.notProperty(rule, "min", "a value with no test yet");
         });
         await waitFor(() => {
-            assert.match(stepRows()[0] ?? "", /^Keep, Degree, No test, 77 of 77 nodes so far$/);
+            assert.match(stepRows()[0] ?? "", /^Degree, No test, 77 of 77 nodes so far$/);
         });
         // The new step is selected: its pane holds the test; a number written there narrows the layer.
         const from = await screen.findByRole("textbox", { name: "Degree from, number" });
@@ -214,7 +216,7 @@ describe("the selection editor in a style layer", () => {
             assert.equal(session.styles.counts(layer.id).matched, expected);
         });
         await waitFor(() => {
-            assert.match(stepRows()[0] ?? "", /^Keep, Degree min 6, /, "the row says the test in the boxes' words");
+            assert.match(stepRows()[0] ?? "", /^Degree min 6, /, "the row says the test in the boxes' words");
         });
         assert.isAbove(expected, 0);
     });
@@ -244,15 +246,11 @@ describe("the selection editor in a style layer", () => {
             branches: [{ start: "none", steps: [] }],
         };
         await openLayer(session, "Empty", { match: "rule", where: empty });
-        const verbs = (): (string | null)[] =>
-            within(screen.getByRole("radiogroup", { name: "Verb" }))
-                .getAllByRole("radio")
-                .map((each) => each.getAttribute("value"));
         await startCondition();
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Isolated{Enter}");
         await waitFor(() => {
-            assert.match(stepRows()[0] ?? "", /^Add, Isolated/);
+            assert.match(stepRows()[0] ?? "", /^Isolated/);
         });
         // Keep or Except on nothing changes nothing: the first step of a group of none can only add,
         // so its pane says Add and draws no segment of one.
@@ -267,7 +265,8 @@ describe("the selection editor in a style layer", () => {
             assert.match(stepRows()[1] ?? "", /^Add, Degree/);
         });
         await waitFor(() => {
-            assert.deepEqual(verbs(), ["add", "keep", "except"]);
+            // A later Add step says Add; its "..." offers Narrow instead, and a narrowing step the Except switch.
+            assert.isNull(screen.queryByRole("radiogroup", { name: "Verb" }));
         });
     });
 
@@ -276,10 +275,7 @@ describe("the selection editor in a style layer", () => {
         const layer = await openLayer(session, "Degree card", { match: "rule", where: DEGREE_6_TO_10 });
         const expected = await counted(session, DEGREE_6_TO_10);
         await waitFor(() => {
-            assert.match(
-                stepRows()[0] ?? "",
-                new RegExp(`^Keep, Degree 6 to 10, ${String(expected)} of 77 nodes so far$`),
-            );
+            assert.match(stepRows()[0] ?? "", new RegExp(`^Degree 6 to 10, ${String(expected)} of 77 nodes so far$`));
         });
         assert.equal(unionOf(session, layer.id)?.branches[0]?.start ?? "all", "all");
         assert.equal(session.styles.counts(layer.id).matched, expected);
@@ -296,7 +292,7 @@ describe("the selection editor in a style layer", () => {
         await waitFor(() => {
             const rows = stepRows();
             assert.lengthOf(rows, 2);
-            assert.match(rows[0] ?? "", /^Keep, Degree 6 to 10/);
+            assert.match(rows[0] ?? "", /^Degree 6 to 10/);
             assert.match(rows[1] ?? "", new RegExp(`^Except, .*${String(expected)} of 77 nodes so far$`));
         });
         assert.equal(session.styles.counts(layer.id).matched, expected);
@@ -355,7 +351,7 @@ describe("the selection editor in a style layer", () => {
         await userEvent.keyboard("Within hops");
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
-            assert.match(stepRows()[0] ?? "", /^Keep, Within 2 hops of, No reference/);
+            assert.match(stepRows()[0] ?? "", /^Within 2 hops of, No reference/);
         });
         await userEvent.click(await screen.findByRole("button", { name: "Reference" }));
         // With nothing typed the list holds no node: the Nodes heading counts them.
@@ -373,7 +369,7 @@ describe("the selection editor in a style layer", () => {
             assert.equal(session.styles.counts(layer.id).matched, expected);
         });
         assert.isNotNull(screen.queryByRole("button", { name: "Reference: Valjean" }));
-        assert.match(stepRows()[0] ?? "", /^Keep, Within 2 hops of Valjean, /);
+        assert.match(stepRows()[0] ?? "", /^Within 2 hops of Valjean, /);
         assert.isAbove(expected, 1);
     });
 
@@ -422,9 +418,8 @@ describe("the selection editor in a filter card", () => {
             assert.isNotNull(found);
             return found;
         });
-        const verbs = await within(ws).findByRole("radiogroup", { name: "Verb" });
-        // The segment's radio is visually hidden: the pointer clicks its label.
-        await userEvent.click(within(verbs).getByText("Except"));
+        // A narrowing step's one verb control is its Except switch (ws-polish 2).
+        await userEvent.click(await within(ws).findByRole("switch", { name: /^Except/ }));
         await waitFor(() => {
             const rule = session.visibility.conditions[0]?.rule;
             assert.equal(rule?.kind, "union");

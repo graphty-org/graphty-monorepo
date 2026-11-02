@@ -47,6 +47,19 @@ export const countWords = (count: number, of: number, side: Side): string =>
 
 export { letterOf } from "./model";
 
+/** From this count up, a sidebar row writes it short ("200k"); its tooltip has every digit. */
+const SHORT_FROM = 10_000;
+
+/**
+ * A count as a narrow sidebar row writes it: in full under 10,000, else short ("50k", "1.2m").
+ * @param count - the count.
+ * @returns the words.
+ */
+export const shortCount = (count: number): string =>
+    count < SHORT_FROM
+        ? formatNumber(count)
+        : new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(count).toLowerCase();
+
 /** A reason's short word on a step's row, and its whole words in the row's tooltip. */
 const REASONS: Readonly<Record<StepReasonCode, { short: string; long: string }>> = {
     "test-unset": { short: "No test", long: "No test yet: this step changes nothing" },
@@ -272,7 +285,7 @@ export function rowWords(
     const words = ruleStepWords(session, step, side, reading);
     const tags = [
         ...(step.computedOn === "so-far" ? ["So far"] : []),
-        ...(step.links === undefined ? [] : [`Links: ${linksSaid(session, step.links)}`]),
+        ...(step.links === undefined ? [] : [`Edges: ${linksSaid(session, step.links)}`]),
         ...(step.ends === "either" ? ["Either end"] : []),
     ];
     if (isRelative(step.rule) || step.rule.kind === "member" || STRUCTURE[step.rule.kind] !== undefined) {
@@ -408,7 +421,8 @@ export function selectionWords(session: GraphSession, rule: UnionLeaf): string {
             .map((step, at) => {
                 const { value, test } = stepWords(session, step, side);
                 const words = test === "" ? value : `${value} ${test}`;
-                return at === 0 && branch.start !== "all" && step.op === "add"
+                // A narrowing step says no verb; a group's first Add is the step itself.
+                return step.op === "keep" || (at === 0 && branch.start !== "all" && step.op === "add")
                     ? words
                     : `${VERB_WORDS[step.op].word.toLowerCase()} ${words}`;
             })

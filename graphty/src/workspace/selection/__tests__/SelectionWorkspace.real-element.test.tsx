@@ -239,7 +239,7 @@ describe("the sidebar outline at rest and the workspace (check 39)", () => {
         await openLayer(session, "Sized", TWO_GROUPS);
         await userEvent.click(editButton());
         const ws = await opened();
-        await userEvent.click(within(ws).getByRole("treeitem", { name: /^Add, Degree min 10/ }));
+        await userEvent.click(within(ws).getByRole("treeitem", { name: /^Degree min 10/ }));
         await waitFor(() => {
             const preview = ws.querySelector(".sel-ws-preview")?.getBoundingClientRect();
             const strip = ws.querySelector(".sel-ws-strip")?.getBoundingClientRect();
@@ -279,7 +279,7 @@ describe("one workspace for every rule (check 40)", () => {
         await userEvent.click(editButton());
         const ws = await screen.findByRole("region", { name: "Which nodes -- Owner" });
         // A step selected, its pane's Condition... adds to its group.
-        await userEvent.click(within(ws).getByRole("treeitem", { name: /^Add, Degree min 10/ }));
+        await userEvent.click(within(ws).getByRole("treeitem", { name: /^Degree min 10/ }));
         await addStep("Isolated");
         await waitFor(() => {
             assert.lengthOf(unionOf(session, layer.id)?.branches[0]?.steps ?? [], 2);
@@ -340,7 +340,7 @@ describe("Done, Cancel and Escape (checks 41 and fix 4)", () => {
         await userEvent.click(editButton());
         const ws = await opened();
         // 1 and 2: two steps turned off with Space on their rows; 3: a step added.
-        for (const name of [/^Add, Degree min 10/, /^Add, Degree max 1/]) {
+        for (const name of [/^Degree min 10/, /^Degree max 1/]) {
             await userEvent.click(within(ws).getByRole("treeitem", { name }));
             await userEvent.keyboard(" ");
         }
@@ -366,7 +366,7 @@ describe("Done, Cancel and Escape (checks 41 and fix 4)", () => {
         const layer = await openLayer(session, "Escape", TWO_GROUPS);
         await userEvent.click(editButton());
         const ws = await opened();
-        await userEvent.click(within(ws).getByRole("treeitem", { name: /^Add, Degree min 10/ }));
+        await userEvent.click(within(ws).getByRole("treeitem", { name: /^Degree min 10/ }));
         // A list: the value picker of the step.
         await userEvent.click(await within(ws).findByRole("button", { name: /^Value: / }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
@@ -381,7 +381,7 @@ describe("Done, Cancel and Escape (checks 41 and fix 4)", () => {
         await userEvent.keyboard("12");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.match(document.activeElement?.getAttribute("aria-label") ?? "", /^Add, Degree min 12/);
+            assert.match(document.activeElement?.getAttribute("aria-label") ?? "", /^Degree min 12/);
         });
         assert.isDefined(workspace());
         // Nothing smaller open: Escape is Done, and the edit is kept.
@@ -413,9 +413,9 @@ describe("scoping by links inside the editor (check 42, fix 1)", () => {
             return found;
         });
         await userEvent.click(within(pane).getByRole("button", { name: /^Advanced/ }));
-        const links = await within(pane).findByRole("radiogroup", { name: "Links" });
-        await userEvent.click(within(links).getByText("Links where ..."));
-        await userEvent.click(await within(pane).findByRole("button", { name: "Link value: none" }));
+        const links = await within(pane).findByRole("radiogroup", { name: "Edges" });
+        await userEvent.click(within(links).getByText("Edges where ..."));
+        await userEvent.click(await within(pane).findByRole("button", { name: "Edge value: none" }));
         await screen.findByRole("combobox", { name: "Find edge attributes" });
         await userEvent.keyboard("shared");
         await userEvent.keyboard("{Enter}");
@@ -443,9 +443,9 @@ describe("scoping by links inside the editor (check 42, fix 1)", () => {
             );
         });
         const row = ws.querySelector<HTMLElement>(".sel-ws-outline .sel-step-row");
-        // The row draws the bare word Links; its name and tooltip say the condition.
-        assert.include(row?.textContent ?? "", "Links");
-        assert.include(row?.getAttribute("aria-label") ?? "", "Links: shared_chapters min 2");
+        // The row draws the bare word Edges (the owner says edges); its name and tooltip say the condition.
+        assert.include(row?.textContent ?? "", "Edges");
+        assert.include(row?.getAttribute("aria-label") ?? "", "Edges: shared_chapters min 2");
         assert.lengthOf(session.visibility.conditions, 0, "no Data filter was touched");
         assert.strictEqual(session.visibility.nodes.size, 77);
         // The scoped computation is the step's own: the only Core number run in Analyze is the one
@@ -494,7 +494,7 @@ describe("starting over (check 44, fix 3)", () => {
 });
 
 describe("plain words (check 45, fix 5)", () => {
-    it("Degree says links at a node and is found by links and connections; While says what it holds", async () => {
+    it("Degree says edges at a node and is found by links and connections; While says what it holds", async () => {
         const { session } = await openSample();
         await openLayer(session, "Words");
         await userEvent.click(editButton());
@@ -508,7 +508,7 @@ describe("plain words (check 45, fix 5)", () => {
         }
         await userEvent.keyboard("Degree");
         await userEvent.hover(await screen.findByRole("option", { name: /^Degree/ }));
-        await screen.findByText("Links at a node");
+        await screen.findByText("Edges at a node");
         await userEvent.keyboard("{Control>}a{/Control}{Backspace}while");
         await userEvent.hover(await screen.findByRole("option", { name: /^While/ }));
         await screen.findByText("Everything while it holds a node, else nothing");

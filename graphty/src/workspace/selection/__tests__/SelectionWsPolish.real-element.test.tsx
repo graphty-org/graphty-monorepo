@@ -373,7 +373,7 @@ describe("By position with a tie", () => {
             ],
         });
         const ws = await edit();
-        await userEvent.click(within(ws).getByRole("treeitem", { name: /^Keep, Degree/ }));
+        await userEvent.click(within(ws).getByRole("treeitem", { name: /^Degree/ }));
         // Fantine and Enjolras share degree 15 at the cut: 6 asked, 7 kept.
         await waitFor(() => {
             assert.match(ws.querySelector("[data-ties]")?.textContent ?? "", /^6 asked, 7 kept: tied$/);

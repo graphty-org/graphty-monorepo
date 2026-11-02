@@ -883,6 +883,33 @@ function nodeColumns(context: PlanningContext): ColumnValues[] {
  * @returns The columns and where they come from.
  */
 export function locationColumns(context: PlanningContext): LocationColumns {
+    // Read on every render of a table header or a Fields list: it reads every node column's values,
+    // so one answer is kept per graph, designation and column list (ws-polish 2: 760 ms per edit
+    // on 50,000 nodes).
+    const snapshot = context.snapshot?.();
+    const key = `${JSON.stringify(context.locationDesignation?.() ?? null)}\u0000${(context.nodeAttributes?.() ?? []).join("\u0000")}`;
+    const held = LOCATED.get(context);
+    if (snapshot !== undefined && held?.snapshot === snapshot && held.key === key) {
+        return held.value;
+    }
+
+    const value = findLocationColumns(context);
+    if (snapshot !== undefined) {
+        LOCATED.set(context, { snapshot, key, value });
+    }
+
+    return value;
+}
+
+/** The last answer of {@link locationColumns} per planning context, with what it was read from. */
+const LOCATED = new WeakMap<PlanningContext, { snapshot: unknown; key: string; value: LocationColumns }>();
+
+/**
+ * {@link locationColumns}, read afresh.
+ * @param context - What planning reads.
+ * @returns The columns and where they come from.
+ */
+function findLocationColumns(context: PlanningContext): LocationColumns {
     const none = { location: null, latitude: null, longitude: null };
     const designation = context.locationDesignation?.();
     const choice = chosenLocation(none, designation);

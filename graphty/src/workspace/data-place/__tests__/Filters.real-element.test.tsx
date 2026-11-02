@@ -169,6 +169,8 @@ describe("Filter cards on the real element", () => {
     it("one card is open at a time; every other is one row: its on box, name and count", async () => {
         const { session } = await openWithGraph();
         await addValueCard(session);
+        // At rest: while a card's workspace is open the other cards drop their counts (ws-polish 2).
+        await userEvent.click(within(await workspace()).getByRole("button", { name: "Done" }));
         await session.visibility.addCondition({
             effect: "keep",
             rule: { kind: "text", reads: "data.label", mode: "substring", text: "e" },

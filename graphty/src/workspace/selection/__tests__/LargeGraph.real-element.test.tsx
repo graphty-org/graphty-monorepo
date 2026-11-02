@@ -161,7 +161,7 @@ describe("the selection editor on 50,000 nodes", () => {
         await waitFor(() => {
             assert.match(
                 document.querySelector('[data-row="while"]')?.getAttribute("aria-label") ?? "",
-                /^Keep, While Selected \(0\) has nodes, /,
+                /^While Selected \(0\) has nodes, /,
             );
         });
         assert.isNotNull(screen.queryByRole("button", { name: "Reference: Selected (0)" }));
@@ -251,9 +251,9 @@ describe("the selection editor on 50,000 nodes", () => {
             throw new Error("the pane is drawn");
         }
         await userEvent.click(within(pane).getByRole("button", { name: /^Advanced/ }));
-        const links = await within(pane).findByRole("radiogroup", { name: "Links" });
-        await userEvent.click(within(links).getByText("Links where ..."));
-        await userEvent.click(await within(pane).findByRole("button", { name: "Link value: none" }));
+        const links = await within(pane).findByRole("radiogroup", { name: "Edges" });
+        await userEvent.click(within(links).getByText("Edges where ..."));
+        await userEvent.click(await within(pane).findByRole("button", { name: "Edge value: none" }));
         await screen.findByRole("combobox", { name: "Find edge attributes" });
         // The generated graph's edges carry no column: the list is the edge columns, here none,
         // and never a value of the 99,000 edges.

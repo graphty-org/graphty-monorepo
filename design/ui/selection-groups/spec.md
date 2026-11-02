@@ -99,9 +99,15 @@ the rows of 3.1, one line per step, no pane and no control but one **Edit** butt
 (and a filter card's on box), drawn on hover or focus over the row's end, so the name keeps the
 row's width. A row's tooltip gives the full words and the count; the canvas is marked only in the
 workspace, whose preview it is. **Edit, a click on any outline row, or Enter on one opens the
-workspace** with that row selected (Edit selects the title row). A selection with no step opens on
-its new step's pane instead, the value field focused (Enter opens the value picker under it). There is no editing pane in the
-sidebar: the sidebar outline is the editor's summary, never a second editor.
+workspace** with that row selected. Edit and the title row open on the pane of the step last
+edited, else the first step; the title pane is selected only for a selection with no step. A
+selection with no step opens on its new step's pane instead, the value field focused (Enter opens
+the value picker under it). On hover or focus Edit takes the count's place: the count goes while
+Edit is drawn, never half under it. There is no editing pane in the sidebar: the sidebar outline is
+the editor's summary, never a second editor. **While the workspace is open the sidebar keeps only
+the title row**, marked "Editing", with no outline and no count; a filter card being edited does the
+same, and the other cards keep their rows but drop their counts (ws-polish 2: the rule was drawn
+twice side by side).
 
 **The workspace** is ONE surface that edits every rule tree in graphty -- a style layer's Which
 nodes and Which edges, and a Data filter card -- with the same outline, verbs and controls.
@@ -114,11 +120,14 @@ nodes and Which edges, and a Data filter card -- with the same outline, verbs an
   and its opaque columns widen to cover it whole, so the preview shows only the canvas. The canvas
   toolbar, which the columns and the matches strip lie over, is hidden and takes no focus until the
   workspace closes; Fit is the workspace's own framing.
-- **The canvas is the preview.** The workspace's center is transparent: the reader sees and clicks
-  the main canvas there, drawing section 9's preview. The workspace is an overlay: opening, closing
-  or resizing it never re-frames, moves or resizes the main drawing (the canvas is the frame). A
-  **Fit** button in the preview's corner frames the group's members on request, as the toolbar's
-  fit does; nothing frames by itself.
+- **The canvas is the preview.** While the workspace is open, graphty-element's canvas takes the
+  preview cell's box: beside the outline and the properties, above the strip, never under them, so
+  the canvas is the frame (the owner's rule) and the reader sees and clicks it there, drawing
+  section 9's preview. On open, the graph is framed once when more than a quarter of the nodes the
+  canvas drew now fall outside the cell (`nodesInRect`); on close the canvas takes its whole box
+  again and the camera goes back where it was. A **Fit** button in the preview's corner frames the
+  group's members on request, as the toolbar's fit does (ws-polish 2: on 50,000 nodes the old
+  overlay hid a third to half of the graph).
 - **Layout, left to right**, under a 40 px header:
     - **Outline column**: 3.1's rows, **sized to its content when the workspace opens** (the
       longest row, 200 to 280 px) and **fixed at that width until it closes**: a row's words never
@@ -137,7 +146,8 @@ nodes and Which edges, and a Data filter card -- with the same outline, verbs an
   Group column only with two or more groups, the Filters header's total only with two or more
   cards on. The title pane's "..." holds no view items (Table and Group colors are the header's).
 - **Per surface** (the check widths): at 1440 x 900 with no left panel the preview is at least
-  560 px wide; at 1280 x 800 at least 440 px wide, the strip at least 180 px tall. Below that the
+  560 px wide; at 1280 x 800 at least 424 px wide (the outline covers the 240 px left panel whole),
+  the strip at least 180 px tall. Below that the
   strip folds to its header row and the Table button opens it; the outline and properties columns
   never shrink under their content.
 - **Clicks while it is open.** A click on the canvas does what it does on the canvas (selects,
@@ -177,7 +187,7 @@ workspace's rows select. Every row is one 32 px line of fixed columns: an indent
 groups), a **verb column 40 px wide**, the **value name**, the **test** (it truncates first, at its
 tail, listed names before "and N more"; then the value name, which keeps its first word; the full
 words are in the row's tooltip and name), then **tags** for non-default settings and the row's
-state word. **A tag is a bare dimmed word** ("Links", "So far", "Either end"), no border; a Links
+state word. **A tag is a bare dimmed word** ("Edges", "So far", "Either end"), no border; an Edges
 tag's condition is in the row's tooltip and on Advanced's right, never on the row. **A tag gives
 way before the test, so the condition never gives way to a tag**; the state word never truncates
 except on a relative row (below). A list of more than nine values is said as its count ("1,898
@@ -193,18 +203,20 @@ highlight. "Condition..." and "Or..." are buttons in the pane's first row (3.2),
 (repolish 2: selecting a group inserted "Step..." and "Or..." and moved every row under it 32 px).
 
 **A condition is said once.** "All nodes" is drawn only for a group that starts with everything and
-has no step yet, or whose first step is Except. A group's first step at the group's own verb (Keep
-in an All group, Add in a None group) leaves the verb column empty: "Degree max 3", never "All nodes
-/ Keep Degree max 3". Every group row after the first writes "or" in its verb column ("or B"), so
+has no step yet, or whose first step is Except, and never while a step is being added to it.
+**A narrowing step says no verb** (the owner's review, ws-polish 2: "Add / Keep / Except" was
+"Select / Filter to / Filter out" under new names): Keep is never written, Except is ("Except name
+contains Val"), and Add is written only after a group's first step. A group's first step at the
+group's own verb leaves the verb column empty: "Degree max 3", never "All nodes / Keep Degree max 3". Every group row after the first writes "or" in its verb column ("or B"), so
 groups read as alternatives at rest.
 
-| Row                                                                                   | At rest                                                                                                                                                                                                                                                                                                                                     | On hover or focus                                                                                                    | Selected (pane)                                                        |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| **Title** ("Which nodes", "Which edges", or a filter card's name)                     | The name and the result, "12 of 77" (tooltip names the base: "of 60 in the filtered graph"). A filter card adds its on box first. In the sidebar, an Edit button at the right (3.0).                                                                                                                                                        | Unchanged.                                                                                                           | Title pane (3.2).                                                      |
-| **Group** (only once there are two)                                                   | "or" (after the first), hollow chit, letter, count ("4"). "Off" when turned off; "Passes none" when Start with empties it.                                                                                                                                                                                                                  | The canvas marks its members; in the workspace, the eye (turn off).                                                  | Group pane.                                                            |
-| **All nodes** (a group that starts with everything, before a first Except or no step) | Empty verb column, "All nodes" in secondary ink. Any other group draws no row.                                                                                                                                                                                                                                                              | Its count, the base.                                                                                                 | Group pane.                                                            |
-| **Step**                                                                              | Verb word (Add, Keep, Except; empty on a group's first step at the group's verb), value ("Community"), test ("1, 3 and 4 more", "min 10", "3 to 7", "Valjean"), tags ("So far", "Either end"), state word if any ("No test", "No reference", "One node", "Run", "Computing", "Waits", "Passes none", "Off"). No count, button, box or icon. | The canvas marks what the group holds after this step; the tooltip gives the full words and "24 of 77 nodes so far". | Step pane.                                                             |
-| **Condition row**                                                                     | Drawn only on an empty selection whose group starts with nothing, where it is the only row: "Condition..." in the value column. A group that draws All nodes draws no Condition row.                                                                                                                                                        | Unchanged.                                                                                                           | Opens the value picker (from the sidebar: the workspace, picker open). |
+| Row                                                                                   | At rest                                                                                                                                                                                                                                                                                                                                 | On hover or focus                                                                                                    | Selected (pane)                                                        |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **Title** ("Which nodes", "Which edges", or a filter card's name)                     | The name and the result, "12 of 77" (tooltip names the base: "of 60 in the filtered graph"). A filter card adds its on box first. In the sidebar, an Edit button at the right (3.0).                                                                                                                                                    | Unchanged.                                                                                                           | Title pane (3.2).                                                      |
+| **Group** (only once there are two)                                                   | "or" (after the first), hollow chit, letter, count ("4"). "Off" when turned off; "Passes none" when Start with empties it.                                                                                                                                                                                                              | The canvas marks its members; in the workspace, the eye (turn off).                                                  | Group pane.                                                            |
+| **All nodes** (a group that starts with everything, before a first Except or no step) | Empty verb column, "All nodes" in secondary ink. Any other group draws no row.                                                                                                                                                                                                                                                          | Its count, the base.                                                                                                 | Group pane.                                                            |
+| **Step**                                                                              | Verb word (Except, or Add after a group's first step; Keep is never written), value ("Community"), test ("1, 3 and 4 more", "min 10", "3 to 7", "Valjean"), tags ("So far", "Either end"), state word if any ("No test", "No reference", "One node", "Run", "Computing", "Waits", "Passes none", "Off"). No count, button, box or icon. | The canvas marks what the group holds after this step; the tooltip gives the full words and "24 of 77 nodes so far". | Step pane.                                                             |
+| **Condition row**                                                                     | Drawn only on an empty selection whose group starts with nothing, where it is the only row: "Condition..." in the value column. A group that draws All nodes draws no Condition row.                                                                                                                                                    | Unchanged.                                                                                                           | Opens the value picker (from the sidebar: the workspace, picker open). |
 
 - **Deleting never re-shapes the row under the pointer.** After a delete no row is selected (a
   repeated Delete deletes nothing) and focus stays at the deleted row's place. The outline keeps its
@@ -216,11 +228,12 @@ groups read as alternatives at rest.
   result is never silent. The title's count then reads "0 of 77".
 - **Relative to rows** put the condition in the value column and the reference in the test:
   "Within 2 hops | Valjean", "Is in | Selected (3)", "While | Watchlist has nodes". A long node name
-  truncates; the condition never does. With no reference, While reads its whole value, "While ...
-  has nodes", with no test column. When space runs out the reference and then the state word give
-  way with an ellipsis (both are in the row's tooltip).
-- A value keeps normal ink in every state (Off, No test, Run); a selected row drops its state word,
-  which its pane already shows.
+  truncates first. With no reference, While reads its whole value, "While ... has nodes", with no
+  test column, and its value field always reads "While ... has nodes". When space runs out the
+  condition gives way to about 8 characters, then the reference; the state word is never cut (all
+  are in the row's tooltip).
+- A value keeps normal ink in every state (Off, No test, Run); every row ends with its state word,
+  the selected row too, as the sidebar's does.
 - **Numeric tests** use the Min and Max boxes' words: "min 10", "max 1", "3 to 7", "top 10".
 - **Category, ordered and tag tests** summarize: up to three values ("1, 3, 4"), else "1, 3 and
   2,083 more" (sorted, thousands separated). A row never lists every value.
@@ -236,20 +249,21 @@ groups) and "Or..." at the left, then the pane's icon buttons and "..." at the r
 workspace's, in its header). The pane's own main
 control is its second row. Every control is the compact Select's default size (24 px, 11/16 type);
 the value and reference fields are the compact Select's trigger with its own chevron (compact-mantine
-themes InputBase as its Select). **A step being added** has a pane of its own: its verb word and its
-value field, the value picker opening under that field (never at the outline row), its outline row
-lit as "Value..." until a value is picked. A state the Run button does not say (Paused, Waits for
+themes InputBase as its Select). **A step being added** has a pane of its own: its value field (no
+verb word), the value picker opening below that field inside the properties column (never at the
+outline row, never flipped up over the header), its outline row the only one lit, as "Value...",
+until a value is picked. A new filter card's Nodes | Edges stays drawn above that field. A state the Run button does not say (Paused, Waits for
 step 1, No reference) is written on the pane's verb row, as on the step's row. **Advanced** is a collapsed disclosure, collapsed every time a row is selected; when a setting
 in it is not at its default, its name is written on Advanced's right ("So far", "Either end",
 "Links: weight min 2").
 
-| Selected row           | Pane, always visible                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | "..." menu (keys shown)                                                                                                             | Advanced (collapsed)                                                                                                                                                  |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Step**               | Verb segment of the verbs that can change the group at this step (Add / Keep / Except; Union, Intersect, Subtract in tooltips and in each radio's name; the first step of an All group offers Keep and Except; one verb alone, as on a None group's first step, is written as a word, never a segment of one), "138 so far" drawn beside it (tooltip "138 of 254 edges so far"), "..."; the value field (opens the value picker); the test for its kind (section 5) or "Run (about 4 min)". After a value is picked, focus goes to the test's first control. | Turn off, Duplicate (Mod+D), Move up (Mod+]), Move down (Mod+[), Delete (Del).                                                      | Computed on (Filtered or Full graph, So far), Links (All links, or Links where ..., 3.5), Edge ends (Both, Either), Not measured (include), the algorithm's Settings. |
-| **Group**              | Name box, count, "..."; Color (the compact color field; it writes the group's color, which the preview, the key and the table follow).                                                                                                                                                                                                                                                                                                                                                                                                                       | Duplicate, Save as set, Move up, Move down, Delete.                                                                                 | Start with (No nodes / All nodes, with its caption).                                                                                                                  |
-| **All nodes**          | As the group.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | As the group.                                                                                                                       | None.                                                                                                                                                                 |
-| **Title, style layer** | "...".                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | **Select N** (Table and Group colors are the header's, never repeated here).                                                        | None.                                                                                                                                                                 |
-| **Title, filter card** | "..."; Nodes / Edges (a new card). A card named after its only step adds that step's controls under it (3.3).                                                                                                                                                                                                                                                                                                                                                                                                                                                | **Select N** (selects the card's matches on the canvas, once), Duplicate (Mod+D), Delete (Del); the keys work on the title row too. | None.                                                                                                                                                                 |
+| Selected row           | Pane, always visible                                                                                                                                                                                                                                                                                                                                                                                            | "..." menu (keys shown)                                                                                                                        | Advanced (collapsed)                                                                                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Step**               | A narrowing step's one compact **Except** switch (Subtract in its tooltip); an Add step after a group's first says "Add"; a None group's first step says nothing; "138 so far" drawn beside it (tooltip "138 of 254 edges so far"), "..."; the value field (opens the value picker); the test for its kind (section 5) or "Run (about 4 min)". After a value is picked, focus goes to the test's first control. | Add instead / Narrow instead (where both can change the group), Turn off, Duplicate (Mod+D), Move up (Mod+]), Move down (Mod+[), Delete (Del). | Computed on (Filtered or Full graph, So far), Edges (All edges, or Edges where ..., 3.5), Edge ends (Both, Either), Not measured (include), the algorithm's Settings. Every segment is the column's full width under its caption. |
+| **Group**              | Name box, count, "..."; Color (the compact color field; it writes the group's color, which the preview, the key and the table follow).                                                                                                                                                                                                                                                                          | Duplicate, Save as set, Move up, Move down, Delete.                                                                                            | Start with (No nodes / All nodes, with its caption).                                                                                                                                                                              |
+| **All nodes**          | As the group.                                                                                                                                                                                                                                                                                                                                                                                                   | As the group.                                                                                                                                  | None.                                                                                                                                                                                                                             |
+| **Title, style layer** | "...".                                                                                                                                                                                                                                                                                                                                                                                                          | **Select N** (Table and Group colors are the header's, never repeated here).                                                                   | None.                                                                                                                                                                                                                             |
+| **Title, filter card** | "..."; Nodes / Edges (a new card). A card named after its only step adds that step's controls under it (3.3).                                                                                                                                                                                                                                                                                                   | **Select N** (selects the card's matches on the canvas, once), Duplicate (Mod+D), Delete (Del); the keys work on the title row too.            | None.                                                                                                                                                                                                                             |
 
 ### 3.3 Filter cards
 
@@ -301,10 +315,11 @@ whatever the placement. Each is fixed here; acceptance 39 to 47 check them.
 
 1. **Scoping by links is inside the editor.** Nine of nine readers looked in the editor for "ignore
    links with weight under 2"; three never found the graph-wide Data filter. A step whose value is
-   computed from the links (an algorithm's field, Degree, a Relative to condition) has **Links** in
-   its Advanced: "All links" (default) or "Links where ...", which opens one edge condition (an edge
-   value and its test, the controls of section 5, no groups). The step is then computed on only the
-   links that pass, and the scope is visible: the row carries the tag "Links: weight min 2", Advanced
+   computed from the edges (an algorithm's field, Degree, a Relative to condition) has **Edges** in
+   its Advanced (the owner's word, 2026-10-20; "links" stays a search alias): "All edges" (default)
+   or "Edges where ...", which opens one edge condition (an edge value and its test, the controls of
+   section 5, no groups). The step is then computed on only the edges that pass, and the scope is
+   visible: the row carries the tag "Edges: weight min 2", Advanced
    names it on its right, and the step's histogram is drawn from the scoped computation. Such a
    computation belongs to the step, as a So far one does (section 6). graphty-element adds the
    step's `links` (`element-api.md` section 4). The graph-wide Data filter stays, for links no
@@ -315,8 +330,8 @@ whatever the placement. Each is fixed here; acceptance 39 to 47 check them.
 3. **Starting over is one press.** Clear in the workspace header, with undo (3.0); deleting never
    re-shapes the row under the pointer (3.1).
 4. **Escape closes the innermost thing and never discards work** (3.4); on the workspace it is Done.
-5. **Plain words for the terms readers guessed at.** Degree's tooltip and picker entry say "links
-   at a node" (In: "incoming links", Out: "outgoing links"), and "links", "connections" find it;
+5. **Plain words for the terms readers guessed at.** Degree's tooltip and picker entry say "edges
+   at a node" (In: "incoming edges", Out: "outgoing edges"), and "links", "connections" find it;
    Core number's tooltip comes from the catalog's description and "core", "k-core" find it; "While
    ... has nodes" has the tooltip "Everything while it holds a node, else nothing". Tooltips only:
    no sentence is drawn in the editor.
@@ -335,7 +350,8 @@ adds a style layer, "Filters +" adds a filter card. Nothing inside a selection d
 
 - **A step** is added by "Condition..." in the pane's first row (or the Condition row of an empty
   selection), which adds a step with the group's default verb (Keep in an All group, Add in a None
-  group) and opens the value picker at once. The pane's verb segment is the only verb chooser. A
+  group) and opens the value picker at once. The step pane's Except switch, and Add instead /
+  Narrow instead in its "...", are the only verb choosers. A
   "+" in a section header adds a new item; "Condition..." and "Or..." add inside the open one, and
   are words, not "+", so the two never look alike.
 - **A group** is added by "Or..." (a None group in the element's next free color, its value picker
@@ -346,9 +362,10 @@ adds a style layer, "Filters +" adds a filter card. Nothing inside a selection d
 
 ### 4.2 Dropdowns and segments
 
-- **Verb segment** (step pane): Add, Keep, Except (Figma's boolean order Union, Intersect,
-  Subtract in tooltips; aliases union, subtract, remove, intersect, only). No Exclude. Verbs are
-  words everywhere; a verb is never shown only as a glyph.
+- **Except switch** (step pane): a narrowing step's one verb control, "Except" (Subtract in its
+  tooltip; aliases union, subtract, remove, intersect, only find the verbs). No Exclude, no Keep
+  word. Add is chosen by "..." > Add instead, since Or... already widens. Verbs are words
+  everywhere; a verb is never shown only as a glyph.
 - **Start with**: segmented "No nodes | All nodes" (edges on the edge side) in the group pane, or the
   title pane while there is one group. Sides: the style layer's two sections; a filter card's
   Nodes | Edges segment in its title pane.
@@ -381,9 +398,9 @@ adds a style layer, "Filters +" adds a filter card. Nothing inside a selection d
 - **Computed on** (Advanced): "Filtered graph | So far" or "Full graph | So far", sizes in tooltips;
   only on Keep and Except, only for algorithms with `scopeInput: "subgraph"`; So far disabled with its
   reason when it equals the base. When So far is on, the row carries the "So far" tag.
-- **Links** (Advanced, 3.5): "All links | Links where ...", on every step computed from the links
-  (an algorithm's field, Degree, Relative to); the edge condition opens under it in the pane. The
-  row carries the "Links: <condition>" tag while it is set.
+- **Edges** (Advanced, 3.5): "All edges | Edges where ...", at the column's full width, on every
+  step computed from the edges (an algorithm's field, Degree, Relative to); the edge condition opens
+  under it in the pane. The row carries the "Edges: <condition>" tag while it is set.
 - **Reference field** (step pane) with a 24 px target button beside it ("Pick on canvas", Figma's
   eyedropper): armed, the next click on a node in the canvas or table fills the reference, never
   changes the selection and never ends the preview; Escape disarms. The reference picker is 4.3's.
@@ -400,9 +417,9 @@ search finds the rest. Long lists are virtualized listboxes (compact-mantine's).
 | **Reference picker**                     | "Pick on canvas" first; then, under no heading, Hovered or selected (style only), Selected (N), So far (a filter's under "Selection"); Sets: the first 8 by name, heading "8 of 31" past 8; Nodes: a heading with the node count and **no node rows**.                                                                                                                         | The same sections filtered; nodes by id or name, **an exact match first**, then prefix matches, then by degree, **at most 8**, heading "Nodes 8 of 1,691", or "Nodes 0" when none match. A graph with no label column is searched in every column, so a "name" column is found; a row whose name does not show the text shows the value that holds it, dimmed ("community 12"). | One token in the reference field and the row: a node's name, "Selected (1,240)", a set's name. Never a list of nodes. |
 | **"While ... has nodes"**                | The reference picker above: it takes ONE reference.                                                                                                                                                                                                                                                                                                                            | Same.                                                                                                                                                                                                                                                                                                                                                                           | "While Watchlist has nodes" on one row.                                                                               |
 | **Category, ordered and tag checklists** | A search box ("Search 5,000") once there are more than 8 values; then **8 rows in all**, 11/16 type, the list box holding the height of its 8 rows while searched: checked values first (at most 8, then "2,077 more checked"), the largest unchecked fill the rest, then "6 of 4,999"; that order is set on open and on each search, and **ticking never moves a row** (3.5). | Matches, checked or not, **at most 8**, then "8 of 199"; a **Check N** button ticks every match (Uncheck N when all are ticked).                                                                                                                                                                                                                                                | The row's summary ("1, 3 and 2,083 more").                                                                            |
-| **Number tests**                         | The histogram binned to 32 bars, log height when skewed, read from the element's binned facts; Min and Max boxes.                                                                                                                                                                                                                                                              | Typing into Min or Max.                                                                                                                                                                                                                                                                                                                                                         | "min 10", "3 to 7".                                                                                                   |
-| **Value picker**                         | Columns, results and algorithms, not values; virtualized.                                                                                                                                                                                                                                                                                                                      | Ranked as one list.                                                                                                                                                                                                                                                                                                                                                             | The value name.                                                                                                       |
-| **Preview key and table**                | One key row per group (the palette caps groups) and No match; the table virtualizes and opens only on the Table button.                                                                                                                                                                                                                                                        | --                                                                                                                                                                                                                                                                                                                                                                              | --                                                                                                                    |
+| **Number tests**                         | The histogram binned to 32 bars, log(1 + count) heights when skewed (the element suggests it, or the tallest bin is over 20 times the median non-empty one), a bin that holds anything never flat; the brush inset so its thumbs end at the boxes' edges; Min and Max boxes.                                                                                                   | Typing into Min or Max.                                                                                                                                                                                                                                                                                                                                                         | "min 10", "3 to 7".                                                                                                   |
+| **Value picker**                         | Columns, results and algorithms, not values; virtualized.                                                                                                                                                                                                                                                                                                                      | Ranked as one list; words match in any order, a colon read as a space, a result also by its field ("label propagation: comm").                                                                                                                                                                                                                                                  | The value name.                                                                                                       |
+| **Preview key and table**                | One key row per group (the palette caps groups) and No match while it holds a node; the key says "Drawing" until the element says the colors are applied (`styles.settled()`), not until the frame is still; the table virtualizes and opens only on the Table button.                                                                                                         | --                                                                                                                                                                                                                                                                                                                                                                              | --                                                                                                                    |
 | **Runs**                                 | Above the ask limit the step reads "Run" and its pane "Run (about 4 min)", and waits for a press. Girvan-Newman is charged a betweenness pass per round, so its estimate is honest, and it computes in the element's Worker. A hops, touching or same-value step on Hovered or selected waits (Paused) over the live limit while the pointer is on a node.                     | --                                                                                                                                                                                                                                                                                                                                                                              | --                                                                                                                    |
 
 ## 5. Controls per kind
@@ -559,10 +576,13 @@ reference, starts or gates a run, picks a color or paints.
 
 ## 11. Words
 
-- **Step verbs are words: Add, Keep, Except**, in a fixed column on every row and in the step pane's
-  segment; Union, Intersect, Subtract in tooltips, aliases and a glossary entry. Never a glyph alone.
-- **"Or..."** adds an alternative (a group); **"Add...", "Keep...", "Except..."** add a step. The
-  ellipsis says the item opens a picker, as Figma's menu items do.
+- **A narrowing step says no verb** (revised ws-polish 2: "Add / Keep / Except" read as the
+  owner's "Select / Filter to / Filter out" under new names). Rows write only **Except** and, after a
+  group's first step, **Add**, in a fixed column; the step pane has one compact Except switch and
+  "..." > Add instead / Narrow instead. Union, Intersect, Subtract in tooltips, aliases and a
+  glossary entry. Never a glyph alone.
+- **"Or..."** adds an alternative (a group); **"Condition..."** adds a step. The ellipsis says the
+  item opens a picker, as Figma's menu items do.
 - **No noun for a group on screen** ("group" is a part of a partition): a chit and a letter, A, B, C.
 - **Scopes are the glossary's Filtered graph and Full graph** everywhere: Computed on, tooltips and
   run titles (`graphty/src/workspace/runWords.ts` says "visible" and "whole graph" today; this build
@@ -583,9 +603,9 @@ reference, starts or gates a run, picks a color or paints.
   **"Off"** and the inert words are the only state words.
 - **Workspace words**: Edit (opens it), Done, Cancel, Clear, Fit, Table, "Group colors | Styled";
   its title is the owner's name, "Which nodes -- Style layer 1", "Strong core -- Filters". The
-  workspace has no noun of its own on screen. **Links**, "All links", "Links where ..." (the
-  glossary's "edge" stays the word in column and side names; "links" is the reader's word for the
-  scope, as Degree's tooltip says "links at a node").
+  workspace has no noun of its own on screen. **Edges**, "All edges", "Edges where ...", "Edge
+  value..." (the owner's word, 2026-10-20; "links" stays only as a search alias, and Degree's
+  tooltip says "edges at a node").
 
 ## 12. Acceptance checks
 
@@ -686,8 +706,8 @@ and 39 to 47 on the mock):
     opening, and Mod+Z brings the three edits back; three edits then Escape (nothing smaller open)
     closes it as Done with the edits kept. Escape with a list open closes only the list.
 42. _Scope by links in the editor._ Task 4 ("core number at least 3, ignoring links with weight
-    under 2") is built inside the workspace with Links where weight min 2 on the Core number step:
-    42 nodes, the row shows "Links: weight min 2", no Data filter is touched, and the Data filter's
+    under 2") is built inside the workspace with Edges where weight min 2 on the Core number step:
+    42 nodes, the row shows "Edges: weight min 2", no Data filter is touched, and the Data filter's
     count is unchanged.
 43. _The checklist stays put._ With the pointer on the 3rd row of a 5,000-value checklist, ticking
     it and the 4th and 5th leaves every row's position unchanged (pixel compare of row tops); the

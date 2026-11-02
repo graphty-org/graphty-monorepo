@@ -85,7 +85,17 @@ import {
     sideOf,
     usedPaths,
 } from "./values";
-import { countWords, letterOf, NOUNS, reasonWords, rowTest, rowWords, stepWords, VERB_WORDS } from "./words";
+import {
+    countWords,
+    letterOf,
+    NOUNS,
+    reasonWords,
+    rowTest,
+    rowWords,
+    shortCount,
+    stepWords,
+    VERB_WORDS,
+} from "./words";
 
 /** Whether a host's preview shows group colors while picking, for the session (spec 9). */
 const groupColors: Record<Host, boolean> = { selector: true, filter: true };
@@ -149,6 +159,9 @@ const NO_TEST_KINDS = new Set<RuleTree["kind"]>(["isolated", "self-loop", "repea
  */
 const hasTest = (stepRule: RuleTree): boolean =>
     !NO_TEST_KINDS.has(stepRule.kind) && !(stepRule.kind === "member" && stepRule.of === "largest-component");
+
+/** The share of the drawn nodes the preview cell must hold on open, else the graph is framed. */
+const FRAMED_SHARE = 0.75;
 
 /** A row the arrow keys walk. */
 const ROW = "[data-row]";
@@ -253,6 +266,8 @@ export function SelectionEditor({
     const place = useWorkspaceState((state) => state.place);
     const openedIn = useRef(place);
     const closeRef = useRef<(how: "done" | "cancel") => void>(() => undefined);
+    // The step whose pane was last edited: the workspace reopens on it.
+    const lastEdited = useRef<string | null>(null);
     const opener = useRef<string | null>(null);
     const arrival = autoFocus && !openPicker ? `[data-row="${TITLE}"]` : null;
     const focusAfter = useRef<string | readonly string[] | number | null>(arrival);
@@ -288,8 +303,6 @@ export function SelectionEditor({
             opener.current = from;
             say(`Editing ${[name, ownerName].filter((each) => each !== undefined).join(", ")}`);
         }
-        setSelected(row);
-        setActive(row);
         // A selection with no step opens on its new step's pane, the value field focused (spec 3.0).
         const only = rule.branches.length === 1 ? rule.branches[0] : undefined;
         const stepless =
@@ -298,8 +311,18 @@ export function SelectionEditor({
             titleExtra === undefined &&
             only !== undefined &&
             only.steps.length === 0;
+        // A rule with steps reopens on the pane of the step last edited, else its first step's; the
+        // title's pane holds only the add actions (the owner's review, ws-polish 2).
+        const steps = rule.branches.flatMap((branch) => branch.steps);
+        const toStep = steps.find((step) => step.id === lastEdited.current) ?? steps[0];
+        const shown =
+            add === undefined && row === TITLE && !stepless && !recipeTitle && toStep?.id !== undefined
+                ? toStep.id
+                : row;
+        setSelected(add === undefined ? shown : null);
+        setActive(shown);
         if (add !== undefined) {
-            setAdding({ branch: add.id ?? "", op: newVerb(add), open: true });
+            setAdding({ branch: add.id ?? "", op: newVerb(add), open: true, back: row });
         } else if (stepless) {
             // The new step's row is the one lit, never the title's too.
             setSelected(null);
@@ -307,8 +330,8 @@ export function SelectionEditor({
             focusAfter.current = PANE_FOCUS;
         } else {
             focusAfter.current = [
-                `[data-row="${CSS.escape(row)}"]`,
-                `[data-selects="${CSS.escape(row)}"]`,
+                `[data-row="${CSS.escape(shown)}"]`,
+                `[data-selects="${CSS.escape(shown)}"]`,
                 `[data-row="${TITLE}"]`,
             ];
         }
@@ -539,6 +562,10 @@ export function SelectionEditor({
     };
     const select = (id: string | null, intoPane = false): void => {
         setSelected(id);
+        // A step whose pane was shown is where the workspace reopens.
+        if (id !== null && rule.branches.some((branch) => branch.steps.some((step) => step.id === id))) {
+            lastEdited.current = id;
+        }
         if (id !== null) {
             setActive(id);
         }
@@ -548,10 +575,16 @@ export function SelectionEditor({
     };
     const pick = (branch: UnionBranch, op: Verb, stepRule: RuleTree): void => {
         const made = addStep(rule, branch.id ?? "", op, stepRule);
+        lastEdited.current = made.id;
         onChange(made.rule);
         setAdding(null);
         // The new step is selected: its pane holds its test, or, with no test, its row stays lit.
-        select(made.id, hasTest(stepRule));
+        // Focus waits for the test's first control (a computed value's test mounts once its run
+        // answers), never the Except switch above it.
+        select(made.id);
+        if (hasTest(stepRule)) {
+            focusAfter.current = TEST_FOCUS;
+        }
         if (!hasTest(stepRule)) {
             focusAfter.current = `[data-row="${CSS.escape(made.id)}"]`;
         }
@@ -565,8 +598,11 @@ export function SelectionEditor({
         setAdding({ branch: made.id, op: "add", fresh: true, open: true, back: selected });
         setSelected(null);
     };
+    // Only the step being added is lit while it is added: the row selected before is selected
+    // again if nothing is picked.
     const startAdding = (branch: UnionBranch, op: Verb): void => {
-        setAdding({ branch: branch.id ?? "", op, open: true });
+        setAdding({ branch: branch.id ?? "", op, open: true, back: selected });
+        setSelected(null);
     };
     const stopAdding = (branch: UnionBranch): void => {
         const was = addingNow.current;
@@ -586,9 +622,11 @@ export function SelectionEditor({
             return;
         }
         if (escaped.current && onEmptyCancel !== undefined && rule.branches.every((each) => each.steps.length === 0)) {
+            say("Filter not added");
             onEmptyCancel();
             return;
         }
+        setSelected(was.back ?? null);
         say("No step added");
         focusAfter.current = [`[data-add="${CSS.escape(branch.id ?? "")}"]`, `[data-row="${TITLE}"]`];
     };
@@ -909,6 +947,10 @@ export function SelectionEditor({
      */
     const outline = (where: "rest" | "ws"): React.JSX.Element => {
         const ws = where === "ws";
+        // While the workspace is open the sidebar keeps only the title row, marked as being edited,
+        // with no outline and no count: the workspace's header is the one place the count is drawn
+        // (spec 3.0, the owner's review, ws-polish 2).
+        const editing = !ws && open;
         const rowProps = (
             id: string,
             selects: string,
@@ -949,7 +991,11 @@ export function SelectionEditor({
                     {...rowProps(
                         TITLE,
                         TITLE,
-                        [name, countWords(reading.total.count, of, side), ...(titleOff ? ["off"] : [])].join(", "),
+                        [
+                            name,
+                            editing ? "being edited" : countWords(reading.total.count, of, side),
+                            ...(titleOff ? ["off"] : []),
+                        ].join(", "),
                         null,
                     )}
                     className="sel-row sel-title-row"
@@ -965,22 +1011,26 @@ export function SelectionEditor({
                         </Text>
                     )}
                     {/* In the workspace the header says the count; the title row only names it. */}
-                    {ws ? (
-                        <span className="sel-spacer" />
-                    ) : (
+                    {ws && <span className="sel-spacer" />}
+                    {editing && (
+                        <Text size="sm" c="dimmed" className="sel-state" ml="auto" data-editing="">
+                            Editing
+                        </Text>
+                    )}
+                    {!ws && !editing && (
                         <Tooltip
                             label={
                                 reading.pending.length > 0
                                     ? `${String(reading.pending.length)} waiting`
-                                    : `of ${formatNumber(of)} in the ${host === "filter" ? "full" : "filtered"} graph`
+                                    : `${formatNumber(reading.total.count)} of ${formatNumber(of)} in the ${host === "filter" ? "full" : "filtered"} graph`
                             }
                         >
                             <Text size="sm" className="sel-count" ml="auto">
-                                {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
+                                {`${shortCount(reading.total.count)} of ${shortCount(of)}`}
                             </Text>
                         </Tooltip>
                     )}
-                    {!ws && (
+                    {!ws && !editing && (
                         <Button
                             size="compact-xs"
                             variant="subtle"
@@ -994,7 +1044,7 @@ export function SelectionEditor({
                         </Button>
                     )}
                 </div>
-                {rule.branches.map((branch, at) => {
+                {(editing ? [] : rule.branches).map((branch, at) => {
                     const branchRead = branchReading(branch.id);
                     const color = branchRead?.color ?? branch.color ?? "currentColor";
                     const letter = branchName(branch);
@@ -1105,7 +1155,8 @@ export function SelectionEditor({
                                     </Text>
                                 </div>
                             )}
-                            {allRow(branch) && (
+                            {/* Hidden while a step is added to the group: the new step's row says what it starts from. */}
+                            {allRow(branch) && !(ws && adding?.branch === branch.id) && (
                                 <div
                                     {...(multi
                                         ? { "data-selects": branchId, className: "sel-row sel-all-row" }
@@ -1138,23 +1189,33 @@ export function SelectionEditor({
                                 const words = outlineWords.get(id) ?? rowWords(session, step, side, read);
                                 const reason = reasonWords(read?.reason ?? null, stepIds);
                                 const verb = VERB_WORDS[step.op];
+                                // A narrowing step says no verb (the owner, ws-polish 2): Keep is
+                                // what a step does unless it says Except or Add.
                                 // The row says "Run"; the estimate is in its tooltip and the pane's button.
                                 const short = reason.short.replace(/ \(.*\)$/u, "");
                                 const state = stateWord(step, read, short, index, branch, reading, of);
-                                // A group's first step at the group's own verb leaves the verb column empty.
-                                const quiet = index === 0 && step.op === newVerb(branch);
-                                // A selected row's pane already says its state.
-                                const drawnState = ws && selected === id ? "" : state;
+                                // A group's first step at the group's own verb, and every Keep step,
+                                // leave the verb column empty.
+                                const quiet = step.op === "keep" || (index === 0 && step.op === newVerb(branch));
+                                const verbWord = quiet ? "" : verb.word;
+                                // Every row ends with its state word, the selected one too, as the
+                                // sidebar's does (ws-polish 2).
+                                const drawnState = state;
                                 const soFar =
                                     read === undefined || read.waiting
                                         ? ""
                                         : `, ${formatNumber(read.count)} of ${formatNumber(of)} ${NOUNS[side].many} so far`;
                                 const test = rowTest(words);
                                 const said = [words.value, test].filter((each) => each !== "").join(" ");
-                                const full = [`${verb.word} (${verb.figma})`, said, ...words.tags, reason.long]
+                                const full = [
+                                    quiet ? "" : `${verb.word} (${verb.figma})`,
+                                    said,
+                                    ...words.tags,
+                                    reason.long,
+                                ]
                                     .filter((each) => each !== "")
                                     .join(", ");
-                                const label = [verb.word, said, ...words.tags, state]
+                                const label = [verbWord, said, ...words.tags, state]
                                     .filter((each) => each !== "")
                                     .join(", ");
                                 return (
@@ -1166,7 +1227,7 @@ export function SelectionEditor({
                                             className="sel-row sel-step-row"
                                         >
                                             <Text size="sm" className="sel-verb">
-                                                {quiet ? "" : verb.word}
+                                                {verbWord}
                                             </Text>
                                             <Text
                                                 size="sm"
@@ -1186,10 +1247,10 @@ export function SelectionEditor({
                                                 </Text>
                                             )}
                                             {words.tags.map((tag) => (
-                                                // A Links tag is the word alone; its condition is in the
+                                                // An Edges tag is the word alone; its condition is in the
                                                 // tooltip and on Advanced's right.
                                                 <Text key={tag} size="sm" span className="sel-tag">
-                                                    {tag.startsWith("Links:") ? "Links" : tag}
+                                                    {tag.startsWith("Edges:") ? "Edges" : tag}
                                                 </Text>
                                             ))}
                                             {drawnState !== "" && (
@@ -1210,7 +1271,7 @@ export function SelectionEditor({
                                     aria-hidden="true"
                                 >
                                     <Text size="sm" className="sel-verb">
-                                        {VERB_WORDS[newOp].word}
+                                        {newOp === "keep" || branch.steps.length === 0 ? "" : VERB_WORDS[newOp].word}
                                     </Text>
                                     <Text size="sm" c="dimmed" className="sel-value">
                                         Value...
@@ -1244,13 +1305,14 @@ export function SelectionEditor({
     const addingBranch = adding === null ? undefined : rule.branches.find((branch) => branch.id === adding.branch);
     const panes = (
         <>
+            {/* A new filter card's Nodes | Edges stays drawn over its first step's picker (spec 3.3). */}
+            {adding !== null && addingBranch !== undefined && titleExtra}
             {adding !== null && addingBranch !== undefined && (
                 <NewStepPane
                     key={`${adding.branch}:${String(adding.open)}`}
                     session={session}
                     rule={rule}
                     branch={addingBranch}
-                    op={adding.op}
                     open={adding.open}
                     hostPicks={hostPicks}
                     onPick={(stepRule) => {
@@ -1369,6 +1431,7 @@ export function SelectionEditor({
                             adds={adds(branch)}
                             head={!recipeOpen}
                             onStep={(patch) => {
+                                lastEdited.current = id;
                                 onChange(editStep(rule, branch.id ?? "", id, patch));
                             }}
                             onMove={(by) => {
@@ -1434,6 +1497,62 @@ export function SelectionEditor({
         };
     }, [open, host, frame]);
 
+    // The canvas is the frame (the owner's rule, 2026-10-24): while the workspace is open,
+    // graphty-element's canvas takes the preview cell's box, beside the outline and the properties
+    // and above the strip, never under them. On open it frames the graph when more than a quarter
+    // of what was drawn now lies outside the cell, and on close the camera goes back where it was.
+    const placed = wsPlace !== null;
+    useLayoutEffect(() => {
+        const cell = wsBox.current?.querySelector<HTMLElement>(".sel-ws-preview");
+        const canvas = frame?.querySelector<HTMLElement>(".ws-canvas");
+        if (!open || !placed || cell === null || cell === undefined || canvas === null || canvas === undefined) {
+            return undefined;
+        }
+        const camera = element?.getCameraState();
+        // What the whole canvas drew before it took the cell's box.
+        const whole = (box: HTMLElement): number =>
+            element?.nodesInRect({ x: 0, y: 0, width: box.clientWidth, height: box.clientHeight }).length ?? 0;
+        const drawn = whole(canvas);
+        const fit = (): void => {
+            if (element === null || element === undefined) {
+                return;
+            }
+            const inside = whole(cell);
+            if (drawn > 0 && inside < drawn * FRAMED_SHARE) {
+                element.zoomToFit();
+            }
+        };
+        const placeCanvas = (): void => {
+            const outer = canvas.getBoundingClientRect();
+            const inner = cell.getBoundingClientRect();
+            canvas.style.setProperty(
+                "--sel-preview-inset",
+                [inner.top - outer.top, outer.right - inner.right, outer.bottom - inner.bottom, inner.left - outer.left]
+                    .map((each) => `${String(Math.max(0, each))}px`)
+                    .join(" "),
+            );
+        };
+        placeCanvas();
+        canvas.dataset.selPreview = "";
+        const observer = new ResizeObserver(placeCanvas);
+        observer.observe(cell);
+        observer.observe(canvas);
+        // The element resizes its canvas on its own observer; the framing reads the new size after it.
+        let frameId = requestAnimationFrame(() => {
+            frameId = requestAnimationFrame(fit);
+        });
+        return () => {
+            cancelAnimationFrame(frameId);
+            observer.disconnect();
+            delete canvas.dataset.selPreview;
+            canvas.style.removeProperty("--sel-preview-inset");
+            if (camera !== undefined) {
+                void element?.setCameraState(camera);
+            }
+        };
+        // The canvas is placed once per opening; its observer follows the cell from there.
+    }, [open, placed, frame, element]);
+
     useLayoutEffect(() => {
         if (!open || wsPlace === null) {
             setOutlineWidth(null);
@@ -1454,7 +1573,8 @@ export function SelectionEditor({
         const target = event.target as HTMLElement;
         if (
             target.closest("[data-portal]") !== null ||
-            target.matches("[aria-expanded=true]") ||
+            // An open Advanced is the disclosure Escape closes below, not a list that closes itself.
+            target.matches("[aria-expanded=true]:not(.sel-advanced)") ||
             "expanded" in target.dataset
         ) {
             return;
@@ -1469,10 +1589,15 @@ export function SelectionEditor({
                 focusWithRing(advanced);
                 return;
             }
-            const back = selected ?? TITLE;
-            const row = wsBox.current?.querySelector<HTMLElement>(
-                `.sel-ws-outline [data-row="${CSS.escape(back)}"], .sel-ws-outline [data-selects="${CSS.escape(back)}"]`,
-            );
+            // A card named after its only step draws only its title row: its step's pane goes back there.
+            const back = recipeOpen ? TITLE : (selected ?? TITLE);
+            const row = [back, TITLE]
+                .map((each) =>
+                    wsBox.current?.querySelector<HTMLElement>(
+                        `.sel-ws-outline [data-row="${CSS.escape(each)}"], .sel-ws-outline [data-selects="${CSS.escape(each)}"]`,
+                    ),
+                )
+                .find((each) => each !== null && each !== undefined);
             if (row !== null && row !== undefined) {
                 focusWithRing(row);
                 return;
@@ -1646,6 +1771,13 @@ function paneTarget(root: HTMLElement | null): HTMLElement | undefined {
     return undefined;
 }
 
+/** Where focus goes once a value is picked: the test's first control, when it is drawn. */
+const TEST_FOCUS: readonly string[] = [
+    ".sel-ws-props .sel-test-box [data-first-focus]",
+    ".sel-ws-props .sel-test-box input:not([type=hidden], [readonly])",
+    ".sel-ws-props .sel-test-box button:not([data-cancel])",
+];
+
 /** Where focus goes in a pane that was entered: its first box to type in, else its first control. */
 const PANE_FOCUS: readonly string[] = [
     ".sel-pane-box [data-first-focus]",
@@ -1719,13 +1851,12 @@ function stateWord(
 }
 
 /**
- * The pane of a step being added: its verb, and its value field, whose value picker opens under
+ * The pane of a step being added: its value field, whose value picker opens under
  * it (spec 3.2). A pick writes the step; the picker closing with nothing chosen takes it back.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rule - the selection
  * @param props.branch - the group
- * @param props.op - the step's verb
  * @param props.open - whether the value picker opens at once
  * @param props.hostPicks - the host's own picker entries
  * @param props.onPick - takes the value's rule
@@ -1736,7 +1867,6 @@ function NewStepPane({
     session,
     rule,
     branch,
-    op,
     open: openAtFirst,
     hostPicks,
     onPick,
@@ -1745,7 +1875,6 @@ function NewStepPane({
     session: GraphSession;
     rule: UnionLeaf;
     branch: UnionBranch;
-    op: Verb;
     open: boolean;
     hostPicks: readonly PickSection[];
     onPick: (stepRule: RuleTree) => void;
@@ -1758,8 +1887,7 @@ function NewStepPane({
         onPick(stepRule);
     };
     return (
-        <Stack gap={6} className="sel-pane" role="group" aria-label={`${VERB_WORDS[op].word}, new step`}>
-            <Text size="sm">{VERB_WORDS[op].word}</Text>
+        <Stack gap={6} className="sel-pane" role="group" aria-label="New step">
             <AddCondition
                 // The lists are read only while the picker is open: on a large graph they are not free.
                 fields={open ? pickerFields(session, sideOf(rule), rule.within) : []}

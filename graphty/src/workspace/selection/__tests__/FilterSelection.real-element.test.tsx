@@ -35,34 +35,6 @@ async function ws(): Promise<HTMLElement> {
 }
 
 /**
- * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
- * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
- * new step's Value field, or the selected row's pane button Condition... (spec 3.0, 3.2).
- * @param scope - where to look.
- */
-async function startCondition(scope?: HTMLElement): Promise<void> {
-    const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
-    const row = within(where).queryByRole("treeitem", { name: "Condition..." });
-    if (row !== null) {
-        await userEvent.click(row);
-        return;
-    }
-    if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
-    }
-    const control = await waitFor(() => {
-        const ws = document.querySelector<HTMLElement>(".sel-ws");
-        assert.isNotNull(ws, "the workspace is open");
-        const found =
-            within(ws ?? document.body).queryByRole("button", { name: "Value" }) ??
-            within(ws ?? document.body).queryByRole("button", { name: "Condition..." });
-        assert.isNotNull(found, "a new step's Value field or Condition...");
-        return found;
-    });
-    await userEvent.click(control);
-}
-
-/**
  * Les Miserables in the workspace, on the Data place.
  * @returns The session.
  */
@@ -193,7 +165,7 @@ describe("the import filter's cards as selections", () => {
         await userEvent.click(within(card).getByRole("treeitem", { name: /^New filter, / }));
         // The segment's radio is visually hidden: a reader clicks its label.
         await userEvent.click(await within(await ws()).findByText("Edges"));
-        await startCondition(await ws());
+        // Switching side opens the value picker again, on the edges' values (ws-polish 2).
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Self-loops");
         await userEvent.keyboard("{Enter}");

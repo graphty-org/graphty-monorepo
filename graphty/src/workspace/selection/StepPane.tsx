@@ -6,7 +6,7 @@
  * graphty-element; every edit goes to the host as a new rule.
  */
 
-import { FieldCaret, FieldRow, PanelLabelsProvider, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
+import { FieldCaret, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
 import type {
     GraphSession,
     RuleTree,
@@ -25,10 +25,10 @@ import {
     Menu,
     NumberInput,
     Stack,
+    Switch,
     Text,
     Tooltip,
     UnstyledButton,
-    VisuallyHidden,
 } from "@mantine/core";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -39,7 +39,7 @@ import { isTypingTarget } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
 import { AddCondition, CardBody } from "../style/WhichPicker";
-import { type Verb, VERBS, verbsAt } from "./model";
+import { type Verb, verbsAt } from "./model";
 import { ReferencePicker } from "./ReferencePicker";
 import { SelectionMenuItems } from "./SelectionMenu";
 import {
@@ -55,6 +55,7 @@ import {
     sideOf,
     stepCard,
     usedPaths,
+    WHILE,
     withReference,
 } from "./values";
 import { linksSaid, NOUNS, reasonWords, rowWords, VERB_WORDS } from "./words";
@@ -69,70 +70,58 @@ export interface StepActions {
 }
 
 /**
- * A pane's row whose control is named by a caption over it (Start with, Computed on), as the Time
- * card draws its rows.
+ * A pane's row whose control is named by a caption over it (Start with, Computed on, Edges), the
+ * caption Figma's labeled rows draw, the control at the column's full width (ws-polish 2).
  * @param props - Component props
  * @param props.children - the control, with its `label`
  * @returns The row
  */
 export function CaptionedRow({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
+    const label = React.isValidElement<{ label?: string }>(children) ? children.props.label : undefined;
     return (
-        <PanelLabelsProvider showLabels>
-            <FieldRow>{children}</FieldRow>
-        </PanelLabelsProvider>
+        <Stack gap={4}>
+            {/* The control keeps the word as its own accessible name: the caption is drawn only. */}
+            <span aria-hidden="true" className="cm-caption">
+                {label}
+            </span>
+            {children}
+        </Stack>
     );
 }
 
-/** The verbs in the segment's order: Figma's Union, Intersect, Subtract. */
-const SEGMENT_VERBS: readonly Verb[] = ["add", "keep", "except"];
-
 /**
- * The verb segment: the verbs that can change the group at this step (Add, Keep, Except), Figma's
- * name in each tooltip. The step's own verb is always offered.
+ * A step's verb (the owner, ws-polish 2): a narrowing step says no verb, and its one choice is the
+ * compact Except switch ("Except Degree min 10"); an Add step says Add. Add and narrowing trade
+ * places in the step's "..." menu, since Or... already widens.
  * @param props - Component props
  * @param props.verb - the step's verb
  * @param props.verbs - the verbs that can change the group here
  * @param props.onVerb - takes the new verb
- * @returns The segment
+ * @returns The switch, the word Add, or nothing
  */
-function VerbSegment({
+function ExceptSwitch({
     verb,
     verbs,
     onVerb,
-}: Readonly<{ verb: Verb; verbs: readonly Verb[]; onVerb: (verb: Verb) => void }>): React.JSX.Element {
-    const offered = SEGMENT_VERBS.filter((each) => each === verb || verbs.includes(each));
-    if (offered.length < 2) {
-        // One verb is no choice: it is said, not drawn as a segment of one.
-        return (
-            <Text size="sm" style={{ flex: 1, minWidth: 0 }}>
-                {VERB_WORDS[verb].word}
-            </Text>
-        );
+}: Readonly<{ verb: Verb; verbs: readonly Verb[]; onVerb: (verb: Verb) => void }>): React.JSX.Element | null {
+    if (verb === "add") {
+        // A group's only verb is no choice: nothing is said.
+        return verbs.length < 2 ? null : <Text size="sm">{VERB_WORDS.add.word}</Text>;
+    }
+    if (verb !== "except" && !verbs.includes("except")) {
+        return null;
     }
     return (
-        <SegmentedControl
-            label="Verb"
-            fullWidth
-            style={{ flex: 1, minWidth: 0 }}
-            data={offered.map((each) => ({
-                value: each,
-                // Figma's word is in the tooltip and, for keyboard focus on the radio, in its name.
-                label: (
-                    <Tooltip label={VERB_WORDS[each].figma}>
-                        <span>
-                            <span>{VERB_WORDS[each].word}</span>
-                            <VisuallyHidden>{` (${VERB_WORDS[each].figma})`}</VisuallyHidden>
-                        </span>
-                    </Tooltip>
-                ),
-            }))}
-            value={verb}
-            onChange={(next) => {
-                if (VERBS.includes(next as Verb)) {
-                    onVerb(next as Verb);
-                }
-            }}
-        />
+        <Tooltip label={`${VERB_WORDS.except.word} (${VERB_WORDS.except.figma})`}>
+            <Switch
+                size="xs"
+                label={VERB_WORDS.except.word}
+                checked={verb === "except"}
+                onChange={(event) => {
+                    onVerb(event.currentTarget.checked ? "except" : "keep");
+                }}
+            />
+        </Tooltip>
     );
 }
 
@@ -227,6 +216,7 @@ function RunButton({
                 <Button
                     size="compact-xs"
                     variant="default"
+                    data-cancel=""
                     onClick={() => {
                         session.scope.cancelRun(rule, id);
                     }}
@@ -424,11 +414,11 @@ function LinksBody({
         <>
             <CaptionedRow>
                 <SegmentedControl
-                    label="Links"
+                    label="Edges"
                     fullWidth
                     data={[
-                        { value: "all", label: "All links" },
-                        { value: "where", label: "Links where ..." },
+                        { value: "all", label: "All edges" },
+                        { value: "where", label: "Edges where ..." },
                     ]}
                     value={where ? "where" : "all"}
                     onChange={(next) => {
@@ -467,13 +457,13 @@ function LinksBody({
                             rightSectionPointerEvents="none"
                             type="button"
                             pointer
-                            aria-label={`Link value: ${name === "" ? "none" : name}`}
+                            aria-label={`Edge value: ${name === "" ? "none" : name}`}
                             aria-haspopup="listbox"
                             onClick={() => {
                                 setPicking(true);
                             }}
                         >
-                            <span className="sel-field-text">{name === "" ? "Link value..." : name}</span>
+                            <span className="sel-field-text">{name === "" ? "Edge value..." : name}</span>
                         </InputBase>
                     }
                 />
@@ -658,7 +648,7 @@ export function StepPane({
     // An edge step reading a node value says whether both ends must pass, or either.
     const readsEnds = side === "edge" && card !== null && "field" in card && card.field.on === "node";
     const linked = readsLinks(step.rule);
-    const linksWords = step.links === undefined ? "" : `Links: ${linksSaid(session, step.links)}`;
+    const linksWords = step.links === undefined ? "" : `Edges: ${linksSaid(session, step.links)}`;
     const changed = [
         ...(step.computedOn === "so-far" ? ["So far"] : []),
         ...(linksWords === "" ? [] : [linksWords]),
@@ -668,11 +658,12 @@ export function StepPane({
     const hasAdvanced =
         canSoFar || linked || readsEnds || offersMissing || step.rule.kind === "touching" || settings.length > 0;
     const base = host === "filter" ? "Full graph" : "Filtered graph";
+    const verbs = verbsAt(branch, branch.steps.indexOf(step));
     return (
         <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
             role="group"
             aria-label={[
-                `${VERB_WORDS[step.op].word}, ${value}`,
+                step.op === "keep" ? value : `${VERB_WORDS[step.op].word}, ${value}`,
                 ...(count === undefined
                     ? []
                     : [`${formatNumber(count)} of ${formatNumber(of)} ${NOUNS[side].many} so far`]),
@@ -705,6 +696,11 @@ export function StepPane({
                         <span className="sel-spacer" />
                         <StepMenu
                             name={value}
+                            verb={step.op}
+                            verbs={verbs}
+                            onVerb={(op) => {
+                                onStep({ op });
+                            }}
                             on={step.on !== false}
                             first={first}
                             last={last}
@@ -717,13 +713,14 @@ export function StepPane({
                     </Group>
                 )}
                 <Group gap={6} wrap="nowrap">
-                    <VerbSegment
+                    <ExceptSwitch
                         verb={step.op}
-                        verbs={verbsAt(branch, branch.steps.indexOf(step))}
+                        verbs={verbs}
                         onVerb={(op) => {
                             onStep({ op });
                         }}
                     />
+                    <span className="sel-spacer" />
                     {count !== undefined && count !== total && (
                         <Text size="sm" c="dimmed" className="sel-count" aria-hidden>
                             {`${formatNumber(count)} so far`}
@@ -739,7 +736,8 @@ export function StepPane({
                     session={session}
                     rule={rule}
                     branch={branch}
-                    value={value}
+                    // "While ... has nodes" stays whole in its field; the reference picker holds the node.
+                    value={step.rule.kind === "nonempty" ? WHILE : value}
                     hostPicks={hostPicks}
                     onRule={(stepRule) => {
                         setDraft(null);
@@ -900,9 +898,13 @@ export function StepPane({
 }
 
 /**
- * A step's "..." menu: Turn off, Duplicate, Move up, Move down | Delete, each with its key.
+ * A step's "..." menu: Add instead (or Narrow instead) where both can change the group, Turn off,
+ * Duplicate, Move up, Move down | Delete, each with its key.
  * @param props - Component props
  * @param props.name - the step's value
+ * @param props.verb - the step's verb
+ * @param props.verbs - the verbs that can change the group here
+ * @param props.onVerb - takes the new verb
  * @param props.on - whether it is on
  * @param props.first - it is its group's first step
  * @param props.last - it is its group's last step
@@ -914,6 +916,9 @@ export function StepPane({
  */
 function StepMenu({
     name,
+    verb,
+    verbs,
+    onVerb,
     on,
     first,
     last,
@@ -923,6 +928,9 @@ function StepMenu({
     onRemove,
 }: Readonly<{
     name: string;
+    verb: Verb;
+    verbs: readonly Verb[];
+    onVerb: (verb: Verb) => void;
     on: boolean;
     first: boolean;
     last: boolean;
@@ -943,6 +951,19 @@ function StepMenu({
             <Menu.Dropdown data-portal="">
                 <SelectionMenuItems
                     items={[
+                        ...(verbs.includes("add") && verbs.length > 1
+                            ? [
+                                  {
+                                      id: "verb",
+                                      label: verb === "add" ? "Narrow instead" : "Add instead",
+                                      icon: verb === "add" ? ("intersect" as const) : ("union" as const),
+                                      group: "edit" as const,
+                                      onRun: () => {
+                                          onVerb(verb === "add" ? "keep" : "add");
+                                      },
+                                  },
+                              ]
+                            : []),
                         {
                             id: "hide",
                             label: on ? "Turn off" : "Turn on",

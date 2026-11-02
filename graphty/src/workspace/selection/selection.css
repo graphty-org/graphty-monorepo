@@ -57,17 +57,10 @@
     text-overflow: ellipsis;
 }
 
-/* A relative condition ("Within 2 hops of", "While ... has nodes") is never cut: its reference and
-   its state word give way instead, with an ellipsis. */
+/* A relative condition ("Within 2 hops of", "While ... has nodes") is never cut: its reference
+   gives way with an ellipsis, and its state word is never cut (the owner's review, ws-polish 2). */
 .sel-value[data-whole] {
     flex: none;
-}
-
-.sel-step-row:has(.sel-value[data-whole]) .sel-state {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 /* A tag is a bare dimmed word ("Links", "So far"), its whole setting in the row's tooltip and on
@@ -93,7 +86,8 @@
 
 .sel-title {
     flex: 0 1 auto;
-    min-width: 0;
+    /* The title keeps its first word or so ("Which edges", a card's value) before anything else. */
+    min-width: min(8ch, 100%);
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -260,6 +254,12 @@
 .sel-rest .sel-title-row:focus-within [data-edit],
 .sel-rest .sel-title-row [data-edit]:focus-visible {
     opacity: 1;
+}
+
+/* Edit takes the count's place, never half of it: the count goes while Edit is drawn. */
+.sel-rest .sel-title-row:hover .sel-count,
+.sel-rest .sel-title-row:focus-within .sel-count {
+    visibility: hidden;
 }
 
 .sel-ws-strip {

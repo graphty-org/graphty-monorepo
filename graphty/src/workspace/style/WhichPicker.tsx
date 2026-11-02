@@ -39,6 +39,7 @@ import { layerSelection } from "../selection/values";
 import { formatCount } from "../settings/numberFormat";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { barHeights } from "./barHeights";
 import {
     type Card,
     type CardField,
@@ -1189,7 +1190,24 @@ export interface ExtraItem {
 const finds = (typed: string, row: { name: string; aliases?: readonly string[] }): boolean =>
     typed === "" ||
     row.name.toLowerCase().includes(typed) ||
-    (row.aliases ?? []).some((alias) => alias.toLowerCase().startsWith(typed));
+    (row.aliases ?? []).some((alias) => alias.toLowerCase().startsWith(typed)) ||
+    everyWord(typed, [row.name, ...(row.aliases ?? [])].join(" "));
+
+/**
+ * Whether every word typed is in the text, in any order, a colon read as a space: "label
+ * propagation: comm" finds "Label propagation" with its field "community".
+ * @param typed - the search, lower case.
+ * @param text - the row's name and aliases.
+ * @returns true when each word is found.
+ */
+function everyWord(typed: string, text: string): boolean {
+    const words = typed
+        .replaceAll(":", " ")
+        .split(/\s+/u)
+        .filter((each) => each !== "");
+    const hay = text.toLowerCase().replaceAll(":", " ");
+    return words.length > 1 && words.every((word) => hay.includes(word));
+}
 
 /** A heading of rows that are not fields, listed after the field groups. */
 interface ExtraSection {
@@ -1428,6 +1446,9 @@ export function AddCondition({
             store={combobox}
             width={width}
             position="bottom-start"
+            // A list under a field (the selection workspace's value fields) always opens below it,
+            // inside its column, never flipped up over the header and Done (ws-polish 2).
+            middlewares={anchor === undefined ? undefined : { flip: false, shift: true }}
             withinPortal
             // compact-mantine's listbox look, as every Select's: its lit row keeps the menu's ink
             // (Mantine's bare highlight is white on the brand color, under 3:1).
@@ -1640,6 +1661,9 @@ function ExtraOption({ item }: Readonly<{ item: ExtraItem }>): React.JSX.Element
     );
 }
 
+/** How many bins a step's values are cut into (selection spec 4.3). */
+const HISTOGRAM_BINS = 32;
+
 /**
  * A step's number test drawn over its values (selection spec 5): the bars of how the values are
  * spread (graphty-element's `scope.histogram`, over the step's base) and a brush on their scale,
@@ -1688,6 +1712,8 @@ function ValueBrush({
         () =>
             given ??
             session.scope.histogram(path, {
+                // Spec 4.3: 32 bins, so a long tail is not lumped into a few bars.
+                bins: HISTOGRAM_BINS,
                 ...(within === undefined ? {} : { within }),
                 ...(linksKey === "" ? {} : { links: JSON.parse(linksKey) as RuleTree }),
             }),
@@ -1698,38 +1724,45 @@ function ValueBrush({
         return null;
     }
     const shown = moving ?? value;
+    const heights = barHeights(
+        spread.bins.map((bin) => bin.count),
+        spread.suggestedScale === "log",
+    );
     return (
-        <HistogramRow
-            label={name}
-            bins={spread.bins.map((bin) => ({
-                label: `${formatNumber(bin.from)} to ${formatNumber(bin.to)}: ${formatCount(bin.count)}`,
-                // Skewed values (graphty-element suggests a log scale) are drawn at log heights, so a
-                // long tail of small bins still shows; the label keeps the count.
-                count: spread.suggestedScale === "log" ? Math.log1p(bin.count) : bin.count,
-                from: bin.from,
-                to: bin.to,
-                highlighted: bin.to > shown[0] && bin.from <= shown[1],
-            }))}
-            minLabel={formatNumber(low)}
-            maxLabel={formatNumber(high)}
-            valueTable={false}
-            brush={{
-                min: low,
-                max: high,
-                step,
-                value: shown,
-                startLabel: `${name} range start`,
-                endLabel: `${name} range end`,
-                bodyLabel: `${name} range`,
-                valueText: (each) => formatNumber(each),
-                rangeText: ([from, to]) => `${formatNumber(from)} to ${formatNumber(to)}`,
-                onChange: setMoving,
-                onChangeEnd: (next) => {
-                    setMoving(null);
-                    onChangeEnd(next);
-                },
-            }}
-        />
+        // Inset by a thumb's reach, so the brush's thumbs end at the boxes' edges under it.
+        <div style={{ paddingInline: 8 }}>
+            <HistogramRow
+                label={name}
+                bins={spread.bins.map((bin, at) => ({
+                    label: `${formatNumber(bin.from)} to ${formatNumber(bin.to)}: ${formatCount(bin.count)}`,
+                    // Skewed counts are drawn at log heights and a bin holding anything is never flat,
+                    // so a long tail of small bins still shows; the label keeps the count.
+                    count: heights[at] ?? 0,
+                    from: bin.from,
+                    to: bin.to,
+                    highlighted: bin.to > shown[0] && bin.from <= shown[1],
+                }))}
+                minLabel={formatNumber(low)}
+                maxLabel={formatNumber(high)}
+                valueTable={false}
+                brush={{
+                    min: low,
+                    max: high,
+                    step,
+                    value: shown,
+                    startLabel: `${name} range start`,
+                    endLabel: `${name} range end`,
+                    bodyLabel: `${name} range`,
+                    valueText: (each) => formatNumber(each),
+                    rangeText: ([from, to]) => `${formatNumber(from)} to ${formatNumber(to)}`,
+                    onChange: setMoving,
+                    onChangeEnd: (next) => {
+                        setMoving(null);
+                        onChangeEnd(next);
+                    },
+                }}
+            />
+        </div>
     );
 }
 
@@ -1929,6 +1962,7 @@ export function CardBody({
                     label={`${card.field.name} is`}
                     name={card.field.name}
                     value={blank || card.match === "unset" ? null : card.match}
+                    placeholder="Value..."
                     data={[
                         { value: "yes", label: "Yes" },
                         { value: "no", label: "No" },
@@ -1985,6 +2019,7 @@ function fixedText(leaf: RuleTree): string {
  * @param props.name - the field's name
  * @param props.label - its accessible name, when it is not "<name>: how to match"
  * @param props.value - the chosen value, or null while none is
+ * @param props.placeholder - said while nothing is chosen
  * @param props.data - the choices
  * @param props.onChange - takes the card as edited
  * @returns The select
@@ -1993,12 +2028,15 @@ function MatchSelect({
     name,
     label,
     value,
+    placeholder,
     data,
     onChange,
 }: Readonly<{
     name: string;
     label?: string;
     value: string | null;
+    /** Said while nothing is chosen. */
+    placeholder?: string;
     data: readonly { value: string; label: string }[];
     onChange: (value: string) => void;
 }>): React.JSX.Element {
@@ -2019,6 +2057,7 @@ function MatchSelect({
             // Named for what it chooses beside the card's column; the select says its own value.
             aria-label={label ?? `${name}: how to match`}
             allowDeselect={false}
+            placeholder={placeholder}
             data={[...data]}
             value={value}
             onChange={(next) => {

@@ -705,3 +705,59 @@ Two-way doors decided while fixing the workspace polish 1 reviews (`ws-polish-1-
   tied" on a group's first step from the step's count; "at 15" needs the element); pointing at
   a sidebar row at rest marks nothing (spec 3.0 no longer promises it); the Data place's attribute
   "+" stays on the count rows.
+
+### Workspace polish 2 fixes (2026-11-01, studio engineer)
+
+From `ws-polish-2-owner.md`, `ws-polish-2-scale.md`, `ws-polish-2-correctness.md` and
+`ws-polish-2-figma-a11y.md`. The commit `4a3ed7cf1e` named by the round brief is the first polish
+round's work in progress; later commits (`cb77e6425f`, `64cb33f3a6`) finished it and the four
+reviews above judged their build, so nothing of it was left unverified.
+
+- **The canvas is the frame while the workspace is open.** graphty-element's canvas takes the
+  preview cell's box (the editor writes `--sel-preview-inset` on `.ws-canvas`); on open the graph is
+  framed once when the cell holds under three quarters of the nodes the canvas drew
+  (`nodesInRect`); on close the camera is put back (owner-decisions.md).
+- **The rule is drawn once.** While the workspace is open the sidebar keeps its title row, "Editing",
+  with no outline and no count; the other filter cards and the Filters header drop their counts.
+- **A narrowing step says no verb.** Keep is never written; a step pane has one compact Except switch;
+  "..." holds Add instead / Narrow instead; a new step's pane and row say no verb; filter card names
+  drop "keep" (owner-decisions.md).
+- **Edges, not links**, in Advanced, its tag and Degree's words; "links" stays a search alias.
+  Captioned segments (Computed on, Edges, Edge ends, Start with) take the column's full width; the
+  brush is inset 8 px so its thumbs end at the boxes' edges.
+- **Reopening** selects the step last edited, else the first step; the title only with no step.
+- **Sidebar Edit** hides the count while it is drawn. Long counts read short ("200k of 200k"); a
+  title keeps at least 8 characters; a relative row's value gives way to 8 characters before its
+  reference, and no state word is cut. The workspace outline's rows keep their state word when
+  selected.
+- **Pickers under fields never flip** up over the header. While a step is added, All nodes is
+  hidden and only the new row is lit (the row selected before comes back if nothing is picked).
+- **Yes/No** fields say "Value..." when empty and rows write "Yes"/"No" as the table does; "While
+  ... has nodes" stays whole in its field; the key draws No match only when it holds a node, and
+  "Drawing" clears on `styles.settled()`, not on a still frame.
+- **Keys.** Escape closes an open Advanced; a new filter card's first Escape goes to its title row;
+  Escape on a new card's picker says "Filter not added"; Nodes | Edges stays drawn over a new card's
+  picker, and switching side reopens it on the other side's values.
+- **Search** matches words in any order, a colon read as a space, and finds a result by its field
+  ("label propagation: comm").
+- **Histogram**: 32 bins; log(1 + count) heights when the element suggests it or the tallest bin is
+  over 20 times the median non-empty one; a non-empty bin is never flat (`style/barHeights.ts`).
+- **Redo** names the filter as it comes back.
+- **Speed on 50,000 nodes** (a profile of one checklist tick, `tmp/design-studio/tier5/ws-polish-3/`):
+  the matches strip read `layout.locationColumns()` on every render (760 ms), now cached by
+  graphty-element per graph snapshot; the style tree's counts (560 ms) are kept while the workspace
+  covers it; the canvas key's legend (630 ms) and the size-bound legend read (330 ms) wait for the
+  workspace to close. One tick went from 4.9 s to 2.6 s settled (under the profiler); the rest is the element's
+  repaint of 50,000 nodes and 200,000 edges and the inspector's agreement read.
+- **Not fixed this round**, each an element change of its own: a step's run taking an undo step of
+  its own (tried: starting it as a deferred member of the newest step, `transaction(..., { after })`,
+  keeps Undo on the reader's edit, but a Redo of a filter step that carried a rerun put the run back
+  "queued" and it never ran, so it was taken out; the dispatcher's redo of an amended deferred run
+  needs looking at first) and its duplicate runs; a filter card reusing a run made on the filtered
+  graph while no filter is on (tried: resolving "visible" from inside a filter's own evaluation
+  recurses, so the element needs a "no filter on" fact first); running step-local algorithms in the
+  Worker and calibrating the estimate from the first iteration; keeping a community step's
+  partition, or saving a checked group as "the group of X", across a filter change; per-step
+  computed values for the strip (Degree and Links-scoped columns); a GraphML file's node names
+  (owner-decisions.md); sharing one `watchSteps` evaluation between watchers. The Data place's
+  count-row "+" and the layer kind are owner questions (owner-decisions.md).

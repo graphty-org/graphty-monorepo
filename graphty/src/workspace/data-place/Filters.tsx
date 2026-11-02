@@ -225,9 +225,11 @@ export function FiltersSection(): React.JSX.Element {
     const empty = cards.length === 0 && !timed;
     // What the cards together leave, on the header: "Passes none" when they empty the picture.
     const { summary } = session?.visibility ?? { summary: null };
+    // While a card's workspace is open its header is the one place a count is drawn (spec 3.0).
+    const editing = useWorkspaceState((state) => state.selectionWorkspace?.host === "filter");
     const together =
         // Drawn only when two or more cards are on: one card's own count already says it.
-        summary === null || conditions.filter((c) => c.on && hides(c)).length < 2 ? null : (
+        editing || summary === null || conditions.filter((c) => c.on && hides(c)).length < 2 ? null : (
             <Text size="sm" className="dp-filters-count" data-filters-count="">
                 {summary.visibleNodes === 0
                     ? "Passes none"
@@ -517,6 +519,8 @@ function FilterCard({
         { id: "delete", label: "Delete", icon: "delete", group: "remove", key: "Delete", onRun: remove },
     ];
     const total = selection === null ? undefined : `${formatNumber(matched)} of ${formatNumber(reading.total.of)}`;
+    // While a card's workspace is open the other cards keep their rows but drop their counts.
+    const editing = useWorkspaceState((state) => state.selectionWorkspace?.host === "filter");
 
     return (
         <li>
@@ -554,6 +558,7 @@ function FilterCard({
                                 // A new card's side; switching starts its selection again on the other side.
                                 <SegmentedControl
                                     label="Filter on"
+                                    fullWidth
                                     data={[
                                         { value: "node", label: "Nodes" },
                                         { value: "edge", label: "Edges" },
@@ -567,7 +572,8 @@ function FilterCard({
                             ) : undefined
                         }
                         openFirst={draft && !stepless}
-                        openPicker={draft && stepless && !switched}
+                        // Switching a new card's side opens the picker again, on the other side's values.
+                        openPicker={draft && stepless}
                         openTitle={(draft && switched) || switchIn.current}
                         hostPicks={timePick(() => {
                             if (draft) {
@@ -604,9 +610,8 @@ function FilterCard({
                                 {title}
                             </Text>
                             <span className="sel-spacer" />
-                            {total === undefined ? (
-                                <CountChips count={count} effect={condition?.effect} />
-                            ) : (
+                            {!editing && total === undefined && <CountChips count={count} effect={condition?.effect} />}
+                            {!editing && total !== undefined && (
                                 <Text size="sm" c="dimmed" span className="sel-count">
                                     {total}
                                 </Text>

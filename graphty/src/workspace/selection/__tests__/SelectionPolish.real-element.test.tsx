@@ -210,7 +210,7 @@ describe("the value picker and the cards a value opens", () => {
             assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[0]?.rule.kind, "member");
         });
         const pane = document.querySelector<HTMLElement>("[data-step-pane]");
-        assert.isNull(pane?.querySelector("input:not([type=radio])") ?? null, "no test");
+        assert.isNull(pane?.querySelector(".sel-test-box input:not([type=radio])") ?? null, "no test");
         await waitFor(() => {
             assert.isNotNull(document.activeElement?.closest(".sel-step-row"), "focus is on its row");
         });
@@ -292,8 +292,9 @@ describe("the editor's verbs, groups and words", () => {
         await waitFor(() => {
             assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[1]?.op, "add", "a group of none adds");
         });
-        const verb = await screen.findByRole("radiogroup", { name: "Verb" });
-        await userEvent.click(within(verb).getByText("Keep"));
+        // Add and narrowing trade places in the step's "..." (the owner's review, ws-polish 2).
+        await userEvent.click(await screen.findByRole("button", { name: /^More for Isolated/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /Narrow instead/ }));
         await waitFor(() => {
             assert.equal(unionOf(session, layer.id)?.branches[0]?.steps[1]?.op, "keep");
         });

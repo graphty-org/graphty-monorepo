@@ -30,9 +30,9 @@ export const WHILE = "While ... has nodes";
 
 /** Plain words for the structure values readers guessed at (spec 3.5), by path. */
 const STRUCTURE_WORDS: Readonly<Record<string, string>> = {
-    "graphty.degree": "Links at a node",
-    "graphty.inDegree": "Incoming links at a node",
-    "graphty.outDegree": "Outgoing links at a node",
+    "graphty.degree": "Edges at a node",
+    "graphty.inDegree": "Incoming edges at a node",
+    "graphty.outDegree": "Outgoing edges at a node",
 };
 
 /** The reader's words a search finds Degree by. */
@@ -223,7 +223,8 @@ export function pickSections(
                         name: fields.length === 1 ? method : `${method}: ${field.plainName}`,
                         glyph: GLYPHS.analyze,
                         ...(each.description === undefined || each.description === "" ? {} : { tip: each.description }),
-                        aliases,
+                        // Its field's name finds it too: "Label propagation: comm".
+                        aliases: [...aliases, field.plainName],
                         onPick: () => {
                             onPick({ kind: "measure", algorithm: each.key, field: field.name });
                         },

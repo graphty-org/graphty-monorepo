@@ -3751,3 +3751,49 @@ toolbar, and F6 and Tab still reached its hidden buttons (WCAG 2.4.11). The tool
 and inert while the workspace is open, and comes back when it closes; the workspace's Fit is its
 framing. **Choices.** (a) keep it hidden; (b) dock the toolbar above the matches table at the
 preview's bottom edge, centered on the preview.
+
+## 2026-11-01 -- For the owner: step verbs after "Select / Filter to / Filter out"
+
+**What.** Done, reversible. Your review read "Add / Keep / Except" as "Select / Filter to / Filter
+out" under new names. A narrowing step now says no verb anywhere (rows, panes, filter card names):
+Keep is never written. Its one choice is a compact **Except** switch in the step pane ("Except name
+contains Val" on the row). Add is chosen from the step's "..." (Add instead / Narrow instead), since
+Or... already widens; an Add step after a group's first step still writes "Add" on its row.
+**Choices.** (a) keep it; (b) drop Add from steps entirely (Or... is the only way to widen);
+(c) go back to the three-way segment.
+
+## 2026-11-01 -- For the owner: editing Which nodes changes the layer's kind and its edge line
+
+**What.** Not changed; a question. A new layer reads "Node and edge layer" with "Edges: nothing
+set". Once Which nodes has a step it reads "Node layer" with "Edges: not styled", and its icon
+changes: the layer's kind follows the halves it has built (`builtParts`, graph-place/rows.ts), and a
+condition counts as building the node half. **Choices.** (a) keep it; (b) name a layer's kind only
+by what it writes (a condition alone never changes it); (c) keep "Node and edge layer" until a
+property is set on one half.
+
+## 2026-11-01 -- For the owner: the Data place's attribute "+" on the count rows
+
+**What.** Not changed; a question. The Data column draws four "+" with three meanings: Data sources
+(adds a source), the node count row and the edge count row (add an attribute), and Filters (adds a
+card). decided.md kept the count rows' "+"; spec 4.1 says "+" only adds to the list under its
+header. **Choices.** (a) keep them; (b) move "Add attribute" into each count row's "..."; (c) an
+"Attributes" header with its own "+" above the two rows.
+
+## 2026-11-01 -- For the owner: a GraphML node's name (graphty-element)
+
+**What.** Not changed; a question, because it changes a default. `data.name(id)` reads
+`data.knownFields.nodeLabelPath` and only the GML importer sets it (to `label`). A GraphML file
+with a `name` key therefore names its nodes by id: the reference picker finds "Person 00017" (the
+row shows "name Person 00017") but the field and the row then say "n17". **Choices.** (a) the
+GraphML (and CSV) importers set `nodeLabelPath` to a `name` or `label` column when the file has
+one, as GML does (a changed default for those formats); (b) the app sets it from the Data place's
+Name role, which the reader picks; (c) leave it.
+
+## 2026-11-01 -- For the owner: the workspace now resizes the canvas and may frame once
+
+**What.** Done, reversible. Spec 3.0 said opening the workspace never re-frames or resizes the
+drawing. On 50,000 nodes the overlay hid a third to half of the graph. While the workspace is open
+graphty-element's canvas now takes the preview cell's box (beside the columns, above the strip); on
+open the graph is framed once when more than a quarter of the nodes drawn fall outside the cell;
+on close the canvas takes its whole box and the camera goes back where it was. **Choices.**
+(a) keep it; (b) resize but never frame (Fit only); (c) the old overlay.

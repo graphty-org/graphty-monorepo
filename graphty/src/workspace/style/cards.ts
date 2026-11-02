@@ -207,6 +207,8 @@ function fieldOf(session: GraphSession, value: ReadableValue, time = false): Car
         kind: time && value.kind !== "number" ? "date" : value.kind,
         name: readableName(session, value).name,
         group: groups[value.from],
+        // A result is found by its field's name too ("Label propagation: community").
+        ...(value.from === "run" ? { aliases: [value.path.split(".").at(-1) ?? ""] } : {}),
         ...(value.range === undefined ? {} : { range: value.range }),
         ...withFact(span ?? valueFact(value)),
     };
@@ -944,7 +946,10 @@ export function cardWords(session: GraphSession, card: Card): string {
         case "category":
             return categoryWords(session, card, name, path);
         case "yes-no":
-            return card.match === "unset" ? `${name}: pick yes or no` : `${name}: ${card.match}`;
+            // Yes and No as the table and the field write them.
+            return card.match === "unset"
+                ? `${name}: pick yes or no`
+                : `${name}: ${card.match === "yes" ? "Yes" : "No"}`;
         default: {
             if (card.match === "list") {
                 return pickedWords((card.ids ?? []).length, 0);

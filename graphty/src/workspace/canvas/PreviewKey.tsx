@@ -13,7 +13,7 @@ import React, { useEffect, useState } from "react";
 import { formatNumber } from "../inspector/words";
 import { useEditedSelection, useShownBranches } from "../selection/useSteps";
 import { letterOf } from "../selection/words";
-import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspaceState } from "../state/WorkspaceContext";
 import { colorName } from "../style/words";
 
 /**
@@ -31,29 +31,27 @@ export function PreviewKey({
     const shown = useShownBranches(session);
     const edited = useWorkspaceState((state) => state.editingSelection);
     const reading = useEditedSelection(session, shown?.rule ?? null);
-    // While graphty-element is still drawing the view (a large graph repaints over many frames),
-    // the key says so, so its counts are never read as the canvas's.
-    const { element } = useWorkspace();
+    // While graphty-element is still painting the view's colors (a large graph repaints over many
+    // frames), the key says so, so its counts are never read as the canvas's. It clears when the
+    // element says the colors are applied, not when the frame is still: a running layout keeps the
+    // frame moving long after the colors are on (ws-polish 2).
     const [drawing, setDrawing] = useState(false);
     useEffect(() => {
-        if (element === null || element === undefined || shown === null) {
+        if (shown === null) {
             setDrawing(false);
             return undefined;
         }
-        // Read on each animation frame until the element says the picture is final.
-        let frame = 0;
-        const look = (): void => {
-            const stable = element.isFrameStable;
-            setDrawing(!stable);
-            if (!stable) {
-                frame = requestAnimationFrame(look);
+        let live = true;
+        setDrawing(true);
+        void session.styles.settled().then(() => {
+            if (live) {
+                setDrawing(false);
             }
-        };
-        frame = requestAnimationFrame(look);
+        });
         return () => {
-            cancelAnimationFrame(frame);
+            live = false;
         };
-    }, [element, shown]);
+    }, [session, shown]);
     if (shown === null || reading === null) {
         return children;
     }
@@ -128,20 +126,23 @@ export function PreviewKey({
                         }
                     />
                 ))}
-                <DataRow
-                    name="No match"
-                    value={formatNumber(reading.total.of - reading.total.count)}
-                    // The faint rest, as the canvas draws it, so the row lines up with the groups'.
-                    icon={
-                        <ColorSwatch
-                            className="ws-legend-chit"
-                            color="var(--mantine-color-dimmed)"
-                            size={12}
-                            opacity={0.35}
-                            aria-hidden
-                        />
-                    }
-                />
+                {/* Drawn only when it holds a node. */}
+                {reading.total.of > reading.total.count && (
+                    <DataRow
+                        name="No match"
+                        value={formatNumber(reading.total.of - reading.total.count)}
+                        // The faint rest, as the canvas draws it, so the row lines up with the groups'.
+                        icon={
+                            <ColorSwatch
+                                className="ws-legend-chit"
+                                color="var(--mantine-color-dimmed)"
+                                size={12}
+                                opacity={0.35}
+                                aria-hidden
+                            />
+                        }
+                    />
+                )}
             </Stack>
         </Paper>
     );

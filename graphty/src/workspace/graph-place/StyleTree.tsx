@@ -328,6 +328,8 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             }),
         [session],
     );
+    const covered = useWorkspaceState((state) => state.selectionWorkspace?.host === "selector");
+    const lastPaints = useRef(new Map<string, Paints>());
     const tree = session.styles.tree();
     // With no row open, Tab into the tree lands on Everything (else the first row no pin holds),
     // never on a pinned built-in row such as Hovered that paints nothing until a pointer moves.
@@ -387,7 +389,12 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 description: states.length === 0 ? undefined : states.join(", "),
             };
         }
-        const paints = paintsOf(session, row);
+        // Under the selection workspace the tree is covered and takes no input: each edit there
+        // keeps the counts it had, read again when the workspace closes (a count over 50,000
+        // nodes took a second per edit, ws-polish 2).
+        const kept = covered ? lastPaints.current.get(row.id) : undefined;
+        const paints = kept ?? paintsOf(session, row);
+        lastPaints.current.set(row.id, paints);
         const over = paints.paintedOver && !hidden;
         // What it paints is its glyph: a dot for nodes, a line for edges, a dot on a line for both.
         const marks = (

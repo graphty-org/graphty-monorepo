@@ -46,9 +46,10 @@ const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, load: n
  * event that can change them; announces a finished load with its size and a finished run by name;
  * and, when a run finishes, posts the notice its painting calls for.
  * @param session - the element's session, or null.
+ * @param paused - the selection workspace draws its own key: the canvas key is not read meanwhile.
  * @returns what the canvas draws from.
  */
-function useCanvasReading(session: GraphSession | null): CanvasReading {
+function useCanvasReading(session: GraphSession | null, paused: boolean): CanvasReading {
     const { store } = useWorkspace();
     const [reading, setReading] = useState<CanvasReading>(NOTHING);
 
@@ -62,6 +63,11 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
         // A run that ends after the session changed must not post a notice for the old session.
         let live = true;
         const read = (): void => {
+            // While the selection workspace draws its own key the canvas key is not drawn: it is
+            // read again when the workspace closes, not on every edit (ws-polish 2).
+            if (paused) {
+                return;
+            }
             const { nodeCount, edgeCount } = session.data.statistics();
             const blocks = keyBlocks(dataBlocks(session));
             setReading({ blocks, nodeCount, edgeCount, load });
@@ -139,7 +145,7 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                 off();
             });
         };
-    }, [session, store]);
+    }, [session, store, paused]);
 
     return reading;
 }
@@ -328,7 +334,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const legendAsked = useWorkspaceState((state) => state.legendAsked);
     // The empty card's doors: the Sources "+" doors a first source most often comes through.
     const doors = [useCommand("data.add-file"), useCommand("data.samples")].filter((door) => door !== null);
-    const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session);
+    const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session, workspaceOpen);
     useLayoutWarningNotice();
     useDetailedMapForSmallData();
 

@@ -122,6 +122,14 @@
     overflow: hidden;
 }
 
+/* While the selection workspace is open, the drawing takes the preview cell's box (the
+   selection editor writes the inset), so the canvas is the frame and nothing lies over it. */
+.ws-canvas[data-sel-preview] .ws-canvas-surface {
+    position: absolute;
+    inset: var(--sel-preview-inset, 0);
+    height: auto;
+}
+
 .ws-canvas-overlays {
     position: absolute;
     inset: 0;

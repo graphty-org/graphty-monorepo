@@ -844,18 +844,42 @@ function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote
         // can name it by ("Group 2"), so a table read beside the picture joins it. Otherwise the
         // file holds the algorithm's own group ids, as the live result does.
         const ranks = groupRanks ? partitionGroupRanks(result) : undefined;
-        for (const field of result.fields) {
-            const path = session.results.path(root.runId, field.name);
-            if (!out.kept(path)) {
-                continue;
-            }
+        writeResultFields(session, out, notes, { runId: root.runId, result, ranks });
+    }
+}
 
-            const name = out.cell(path);
-            try {
-                writeResultField(out, result, field, name, ranks);
-            } catch (error) {
-                notes.push(droppedFieldNote(name, error));
-            }
+/**
+ * Write each kept field of one published result as a column.
+ * @param session - The session, for the fields' paths.
+ * @param out - The export's builder, its cell guard and the rows in the session's order.
+ * @param notes - Receives a note for each field no column could hold.
+ * @param run - The result, its run id and its group ranks when groups are written as ranks.
+ * @param run.runId - The result's run id.
+ * @param run.result - The result.
+ * @param run.ranks - A partition's group ranks, when groups are written as ranks.
+ */
+function writeResultFields(
+    session: GraphSession,
+    out: ResultColumns,
+    notes: LossNote[],
+    run: {
+        readonly runId: Parameters<GraphSession["results"]["path"]>[0];
+        readonly result: PublishedResult;
+        readonly ranks: ReturnType<typeof partitionGroupRanks> | undefined;
+    },
+): void {
+    const { runId, result, ranks } = run;
+    for (const field of result.fields) {
+        const path = session.results.path(runId, field.name);
+        if (!out.kept(path)) {
+            continue;
+        }
+
+        const name = out.cell(path);
+        try {
+            writeResultField(out, result, field, name, ranks);
+        } catch (error) {
+            notes.push(droppedFieldNote(name, error));
         }
     }
 }

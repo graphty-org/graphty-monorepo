@@ -258,6 +258,11 @@ export interface NodeStyleValues {
      */
     readonly shapePointsStretch: boolean;
     /**
+     * Degrees clockwise the node's outline is turned about its center, after it is drawn at its width and height:
+     * Pajek's `phi` turns an ellipse, a cross or a figure (`phi 60` is -60). Its label is not turned.
+     */
+    readonly shapeRotation: number;
+    /**
      * Further closed pieces of the node's body beside its outline: polygons written as `shapePoints` is, separated by
      * ";", drawn where they say (never stretched), each filled as the node is and outlined in its border's color and
      * width: Graphviz's `assembly` is two bars, its `noverhang` four.

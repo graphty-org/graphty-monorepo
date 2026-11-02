@@ -402,8 +402,6 @@ export class DerivationLane {
             const copies = this.targetCopies(dirty);
             const target = frozenOver(this.state, copies);
 
-            // Inline, not an awaited helper: an extra async boundary would move every pass's
-            // `show` a few microtasks later relative to the writes and builds around it.
             for (const slice of HOOK_ORDER) {
                 const keys = dirty.get(slice);
                 for (const hook of this.hooksFor(slice, keys)) {

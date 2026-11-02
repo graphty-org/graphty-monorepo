@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { DAY, HOUR, type IssueItem } from "../../src/model/items.js";
 import { MAX_VIEW_BYTES } from "../../src/views/index.js";
-import { buckets, issuesPage, openAt, prioOf, typeOf } from "../../src/views/issue-sections.js";
+import { buckets, issuesPage, issuesSummary, openAt, prioOf, typeOf } from "../../src/views/issue-sections.js";
 import type { PageResponse, Section, SeriesSection, TableSection } from "../../web/src/contract.js";
 
 /** Sunday 2026-10-25 12:00 UTC. */
@@ -253,5 +253,23 @@ describe("the Issues page", () => {
             const bytes = gzipSync(JSON.stringify(issuesPage(many, range, NOW, undefined))).byteLength;
             expect(bytes, range).toBeLessThan(MAX_VIEW_BYTES);
         }
+    });
+});
+
+describe("issuesSummary (the overview's Issues line)", () => {
+    it("counts open bugs and critical bugs now and 28 days ago, and the issues opened and closed since", () => {
+        // 28 days ago (09-27 12:00) c, g and i were the open bugs; now a, f, g, i and j are, a and j critical.
+        expect(issuesSummary(ALL, NOW)).toEqual({
+            bugs: 5,
+            bugs28dAgo: 3,
+            critical: 2,
+            critical28dAgo: 0,
+            opened: 6,
+            closed: 3,
+        });
+    });
+
+    it("is absent with no stored issue", () => {
+        expect(issuesSummary([], NOW)).toBeUndefined();
     });
 });

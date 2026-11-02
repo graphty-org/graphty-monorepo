@@ -191,6 +191,22 @@ and `layoutBehavior.camera.fitInsets`.
 
 The canvas still draws everywhere, so a node turned into an inset is drawn and can be pointed at.
 
+### Framing again when the canvas changes size
+
+A resize that lands while the element is still framing the graph is framed at the new size. One
+that lands after the picture is final leaves the camera where it is, by default. A page that
+opens its own panel beside the canvas and shrinks it -- an inspector, a side sheet -- can turn
+`layoutBehavior.camera.refitOnResize` on, so every resize frames the graph again for the new
+canvas, and the picture is the same whenever the panel opens:
+
+```javascript
+element.layoutBehavior = { camera: { refitOnResize: true } };
+```
+
+It only moves a camera the element framed itself or `zoomToFit()` framed. Once the reader zooms,
+turns or pans, or `setCameraState` places the camera, a resize leaves it alone until the next
+load or layout change. With `autoFrame` off it does nothing.
+
 ### A sharp picture on a high-resolution screen
 
 By default the canvas is drawn at one pixel per CSS pixel, which looks soft on a phone, a tablet

@@ -31,7 +31,7 @@ export const REPO = "https://github.com/graphty-org/graphty-monorepo";
  * @returns The text with every HTML special character escaped.
  */
 export function esc(s: unknown): string {
-    return String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    return String(s).replaceAll(/[&<>"']/g, (c) => `&#${c.codePointAt(0) ?? 0};`);
 }
 
 /**
@@ -290,7 +290,7 @@ export const shaLink = (sha: string): string =>
  * @returns The phrases joined in a sentence.
  */
 export function and(items: string[]): string {
-    return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+    return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
 }
 
 // ---------------------------------------------------------------- states
@@ -1085,6 +1085,18 @@ type P = Record<string, Param>;
 const num = (p: P, k: string): number => Number(p[k] ?? 0);
 const str = (p: P, k: string): string => esc(p[k] ?? "");
 const arr = (p: P, k: string): (string | number)[] => (Array.isArray(p[k]) ? [...(p[k] as (string | number)[])] : []);
+/**
+ * A workflow error's fix: "; fix #N", and how long it waits on the owner when it does; empty with no fix.
+ * @param p The fact's parameters, with `fix` and `waits_owner_s`.
+ * @returns The words.
+ */
+function workflowFix(p: P): string {
+    if (!p.fix) {
+        return "";
+    }
+    const wait = p.waits_owner_s ? ` waits on the owner (code owners), ${fmtDur(num(p, "waits_owner_s"))}` : "";
+    return `; fix ${prLink(num(p, "fix"))}${wait}`;
+}
 const at = (p: P, k: string): string => (typeof p[k] === "string" ? fmtTime(p[k]) : "");
 const plural = (n: number, one: string, many = `${one}s`): string => `${fmtN(n)} ${n === 1 ? one : many}`;
 
@@ -1249,12 +1261,7 @@ const S: Record<string, (p: P) => string> = {
         `cancelled together at ${at(p, "at")} to free runners; the run's cancel actor is a person`,
     "cause.signature": (p) => `"${str(p, "signature")}"`,
     "cause.unknown": () => "cause not recorded",
-    "cause.workflow_error": (p) =>
-        `workflow error: ${str(p, "detail")}${
-            p.fix
-                ? `; fix ${prLink(num(p, "fix"))}${p.waits_owner_s ? ` waits on the owner (code owners), ${fmtDur(num(p, "waits_owner_s"))}` : ""}`
-                : ""
-        }`,
+    "cause.workflow_error": (p) => `workflow error: ${str(p, "detail")}${workflowFix(p)}`,
     "check.family": (p) => `family of ${fmtN(num(p, "bins"))} bins`,
     "check.failed_alone": () => "failed alone",
     suspect: (p) => `${prLink(num(p, "pr"))} ${str(p, "title")}`,
@@ -1492,7 +1499,7 @@ export function dayMeasure(w: Member["window"]): string {
  * @param html HTML that may hold links.
  * @returns The HTML without its anchor tags.
  */
-export const unlinked = (html: string): string => html.replace(/<a\b[^>]*>|<\/a>/g, "");
+export const unlinked = (html: string): string => html.replaceAll(/<a\b[^>]*>|<\/a>/g, "");
 
 /**
  * A member in a sentence: "runner wait p90 31 min", or its short fact.

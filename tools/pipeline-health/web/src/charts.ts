@@ -28,73 +28,76 @@ export const chev = (): string => CHEV;
  */
 export function hiddenTable(caption: string, head: string[], rows: (string | number)[][]): string {
     const th = head.map((h) => `<th scope="col">${esc(h)}</th>`).join("");
-    const tr = rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("");
+    const td = (c: string | number): string => `<td>${esc(c)}</td>`;
+    const tr = rows.map((r) => `<tr>${r.map(td).join("")}</tr>`).join("");
     return `<span class="vh"><table><caption>${esc(caption)}</caption><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></span>`;
 }
 
 const r1 = (n: number): number => Math.round(n * 10) / 10;
 
+const SPARK_W = 120;
+
+/** A sparkline's scales: where a value sits vertically, and where a context or trend bucket sits across. */
+interface SparkScale {
+    y: (v: number) => number;
+    xCtx: (i: number) => number;
+    xT: (i: number) => number;
+}
+
 /**
- * A sparkline, 120 x 28 (section 2.3): the 6 h trend in 15-minute buckets with the last hour shaded,
- * the rest of the 24 h hourly and faint at the left, the target as a gray band. A lasting breach
- * colors the line; a single breached bucket is a dot; the current bucket is a hollow dot; a source
- * with no history yet is hatched.
- * @param s - The sparkline's data: trend, context, target and breaches.
- * @param generated - When the data was generated; the newest bucket ends here.
+ * The sparkline drawn for a source with no history at all: a hatched box.
  * @param caption - The caption of the hidden table of values.
  * @returns The SVG followed by its hidden table.
  */
-export function sparkline(s: Spark, generated: Iso, caption: string): string {
-    const W = 120;
-    const all = [...s.ctx, ...s.trend].filter((v): v is number => v !== null);
-    if (all.length === 0) {
-        return (
-            `<svg class="spark" viewBox="0 0 ${W} 28" width="${W}" height="28" aria-hidden="true">` +
-            `<rect x="0" y="1" width="${W}" height="26" style="fill: url(#nh)" /><text class="nht" x="60" y="18" text-anchor="middle">no history</text></svg>${hiddenTable(
-                caption,
-                ["bucket", "value"],
-                [["all", "no history"]],
-            )}`
-        );
-    }
-    const lo = Math.min(0, ...all, s.target ?? 0);
-    let hi = Math.max(...all, s.target ?? -Infinity);
-    if (hi === lo) {
-        hi = lo + 1;
-    }
-    // One value alone has nothing to scale against: it sits mid-height at the newest end, not on the top edge.
-    const single = all.length === 1 && s.target === undefined;
-    const y = (v: number): number => (single ? 14 : r1(25 - ((v - lo) / (hi - lo)) * 22));
-    const hourly = s.step !== "15m";
-    const xCtx = (i: number): number => r1(1 + (i * 28) / Math.max(1, s.ctx.length - 1));
-    const tx0 = hourly ? 3 : 35;
-    const xT = (i: number): number =>
-        s.trend.length === 1 ? 117 : r1(tx0 + (i * (117 - tx0)) / Math.max(1, s.trend.length - 1));
+function noHistorySpark(caption: string): string {
+    const W = SPARK_W;
+    return (
+        `<svg class="spark" viewBox="0 0 ${W} 28" width="${W}" height="28" aria-hidden="true">` +
+        `<rect x="0" y="1" width="${W}" height="26" style="fill: url(#nh)" /><text class="nht" x="60" y="18" text-anchor="middle">no history</text></svg>${hiddenTable(
+            caption,
+            ["bucket", "value"],
+            [["all", "no history"]],
+        )}`
+    );
+}
 
+/**
+ * Where the hatch of leading buckets with no history ends, 0 for none.
+ * @param s - The sparkline's data.
+ * @param sc - The sparkline's scales.
+ * @param firstCtx - The first context bucket with a value, -1 for none.
+ * @param firstTrend - The first trend bucket with a value, -1 for none.
+ * @returns The hatch's right edge.
+ */
+function hatchEndOf(s: Spark, sc: SparkScale, firstCtx: number, firstTrend: number): number {
+    if (s.ctx.length && firstCtx === -1) {
+        if (firstTrend > 0) {
+            return sc.xT(firstTrend) - 2;
+        }
+        return firstTrend === 0 ? 33 : SPARK_W;
+    }
+    if (s.ctx.length && firstCtx > 0) {
+        return sc.xCtx(firstCtx) - 1.5;
+    }
+    if (!s.ctx.length && firstTrend > 0) {
+        return sc.xT(firstTrend) - 2;
+    }
+    return 0;
+}
+
+/**
+ * The hatch over leading buckets with no history, then the context and trend lines.
+ * @param s - The sparkline's data.
+ * @param sc - The sparkline's scales.
+ * @returns The hatch's and the lines' SVG elements.
+ */
+function lineMarks(s: Spark, sc: SparkScale): string[] {
+    const { y, xCtx, xT } = sc;
     const parts: string[] = [];
-    const winW = hourly ? (117 - tx0) / (s.trend.length - 1) + 3 : 15.5;
-    if (s.step !== "1d") {
-        parts.push(`<rect class="win" x="${r1(W - winW)}" y="0" width="${r1(winW)}" height="28" />`);
-    }
-    if (s.target !== undefined) {
-        parts.push(`<rect class="band" x="0" y="${r1(y(s.target) - 1)}" width="${W}" height="2" />`);
-    }
-
     // leading nulls: no history
     const firstCtx = s.ctx.findIndex((v) => v !== null);
     const firstTrend = s.trend.findIndex((v) => v !== null);
-    let hatchEnd = 0;
-    if (s.ctx.length && firstCtx === -1) {
-        if (firstTrend > 0) {
-            hatchEnd = xT(firstTrend) - 2;
-        } else {
-            hatchEnd = firstTrend === 0 ? 33 : W;
-        }
-    } else if (s.ctx.length && firstCtx > 0) {
-        hatchEnd = xCtx(firstCtx) - 1.5;
-    } else if (!s.ctx.length && firstTrend > 0) {
-        hatchEnd = xT(firstTrend) - 2;
-    }
+    const hatchEnd = hatchEndOf(s, sc, firstCtx, firstTrend);
     if (hatchEnd > 0) {
         parts.push(`<rect x="0" y="1" width="${r1(hatchEnd)}" height="26" style="fill: url(#nh)" />`);
         // The words need about 70 px; a narrower hatch speaks for itself.
@@ -102,7 +105,6 @@ export function sparkline(s: Spark, generated: Iso, caption: string): string {
             parts.push(`<text class="nht" x="${r1(hatchEnd / 2)}" y="18" text-anchor="middle">no history</text>`);
         }
     }
-
     const pts = (vals: (number | null)[], x: (i: number) => number): string =>
         vals
             .map((v, i) => (v === null ? null : `${x(i)},${y(v)}`))
@@ -114,9 +116,19 @@ export function sparkline(s: Spark, generated: Iso, caption: string): string {
     if (firstTrend !== -1) {
         parts.push(`<polyline points="${pts(s.trend, xT)}" />`);
     }
+    return parts;
+}
 
-    // breaches
+/**
+ * The marks of breached buckets: a colored segment between two breached neighbors, a dot for one alone.
+ * @param s - The sparkline's data.
+ * @param sc - The sparkline's scales.
+ * @returns The marks' SVG elements.
+ */
+function breachMarks(s: Spark, sc: SparkScale): string[] {
+    const { xT, y } = sc;
     const b = s.breach;
+    const parts: string[] = [];
     for (let i = 0; i + 1 < s.trend.length; i++) {
         const a = s.trend[i];
         const c = s.trend[i + 1];
@@ -138,27 +150,92 @@ export function sparkline(s: Spark, generated: Iso, caption: string): string {
         }
         parts.push(`<circle class="pt ${bi}" cx="${xT(i)}" cy="${y(v)}" r="2.6" />`);
     }
-    const last = s.trend[s.trend.length - 1];
-    if (last !== null && last !== undefined) {
-        parts.push(`<circle class="now" cx="${xT(s.trend.length - 1)}" cy="${y(last)}" r="2.4" />`);
-    }
+    return parts;
+}
 
+/**
+ * The rows of a sparkline's hidden table: each trend bucket's start time and value.
+ * @param s - The sparkline's data.
+ * @param generated - When the data was generated; the newest bucket ends here.
+ * @returns The rows.
+ */
+function sparkRows(s: Spark, generated: Iso): string[][] {
     let stepMin = 15;
     if (s.step === "1d") {
         stepMin = 1440;
-    } else if (hourly) {
+    } else if (s.step !== "15m") {
         stepMin = 60;
     }
     const stepMs = stepMin * 60_000;
     const end = Math.floor(Date.parse(generated) / stepMs) * stepMs;
-    const rows = s.trend.map((v, i) => [
+    return s.trend.map((v, i) => [
         fmtTime(new Date(end - (s.trend.length - 1 - i) * stepMs).toISOString()),
         v === null ? "none" : fmtN(v),
     ]);
+}
+
+/**
+ * The scales of a sparkline with at least one value.
+ * @param s - The sparkline's data.
+ * @param all - Every value of the context and the trend.
+ * @returns The scales.
+ */
+function sparkScale(s: Spark, all: number[]): SparkScale {
+    const lo = Math.min(0, ...all, s.target ?? 0);
+    let hi = Math.max(...all, s.target ?? -Infinity);
+    if (hi === lo) {
+        hi = lo + 1;
+    }
+    // One value alone has nothing to scale against: it sits mid-height at the newest end, not on the top edge.
+    const single = all.length === 1 && s.target === undefined;
+    const tx0 = s.step === "15m" ? 35 : 3;
+    return {
+        y: (v: number): number => (single ? 14 : r1(25 - ((v - lo) / (hi - lo)) * 22)),
+        xCtx: (i: number): number => r1(1 + (i * 28) / Math.max(1, s.ctx.length - 1)),
+        xT: (i: number): number =>
+            s.trend.length === 1 ? 117 : r1(tx0 + (i * (117 - tx0)) / Math.max(1, s.trend.length - 1)),
+    };
+}
+
+/**
+ * A sparkline, 120 x 28 (section 2.3): the 6 h trend in 15-minute buckets with the last hour shaded,
+ * the rest of the 24 h hourly and faint at the left, the target as a gray band. A lasting breach
+ * colors the line; a single breached bucket is a dot; the current bucket is a hollow dot; a source
+ * with no history yet is hatched.
+ * @param s - The sparkline's data: trend, context, target and breaches.
+ * @param generated - When the data was generated; the newest bucket ends here.
+ * @param caption - The caption of the hidden table of values.
+ * @returns The SVG followed by its hidden table.
+ */
+export function sparkline(s: Spark, generated: Iso, caption: string): string {
+    const W = SPARK_W;
+    const all = [...s.ctx, ...s.trend].filter((v): v is number => v !== null);
+    if (all.length === 0) {
+        return noHistorySpark(caption);
+    }
+    const sc = sparkScale(s, all);
+    const { y, xT } = sc;
+    const hourly = s.step !== "15m";
+    const tx0 = hourly ? 3 : 35;
+
+    const parts: string[] = [];
+    const winW = hourly ? (117 - tx0) / (s.trend.length - 1) + 3 : 15.5;
+    if (s.step !== "1d") {
+        parts.push(`<rect class="win" x="${r1(W - winW)}" y="0" width="${r1(winW)}" height="28" />`);
+    }
+    if (s.target !== undefined) {
+        parts.push(`<rect class="band" x="0" y="${r1(y(s.target) - 1)}" width="${W}" height="2" />`);
+    }
+
+    parts.push(...lineMarks(s, sc), ...breachMarks(s, sc));
+    const last = s.trend.at(-1);
+    if (last !== null && last !== undefined) {
+        parts.push(`<circle class="now" cx="${xT(s.trend.length - 1)}" cy="${y(last)}" r="2.4" />`);
+    }
     return `<svg class="spark" viewBox="0 0 ${W} 28" width="${W}" height="28" aria-hidden="true">${parts.join("")}</svg>${hiddenTable(
         caption,
         ["bucket starting", "value"],
-        rows,
+        sparkRows(s, generated),
     )}`;
 }
 
@@ -174,10 +251,14 @@ export function budgetBar(r: ShardRow, maxS: number): { svg: string; note: strin
     const judged = r.runs >= r.minRuns;
     const medOver = judged && r.medianS > r.budgetS;
     const p90Over = judged && !medOver && r.p90S > r.budgetS;
+    let medCls = "p90";
+    if (judged) {
+        medCls = medOver ? "med bad" : "med";
+    }
     const svg =
         `<svg class="sbar" viewBox="0 0 ${W} 14" width="${W}" height="14" aria-hidden="true">` +
         `<rect class="p90${p90Over ? " warn" : ""}" x="0" y="3" width="${x(r.p90S)}" height="8" />` +
-        `<rect class="${judged ? `med${medOver ? " bad" : ""}` : "p90"}" x="0" y="3" width="${x(r.medianS)}" height="8" />` +
+        `<rect class="${medCls}" x="0" y="3" width="${x(r.medianS)}" height="8" />` +
         `<line class="bud" x1="${x(r.budgetS)}" y1="0" x2="${x(r.budgetS)}" y2="14" /></svg>`;
     // The budget is printed, not only drawn, so "over budget" says over what.
     const budget = `budget ${fmtN(Math.round((r.budgetS / 60) * 10) / 10)} min`;
@@ -233,7 +314,7 @@ export function sortedBars(
     return `<div class="bars">${rows}</div>${table}`;
 }
 
-const HOUR = 3600_000;
+const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 /**

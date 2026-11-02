@@ -1,3 +1,65 @@
+## 3.35.0 (2026-11-02)
+
+### 🚀 Features
+
+- **graphty-element:** frame a sigma.js file as sigma.js does, on request ([#5367](https://github.com/graphty-org/graphty-monorepo/issues/5367))
+- **graphty-element:** selection.clear takes a cause; a reader's clear turns select conditions off ([#5498](https://github.com/graphty-org/graphty-monorepo/issues/5498))
+- **graphty-element:** a reader's selection.apply switches select conditions off ([#4598](https://github.com/graphty-org/graphty-monorepo/issues/4598))
+- **graphty-element:** space a computed layout of a styled file as its program does ([#3168](https://github.com/graphty-org/graphty-monorepo/issues/3168), [#3103](https://github.com/graphty-org/graphty-monorepo/issues/3103))
+
+### 🩹 Fixes
+
+- **graphty-element:** step the particle transition test on a frame clock, not the wall clock ([#5498](https://github.com/graphty-org/graphty-monorepo/issues/5498))
+- **graphty-element:** keep an expanded line batch when its edges are torn down ([#3095](https://github.com/graphty-org/graphty-monorepo/issues/3095))
+- **graphty-element:** style comparator reads arrowhead tips, box outlines and hidden shapes ([#5533](https://github.com/graphty-org/graphty-monorepo/issues/5533), [#5383](https://github.com/graphty-org/graphty-monorepo/issues/5383), [#5387](https://github.com/graphty-org/graphty-monorepo/issues/5387), [#5196](https://github.com/graphty-org/graphty-monorepo/issues/5196))
+- **graph-io:** read session group state, check tool rule-defaults, unify the block repair ([#3111](https://github.com/graphty-org/graphty-monorepo/issues/3111), [#5544](https://github.com/graphty-org/graphty-monorepo/issues/5544))
+- **graphty-element:** give an expanded line batch's part a bounding box ([#3095](https://github.com/graphty-org/graphty-monorepo/issues/3095))
+- **graphty-element:** draw joined edge lines as one plain mesh on a software renderer ([#3095](https://github.com/graphty-org/graphty-monorepo/issues/3095))
+- **graphty-element:** frame the points an edge's bends and curves are drawn through ([#3097](https://github.com/graphty-org/graphty-monorepo/issues/3097))
+- **graphty-element:** deliver lifecycle-disposed to graph.on and DOM listeners ([#1645](https://github.com/graphty-org/graphty-monorepo/issues/1645))
+- **graph-io:** draw Pajek Bezier lines and turned labels as Pajek does ([#4524](https://github.com/graphty-org/graphty-monorepo/issues/4524), [#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531), [#5226](https://github.com/graphty-org/graphty-monorepo/issues/5226))
+- **graph-io:** draw Pajek Bezier lines and turned labels as Pajek does ([#4524](https://github.com/graphty-org/graphty-monorepo/issues/4524), [#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531), [#5226](https://github.com/graphty-org/graphty-monorepo/issues/5226))
+- **graphty-element:** fidelity comparator pairs nodes drawn on one spot one to one ([#4264](https://github.com/graphty-org/graphty-monorepo/issues/4264), [#5506](https://github.com/graphty-org/graphty-monorepo/issues/5506), [#4451](https://github.com/graphty-org/graphty-monorepo/issues/4451))
+- **graphty-element:** calibrate lengths "spacing" on the spacing layouts settle at ([#5514](https://github.com/graphty-org/graphty-monorepo/issues/5514))
+- **graphty-element:** keep lint type checks inside the worktree ([#5296](https://github.com/graphty-org/graphty-monorepo/issues/5296))
+- **graphty-element:** leave out the edge labels Graphviz drops under forcelabels=false ([#5499](https://github.com/graphty-org/graphty-monorepo/issues/5499))
+- **graphty-element:** half arrows without a break, Cytoscape's barb, vis-network's crow ([#5490](https://github.com/graphty-org/graphty-monorepo/issues/5490), [#5491](https://github.com/graphty-org/graphty-monorepo/issues/5491))
+- **graphty-element:** half arrows without a break, Cytoscape's barb, vis-network's crow A half arrow's line now runs on to where its arm meets the line (half-open and half-open- flipped 0.4 of the cap back from the tip), so no break shows before the barb. Graphviz's halfopen and Cytoscape's half arrows both meet their line; graphty-element stopped it at the head's back and left a gap of 0.6 of the head. ([#5490](https://github.com/graphty-org/graphty-monorepo/issues/5490), [#5491](https://github.com/graphty-org/graphty-monorepo/issues/5491))
+- **graphty-element:** redraw node glyphs and text annotations when their web font loads ([#5140](https://github.com/graphty-org/graphty-monorepo/issues/5140))
+- **graphty-element:** refuse malformed data door arguments with E_BAD_COMMAND ([#5504](https://github.com/graphty-org/graphty-monorepo/issues/5504))
+- **graph-io:** place a Pajek part-way arrowhead's tip 5 s past the point ap names ([#4514](https://github.com/graphty-org/graphty-monorepo/issues/4514))
+- **graphty-element:** report a seed on a seedless layout as W_UNKNOWN_OPTION ([#5124](https://github.com/graphty-org/graphty-monorepo/issues/5124))
+- **graphty-element:** measure minDelta on landed batches of an accelerated simulation ([#3379](https://github.com/graphty-org/graphty-monorepo/issues/3379), [#4437](https://github.com/graphty-org/graphty-monorepo/issues/4437))
+- **graphty-element:** keep column descriptors across view mask changes ([#4386](https://github.com/graphty-org/graphty-monorepo/issues/4386))
+- **graphty-element:** leave out a DOT xlabel that forcelabels=false has no room for ([#5279](https://github.com/graphty-org/graphty-monorepo/issues/5279))
+- **graph-io:** name the server that answered on every source failure ([#5200](https://github.com/graphty-org/graphty-monorepo/issues/5200))
+- **graphty-element:** see half-arrow line breaks, open half arrows and vis-network's crow ([#5490](https://github.com/graphty-org/graphty-monorepo/issues/5490), [#5491](https://github.com/graphty-org/graphty-monorepo/issues/5491), [#4252](https://github.com/graphty-org/graphty-monorepo/issues/4252))
+- **graphty-element:** route the renderer's data edits through the load line ([#3604](https://github.com/graphty-org/graphty-monorepo/issues/3604), [#5416](https://github.com/graphty-org/graphty-monorepo/issues/5416))
+- **graphty-element:** styles.settled() waits for a live set's repaint after a graph change ([#3667](https://github.com/graphty-org/graphty-monorepo/issues/3667))
+- **graphty-element:** frame center labels before their sight-line slide, and fit textures by step ([#3239](https://github.com/graphty-org/graphty-monorepo/issues/3239))
+- **graphty-element:** shrink label copies on the CPU, and owe no texture walk without a camera ([#3239](https://github.com/graphty-org/graphty-monorepo/issues/3239))
+- **graphty-element:** keep labels sharp in a capture larger than the canvas with the screen fit ([#3239](https://github.com/graphty-org/graphty-monorepo/issues/3239))
+- **graphty-element:** draw labels sharp, and center labels on their node's line of sight ([#3239](https://github.com/graphty-org/graphty-monorepo/issues/3239))
+- **graphty-element:** layouts read the edge weight by its meaning ([#3329](https://github.com/graphty-org/graphty-monorepo/issues/3329))
+- **graphty-element:** keep a merged CSV draft joined to a graph's number ids ([#3243](https://github.com/graphty-org/graphty-monorepo/issues/3243))
+- **graphty-element,graphty:** load a project.open draft as data.import loads the same file ([#3243](https://github.com/graphty-org/graphty-monorepo/issues/3243))
+- **graphty-element:** keep Run's public style read-only; test compares public state ([#3231](https://github.com/graphty-org/graphty-monorepo/issues/3231))
+- **graphty-element:** a removed run started again takes the new start's styling ([#3231](https://github.com/graphty-org/graphty-monorepo/issues/3231))
+- **layout:** make a group held at its members' box inert in the simulation layouts ([#3075](https://github.com/graphty-org/graphty-monorepo/issues/3075))
+- **graphty-element:** announce time:ready on a microtask, never inside a read ([#4450](https://github.com/graphty-org/graphty-monorepo/issues/4450))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.66
+- Updated @graphty/remote-logger to 2.0.28
+- Updated babylonjs-map to 0.0.5
+- Updated graph-samples to 0.1.44
+- Updated visual-review to 0.2.40
+- Updated graph-format to 1.4.12
+- Updated algorithms to 3.4.19
+- Updated graph-io to 0.3.53
+- Updated layout to 2.5.15
+
 ## 3.34.0 (2026-11-01)
 
 ### 🚀 Features

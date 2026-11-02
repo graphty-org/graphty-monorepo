@@ -1,3 +1,33 @@
+## 0.3.53 (2026-11-02)
+
+### 🚀 Features
+
+- **graphty-element:** space a computed layout of a styled file as its program does ([#3168](https://github.com/graphty-org/graphty-monorepo/issues/3168), [#3103](https://github.com/graphty-org/graphty-monorepo/issues/3103))
+
+### 🩹 Fixes
+
+- **graph-io:** tell yEd Live GraphML by a declared namespace, not a substring ([#3110](https://github.com/graphty-org/graphty-monorepo/issues/3110))
+- **graph-io:** read session group state, check tool rule-defaults, unify the block repair ([#3111](https://github.com/graphty-org/graphty-monorepo/issues/3111), [#5544](https://github.com/graphty-org/graphty-monorepo/issues/5544))
+- **graph-io:** skip node and edge loss notes for values the target program draws anyway ([#3008](https://github.com/graphty-org/graphty-monorepo/issues/3008))
+- **graph-io:** draw Pajek Bezier lines and turned labels as Pajek does ([#4524](https://github.com/graphty-org/graphty-monorepo/issues/4524), [#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531), [#5226](https://github.com/graphty-org/graphty-monorepo/issues/5226))
+- **graph-io:** draw Pajek Bezier lines and turned labels as Pajek does ([#4524](https://github.com/graphty-org/graphty-monorepo/issues/4524), [#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531), [#5226](https://github.com/graphty-org/graphty-monorepo/issues/5226))
+- **graphty-element:** calibrate lengths "spacing" on the spacing layouts settle at ([#5514](https://github.com/graphty-org/graphty-monorepo/issues/5514))
+- **graphty-element:** keep lint type checks inside the worktree ([#5296](https://github.com/graphty-org/graphty-monorepo/issues/5296))
+- **graphty-element:** leave out the edge labels Graphviz drops under forcelabels=false ([#5499](https://github.com/graphty-org/graphty-monorepo/issues/5499))
+- **graph-io:** wait for a fidelity story in its afterEach, not its play function ([#4997](https://github.com/graphty-org/graphty-monorepo/issues/4997))
+- **graph-io:** make each fidelity story test wait for its story and fail on its failure ([#4997](https://github.com/graphty-org/graphty-monorepo/issues/4997))
+- **graph-io:** write a placed Pajek line's arrow position back as the ap Pajek reads ([#4514](https://github.com/graphty-org/graphty-monorepo/issues/4514))
+- **graph-io:** straighten the edge of a parallel pair Cytoscape desktop draws straight ([#4258](https://github.com/graphty-org/graphty-monorepo/issues/4258))
+- **graph-io:** place a Pajek part-way arrowhead's tip 5 s past the point ap names ([#4514](https://github.com/graphty-org/graphty-monorepo/issues/4514))
+- **graphty-element:** leave out a DOT xlabel that forcelabels=false has no room for ([#5279](https://github.com/graphty-org/graphty-monorepo/issues/5279))
+- **graph-io:** name the server that answered on every source failure ([#5200](https://github.com/graphty-org/graphty-monorepo/issues/5200))
+- **workspace:** bundle storybook test dependencies afresh every run ([#5240](https://github.com/graphty-org/graphty-monorepo/issues/5240))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.40
+- Updated graph-format to 1.4.12
+
 ## 0.3.52 (2026-11-01)
 
 ### 🚀 Features

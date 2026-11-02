@@ -274,6 +274,91 @@ function SeedField({
 }
 
 /**
+ * The map's columns: the drawn map's element (only when this map is the one drawn), the columns its
+ * options read, and the ones the drawn map read.
+ * @param input - what to read
+ * @param input.session - the element's session
+ * @param input.element - the element
+ * @param input.values - the layout's options
+ * @param input.isMap - whether the layout is the map
+ * @param input.isCurrent - whether the layout is the one drawn
+ * @returns the drawn map, and the two lines
+ */
+function mapLines(input: {
+    session: GraphSession;
+    element: GraphtyElement | null;
+    values: Readonly<Record<string, unknown>>;
+    isMap: boolean;
+    isCurrent: boolean;
+}): { mapDrawn: GraphtyElement | null; reads: string; read: string | undefined } {
+    const { session, element, values, isMap, isCurrent } = input;
+    const mapDrawn = isMap && isCurrent ? element : null;
+    const reads = isMap ? locationLine(session, values) : "";
+    return { mapDrawn, reads, read: drawnLine(mapDrawn) };
+}
+
+/**
+ * Whether Apply would change the drawing: another layout, engine or options than the drawn one.
+ * @param input - what to compare
+ * @param input.isCurrent - whether the layout is the one drawn
+ * @param input.engine - the form's engine
+ * @param input.descriptor - the layout
+ * @param input.current - the drawn layout
+ * @param input.values - the form's options
+ * @param input.read - the columns the drawn map read
+ * @param input.reads - the columns the map reads now
+ * @returns true when it differs
+ */
+function layoutDiffers(input: {
+    isCurrent: boolean;
+    engine: string | undefined;
+    descriptor: LayoutDescriptor;
+    current: GraphSession["layout"];
+    values: Readonly<Record<string, unknown>>;
+    read: string | undefined;
+    reads: string;
+}): boolean {
+    const { isCurrent, engine, descriptor, current, values, read, reads } = input;
+    return (
+        !isCurrent ||
+        (engine ?? descriptor.engine) !== current.engine ||
+        !sameValues(values, current.options) ||
+        // Another location designated since the map was drawn: Apply reads it.
+        (read !== undefined && read !== reads)
+    );
+}
+
+/**
+ * The map's Location row, naming the columns it reads, with a note on what they held.
+ * @param props - Component props
+ * @param props.reads - the columns the map reads
+ * @param props.mapNote - what the columns held
+ * @param props.onLocation - goes to Data > Fields
+ * @returns the row
+ */
+function MapLocation({
+    reads,
+    mapNote,
+    onLocation,
+}: Readonly<{ reads: string; mapNote: string; onLocation: () => void }>): React.JSX.Element {
+    return (
+        <Stack gap={2}>
+            <FieldRow>
+                <Text size="xs">Location</Text>
+                <Button size="compact-xs" variant="default" aria-label="Location" onClick={onLocation}>
+                    {reads === "" ? "none" : reads}
+                </Button>
+            </FieldRow>
+            {mapNote === "" ? null : (
+                <Text size="xs" c="dimmed">
+                    {mapNote}
+                </Text>
+            )}
+        </Stack>
+    );
+}
+
+/**
  * The form for one layout (the Layout popover's second level, and inline in the graph's
  * inspector): Shape, its key options, the Advanced fold with Seed and Reshuffle, the cost line
  * and Apply. Nothing runs while the reader edits; Apply (or Enter) lays the graph out, as one
@@ -321,22 +406,16 @@ export function LayoutForm({
         }
     }, [focusButton]);
 
-    const shape = shapeOf(values, isCurrent && values.dim === start.values.dim ? current.arrangedDimension : undefined);
-    const startShape = shapeOf(start.values, isCurrent ? current.arrangedDimension : undefined);
+    const arranged = isCurrent ? current.arrangedDimension : undefined;
+    const shape = shapeOf(values, values.dim === start.values.dim ? arranged : undefined);
+    const startShape = shapeOf(start.values, arranged);
     const showShape = shapeChoice && current.dimension === "3d" && descriptor.maxDimensions === 3;
 
     // The map's form: the columns it reads (designated in Data > Fields), the warnings about what
     // they held, Surface offering only the flat map in 2D, and the map it draws on.
     const isMap = descriptor.id === MAP_LAYOUT;
-    const mapDrawn = isMap && isCurrent ? element : null;
-    const reads = isMap ? locationLine(session, values) : "";
-    const read = drawnLine(mapDrawn);
-    const differs =
-        !isCurrent ||
-        (engine ?? descriptor.engine) !== current.engine ||
-        !sameValues(values, current.options) ||
-        // Another location designated since the map was drawn: Apply reads it.
-        (read !== undefined && read !== reads);
+    const { mapDrawn, reads, read } = mapLines({ session, element, values, isMap, isCurrent });
+    const differs = layoutDiffers({ isCurrent, engine, descriptor, current, values, read, reads });
     const reason = unavailable(session, descriptor, values);
     const estimate = session.estimate({ op: "layout.set", id: descriptor.id, engine, options: values });
 
@@ -428,26 +507,13 @@ export function LayoutForm({
                     </Text>
                 ) : null}
                 {isMap ? (
-                    <Stack gap={2}>
-                        <FieldRow>
-                            <Text size="xs">Location</Text>
-                            <Button
-                                size="compact-xs"
-                                variant="default"
-                                aria-label="Location"
-                                onClick={() => {
-                                    store.set({ page: "panels", place: "data" });
-                                }}
-                            >
-                                {reads === "" ? "none" : reads}
-                            </Button>
-                        </FieldRow>
-                        {mapNote === "" ? null : (
-                            <Text size="xs" c="dimmed">
-                                {mapNote}
-                            </Text>
-                        )}
-                    </Stack>
+                    <MapLocation
+                        reads={reads}
+                        mapNote={mapNote}
+                        onLocation={() => {
+                            store.set({ page: "panels", place: "data" });
+                        }}
+                    />
                 ) : null}
                 <OptionsForm
                     session={session}

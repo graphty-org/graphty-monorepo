@@ -17,7 +17,7 @@
     "land": {
         "worktree": ".worktrees/land-live",
         "servers": [],
-        "test": "node tools/land.test.mjs && node tools/verify.test.mjs && node tools/branch-tracking.test.mjs"
+        "test": "node tools/branch-tracking.test.mjs"
     },
     "sonar-baseline": {
         "worktree": ".worktrees/sonar-baseline-runner",

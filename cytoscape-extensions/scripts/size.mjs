@@ -131,6 +131,50 @@ function lazyPartName(chunk) {
 }
 
 /**
+ * Adds a chunk and its static imports to a set, leaving out the chunks in `skip`.
+ * @param {Map<string, import("vite").Rollup.OutputChunk>} byName - the build's chunks, by file name
+ * @param {import("vite").Rollup.OutputChunk} c - the chunk
+ * @param {Set<import("vite").Rollup.OutputChunk>} into - the set to add to
+ * @param {Set<import("vite").Rollup.OutputChunk>} skip - the chunks to leave out
+ * @returns {Set<import("vite").Rollup.OutputChunk>} `into`
+ */
+function closureOf(byName, c, into, skip) {
+    if (!into.has(c) && !skip.has(c)) {
+        into.add(c);
+        c.imports.forEach((f) => closureOf(byName, byName.get(f), into, skip));
+    }
+    return into;
+}
+
+/**
+ * What is loaded when chunk c imports a lazy chunk: the page and c with its static imports.
+ * @param {import("vite").Rollup.OutputChunk[]} chunks - the build
+ * @param {Map<string, import("vite").Rollup.OutputChunk>} byName - the build's chunks, by file name
+ * @param {Set<import("vite").Rollup.OutputChunk>} initial - what the page loads up front
+ * @param {import("vite").Rollup.OutputChunk} c - the importing chunk
+ * @returns {Set<import("vite").Rollup.OutputChunk>} the chunks already loaded
+ */
+function loadedWith(chunks, byName, initial, c) {
+    // what is loaded when c imports it: the page and c with its static imports; a part of several
+    // chunks (the network sources) adds each of them to its group
+    const loaded = new Set(initial);
+    closureOf(byName, c, loaded, initial);
+    // a shared chunk that only lazy chunks import (Rolldown's graph-io input chunk, which imports the
+    // signing code on demand) runs only once one of them is loaded, so what every one of them loads
+    // is already there too
+    if (!initial.has(c) && !c.isDynamicEntry) {
+        const reaching = chunks
+            .filter((d) => d.isDynamicEntry)
+            .map((d) => closureOf(byName, d, new Set(), initial))
+            .filter((s) => s.has(c));
+        for (const x of reaching[0] ?? []) {
+            if (reaching.every((s) => s.has(x))) loaded.add(x);
+        }
+    }
+    return loaded;
+}
+
+/**
  * Measures the package.
  * @param {boolean} compare - also measure the parts that are only for comparison (not budgeted: they measure other
  *   packages, whose growth reaches this package's budgets through the parts that load them)
@@ -145,13 +189,7 @@ async function measurePackage(compare) {
         const chunks = await bundle(root, 'import g from "@graphty/cytoscape-extensions";\nconsole.log(g);\n');
         const byName = new Map(chunks.map((c) => [c.fileName, c]));
         const initial = new Set();
-        const closure = (c, into, skip) => {
-            if (!into.has(c) && !skip.has(c)) {
-                into.add(c);
-                c.imports.forEach((f) => closure(byName.get(f), into, skip));
-            }
-            return into;
-        };
+        const closure = (c, into, skip) => closureOf(byName, c, into, skip);
         chunks.filter((c) => c.isEntry).forEach((c) => closure(c, initial, new Set()));
         parts["main entry (loaded up front)"] = sizeOf([...initial].map((c) => c.code));
         // each dynamically imported chunk, with what it imports that the page does not already hold
@@ -164,22 +202,7 @@ async function measurePackage(compare) {
                     continue;
                 }
                 const name = lazyPartName(target);
-                // what is loaded when c imports it: the page and c with its static imports; a part of several
-                // chunks (the network sources) adds each of them to its group
-                const loaded = new Set(initial);
-                closure(c, loaded, initial);
-                // a shared chunk that only lazy chunks import (Rolldown's graph-io input chunk, which imports the
-                // signing code on demand) runs only once one of them is loaded, so what every one of them loads
-                // is already there too
-                if (!initial.has(c) && !c.isDynamicEntry) {
-                    const reaching = chunks
-                        .filter((d) => d.isDynamicEntry)
-                        .map((d) => closure(d, new Set(), initial))
-                        .filter((s) => s.has(c));
-                    for (const x of reaching[0] ?? []) {
-                        if (reaching.every((s) => s.has(x))) loaded.add(x);
-                    }
-                }
+                const loaded = loadedWith(chunks, byName, initial, c);
                 const group = lazy.get(name) ?? new Set();
                 closure(target, group, loaded);
                 lazy.set(name, group);

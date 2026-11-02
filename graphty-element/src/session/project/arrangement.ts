@@ -71,8 +71,11 @@ export interface ArrangementEngine {
      *     False for a forward `positions.set`: the engine keeps running if it was.
      * @param wrote - Whether anything was written into the lane; when nothing was, every row the
      *     graph held before holds what it did, and only rows the graph just gained are new.
+     * @param byReader - Whether the reader asked for the restore (undo, redo, a history jump), so
+     *     the layout stays at rest; false for a rollback, which puts back what a failed or
+     *     overtaken command wrote and leaves a layout that was running free to run on.
      */
-    loadArrangement(restoring: boolean, wrote: boolean): void;
+    loadArrangement(restoring: boolean, wrote: boolean, byReader: boolean): void;
     /**
      * A node was pinned or released; the lane's pin byte is already written.
      * @param id - The node.
@@ -230,7 +233,8 @@ export class Arrangement {
                 onPlane(source.positions.view(source.snapshot().nodeCount))
             ) {
                 source.positions.moved();
-                this.engine?.loadArrangement(this.lane.cause !== "command", false);
+                const { cause } = this.lane;
+                this.engine?.loadArrangement(cause !== "command", false, cause !== "command" && cause !== "rollback");
             }
         });
     }
@@ -543,6 +547,7 @@ export class Arrangement {
      * @param restoring - Whether a history call or a rollback queued them.
      */
     private apply(restoring: boolean): void {
+        const byReader = restoring && this.lane.cause !== "rollback";
         const ops = this.ops.splice(0);
         const { source } = this;
         if (source !== null && ops.length > 0) {
@@ -554,7 +559,7 @@ export class Arrangement {
         const atRest = !this.moved;
         const wrote = this.written || (source !== null && ops.length > 0);
         this.written = false;
-        this.engine?.loadArrangement(restoring, wrote);
+        this.engine?.loadArrangement(restoring, wrote, byReader);
         if (atRest) {
             this.captured = source?.positions.changes ?? 0;
         }

@@ -1,3 +1,21 @@
+## 0.6.66 (2026-11-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep lint type checks inside the worktree ([#5296](https://github.com/graphty-org/graphty-monorepo/issues/5296))
+- **webgpu-graph-algorithms:** let each model write the live count, not the simulation ([#3075](https://github.com/graphty-org/graphty-monorepo/issues/3075))
+- **layout:** make a group held at its members' box inert in the simulation layouts ([#3075](https://github.com/graphty-org/graphty-monorepo/issues/3075))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** mask inert neighbours in attraction instead of branching ([#5539](https://github.com/graphty-org/graphty-monorepo/issues/5539))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.12
+- Updated algorithms to 3.4.19
+- Updated layout to 2.5.15
+
 ## 0.6.65 (2026-11-01)
 
 ### 🩹 Fixes

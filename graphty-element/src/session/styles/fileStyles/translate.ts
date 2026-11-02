@@ -693,6 +693,7 @@ function channelPlans(
             [CORNER_FRACTION, [id("node.cornerFraction")]],
             ["shapePoints", [points("node.shapePoints")]],
             ["shapePointsStretch", [id("node.shapeStretchPoints")]],
+            ["shapeRotation", [id("node.shapeRotation")]],
             ["shapeParts", [points("node.shapeParts")]],
             ["shapeLines", [points("node.shapeLines")]],
             ["shapeTexts", [id("node.shapeTexts")]],

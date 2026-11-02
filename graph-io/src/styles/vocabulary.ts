@@ -81,6 +81,7 @@ export const STYLE_PROPERTIES: {
         ["shape", "shape"],
         ["shapePoints", "text"],
         ["shapePointsStretch", "boolean"],
+        ["shapeRotation", "signed"],
         ["shapeParts", "text"],
         ["shapeLines", "text"],
         ["shapeLineWidth", "number"],

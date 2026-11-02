@@ -210,6 +210,9 @@ async function withRun(
     return item;
 }
 
+/** Slice cost readings, counted only in a saturated cycle (slice-metrics.ts contention). */
+const SLICE_COST = new Set(["slices.contended_min", "slices.queue_wait_min"]);
+
 /**
  * One 5-minute bucket of every metric, from the raw items copied into it.
  * @param store - the table
@@ -221,12 +224,16 @@ export async function fromRaw(store: Store, start: number, nowMs: number): Promi
     const out: Buckets = new Map();
     const runs = new Map<number, Promise<RunItem | undefined>>();
     const live = (await store.query(`T#${skTime(start)}`)).filter((i) => isLive(i, nowMs));
+    const unsaturated = new Set(
+        live.filter((i) => i.kind === "obs" && i.metric === "ci.saturated_ms" && i.value === 0).map((i) => i.at),
+    );
     for (const item of await Promise.all(live.map((i) => withRun(store, i, nowMs, runs)))) {
         const kind = item.kind as RawKind;
         const field = item.field as string;
         const at = item[field] as number;
         if (kind === "obs") {
-            const v = item.value as number;
+            // #5681: slice cost readings stored before #5398 counted unsaturated cycles; the rule now counts none.
+            const v = SLICE_COST.has(item.metric as string) && unsaturated.has(at) ? 0 : (item.value as number);
             contribute(out, item.metric as string, { sum: v, value: v }, at);
             continue;
         }

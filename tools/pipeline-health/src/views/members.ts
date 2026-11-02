@@ -570,6 +570,82 @@ function alsoNote(c: MemberConfig, spec: Spec, s: MemberStatus): { note?: Fact }
     return {};
 }
 
+/** What building one member's row reads: the store, its status, configuration and spec, the range, and history start. */
+interface RowContext {
+    reads: Reads;
+    s: MemberStatus;
+    c: MemberConfig;
+    spec: Spec;
+    range: Range;
+    hs: ReturnType<Reads["historyStart"]>;
+}
+
+/**
+ * A windowed member's value, n and coverage over the picked 6 h or 24 h range, read from its buckets.
+ * @param ctx - the row being built
+ * @param m - the member's bucketed measure
+ * @returns the row's value fields
+ */
+async function rangeValues(ctx: RowContext, m: MemberConfig["measure"] & { metric: string }): Promise<Partial<Member>> {
+    const { reads, spec, range } = ctx;
+    const w = await reads.window(m.metric, range);
+    const out: Partial<Member> = {
+        value: valueOf(measureValue(m, w.total, reads.now - w.from), spec),
+        n: w.total.n,
+    };
+    const cov = covered(ctx.hs, reads.now, RANGE_MS[range]);
+    if (cov) {
+        out.covered = cov;
+    }
+    return out;
+}
+
+/**
+ * A member's value, n and coverage as the engine judged them.
+ * @param ctx - the row being built
+ * @param state - the member's page state
+ * @returns the row's value fields
+ */
+function engineValues(ctx: RowContext, state: MemberState): Partial<Member> {
+    const { s, c, spec } = ctx;
+    const out: Partial<Member> = { value: state === "few" ? null : valueOf(s.value, spec) };
+    if (s.n !== undefined && (s.minN !== undefined || windowed(c))) {
+        out.n = s.n;
+    }
+    if (state === "partial" && s.reason) {
+        out.covered = { h: Number(s.reason.params.hours), of: Number(s.reason.params.of) };
+    }
+    if (s.reason?.code === "partial" && s.reason.params.days !== undefined) {
+        out.coveredDays = { d: Number(s.reason.params.days), of: Number(s.reason.params.of) };
+    }
+    return out;
+}
+
+/**
+ * A windowed member's 6 h value and coverage, read from its buckets when the engine has none.
+ * @param ctx - the row being built
+ * @returns the row's 6 h fields
+ */
+async function sixHourValues(ctx: RowContext): Promise<Partial<Member>> {
+    const { reads, s, c, spec } = ctx;
+    const m = c.measure;
+    let v6 = s.value6h;
+    if (v6 === undefined && BUCKETED.has(m.type) && "metric" in m) {
+        const w6 = await reads.window(m.metric, "6h");
+        v6 = measureValue(m, w6.total, reads.now - w6.from);
+    }
+    const out: Partial<Member> = {};
+    const value6h = valueOf(v6, spec);
+    if (value6h) {
+        out.value6h = value6h;
+    }
+    const cov6 = covered(ctx.hs, reads.now, 6 * HOUR);
+    if (cov6) {
+        out.covered6h = cov6;
+    }
+    return out;
+}
+
 /**
  * One engine member as the page's row at a range: the state is the engine's; at 6 h and 24 h a windowed member's
  * value, n and coverage cover the range (section 8), and the 1 h value stays the judged one.
@@ -605,42 +681,14 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
     if (note) {
         out.note = note;
     }
-    const hs = reads.historyStart(c);
-    const bucketed = BUCKETED.has(m.type) && "metric" in m;
-    if (windowed(c) && bucketed && range !== "1h") {
-        const w = await reads.window(m.metric, range);
-        out.value = valueOf(measureValue(m, w.total, reads.now - w.from), spec);
-        out.n = w.total.n;
-        const cov = covered(hs, reads.now, RANGE_MS[range]);
-        if (cov) {
-            out.covered = cov;
-        }
+    const ctx: RowContext = { reads, s, c, spec, range, hs: reads.historyStart(c) };
+    if (windowed(c) && BUCKETED.has(m.type) && "metric" in m && range !== "1h") {
+        Object.assign(out, await rangeValues(ctx, m));
     } else {
-        out.value = state === "few" ? null : valueOf(s.value, spec);
-        if (s.n !== undefined && (s.minN !== undefined || windowed(c))) {
-            out.n = s.n;
-        }
-        if (state === "partial" && s.reason) {
-            out.covered = { h: Number(s.reason.params.hours), of: Number(s.reason.params.of) };
-        }
-        if (s.reason?.code === "partial" && s.reason.params.days !== undefined) {
-            out.coveredDays = { d: Number(s.reason.params.days), of: Number(s.reason.params.of) };
-        }
+        Object.assign(out, engineValues(ctx, state));
     }
     if (windowed(c)) {
-        let v6 = s.value6h;
-        if (v6 === undefined && bucketed) {
-            const w6 = await reads.window(m.metric, "6h");
-            v6 = measureValue(m, w6.total, reads.now - w6.from);
-        }
-        const value6h = valueOf(v6, spec);
-        if (value6h) {
-            out.value6h = value6h;
-        }
-        const cov6 = covered(hs, reads.now, 6 * HOUR);
-        if (cov6) {
-            out.covered6h = cov6;
-        }
+        Object.assign(out, await sixHourValues(ctx));
     }
     const spark = await sparkOf(reads, c, spec, range);
     if (spark) {

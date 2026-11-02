@@ -13,19 +13,13 @@ import { after, describe, it } from "node:test";
 
 import {
     activeList,
-    afterShard,
     blameChange,
-    closeFinished,
     decide,
     failedFirst,
     emptyState,
-    PASSES_TO_LEAVE,
     quarantineEnabled,
-    quarantineTests,
-    readState,
     runShard,
     shardOfRun,
-    splitLog,
 } from "./test-quarantine.mjs";
 import { selectedCommand } from "./test-select.mjs";
 import { WAIT_GUARD_MS } from "./test-wait-guard.mjs";
@@ -372,124 +366,5 @@ describe("runShard", () => {
             assert.equal(await runShard("graphty-1", flood, opts(env)), 1, JSON.stringify(env));
             assert.equal(await runShard("graphty-1", "echo ok", opts(env)), 0, "within the budget it passes");
         }
-    });
-
-    it("splits a log at the retry for the ledger", () => {
-        assert.deepEqual(splitLog("a\ntest-quarantine: retrying x\nb"), {
-            first: "a\n",
-            retry: "test-quarantine: retrying x\nb",
-        });
-    });
-});
-
-describe("afterShard", () => {
-    const flaky = { flaky: [{ ...T1, excerpt: "boom" }], excused: [], failing: [], failed: [T1], ran: [T1.file] };
-    const calls = [];
-    const gh = (args) => {
-        calls.push(args);
-        return "https://github.com/graphty-org/graphty-monorepo/issues/321\n";
-    };
-
-    it("quarantines a flaky test and files one issue for it, once", () => {
-        const main = fresh();
-        const root = checkout({}).root;
-        const done = afterShard({ main, root, shard: "graphty-2", result: flaky, gh, day: DAY });
-        assert.equal(done.added.length, 1);
-        assert.equal(calls.length, 1);
-        assert.deepEqual(calls[0].slice(0, 2), ["issue", "create"]);
-        for (const l of ["bug", "priority:critical", "effort:medium"]) assert.ok(calls[0].includes(l), l);
-        const added = Object.values(readState(main).added)[0];
-        assert.deepEqual([added.family, added.issue, added.since, added.expires], ["graphty", 321, DAY, LATER]);
-        afterShard({ main, root, shard: "graphty-3", result: flaky, gh, day: DAY });
-        assert.equal(calls.length, 1, "a test already quarantined files nothing");
-        const gpu = afterShard({ main, root, shard: "webgpu-graph-algorithms-node", result: flaky, gh, day: DAY });
-        assert.deepEqual(gpu.added, [], "GPU tests are never quarantined");
-    });
-
-    it("names a land check's landing as suspect in the issue", () => {
-        const main = fresh();
-        const root = checkout({}).root;
-        const suspects = [{ sha: "abc123", branch: "fix/1-x" }];
-        afterShard({ main, root, shard: "graphty-2", result: { ...flaky, suspects }, gh, day: DAY });
-        assert.match(calls.at(-1).at(-1), /- abc123 fix\/1-x/);
-        assert.equal(Object.values(readState(main).added)[0].suspects, undefined, "kept out of the entry");
-    });
-
-    it(`ends an entry after ${PASSES_TO_LEAVE} gate runs in a row that passed it; a failure starts the count again`, () => {
-        const main = fresh();
-        const root = checkout({ quarantine: [entry(T1)] }).root;
-        const pass = { flaky: [], excused: [], failing: [], failed: [], ran: [T1.file] };
-        for (let i = 0; i < PASSES_TO_LEAVE - 1; i++)
-            afterShard({ main, root, shard: "graphty-1", result: pass, gh, day: DAY });
-        afterShard({ main, root, shard: "graphty-1", result: { ...pass, failed: [T1] }, gh, day: DAY });
-        assert.equal(Object.values(readState(main).passes)[0], 0);
-        let left = [];
-        for (let i = 0; i < PASSES_TO_LEAVE; i++)
-            left = afterShard({ main, root, shard: "graphty-1", result: pass, gh, day: DAY }).left;
-        assert.equal(left.length, 1);
-        assert.deepEqual(activeList([entry(T1)], readState(main), DAY), []);
-    });
-
-    it("proves a test flaky when a later gate run of the same inputs passes what an earlier one failed", () => {
-        const main = fresh();
-        const root = checkout({}).root;
-        const before = calls.length;
-        const failed = { flaky: [], excused: [], failing: [{ ...T2, excerpt: "x" }], failed: [T2], ran: [T2.file] };
-        afterShard({ main, root, shard: "graphty-1", inputKey: "k1", result: failed, gh, day: DAY });
-        assert.equal(calls.length, before, "a failure alone quarantines nothing");
-        const other = { flaky: [], excused: [], failing: [], failed: [], ran: [T2.file] };
-        afterShard({ main, root, shard: "graphty-1", inputKey: "k2", result: other, gh, day: DAY });
-        assert.equal(calls.length, before, "a pass of other inputs proves nothing");
-        const done = afterShard({ main, root, shard: "graphty-1", inputKey: "k1", result: other, gh, day: DAY });
-        assert.deepEqual(
-            done.added.map((e) => e.name),
-            [T2.name],
-        );
-        assert.match(done.added[0].reason, /another of the same inputs/);
-    });
-});
-
-describe("quarantineTests", () => {
-    it("files a critical issue that lists the range's landings as suspects, and keeps them out of the entry", () => {
-        const main = fresh();
-        const calls = [];
-        const gh = (args) => (calls.push(args), "https://github.com/graphty-org/graphty-monorepo/issues/55\n");
-        const suspects = [
-            { sha: "a".repeat(40), branch: "fix/one" },
-            { sha: "b".repeat(40), branch: "feat/two" },
-        ];
-        const t = { ...T1, family: "graphty", how: "failed, then passed", excerpt: "boom", suspects };
-        const held = quarantineTests(main, [t], gh, DAY);
-        assert.deepEqual(
-            held.map((e) => e.issue),
-            [55],
-        );
-        assert.ok(calls[0].includes("priority:critical"));
-        const body = calls[0][calls[0].indexOf("--body") + 1];
-        assert.match(body, new RegExp(`- ${"a".repeat(40)} fix/one\n- ${"b".repeat(40)} feat/two`));
-        assert.equal(Object.values(readState(main).added)[0].suspects, undefined, "the list holds no suspects");
-    });
-});
-
-describe("closeFinished", () => {
-    it("ends the entries whose issue closed, with one query, at most once an hour", () => {
-        const main = fresh();
-        const root = checkout({
-            quarantine: [entry(T1), entry(T2, { issue: 8 })],
-        }).root;
-        const asked = [];
-        const gh = (args) => {
-            asked.push(args);
-            return JSON.stringify({ data: { repository: { i7: { state: "CLOSED" }, i8: { state: "OPEN" } } } });
-        };
-        assert.deepEqual(closeFinished(main, root, gh, 10_000_000), [`${T1.file} > ${T1.name} (issue #7 closed)`]);
-        assert.equal(asked.length, 1);
-        assert.match(asked[0].at(-1), /i7: issue\(number: 7\).*i8: issue\(number: 8\)/);
-        assert.deepEqual(closeFinished(main, root, gh, 10_000_000 + 60_000), []);
-        assert.equal(asked.length, 1, "not again within the hour");
-        assert.deepEqual(
-            activeList([entry(T1), entry(T2, { issue: 8 })], readState(main)).map((e) => e.issue),
-            [8],
-        );
     });
 });

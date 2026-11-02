@@ -10,6 +10,7 @@ import type {
     Cell,
     Fact,
     IssueRange,
+    IssuesSummary,
     PageResponse,
     Section,
     SeriesSection,
@@ -374,6 +375,30 @@ function oldestTable(open: IssueItem[]): TableSection | Section {
     return rows.length
         ? { kind: "table", id: "oldest", rows }
         : { kind: "empty", id: "oldest", fact: f("issues.no_urgent") };
+}
+
+/**
+ * The overview's Issues line: open bugs and critical bugs now and 28 days ago, and the issues opened and closed in
+ * the last 28 days.
+ * @param issues - every stored issue
+ * @param now - the current time, epoch ms
+ * @returns the summary, or undefined when no issue is stored
+ */
+export function issuesSummary(issues: IssueItem[], now: number): IssuesSummary | undefined {
+    if (!issues.length) {
+        return undefined;
+    }
+    const ago = now - 28 * DAY;
+    const bugs = (t: number, critical: boolean): number =>
+        issues.filter((i) => isBug(i) && openAt(i, t) && (!critical || prioOf(i) === "critical")).length;
+    return {
+        bugs: bugs(now, false),
+        bugs28dAgo: bugs(ago, false),
+        critical: bugs(now, true),
+        critical28dAgo: bugs(ago, true),
+        opened: issues.filter((i) => i.createdAt > ago && i.createdAt <= now).length,
+        closed: issues.filter((i) => i.closedAt !== undefined && i.closedAt > ago && i.closedAt <= now).length,
+    };
 }
 
 /**

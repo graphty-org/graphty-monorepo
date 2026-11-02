@@ -709,6 +709,29 @@ function tooManyBins(options: TimeBinsOptions, value: unknown): GraphtyError {
 }
 
 /**
+ * The edges of a histogram's bins of equal width, by count.
+ * @param from - Where the bins start.
+ * @param to - Where they end.
+ * @param options - The count (100 when absent).
+ * @returns The edges, one more than the bins.
+ */
+function countBounds(from: number, to: number, options: TimeBinsOptions): number[] {
+    const bounds: number[] = [];
+    const count = options.count ?? 100;
+    if (!Number.isInteger(count) || count < 1 || count > MAX_BINS) {
+        throw tooManyBins(options, count);
+    }
+
+    for (let bin = 0; bin < count; bin++) {
+        bounds.push(from + ((to - from) * bin) / count);
+    }
+
+    bounds.push(to);
+
+    return bounds;
+}
+
+/**
  * The edges of a histogram's bins, first start to last end.
  * @param from - Where the bins start (a step aligns it down).
  * @param to - Where they end.
@@ -717,23 +740,12 @@ function tooManyBins(options: TimeBinsOptions, value: unknown): GraphtyError {
  * @returns The edges, one more than the bins.
  */
 function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: boolean): number[] {
-    const bounds: number[] = [];
     const { step } = options;
     if (step === undefined) {
-        const count = options.count ?? 100;
-        if (!Number.isInteger(count) || count < 1 || count > MAX_BINS) {
-            throw tooManyBins(options, count);
-        }
-
-        for (let bin = 0; bin < count; bin++) {
-            bounds.push(from + ((to - from) * bin) / count);
-        }
-
-        bounds.push(to);
-
-        return bounds;
+        return countBounds(from, to, options);
     }
 
+    const bounds: number[] = [];
     if (!isCalendarStep(step) && (Number.isNaN(step) || step <= 0)) {
         throw tooManyBins(options, step);
     }

@@ -563,8 +563,7 @@ function pageState(p: PageResponse): string {
                 : "Every judged member is within its target.",
         );
     }
-    parts.push(...othersText(p));
-    parts.push(...p.notes.map(sentence));
+    parts.push(...othersText(p), ...p.notes.map(sentence));
     if (p.page === "costs") {
         parts.push(...budgetLine(p.sections));
     }

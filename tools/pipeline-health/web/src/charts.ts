@@ -227,8 +227,7 @@ export function sparkline(s: Spark, generated: Iso, caption: string): string {
         parts.push(`<rect class="band" x="0" y="${r1(y(s.target) - 1)}" width="${W}" height="2" />`);
     }
 
-    parts.push(...lineMarks(s, sc));
-    parts.push(...breachMarks(s, sc));
+    parts.push(...lineMarks(s, sc), ...breachMarks(s, sc));
     const last = s.trend.at(-1);
     if (last !== null && last !== undefined) {
         parts.push(`<circle class="now" cx="${xT(s.trend.length - 1)}" cy="${y(last)}" r="2.4" />`);

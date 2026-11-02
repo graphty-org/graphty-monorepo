@@ -3,7 +3,6 @@ title: graphty-element
 layout: home
 
 hero:
-    name: '<img class="lockup-on-light" src="/docs/brand/graphty-graphty-element-lockup-color-on-light.svg" alt="graphty graphty-element"><img class="lockup-on-dark" src="/docs/brand/graphty-graphty-element-lockup-color-on-dark.svg" alt="graphty graphty-element">'
     text: 3D/2D Graph Visualization
     tagline: Web Component built with Lit and Babylon.js
     actions:

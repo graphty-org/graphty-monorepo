@@ -3,7 +3,6 @@ title: layout
 layout: home
 
 hero:
-    name: '<img class="lockup-on-light" src="/docs/brand/graphty-layout-lockup-color-on-light.svg" alt="graphty layout"><img class="lockup-on-dark" src="/docs/brand/graphty-layout-lockup-color-on-dark.svg" alt="graphty layout">'
     text: Graph Layouts
     tagline: 15 2D and 3D graph layouts over compact graph snapshots, ported from NetworkX, plus steppable force simulations
     actions:

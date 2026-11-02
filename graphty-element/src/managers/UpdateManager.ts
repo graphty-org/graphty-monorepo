@@ -1093,7 +1093,11 @@ export class UpdateManager implements Manager {
         // with its batch. Forcing the walk of every edge on each frame of a repaint spread over
         // many frames walked 200,000 edges about 200 times on a 50,000-node graph (ws-polish 3):
         // the frame that empties the queue still walks them all once, as syncNodeStyles does.
+        // An edge in a fanned bundle is placed from its siblings' paint, so the edges are placed
+        // after the frame's batches, and once more when the queue empties: one painted in an
+        // earlier frame was placed before the siblings painted after it.
         this.sceneChanged = true;
+        const painted: Edge[] = [];
 
         do {
             for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
@@ -1102,14 +1106,24 @@ export class UpdateManager implements Manager {
 
                 if (edge !== undefined && paint !== null) {
                     edge.applySessionPaint(paint);
-                    edge.update();
+                    painted.push(edge);
                 }
             }
         } while (painter.hasPendingEdges && performance.now() < deadline);
 
-        if (!painter.hasPendingEdges) {
-            this.forceEdgeWalk();
+        if (painter.hasPendingEdges) {
+            for (const edge of painted) {
+                edge.update();
+                this.repaintedEdges.push(edge);
+            }
+            return;
         }
+
+        for (const edge of this.repaintedEdges) {
+            edge.invalidatePositionCache();
+        }
+        this.repaintedEdges = [];
+        this.forceEdgeWalk();
     }
 
     /**
@@ -2243,6 +2257,8 @@ export class UpdateManager implements Manager {
 
     /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
     private sceneChanged = true;
+    /** The edges a repaint spread over several frames placed before its queue emptied. */
+    private repaintedEdges: Edge[] = [];
 
     /** Whether a freeze of the list of what is visible was asked for and not withdrawn since. */
     private activeMeshesFrozen = false;

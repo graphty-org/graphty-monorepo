@@ -194,3 +194,56 @@ describe("Each kind of filter card", () => {
         assert.lengthOf(session.visibility.conditions, 1);
     });
 });
+
+describe("Cancel in a filter card's workspace", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    it("on a new card takes the card away, written or not, and focus goes back to Add filter", async () => {
+        const { session } = await openPeople();
+        await newCardOn("role");
+        await userEvent.click(
+            within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^board/ }),
+        );
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 1, "the ticked value writes the card");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 0, "no filter condition is left");
+            assert.equal(cardsDrawn(), 0, "no card is left");
+            assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");
+        });
+        assert.equal(session.visibility.summary.visibleNodes, session.visibility.summary.totalNodes);
+    });
+
+    it("on an existing card restores its rule and keeps the card", async () => {
+        const { session } = await openPeople();
+        await newCardOn("role");
+        await userEvent.click(
+            within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^board/ }),
+        );
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 1);
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+        });
+        const before = stepRule(session);
+        // Reopen it from its row, tick another value, then Cancel.
+        await userEvent.click(within(screen.getByRole("list", { name: "Filters" })).getByText(/role/));
+        await userEvent.click(
+            within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^staff/ }),
+        );
+        await waitFor(() => {
+            assert.notDeepEqual(stepRule(session), before);
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.deepEqual(stepRule(session), before);
+        });
+        assert.equal(cardsDrawn(), 1);
+    });
+});

@@ -38,6 +38,39 @@ one background script per re-walk): `git show 42601df9bf:design/ui/studio/notes/
   pre-fix sources at the inert check; with only the old TableDock its after-Done rows wait never
   settles, so it fails only at the 15-minute wait guard -- stop such a run rather than sit on it).
 
+- (2026-11-02) Cancel on a new filter card takes the card away (decided.md, "Dry run pass 1").
+  Mechanism: a new card is written by its first tick, so by Cancel it was an element condition and
+  `onEmptyCancel` (draft-only) was gone; Cancel's restore wrote the open-time rule (All, no step)
+  back as an empty switched-on card. Fix: `SelectionEditor` remembers the workspace was opened on a
+  new selection (`onEmptyCancel` present at the editor's FIRST opening) and Cancel then calls it
+  instead of restoring, saying "Filter not added"; `Filters.tsx` keeps a card's `born` flag while it
+  stays open and its handler removes the written condition; focus returns to the control that
+  opened the card (toolbar Filters, "Add filter"), else "Add filter". Test: two cases in
+  `FilterCardKinds.real-element.test.tsx` (new card ticked then Cancel: no card, no condition,
+  focus on Add filter; existing card: rule restored). Before the fix the new-card case never
+  settles (no card ever goes). Checked on a fresh build in
+  `design/ui/studio/tmp/r1-dry1-cancel-new-card/`: T79A d3 and T70B d5 end with no card, no top-bar
+  mark, `filters: []`; toolbar Filters then Escape leaves focus on the toolbar's Filters. Left: the
+  history keeps "add" and "delete" steps, so Undo after Cancel brings the card back.
+
+- (2026-11-02) Re-walk of the one-base style counts (50d50e28ae) on `graphty/dist` (build stamp
+  42601df9bf, holds the commit) into `design/ui/studio/tmp/r1-dry1-recheck-style-count-base/`:
+  T72A d2 7 / "styles all 7"; T72B d3 5 / "5 of 5" / key no line; T77A success 6 / "6 of 10" /
+  key "6 of 10"; T77A d1 diverged exactly at the fix (rows 24 -> 10) and finished 6 of 10; T70A
+  success and filter-first 4 / "4 of 15" / key "4 of 15"; Which edges "25 of 25"; T70B 2 / "2 of 7"
+  / key "2 of 7" (answers.md still says key "2 of 11": update it). The inline picker (a layer made
+  from a canvas selection) still reads its head over the whole graph ("1 of 11" beside "2 of 7")
+  while its "no condition is left" notice now says "all 7": `useHead` is the next one-base fix.
+  Pilot walks live under the main checkout `tmp/design-studio/tier5/r1/pilot/`, not under rounds/.
+
+- (2026-11-02) Re-check of the covered-claim and reference-names fixes on `graphty/dist` (built
+  11:55; the later edit to `query.ts` is the same logic, checked against the source map, so no
+  rebuild). Replayed the earlier re-walk routes with `--rewalk` into
+  `design/ui/studio/tmp/r1-dry1-recheck-covered-claim/`: T70A detour-5 matched 7 of 8 steps and its
+  last screen is the same as before (key "5 nodes covered by Layer 1" under the lower layer, no
+  Fill caption); it diverged only because the matcher now resolves a hover name the old run refused.
+  The other routes were still replaying when the check had to return.
+
 - (2026-11-02) The reference search ("Within N hops of", `nodePage({ matching: { names: true } })`)
   found nobody by name on a graph FILE with no label column: every graph-file load sets
   `knownFields.nodeLabelPath` to `label` "whether or not this file has one" (`loadLabel` in

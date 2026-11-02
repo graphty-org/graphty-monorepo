@@ -141,8 +141,21 @@ export function FiltersSection(): React.JSX.Element {
         }
     }, [version]);
 
+    // The control that opened the newest card (the toolbar's Filters, "Add filter", an attribute's
+    // Filter to...): focus returns to it when the new card goes.
+    const openedFrom = useRef<HTMLElement | null>(null);
+    const backToOpener = (): void => {
+        const from = openedFrom.current;
+        openedFrom.current = null;
+        if (from?.isConnected === true && from.closest(".dp-filter") === null) {
+            from.focus();
+            return;
+        }
+        focusCard(PLUS);
+    };
     // A new card: its value picker opens at once, or on a field, that field's step card.
     const open = (side: Side, field?: CardField): void => {
+        openedFrom.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         const id = newConditionId(
             session?.visibility.conditions ?? [],
             drafts.map((each) => each.id),
@@ -267,7 +280,7 @@ export function FiltersSection(): React.JSX.Element {
                             }}
                             onDiscard={() => {
                                 setDrafts((now) => now.filter((draft) => draft.id !== each.id));
-                                focusCard(PLUS);
+                                backToOpener();
                             }}
                             onDuplicate={(copy) => {
                                 setOpenId(copy);
@@ -418,6 +431,11 @@ function FilterCard({
     // A new card's selection: one group starting with All, and a Keep step on its field when it has one.
     const [draftRule, setDraftRule] = useState(() => newFilterSelection(session, fresh?.side ?? "node", fresh?.field));
     const draft = condition === undefined;
+    // Added in this card's life: Cancel in the workspace it opened takes it away again, written or not.
+    const born = useRef(draft);
+    if (!open) {
+        born.current = false;
+    }
     let side: Side = sideOf(draftRule);
     if (condition !== undefined) {
         // The side its rule reads, whatever its effect: a Filter out card on an edge value is on edges.
@@ -583,7 +601,17 @@ function FilterCard({
                             }
                         })}
                         onDraft={setDraftRule}
-                        onEmptyCancel={draft ? onDiscard : undefined}
+                        onEmptyCancel={
+                            draft || born.current
+                                ? () => {
+                                      born.current = false;
+                                      if (!draft) {
+                                          void writeCondition(store, () => session.visibility.removeCondition(id));
+                                      }
+                                      onDiscard();
+                                  }
+                                : undefined
+                        }
                         onDone={() => {
                             if (draft && stepless) {
                                 onDiscard();

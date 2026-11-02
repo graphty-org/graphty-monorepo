@@ -496,6 +496,132 @@ function MaximizeButton({
     );
 }
 
+/** One group run's tab. */
+type GroupRun = ReturnType<typeof groupRuns>[number];
+
+/** What the dock lists: its tab, record kind, group run and scope. */
+interface DockScope {
+    readonly groups: GroupRun[];
+    readonly hasEdges: boolean;
+    readonly active: string;
+    readonly kind: RecordKind;
+    readonly groupRun: GroupRun | undefined;
+    readonly shownMembers: Members | null;
+    readonly shownCount: number;
+    readonly filtered: boolean;
+    readonly scope: ScopeInput;
+}
+
+/**
+ * What the dock lists: the tab drawn (a tab that went away falls back to Nodes), its records, the
+ * members chip still standing, and the scope (a filter, or a group's members, narrows it).
+ * @param session - the element's session.
+ * @param tab - the tab asked for.
+ * @param arrangement - the reader's arrangement.
+ * @param arrangement.members - the members chip, or null.
+ * @param arrangement.all - whether the reader asked for all records.
+ * @returns the dock's scope.
+ */
+function dockScope(session: GraphSession, tab: string, { members, all }: Arrangement): DockScope {
+    // Cheap reads: the element caches each run's summary, and a zero-row page reads no values.
+    const groups = groupRuns(session);
+    // No Edges tab for a graph without edges.
+    const hasEdges = recordTotal(session, "edge", "graph") > 0;
+    // A group tab whose run went away (undo, remove), or Edges once none are left, falls back to Nodes.
+    const known = tab.startsWith("g:") ? groups.some((run) => `g:${run.id}` === tab) : tab !== "edges" || hasEdges;
+    const active = known ? tab : "nodes";
+    const kind: RecordKind = active === "edges" ? "edge" : "node";
+    const groupRun = groups.find((run) => `g:${run.id}` === active);
+    // A chip whose run went away (undo, remove) goes with it.
+    const shownMembers = groups.some((run) => run.id === members?.run) ? members : null;
+    // A filter that hides records narrows the table to the shown ones, unless the reader asks for all.
+    const { summary } = session.visibility;
+    const shownCount = kind === "node" ? summary.visibleNodes : summary.visibleEdges;
+    const filtered = shownCount < (kind === "node" ? summary.totalNodes : summary.totalEdges);
+    const narrowed: ScopeInput = filtered && !all ? "visible" : "graph";
+    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
+    return { groups, hasEdges, active, kind, groupRun, shownMembers, shownCount, filtered, scope };
+}
+
+/** Props for StripFilters. */
+interface StripFiltersProps {
+    /** What the dock lists. */
+    dock: Pick<DockScope, "active" | "kind" | "groupRun" | "shownMembers" | "filtered">;
+    /** Whether the reader asked for all records. */
+    all: boolean;
+    /** How many rows an open issue is on. */
+    withIssues: number;
+    /** The issue the rows are narrowed to, or null. */
+    issue: IssueId | null;
+    arrange: (change: Partial<Arrangement>) => void;
+    setView: (change: Partial<View>) => void;
+    /** The Nodes tab, which takes focus when the members chip goes. */
+    nodesTab: React.RefObject<HTMLButtonElement | null>;
+}
+
+/**
+ * The strip's narrowing controls: the members chip, Shown / All, and With issues.
+ * @param props - Component props
+ * @param props.dock - what the dock lists
+ * @param props.all - whether the reader asked for all records
+ * @param props.withIssues - how many rows an open issue is on
+ * @param props.issue - the issue the rows are narrowed to
+ * @param props.arrange - changes the arrangement
+ * @param props.setView - changes the table's view
+ * @param props.nodesTab - the Nodes tab
+ * @returns the controls
+ */
+function StripFilters({
+    dock,
+    all,
+    withIssues,
+    issue,
+    arrange,
+    setView,
+    nodesTab,
+}: Readonly<StripFiltersProps>): React.JSX.Element {
+    const { active, kind, groupRun, shownMembers, filtered } = dock;
+    return (
+        <>
+            {active === "nodes" && shownMembers !== null ? (
+                <MembersChip
+                    members={shownMembers}
+                    onRemove={() => {
+                        arrange({ members: null });
+                        // The chip and its x go; focus goes to the tab it narrowed.
+                        nodesTab.current?.focus();
+                    }}
+                />
+            ) : null}
+            {filtered && groupRun === undefined && (kind === "edge" || shownMembers === null) ? (
+                <SegmentedControl
+                    size="xs"
+                    aria-label="Records"
+                    value={all ? "all" : "shown"}
+                    data={[
+                        { value: "shown", label: "Shown" },
+                        { value: "all", label: "All" },
+                    ]}
+                    onChange={(value) => {
+                        arrange({ all: value === "all" });
+                    }}
+                />
+            ) : null}
+            {groupRun === undefined && (withIssues > 0 || issue !== null) ? (
+                <Chip
+                    size="xs"
+                    checked={issue !== null}
+                    onChange={(checked) => {
+                        setView({ issue: checked ? "any" : null });
+                    }}
+                >
+                    {`With issues ${formatCount(withIssues)}`}
+                </Chip>
+            ) : null}
+        </>
+    );
+}
+
 /**
  * Escape in the table's grid: focus goes to the toolbar's Table button. A cell's own control that
  * used the Escape (a list it closed) keeps it.
@@ -538,7 +664,7 @@ export function TableDock(): React.JSX.Element {
     useEffect(() => {
         ARRANGEMENTS.set(store, arrangement);
     }, [store, arrangement]);
-    const { views, members, all } = arrangement;
+    const { views, all } = arrangement;
 
     // Show in table: bring the asked-for column into view, checking it first if the reader
     // unchecked it, then forget the ask.
@@ -601,16 +727,12 @@ export function TableDock(): React.JSX.Element {
         );
     }
 
-    // Cheap reads: the element caches each run's summary, and a zero-row page reads no values.
-    const groups = groupRuns(session);
-    // No Edges tab for a graph without edges.
-    const hasEdges = recordTotal(session, "edge", "graph") > 0;
-    // A group tab whose run went away (undo, remove), or Edges once none are left, falls back to Nodes.
-    const known = tab.startsWith("g:") ? groups.some((run) => `g:${run.id}` === tab) : tab !== "edges" || hasEdges;
-    const active = known ? tab : "nodes";
-    const kind: RecordKind = active === "edges" ? "edge" : "node";
+    const { groups, hasEdges, active, kind, groupRun, shownMembers, shownCount, filtered, scope } = dockScope(
+        session,
+        tab,
+        arrangement,
+    );
     const choices = columnChoices(session, kind);
-    const groupRun = groups.find((run) => `g:${run.id}` === active);
     const view = views[kind];
     const isHidden = (choice: TableColumnChoice): boolean => choice.hidden === true || view.hidden.includes(choice.id);
     const hiddenIds = choices.filter(isHidden).map((choice) => choice.id);
@@ -619,14 +741,6 @@ export function TableDock(): React.JSX.Element {
         view,
     );
     const sorted = visible.find((choice) => choice.id === view.sort?.id);
-    // A chip whose run went away (undo, remove) goes with it.
-    const shownMembers = groups.some((run) => run.id === members?.run) ? members : null;
-    // A filter that hides records narrows the table to the shown ones, unless the reader asks for all.
-    const { summary } = session.visibility;
-    const shownCount = kind === "node" ? summary.visibleNodes : summary.visibleEdges;
-    const filtered = shownCount < (kind === "node" ? summary.totalNodes : summary.totalEdges);
-    const narrowed: ScopeInput = filtered && !all ? "visible" : "graph";
-    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
     const tableHeight = Math.max(MIN_TABLE_HEIGHT, bodyHeight);
     const issues = issuesByColumn(session, kind, choices);
     const issueColumns = new Map([...issues].map(([column, list]) => [column, list.map((issue) => issue.id)]));
@@ -721,41 +835,15 @@ export function TableDock(): React.JSX.Element {
                 <Text size="xs" c="dimmed" className="ws-table-count ws-table-ellipsis">
                     {count}
                 </Text>
-                {active === "nodes" && shownMembers !== null ? (
-                    <MembersChip
-                        members={shownMembers}
-                        onRemove={() => {
-                            arrange({ members: null });
-                            // The chip and its x go; focus goes to the tab it narrowed.
-                            nodesTab.current?.focus();
-                        }}
-                    />
-                ) : null}
-                {filtered && groupRun === undefined && (kind === "edge" || shownMembers === null) ? (
-                    <SegmentedControl
-                        size="xs"
-                        aria-label="Records"
-                        value={all ? "all" : "shown"}
-                        data={[
-                            { value: "shown", label: "Shown" },
-                            { value: "all", label: "All" },
-                        ]}
-                        onChange={(value) => {
-                            arrange({ all: value === "all" });
-                        }}
-                    />
-                ) : null}
-                {groupRun === undefined && (withIssues > 0 || view.issue !== null) ? (
-                    <Chip
-                        size="xs"
-                        checked={view.issue !== null}
-                        onChange={(checked) => {
-                            setView({ issue: checked ? "any" : null });
-                        }}
-                    >
-                        {`With issues ${formatCount(withIssues)}`}
-                    </Chip>
-                ) : null}
+                <StripFilters
+                    dock={{ active, kind, groupRun, shownMembers, filtered }}
+                    all={all}
+                    withIssues={withIssues}
+                    issue={view.issue}
+                    arrange={arrange}
+                    setView={setView}
+                    nodesTab={nodesTab}
+                />
                 <span className="ws-table-spacer" />
                 {groupRun === undefined ? (
                     <ColumnsMenu

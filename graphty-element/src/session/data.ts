@@ -2957,6 +2957,31 @@ export class SessionData implements SessionDataApi {
         edges: readonly { readonly data: Readonly<Record<string, unknown>> }[],
         held: HeldRows,
     ): readonly CodedFact<ReplaceUnboundCode>[] {
+        const gone = this.goneColumns(key, nodes, edges, held);
+        const facts: CodedFact<ReplaceUnboundCode>[] = [];
+        const { styles, visibility } = this.writes.readers();
+        for (const { kind, name } of gone) {
+            unboundFactsOf(kind, name, { styles, visibility, joins: this.joins() }, facts);
+        }
+
+        return Object.freeze(facts);
+    }
+
+    /**
+     * The columns a replacement takes away: those the load's rows carried and the copy's rows do
+     * not, and no other load's rows carry.
+     * @param key - the load
+     * @param nodes - the load's nodes now
+     * @param edges - the load's edges now
+     * @param held - the copy's rows
+     * @returns the columns
+     */
+    private goneColumns(
+        key: SourceKey,
+        nodes: readonly { readonly data: Readonly<Record<string, unknown>> }[],
+        edges: readonly { readonly data: Readonly<Record<string, unknown>> }[],
+        held: HeldRows,
+    ): { kind: "node" | "edge"; name: string }[] {
         const keysOf = (rows: readonly Readonly<Record<string, unknown>>[]): Set<string> =>
             new Set(rows.flatMap((row) => Object.keys(row)));
         const elsewhere = this.columnSources(this.attributes());
@@ -2973,37 +2998,7 @@ export class SessionData implements SessionDataApi {
             }
         }
 
-        const facts: CodedFact<ReplaceUnboundCode>[] = [];
-        // ponytail: a text search for the column's path; it can name a column of the other kind too.
-        const reads = (value: unknown, name: string): boolean =>
-            value !== undefined && value !== null && JSON.stringify(value).includes(`data.${name}`);
-        const { styles, visibility } = this.writes.readers();
-        for (const { kind, name } of gone) {
-            for (const { layer } of styles) {
-                if (
-                    layer.target === kind &&
-                    [layer.selector, layer.set, layer.encode].some((part) => reads(part, name))
-                ) {
-                    facts.push({ code: "style-layer", params: { layer: layer.id, kind, column: name } });
-                }
-            }
-
-            if (
-                reads(visibility.filter, name) ||
-                reads(visibility.conditions, name) ||
-                reads(visibility.window, name)
-            ) {
-                facts.push({ code: "filter", params: { kind, column: name } });
-            }
-
-            for (const join of this.joins()) {
-                if (join.choices.keys.some((each) => each.graph === `data.${name}`)) {
-                    facts.push({ code: "join", params: { join: join.source, kind, column: name } });
-                }
-            }
-        }
-
-        return Object.freeze(facts);
+        return gone;
     }
 
     /**
@@ -3090,8 +3085,7 @@ export class SessionData implements SessionDataApi {
         for (const entry of [...this.storedSources()].reverse()) {
             // A joined table keeps its own columns: the same header is a newer copy of it.
             if (entry.join !== undefined) {
-                const { columns } = entry.join.table;
-                if (columns.length === header.size && columns.every((name) => header.has(name))) {
+                if (sameColumns(entry.join.table.columns, header)) {
                     return entry.key;
                 }
 
@@ -3103,30 +3097,46 @@ export class SessionData implements SessionDataApi {
                 continue;
             }
 
-            // ponytail: reads every row the load supplied; sample when loads get large.
-            const columns = new Set<string>();
-            for (const id of supplied.nodes) {
-                const row = snapshot.ids.indexOf(id);
-                if (row !== INVALID_INDEX && (entry.tableRows ?? []).includes("nodes")) {
-                    Object.keys(this.records?.nodeAttributes(row, id) ?? {}).forEach((name) => columns.add(name));
-                }
-            }
-
-            for (const id of supplied.edges) {
-                const row = space.indexOf(id);
-                if (row !== INVALID_INDEX) {
-                    Object.keys(this.records?.edgeAttributes(row) ?? {}).forEach((name) => columns.add(name));
-                }
-            }
-
-            // ponytail: the graph keeps the last load's edge ends apart from the records, so the
-            // header may name up to two columns more; read the draft's ends if that misleads.
-            if (columns.size > 0 && header.size - columns.size <= 2 && [...columns].every((name) => header.has(name))) {
+            if (coversHeader(this.suppliedColumns(entry, supplied, snapshot, space), header)) {
                 return entry.key;
             }
         }
 
         return null;
+    }
+
+    /**
+     * The columns the rows a load supplied carry.
+     * ponytail: reads every row the load supplied; sample when loads get large.
+     * @param entry - the load
+     * @param supplied - what it supplied
+     * @param snapshot - the current snapshot
+     * @param space - the snapshot's edge id space
+     * @returns the column names
+     */
+    private suppliedColumns(
+        entry: LoadedSource,
+        supplied: Provenance[SourceKey],
+        snapshot: GraphSnapshot,
+        space: ReturnType<typeof edgeSpaceOf>,
+    ): Set<string> {
+        const columns = new Set<string>();
+        const nodeRows = (entry.tableRows ?? []).includes("nodes");
+        for (const id of supplied.nodes) {
+            const row = snapshot.ids.indexOf(id);
+            if (row !== INVALID_INDEX && nodeRows) {
+                Object.keys(this.records?.nodeAttributes(row, id) ?? {}).forEach((name) => columns.add(name));
+            }
+        }
+
+        for (const id of supplied.edges) {
+            const row = space.indexOf(id);
+            if (row !== INVALID_INDEX) {
+                Object.keys(this.records?.edgeAttributes(row) ?? {}).forEach((name) => columns.add(name));
+            }
+        }
+
+        return columns;
     }
 
     /**
@@ -3358,17 +3368,8 @@ export class SessionData implements SessionDataApi {
         }
 
         const stored = this.storedSources();
-        const same = (join: JoinRecord): boolean =>
-            JSON.stringify([join.table.columns, join.table.rows]) === JSON.stringify([table.columns, table.rows]);
-        const twin =
-            previous === undefined ? stored.find((each) => each.join !== undefined && same(each.join)) : undefined;
-        if (twin !== undefined) {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `The table ${table.name} is joined already, as ${twin.key}: replace or edit that join instead.`,
-                source: "data",
-                details: { reason: "joined-already", key: twin.key },
-            });
+        if (previous === undefined) {
+            refuseJoinedAlready(stored, table);
         }
 
         const provenance = this.provenance();
@@ -3389,63 +3390,11 @@ export class SessionData implements SessionDataApi {
         const leftProvenance = withoutSource(provenance, key);
         const described = describeSource(table.source);
         const steps: SessionCommand[] = [...(undo?.steps ?? [])];
+        const context: JoinSteps = { table, record, key, onto, left, leftProvenance, described, previous };
         if (plan.kind === "edges") {
-            if (previous !== undefined) {
-                steps.push({
-                    op: "data.setSource",
-                    source: this.source() ?? described,
-                    sources: left,
-                    provenance: leftProvenance,
-                });
-            }
-
-            steps.push({
-                op: "data.import",
-                source: described,
-                mode: "merge",
-                held: {
-                    nodes: [],
-                    edges: plan.edges,
-                    declaredDirection: null,
-                    errors: [],
-                    errorLimit: 100,
-                    source: keyExpression(plan.source),
-                    target: keyExpression(plan.target),
-                },
-                origin: "join",
-                ...(onto === null ? {} : { joinedOnto: onto }),
-                join: record,
-                key,
-                tables: [table.name],
-                tableRows: ["edges"],
-            });
+            this.pushEdgeJoin(steps, plan, context);
         } else {
-            if (plan.rows.length > 0) {
-                steps.push({
-                    op: "data.apply",
-                    mutation: { kind: "update-rows", target: plan.target, rows: plan.rows },
-                });
-            }
-
-            const nodes = plan.target === "node" ? (plan.matchedIds as NodeId[]) : [];
-            const edges = plan.target === "edge" ? plan.matchedIds.map(String) : [];
-            const entry: LoadedSource = frozen({
-                ...described,
-                key,
-                kind: "join" as const,
-                ...(onto === null ? {} : { joinedOnto: onto }),
-                join: record,
-                tables: [table.name],
-                tableRows: [plan.target === "node" ? ("nodes" as const) : ("edges" as const)],
-                added: { nodes: 0, edges: 0 },
-                counts: { nodes: nodes.length, edges: edges.length },
-            });
-            steps.push({
-                op: "data.setSource",
-                source: this.source() ?? described,
-                sources: [...left, entry],
-                provenance: withSupplied(leftProvenance, key, { nodes, edges }),
-            });
+            this.pushValueJoin(steps, plan, context);
         }
 
         await send({
@@ -3456,6 +3405,91 @@ export class SessionData implements SessionDataApi {
                 params: { key, name: table.name, shape: planned.shape, matched: planned.matched },
             },
             steps,
+        });
+    }
+
+    /**
+     * The steps that join a table's rows as edges: the earlier join's load taken off when the join
+     * is being edited, then the edges loaded as a merge.
+     * @param steps - the steps so far, added to
+     * @param plan - the join's plan
+     * @param context - the join's record, key and loads
+     */
+    private pushEdgeJoin(
+        steps: SessionCommand[],
+        plan: Extract<JoinPlan, { kind: "edges" }>,
+        context: JoinSteps,
+    ): void {
+        const { table, record, key, onto, left, leftProvenance, described, previous } = context;
+        if (previous !== undefined) {
+            steps.push({
+                op: "data.setSource",
+                source: this.source() ?? described,
+                sources: left,
+                provenance: leftProvenance,
+            });
+        }
+
+        steps.push({
+            op: "data.import",
+            source: described,
+            mode: "merge",
+            held: {
+                nodes: [],
+                edges: plan.edges,
+                declaredDirection: null,
+                errors: [],
+                errorLimit: 100,
+                source: keyExpression(plan.source),
+                target: keyExpression(plan.target),
+            },
+            origin: "join",
+            ...(onto === null ? {} : { joinedOnto: onto }),
+            join: record,
+            key,
+            tables: [table.name],
+            tableRows: ["edges"],
+        });
+    }
+
+    /**
+     * The steps that join a table's rows as values: the values written, then the join's load
+     * recorded with what it matched.
+     * @param steps - the steps so far, added to
+     * @param plan - the join's plan
+     * @param context - the join's record, key and loads
+     */
+    private pushValueJoin(
+        steps: SessionCommand[],
+        plan: Extract<JoinPlan, { kind: "values" }>,
+        context: JoinSteps,
+    ): void {
+        const { table, record, key, onto, left, leftProvenance, described } = context;
+        if (plan.rows.length > 0) {
+            steps.push({
+                op: "data.apply",
+                mutation: { kind: "update-rows", target: plan.target, rows: plan.rows },
+            });
+        }
+
+        const nodes = plan.target === "node" ? (plan.matchedIds as NodeId[]) : [];
+        const edges = plan.target === "edge" ? plan.matchedIds.map(String) : [];
+        const entry: LoadedSource = frozen({
+            ...described,
+            key,
+            kind: "join" as const,
+            ...(onto === null ? {} : { joinedOnto: onto }),
+            join: record,
+            tables: [table.name],
+            tableRows: [plan.target === "node" ? ("nodes" as const) : ("edges" as const)],
+            added: { nodes: 0, edges: 0 },
+            counts: { nodes: nodes.length, edges: edges.length },
+        });
+        steps.push({
+            op: "data.setSource",
+            source: this.source() ?? described,
+            sources: [...left, entry],
+            provenance: withSupplied(leftProvenance, key, { nodes, edges }),
         });
     }
 
@@ -3471,14 +3505,9 @@ export class SessionData implements SessionDataApi {
         const count = (keys: readonly SourceKey[] | undefined): void =>
             keys?.forEach((key) => counts.set(key, (counts.get(key) ?? 0) + 1));
         if (plan.kind === "edges") {
-            const nodes = new Set(graph.nodes.map((node) => String(node.id)));
-            for (const edge of plan.edges) {
-                for (const end of [edge[plan.source], edge[plan.target]]) {
-                    if (nodes.has(String(end))) {
-                        count(index.nodes.get(end as NodeId));
-                    }
-                }
-            }
+            countHeldEnds(plan, graph, (end) => {
+                count(index.nodes.get(end));
+            });
         } else {
             for (const id of plan.matchedIds) {
                 count(plan.target === "edge" ? index.edges.get(String(id)) : index.nodes.get(id));
@@ -3616,6 +3645,17 @@ export class SessionData implements SessionDataApi {
             return memo.result;
         }
 
+        const overlay: AttributeOverlay = {
+            declarations,
+            roles,
+            uses,
+            fed,
+            settings,
+            hidden,
+            joined,
+            parsed,
+            snapshot,
+        };
         const result =
             declarations.size === 0 &&
             roles.size === 0 &&
@@ -3625,48 +3665,7 @@ export class SessionData implements SessionDataApi {
             parsed.size === 0 &&
             settings === NO_COLUMN_SETTINGS
                 ? described
-                : Object.freeze(
-                      described.map((each) => {
-                          const declared = declarations.get(declarationKey(each));
-                          const played = roles.get(declarationKey(each));
-                          const used = uses.get(declarationKey(each));
-                          const from = fed.get(declarationKey(each));
-                          const typed = settings.types[declarationKey(each)];
-                          const isHidden = hidden.has(declarationKey(each));
-                          const isJoined = joined.has(declarationKey(each));
-                          const times = parsed.get(each);
-                          const rows = each.kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-                          return declared === undefined &&
-                              played === undefined &&
-                              used === undefined &&
-                              from === undefined &&
-                              typed === undefined &&
-                              times === undefined &&
-                              !isHidden &&
-                              !isJoined
-                              ? each
-                              : Object.freeze({
-                                    ...each,
-                                    ...(isJoined ? { origin: "joined" as const } : {}),
-                                    ...(typed === undefined ? {} : typedFields(each, typed)),
-                                    ...(times === undefined ? {} : { completeness: rows === 0 ? 0 : times / rows }),
-                                    ...(declared === undefined
-                                        ? {}
-                                        : {
-                                              measurement: declared.measurement,
-                                              measurementSource: "declared" as const,
-                                          }),
-                                    // Designating a column as the time field makes it time.
-                                    ...(declared === undefined && played?.includes("time") === true
-                                        ? { measurement: "time", measurementSource: "declared" as const }
-                                        : {}),
-                                    ...(played === undefined ? {} : { roles: Object.freeze(played) }),
-                                    ...(used === undefined ? {} : { usedBy: Object.freeze(used) }),
-                                    ...(from === undefined ? {} : { sources: Object.freeze([...from]) }),
-                                    ...(isHidden ? { hidden: true } : {}),
-                                });
-                      }),
-                  );
+                : Object.freeze(described.map((each) => overlaidAttribute(each, overlay)));
         this.attributeOverlay = { described, key, result };
         return result;
     }
@@ -3750,40 +3749,12 @@ export class SessionData implements SessionDataApi {
     private columnUses(described: readonly AttributeDescriptor[]): Map<string, AttributeUse[]> {
         const { styles, runs } = this.writes.readers();
         const out = new Map<string, AttributeUse[]>();
-        const add = (at: string, use: AttributeUse): void => {
-            const list = out.get(at) ?? [];
-            if (!list.some((each) => each.kind === use.kind && each.id === use.id)) {
-                list.push(use);
-                out.set(at, list);
-            }
-        };
-
-        // A column `address` is read by `data.address` and by `data.address.city`; matched against
-        // the columns themselves, because a column's own name may hold a dot.
-        // ponytail: columns x paths per call; index the paths by first segment if a file has
-        // thousands of columns and dozens of layers.
-        for (const { layer, reads } of styles) {
-            for (const path of reads) {
-                for (const column of described) {
-                    if (column.kind === layer.target && (path === column.path || path.startsWith(`${column.path}.`))) {
-                        add(declarationKey(column), { kind: "layer", id: layer.id });
-                    }
-                }
-            }
-        }
-
+        addLayerUses(out, styles, described);
         const { renamed } = this.columnSettings();
         for (const [id, entry] of runs) {
-            let attribute = entry.record.caveats.weight?.attribute;
-            // A run weighed by a column renamed since is listed under the name the column has now.
-            const seen = new Set<string>();
-            while (attribute !== undefined && renamed[`edge:${attribute}`] !== undefined && !seen.has(attribute)) {
-                seen.add(attribute);
-                attribute = renamed[`edge:${attribute}`];
-            }
-
+            const attribute = renamedNow(entry.record.caveats.weight?.attribute, renamed);
             if (attribute !== undefined) {
-                add(`edge:${attribute}`, { kind: "run", id });
+                addUse(out, `edge:${attribute}`, { kind: "run", id });
             }
         }
 
@@ -3978,36 +3949,7 @@ export class SessionData implements SessionDataApi {
                 return;
             }
         } else {
-            const field = fields[role];
-            if (field === undefined) {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: `A ${kind} column cannot have the ${JSON.stringify(role)} role.`,
-                    source: "data",
-                    details: { reason: "role-kind", kind, role, roles: Object.keys(fields) },
-                });
-            }
-
-            // The roles that make the rows themselves are read when they load. ponytail: moving one
-            // on loaded rows means reading them again (the endpoint columns are not kept as
-            // attributes); do that here if the load flow cannot.
-            let loaded = 0;
-            if (role === "key") {
-                loaded = snapshot.nodeCount;
-            } else if (STRUCTURAL_EDGE_ROLES.has(role)) {
-                loaded = snapshot.edgeCount;
-            }
-
-            if (loaded > 0 && (knownFields as unknown as Record<string, unknown>)[field] !== name) {
-                throw new GraphtyError({
-                    code: "E_UNSUPPORTED",
-                    message: `The ${role} column is read when rows load: load the data again with ${JSON.stringify(name)} as the ${role}.`,
-                    source: "data",
-                    details: { reason: "reload", kind, role, column: name },
-                });
-            }
-
-            patch[field] = name;
+            patch[roleField({ kind, name, role, fields, snapshot, knownFields })] = name;
         }
 
         if (kind === "node") {
@@ -4233,18 +4175,7 @@ export class SessionData implements SessionDataApi {
 
         const steps: SessionCommand[] = [];
         // The rows: each record that carries the column, whole, with the key renamed in place.
-        const rows: RowUpdate<NodeId | EdgeId>[] = [];
-        for (const row of this.rawRows(kind)) {
-            if (row.data !== undefined && Object.hasOwn(row.data, from)) {
-                rows.push({
-                    id: row.id,
-                    values: Object.fromEntries(
-                        Object.entries(row.data).map(([key, value]) => [key === from ? name : key, value]),
-                    ),
-                });
-            }
-        }
-
+        const rows = renamedRows(this.rawRows(kind), from, name);
         if (rows.length > 0) {
             steps.push({ op: "data.apply", mutation: { kind: "update-rows", target: kind, rows, replace: true } });
         }
@@ -4263,44 +4194,10 @@ export class SessionData implements SessionDataApi {
             steps.push({ op: "config.set", values: { data: { knownFields: roles } } });
         }
 
-        // The style layers that select or paint by it.
+        const rename: ColumnRename = { kind, from, name };
         const { styles, visibility } = this.writes.readers();
-        for (const { layer } of styles) {
-            if (layer.locked || layer.target !== kind) {
-                continue;
-            }
-
-            const patch: Record<string, unknown> = {};
-            for (const part of ["selector", "set", "encode"] as const) {
-                const before = layer[part];
-                const after = before === undefined ? before : renameColumnIn(before, from, name);
-                if (after !== before) {
-                    patch[part] = after;
-                }
-            }
-
-            if (Object.keys(patch).length > 0) {
-                steps.push({ op: "style.patch", action: "update", id: layer.id, patch });
-            }
-        }
-
-        // The filter, the filter steps and the time window.
-        const filter = renameColumnIn(visibility.filter, from, name, ruleScope(kind), kind === "node");
-        if (filter !== visibility.filter) {
-            steps.push({ op: "visibility.set", filter });
-        }
-
-        // Every condition, whatever its effect, keeps its effect through the rename.
-        const conditions = renameColumnIn(visibility.conditions, from, name, ruleScope(kind), kind === "node");
-        if (conditions !== visibility.conditions) {
-            steps.push({ op: "visibility.conditions", conditions });
-        }
-
-        const window = renameColumnIn(visibility.window, from, name);
-        if (window !== visibility.window) {
-            steps.push({ op: "visibility.window", window });
-        }
-
+        pushLayerRenames(steps, styles, rename);
+        pushVisibilityRenames(steps, visibility, rename);
         // The names given to its values.
         for (const [value, label] of valueLabelsAt(this.writes.valueLabels(), `data.${from}`)) {
             steps.push(
@@ -4310,27 +4207,9 @@ export class SessionData implements SessionDataApi {
         }
 
         // The settings, and the declaration.
-        const settings = this.columnSettings();
-        const oldKey = declarationKey({ kind, name: from });
-        const newKey = declarationKey({ kind, name });
-        const renamed = Object.fromEntries(
-            Object.entries(settings.renamed).map(([key, to]) => [
-                key,
-                key.startsWith(`${kind}:`) && to === from ? name : to,
-            ]),
-        );
-        renamed[oldKey] = name;
-        const types = Object.fromEntries(
-            Object.entries(settings.types).map(([key, type]) => [key === oldKey ? newKey : key, type]),
-        );
-
         steps.push({
             op: "data.columns",
-            settings: {
-                hidden: settings.hidden.map((key) => (key === oldKey ? newKey : key)),
-                types,
-                renamed,
-            },
+            settings: renamedSettings(this.columnSettings(), rename),
             move: { kind, from, to: name },
         });
 
@@ -4577,6 +4456,455 @@ export class SessionData implements SessionDataApi {
     }
 }
 
+/** What the steps of a join are built from. */
+interface JoinSteps {
+    readonly table: JoinedTable;
+    readonly record: JoinRecord;
+    readonly key: SourceKey;
+    readonly onto: SourceKey | null;
+    readonly left: readonly LoadedSource[];
+    readonly leftProvenance: Provenance;
+    readonly described: ImportSource;
+    readonly previous: LoadedSource | undefined;
+}
+
+/**
+ * Refuse a table already joined: one whose columns and rows a stored join holds.
+ * @param stored - The stored loads.
+ * @param table - The table.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when a join holds the same table.
+ */
+function refuseJoinedAlready(stored: readonly LoadedSource[], table: JoinedTable): void {
+    const same = (join: JoinRecord): boolean =>
+        JSON.stringify([join.table.columns, join.table.rows]) === JSON.stringify([table.columns, table.rows]);
+    const twin = stored.find((each) => each.join !== undefined && same(each.join));
+    if (twin !== undefined) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `The table ${table.name} is joined already, as ${twin.key}: replace or edit that join instead.`,
+            source: "data",
+            details: { reason: "joined-already", key: twin.key },
+        });
+    }
+}
+
+/**
+ * Count each end of a joined edge the graph holds as a node.
+ * @param plan - The join's plan.
+ * @param graph - The graph it was planned against.
+ * @param count - Called with each such end.
+ */
+function countHeldEnds(
+    plan: Extract<JoinPlan, { kind: "edges" }>,
+    graph: JoinGraph,
+    count: (end: NodeId) => void,
+): void {
+    const nodes = new Set(graph.nodes.map((node) => String(node.id)));
+    for (const edge of plan.edges) {
+        for (const end of [edge[plan.source], edge[plan.target]]) {
+            if (nodes.has(String(end))) {
+                count(end as NodeId);
+            }
+        }
+    }
+}
+
+/**
+ * Whether a table's columns are exactly a header's.
+ * @param columns - The table's columns.
+ * @param header - The header.
+ * @returns True when they are the same names.
+ */
+function sameColumns(columns: readonly string[], header: ReadonlySet<string>): boolean {
+    return columns.length === header.size && columns.every((name) => header.has(name));
+}
+
+/**
+ * Whether a header covers a load's columns.
+ * ponytail: the graph keeps the last load's edge ends apart from the records, so the header may
+ * name up to two columns more; read the draft's ends if that misleads.
+ * @param columns - The columns the load's rows carry.
+ * @param header - The header.
+ * @returns True when the header names every column and at most two more.
+ */
+function coversHeader(columns: ReadonlySet<string>, header: ReadonlySet<string>): boolean {
+    return columns.size > 0 && header.size - columns.size <= 2 && [...columns].every((name) => header.has(name));
+}
+
+/**
+ * Whether a value reads a column's path.
+ * ponytail: a text search for the column's path; it can name a column of the other kind too.
+ * @param value - The value: a selector, bindings, a filter.
+ * @param name - The column.
+ * @returns True when the value names `data.<name>`.
+ */
+function columnRead(value: unknown, name: string): boolean {
+    return value !== undefined && value !== null && JSON.stringify(value).includes(`data.${name}`);
+}
+
+/**
+ * Add what a replacement leaves matching nothing because it takes a column away.
+ * @param kind - The column's kind.
+ * @param name - The column.
+ * @param readers - What reads columns.
+ * @param readers.styles - The style stack.
+ * @param readers.visibility - The filter, its conditions and the time window.
+ * @param readers.joins - The joins.
+ * @param facts - The facts, added to.
+ */
+function unboundFactsOf(
+    kind: "node" | "edge",
+    name: string,
+    readers: {
+        readonly styles: readonly CompiledLayer[];
+        readonly visibility: VisibilityState;
+        readonly joins: readonly JoinRecord[];
+    },
+    facts: CodedFact<ReplaceUnboundCode>[],
+): void {
+    for (const { layer } of readers.styles) {
+        if (layer.target === kind && [layer.selector, layer.set, layer.encode].some((part) => columnRead(part, name))) {
+            facts.push({ code: "style-layer", params: { layer: layer.id, kind, column: name } });
+        }
+    }
+
+    const { visibility } = readers;
+    if (
+        columnRead(visibility.filter, name) ||
+        columnRead(visibility.conditions, name) ||
+        columnRead(visibility.window, name)
+    ) {
+        facts.push({ code: "filter", params: { kind, column: name } });
+    }
+
+    for (const join of readers.joins) {
+        if (join.choices.keys.some((each) => each.graph === `data.${name}`)) {
+            facts.push({ code: "join", params: { join: join.source, kind, column: name } });
+        }
+    }
+}
+
+/** What `attributes()` lays over the described columns. */
+interface AttributeOverlay {
+    readonly declarations: ReadonlyMap<string, MeasurementDeclaration>;
+    readonly roles: ReadonlyMap<string, AttributeRole[]>;
+    readonly uses: ReadonlyMap<string, AttributeUse[]>;
+    readonly fed: ReadonlyMap<string, readonly SourceKey[]>;
+    readonly settings: ColumnSettings;
+    readonly hidden: ReadonlySet<string>;
+    readonly joined: ReadonlySet<string>;
+    readonly parsed: ReadonlyMap<AttributeDescriptor, number>;
+    readonly snapshot: GraphSnapshot;
+}
+
+/** One column's overlay facts. */
+interface ColumnOverlay {
+    readonly declared: MeasurementDeclaration | undefined;
+    readonly played: AttributeRole[] | undefined;
+    readonly used: AttributeUse[] | undefined;
+    readonly from: readonly SourceKey[] | undefined;
+    readonly typed: ValueType | undefined;
+    readonly isHidden: boolean;
+    readonly isJoined: boolean;
+    readonly times: number | undefined;
+    readonly rows: number;
+}
+
+/**
+ * A described column with what the session knows of it laid over it.
+ * @param each - The column as described.
+ * @param overlay - What is laid over the columns.
+ * @returns The column, the same object when nothing is laid over it.
+ */
+function overlaidAttribute(each: AttributeDescriptor, overlay: AttributeOverlay): AttributeDescriptor {
+    const key = declarationKey(each);
+    const facts: ColumnOverlay = {
+        declared: overlay.declarations.get(key),
+        played: overlay.roles.get(key),
+        used: overlay.uses.get(key),
+        from: overlay.fed.get(key),
+        typed: overlay.settings.types[key],
+        isHidden: overlay.hidden.has(key),
+        isJoined: overlay.joined.has(key),
+        times: overlay.parsed.get(each),
+        rows: each.kind === "node" ? overlay.snapshot.nodeCount : overlay.snapshot.edgeCount,
+    };
+    return facts.declared === undefined &&
+        facts.played === undefined &&
+        facts.used === undefined &&
+        facts.from === undefined &&
+        facts.typed === undefined &&
+        facts.times === undefined &&
+        !facts.isHidden &&
+        !facts.isJoined
+        ? each
+        : Object.freeze({ ...each, ...overlayFields(each, facts) });
+}
+
+/**
+ * The fields one column's overlay sets.
+ * @param each - The column as described.
+ * @param facts - The column's overlay facts.
+ * @returns The fields.
+ */
+function overlayFields(each: AttributeDescriptor, facts: ColumnOverlay): Partial<AttributeDescriptor> {
+    const { declared, played, used, from, typed, isHidden, isJoined, times, rows } = facts;
+    return {
+        ...(isJoined ? { origin: "joined" as const } : {}),
+        ...(typed === undefined ? {} : typedFields(each, typed)),
+        ...(times === undefined ? {} : { completeness: rows === 0 ? 0 : times / rows }),
+        ...(declared === undefined
+            ? {}
+            : {
+                  measurement: declared.measurement,
+                  measurementSource: "declared" as const,
+              }),
+        // Designating a column as the time field makes it time.
+        ...(declared === undefined && played?.includes("time") === true
+            ? { measurement: "time" as const, measurementSource: "declared" as const }
+            : {}),
+        ...(played === undefined ? {} : { roles: Object.freeze(played) }),
+        ...(used === undefined ? {} : { usedBy: Object.freeze(used) }),
+        ...(from === undefined ? {} : { sources: Object.freeze([...from]) }),
+        ...(isHidden ? { hidden: true } : {}),
+    };
+}
+
+/**
+ * Add a reader of a column, once.
+ * @param out - The readers by column, added to.
+ * @param at - The column, as `<kind>:<name>`.
+ * @param use - The reader.
+ */
+function addUse(out: Map<string, AttributeUse[]>, at: string, use: AttributeUse): void {
+    const list = out.get(at) ?? [];
+    if (!list.some((each) => each.kind === use.kind && each.id === use.id)) {
+        list.push(use);
+        out.set(at, list);
+    }
+}
+
+/**
+ * Whether a path reads a column: a column `address` is read by `data.address` and by
+ * `data.address.city`; matched against the column itself, because a column's own name may hold a dot.
+ * @param path - The path a layer reads.
+ * @param column - The column's path.
+ * @returns True when the path is the column or under it.
+ */
+function pathReadsColumn(path: string, column: string): boolean {
+    return path === column || path.startsWith(`${column}.`);
+}
+
+/**
+ * Add the layers whose selector or bindings read each column, in stack order.
+ * ponytail: columns x paths per call; index the paths by first segment if a file has thousands of
+ * columns and dozens of layers.
+ * @param out - The readers by column, added to.
+ * @param styles - The style stack.
+ * @param described - The columns.
+ */
+function addLayerUses(
+    out: Map<string, AttributeUse[]>,
+    styles: readonly CompiledLayer[],
+    described: readonly AttributeDescriptor[],
+): void {
+    for (const { layer, reads } of styles) {
+        for (const path of reads) {
+            for (const column of described) {
+                if (column.kind === layer.target && pathReadsColumn(path, column.path)) {
+                    addUse(out, declarationKey(column), { kind: "layer", id: layer.id });
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The name an edge column has now: a run weighed by a column renamed since is listed under the name
+ * the column has now.
+ * @param attribute - The name the run read.
+ * @param renamed - Each renamed column's new name, by its old key.
+ * @returns The name now, or undefined when the run read none.
+ */
+function renamedNow(attribute: string | undefined, renamed: Readonly<Record<string, string>>): string | undefined {
+    let now = attribute;
+    const seen = new Set<string>();
+    while (now !== undefined && renamed[`edge:${now}`] !== undefined && !seen.has(now)) {
+        seen.add(now);
+        now = renamed[`edge:${now}`];
+    }
+
+    return now;
+}
+
+/**
+ * The configuration field a role writes, refusing a role the column's kind has not, or one read
+ * when rows load that would move on loaded rows.
+ * @param input - The column, the role and what it is checked against.
+ * @param input.kind - The column's kind.
+ * @param input.name - The column.
+ * @param input.role - The role.
+ * @param input.fields - The field each role of the kind writes.
+ * @param input.snapshot - The current snapshot.
+ * @param input.knownFields - The data configuration's known fields.
+ * @returns The field.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` or `E_UNSUPPORTED`.
+ */
+function roleField(input: {
+    readonly kind: "node" | "edge";
+    readonly name: string;
+    readonly role: ColumnRole;
+    readonly fields: Partial<Readonly<Record<ColumnRole, string>>>;
+    readonly snapshot: GraphSnapshot;
+    readonly knownFields: unknown;
+}): string {
+    const { kind, name, role, fields, snapshot, knownFields } = input;
+    const field = fields[role];
+    if (field === undefined) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `A ${kind} column cannot have the ${JSON.stringify(role)} role.`,
+            source: "data",
+            details: { reason: "role-kind", kind, role, roles: Object.keys(fields) },
+        });
+    }
+
+    // The roles that make the rows themselves are read when they load. ponytail: moving one
+    // on loaded rows means reading them again (the endpoint columns are not kept as
+    // attributes); do that here if the load flow cannot.
+    let loaded = 0;
+    if (role === "key") {
+        loaded = snapshot.nodeCount;
+    } else if (STRUCTURAL_EDGE_ROLES.has(role)) {
+        loaded = snapshot.edgeCount;
+    }
+
+    if (loaded > 0 && (knownFields as Record<string, unknown>)[field] !== name) {
+        throw new GraphtyError({
+            code: "E_UNSUPPORTED",
+            message: `The ${role} column is read when rows load: load the data again with ${JSON.stringify(name)} as the ${role}.`,
+            source: "data",
+            details: { reason: "reload", kind, role, column: name },
+        });
+    }
+
+    return field;
+}
+
+/** A column rename. */
+interface ColumnRename {
+    readonly kind: "node" | "edge";
+    readonly from: string;
+    readonly name: string;
+}
+
+/**
+ * Each record that carries a column, whole, with the key renamed in place.
+ * @param rows - The records.
+ * @param from - The column's name.
+ * @param name - Its new name.
+ * @returns The updates.
+ */
+function renamedRows(
+    rows: readonly { readonly id: NodeId | EdgeId; readonly data: Readonly<Record<string, unknown>> | undefined }[],
+    from: string,
+    name: string,
+): RowUpdate<NodeId | EdgeId>[] {
+    const out: RowUpdate<NodeId | EdgeId>[] = [];
+    for (const row of rows) {
+        if (row.data !== undefined && Object.hasOwn(row.data, from)) {
+            out.push({
+                id: row.id,
+                values: Object.fromEntries(
+                    Object.entries(row.data).map(([key, value]) => [key === from ? name : key, value]),
+                ),
+            });
+        }
+    }
+
+    return out;
+}
+
+/**
+ * Add the steps that rename a column in the style layers that select or paint by it.
+ * @param steps - The steps, added to.
+ * @param styles - The style stack.
+ * @param rename - The rename.
+ */
+function pushLayerRenames(steps: SessionCommand[], styles: readonly CompiledLayer[], rename: ColumnRename): void {
+    const { kind, from, name } = rename;
+    for (const { layer } of styles) {
+        if (layer.locked || layer.target !== kind) {
+            continue;
+        }
+
+        const patch: Record<string, unknown> = {};
+        for (const part of ["selector", "set", "encode"] as const) {
+            const before = layer[part];
+            const after = before === undefined ? before : renameColumnIn(before, from, name);
+            if (after !== before) {
+                patch[part] = after;
+            }
+        }
+
+        if (Object.keys(patch).length > 0) {
+            steps.push({ op: "style.patch", action: "update", id: layer.id, patch });
+        }
+    }
+}
+
+/**
+ * Add the steps that rename a column in the filter, the filter steps and the time window.
+ * @param steps - The steps, added to.
+ * @param visibility - The visibility state.
+ * @param rename - The rename.
+ */
+function pushVisibilityRenames(steps: SessionCommand[], visibility: VisibilityState, rename: ColumnRename): void {
+    const { kind, from, name } = rename;
+    const filter = renameColumnIn(visibility.filter, from, name, ruleScope(kind), kind === "node");
+    if (filter !== visibility.filter) {
+        steps.push({ op: "visibility.set", filter });
+    }
+
+    // Every condition, whatever its effect, keeps its effect through the rename.
+    const conditions = renameColumnIn(visibility.conditions, from, name, ruleScope(kind), kind === "node");
+    if (conditions !== visibility.conditions) {
+        steps.push({ op: "visibility.conditions", conditions });
+    }
+
+    const window = renameColumnIn(visibility.window, from, name);
+    if (window !== visibility.window) {
+        steps.push({ op: "visibility.window", window });
+    }
+}
+
+/**
+ * The column settings with a column renamed: its hidden flag, type and declaration follow it.
+ * @param settings - The settings now.
+ * @param rename - The rename.
+ * @returns The settings.
+ */
+function renamedSettings(settings: ColumnSettings, rename: ColumnRename): ColumnSettings {
+    const { kind, from, name } = rename;
+    const oldKey = declarationKey({ kind, name: from });
+    const newKey = declarationKey({ kind, name });
+    const renamed = Object.fromEntries(
+        Object.entries(settings.renamed).map(([key, to]) => [
+            key,
+            key.startsWith(`${kind}:`) && to === from ? name : to,
+        ]),
+    );
+    renamed[oldKey] = name;
+    const types = Object.fromEntries(
+        Object.entries(settings.types).map(([key, type]) => [key === oldKey ? newKey : key, type]),
+    );
+    return {
+        hidden: settings.hidden.map((key) => (key === oldKey ? newKey : key)),
+        types,
+        renamed,
+    };
+}
+
 /**
  * Whether later roles read a table's rows as the other kind than the earlier ones did.
  * @param earlier - The roles it was read with.
@@ -4606,27 +4934,46 @@ function overChoices(earlier: LoadChoices, later: LoadChoices): LoadChoices {
         return { ...earlier, ...rest, ...(a === undefined && b === undefined ? {} : { mapping: b ?? a }) };
     }
 
-    let mapping: LoadMapping;
+    return { ...earlier, ...rest, mapping: overMapping(a, b) };
+}
+
+/**
+ * A mapping laid over an earlier one, role by role (per table when either names tables).
+ * @param a - The earlier mapping.
+ * @param b - The later mapping.
+ * @returns The mapping to read with now.
+ */
+function overMapping(a: LoadMapping, b: LoadMapping): LoadMapping {
     const lone = "tables" in a && !("tables" in b) ? Object.keys(a.tables) : [];
     if (lone.length === 1) {
         // A bare mapping names a load of one table, so it is laid over that table's roles.
         const [id] = lone;
         const roles = (a as { tables: Record<string, TableMapping> }).tables[id];
-        mapping = { tables: { [id]: movesRows(roles, b as TableMapping) ? b : { ...roles, ...b } } } as LoadMapping;
-    } else if ("tables" in a || "tables" in b) {
-        // A bare mapping cannot be placed among named tables, so the later one wins whole.
-        const tables: Record<string, TableMapping> = "tables" in a && "tables" in b ? { ...a.tables } : {};
-        for (const [id, roles] of Object.entries("tables" in b ? b.tables : {})) {
-            tables[id] = { ...(movesRows(tables[id], roles) ? {} : tables[id]), ...roles };
-        }
-
-        mapping = "tables" in b ? { tables } : b;
-    } else {
-        // Rows read as the other kind take none of the roles the earlier kind had.
-        mapping = movesRows(a, b) ? b : { ...a, ...b };
+        return { tables: { [id]: movesRows(roles, b as TableMapping) ? b : { ...roles, ...b } } } as LoadMapping;
     }
 
-    return { ...earlier, ...rest, mapping };
+    if ("tables" in a || "tables" in b) {
+        return overTables(a, b);
+    }
+
+    // Rows read as the other kind take none of the roles the earlier kind had.
+    return movesRows(a, b) ? b : { ...a, ...b };
+}
+
+/**
+ * A mapping laid over an earlier one when either names tables: a bare mapping cannot be placed
+ * among named tables, so the later one wins whole.
+ * @param a - The earlier mapping.
+ * @param b - The later mapping.
+ * @returns The mapping to read with now.
+ */
+function overTables(a: LoadMapping, b: LoadMapping): LoadMapping {
+    const tables: Record<string, TableMapping> = "tables" in a && "tables" in b ? { ...a.tables } : {};
+    for (const [id, roles] of Object.entries("tables" in b ? b.tables : {})) {
+        tables[id] = { ...(movesRows(tables[id], roles) ? {} : tables[id]), ...roles };
+    }
+
+    return "tables" in b ? { tables } : b;
 }
 
 /**

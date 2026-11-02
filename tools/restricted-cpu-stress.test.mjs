@@ -50,6 +50,20 @@ describe("reading the junit report", () => {
         assert.equal(packageOf("junit-graphty-element-77.xml"), "graphty-element");
     });
 
+    it("gives a run-specific report and its .retry twin one key (issue #5640)", () => {
+        const run = "junit-graph-io-storybook-r1/junit-graph-io-1793531502638-55006-graph-io-storybook-4242.xml";
+        const retry =
+            "junit-graph-io-storybook-r2/junit-graph-io-1793531554302-55263-graph-io-storybook.retry-4243.xml";
+        const xml = XML.replace('name="test/a.test.ts"', 'name="fidelity-stories/stories/Matched.stories.ts"');
+        const [a] = junitFailures(xml, packageOf(run), "graph-io-storybook");
+        const [b] = junitFailures(xml, packageOf(retry), "graph-io-storybook");
+        assert.equal(a.id, 'graph-io/fidelity-stories/stories/Matched.stories.ts > reader > parses "x"');
+        assert.equal(b.id, a.id);
+        const [made] = plan([a], [], CTX);
+        assert.equal(made.create.title, 'Load-sensitive test: reader > parses "x" (graph-io)');
+        assert.deepEqual(plan([b], [{ number: 5443, state: "open", body: made.create.body }], CTX)[0].issue, 5443);
+    });
+
     it("returns each failing test with the tracker's id: package, file and suite chain", () => {
         const got = junitFailures(XML, "graph-io", "small-node");
         assert.deepEqual(

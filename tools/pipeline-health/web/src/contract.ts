@@ -349,6 +349,18 @@ export interface OverviewResponse extends StatusResponse {
     range: Range;
     /** Canary, Nightly and Production, in that order; absent from payloads built before the channels were. */
     channels?: ChannelTile[];
+    /** The Issues page's headline; absent when no issue is stored and from payloads built before it was. */
+    issues?: IssuesSummary;
+}
+
+/** Open bugs now and 28 days ago, and the issues opened and closed in the last 28 days. */
+export interface IssuesSummary {
+    bugs: number;
+    bugs28dAgo: number;
+    critical: number;
+    critical28dAgo: number;
+    opened: number;
+    closed: number;
 }
 
 /** A release channel: canary.graphty.app, nightly.graphty.app, graphty.app. */

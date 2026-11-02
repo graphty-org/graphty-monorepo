@@ -1188,5 +1188,13 @@
             ],
             "link": "/releases"
         }
-    ]
+    ],
+    "issues": {
+        "bugs": 132,
+        "bugs28dAgo": 5,
+        "critical": 16,
+        "critical28dAgo": 2,
+        "opened": 2343,
+        "closed": 1889
+    }
 }

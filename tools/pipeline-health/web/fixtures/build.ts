@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { IssueItem } from "../../src/model/items.js";
-import { issuesPage } from "../../src/views/issue-sections.js";
+import { issuesPage, issuesSummary } from "../../src/views/issue-sections.js";
 import type {
     CategoryStatus,
     ChannelOutcome,
@@ -2189,6 +2189,7 @@ for (const range of RANGES) {
         ...overview,
         range,
         categories: categories.map((c) => ({ ...c, headline: memberFor(c.headline, range) })),
+        issues: issuesSummary(fixtureIssues(), Date.parse(GEN)),
     } satisfies OverviewResponse);
     for (const p of pages) {
         write(`${p.page}.${range}`, {

@@ -25,7 +25,7 @@ import type {
 import type { Store } from "../model/store.js";
 import { type SlaConfig, SLAS } from "../sla/config.js";
 import { categoryOf, type Evaluation, type MemberStatus, type SourceStatus } from "../sla/engine.js";
-import { issuesPage } from "./issue-sections.js";
+import { issuesPage, issuesSummary } from "./issue-sections.js";
 import { benchmarksTable, chronicTable, nonGatingTable } from "./job-sections.js";
 import type { ViewRoute } from "./keys.js";
 import { CATEGORY, iso, LOCAL, localMember, memberAt, Reads, sourceState, SPEC } from "./members.js";
@@ -444,10 +444,19 @@ export async function buildViews(store: Store, nowMs: number, ev: Evaluation, cf
         "releases",
         "data-sources",
     ];
+    const [issues, githubOpen] = await Promise.all([b.reads.issues(), b.reads.githubOpen()]);
+    const issueLine = issuesSummary(issues, nowMs);
     for (const range of RANGES) {
         out.push({
             route: { kind: "page", page: "overview", range },
-            body: { ...status, page: "overview", range, categories: await b.categories(range), channels },
+            body: {
+                ...status,
+                page: "overview",
+                range,
+                categories: await b.categories(range),
+                channels,
+                ...(issueLine && { issues: issueLine }),
+            },
         });
         for (const page of pages) {
             out.push({ route: { kind: "page", page, range }, body: await b.page(page, range) });
@@ -471,7 +480,6 @@ export async function buildViews(store: Store, nowMs: number, ev: Evaluation, cf
             body: { page: "flaky", range, generated, section: await hotspots(b.reads, range) },
         });
     }
-    const [issues, githubOpen] = await Promise.all([b.reads.issues(), b.reads.githubOpen()]);
     for (const range of ISSUE_RANGES) {
         out.push({
             route: { kind: "page", page: "issues", range },

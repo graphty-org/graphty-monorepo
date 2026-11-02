@@ -22,6 +22,7 @@ import type {
     ChannelTile,
     Episode,
     IssueRange,
+    IssuesSummary,
     JobsSection,
     Member,
     MemberRef,
@@ -1508,8 +1509,44 @@ export function overviewView(o: OverviewResponse): string {
         `${
             header("Pipeline health", [], o.generated) + channels + urgent(o.categories)
         }<p class="kcap" title="${esc(long)}">${LEGEND} ${trend}</p>` +
-        `<ol class="status" aria-label="Category status">${cols}</ol>` +
-        `<h2>Last 24 hours<span class="h2sub">every time an hourly or current measure went past its target: ongoing first (red, then yellow), then those not judged now, then cleared, the most recent first; the bar is the worst it reached: red past the red line, yellow past the target; 7- and 28-day measures are on their pages, not here</span></h2><div class="eps">${eps}</div>`
+        `<ol class="status" aria-label="Category status">${cols}</ol>${issuesBlock(
+            o.issues,
+        )}<h2>Last 24 hours<span class="h2sub">every time an hourly or current measure went past its target: ongoing first (red, then yellow), then those not judged now, then cleared, the most recent first; the bar is the worst it reached: red past the red line, yellow past the target; 7- and 28-day measures are on their pages, not here</span></h2><div class="eps">${eps}</div>`
+    );
+}
+
+/**
+ * "up 3 from 28 days ago", "down 3 ...", "the same as 28 days ago".
+ * @param now The count now.
+ * @param then The count 28 days ago.
+ * @returns The phrase.
+ */
+function since28d(now: number, then: number): string {
+    if (now === then) {
+        return "the same as 28 days ago";
+    }
+    return `${now > then ? "up" : "down"} ${fmtN(Math.abs(now - then))} from 28 days ago`;
+}
+
+/**
+ * The overview's Issues block: whether bugs are burning down and whether more issues open than close.
+ * @param s The summary, when the payload has one.
+ * @returns The block's HTML, or "" without a summary.
+ */
+function issuesBlock(s: IssuesSummary | undefined): string {
+    if (!s) {
+        return "";
+    }
+    const net = s.opened - s.closed;
+    const flow =
+        net === 0
+            ? "as many opened as closed"
+            : `${fmtN(Math.abs(net))} more ${net > 0 ? "opened than closed" : "closed than opened"}`;
+    return (
+        `<h2>Issues<span class="h2sub">facts, not judged; details on the Issues page</span></h2>` +
+        `<p class="issl"><a href="${href(PAGE_PATH.issues)}"><b>${fmtN(s.bugs)} open bugs</b>, ${since28d(s.bugs, s.bugs28dAgo)}; ` +
+        `<b>${fmtN(s.critical)} critical</b>, ${since28d(s.critical, s.critical28dAgo)}. ` +
+        `Last 28 days: ${fmtN(s.opened)} issues opened, ${fmtN(s.closed)} closed, ${flow}.</a></p>`
     );
 }
 

@@ -1728,3 +1728,10 @@ h2.hit {
         content: none;
     }
 }
+.issl a {
+    color: inherit;
+    text-decoration: none;
+}
+.issl a:hover {
+    text-decoration: underline;
+}

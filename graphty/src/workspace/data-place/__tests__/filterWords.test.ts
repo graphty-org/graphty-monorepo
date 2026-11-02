@@ -9,6 +9,10 @@ describe("the Filters words", () => {
     it("reads each step as one sentence", () => {
         assert.equal(ruleWords({ kind: "range", attribute: "data.weight", min: 4 }, NAMES), "weight is at least 4");
         assert.equal(ruleWords({ kind: "range", attribute: "data.weight", max: 2.5 }, NAMES), "weight is at most 2.5");
+        // A tier 4 degree leaf reads as its step's row does, never "a rule".
+        assert.equal(ruleWords({ kind: "degree", min: 4 }, NAMES), "Degree min 4");
+        assert.equal(ruleWords({ kind: "degree", min: 3, max: 7, direction: "in" }, NAMES), "In degree 3 to 7");
+        assert.equal(ruleWords({ kind: "isolated" }, NAMES), "Isolated");
         assert.equal(
             ruleWords({ kind: "range", attribute: "data.age", min: 20, max: 30, nodes: "ends" }, NAMES),
             "age is between 20 and 30",

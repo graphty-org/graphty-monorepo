@@ -6,7 +6,7 @@
  * graphty-element; every edit goes to the host as a new rule.
  */
 
-import { FieldRow, PanelLabelsProvider, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
+import { FieldCaret, FieldRow, PanelLabelsProvider, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
 import type {
     GraphSession,
     RuleTree,
@@ -20,7 +20,6 @@ import {
     Button,
     Checkbox,
     Collapse,
-    Combobox,
     Group,
     InputBase,
     Menu,
@@ -122,7 +121,7 @@ function VerbSegment({
                     <Tooltip label={VERB_WORDS[each].figma}>
                         <span>
                             <span>{VERB_WORDS[each].word}</span>
-                            <VisuallyHidden>{`, ${VERB_WORDS[each].figma}`}</VisuallyHidden>
+                            <VisuallyHidden>{` (${VERB_WORDS[each].figma})`}</VisuallyHidden>
                         </span>
                     </Tooltip>
                 ),
@@ -341,12 +340,14 @@ function ValueField({
                 // The compact Select's trigger, at its default size, with its own chevron.
                 <InputBase
                     component="button"
+                    size="sm"
+                    variant="outlined"
+                    rightSection={<FieldCaret />}
+                    rightSectionPointerEvents="none"
                     type="button"
                     pointer
                     aria-label={`Value: ${value}`}
                     aria-haspopup="listbox"
-                    rightSection={<Combobox.Chevron aria-hidden />}
-                    rightSectionPointerEvents="none"
                     onClick={() => {
                         setOpen(true);
                     }}
@@ -460,17 +461,19 @@ function LinksBody({
                         <InputBase
                             ref={field}
                             component="button"
+                            size="sm"
+                            variant="outlined"
+                            rightSection={<FieldCaret />}
+                            rightSectionPointerEvents="none"
                             type="button"
                             pointer
-                            aria-label={`Links value: ${name === "" ? "none" : name}`}
+                            aria-label={`Link value: ${name === "" ? "none" : name}`}
                             aria-haspopup="listbox"
-                            rightSection={<Combobox.Chevron aria-hidden />}
-                            rightSectionPointerEvents="none"
                             onClick={() => {
                                 setPicking(true);
                             }}
                         >
-                            <span className="sel-field-text">{name === "" ? "Edge value..." : name}</span>
+                            <span className="sel-field-text">{name === "" ? "Link value..." : name}</span>
                         </InputBase>
                     }
                 />
@@ -501,6 +504,8 @@ interface StepPaneProps extends StepActions {
     readonly of: number;
     readonly first: boolean;
     readonly last: boolean;
+    /** The selection's result count: "N so far" is said only where it differs. */
+    readonly total?: number;
     readonly hostPicks: readonly PickSection[];
     /** The Done button, drawn last in the first row. */
     readonly done?: React.ReactNode;
@@ -522,6 +527,7 @@ interface StepPaneProps extends StepActions {
  * @param props.of - the base's size
  * @param props.first - it is its group's first step
  * @param props.last - it is its group's last step
+ * @param props.total - the selection's result count
  * @param props.hostPicks - the host's own value picker entries
  * @param props.done - the Done button
  * @param props.adds - the add actions
@@ -543,6 +549,7 @@ export function StepPane({
     of,
     first,
     last,
+    total,
     hostPicks,
     done,
     adds,
@@ -607,6 +614,16 @@ export function StepPane({
     // A step that waits on a run shows no count: the number would be what comes into it.
     const count = reading === undefined || reading.waiting ? undefined : reading.count;
     const missing = missingOf(step.rule);
+    // "Include not measured" is offered only when the value has elements with no value (or is on).
+    const valuePath = card !== null && "field" in card ? card.field.path : undefined;
+    const givenMissing = card !== null && "field" in card ? card.field.missing : undefined;
+    const unmeasured = useMemo(() => {
+        if (missing === undefined || valuePath === undefined) {
+            return 0;
+        }
+        return givenMissing ?? session.scope.histogram(valuePath, { within: rule.within }).missing;
+    }, [missing, valuePath, givenMissing, session, rule.within]);
+    const offersMissing = missing === true || (missing === false && unmeasured > 0);
     const algorithm =
         step.rule.kind === "measure"
             ? session.catalog.algorithms().find((each) => each.key === (step.rule as { algorithm: string }).algorithm)
@@ -615,6 +632,21 @@ export function StepPane({
     // The algorithm's own settings, as Analyze draws them (spec 3.2), past the ones a step binds.
     const settings = algorithm?.options.filter((o) => o.internal !== true && o.type !== "node-id") ?? [];
     const pending = reading?.state === "pending";
+    // A state the Run button does not already say (Paused, Waits for step 1, No reference) is said
+    // in the pane, as on the step's row (spec 3.1).
+    const reasonCode = reading?.reason?.code;
+    const stateShown =
+        reasonCode === undefined ||
+        reasonCode === "run-needed" ||
+        reasonCode === "stale" ||
+        reasonCode === "run-failed" ||
+        reasonCode === "computing" ||
+        reasonCode === "test-unset"
+            ? ""
+            : reasonWords(
+                  reading?.reason ?? null,
+                  branch.steps.map((each) => each.id ?? ""),
+              ).short;
     // An edge step reading a node value says whether both ends must pass, or either.
     const readsEnds = side === "edge" && card !== null && "field" in card && card.field.on === "node";
     const linked = readsLinks(step.rule);
@@ -626,12 +658,7 @@ export function StepPane({
         ...(missing === true ? ["Not measured"] : []),
     ];
     const hasAdvanced =
-        canSoFar ||
-        linked ||
-        readsEnds ||
-        missing !== undefined ||
-        step.rule.kind === "touching" ||
-        settings.length > 0;
+        canSoFar || linked || readsEnds || offersMissing || step.rule.kind === "touching" || settings.length > 0;
     const base = host === "filter" ? "Full graph" : "Filtered graph";
     return (
         <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
@@ -689,9 +716,14 @@ export function StepPane({
                             onStep({ op });
                         }}
                     />
-                    {count !== undefined && (
+                    {count !== undefined && count !== total && (
                         <Text size="sm" c="dimmed" className="sel-count" aria-hidden>
                             {`${formatNumber(count)} so far`}
+                        </Text>
+                    )}
+                    {stateShown !== "" && (
+                        <Text size="sm" c="dimmed" className="sel-state">
+                            {stateShown}
                         </Text>
                     )}
                 </Group>
@@ -835,7 +867,7 @@ export function StepPane({
                                         }}
                                     />
                                 )}
-                                {missing !== undefined && (
+                                {offersMissing && (
                                     <Checkbox
                                         size="xs"
                                         label="Include not measured"

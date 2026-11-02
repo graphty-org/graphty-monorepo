@@ -34,8 +34,9 @@ export function MatchesStrip({
     const { ref, height } = useElementSize();
     const [sort, setSort] = useState<DataTableSort | null>(null);
     const kind: RecordKind = rule.side === "nodes" ? "node" : "edge";
+    // The Group column is drawn only when there are two groups to tell apart.
     const groupOf =
-        reading === null
+        reading === null || reading.rule.branches.length < 2
             ? undefined
             : (id: NodeId | EdgeId): { name: string; color: string } | null => {
                   const branchId = reading.branchOf(id);

@@ -318,6 +318,16 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             }),
         [session],
     );
+    // A layer's counts follow the data under it (a filter's change, its undo or redo), which no
+    // style event reports: read them again once the element says the picture has caught up.
+    const [, setDerived] = useState(0);
+    useEffect(
+        () =>
+            session.on("project:derived", () => {
+                setDerived((n) => n + 1);
+            }),
+        [session],
+    );
     const tree = session.styles.tree();
     // With no row open, Tab into the tree lands on Everything (else the first row no pin holds),
     // never on a pinned built-in row such as Hovered that paints nothing until a pointer moves.

@@ -1275,7 +1275,11 @@ export function AddCondition({
                 ".ws-which-open, .dp, .sel-ws-props, .sel-ws-outline, .sel-editor",
             );
             if (column instanceof HTMLElement && column.clientWidth > 0) {
-                setWidth(column.clientWidth);
+                // The column's content box: a list as wide as its padding box would run past it.
+                const style = getComputedStyle(column);
+                const padding =
+                    (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+                setWidth(column.clientWidth - padding);
             }
             combobox.focusSearchInput();
         },
@@ -1651,6 +1655,7 @@ function ExtraOption({ item }: Readonly<{ item: ExtraItem }>): React.JSX.Element
  * @param props.value - the test's bounds, clamped to the values
  * @param props.onChangeEnd - takes the bounds a gesture ended on
  * @param props.links - a selection step's Links, the edges a degree is counted over
+ * @param props.given - the values' spread when no path names them (a step's own computation)
  * @returns The row, or nothing while the values are not numbers
  */
 function ValueBrush({
@@ -1658,6 +1663,7 @@ function ValueBrush({
     path,
     within,
     links,
+    given,
     name,
     low,
     high,
@@ -1669,6 +1675,7 @@ function ValueBrush({
     path: string;
     within: CardField["within"];
     links?: CardField["links"];
+    given?: CardField["spread"];
     name: string;
     low: number;
     high: number;
@@ -1679,11 +1686,12 @@ function ValueBrush({
     const linksKey = links === undefined ? "" : JSON.stringify(links);
     const spread = useMemo(
         () =>
+            given ??
             session.scope.histogram(path, {
                 ...(within === undefined ? {} : { within }),
                 ...(linksKey === "" ? {} : { links: JSON.parse(linksKey) as RuleTree }),
             }),
-        [session, path, within, linksKey],
+        [session, path, within, linksKey, given],
     );
     const [moving, setMoving] = useState<[number, number] | null>(null);
     if (spread.kind !== "numeric" || spread.bins.length === 0 || high <= low) {
@@ -1695,7 +1703,9 @@ function ValueBrush({
             label={name}
             bins={spread.bins.map((bin) => ({
                 label: `${formatNumber(bin.from)} to ${formatNumber(bin.to)}: ${formatCount(bin.count)}`,
-                count: bin.count,
+                // Skewed values (graphty-element suggests a log scale) are drawn at log heights, so a
+                // long tail of small bins still shows; the label keeps the count.
+                count: spread.suggestedScale === "log" ? Math.log1p(bin.count) : bin.count,
                 from: bin.from,
                 to: bin.to,
                 highlighted: bin.to > shown[0] && bin.from <= shown[1],
@@ -2453,6 +2463,7 @@ function NumberCard({
                     path={path}
                     within={within}
                     links={card.field.links}
+                    given={card.field.spread}
                     name={name}
                     low={low}
                     high={high}
@@ -3046,7 +3057,7 @@ function TextCard({
                         <Autocomplete
                             aria-label={`${name}: text to match`}
                             data-enter-done
-                            placeholder="Type the text to match"
+                            placeholder="Text"
                             // Never more than a checklist draws, whatever the column holds (spec 4.3).
                             limit={SHOWN_VALUES}
                             data={listed}

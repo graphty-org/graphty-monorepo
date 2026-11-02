@@ -453,7 +453,7 @@ function nodeRows(): number {
 }
 
 describe("the selection editor and the table", () => {
-    it("the workspace's strip lists the matches only with the Group column; its Table item hides it, focus kept", async () => {
+    it("the workspace's strip lists the matches only with the Group column; the header's Table hides it, focus kept", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
         const total = session.scope.watchSteps(TWO_GROUPS, () => undefined);
@@ -465,13 +465,13 @@ describe("the selection editor and the table", () => {
         });
         assert.isNotNull(within(ws).queryByRole("columnheader", { name: /^Group/ }));
         assert.isNull(document.querySelector(".ws-dock"), "the main table stays closed");
-        await userEvent.click(within(ws).getByRole("button", { name: /^More for / }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Hide table/ }));
+        // Table is the header's toggle alone: the title menu does not repeat it.
+        await userEvent.click(within(ws).getByRole("button", { name: "Table of matches" }));
         await waitFor(() => {
             assert.equal(nodeRows(), -1, "the strip is hidden");
         });
         assert.isTrue(ws.contains(document.activeElement), "focus stays in the workspace");
-        await userEvent.click(within(ws).getByRole("button", { name: "Table" }));
+        await userEvent.click(within(ws).getByRole("button", { name: "Table of matches" }));
         await waitFor(() => {
             assert.equal(nodeRows(), expected);
         });

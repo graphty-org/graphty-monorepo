@@ -253,7 +253,7 @@ describe("the selection editor on 50,000 nodes", () => {
         await userEvent.click(within(pane).getByRole("button", { name: /^Advanced/ }));
         const links = await within(pane).findByRole("radiogroup", { name: "Links" });
         await userEvent.click(within(links).getByText("Links where ..."));
-        await userEvent.click(await within(pane).findByRole("button", { name: "Links value: none" }));
+        await userEvent.click(await within(pane).findByRole("button", { name: "Link value: none" }));
         await screen.findByRole("combobox", { name: "Find edge attributes" });
         // The generated graph's edges carry no column: the list is the edge columns, here none,
         // and never a value of the 99,000 edges.

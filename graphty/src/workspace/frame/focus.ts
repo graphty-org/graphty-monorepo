@@ -152,7 +152,7 @@ const FOCUSABLE = 'a[href], button, input, select, textarea, summary, [tabindex]
  * @param element - the element.
  * @returns true when it can take focus.
  */
-function canFocus(element: Element): boolean {
+export function canFocus(element: Element): boolean {
     return (
         element instanceof HTMLElement &&
         element.isConnected &&

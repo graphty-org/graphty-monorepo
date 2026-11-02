@@ -4,9 +4,9 @@
  * (`references.ts`).
  */
 
-import { LISTBOX_CLASS_NAMES, TargetTooltip } from "@graphty/compact-mantine";
+import { FieldCaret, LISTBOX_CLASS_NAMES, TargetTooltip } from "@graphty/compact-mantine";
 import type { GraphSession, NodeId, StepReference } from "@graphty/graphty-element/session";
-import { ActionIcon, Combobox, Group, Input, InputBase, ScrollArea, useCombobox } from "@mantine/core";
+import { ActionIcon, Combobox, Group, Input, InputBase, ScrollArea, Text, useCombobox } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -144,14 +144,16 @@ export function ReferencePicker({
                 <Combobox.Target withAriaAttributes={false}>
                     <InputBase
                         component="button"
+                        size="sm"
+                        variant="outlined"
+                        rightSection={<FieldCaret />}
+                        rightSectionPointerEvents="none"
                         type="button"
                         pointer
                         data-first-focus
                         aria-label={token === "" ? "Reference" : `Reference: ${token}`}
                         aria-haspopup="listbox"
                         aria-expanded={combobox.dropdownOpened}
-                        rightSection={<Combobox.Chevron aria-hidden />}
-                        rightSectionPointerEvents="none"
                         style={{ flex: 1, minWidth: 0 }}
                         onClick={() => {
                             combobox.toggleDropdown();
@@ -188,22 +190,33 @@ export function ReferencePicker({
                 />
                 <Combobox.Options id={listId} aria-label="References">
                     <ScrollArea.Autosize mah={240} type="scroll" scrollbars="y">
-                        {sections.map((section) => (
-                            <Combobox.Group key={section.heading.split(" ")[0]} label={section.heading}>
-                                {/* Mantine hides a heading alone in its group: the node count is drawn with no rows. */}
-                                {section.items.length === 0 && <span aria-hidden />}
-                                {section.items.map((each) => (
-                                    <Combobox.Option
-                                        key={each.value}
-                                        value={each.value}
-                                        disabled={each.disabled}
-                                        active={each.value === chosen}
-                                    >
-                                        {each.label}
-                                    </Combobox.Option>
-                                ))}
-                            </Combobox.Group>
-                        ))}
+                        {sections.map((section) => {
+                            const options = section.items.map((each) => (
+                                <Combobox.Option
+                                    key={each.value}
+                                    value={each.value}
+                                    disabled={each.disabled}
+                                    active={each.value === chosen}
+                                >
+                                    {each.label}
+                                    {each.hint !== undefined && (
+                                        <Text span size="sm" c="dimmed" ml={6}>
+                                            {each.hint}
+                                        </Text>
+                                    )}
+                                </Combobox.Option>
+                            ));
+                            // The live references are drawn first with no heading.
+                            return section.heading === "" ? (
+                                <React.Fragment key="live">{options}</React.Fragment>
+                            ) : (
+                                <Combobox.Group key={section.heading.split(" ")[0]} label={section.heading}>
+                                    {/* Mantine hides a heading alone in its group: the node count is drawn with no rows. */}
+                                    {section.items.length === 0 && <span aria-hidden />}
+                                    {options}
+                                </Combobox.Group>
+                            );
+                        })}
                     </ScrollArea.Autosize>
                 </Combobox.Options>
             </Combobox.Dropdown>

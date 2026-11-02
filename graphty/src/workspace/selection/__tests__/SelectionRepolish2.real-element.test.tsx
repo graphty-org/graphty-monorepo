@@ -160,7 +160,8 @@ describe("the outline holds only recipe rows", () => {
         assert.isNull(within(pane).queryByRole("button", { name: "Group colors" }), "no unlabeled palette");
         await userEvent.click(within(pane).getByRole("button", { name: /^More for / }));
         await screen.findByRole("menuitem", { name: /^Select \d+/ });
-        assert.isNotNull(screen.queryByRole("menuitem", { name: /group colors/ }));
+        // Group colors is the header's segment, never repeated in the title menu.
+        assert.isNull(screen.queryByRole("menuitem", { name: /group colors/ }));
     });
 
     it("a group whose start empties it says Passes none on its row", async () => {

@@ -23,7 +23,8 @@
     outline-offset: -1px;
 }
 
-.sel-row[aria-selected="true"] {
+.sel-row[aria-selected="true"],
+.sel-row[data-selected] {
     background: var(--cm-bg-selected, var(--mantine-color-default-hover));
 }
 
@@ -69,17 +70,13 @@
     text-overflow: ellipsis;
 }
 
-/* A tag gives way after the test and before the value: a Links condition can be long. */
+/* A tag is a bare dimmed word ("Links", "So far"), its whole setting in the row's tooltip and on
+   Advanced's right; it gives way before the test, so the condition keeps its row (spec 3.1). */
 .sel-tag {
-    flex: 0 100 auto;
+    flex: 0 100000 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding-inline: 4px;
-    border: 1px solid var(--mantine-color-default-border);
-    border-radius: var(--mantine-radius-sm);
-    font-size: 11px;
-    line-height: 16px;
     color: var(--mantine-color-dimmed);
 }
 
@@ -150,11 +147,6 @@
     align-items: center;
     gap: 6px;
     height: 24px;
-}
-
-/* A list of values cut short keeps its "and N more" right after the names. */
-.sel-test:has(+ .sel-more) {
-    flex: 0 1 auto;
 }
 
 .sel-more {
@@ -238,6 +230,38 @@
     inset-inline-end: 8px;
 }
 
+/* Fit sits on the canvas, which stays light in the dark theme: it takes the preview key's card
+   surface, so its words keep their contrast in both themes. */
+.sel-ws-fit.sel-ws-fit {
+    background: var(--cm-bg);
+    border: 1px solid var(--cm-border);
+    border-radius: var(--mantine-radius-sm);
+}
+
+/* The header's Table toggle, pressed: the selected row's fill, as a subtle toggle draws it. */
+.sel-ws-toggle[data-pressed] {
+    background: var(--cm-bg-selected, var(--mantine-color-default-hover));
+}
+
+/* The sidebar title row's Edit is drawn on hover or focus, over the row's end, so the name keeps
+   the row's width at rest (the row itself opens the workspace too). */
+.sel-rest .sel-title-row {
+    position: relative;
+}
+
+.sel-rest .sel-title-row [data-edit] {
+    position: absolute;
+    inset-inline-end: 4px;
+    background: var(--cm-bg);
+    opacity: 0;
+}
+
+.sel-rest .sel-title-row:hover [data-edit],
+.sel-rest .sel-title-row:focus-within [data-edit],
+.sel-rest .sel-title-row [data-edit]:focus-visible {
+    opacity: 1;
+}
+
 .sel-ws-strip {
     min-height: 0;
     overflow: hidden;
@@ -252,7 +276,8 @@
 .sel-ws-props {
     width: max(320px, var(--sel-ws-cover-end, 0px));
     overflow: hidden auto;
-    padding: 8px;
+    /* 16 px at the sides: a range brush's thumbs reach 8 px past its row, and keep 8 px of gutter. */
+    padding: 8px 16px;
     background: var(--cm-bg);
     border-inline-start: 1px solid var(--cm-border);
 }

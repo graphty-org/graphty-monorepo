@@ -655,3 +655,52 @@ Two-way doors decided while building spec 3.0 and 3.5 (the record of what change
   (`../owner-decisions.md`, 2026-10-31). The app never writes it; `union` leaves freeze it.
 - The split button's chevron is 16 px wide and the range thumbs 10 px, under the 24 px target:
   both are compact-mantine's Figma look (`../owner-decisions.md`, 2026-11-01). The build keeps them.
+
+### Workspace polish 1 (2026-11-01, studio engineer)
+
+Two-way doors decided while fixing the workspace polish 1 reviews (`ws-polish-1-*.md`):
+
+- **A filter card is drawn over the full graph.** `styles.showBranches` takes `base: "full"`
+  (graphty-element, additive, @beta): every filter condition's removals are lifted while the view
+  is shown, what they hide is drawn faint as ghosts, and the branches are drawn over the ghosts,
+  so a card's own matches show in its color even when another card hides them. The filter host
+  always passes it.
+- **A view that draws what is drawn repaints nothing.** graphty-element keeps a branch layer, the
+  same object, when it draws what the shown one draws; a branch's selector leaves out the steps
+  that change nothing (off, or no test yet). A step added with no test, a rename, or the same rule
+  handed again costs no repaint.
+- **A slow frame gives the repaint a share of it.** The renderer's repaint budget is a quarter of
+  the last frame, at least 16 ms and at most 250 ms: at a frame every 1.5 s (a software GPU, 50,000
+  nodes) 16 ms a frame left a preview minutes from the screen.
+- **The key says "Drawing"** while the element's frame is not stable after a view change.
+- **A selection with no step opens on its new step's pane**, value field focused; a step being
+  added has a pane of its own whose value field anchors the picker. The outline lights a "Value..."
+  row for it.
+- **Clear starts where a new layer does** (one All group, no step), so Clear and a new layer show
+  one empty state; a group that draws All nodes draws no Condition row.
+- **One count per place**: the workspace's title row drops its count, "so far" only where it
+  differs, the strip's Group column only with two groups, the Filters total only with two cards on.
+- **Tags are bare dimmed words**; a Links tag reads "Links". A list of more than nine values reads
+  as its count ("1,898 values").
+- **The outline column is measured once** when the workspace opens and kept until it closes.
+- **The header** draws Table, Clear and Cancel subtle, the segment at 11/16; the title menu drops
+  Table and Group colors.
+- **The canvas toolbar is hidden and inert** under the workspace (owner-decisions.md, 2026-11-01).
+- **Sidebar Edit** is drawn on hover or focus over the title row's end.
+- **Group pane** has Color (the compact color field) and Save as set (`sets.createFrom`).
+- **A cancelled or removed step run keeps its estimate** on Run (graphty-element), and a cancelled
+  or failed run draws no empty table column.
+- **Words**: no Live heading; "Link value..."; "Text" placeholder; "Include not measured" only
+  when the value has elements with no value; a reference row shows the value that matched;
+  "Keep (Intersect)" as the radio's name; "Table of matches" as the header toggle's name.
+- **Edge "not styled" after a node condition** (owner 1, minor 17) was traced: nothing writes the
+  edge side. The layer's kind follows `builtParts` (graph-place/rows.ts), which counts a half with
+  a condition as built, an earlier decision; it is kept, and the owner may ask for kinds by what a
+  layer writes only.
+- **Not fixed this round** (graphty-element run lifecycle, each a change of its own): a filter's
+  25 s freeze at 50,000 nodes and label propagation's 70 to 120 s run (both need a profile at
+  that size); a community step re-run on a filtered graph changing its groups, and a ticked group
+  saved as a raw id; a step run's undo entry and its stale duplicate run; a Links-scoped step's
+  own values in the strip; the By position tie chip (no tie value from the element); pointing at
+  a sidebar row at rest marks nothing (spec 3.0 no longer promises it); the Data place's attribute
+  "+" stays on the count rows.

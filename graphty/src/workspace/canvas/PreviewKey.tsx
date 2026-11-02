@@ -8,11 +8,12 @@
 import { DataRow } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
-import React from "react";
+import React, { useEffect, useState } from "react";
 
+import { formatNumber } from "../inspector/words";
 import { useEditedSelection, useShownBranches } from "../selection/useSteps";
 import { letterOf } from "../selection/words";
-import { useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { colorName } from "../style/words";
 
 /**
@@ -30,6 +31,27 @@ export function PreviewKey({
     const shown = useShownBranches(session);
     const edited = useWorkspaceState((state) => state.editingSelection);
     const reading = useEditedSelection(session, shown?.rule ?? null);
+    // While graphty-element is still drawing the view (a large graph repaints over many frames),
+    // the key says so, so its counts are never read as the canvas's.
+    const { element } = useWorkspace();
+    const [drawing, setDrawing] = useState(false);
+    useEffect(() => {
+        if (element === null || element === undefined || shown === null) {
+            setDrawing(false);
+            return undefined;
+        }
+        const settle = (): void => {
+            setDrawing(false);
+        };
+        const frame = requestAnimationFrame(() => {
+            setDrawing(!element.isFrameStable);
+        });
+        element.addEventListener("graphty-graph-frame-stable", settle);
+        return () => {
+            cancelAnimationFrame(frame);
+            element.removeEventListener("graphty-graph-frame-stable", settle);
+        };
+    }, [element, shown]);
     if (shown === null || reading === null) {
         return children;
     }
@@ -37,19 +59,38 @@ export function PreviewKey({
     const single = reading.rule.branches.length === 1;
     // Each row counts what is drawn in its color (a member of an earlier group is drawn in that
     // group's), so the rows and No match add up to the base; a group that is off draws nothing.
+    const nameOf = (at: number): string => reading.rule.branches[at]?.name ?? (single ? title : letterOf(at));
     const rows = reading.rule.branches.flatMap((branch, at) => {
         const read = reading.branches.find((each) => each.id === branch.id);
-        return branch.on === false || read === undefined
-            ? []
-            : [
-                  {
-                      id: branch.id ?? String(at),
-                      // One group is the selection itself: it goes by the selection's title.
-                      name: branch.name ?? (single ? title : letterOf(at)),
-                      color: branch.color ?? "",
-                      count: read.drawn,
-                  },
-              ];
+        if (branch.on === false || read === undefined) {
+            return [];
+        }
+        // A group whose every member an earlier group already draws says so ("1, under A"),
+        // never 0, so its row, its pane and the key agree on its count.
+        const under =
+            read.drawn === 0 && read.count > 0
+                ? reading.rule.branches
+                      .slice(0, at)
+                      .map((each, index) => ({ each, index }))
+                      .filter(
+                          ({ each }) =>
+                              each.on !== false &&
+                              (reading.branches.find((other) => other.id === each.id)?.drawn ?? 0) > 0,
+                      )
+                      .map(({ index }) => nameOf(index))
+                : [];
+        return [
+            {
+                id: branch.id ?? String(at),
+                // One group is the selection itself: it goes by the selection's title.
+                name: nameOf(at),
+                color: branch.color ?? "",
+                count:
+                    under.length > 0
+                        ? `${formatNumber(read.count)}, under ${under.join(", ")}`
+                        : formatNumber(read.drawn),
+            },
+        ];
     });
     return (
         <Paper
@@ -63,6 +104,11 @@ export function PreviewKey({
             <Stack gap={4}>
                 <Text size="xs" fw={500} aria-hidden="true">
                     {`Preview: ${title}`}
+                    {drawing && (
+                        <Text span size="xs" c="dimmed" fw={400} ml={6} data-drawing="">
+                            Drawing
+                        </Text>
+                    )}
                 </Text>
                 {rows.map((row) => (
                     <DataRow
@@ -82,7 +128,7 @@ export function PreviewKey({
                 ))}
                 <DataRow
                     name="No match"
-                    value={reading.total.of - reading.total.count}
+                    value={formatNumber(reading.total.of - reading.total.count)}
                     // The faint rest, as the canvas draws it, so the row lines up with the groups'.
                     icon={
                         <ColorSwatch

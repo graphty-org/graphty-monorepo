@@ -30,7 +30,7 @@ import { addStep, editBranch, newSelection } from "../selection/model";
 import type { SelectionMenuItem } from "../selection/SelectionMenu";
 import { useSteps } from "../selection/useSteps";
 import { filterSelection, type PickSection, ruleOfField, sideOf } from "../selection/values";
-import { rowWords, stepWords, VERB_WORDS } from "../selection/words";
+import { rowTest, rowWords, stepWords, VERB_WORDS } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, cardFields, type Side } from "../style/cards";
@@ -226,7 +226,8 @@ export function FiltersSection(): React.JSX.Element {
     // What the cards together leave, on the header: "Passes none" when they empty the picture.
     const { summary } = session?.visibility ?? { summary: null };
     const together =
-        summary === null || !conditions.some((c) => c.on && hides(c)) ? null : (
+        // Drawn only when two or more cards are on: one card's own count already says it.
+        summary === null || conditions.filter((c) => c.on && hides(c)).length < 2 ? null : (
             <Text size="sm" className="dp-filters-count" data-filters-count="">
                 {summary.visibleNodes === 0
                     ? "Passes none"
@@ -650,7 +651,7 @@ function cardName(
     // A step no value names ("Rule": a tier 4 neighborhood, say) leaves the name to the rule's words.
     if (first !== undefined && (condition === undefined || stepWords(session, first, side).value !== "Rule")) {
         const words = rowWords(session, first, side);
-        const test = words.more === undefined ? words.test : `${words.test} ${words.more}`;
+        const test = rowTest(words);
         // A card says what stays: a first step that removes keeps its verb ("Except role volunteer").
         const verb = first.op === "except" ? [VERB_WORDS.except.word] : [];
         return [...verb, words.value, test].filter((each) => each !== "").join(" ");

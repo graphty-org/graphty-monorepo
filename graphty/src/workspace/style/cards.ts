@@ -16,6 +16,7 @@ import {
     type Scope,
     selectorRule,
     type SourceKey,
+    type ValueHistogram,
 } from "@graphty/graphty-element/session";
 
 import { sourceName } from "../data-place/words";
@@ -53,6 +54,11 @@ export interface CardField {
     readonly counted?: Scope;
     /** How many of them have no value, when the card cannot read it by its path. */
     readonly missing?: number;
+    /**
+     * How the values are spread, when no path names them (a selection step's own computation, on
+     * So far or over its Links): its bars are drawn from this instead of a column.
+     */
+    readonly spread?: ValueHistogram;
     /** A selection step's Links: the edge condition a structure value (degree) is counted over. */
     readonly links?: RuleTree;
     /** Plain words for what it is, as the picker's tooltip (selection spec 3.5). */

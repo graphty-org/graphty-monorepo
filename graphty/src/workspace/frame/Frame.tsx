@@ -143,7 +143,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         </CanvasMenu>
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />
-                            <div className="ws-toolbar-dock">
+                            {/* The workspace's columns and matches table lie over the toolbar while it is
+                                open: it is hidden and takes no focus until it closes (spec 3.0). */}
+                            <div className="ws-toolbar-dock" inert={covered !== null} hidden={covered !== null}>
                                 <WorkspaceToolbar />
                             </div>
                             <NoticeSlot />

@@ -50,6 +50,16 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
             return rule.of.map((each) => ruleWords(each, names)).join(" and ");
         case "member":
             return rule.of === "largest-component" ? "in the largest component" : "in a set";
+        case "degree":
+            return degreeWords(rule);
+        case "isolated":
+            return "Isolated";
+        case "self-loop":
+            return "Self-loops";
+        case "repeated-edge":
+            return "Repeated edges";
+        case "component":
+            return `in component ${String(rule.id)}`;
         case "source":
             return `from ${rule.sources.map((key) => names.source?.(key) ?? key).join(" or ")}`;
         case "neighborhood": {
@@ -76,6 +86,22 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
         default:
             return "a rule";
     }
+}
+
+/**
+ * A degree leaf as its step's row says it: "Degree min 4", "Degree 3 to 7", "In degree max 2".
+ * @param rule - the leaf.
+ * @returns the words.
+ */
+function degreeWords(rule: Extract<RuleTree, { kind: "degree" }>): string {
+    const name = { in: "In degree", out: "Out degree" }[rule.direction as string] ?? "Degree";
+    if (rule.min !== undefined && rule.max !== undefined) {
+        return `${name} ${formatCount(rule.min)} to ${formatCount(rule.max)}`;
+    }
+    if (rule.min !== undefined) {
+        return `${name} min ${formatCount(rule.min)}`;
+    }
+    return rule.max === undefined ? name : `${name} max ${formatCount(rule.max)}`;
 }
 
 /**

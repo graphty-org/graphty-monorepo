@@ -21,6 +21,8 @@ export interface ReferenceOption {
     readonly value: string;
     readonly label: string;
     readonly disabled?: boolean;
+    /** Why a node was found when its name does not show it: the value that holds the text ("community 12"). */
+    readonly hint?: string;
 }
 
 /** A section of the list: its heading and its options. */
@@ -66,6 +68,29 @@ export function findNodes(session: GraphSession, typed: string): { nodes: readon
 }
 
 /**
+ * The value that made a search find a node, when its name does not show it: the first of its
+ * values that holds the text, said with its column ("community 12", "name Person 00017").
+ * @param record - the node as the search returned it.
+ * @param label - the name the list shows it by.
+ * @param lower - the search, lower case.
+ * @returns the words, or undefined when the name already holds the text.
+ */
+function matchedValue(record: NodeRecord, label: string, lower: string): string | undefined {
+    if (lower === "" || label.toLowerCase().includes(lower)) {
+        return undefined;
+    }
+    for (const [key, value] of Object.entries(record)) {
+        if (key === "id" || (typeof value !== "string" && typeof value !== "number")) {
+            continue;
+        }
+        if (String(value).toLowerCase().includes(lower)) {
+            return `${key} ${String(value)}`;
+        }
+    }
+    return undefined;
+}
+
+/**
  * The list's sections for what is typed (spec 4.3): Live (or Selection in a filter), Sets, Nodes.
  * @param session - the element's session.
  * @param host - where the selection is edited.
@@ -94,10 +119,11 @@ export function referenceSections(
         .sort((a, b) => a.label.localeCompare(b.label));
     const { nodeCount } = session.data.statistics();
     const found = typed === "" ? null : findNodes(session, typed);
-    const nodes = (found?.nodes ?? []).map((each) => ({
-        value: `node:${String(each.id)}`,
-        label: session.data.name(each.id) ?? String(each.id),
-    }));
+    const nodes = (found?.nodes ?? []).map((each) => {
+        const label = session.data.name(each.id) ?? String(each.id);
+        const hint = matchedValue(each, label, lower);
+        return { value: `node:${String(each.id)}`, label, ...(hint === undefined ? {} : { hint }) };
+    });
     const counted = (name: string, shown: number, total: number): string =>
         total > shown ? `${name} ${formatNumber(shown)} of ${formatNumber(total)}` : name;
     const nodesHeading = (all: number, typedFound: { shown: number; total: number } | null): string => {
@@ -109,7 +135,8 @@ export function referenceSections(
     };
     const pick = has("Pick on canvas") ? [{ value: PICK_ON_CANVAS, label: "Pick on canvas" }] : [];
     return [
-        { heading: host === "selector" ? "Live" : "Selection", items: [...pick, ...live] },
+        // The live references need no heading of their own; a filter's are the Selection.
+        { heading: host === "selector" ? "" : "Selection", items: [...pick, ...live] },
         {
             heading: counted("Sets", Math.min(sets.length, SHOWN_REFERENCES), sets.length),
             items: sets.slice(0, SHOWN_REFERENCES),

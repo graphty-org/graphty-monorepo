@@ -148,6 +148,11 @@
     margin-inline: auto;
 }
 
+/* Hidden while the selection workspace lies over it. */
+.ws-toolbar-dock[hidden] {
+    display: none;
+}
+
 /* 8 px above the toolbar (48 tall, 12 up). */
 .ws-notice-slot {
     position: absolute;

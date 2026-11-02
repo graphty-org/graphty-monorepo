@@ -287,11 +287,28 @@ export function rowWords(
     // A long list of values is drawn as its first names and "and N more", which is never cut short.
     const many =
         card?.type === "category" && card.match === "values" ? valuesParts(categoryNames(session, card)) : null;
+    if (many !== null && many.more > MANY_NAMED) {
+        // A long list is its count alone: two names of 1,898 say little and cost the value its width.
+        return { value: words.value, test: "", more: `${formatNumber(many.more + 2)} values`, tags };
+    }
     if (many !== null && many.more > 0) {
         return { value: words.value, test: many.listed, more: `and ${formatNumber(many.more)} more`, tags };
     }
     return { value: words.value, test: short ?? (untouched ? "" : words.test), tags };
 }
+
+/**
+ * A row's whole test: its words and its "and N more" (or "1,898 values"), as one string.
+ * @param words - the row's words.
+ * @param words.test - its test.
+ * @param words.more - its count of values left out, if any.
+ * @returns the test.
+ */
+export const rowTest = (words: { readonly test: string; readonly more?: string }): string =>
+    [words.test, words.more ?? ""].filter((each) => each !== "").join(" ");
+
+/** The most values left out after the two a row names; a longer list is said as its count. */
+const MANY_NAMED = 7;
 
 /**
  * A number or category test in a row's short words, or undefined for any other card.

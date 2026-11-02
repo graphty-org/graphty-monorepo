@@ -414,7 +414,7 @@ describe("scoping by links inside the editor (check 42, fix 1)", () => {
         await userEvent.click(within(pane).getByRole("button", { name: /^Advanced/ }));
         const links = await within(pane).findByRole("radiogroup", { name: "Links" });
         await userEvent.click(within(links).getByText("Links where ..."));
-        await userEvent.click(await within(pane).findByRole("button", { name: "Links value: none" }));
+        await userEvent.click(await within(pane).findByRole("button", { name: "Link value: none" }));
         await screen.findByRole("combobox", { name: "Find edge attributes" });
         await userEvent.keyboard("shared");
         await userEvent.keyboard("{Enter}");

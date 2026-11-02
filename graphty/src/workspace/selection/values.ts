@@ -448,6 +448,7 @@ function ownCard(
         name: descriptor === undefined ? rule.algorithm : wordsFor(descriptor).name,
         group: "Results",
         missing: values.missing,
+        spread: values,
         ...(values.min === undefined || values.max === undefined
             ? {}
             : { range: { min: values.min, max: values.max } }),

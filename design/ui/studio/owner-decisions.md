@@ -3730,3 +3730,24 @@ hairlines.
 
 **Why.** A bar the reader cannot see says nothing about how the values are spread, which is the
 reason the histogram is in the pane.
+
+## 2026-11-01 -- For the owner: compact-mantine now themes InputBase as its Select
+
+**What.** Done; recorded for the Figma lock. compact-mantine had no theme entry for Mantine's
+`InputBase`, so the selection editor's value, link value and reference fields (buttons built on
+`InputBase` that open a picker) drew at Mantine's default: 36 px tall, Mantine's border color and
+chevron, beside 24 px compact fields. `compact-mantine/src/theme/components/inputs.ts` now gives
+`InputBase` the Select's defaults: size sm, outlined, the compact caret in its 24 px slot, the
+Select's field classes. Only the selection editor uses `InputBase`; no token, spec or Figma test
+changed.
+
+**Choices.** (a) keep it (the fields match the Select they act as); (b) revert, and the app draws
+the three fields with compact-mantine's Select in a read-only mode instead.
+
+## 2026-11-01 -- For the owner: the canvas toolbar while the selection workspace is open
+
+**What.** Done, reversible. The workspace's columns and its matches table lie over the canvas
+toolbar, and F6 and Tab still reached its hidden buttons (WCAG 2.4.11). The toolbar is now hidden
+and inert while the workspace is open, and comes back when it closes; the workspace's Fit is its
+framing. **Choices.** (a) keep it hidden; (b) dock the toolbar above the matches table at the
+preview's bottom edge, centered on the preview.

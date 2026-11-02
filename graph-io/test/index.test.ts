@@ -68,6 +68,7 @@ const VALUE_EXPORTS = [
     "DOT_STYLE_BLOCK_ATTRIBUTE",
     "DOT_STYLE_CAPABILITIES",
     "dotExporter",
+    "dotFileLayout",
     "dotImporter",
     "graphvizFont",
     "graphvizPosBends",

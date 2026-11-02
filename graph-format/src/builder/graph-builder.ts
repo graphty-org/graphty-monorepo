@@ -31,6 +31,7 @@ import {
     type ColumnMeta,
     type Dtype,
     type DuplicatePolicy,
+    type EdgeListView,
     type ExtensionHandle,
     type F32,
     type F64,
@@ -1096,27 +1097,61 @@ export class GraphBuilder implements GraphBuilderContract {
             staging.nodeBound === 0 &&
             snapshot.ids.kind === "identity" &&
             snapshot.ids.offset === 0;
-        const nodeMap = new Uint32Array(nodeCount);
-        let newNodes = nodeCount;
-        if (!anonymous) {
-            newNodes = 0;
-            for (let i = 0; i < nodeCount; i++) {
-                const id = snapshot.ids.idOf(i);
-                const existing = this.lookup(id);
-                if (existing === INVALID_INDEX) {
-                    newNodes++;
-                } else if (onDuplicate === "error") {
-                    throw new GraphFormatError("E_DUPLICATE_ID", `node id ${describeId(id)} already exists`, {
-                        id,
-                        index: existing,
-                    });
-                }
-            }
-        }
-        this.checkNodeLimit(newNodes);
+        this.checkNodeLimit(anonymous ? nodeCount : this.countIncomingNewNodes(snapshot, onDuplicate));
         const list = snapshot.edgeList();
         this.checkEdgeLimit(edgeCount, this.arcsOf(list.src, list.dst, edgeCount));
         const shadow = snapshot.edges.byRole("weight");
+        const weights = this.checkIncomingWeights(list, shadow, edgeCount);
+        this.checkIncomingColumns(snapshot, shadow);
+        // nodes
+        const nodeMap = this.addIncomingNodes(snapshot, anonymous);
+        // edges: declared orientation, weights through the role column when present; a weighted
+        // snapshot keeps its declared weight array (design section 3.7) unless the builder is unweighted
+        if (snapshot.flags.weighted && this.fixed.weighted !== false) {
+            staging.ensureWeights();
+        }
+        const edgeMap = new Uint32Array(edgeCount);
+        for (let e = 0; e < edgeCount; e++) {
+            edgeMap[e] = this.pushEdge(nodeMap[list.src[e]], nodeMap[list.dst[e]], weights[e]);
+        }
+        this.copyIncomingColumns(snapshot, shadow, { node: nodeMap, edge: edgeMap });
+        // attribute merges onto existing nodes change the next freeze without adding anything
+        this.mutated();
+    }
+
+    /**
+     * Count the incoming nodes whose id is not in the builder yet; with "error", throw E_DUPLICATE_ID
+     * on the first id that is.
+     * @param snapshot - the snapshot being appended
+     * @param onDuplicate - the duplicate-id handling
+     * @returns the number of nodes addGraph adds
+     */
+    private countIncomingNewNodes(snapshot: GraphSnapshot, onDuplicate: "merge" | "error"): number {
+        let newNodes = 0;
+        for (let i = 0; i < snapshot.nodeCount; i++) {
+            const id = snapshot.ids.idOf(i);
+            const existing = this.lookup(id);
+            if (existing === INVALID_INDEX) {
+                newNodes++;
+            } else if (onDuplicate === "error") {
+                throw new GraphFormatError("E_DUPLICATE_ID", `node id ${describeId(id)} already exists`, {
+                    id,
+                    index: existing,
+                });
+            }
+        }
+        return newNodes;
+    }
+
+    /**
+     * Read and check the weight of every incoming edge: the weight role column when present, else
+     * the snapshot's declared weights.
+     * @param list - the snapshot's edge list
+     * @param shadow - its weight role column, or null
+     * @param edgeCount - the edge count
+     * @returns per edge, the checked weight or undefined
+     */
+    private checkIncomingWeights(list: EdgeListView, shadow: Column | null, edgeCount: number): (number | undefined)[] {
         const weights = new Array<number | undefined>(edgeCount);
         for (let e = 0; e < edgeCount; e++) {
             let weight: number | undefined;
@@ -1127,6 +1162,15 @@ export class GraphBuilder implements GraphBuilderContract {
             }
             weights[e] = this.checkWeight(weight, e);
         }
+        return weights;
+    }
+
+    /**
+     * Check every incoming node and edge column (except the weight role column) and extension table.
+     * @param snapshot - the snapshot being appended
+     * @param shadow - its weight role column, or null
+     */
+    private checkIncomingColumns(snapshot: GraphSnapshot, shadow: Column | null): void {
         for (const column of snapshot.nodes) {
             this.checkIncomingColumn("node", column);
         }
@@ -1138,36 +1182,46 @@ export class GraphBuilder implements GraphBuilderContract {
         for (const [name, table] of snapshot.extensions) {
             this.checkIncomingExtension(name, table);
         }
-        // nodes
+    }
+
+    /**
+     * Add the incoming nodes: in bulk when both sides are anonymous, else merged by id.
+     * @param snapshot - the snapshot being appended
+     * @param anonymous - true when every node on both sides is anonymous
+     * @returns incoming node -> builder node
+     */
+    private addIncomingNodes(snapshot: GraphSnapshot, anonymous: boolean): U32 {
+        const { nodeCount } = snapshot;
+        const nodeMap = new Uint32Array(nodeCount);
         if (anonymous) {
             const first = this.addAnonymousNodes(nodeCount);
             for (let i = 0; i < nodeCount; i++) {
                 nodeMap[i] = first + i;
             }
-        } else {
-            for (let i = 0; i < nodeCount; i++) {
-                const id = snapshot.ids.idOf(i);
-                const existing = this.lookup(id);
-                nodeMap[i] = existing === INVALID_INDEX ? this.addValidatedNode(id) : existing;
-            }
+            return nodeMap;
         }
-        // edges: declared orientation, weights through the role column when present; a weighted
-        // snapshot keeps its declared weight array (design section 3.7) unless the builder is unweighted
-        if (snapshot.flags.weighted && this.fixed.weighted !== false) {
-            staging.ensureWeights();
+        for (let i = 0; i < nodeCount; i++) {
+            const id = snapshot.ids.idOf(i);
+            const existing = this.lookup(id);
+            nodeMap[i] = existing === INVALID_INDEX ? this.addValidatedNode(id) : existing;
         }
-        const edgeMap = new Uint32Array(edgeCount);
-        for (let e = 0; e < edgeCount; e++) {
-            edgeMap[e] = this.pushEdge(nodeMap[list.src[e]], nodeMap[list.dst[e]], weights[e]);
-        }
-        // columns
-        const refs: IndexMaps = { node: nodeMap, edge: edgeMap };
+        return nodeMap;
+    }
+
+    /**
+     * Copy the incoming node, edge (except the weight role column) and graph columns and append the
+     * extension tables, rewriting references through the node and edge maps.
+     * @param snapshot - the snapshot being appended
+     * @param shadow - its weight role column, or null
+     * @param refs - incoming node and edge -> builder node and edge
+     */
+    private copyIncomingColumns(snapshot: GraphSnapshot, shadow: Column | null, refs: IndexMaps): void {
         for (const column of snapshot.nodes) {
-            this.copyColumn("node", column, nodeMap, refs);
+            this.copyColumn("node", column, refs.node, refs);
         }
         for (const column of snapshot.edges) {
             if (column !== shadow) {
-                this.copyColumn("edge", column, edgeMap, refs);
+                this.copyColumn("edge", column, refs.edge, refs);
             }
         }
         for (const column of snapshot.graph) {
@@ -1178,8 +1232,6 @@ export class GraphBuilder implements GraphBuilderContract {
         for (const [name, table] of snapshot.extensions) {
             this.appendExtension(name, table, refs);
         }
-        // attribute merges onto existing nodes change the next freeze without adding anything
-        this.mutated();
     }
 
     // ---------------------------------------------------------------- output and lifecycle
@@ -2165,32 +2217,7 @@ function stagingColumnFromTypedArray(
         );
     }
     const column = createStagingColumn(name, domain, { nullable: false, ...decl, dtype }, false);
-    const { components } = column.meta;
-    let expected: number;
-    switch (dtype) {
-        case "bool":
-            expected = Math.ceil(rows / 32);
-            break;
-        case "dict":
-            expected = rows;
-            break;
-        case "f32":
-        case "f64":
-        case "i32":
-        case "u32":
-        case "u8":
-            expected = rows * components;
-            break;
-        default:
-            throw new GraphFormatError(
-                "E_COLUMN_TYPE",
-                `column "${name}": a ${String(dtype)} column cannot adopt a typed array`,
-                {
-                    column: name,
-                    field: "dtype",
-                },
-            );
-    }
+    const expected = adoptedArrayLength(name, dtype, rows, column.meta.components);
     if (data.length !== expected) {
         throw new GraphFormatError(
             "E_COLUMN_LENGTH",
@@ -2204,69 +2231,165 @@ function stagingColumnFromTypedArray(
     }
     column.ensureLength(rows);
     switch (dtype) {
-        case "bool": {
-            const words = data as U32;
-            for (let row = 0; row < rows; row++) {
-                column.write(row, ((words[row >>> 5] >>> (row & 31)) & 1) === 1);
-            }
+        case "bool":
+            adoptBoolWords(column, data as U32, rows);
             break;
-        }
-        case "dict": {
-            const { dictionary } = column;
-            if (dictionary === null) {
-                throw new GraphFormatError("E_COLUMN_TYPE", `column "${name}" has no dictionary`, { column: name });
-            }
-            for (let row = 0; row < rows; row++) {
-                const code = data[row];
-                if (code >= dictionary.size) {
-                    throw new GraphFormatError(
-                        "E_COLUMN_TYPE",
-                        `column "${name}": code ${code} at row ${row} is outside the ${dictionary.size} declared options`,
-                        {
-                            column: name,
-                            row,
-                            code,
-                        },
-                    );
-                }
-                column.write(row, dictionary.values[code]);
-            }
+        case "dict":
+            adoptDictCodes(column, name, data, rows);
             break;
-        }
-        default: {
-            const { typed } = column;
-            if (typed === null) {
-                throw new GraphFormatError("E_COLUMN_TYPE", `column "${name}" has no typed storage`, { column: name });
-            }
-            const { refersTo } = column.meta;
-            const bound = refersTo === "node" ? bounds.node : bounds.edge;
-            for (let i = 0; i < data.length; i++) {
-                const value = data[i];
-                if (refersTo !== null && value !== INVALID_INDEX && value >= bound) {
-                    throw new GraphFormatError(
-                        "E_INDEX_RANGE",
-                        `column "${name}" refers to ${refersTo} ${value} at row ${i}, which is not below ${bound}`,
-                        { column: name, row: i, refersTo, found: value, bound },
-                    );
-                }
-                if (refersTo !== null && value === INVALID_INDEX && column.validity === null) {
-                    throw new GraphFormatError(
-                        "E_COLUMN_TYPE",
-                        `column "${name}": row ${i} of a non-nullable refersTo column holds INVALID_INDEX`,
-                        { column: name, row: i, field: "nullable" },
-                    );
-                }
-                typed.set(i, value);
-            }
-            if (column.validity !== null) {
-                for (let row = 0; row < rows; row++) {
-                    column.validity.set(row, refersTo === null || data[row] !== INVALID_INDEX);
-                }
-            }
+        default:
+            adoptTypedValues(column, name, data, rows, bounds);
             break;
-        }
     }
     return column;
+}
+
+/**
+ * The length a typed array must have to back a column of `rows` rows.
+ * @param name - the column name (error details only)
+ * @param dtype - the column dtype; string, list and json throw E_COLUMN_TYPE
+ * @param rows - the row count
+ * @param components - the components per row
+ * @returns ceil(rows / 32) words for bool, rows for dict, rows * components for a numeric dtype
+ */
+function adoptedArrayLength(name: string, dtype: Dtype, rows: number, components: number): number {
+    switch (dtype) {
+        case "bool":
+            return Math.ceil(rows / 32);
+        case "dict":
+            return rows;
+        case "f32":
+        case "f64":
+        case "i32":
+        case "u32":
+        case "u8":
+            return rows * components;
+        default:
+            throw new GraphFormatError(
+                "E_COLUMN_TYPE",
+                `column "${name}": a ${dtype} column cannot adopt a typed array`,
+                {
+                    column: name,
+                    field: "dtype",
+                },
+            );
+    }
+}
+
+/**
+ * Write every row of a bool column from its packed bitmap words.
+ * @param column - the staging column
+ * @param words - one bit per row
+ * @param rows - the row count
+ */
+function adoptBoolWords(column: StagingColumn, words: U32, rows: number): void {
+    for (let row = 0; row < rows; row++) {
+        column.write(row, ((words[row >>> 5] >>> (row & 31)) & 1) === 1);
+    }
+}
+
+/**
+ * Write every row of a dict column from its codes, each below the declared option count.
+ * @param column - the staging column
+ * @param name - the column name (error details only)
+ * @param data - one code per row
+ * @param rows - the row count
+ */
+function adoptDictCodes(column: StagingColumn, name: string, data: TypedArrayData, rows: number): void {
+    const { dictionary } = column;
+    if (dictionary === null) {
+        throw new GraphFormatError("E_COLUMN_TYPE", `column "${name}" has no dictionary`, { column: name });
+    }
+    for (let row = 0; row < rows; row++) {
+        const code = data[row];
+        if (code >= dictionary.size) {
+            throw new GraphFormatError(
+                "E_COLUMN_TYPE",
+                `column "${name}": code ${code} at row ${row} is outside the ${dictionary.size} declared options`,
+                {
+                    column: name,
+                    row,
+                    code,
+                },
+            );
+        }
+        column.write(row, dictionary.values[code]);
+    }
+}
+
+/**
+ * Copy a numeric typed array into a column's typed storage, range-checking `refersTo` values
+ * (E_INDEX_RANGE) and refusing INVALID_INDEX in a non-nullable reference column, then mark each row
+ * of a nullable column set unless it holds the INVALID_INDEX of an absent reference.
+ * @param column - the staging column
+ * @param name - the column name (error details only)
+ * @param data - rows * components values
+ * @param rows - the row count
+ * @param bounds - the builder's node and edge bounds
+ */
+function adoptTypedValues(
+    column: StagingColumn,
+    name: string,
+    data: TypedArrayData,
+    rows: number,
+    bounds: IndexBounds,
+): void {
+    const { typed } = column;
+    if (typed === null) {
+        throw new GraphFormatError("E_COLUMN_TYPE", `column "${name}" has no typed storage`, { column: name });
+    }
+    const { refersTo } = column.meta;
+    if (refersTo === null) {
+        for (let i = 0; i < data.length; i++) {
+            typed.set(i, data[i]);
+        }
+    } else {
+        const bound = refersTo === "node" ? bounds.node : bounds.edge;
+        for (let i = 0; i < data.length; i++) {
+            const value = data[i];
+            checkAdoptedReference(column, name, refersTo, value, i, bound);
+            typed.set(i, value);
+        }
+    }
+    if (column.validity !== null) {
+        for (let row = 0; row < rows; row++) {
+            column.validity.set(row, refersTo === null || data[row] !== INVALID_INDEX);
+        }
+    }
+}
+
+/**
+ * Refuse a reference at or above its bound (E_INDEX_RANGE) and INVALID_INDEX in a non-nullable
+ * reference column (E_COLUMN_TYPE).
+ * @param column - the staging column
+ * @param name - the column name (error details only)
+ * @param refersTo - the referenced space
+ * @param value - the value
+ * @param i - its position (error details only)
+ * @param bound - the bound of the referenced space
+ */
+function checkAdoptedReference(
+    column: StagingColumn,
+    name: string,
+    refersTo: "node" | "edge",
+    value: number,
+    i: number,
+    bound: number,
+): void {
+    if (value !== INVALID_INDEX && value >= bound) {
+        throw new GraphFormatError(
+            "E_INDEX_RANGE",
+            `column "${name}" refers to ${refersTo} ${value} at row ${i}, which is not below ${bound}`,
+            { column: name, row: i, refersTo, found: value, bound },
+        );
+    }
+    if (value === INVALID_INDEX && column.validity === null) {
+        throw new GraphFormatError(
+            "E_COLUMN_TYPE",
+            `column "${name}": row ${i} of a non-nullable refersTo column holds INVALID_INDEX`,
+            { column: name, row: i, field: "nullable" },
+        );
+    }
 }
 
 /** The current node and edge bounds of a builder, for refersTo range checks. */

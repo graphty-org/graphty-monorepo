@@ -341,63 +341,175 @@ function resolveFill(
         case "u32":
         case "u8": {
             if (explicit !== undefined) {
-                if (typeof explicit !== "number") {
-                    throw typeError("fill", `fill of a ${dtype} column must be a number`, { found: typeof explicit });
-                }
-                return explicit;
+                return checkedFill(dtype, explicit, "number");
             }
             if (refersTo !== null) {
                 return INVALID_INDEX;
             }
-            const fromDefault = numericDefaultFill(dtype, components, defaultValue);
-            return fromDefault ?? 0;
+            return numericDefaultFill(dtype, components, defaultValue) ?? 0;
         }
         case "bool": {
             if (explicit !== undefined) {
-                if (typeof explicit !== "boolean") {
-                    throw typeError("fill", "fill of a bool column must be a boolean", { found: typeof explicit });
-                }
-                return explicit;
+                return checkedFill(dtype, explicit, "boolean");
             }
             return typeof defaultValue === "boolean" ? defaultValue : false;
         }
         case "dict": {
             if (explicit !== undefined) {
-                if (typeof explicit !== "string") {
-                    throw typeError("fill", "fill of a dict column must be a string", { found: typeof explicit });
-                }
-                return explicit;
+                return checkedFill(dtype, explicit, "string");
             }
-            if (typeof defaultValue === "string" && (options === null || options.includes(defaultValue))) {
-                return defaultValue;
-            }
-            if (options !== null && options.length > 0 && typeof options[0] === "string") {
-                return options[0];
-            }
-            return "";
+            return dictDefaultFill(defaultValue, options);
         }
         case "string": {
             if (explicit !== undefined) {
-                if (typeof explicit !== "string") {
-                    throw typeError("fill", "fill of a string column must be a string", { found: typeof explicit });
-                }
-                return explicit;
+                return checkedFill(dtype, explicit, "string");
             }
             return "";
         }
         case "list":
         case "json": {
-            // the nominal fill of a list / json column is ""; unset rows physically hold an empty list / undefined
-            if (explicit !== undefined && explicit !== "") {
-                throw typeError("fill", `a ${dtype} column takes no fill value`, { found: explicit });
-            }
-            return "";
+            return noFill(dtype, explicit);
         }
         default: {
             const name: string = dtype;
             throw new GraphFormatError("E_COLUMN_TYPE", `unknown dtype ${name}`, { dtype: name });
         }
     }
+}
+
+/**
+ * The fill of a list / json column: nominally "" (unset rows physically hold an empty list /
+ * undefined), so no other fill may be declared.
+ * @param dtype - the column dtype (named in the error)
+ * @param explicit - the declared fill, if any
+ * @returns ""
+ */
+function noFill(dtype: Dtype, explicit: number | string | boolean | undefined): string {
+    if (explicit !== undefined && explicit !== "") {
+        throw typeError("fill", `a ${dtype} column takes no fill value`, { found: explicit });
+    }
+    return "";
+}
+
+/**
+ * An explicit fill, checked to be of the JavaScript type the dtype stores.
+ * @param dtype - the column dtype (named in the error)
+ * @param explicit - the declared fill
+ * @param expected - the JavaScript type the fill must have
+ * @returns the fill
+ */
+function checkedFill(
+    dtype: Dtype,
+    explicit: number | string | boolean,
+    expected: "number" | "boolean" | "string",
+): number | string | boolean {
+    if (typeof explicit !== expected) {
+        throw typeError("fill", `fill of a ${dtype} column must be a ${expected}`, { found: typeof explicit });
+    }
+    return explicit;
+}
+
+/**
+ * The fill of a dict column with no explicit fill: the default when it is one of the options (or
+ * there are no options), else the first string option, else "".
+ * @param defaultValue - the declared default, if any
+ * @param options - the declared options, if any
+ * @returns the fill
+ */
+function dictDefaultFill(defaultValue: unknown, options: readonly unknown[] | null): string {
+    if (typeof defaultValue === "string" && (options === null || options.includes(defaultValue))) {
+        return defaultValue;
+    }
+    if (options !== null && options.length > 0 && typeof options[0] === "string") {
+        return options[0];
+    }
+    return "";
+}
+
+/**
+ * The item dtype and stride of a list column (both required to be valid), or nulls for any other
+ * dtype (which must not declare them).
+ * @param name - the column name
+ * @param dtype - the column dtype
+ * @param decl - the declaration
+ * @returns the item dtype and item components, null for a non-list column
+ */
+function resolveListItem(
+    name: string,
+    dtype: Dtype,
+    decl: ColumnDeclPatch,
+): { itemDtype: ScalarDtype | null; itemComponents: number | null } {
+    if (dtype !== "list") {
+        if (decl.itemDtype !== undefined || decl.itemComponents !== undefined) {
+            throw typeError("itemDtype", `itemDtype / itemComponents are only allowed on list columns, not ${dtype}`, {
+                name,
+                dtype,
+            });
+        }
+        return { itemDtype: null, itemComponents: null };
+    }
+    const { itemDtype: declaredItem } = decl;
+    if (declaredItem === undefined || !isScalarDtype(declaredItem)) {
+        throw typeError("itemDtype", `list column "${name}" needs a scalar itemDtype`, {
+            name,
+            found: declaredItem,
+        });
+    }
+    return {
+        itemDtype: declaredItem,
+        itemComponents: resolveComponents("itemComponents", decl.itemComponents, declaredItem),
+    };
+}
+
+/**
+ * Check a declared refersTo: "node" or "edge", on a u32 column or a list of u32, stride 1.
+ * @param name - the column name
+ * @param dtype - the column dtype
+ * @param refersTo - the declared refersTo
+ * @param components - the column stride
+ * @param itemDtype - the list item dtype, if any
+ * @param itemComponents - the list item stride, if any
+ */
+function checkRefersTo(
+    name: string,
+    dtype: Dtype,
+    refersTo: string,
+    components: number,
+    itemDtype: ScalarDtype | null,
+    itemComponents: number | null,
+): void {
+    if (refersTo !== "node" && refersTo !== "edge") {
+        throw typeError("refersTo", `refersTo must be "node" or "edge"`, { found: refersTo });
+    }
+    const indexColumn =
+        (dtype === "u32" && components === 1) || (dtype === "list" && itemDtype === "u32" && itemComponents === 1);
+    if (!indexColumn) {
+        throw typeError("refersTo", `refersTo requires a u32 column or a list of u32, not ${dtype}`, {
+            name,
+            dtype,
+        });
+    }
+}
+
+/**
+ * Check and freeze declared options: a JSON array, of strings for a dict column.
+ * @param dtype - the column dtype
+ * @param declared - the declared options
+ * @returns a frozen clone of the options
+ */
+function resolveOptions(dtype: Dtype, declared: unknown): readonly unknown[] {
+    if (!Array.isArray(declared)) {
+        throw typeError("options", "options must be an array");
+    }
+    assertJsonValue(declared, "options");
+    if (dtype === "dict") {
+        for (const option of declared) {
+            if (typeof option !== "string") {
+                throw typeError("options", "options of a dict column must be strings", { found: typeof option });
+            }
+        }
+    }
+    return Object.freeze(cloneJson([...declared]));
 }
 
 /**
@@ -416,57 +528,16 @@ export function resolveColumnMeta(name: string, domain: ColumnDomain, decl: Colu
         throw typeError("dtype", `column "${name}" has no valid dtype`, { name, found: dtype });
     }
     const components = resolveComponents("components", decl.components, dtype);
-    let itemDtype: ScalarDtype | null = null;
-    let itemComponents: number | null = null;
-    if (dtype === "list") {
-        const { itemDtype: declaredItem } = decl;
-        if (declaredItem === undefined || !isScalarDtype(declaredItem)) {
-            throw typeError("itemDtype", `list column "${name}" needs a scalar itemDtype`, {
-                name,
-                found: declaredItem,
-            });
-        }
-        itemDtype = declaredItem;
-        itemComponents = resolveComponents("itemComponents", decl.itemComponents, declaredItem);
-    } else if (decl.itemDtype !== undefined || decl.itemComponents !== undefined) {
-        throw typeError("itemDtype", `itemDtype / itemComponents are only allowed on list columns, not ${dtype}`, {
-            name,
-            dtype,
-        });
-    }
+    const { itemDtype, itemComponents } = resolveListItem(name, dtype, decl);
     const refersTo = decl.refersTo ?? null;
     if (refersTo !== null) {
-        if (refersTo !== "node" && refersTo !== "edge") {
-            throw typeError("refersTo", `refersTo must be "node" or "edge"`, { found: refersTo });
-        }
-        const indexColumn =
-            (dtype === "u32" && components === 1) || (dtype === "list" && itemDtype === "u32" && itemComponents === 1);
-        if (!indexColumn) {
-            throw typeError("refersTo", `refersTo requires a u32 column or a list of u32, not ${dtype}`, {
-                name,
-                dtype,
-            });
-        }
+        checkRefersTo(name, dtype, refersTo, components, itemDtype, itemComponents);
     }
     const defaultValue = decl.default;
     if (defaultValue !== undefined) {
         assertJsonValue(defaultValue, "default");
     }
-    let options: readonly unknown[] | null = null;
-    if (decl.options !== undefined) {
-        if (!Array.isArray(decl.options)) {
-            throw typeError("options", "options must be an array");
-        }
-        assertJsonValue(decl.options, "options");
-        if (dtype === "dict") {
-            for (const option of decl.options) {
-                if (typeof option !== "string") {
-                    throw typeError("options", "options of a dict column must be strings", { found: typeof option });
-                }
-            }
-        }
-        options = Object.freeze(cloneJson([...decl.options]));
-    }
+    const options = decl.options === undefined ? null : resolveOptions(dtype, decl.options);
     const extra = decl.extra ?? {};
     if (!isPlainObject(extra)) {
         throw typeError("extra", "extra must be a plain object");

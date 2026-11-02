@@ -262,16 +262,14 @@ function sectorRows(
 export function radial(s: GraphSnapshot, options: RadialLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);
     const root = options.root ?? null;
-    const { arrangement = "rings", rotate } = options;
+    const { rotate } = options;
+    // a string, not the option type: a JavaScript caller may pass any value
+    const arrangement: string = options.arrangement ?? "rings";
     if (arrangement !== "rings" && arrangement !== "sectors") {
-        throw refusal(
-            new Error(`arrangement must be "rings" or "sectors", not ${String(arrangement)}`),
-            "E_BAD_OPTION",
-            {
-                option: "arrangement",
-                value: arrangement,
-            },
-        );
+        throw refusal(new Error(`arrangement must be "rings" or "sectors", not ${arrangement}`), "E_BAD_OPTION", {
+            option: "arrangement",
+            value: arrangement,
+        });
     }
     if (arrangement === "sectors" && rotate !== undefined && rotate !== 0) {
         throw refusal(

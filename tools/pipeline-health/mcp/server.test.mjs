@@ -120,6 +120,17 @@ test("filters: one pull request's rows, hotspots at a level, one shard", async (
     });
 });
 
+test("category reads Issues at 28d by default or all, and refuses a 1-hour range there", async () => {
+    await withClient(base, async (client) => {
+        assert.equal((await call(client, "category", { name: "issues" })).body.range, "28d");
+        const all = (await call(client, "category", { name: "issues", range: "all" })).body;
+        assert.equal(all.page, "issues");
+        assert.equal(all.range, "all");
+        assert.equal((await call(client, "category", { name: "issues", range: "1h" })).isError, true);
+        assert.equal((await call(client, "category", { name: "costs" })).body.range, "28d");
+    });
+});
+
 test("caps lists at 50 rows with truncated: true", async () => {
     fake.longHistory = true;
     try {

@@ -1,1 +1,0 @@
-No counted-work test yet: SessionShaders.replace works on one shader text per call (parse, check, one compile), so its cost does not grow with the graph; a counted-work test belongs with the shader runtime's tests (design/rendering/shader-styles.md, package E2).

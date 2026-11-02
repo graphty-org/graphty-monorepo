@@ -2074,6 +2074,45 @@ function retargetsRowPart(layer: Layer, patch: Partial<LayerSpec>): boolean {
 }
 
 /**
+ * Refuse a defaults argument that names a kind other than the three palette kinds, a palette that
+ * does not exist, or a palette of a different kind.
+ * @param palettes - The defaults to set.
+ * @throws `E_BAD_COMMAND` for a wrong kind; `E_UNKNOWN_PALETTE` for an unknown palette.
+ */
+function assertDefaultPalettes(palettes: DefaultPalettes): void {
+    for (const [kind, id] of Object.entries(palettes)) {
+        if (kind !== "categorical" && kind !== "sequential" && kind !== "diverging") {
+            throw badCommand(
+                `setDefaultPalettes takes a palette for "categorical", "sequential" or "diverging", not "${kind}".`,
+                { field: kind },
+            );
+        }
+
+        if (id === undefined) {
+            continue;
+        }
+
+        const palette = paletteDescriptor(String(id));
+        if (palette === undefined) {
+            const available = knownPaletteIds();
+            throw new GraphtyError({
+                code: "E_UNKNOWN_PALETTE",
+                message: `There is no palette named "${String(id)}". Define it before making it a default.`,
+                source: "style",
+                details: { palette: id, available, candidates: available },
+            });
+        }
+
+        if (palette.kind !== kind) {
+            throw badCommand(`The palette "${palette.id}" is ${palette.kind}, so it cannot be the ${kind} default.`, {
+                field: kind,
+                palette: palette.id,
+            });
+        }
+    }
+}
+
+/**
  * The refusal a call the session cannot make sense of gets.
  * @param message - What is wrong, in a sentence.
  * @param details - The offending values, for an editor that points at them.
@@ -5179,36 +5218,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {
-            for (const [kind, id] of Object.entries(palettes)) {
-                if (kind !== "categorical" && kind !== "sequential" && kind !== "diverging") {
-                    throw badCommand(
-                        `setDefaultPalettes takes a palette for "categorical", "sequential" or "diverging", not "${kind}".`,
-                        { field: kind },
-                    );
-                }
-
-                if (id === undefined) {
-                    continue;
-                }
-
-                const palette = paletteDescriptor(String(id));
-                if (palette === undefined) {
-                    const available = knownPaletteIds();
-                    throw new GraphtyError({
-                        code: "E_UNKNOWN_PALETTE",
-                        message: `There is no palette named "${String(id)}". Define it before making it a default.`,
-                        source: "style",
-                        details: { palette: id, available, candidates: available },
-                    });
-                }
-
-                if (palette.kind !== kind) {
-                    throw badCommand(
-                        `The palette "${palette.id}" is ${palette.kind}, so it cannot be the ${kind} default.`,
-                        { field: kind, palette: palette.id },
-                    );
-                }
-            }
+            assertDefaultPalettes(palettes);
 
             // The layers that took the default a kind is about to lose: a binding naming no palette
             // took the element's own choice, and one this session filled in took the old default.

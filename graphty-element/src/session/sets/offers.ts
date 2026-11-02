@@ -297,6 +297,35 @@ function holdsNode(nodes: readonly NodeId[], id: NodeId): boolean {
 }
 
 /**
+ * How many nodes carry each item key of a run's field, in node order; empty when the field has no
+ * node half.
+ * @param spec - The shape's offers.
+ * @param values - The result by index.
+ * @param nodeCount - How many nodes the snapshot holds.
+ * @returns Item key to its value and node count.
+ */
+function nodeItemCounts(
+    spec: OfferedShape,
+    values: FilterRunResult,
+    nodeCount: number,
+): Map<string, { value: string | number | boolean; count: number }> {
+    const nodes = new Map<string, { value: string | number | boolean; count: number }>();
+    if (!halvesOf(values, spec.field).node) {
+        return nodes;
+    }
+
+    for (let index = 0; index < nodeCount; index++) {
+        for (const value of keyValues(values.nodeValue(index, spec.field), spec)) {
+            const key = itemKeyOf({ field: spec.field, value });
+            const entry = nodes.get(key);
+            nodes.set(key, { value, count: (entry?.count ?? 0) + 1 });
+        }
+    }
+
+    return nodes;
+}
+
+/**
  * Build offers and Memberships over a session.
  * @param sources - What they read.
  * @returns The offering.
@@ -331,17 +360,7 @@ export function createOffering(sources: OfferSources): Offering {
         }
 
         offerCounters.nodeScans++;
-        const nodes = new Map<string, { value: string | number | boolean; count: number }>();
-        if (halvesOf(values, spec.field).node) {
-            for (let index = 0; index < snapshot.nodeCount; index++) {
-                for (const value of keyValues(values.nodeValue(index, spec.field), spec)) {
-                    const key = itemKeyOf({ field: spec.field, value });
-                    const entry = nodes.get(key);
-                    nodes.set(key, { value, count: (entry?.count ?? 0) + 1 });
-                }
-            }
-        }
-
+        const nodes = nodeItemCounts(spec, values, snapshot.nodeCount);
         if (spec.only !== undefined && nodes.size === 0) {
             nodes.set(itemKeyOf({ field: spec.field, value: true }), { value: true, count: 0 });
         }
@@ -526,12 +545,7 @@ export function createOffering(sources: OfferSources): Offering {
             const isNode = "node" in element;
             const index = isNode ? rowOfEitherSpelling(graph.ids, element.node) : edgeRowOf(graph, element.edge);
             if (index === INVALID_INDEX) {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: `The graph holds no ${isNode ? "node" : "edge"} ${JSON.stringify(isNode ? element.node : element.edge)}.`,
-                    source: "data",
-                    details: { ...element },
-                });
+                throw noSuchElement(element);
             }
 
             const sets = sources
@@ -566,6 +580,21 @@ export function createOffering(sources: OfferSources): Offering {
             return Object.freeze({ sets: Object.freeze(sets), items: Object.freeze(items) });
         },
     };
+}
+
+/**
+ * The refusal of a memberships read for an element the graph does not hold.
+ * @param element - The node or edge asked about.
+ * @returns The error to throw.
+ */
+function noSuchElement(element: { readonly node: NodeId } | { readonly edge: EdgeId }): GraphtyError {
+    const isNode = "node" in element;
+    return new GraphtyError({
+        code: "E_BAD_COMMAND",
+        message: `The graph holds no ${isNode ? "node" : "edge"} ${JSON.stringify(isNode ? element.node : element.edge)}.`,
+        source: "data",
+        details: { ...element },
+    });
 }
 
 /**

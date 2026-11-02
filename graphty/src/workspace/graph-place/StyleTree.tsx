@@ -8,6 +8,7 @@ import { GLYPHS } from "../glyphs";
 import { resolveInspected } from "../inspector/inspected";
 import { staleWords } from "../inspector/words";
 import { isPanelEscape, matchesKey } from "../keys/keys";
+import { errorWords } from "../project/words";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
@@ -593,8 +594,9 @@ function AddMenu({
                                     store.set({ renamingRow: folder });
                                 }, MENU_FOCUS_RETURN_MS);
                             } catch (error) {
-                                const why = error instanceof Error ? ` ${error.message}` : "";
-                                store.set({ notice: { message: `Could not add a folder.${why}`, error: true } });
+                                store.set({
+                                    notice: { message: errorWords("Could not add a folder", error), error: true },
+                                });
                             }
                         })();
                     }}

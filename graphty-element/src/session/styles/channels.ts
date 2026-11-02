@@ -395,6 +395,7 @@ export interface ChannelValues {
     "node.width": number;
     "node.height": number;
     "node.depth": number;
+    "node.relativeExtents": boolean;
     "node.planar": boolean;
     "node.zIndex": number;
     "node.drawOrder": number;
@@ -2467,6 +2468,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     "node.width": extentChannel("width", "x"),
     "node.height": extentChannel("height", "y"),
     "node.depth": extentChannel("depth", "z"),
+    "node.relativeExtents": {
+        channel: "node.relativeExtents",
+        target: "node",
+        plainName: "Node Relative Extents",
+        shortName: "Relative extents",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.relativeExtents",
+        renderable: true,
+        caveat:
+            "When on, `node.width`, `node.height` and `node.depth` are multiples of `node.size`, so " +
+            "a node 2 wide and 1 tall at size 1 is 4 wide and 2 tall at size 2: changing the size " +
+            "keeps the stretch. Off (the default), they are extents in the units of `node.size`.",
+    },
     "node.planar": {
         channel: "node.planar",
         target: "node",

@@ -91,6 +91,8 @@ export interface BackfillEvent {
     repair?: { days: string[]; workflows: string[] };
     /** Drop the cursors and read the range again (BackfillOptions.restart); on the first call only. */
     restart?: boolean;
+    /** Load every issue, whatever its update time, and nothing else (BackfillOptions.issues). */
+    issues?: "all";
 }
 
 export type BackfillResult =
@@ -129,6 +131,7 @@ async function runBackfill(
         deadline: end - 90_000,
         ...(event.repair ? { repair: event.repair } : {}),
         ...(event.restart === true ? { restart: true } : {}),
+        ...(event.issues === "all" ? { issues: "all" as const } : {}),
     });
     let recomputed = 0;
     let dirtyLeft = true;

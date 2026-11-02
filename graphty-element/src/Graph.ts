@@ -6818,11 +6818,17 @@ export class Graph implements GraphContext {
         this.applyEasing(distAnim, easing);
 
         return new Promise((resolve) => {
-            // Create observer to update controller during animation
-            const observer = this.scene.onBeforeRenderObservable.add(() => {
-                orbitController.cameraDistance = dummy.value;
-                orbitController.updateCameraPosition();
-            });
+            // Moves the camera, so first of the frame's observers: the passes run before the frame
+            // (the group outlines, the label declutter) read the camera, which must already stand
+            // where this frame draws it from (issue #5562).
+            const observer = this.scene.onBeforeRenderObservable.add(
+                () => {
+                    orbitController.cameraDistance = dummy.value;
+                    orbitController.updateCameraPosition();
+                },
+                undefined,
+                true,
+            );
 
             // Animate the dummy object
             const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1, () => {
@@ -7276,15 +7282,21 @@ export class Graph implements GraphContext {
                 }
             };
 
-            // Create observer to update controller
-            observer = this.scene.onBeforeRenderObservable.add(() => {
-                twoDController.camera.position.x = dummy.posX;
-                twoDController.camera.position.y = dummy.posY;
-                twoDController.camera.orthoLeft = dummy.orthoLeft;
-                twoDController.camera.orthoRight = dummy.orthoRight;
-                twoDController.camera.orthoTop = dummy.orthoTop;
-                twoDController.camera.orthoBottom = dummy.orthoBottom;
-            });
+            // Moves the camera, so first of the frame's observers: the passes run before the frame
+            // (the group outlines, the label declutter) read the camera, which must already stand
+            // where this frame draws it from (issue #5562).
+            observer = this.scene.onBeforeRenderObservable.add(
+                () => {
+                    twoDController.camera.position.x = dummy.posX;
+                    twoDController.camera.position.y = dummy.posY;
+                    twoDController.camera.orthoLeft = dummy.orthoLeft;
+                    twoDController.camera.orthoRight = dummy.orthoRight;
+                    twoDController.camera.orthoTop = dummy.orthoTop;
+                    twoDController.camera.orthoBottom = dummy.orthoBottom;
+                },
+                undefined,
+                true,
+            );
 
             // Animate dummy object
             const animatable = this.scene.beginDirectAnimation(dummy, animations, 0, frameCount, false, 1, () => {
@@ -8419,9 +8431,14 @@ export class Graph implements GraphContext {
         // We just need to call update() every frame for input processing
 
         // Hook into render loop to update XR input
-        const xrUpdateObserver = this.scene.onBeforeRenderObservable.add(() => {
-            xrCameraController.update();
-        });
+        // First of the frame's observers, so every pass reads where the camera stands this frame.
+        const xrUpdateObserver = this.scene.onBeforeRenderObservable.add(
+            () => {
+                xrCameraController.update();
+            },
+            undefined,
+            true,
+        );
 
         // Store for cleanup
         this.scene.metadata.xrCameraController = xrCameraController;

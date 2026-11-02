@@ -864,16 +864,7 @@ function block(aspect: string, count: number, element: (k: number) => string): G
  */
 function nodeElement(p: Plan, ids: WrittenIds, i: number): Record<string, unknown> {
     const element: Record<string, unknown> = { id: ids.idAt(i) };
-    if (p.position?.isSet(i) === true) {
-        const point = p.position.value(i) as ArrayLike<number>;
-        if (Number.isFinite(point[0]) && Number.isFinite(point[1])) {
-            element.x = point[0];
-            element.y = point[1] === 0 ? 0 : -point[1];
-            if (p.positionZ && Number.isFinite(point[2])) {
-                element.z = point[2];
-            }
-        }
-    }
+    writePosition(p, i, element);
     if (p.z?.isSet(i) === true) {
         const z = p.z.value(i);
         if (typeof z === "number" && Number.isFinite(z)) {
@@ -889,6 +880,28 @@ function nodeElement(p: Plan, ids: WrittenIds, i: number): Record<string, unknow
         element.v = v;
     }
     return element;
+}
+
+/**
+ * Write node i's position (x, y flipped to CX2's downward y, and z when the position carries it)
+ * to its element, when it has a finite one.
+ * @param p - the plan
+ * @param i - the node index
+ * @param element - the element, which receives x, y and z
+ */
+function writePosition(p: Plan, i: number, element: Record<string, unknown>): void {
+    if (p.position?.isSet(i) !== true) {
+        return;
+    }
+    const point = p.position.value(i) as ArrayLike<number>;
+    if (!Number.isFinite(point[0]) || !Number.isFinite(point[1])) {
+        return;
+    }
+    element.x = point[0];
+    element.y = point[1] === 0 ? 0 : -point[1];
+    if (p.positionZ && Number.isFinite(point[2])) {
+        element.z = point[2];
+    }
 }
 
 /**

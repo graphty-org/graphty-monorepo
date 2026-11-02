@@ -9,7 +9,7 @@ import { evaluate, type Evaluation } from "../sla/engine.js";
 import { buildViews, type View } from "./build.js";
 import { viewKey, type ViewRoute } from "./keys.js";
 
-export { buildViews, RANGES, SLOW_RANGES, type View, type ViewBody } from "./build.js";
+export { buildViews, ISSUE_RANGES, RANGES, SLOW_RANGES, type View, type ViewBody } from "./build.js";
 export { viewKey, type ViewRoute } from "./keys.js";
 
 /** DynamoDB's item limit is 400 KB; leave room for the key and attributes. */

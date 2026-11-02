@@ -45,15 +45,19 @@ import { MAX_LEVELS_PER_SUBMIT } from "../constants.js";
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
-import { plan1d, plan2d } from "../kernel/dispatch.js";
+import { type DispatchPlan, plan1d, plan2d } from "../kernel/dispatch.js";
+import { type BoundKernel, type Kernel, type KernelBindings } from "../kernel/kernel.js";
+import { type UniformValues } from "../kernel/struct-block.js";
 import { CLOSENESS_PARAMS, FILL_PARAMS, kernelSpec } from "../kernels.js";
+import { type CoreBinding } from "../memory/residency.js";
 import { assertWholeCore, coreOfView } from "../primitives/core-shape.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
 import { type ClosenessAcceleratorOptions, type HitsOptionsLike } from "../types/accelerator.js";
 import { type GpuClosenessResult } from "../types/algorithms.js";
+import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
 import { allPairsCeiling, DEFAULT_ROUNDS_PER_SUBMIT, sweepAllPairs } from "./all-pairs.js";
-import { algorithmScope } from "./scope.js";
+import { type AlgorithmScope, algorithmScope } from "./scope.js";
 import { aborted, bindingOf, checkDest, sssp } from "./sssp.js";
 
 const ALGORITHM = "closenessCentrality";
@@ -260,6 +264,359 @@ async function allPairsRoute(
     }
 }
 
+/** The sizes of a level-route run, fixed before any device work. */
+interface LevelSizes {
+    /** 32-bit words per node. */
+    readonly words: number;
+    /** `n x words`: one region of the search state. */
+    readonly base: number;
+    /** A sampled run's per-node sums after the four regions (`n`), else 0. */
+    readonly extra: number;
+    /** Words of the search state binding. */
+    readonly bitsWords: number;
+    /** Sources per batch (`32 x words`). */
+    readonly lanes: number;
+    /** Words of the count rows of one submit. */
+    readonly rowWords: number;
+    /** Where the control ring starts in the count table. */
+    readonly ctrl: number;
+    /** Where a sampled run's sources start in the count table. */
+    readonly sourcesAt: number;
+    /** Words of the count table. */
+    readonly tableWords: number;
+    /** The frontier arcs above which a level pulls. */
+    readonly pullAt: number;
+}
+
+/** A batch's per-source tallies, folded from the count rows. */
+interface LevelTally {
+    /** Exact sums of distances. */
+    readonly sums: Float64Array;
+    /** Sums of reciprocal distances. */
+    readonly reciprocal: Float64Array;
+    /** Nodes reached. */
+    readonly reached: Uint32Array;
+}
+
+/** What every submit of a level-route run shares, set up once per run. */
+interface LevelRun {
+    readonly ctx: GpuContext;
+    readonly scope: AlgorithmScope;
+    readonly level: Kernel;
+    readonly fill: Kernel;
+    readonly state: KernelBindings;
+    readonly bits: Binding;
+    readonly table: Binding;
+    readonly rows: Binding;
+    readonly shared: UniformValues;
+    readonly levelPlan: DispatchPlan;
+    readonly sizes: LevelSizes;
+    readonly n: number;
+    readonly levelsPerSubmit: number;
+    /** A sampled run's per-node sums, or null on an exact run. */
+    readonly totals: Float64Array | null;
+    readonly signal: AbortSignal | undefined;
+}
+
+/**
+ * Refuses a directed snapshot whose reverse adjacency does not fit one binding.
+ * @param s - the snapshot
+ * @param limit - the largest binding
+ */
+function assertReverseFits(s: GraphSnapshot, limit: number): void {
+    if (!s.directed || 4 * s.arcCount <= limit) {
+        return;
+    }
+    throw new WebGpuGraphError(
+        "E_TOO_LARGE",
+        `${ALGORITHM}: the reverse adjacency of a directed snapshot (${4 * s.arcCount} bytes) does not fit one binding`,
+        { needed: 4 * s.arcCount, limit, path: "closeness.reverse", algorithm: ALGORITHM },
+    );
+}
+
+/**
+ * Words per node: as many as the sources need, within one binding of four regions (plus a sampled run's per-node
+ * sums) and, for a sampled run, so a node's per-batch distance sum (at most 32 words (n - 1)) fits a u32.
+ * @param n - the node count
+ * @param seedCount - the sources of the run
+ * @param sampled - a sampled run
+ * @param extra - the per-node sum words after the four regions
+ * @param limit - the largest binding
+ * @param tuned - the tuning's words, if any
+ * @returns the words per node
+ */
+function levelWords(
+    n: number,
+    seedCount: number,
+    sampled: boolean,
+    extra: number,
+    limit: number,
+    tuned: number | undefined,
+): number {
+    const fitWords = Math.floor((limit / 4 - extra) / (4 * n));
+    const sumWords = sampled ? Math.floor(0xffffffff / (32 * Math.max(1, n - 1))) : MAX_WORDS;
+    const words = tuned ?? Math.max(1, Math.min(MAX_WORDS, Math.ceil(seedCount / 32), fitWords, sumWords));
+    if (Number.isInteger(words) && words >= 1 && words <= MAX_WORDS) {
+        return words;
+    }
+    throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${ALGORITHM}: words must be an integer in [1, ${MAX_WORDS}]`, {
+        argument: "words",
+        value: words,
+        expected: `an integer in [1, ${MAX_WORDS}]`,
+    });
+}
+
+/**
+ * The sizes of a level-route run; throws when the search state does not fit one binding.
+ * @param s - the snapshot
+ * @param sources - a sampled run's sources, or null for every node
+ * @param seedCount - the sources of the run
+ * @param levelsPerSubmit - the submit cadence
+ * @param limit - the largest binding
+ * @param tuning - the knobs
+ * @returns the sizes
+ */
+function levelSizes(
+    s: GraphSnapshot,
+    sources: readonly number[] | null,
+    seedCount: number,
+    levelsPerSubmit: number,
+    limit: number,
+    tuning: ClosenessTuning,
+): LevelSizes {
+    const n = s.nodeCount;
+    const extra = sources === null ? 0 : n;
+    const words = levelWords(n, seedCount, sources !== null, extra, limit, tuning.words);
+    const base = n * words;
+    const bitsWords = 4 * base + extra;
+    if (4 * bitsWords > limit) {
+        throw new WebGpuGraphError(
+            "E_TOO_LARGE",
+            `${ALGORITHM}: ${n} nodes need a ${4 * bitsWords}-byte search state in one binding of at most ${limit} bytes`,
+            { needed: 4 * bitsWords, limit, path: "closeness.bits", algorithm: ALGORITHM },
+        );
+    }
+    const lanes = 32 * words;
+    const rowWords = levelsPerSubmit * lanes;
+    const ctrl = rowWords;
+    return {
+        words,
+        base,
+        extra,
+        bitsWords,
+        lanes,
+        rowWords,
+        ctrl,
+        sourcesAt: sources === null ? 0 : ctrl + CTRL_WORDS,
+        tableWords: ctrl + CTRL_WORDS + (sources?.length ?? 0),
+        pullAt: tuning.pullAt ?? Math.min(0xffffffff, Math.floor((words * s.arcCount) / PULL_RATIO)),
+    };
+}
+
+/**
+ * Allocates the level route's buffers, writes a sampled run's sources and loads the two kernels.
+ * @param ctx - the context
+ * @param s - the snapshot
+ * @param scope - the run's scope
+ * @param graph - the forward and reverse adjacency
+ * @param graph.core - the forward adjacency
+ * @param graph.reverse - the reverse adjacency (the forward one on an undirected snapshot)
+ * @param sizes - the run's sizes
+ * @param run - what the run sums
+ * @param run.sources - a sampled run's sources, or null for every node
+ * @param run.levelsPerSubmit - the submit cadence
+ * @param signal - the abort signal
+ * @returns the run
+ */
+async function openLevelRun(
+    ctx: GpuContext,
+    s: GraphSnapshot,
+    scope: AlgorithmScope,
+    graph: { readonly core: CoreBinding; readonly reverse: CoreBinding },
+    sizes: LevelSizes,
+    run: { readonly sources: readonly number[] | null; readonly levelsPerSubmit: number },
+    signal: AbortSignal | undefined,
+): Promise<LevelRun> {
+    const { core, reverse } = graph;
+    const { sources } = run;
+    const n = s.nodeCount;
+    const bits = bindingOf(scope.scratch(4 * sizes.bitsWords, "bits"), 4 * sizes.bitsWords);
+    const table = bindingOf(scope.scratch(4 * sizes.tableWords, "table"), 4 * sizes.tableWords);
+    const rows = { ...table, size: 4 * sizes.rowWords };
+    if (sources !== null) {
+        ctx.device.queue.writeBuffer(table.buffer, table.offset + 4 * sizes.sourcesAt, Uint32Array.from(sources));
+    }
+    await ctx.allocator.check();
+    const level = await ctx.pipelines.kernel(kernelSpec("closeness-level"));
+    const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
+    const state = {
+        rowPtr: core.rowPtr,
+        colIdx: core.colIdx ?? core.rowPtr,
+        inRowPtr: reverse.rowPtr,
+        inColIdx: reverse.colIdx ?? reverse.rowPtr,
+        bits,
+        table,
+    };
+    const levelPlan = plan1d(Math.max(n, s.arcCount), ctx.workgroupSize, ctx.caps);
+    const pullOk = s.inDegree().every((d) => d <= PULL_MAX_DEGREE) ? 1 : 0;
+    const shared = {
+        n,
+        words: sizes.words,
+        base: sizes.base,
+        ctrl: sizes.ctrl,
+        pullAt: sizes.pullAt,
+        perNode: sources === null ? 0 : 1,
+        sourcesAt: sizes.sourcesAt,
+        arcCount: s.arcCount,
+        pullOk,
+    };
+    const totals = sources === null ? null : new Float64Array(n);
+    return {
+        ctx,
+        scope,
+        level,
+        fill,
+        state,
+        bits,
+        table,
+        rows,
+        shared,
+        levelPlan,
+        sizes,
+        n,
+        levelsPerSubmit: run.levelsPerSubmit,
+        totals,
+        signal,
+    };
+}
+
+/**
+ * Records one submit of a batch: on its first submit the state clear and the seed, then the row fill and
+ * `levelsPerSubmit` levels.
+ * @param r - the run
+ * @param batch - the command batch
+ * @param batchStart - the batch's first source
+ * @param count - the batch's sources
+ * @param firstLevel - the first level of this submit
+ */
+function recordLevels(r: LevelRun, batch: CommandBatch, batchStart: number, count: number, firstLevel: number): void {
+    const { ctx, scope, level, fill, state, shared, sizes } = r;
+    const wg = ctx.workgroupSize;
+    const pass = batch.pass("closeness");
+    if (firstLevel === 0) {
+        const clear = scope.params(CLOSENESS_PARAMS, { ...shared, role: 1, total: sizes.bitsWords, count });
+        const bound = level.bind({ ...state, P: clear.binding });
+        level.dispatch(pass, bound, plan1d(sizes.bitsWords, wg, ctx.caps), [clear.offset]);
+        const seed = scope.params(CLOSENESS_PARAMS, { ...shared, role: 2, count, source: batchStart });
+        level.dispatch(pass, bound, plan1d(count, wg, ctx.caps), [seed.offset]);
+    }
+    const zero = scope.params(FILL_PARAMS, { count: sizes.rowWords, value: 0, mode: 0, pad0: 0 });
+    fill.dispatch(pass, fill.bind({ dst: r.rows, P: zero.binding }), plan1d(sizes.rowWords, wg, ctx.caps), [
+        zero.offset,
+    ]);
+    let bound: BoundKernel | null = null;
+    for (let row = 0; row < r.levelsPerSubmit; row++) {
+        const params = scope.params(CLOSENESS_PARAMS, { ...shared, role: 0, count, level: firstLevel + row, row });
+        bound ??= level.bind({ ...state, P: params.binding });
+        level.dispatch(pass, bound, r.levelPlan, [params.offset]);
+    }
+    batch.endPass();
+}
+
+/**
+ * Folds one submit's count rows into a batch's tallies, up to the first level that claimed nothing.
+ * @param counts - the count rows
+ * @param tally - the batch's tallies (written)
+ * @param firstLevel - the first level of the submit
+ * @param r - the run
+ * @param count - the batch's sources
+ * @returns whether a level claimed nothing (the batch is done)
+ */
+function foldLevels(counts: Uint32Array, tally: LevelTally, firstLevel: number, r: LevelRun, count: number): boolean {
+    const { lanes } = r.sizes;
+    let done = false;
+    for (let row = 0; row < r.levelsPerSubmit && !done; row++) {
+        const distance = firstLevel + row + 1;
+        let claimed = 0;
+        for (let lane = 0; lane < count; lane++) {
+            const c = counts[row * lanes + lane];
+            tally.sums[lane] += c * distance;
+            tally.reciprocal[lane] += c / distance;
+            tally.reached[lane] += c;
+            claimed += c;
+        }
+        done = claimed === 0;
+    }
+    return done;
+}
+
+/**
+ * Records, submits and reads back one submit of a batch, and folds its counts.
+ * @param r - the run
+ * @param batchStart - the batch's first source
+ * @param count - the batch's sources
+ * @param firstLevel - the first level of this submit
+ * @param tally - the batch's tallies (written)
+ * @returns whether the batch is done
+ */
+async function submitLevels(
+    r: LevelRun,
+    batchStart: number,
+    count: number,
+    firstLevel: number,
+    tally: LevelTally,
+): Promise<boolean> {
+    const { ctx, bits, table, totals, sizes } = r;
+    const batch = new CommandBatch(ctx, `${ALGORITHM}/levels`);
+    recordLevels(r, batch, batchStart, count, firstLevel);
+    const rowRequest = batch.readback(table.buffer, table.offset, 4 * sizes.rowWords);
+    const nodeRequest = totals === null ? null : batch.readback(bits.buffer, bits.offset + 16 * sizes.base, 4 * r.n);
+    r.scope.flush();
+    const submitted = batch.submit();
+    const back = await submitted.readback;
+    ctx.assertReady();
+    if (r.signal?.aborted) {
+        throw aborted(ALGORITHM, submitted.id);
+    }
+    const done = foldLevels(new Uint32Array(back, rowRequest.offset, sizes.rowWords), tally, firstLevel, r, count);
+    if (done && totals !== null && nodeRequest !== null) {
+        new Uint32Array(back, nodeRequest.offset, r.n).forEach((sum, v) => {
+            totals[v] += sum;
+        });
+    }
+    return done;
+}
+
+/**
+ * Runs one batch of sources level by level until a level claims nothing.
+ * @param r - the run
+ * @param batchStart - the batch's first source
+ * @param count - the batch's sources
+ * @returns the batch's tallies
+ */
+async function runLevelBatch(r: LevelRun, batchStart: number, count: number): Promise<LevelTally> {
+    const tally = {
+        sums: new Float64Array(count),
+        reciprocal: new Float64Array(count),
+        reached: new Uint32Array(count),
+    };
+    let done = false;
+    let firstLevel = 0;
+    while (!done) {
+        if (firstLevel > r.n + 1) {
+            // a batch claims at most n - 1 levels deep, then one level claims nothing
+            throw new WebGpuGraphError(
+                "E_VALIDATION",
+                `${ALGORITHM}: the batch at ${batchStart} still claimed at level ${firstLevel}`,
+                { label: ALGORITHM, message: `the batch still claimed at level ${firstLevel}` },
+            );
+        }
+        done = await submitLevels(r, batchStart, count, firstLevel, tally);
+        firstLevel += r.levelsPerSubmit;
+    }
+    return tally;
+}
+
 /**
  * The level route (see the file comment).
  * @param ctx - the context
@@ -290,170 +647,43 @@ async function levelRoute(
     const limit = Math.min(ctx.caps.limits.maxStorageBufferBindingSize, ctx.caps.limits.maxBufferSize);
     const core = ctx.residency.core(s);
     assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, ALGORITHM);
-    if (s.directed && 4 * s.arcCount > limit) {
-        throw new WebGpuGraphError(
-            "E_TOO_LARGE",
-            `${ALGORITHM}: the reverse adjacency of a directed snapshot (${4 * s.arcCount} bytes) does not fit one binding`,
-            { needed: 4 * s.arcCount, limit, path: "closeness.reverse", algorithm: ALGORITHM },
-        );
-    }
+    assertReverseFits(s, limit);
     const reverse = s.directed ? coreOfView(ctx.residency.view(s, "reverse"), s.arcCount) : core;
-    // words per node: as many as the sources need, within one binding of four regions (plus a sampled run's per-node
-    // sums) and, for a sampled run, so a node's per-batch distance sum (at most 32 words (n - 1)) fits a u32
-    const extra = sources === null ? 0 : n;
-    const fitWords = Math.floor((limit / 4 - extra) / (4 * n));
-    const sumWords = sources === null ? MAX_WORDS : Math.floor(0xffffffff / (32 * Math.max(1, n - 1)));
-    const words = tuning.words ?? Math.max(1, Math.min(MAX_WORDS, Math.ceil(seedCount / 32), fitWords, sumWords));
-    if (!Number.isInteger(words) || words < 1 || words > MAX_WORDS) {
-        throw new WebGpuGraphError(
-            "E_INVALID_ARGUMENT",
-            `${ALGORITHM}: words must be an integer in [1, ${MAX_WORDS}]`,
-            {
-                argument: "words",
-                value: words,
-                expected: `an integer in [1, ${MAX_WORDS}]`,
-            },
-        );
-    }
-    const base = n * words;
-    const bitsWords = 4 * base + extra;
-    if (4 * bitsWords > limit) {
-        throw new WebGpuGraphError(
-            "E_TOO_LARGE",
-            `${ALGORITHM}: ${n} nodes need a ${4 * bitsWords}-byte search state in one binding of at most ${limit} bytes`,
-            { needed: 4 * bitsWords, limit, path: "closeness.bits", algorithm: ALGORITHM },
-        );
-    }
-    const lanes = 32 * words;
-    const rowWords = levelsPerSubmit * lanes;
-    const ctrl = rowWords;
-    const sourcesAt = sources === null ? 0 : ctrl + CTRL_WORDS;
-    const tableWords = ctrl + CTRL_WORDS + (sources?.length ?? 0);
-    const pullAt = tuning.pullAt ?? Math.min(0xffffffff, Math.floor((words * s.arcCount) / PULL_RATIO));
+    const sizes = levelSizes(s, sources, seedCount, levelsPerSubmit, limit, tuning);
     // slots: the row fill and the levels of one submit, plus the two seed records of a batch's first submit
     const scope = algorithmScope(ctx, ALGORITHM, levelsPerSubmit + 4);
     try {
-        const wg = ctx.workgroupSize;
-        const bits = bindingOf(scope.scratch(4 * bitsWords, "bits"), 4 * bitsWords);
-        const table = bindingOf(scope.scratch(4 * tableWords, "table"), 4 * tableWords);
-        const rows = { ...table, size: 4 * rowWords };
-        if (sources !== null) {
-            ctx.device.queue.writeBuffer(table.buffer, table.offset + 4 * sourcesAt, Uint32Array.from(sources));
-        }
-        await ctx.allocator.check();
-        const level = await ctx.pipelines.kernel(kernelSpec("closeness-level"));
-        const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
-        const state = {
-            rowPtr: core.rowPtr,
-            colIdx: core.colIdx ?? core.rowPtr,
-            inRowPtr: reverse.rowPtr,
-            inColIdx: reverse.colIdx ?? reverse.rowPtr,
-            bits,
-            table,
-        };
-        const levelPlan = plan1d(Math.max(n, s.arcCount), wg, ctx.caps);
-        const pullOk = s.inDegree().every((d) => d <= PULL_MAX_DEGREE) ? 1 : 0;
-        const totals = sources === null ? null : new Float64Array(n);
-        const shared = {
-            n,
-            words,
-            base,
-            ctrl,
-            pullAt,
-            perNode: sources === null ? 0 : 1,
-            sourcesAt,
-            arcCount: s.arcCount,
-            pullOk,
-        };
-
+        const r = await openLevelRun(ctx, s, scope, { core, reverse }, sizes, run, options?.signal);
         let batches = 0;
-        for (let batchStart = 0; batchStart < seedCount; batchStart += lanes) {
-            const count = Math.min(lanes, seedCount - batchStart);
-            const sums = new Float64Array(count);
-            const reciprocal = new Float64Array(count);
-            const reached = new Uint32Array(count);
-            let done = false;
-            let firstLevel = 0;
-            while (!done) {
-                if (firstLevel > n + 1) {
-                    // a batch claims at most n - 1 levels deep, then one level claims nothing
-                    throw new WebGpuGraphError(
-                        "E_VALIDATION",
-                        `${ALGORITHM}: the batch at ${batchStart} still claimed at level ${firstLevel}`,
-                        { label: ALGORITHM, message: `the batch still claimed at level ${firstLevel}` },
-                    );
-                }
-                const batch = new CommandBatch(ctx, `${ALGORITHM}/levels`);
-                const pass = batch.pass("closeness");
-                if (firstLevel === 0) {
-                    const clear = scope.params(CLOSENESS_PARAMS, { ...shared, role: 1, total: bitsWords, count });
-                    const bound = level.bind({ ...state, P: clear.binding });
-                    level.dispatch(pass, bound, plan1d(bitsWords, wg, ctx.caps), [clear.offset]);
-                    const seed = scope.params(CLOSENESS_PARAMS, { ...shared, role: 2, count, source: batchStart });
-                    level.dispatch(pass, bound, plan1d(count, wg, ctx.caps), [seed.offset]);
-                }
-                const zero = scope.params(FILL_PARAMS, { count: rowWords, value: 0, mode: 0, pad0: 0 });
-                fill.dispatch(pass, fill.bind({ dst: rows, P: zero.binding }), plan1d(rowWords, wg, ctx.caps), [
-                    zero.offset,
-                ]);
-                let bound: ReturnType<typeof level.bind> | null = null;
-                for (let row = 0; row < levelsPerSubmit; row++) {
-                    const params = scope.params(CLOSENESS_PARAMS, {
-                        ...shared,
-                        role: 0,
-                        count,
-                        level: firstLevel + row,
-                        row,
-                    });
-                    bound ??= level.bind({ ...state, P: params.binding });
-                    level.dispatch(pass, bound, levelPlan, [params.offset]);
-                }
-                batch.endPass();
-                const rowRequest = batch.readback(table.buffer, table.offset, 4 * rowWords);
-                const nodeRequest =
-                    totals === null ? null : batch.readback(bits.buffer, bits.offset + 16 * base, 4 * n);
-                scope.flush();
-                const submitted = batch.submit();
-                const back = await submitted.readback;
-                ctx.assertReady();
-                if (options?.signal?.aborted) {
-                    throw aborted(ALGORITHM, submitted.id);
-                }
-                const counts = new Uint32Array(back, rowRequest.offset, rowWords);
-                for (let row = 0; row < levelsPerSubmit && !done; row++) {
-                    const distance = firstLevel + row + 1;
-                    let claimed = 0;
-                    for (let lane = 0; lane < count; lane++) {
-                        const c = counts[row * lanes + lane];
-                        sums[lane] += c * distance;
-                        reciprocal[lane] += c / distance;
-                        reached[lane] += c;
-                        claimed += c;
-                    }
-                    done = claimed === 0;
-                }
-                if (done && totals !== null && nodeRequest !== null) {
-                    new Uint32Array(back, nodeRequest.offset, n).forEach((sum, v) => {
-                        totals[v] += sum;
-                    });
-                }
-                firstLevel += levelsPerSubmit;
-            }
+        for (let batchStart = 0; batchStart < seedCount; batchStart += sizes.lanes) {
+            const count = Math.min(sizes.lanes, seedCount - batchStart);
+            const tally = await runLevelBatch(r, batchStart, count);
             if (sources === null) {
-                for (let lane = 0; lane < count; lane++) {
-                    scores[batchStart + lane] = harmonic ? reciprocal[lane] : inverse(sums[lane]);
-                }
-                tuning.onBatch?.(batchStart, sums, reached);
+                writeExactScores(scores, batchStart, tally, harmonic);
+                tuning.onBatch?.(batchStart, tally.sums, tally.reached);
             }
             batches += 1;
             options?.onProgress?.(batchStart + count, seedCount);
         }
-        totals?.forEach((sum, v) => {
+        r.totals?.forEach((sum, v) => {
             scores[v] = inverse(sum);
         });
         return { scores, iterations: batches, converged: true, precision: "f32", sourcesUsed: seedCount };
     } finally {
         scope.dispose();
+    }
+}
+
+/**
+ * Writes an exact batch's scores.
+ * @param scores - the destination
+ * @param batchStart - the batch's first source
+ * @param tally - the batch's tallies
+ * @param harmonic - sum reciprocal distances
+ */
+function writeExactScores(scores: F32, batchStart: number, tally: LevelTally, harmonic: boolean): void {
+    for (let lane = 0; lane < tally.sums.length; lane++) {
+        scores[batchStart + lane] = harmonic ? tally.reciprocal[lane] : inverse(tally.sums[lane]);
     }
 }
 

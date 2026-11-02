@@ -1,4 +1,4 @@
-The study runs on build d13c2ff3da served from /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/builds/tier5-r1d1-d13c2ff3da
+The study runs on build baac78342b served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1-baac78342b
 
 Frozen on 2026-11-02 for the tier 5 rounds. This is the dry run's first build: each dry-run fix
 pass refreezes on a new build, names it on the first line and the build before it here.
@@ -363,3 +363,6 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
       right, and the rating check decides whether the median gates at all); keeping
       "neighboring" in T78 B as a natural word with a dry-run detour (the alias makes it a direct
       route, not a detour).
+- 2026-11-02: refrozen for round 1 on baac78342b (master merged in, served from
+  `.study-builds/tier5-r1-baac78342b`). The build before it was d13c2ff3da, served from
+  `tmp/design-studio/tier5/builds/tier5-r1d1-d13c2ff3da`.

@@ -1,4 +1,12 @@
-import { GraphBuilder, type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, maskTest } from "@graphty/graph-format";
+import {
+    GraphBuilder,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    makeMask,
+    maskSet,
+    maskTest,
+    type NodeMask,
+} from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { isBipartite } from "../../../src/indexed/bipartite.js";
@@ -107,7 +115,7 @@ const fixtures: readonly { readonly name: string; readonly graph: () => Graph }[
 ];
 
 /** Every pair is joined by an arc (either direction), left to right, and no right node is used twice. */
-function assertValidMatching(s: GraphSnapshot, result: BipartiteMatchingResult, left: Uint32Array): void {
+function assertValidMatching(s: GraphSnapshot, result: BipartiteMatchingResult, left: NodeMask): void {
     const used = new Set<number>();
     let pairs = 0;
     for (let u = 0; u < s.nodeCount; u++) {
@@ -144,7 +152,7 @@ function pairsOf(s: GraphSnapshot, result: BipartiteMatchingResult): Map<NodeId,
     return new Map(pairs.sort(byKey));
 }
 
-function leftMaskOf(s: GraphSnapshot): Uint32Array {
+function leftMaskOf(s: GraphSnapshot): NodeMask {
     const { sides } = isBipartite(s);
     if (sides === null) {
         throw new Error("fixture is not bipartite");
@@ -167,7 +175,7 @@ function explicitSides(
     s: GraphSnapshot,
     leftIds: readonly NodeId[],
     rightIds: readonly NodeId[],
-): { left: Uint32Array; right: Uint32Array } {
+): { left: NodeMask; right: NodeMask } {
     const left = makeMask(s.nodeCount);
     const right = makeMask(s.nodeCount);
     for (const id of leftIds) {

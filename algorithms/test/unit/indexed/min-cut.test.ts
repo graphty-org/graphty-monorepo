@@ -1,4 +1,4 @@
-import { expandEdges, type GraphSnapshot, maskTest, type NodeMask } from "@graphty/graph-format";
+import { expandEdges, type F64, type GraphSnapshot, maskTest, type NodeMask } from "@graphty/graph-format";
 import { describe, expect, it, vi } from "vitest";
 
 import type { MinCutResult } from "../../../src/indexed/flow.js";
@@ -10,7 +10,7 @@ import type { LegacyMinCutResult } from "../../helpers/legacy-types.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { gnm, undirectedFixtures } from "./port-fixtures.js";
 
-function exactWeights(s: GraphSnapshot): Float64Array | undefined {
+function exactWeights(s: GraphSnapshot): F64 | undefined {
     const shadow = s.edges.byRole("weight");
     return shadow?.dtype === "f64" ? expandEdges(s, shadow.data) : undefined;
 }
@@ -36,7 +36,7 @@ function portCutEdges(s: GraphSnapshot, r: MinCutResult): string[] {
 }
 
 /** The weight of the edges between the two sides, from scratch. */
-function cutWeight(s: GraphSnapshot, side: NodeMask, weights: Float64Array | undefined): number {
+function cutWeight(s: GraphSnapshot, side: NodeMask, weights: F64 | undefined): number {
     let total = 0;
     for (let e = 0; e < s.edgeCount; e++) {
         if (maskTest(side, s.edgeSource(e)) !== maskTest(side, s.edgeTarget(e))) {

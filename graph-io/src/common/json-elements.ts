@@ -1184,17 +1184,8 @@ class ChunkCursor {
     async skipValue(startDepth = 0): Promise<void> {
         let depth = startDepth;
         this.deepest = depth;
-        if (depth === 0) {
-            const c = this.buf.charCodeAt(this.pos);
-            if (c === 34) {
-                this.pos++;
-                await this.skipString();
-                return;
-            }
-            if (c !== 123 && c !== 91) {
-                await this.skipScalar();
-                return;
-            }
+        if (depth === 0 && (await this.skipLeaf())) {
+            return;
         }
         for (;;) {
             if (this.pos >= this.buf.length && !(await this.fill())) {
@@ -1206,9 +1197,7 @@ class ChunkCursor {
                 await this.skipString();
             } else if (c === 123 || c === 91) {
                 depth++;
-                if (depth > this.deepest) {
-                    this.deepest = depth;
-                }
+                this.deepest = Math.max(this.deepest, depth);
             } else if (c === 125 || c === 93) {
                 depth--;
                 if (depth === 0) {
@@ -1216,6 +1205,24 @@ class ChunkCursor {
                 }
             }
         }
+    }
+
+    /**
+     * Skip the value at the read position when it is a string or a bare scalar.
+     * @returns true when the value was skipped; false when it is an object or an array
+     */
+    private async skipLeaf(): Promise<boolean> {
+        const c = this.buf.charCodeAt(this.pos);
+        if (c === 34) {
+            this.pos++;
+            await this.skipString();
+            return true;
+        }
+        if (c !== 123 && c !== 91) {
+            await this.skipScalar();
+            return true;
+        }
+        return false;
     }
 
     /** Advance past the rest of a string whose opening quote was consumed. */
@@ -1781,16 +1788,26 @@ export function cxId(raw: unknown, inexactLiteral = false): CxId {
         return { id: raw.digits, note: "precision" };
     }
     if (typeof raw === "number") {
-        if (Number.isSafeInteger(raw)) {
-            return { id: raw === 0 ? 0 : raw, note: inexactLiteral ? "text" : null };
-        }
-        throw invalidCxId(raw, Number.isInteger(raw) ? "an integer beyond 2^53 written inexactly" : "not an integer");
+        return numberCxId(raw, inexactLiteral);
     }
     if (typeof raw === "string" && raw !== "-0" && DECIMAL_INTEGER_TEXT.test(raw)) {
         const n = Number(raw);
         return Number.isSafeInteger(n) ? { id: n, note: "text" } : { id: raw, note: "precision" };
     }
     throw invalidCxId(raw, "a CX id is an integer");
+}
+
+/**
+ * The CX id of a parsed number: a safe integer is the id (-0 read as 0); anything else is E_INVALID_ID.
+ * @param raw - the parsed number
+ * @param inexactLiteral - whether the number was written as a non-integer literal
+ * @returns the id and how it was spelled
+ */
+function numberCxId(raw: number, inexactLiteral: boolean): CxId {
+    if (Number.isSafeInteger(raw)) {
+        return { id: raw === 0 ? 0 : raw, note: inexactLiteral ? "text" : null };
+    }
+    throw invalidCxId(raw, Number.isInteger(raw) ? "an integer beyond 2^53 written inexactly" : "not an integer");
 }
 
 /**

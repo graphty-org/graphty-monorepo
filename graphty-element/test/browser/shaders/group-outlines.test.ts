@@ -3,7 +3,8 @@
  * section 5.5), read from the field the GPU drew: on Karate club and Les Miserables, with one Hull
  * layer per Louvain community, every member's center lies inside its group's outline and each
  * outline is one connected region; a lone far member is inside its group's outline; twelve
- * community layers naming one shader draw twelve outlines at one level, with no cap reported.
+ * community layers naming one shader draw twelve outlines at one level, with no cap reported; and
+ * while the camera pans the outline is drawn where the same frame draws its members.
  */
 
 import "../../../src/graphty-element";
@@ -244,6 +245,78 @@ describe("group outlines enclose the whole group", () => {
 
         assert.strictEqual(pass.draws - draws, 10, "ten frames drew the outline");
         assert.strictEqual(pass.treesBuilt, built, "and built no tree");
+    });
+
+    it("follows the camera on the frame it moves, an instant pan and an animated one (issue #5562)", async () => {
+        const element = await mounted();
+        const ids = Array.from({ length: 6 }, (_, i) => `n${String(i)}`);
+        await element.session.data.addNodes(
+            ids.map((id, i) => ({ id, position: { x: Math.cos(i) * 2, y: Math.sin(i) * 2, z: 0 } })),
+        );
+        await element.graph.setLayout("fixed", { dim: 2 });
+        const layer = await element.session.styles.add({
+            name: "Everyone",
+            set: { "node.shaders": [{ shader: HULL }] },
+            target: "node",
+            selector: { match: "everything" },
+        });
+        await element.graph.waitForStableFrame();
+        await until(element, "the outline draws", () => passOf(element)?.drawn().length === 1);
+
+        // After every frame: how far right of the rightmost member's center, where that frame drew
+        // it, the outline that frame drew ends. Found by halving: the row to the right of that
+        // member holds no other node, so the outline is one run there.
+        const scene = element.graph.getScene();
+        const reaches: number[] = [];
+        const reach = (): number | null => {
+            const at = element.nodeScreenPosition("n0");
+            if (at?.visible !== true) {
+                return null;
+            }
+
+            let inside = at.x + at.radius + 1;
+            let outside = inside + 2000;
+            if (element.groupOutlineAt({ x: inside, y: at.y })?.layer !== layer.id) {
+                return -1;
+            }
+
+            while (outside - inside > 0.25) {
+                const x = (inside + outside) / 2;
+                if (element.groupOutlineAt({ x, y: at.y })?.layer === layer.id) {
+                    inside = x;
+                } else {
+                    outside = x;
+                }
+            }
+
+            return inside - at.x;
+        };
+        const observer = scene.onAfterRenderObservable.add(() => {
+            const measured = reach();
+            if (measured !== null) {
+                reaches.push(measured);
+            }
+        });
+        cleanups.push(() => {
+            scene.onAfterRenderObservable.remove(observer);
+        });
+
+        await drawnFrames(scene, 1);
+        const pan = element.getCameraState().pan ?? { x: 0, y: 0 };
+        await element.setCameraPan({ x: pan.x + 1.5, y: pan.y });
+        await drawnFrames(scene, 2);
+        await element.setCameraPan({ x: pan.x - 1.5, y: pan.y }, { animate: true, duration: 300 });
+        await drawnFrames(scene, 1);
+        // The camera neither turns nor zooms, so the outline's reach past the member is the same on
+        // every frame; drawn from the last frame's camera it trails the member by that frame's step.
+        assert.isAbove(reaches.length, 3, "frames drew the member while the camera moved");
+        const still = reaches[0];
+        assert.isAbove(still, 0, "the outline holds the member");
+        assert.deepEqual(
+            reaches.filter((each) => Math.abs(each - still) > 1),
+            [],
+            `every frame's outline reaches ${String(still)} px past the member, as the still one does`,
+        );
     });
 
     it("twelve community layers naming one shader draw twelve outlines at one level, with no cap", async () => {

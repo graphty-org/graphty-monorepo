@@ -1291,6 +1291,37 @@ function componentTest(context: CompileContext, id: number): ElementTest {
 }
 
 /**
+ * One breadth-first hop: the nodes first reached from the frontier along any of the views' arcs,
+ * marked in `reached`.
+ * @param frontier - The nodes reached on the last hop.
+ * @param views - The adjacency to follow, in order (the graph, then its reverse).
+ * @param reached - One byte per node, 1 once reached; updated in place.
+ * @returns The newly reached nodes, in the order they were found.
+ */
+function nextHop(
+    frontier: readonly number[],
+    views: readonly { readonly rowPtr: ArrayLike<number>; readonly colIdx: ArrayLike<number> }[],
+    reached: Uint8Array,
+): number[] {
+    const next: number[] = [];
+
+    for (const node of frontier) {
+        for (const view of views) {
+            for (let arc = view.rowPtr[node]; arc < view.rowPtr[node + 1]; arc++) {
+                const other = view.colIdx[arc];
+
+                if (reached[other] === 0) {
+                    reached[other] = 1;
+                    next.push(other);
+                }
+            }
+        }
+    }
+
+    return next;
+}
+
+/**
  * A test over the nodes within so many hops of a set of seeds.
  *
  * Hops are counted in BOTH directions even on a directed graph: a neighbourhood is what surrounds
@@ -1318,22 +1349,7 @@ function neighborhoodTest(context: CompileContext, seeds: readonly NodeId[], dep
     const reverse = graph.reverse();
 
     for (let hop = 0; hop < depth && frontier.length > 0; hop++) {
-        const next: number[] = [];
-
-        for (const node of frontier) {
-            for (const view of [graph, reverse]) {
-                for (let arc = view.rowPtr[node]; arc < view.rowPtr[node + 1]; arc++) {
-                    const other = view.colIdx[arc];
-
-                    if (reached[other] === 0) {
-                        reached[other] = 1;
-                        next.push(other);
-                    }
-                }
-            }
-        }
-
-        frontier = next;
+        frontier = nextHop(frontier, [graph, reverse], reached);
     }
 
     return (index) => reached[index] === 1;

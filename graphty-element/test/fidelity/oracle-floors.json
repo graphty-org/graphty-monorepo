@@ -52719,12 +52719,6 @@
                 "to": 0.985,
                 "reason": "the comparator now sees graphty-element's half-open arrowhead against the program's half arrow: a break between the line and the barb (edge.arrowPlace) and a filled wedge where Cytoscape draws one open stroked barb (edge.arrowFill); graphty-element defect #5490 (comparator fix #4252)",
                 "date": "2026-11-01"
-            },
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0.92,
-                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
-                "date": "2026-11-01"
             }
         },
         "cx-radiation-bibliography@matched": {
@@ -52867,12 +52861,6 @@
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
-            },
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
-                "date": "2026-11-01"
             }
         },
         "cx-syn-mappings@matched": {
@@ -52898,12 +52886,6 @@
                 "floor": 1,
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
-                "date": "2026-11-01"
-            },
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
                 "date": "2026-11-01"
             }
         },
@@ -53175,12 +53157,6 @@
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
-            },
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
-                "date": "2026-11-01"
             }
         },
         "cys-syn-mappings@matched": {
@@ -53206,12 +53182,6 @@
                 "floor": 1,
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
-                "date": "2026-11-01"
-            },
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
                 "date": "2026-11-01"
             }
         },
@@ -53673,12 +53643,6 @@
                 "to": 0.875,
                 "reason": "#5229 (d0ec0581c7) placed Pajek's empty vertices and their labels as Pajek does and changed how the comparator places a node drawn as nothing; its own known failures name what is left: vertex 39 and 63's labels turned by la 60 (drawn centered where Pajek starts them) and empty vertex 22's 1 px label alone (bisected in #5332)",
                 "date": "2026-11-01"
-            },
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
-                "date": "2026-11-01"
             }
         },
         "pajek-synth-vertices@matched": {
@@ -53692,12 +53656,6 @@
                 "floor": 0.889,
                 "to": 0.873,
                 "reason": "#5229 (d0ec0581c7) placed Pajek's empty vertices and their labels as Pajek does and changed how the comparator places a node drawn as nothing; its own known failures name what is left: vertex 39 and 63's labels turned by la 60 (drawn centered where Pajek starts them) and empty vertex 22's 1 px label alone (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0.971,
-                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
                 "date": "2026-11-01"
             }
         },
@@ -53837,12 +53795,6 @@
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
                 "date": "2026-11-01"
-            },
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
-                "date": "2026-11-01"
             }
         },
         "xgmml-syn-mappings@matched": {
@@ -53868,12 +53820,6 @@
                 "floor": 1,
                 "to": 0.996,
                 "reason": "375->399's source end: graphty-element draws a diamond there that the comparator pairs with Cytoscape's half arrow (it fails edge.arrowShape, arrowColor and arrowLength too), so the fill differs; not the half-arrow drawing",
-                "date": "2026-11-01"
-            },
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "issue #5364: the drawn-scene reader now measures the border ring graphty drew instead of the width the style asks for; on these nodes (stretched or sharp-cornered polygons and diamonds) the drawn ring is thinner than asked, which the old reader hid",
                 "date": "2026-11-01"
             }
         },

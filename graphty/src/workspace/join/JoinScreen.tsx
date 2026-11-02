@@ -8,6 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
+import { errorWords } from "../project/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { columnChoices, headerIconsLabel, type RecordKind, type TableColumnChoice } from "../table/columns";
 import { HeaderIcons } from "../table/HeaderCell";
@@ -124,13 +125,13 @@ function included(choices: JoinChoices, columns: readonly string[]): readonly st
  * The report for the choices, or the reason the element refused them.
  * @param subject - the table.
  * @param choices - the join.
- * @returns the report, or the refusal's message.
+ * @returns the report, or why it was refused, in the app's words.
  */
 function reportOf(subject: JoinSubject, choices: JoinChoices): JoinReport | string {
     try {
         return subject.report(choices);
     } catch (error: unknown) {
-        return error instanceof Error ? error.message : String(error);
+        return errorWords("Cannot join", error);
     }
 }
 
@@ -580,9 +581,8 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                         setBusy(true);
                         finishJoin(workspace, subject, choices, how, target?.key).catch((error: unknown) => {
                             setBusy(false);
-                            const reason = error instanceof Error ? error.message : String(error);
                             workspace.store.set({
-                                notice: { message: `${subject.name} could not be joined. ${reason}` },
+                                notice: { message: errorWords(`${subject.name} could not be joined`, error) },
                             });
                         });
                     }}

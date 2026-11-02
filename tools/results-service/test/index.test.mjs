@@ -1295,6 +1295,35 @@ describe("POST /v1/durations lastSeen", () => {
         });
         assert.equal(body.lastSeen["job:ci.yml:Build"].runsSince, 0);
     });
+    it("reads the newest samples per key, a task's over every job that ran it, and leaves cancelled runs out", async () => {
+        const { call, env } = service();
+        const run = (sql, ...args) => env.DB.sqlite.prepare(sql).run(...args);
+        const task = (runId, job, ms, conclusion = "success") =>
+            run(
+                "INSERT INTO duration (run_id, attempt, workflow, job, task, sha, kind, started_at, ms, conclusion) VALUES (?, 1, 'ci.yml', ?, 'pkg:build', ?, 'full', ?, ?, ?)",
+                runId,
+                job,
+                `sha${runId}`,
+                NOW - DAY + runId,
+                ms,
+                conclusion,
+            );
+        // job Build ran the task 40 times, slowing down at run 36; job Test runs it for the first time
+        for (let i = 1; i <= 35; i++) task(i, "Build", 60_000);
+        for (let i = 36; i <= 40; i++) task(i, "Build", 900_000);
+        task(41, "Build", 60_000, "cancelled");
+        const row = { runId: 4010, attempt: 1, workflow: "ci.yml", job: "Test", task: "pkg:build", ms: 900_000 };
+        const { body } = await call("POST", "/v1/durations", {
+            token: master("ci.yml"),
+            body: { rows: [{ ...row, startedAt: NOW, sha: "new" }] },
+        });
+        assert.deepEqual(body.trend, [
+            { key: "task:pkg:build", kind: "full", recent: 900, earlier: 60, alarm: true, range: "sha36..sha37" },
+        ]);
+        assert.deepEqual(body.lastSeen["task:pkg:build"], { runId: 4010, sha: "new", at: NOW, runsSince: 0 });
+        const [{ n }] = env.DB.sqlite.prepare("SELECT count(*) AS n FROM duration_run WHERE run_id = 41").all();
+        assert.equal(n, 0);
+    });
 });
 
 describe("GET /v1/durations/medians", () => {

@@ -430,17 +430,31 @@ export async function virtualColumnsOf(
             );
             continue;
         }
-        const values = new Map<string, string>();
-        for (const [key, cells] of target.rows) {
-            const join = targetKey <= 0 ? key : cells[targetKey];
-            const value = join === undefined ? undefined : resolved.values.get(join);
-            if (value !== undefined) {
-                values.set(key, value);
-            }
-        }
-        out.push({ column: { ...resolved.column, name: virtual.name }, values });
+        out.push({
+            column: { ...resolved.column, name: virtual.name },
+            values: joinValues(target, targetKey, resolved),
+        });
     }
     return out;
+}
+
+/**
+ * A virtual column's values per target row key, joined from its source's values.
+ * @param target - the table
+ * @param targetKey - the index of the target's join column (0 or less: the row key)
+ * @param source - the source's values by its join key
+ * @returns target row key -> value, for the rows the source has a value for
+ */
+function joinValues(target: CyTable, targetKey: number, source: VirtualValues): Map<string, string> {
+    const values = new Map<string, string>();
+    for (const [key, cells] of target.rows) {
+        const join = targetKey <= 0 ? key : cells[targetKey];
+        const value = join === undefined ? undefined : source.values.get(join);
+        if (value !== undefined) {
+            values.set(key, value);
+        }
+    }
+    return values;
 }
 
 /**

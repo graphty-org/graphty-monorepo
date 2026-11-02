@@ -77,6 +77,8 @@ describe("collector with the GitHub App", () => {
         // The 18:00 shadow attempt skipped every lane on 1fa254bf, a commit no attempt tested (design 4.5).
         expect(observed(store, "release.train_skipped")).toBe(1);
         expect(observed(store, "github.rate_remaining_share")).toBe(0.8);
+        // GitHub's own open-issue count, which the Issues page checks its count against.
+        expect(observed(store, "issues.open_github")).toBe(510);
         // The "now" lists: quarantine and CODEOWNERS from master, release lanes per attempt, release workflows.
         expect(await readSnapshot(store, "quarantine")).toEqual([
             { file: "a/x.test.ts", name: "t1", family: "a", issue: 9, since: undefined, expires: undefined },

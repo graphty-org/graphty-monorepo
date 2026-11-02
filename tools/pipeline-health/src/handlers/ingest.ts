@@ -397,7 +397,7 @@ function checkInvocation(b: Record<string, unknown>, who: Who): unknown[] {
     }
     const files = b.files ?? [];
     if (!Array.isArray(files) || !files.every((f) => Array.isArray(f) && f.length === 5)) {
-        refuse(400, "bad_field", { field: "files", type: "file rows" });
+        return refuse(400, "bad_field", { field: "files", type: "file rows" });
     }
     return files;
 }

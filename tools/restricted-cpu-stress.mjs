@@ -22,7 +22,8 @@ import { readdirSync, readFileSync, appendFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { packageIn, readWorkspace } from "../githerd/lib/flakes.mjs";
+// workspace.mjs, not flakes.mjs: the report job installs no dependencies, and flakes.mjs loads @octokit/core.
+import { packageIn, readWorkspace } from "../githerd/lib/workspace.mjs";
 
 /** The tracker's marker line prefix (githerd/lib/flakes.mjs MARKER). */
 export const MARKER = "githerd-flaky-test: ";

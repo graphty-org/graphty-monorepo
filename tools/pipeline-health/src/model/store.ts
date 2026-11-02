@@ -51,7 +51,7 @@ function holds(item: Item | undefined, c: Condition | undefined): boolean {
     if ("notExists" in c) {
         return item === undefined;
     }
-    if (item === undefined || item[c.field] === undefined) {
+    if (item?.[c.field] === undefined) {
         return c.orNotExists === true;
     }
     const v = item[c.field] as number | string;

@@ -11,7 +11,8 @@ const pkg = join(dirname(fileURLToPath(import.meta.url)), "..");
 if (!existsSync(join(pkg, "node_modules/@modelcontextprotocol/sdk"))) {
     const r = spawnSync("pnpm", ["install", "--frozen-lockfile", "--dir", pkg], { stdio: ["ignore", 2, 2] });
     if (r.status !== 0) {
-        console.error(`pipeline-health MCP: pnpm install in ${pkg} failed (${r.error?.message ?? `exit ${r.status}`})`);
+        const why = r.error?.message ?? `exit ${r.status}`;
+        console.error(`pipeline-health MCP: pnpm install in ${pkg} failed (${why})`);
         process.exit(1);
     }
 }

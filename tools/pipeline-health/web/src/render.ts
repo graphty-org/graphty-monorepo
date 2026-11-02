@@ -171,7 +171,8 @@ export function href(route: string, extra?: Record<string, string>): string {
         q.set(k, v);
     }
     const s = q.toString();
-    return esc(`#${path}${s ? `?${s}` : ""}`);
+    const query = s ? `?${s}` : "";
+    return esc(`#${path}${query}`);
 }
 
 /**
@@ -185,7 +186,8 @@ function hereWith(extra: Record<string, string>): string {
         q.set(k, v);
     }
     const path = here.page === "test" ? "/flaky/test" : PAGE_PATH[here.page];
-    return esc(`#${path}${here.section && here.page !== "test" ? `/${here.section}` : ""}?${q.toString()}`);
+    const section = here.section && here.page !== "test" ? `/${here.section}` : "";
+    return esc(`#${path}${section}?${q.toString()}`);
 }
 
 // ---------------------------------------------------------------- frame
@@ -210,10 +212,11 @@ export function nav(status: StatusResponse | null, fixture: boolean): string {
         const name = id === "overview" ? "Overview" : CATEGORY_NAME[id];
         const label = s ? `${name}: ${STATE_WORD[s]}` : name;
         const curCls = cur === id ? " cur" : "";
-        return `<li><a class="ni${s ? ` ${stateClass(s)}` : ""}${curCls}" href="${href(PAGE_PATH[id])}" aria-label="${esc(label)}"${cur === id ? ' aria-current="page"' : ""}><span class="bar"></span>${esc(name)}</a>${cur === id ? sub : ""}</li>`;
+        const stateCls = s ? ` ${stateClass(s)}` : "";
+        return `<li><a class="ni${stateCls}${curCls}" href="${href(PAGE_PATH[id])}" aria-label="${esc(label)}"${cur === id ? ' aria-current="page"' : ""}><span class="bar"></span>${esc(name)}</a>${cur === id ? sub : ""}</li>`;
     };
-    const sub = (links: [string, string][]): string =>
-        `<ul class="sub open">${links.map(([r, n]) => `<li><a href="${href(r)}">${esc(n)}</a></li>`).join("")}</ul>`;
+    const subItem = ([r, n]: [string, string]): string => `<li><a href="${href(r)}">${esc(n)}</a></li>`;
+    const sub = (links: [string, string][]): string => `<ul class="sub open">${links.map(subItem).join("")}</ul>`;
     // Issues shows facts, no state: a plain item with no state bar.
     const onIssues = cur === "issues";
     const issuesSub = sub([

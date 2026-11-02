@@ -104,6 +104,22 @@ const headOnce = () => {
 };
 
 /**
+ * Records a shard's retry in the ledger as a run of its own. A retry that ran none of the failed files
+ * (test-quarantine's retryRan) is no run of them, so it is not recorded.
+ * @param shard - The shard.
+ * @param main - The main checkout.
+ * @param q - The shard's quarantine result, if any.
+ * @param retryLog - The retry's part of the log.
+ * @param logFile - The log file.
+ */
+function ledgerRetry(shard, main, q, retryLog, logFile) {
+    if (q?.retryRunId && q.retryRan !== false) {
+        const retried = { ...shard, selected: q.retryFiles };
+        ledgerRecord(retried, main, { code: q.retryCode, log: retryLog, runId: q.retryRunId, logFile });
+    }
+}
+
+/**
  * Records one shard run in the ledger; never throws.
  * @param shard the shard entry
  * @param main the main checkout
@@ -857,16 +873,7 @@ async function main() {
                 // The ledger records the first run and the retry as two runs, each with its own exit status.
                 const parts = splitLog(text);
                 const facts = { code: q?.firstCode ?? code, log: parts.first, runId, startedAt: t0, logFile: log };
-                // A retry that ran none of the failed files (test-quarantine's retryRan) is no run of them.
-                if (q?.retryRunId && q.retryRan !== false) {
-                    const retried = { ...shard, selected: q.retryFiles };
-                    ledgerRecord(retried, main, {
-                        code: q.retryCode,
-                        log: parts.retry,
-                        runId: q.retryRunId,
-                        logFile: log,
-                    });
-                }
+                ledgerRetry(shard, main, q, parts.retry, log);
                 if (stopping || dropped.has(shard.shard)) {
                     running.delete(shard.shard);
                     ledgerRecord(shard, main, { ...facts, cancelled: true });

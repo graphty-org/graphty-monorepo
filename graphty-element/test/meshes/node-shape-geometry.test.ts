@@ -9,7 +9,7 @@ import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import { FLAT_NODE_SHAPES, NodeShapes, type NodeStyleConfig } from "../../src/config/NodeStyle";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { NODE_EXTENT_PER_SIZE, NodeMesh } from "../../src/meshes/NodeMesh";
-import { outlineSlab } from "../../src/meshes/NodeShapeGeometry";
+import { labelBoxOf, outlineSlab } from "../../src/meshes/NodeShapeGeometry";
 import {
     borderRing,
     convexHull,
@@ -518,6 +518,24 @@ describe("node extents", () => {
         assert.approximately(x, 1.5, 1e-6);
         assert.approximately(y, 1.5, 1e-6);
         assert.approximately(z, 1.5, 1e-6);
+    });
+
+    test("rotation turns a flat shape's outline clockwise, its label box staying the unturned one", () => {
+        // an ellipse 4 by 2 turned a quarter is 2 wide and 4 tall; turned 60 degrees, its box is
+        // 2 * sqrt(a^2 cos^2 + b^2 sin^2) wide and 2 * sqrt(a^2 sin^2 + b^2 cos^2) tall
+        const quarter = build({ type: "ellipse", size: 1, width: 4, height: 2, rotation: 90 });
+        const turned = extentOf(quarter);
+        assert.approximately(turned.x, 2 * NODE_EXTENT_PER_SIZE, 1e-3);
+        assert.approximately(turned.y, 4 * NODE_EXTENT_PER_SIZE, 1e-3);
+        const sixty = extentOf(build({ type: "ellipse", size: 1, width: 4, height: 2, rotation: 60 }));
+        const [c, s] = [Math.cos(Math.PI / 3), Math.sin(Math.PI / 3)];
+        // the ellipse is drawn as a polygon of many sides, so its turned box is a hair inside the true one
+        assert.approximately(sixty.x, 2 * Math.hypot(2 * c, s) * NODE_EXTENT_PER_SIZE, 0.03);
+        assert.approximately(sixty.y, 2 * Math.hypot(2 * s, c) * NODE_EXTENT_PER_SIZE, 0.03);
+        const box = labelBoxOf(quarter);
+        assert.isDefined(box);
+        assert.approximately((box?.max.x ?? 0) - (box?.min.x ?? 0), 4 * NODE_EXTENT_PER_SIZE, 1e-3);
+        assert.isUndefined(labelBoxOf(build({ type: "ellipse", size: 1, width: 4, height: 2 })));
     });
 
     test("width and height set the extent along each axis, for a solid and a flat shape", () => {

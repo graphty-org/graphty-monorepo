@@ -60,6 +60,57 @@ function aliveComponents(s: GraphSnapshot, alive: EdgeMask): { labels: U32; coun
 }
 
 /**
+ * The number of communities with at least `minSize` nodes.
+ * @param labels - The community of every node
+ * @param count - The number of communities
+ * @param minSize - The smallest size counted
+ * @returns The count
+ */
+function communitiesOfSize(labels: U32, count: number, minSize: number): number {
+    const sizes = new Uint32Array(count);
+    for (let u = 0; u < labels.length; u++) {
+        sizes[labels[u]]++;
+    }
+    return sizes.filter((size) => size >= minSize).length;
+}
+
+/**
+ * Clear from `alive` every alive edge whose betweenness is the maximum, within {@link TIE}.
+ * @param s - The snapshot
+ * @param alive - The alive mask over logical edges, updated in place
+ */
+function removeMaxBetweennessEdges(s: GraphSnapshot, alive: EdgeMask): void {
+    const { edgeCount } = s;
+    const betweenness = edgeBetweennessCentrality(s, { alive }).scores;
+    let max = -Infinity;
+    for (let e = 0; e < edgeCount; e++) {
+        if (maskTest(alive, e) && betweenness[e] > max) {
+            max = betweenness[e];
+        }
+    }
+    for (let e = 0; e < edgeCount; e++) {
+        if (maskTest(alive, e) && Math.abs(betweenness[e] - max) < TIE) {
+            maskSet(alive, e, false);
+        }
+    }
+}
+
+/**
+ * The first level with the highest modularity, where any number beats NaN.
+ * @param scores - The modularity of every level
+ * @returns The best level's index
+ */
+function bestScoreLevel(scores: readonly number[]): number {
+    let bestLevel = 0;
+    for (let i = 1; i < scores.length; i++) {
+        if (scores[i] > scores[bestLevel] || (Number.isNaN(scores[bestLevel]) && !Number.isNaN(scores[i]))) {
+            bestLevel = i;
+        }
+    }
+    return bestLevel;
+}
+
+/**
  * Girvan-Newman divisive community detection (PNAS 99:7821, 2002) over an undirected snapshot:
  * repeatedly delete every edge whose betweenness is the maximum (within 1e-10), recording the
  * connected components after each round as one level of a dendrogram.
@@ -103,37 +154,17 @@ export function girvanNewman(s: GraphSnapshot, options: GirvanNewmanOptions = {}
         levels.push(labels);
         counts.push(count);
         scores.push(modularity(s, labels, weights === null ? {} : { weights }));
-        const sizes = new Uint32Array(count);
-        for (let u = 0; u < n; u++) {
-            sizes[labels[u]]++;
-        }
-        return sizes.filter((size) => size >= minCommunitySize).length;
+        return communitiesOfSize(labels, count, minCommunitySize);
     };
     record();
     for (let round = 0; round < maxIterations && maskCount(alive, edgeCount) > 0; round++) {
-        const betweenness = edgeBetweennessCentrality(s, { alive }).scores;
-        let max = -Infinity;
-        for (let e = 0; e < edgeCount; e++) {
-            if (maskTest(alive, e) && betweenness[e] > max) {
-                max = betweenness[e];
-            }
-        }
-        for (let e = 0; e < edgeCount; e++) {
-            if (maskTest(alive, e) && Math.abs(betweenness[e] - max) < TIE) {
-                maskSet(alive, e, false);
-            }
-        }
+        removeMaxBetweennessEdges(s, alive);
         const valid = record();
         if ((maxCommunities > 0 && valid >= maxCommunities) || valid === n) {
             break;
         }
     }
-    let bestLevel = 0;
-    for (let i = 1; i < scores.length; i++) {
-        if (scores[i] > scores[bestLevel] || (Number.isNaN(scores[bestLevel]) && !Number.isNaN(scores[i]))) {
-            bestLevel = i;
-        }
-    }
+    const bestLevel = bestScoreLevel(scores);
     return {
         ...withGroups(levels[bestLevel], counts[bestLevel]),
         bestLevel,

@@ -184,46 +184,127 @@ function localMove(level: Level, comm: Uint32Array, resolution: number, m2: numb
         const ku = level.deg[u];
         tot[cu] -= ku;
         mark++;
-        let cnt = 0;
-        const end = level.rowPtr[u + 1];
-        for (let a = level.rowPtr[u]; a < end; a++) {
-            const c = comm[level.colIdx[a]];
-            if (stamp[c] !== mark) {
-                stamp[c] = mark;
-                acc[c] = 0;
-                touched[cnt++] = c;
-            }
-            acc[c] += level.w[a];
-        }
-        let best = cu;
-        let bestGain = (stamp[cu] === mark ? acc[cu] : 0) - (resolution * ku * tot[cu]) / m2;
-        for (let i = 0; i < cnt; i++) {
-            const c = touched[i];
-            if (c === cu) {
-                continue;
-            }
-            const gain = acc[c] - (resolution * ku * tot[c]) / m2;
-            if (gain > bestGain) {
-                bestGain = gain;
-                best = c;
-            }
-        }
+        const cnt = tallyCommunities(level, comm, u, mark, acc, stamp, touched);
+        const best = bestCommunity(cnt, cu, ku, tot, mark, acc, stamp, touched, resolution, m2);
         tot[best] += ku;
-        if (best !== cu) {
-            comm[u] = best;
-            movedAny = true;
-            // Only a neighbour outside the community u just joined can gain from u's move.
-            for (let a = level.rowPtr[u]; a < end; a++) {
-                const v = level.colIdx[a];
-                if (queued[v] === 0 && comm[v] !== best) {
-                    queued[v] = 1;
-                    queue[tail] = v;
-                    tail = tail + 1 === capacity ? 0 : tail + 1;
-                }
-            }
+        if (best === cu) {
+            continue;
         }
+        comm[u] = best;
+        movedAny = true;
+        tail = requeueOutside(level, comm, queue, queued, tail, u, best);
     }
     return movedAny;
+}
+
+/**
+ * Queue again every neighbour of u not queued and outside u's new community: only those can gain
+ * from u's move.
+ * @param level - The level
+ * @param comm - Community of every node
+ * @param queue - The ring of n + 1 slots
+ * @param queued - 1 for a node in the queue
+ * @param tail - The ring's tail
+ * @param u - The node that moved
+ * @param best - Its new community
+ * @returns The new tail
+ */
+function requeueOutside(
+    level: Level,
+    comm: Uint32Array,
+    queue: Uint32Array,
+    queued: Uint8Array,
+    tail: number,
+    u: number,
+    best: number,
+): number {
+    const capacity = queue.length;
+    const end = level.rowPtr[u + 1];
+    for (let a = level.rowPtr[u]; a < end; a++) {
+        const v = level.colIdx[a];
+        if (queued[v] === 0 && comm[v] !== best) {
+            queued[v] = 1;
+            queue[tail] = v;
+            tail = tail + 1 === capacity ? 0 : tail + 1;
+        }
+    }
+    return tail;
+}
+
+/**
+ * Sum the weight from u to each neighbouring community into `acc`, listing them in `touched`.
+ * @param level - The level
+ * @param comm - Community of every node
+ * @param u - The node
+ * @param mark - The visit stamp
+ * @param acc - Weight per community, valid where `stamp` is `mark`
+ * @param stamp - Visit that last wrote each community
+ * @param touched - Output: the communities met, in first-touch order
+ * @returns How many communities were met
+ */
+function tallyCommunities(
+    level: Level,
+    comm: Uint32Array,
+    u: number,
+    mark: number,
+    acc: Float64Array,
+    stamp: Int32Array,
+    touched: Uint32Array,
+): number {
+    let cnt = 0;
+    const end = level.rowPtr[u + 1];
+    for (let a = level.rowPtr[u]; a < end; a++) {
+        const c = comm[level.colIdx[a]];
+        if (stamp[c] !== mark) {
+            stamp[c] = mark;
+            acc[c] = 0;
+            touched[cnt++] = c;
+        }
+        acc[c] += level.w[a];
+    }
+    return cnt;
+}
+
+/**
+ * The community with the largest modularity gain for u, its own (cu) unless another gains more.
+ * @param cnt - Communities in `touched`
+ * @param cu - u's community
+ * @param ku - u's weighted degree
+ * @param tot - Total degree of every community, without u
+ * @param mark - The visit stamp
+ * @param acc - Weight from u per community
+ * @param stamp - Visit that last wrote each community
+ * @param touched - The communities met
+ * @param resolution - Resolution gamma
+ * @param m2 - Twice the total edge weight
+ * @returns The chosen community
+ */
+function bestCommunity(
+    cnt: number,
+    cu: number,
+    ku: number,
+    tot: Float64Array,
+    mark: number,
+    acc: Float64Array,
+    stamp: Int32Array,
+    touched: Uint32Array,
+    resolution: number,
+    m2: number,
+): number {
+    let best = cu;
+    let bestGain = (stamp[cu] === mark ? acc[cu] : 0) - (resolution * ku * tot[cu]) / m2;
+    for (let i = 0; i < cnt; i++) {
+        const c = touched[i];
+        if (c === cu) {
+            continue;
+        }
+        const gain = acc[c] - (resolution * ku * tot[c]) / m2;
+        if (gain > bestGain) {
+            bestGain = gain;
+            best = c;
+        }
+    }
+    return best;
 }
 
 /**

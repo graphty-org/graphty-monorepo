@@ -255,6 +255,97 @@ function twinArc(s: GraphSnapshot, a: number, u: number, v: number): number {
     return lo;
 }
 
+/** The arrays a direction-optimising search fills, indexed by node (`order` by visit). */
+interface BfsArrays {
+    parent: Uint32Array;
+    predArc: Uint32Array;
+    depth: Uint32Array;
+    order: Uint32Array;
+}
+
+/**
+ * The out-arcs of the frontier `order[levelStart, tail)`.
+ * @param rowPtr - The snapshot's row pointers
+ * @param order - The visit order
+ * @param levelStart - The frontier's first slot
+ * @param tail - One past the frontier's last slot
+ * @returns The frontier's arc count
+ */
+function frontierArcCount(rowPtr: Uint32Array, order: Uint32Array, levelStart: number, tail: number): number {
+    let frontierArcs = 0;
+    for (let i = levelStart; i < tail; i++) {
+        frontierArcs += rowPtr[order[i] + 1] - rowPtr[order[i]];
+    }
+    return frontierArcs;
+}
+
+/**
+ * A bottom-up step: every unvisited node takes its lowest-index in-neighbour at depth `d` as parent.
+ * @param s - The snapshot
+ * @param reverse - The snapshot's reverse view
+ * @param st - The search's arrays
+ * @param d - The frontier's depth
+ * @param tail - One past the last visited slot of `order`
+ * @returns The new tail
+ */
+function bottomUpStep(s: GraphSnapshot, reverse: ReverseView, st: BfsArrays, d: number, tail: number): number {
+    const { parent, predArc, depth, order } = st;
+    for (let v = 0; v < s.nodeCount; v++) {
+        if (depth[v] !== INVALID_INDEX) {
+            continue;
+        }
+        const end = reverse.rowPtr[v + 1];
+        for (let a = reverse.rowPtr[v]; a < end; a++) {
+            const u = reverse.colIdx[a];
+            if (depth[u] === d) {
+                parent[v] = u;
+                predArc[v] = s.directed ? reverse.fwdArc[a] : twinArc(s, a, u, v);
+                depth[v] = d + 1;
+                order[tail++] = v;
+                break;
+            }
+        }
+    }
+    return tail;
+}
+
+/**
+ * A top-down step: the frontier `order[levelStart, levelEnd)` expands its out-arcs, then the new level is sorted.
+ * @param rowPtr - The snapshot's row pointers
+ * @param colIdx - The snapshot's arc targets
+ * @param st - The search's arrays
+ * @param levelStart - The frontier's first slot
+ * @param levelEnd - One past the frontier's last slot, also the current tail
+ * @param d - The frontier's depth
+ * @returns The new tail
+ */
+function topDownStep(
+    rowPtr: Uint32Array,
+    colIdx: Uint32Array,
+    st: BfsArrays,
+    levelStart: number,
+    levelEnd: number,
+    d: number,
+): number {
+    const { parent, predArc, depth, order } = st;
+    let tail = levelEnd;
+    for (let i = levelStart; i < levelEnd; i++) {
+        const u = order[i];
+        const end = rowPtr[u + 1];
+        for (let a = rowPtr[u]; a < end; a++) {
+            const v = colIdx[a];
+            if (depth[v] === INVALID_INDEX) {
+                parent[v] = u;
+                predArc[v] = a;
+                depth[v] = d + 1;
+                order[tail++] = v;
+            }
+        }
+    }
+    order.subarray(levelEnd, tail).sort();
+    return tail;
+}
+
 /**
  * Direction-optimising breadth-first search (Beamer, Asanovic and Patterson, SC'12): a top-down
  * step expands the frontier's out-arcs, a bottom-up step has every unvisited node look for a
@@ -286,6 +377,7 @@ export function directionOptimizedBfs(
     const depth = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     // order[levelStart, tail) is the current frontier, sorted ascending.
     const order = new Uint32Array(nodeCount);
+    const st: BfsArrays = { parent, predArc, depth, order };
     order[0] = source;
     depth[source] = 0;
     let levelStart = 0;
@@ -297,49 +389,15 @@ export function directionOptimizedBfs(
     let d = 0;
     while (levelStart < tail) {
         const frontierSize = tail - levelStart;
-        if (bottomUp) {
-            bottomUp = frontierSize >= nodeCount / beta;
-        } else {
-            let frontierArcs = 0;
-            for (let i = levelStart; i < tail; i++) {
-                frontierArcs += rowPtr[order[i] + 1] - rowPtr[order[i]];
-            }
-            bottomUp = frontierArcs > unexploredArcs / alpha;
-        }
+        bottomUp = bottomUp
+            ? frontierSize >= nodeCount / beta
+            : frontierArcCount(rowPtr, order, levelStart, tail) > unexploredArcs / alpha;
         const levelEnd = tail;
         if (bottomUp) {
             reverse ??= s.reverse();
-            for (let v = 0; v < nodeCount; v++) {
-                if (depth[v] !== INVALID_INDEX) {
-                    continue;
-                }
-                const end = reverse.rowPtr[v + 1];
-                for (let a = reverse.rowPtr[v]; a < end; a++) {
-                    const u = reverse.colIdx[a];
-                    if (depth[u] === d) {
-                        parent[v] = u;
-                        predArc[v] = s.directed ? reverse.fwdArc[a] : twinArc(s, a, u, v);
-                        depth[v] = d + 1;
-                        order[tail++] = v;
-                        break;
-                    }
-                }
-            }
+            tail = bottomUpStep(s, reverse, st, d, tail);
         } else {
-            for (let i = levelStart; i < levelEnd; i++) {
-                const u = order[i];
-                const end = rowPtr[u + 1];
-                for (let a = rowPtr[u]; a < end; a++) {
-                    const v = colIdx[a];
-                    if (depth[v] === INVALID_INDEX) {
-                        parent[v] = u;
-                        predArc[v] = a;
-                        depth[v] = d + 1;
-                        order[tail++] = v;
-                    }
-                }
-            }
-            order.subarray(levelEnd, tail).sort();
+            tail = topDownStep(rowPtr, colIdx, st, levelStart, levelEnd, d);
         }
         for (let i = levelEnd; i < tail; i++) {
             unexploredArcs -= inDegree[order[i]];

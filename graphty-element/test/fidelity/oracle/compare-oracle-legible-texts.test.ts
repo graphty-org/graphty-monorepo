@@ -67,7 +67,7 @@ describe("free texts too small to read", () => {
         // the first line with its node and left the others as free text graphty could never match
         const o = { ...scene("oracle"), texts: [text("DBN", 300, 250, 0.147), text("Seen", 600, 500, 12)] };
         const r = compareOracle("t", o, scene("graphty"));
-        assert.deepEqual(r.failures["stray.present"], ["text#0"]);
+        assert.deepEqual(r.failures["stray.present"], ["text@588,494,612,506"]);
         assert.strictEqual(r.properties["stray.present"].n, 1);
     });
 });

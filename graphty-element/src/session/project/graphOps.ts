@@ -925,37 +925,13 @@ class GraphEntry implements OpLogEntry {
         for (const op of this.ops) {
             switch (op.kind) {
                 case "node":
-                    if (isStorableId(op.id)) {
-                        const row = store.builder.addNode(op.id);
-                        if (op.seed !== null) {
-                            store.builder.setNodeValue(store.seedColumn, row, op.seed);
-                        }
-                    }
-
-                    nodes.set(op.id, op.record);
-                    bumpFields(store, "node", op.prior, op.record, seen);
-                    this.graph.touch(nodeKey(op.id));
+                    this.redoNode(op, nodes, seen);
                     added.add(NODES_ADDED);
                     break;
-                case "edge": {
-                    const row = store.builder.addEdge(op.source, op.target, op.weight);
-                    store.stampEdgeId(row, op.edgeId);
-                    if (op.identity === undefined) {
-                        store.recordIngestedEdge(row, op.edgeId, op.fileId);
-                    } else {
-                        store.restoreEdgeIdentity(row, op.identity);
-                    }
-
-                    edges.set(edgeIdOf(op.edgeId), op.record);
-                    if (resolveEdgeCapacity(op.record) !== 1) {
-                        writeCapacity(store, op.edgeId, op.record);
-                    }
-                    bumpFields(store, "edge", undefined, op.record, seen);
-                    this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
+                case "edge":
+                    this.redoEdge(op, edges, seen);
                     added.add(EDGES_ADDED);
                     break;
-                }
-
                 case "weight": {
                     const row = store.edgeIndexOf(op.edgeId);
                     if (row !== INVALID_INDEX) {
@@ -967,34 +943,14 @@ class GraphEntry implements OpLogEntry {
                 }
 
                 case "record":
-                    bumpFields(store, op.target, op.prior, op.next, seen, true);
-                    restore(
-                        op.target === "node" ? nodes : edges,
-                        op.target === "node" ? op.id : String(op.id),
-                        op.next,
-                    );
-                    if (op.target === "edge") {
-                        writeCapacity(store, edgeCounterOf(String(op.id)), op.next);
-                    }
-
-                    this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
+                    this.redoRecord(op, nodes, edges, seen);
                     break;
                 case "value":
                     restore(values, op.name, op.next);
                     this.graph.touch(`v:${op.name}`);
                     break;
                 case "remove":
-                    for (const node of op.rows.nodes) {
-                        nodes.delete(node.id);
-                        this.graph.touch(nodeKey(node.id));
-                    }
-
-                    for (const edge of op.rows.edges) {
-                        edges.delete(edgeIdOf(edge.edgeId));
-                        this.graph.touch(edgeKey(edgeIdOf(edge.edgeId)));
-                    }
-
-                    store.dropRows(op.rows);
+                    this.redoRemove(op, nodes, edges);
                     break;
                 case "replace":
                     this.graph.swapMaps(emptyMaps());
@@ -1025,6 +981,97 @@ class GraphEntry implements OpLogEntry {
 
         store.touch();
         this.graph.restoreToken(this.tokenAfter);
+    }
+
+    /**
+     * Redo a node added: its row, its seed, its record.
+     * @param op - The op.
+     * @param nodes - The node records.
+     * @param seen - The fields this batch bumped already.
+     */
+    private redoNode(op: Extract<GraphOp, { kind: "node" }>, nodes: Map<NodeId, GraphRecord>, seen: Bumped): void {
+        const { store } = this;
+        if (isStorableId(op.id)) {
+            const row = store.builder.addNode(op.id);
+            if (op.seed !== null) {
+                store.builder.setNodeValue(store.seedColumn, row, op.seed);
+            }
+        }
+
+        nodes.set(op.id, op.record);
+        bumpFields(store, "node", op.prior, op.record, seen);
+        this.graph.touch(nodeKey(op.id));
+    }
+
+    /**
+     * Redo an edge added: its row, its identity, its record and its capacity.
+     * @param op - The op.
+     * @param edges - The edge records.
+     * @param seen - The fields this batch bumped already.
+     */
+    private redoEdge(op: Extract<GraphOp, { kind: "edge" }>, edges: Map<EdgeId, GraphRecord>, seen: Bumped): void {
+        const { store } = this;
+        const row = store.builder.addEdge(op.source, op.target, op.weight);
+        store.stampEdgeId(row, op.edgeId);
+        if (op.identity === undefined) {
+            store.recordIngestedEdge(row, op.edgeId, op.fileId);
+        } else {
+            store.restoreEdgeIdentity(row, op.identity);
+        }
+
+        edges.set(edgeIdOf(op.edgeId), op.record);
+        if (resolveEdgeCapacity(op.record) !== 1) {
+            writeCapacity(store, op.edgeId, op.record);
+        }
+        bumpFields(store, "edge", undefined, op.record, seen);
+        this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
+    }
+
+    /**
+     * Redo a record written.
+     * @param op - The op.
+     * @param nodes - The node records.
+     * @param edges - The edge records.
+     * @param seen - The fields this batch bumped already.
+     */
+    private redoRecord(
+        op: Extract<GraphOp, { kind: "record" }>,
+        nodes: Map<NodeId, GraphRecord>,
+        edges: Map<EdgeId, GraphRecord>,
+        seen: Bumped,
+    ): void {
+        const { store } = this;
+        bumpFields(store, op.target, op.prior, op.next, seen, true);
+        restore(op.target === "node" ? nodes : edges, op.target === "node" ? op.id : String(op.id), op.next);
+        if (op.target === "edge") {
+            writeCapacity(store, edgeCounterOf(String(op.id)), op.next);
+        }
+
+        this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
+    }
+
+    /**
+     * Redo rows removed.
+     * @param op - The op.
+     * @param nodes - The node records.
+     * @param edges - The edge records.
+     */
+    private redoRemove(
+        op: Extract<GraphOp, { kind: "remove" }>,
+        nodes: Map<NodeId, GraphRecord>,
+        edges: Map<EdgeId, GraphRecord>,
+    ): void {
+        for (const node of op.rows.nodes) {
+            nodes.delete(node.id);
+            this.graph.touch(nodeKey(node.id));
+        }
+
+        for (const edge of op.rows.edges) {
+            edges.delete(edgeIdOf(edge.edgeId));
+            this.graph.touch(edgeKey(edgeIdOf(edge.edgeId)));
+        }
+
+        this.store.dropRows(op.rows);
     }
 }
 

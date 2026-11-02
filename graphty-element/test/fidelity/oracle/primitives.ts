@@ -386,6 +386,18 @@ export interface PScene {
 export const compareIds = (a: string, b: string): number => Number(a > b) - Number(a < b);
 
 /**
+ * The id of an oracle shape no graph element owns (a stray, a group read off a box), from what it is and where the
+ * program drew it: its tag and its box in the oracle's own frame, rounded to whole pixels (`rect@10,20,110,60`). The
+ * oracle is a fixed file, so the id stays the same whatever the association leaves unmatched before it; a position in
+ * a list would renumber every later shape when one more or one fewer is matched.
+ * @param tag - what the shape is
+ * @param box - its box in the oracle's frame
+ * @returns the id
+ */
+export const shapeId = (tag: string, box: PBox): string =>
+    `${tag}@${[box.x0, box.y0, box.x1, box.y1].map((v) => String(Math.round(v) || 0)).join(",")}`;
+
+/**
  * The dash class of a dash array, from its dashes and its gaps relative to the line's width. A round or square line
  * cap draws each dash half a width longer at either end, so into its gaps; gaps that add to a tenth of the pattern or
  * less read as a solid line. Dashes no longer than one and a half widths (or pixels, for a hairline) are dots; long
@@ -800,7 +812,8 @@ const patternResult = (dashClass: DashClass, width: number | null, box: PBox): P
  * custom graphic's text, stringApp's enhanced label, as glyph paths, its halo stroked and its letters filled): three
  * pieces or more in a row at least half again as wide as it is tall, set close side by side (the median gap between
  * one and the next under half the row's height), and unlike one another (their outlines' lengths vary by 0.15 of
- * their mean or more). A line or a border drawn in pieces repeats one piece, spaced by a dash's gap.
+ * their mean or more, or under three quarters of them are alike). A line or a border drawn in pieces repeats one
+ * piece, spaced by a dash's gap.
  * @param subpaths - the subpaths, sampled
  * @returns whether they are lettering
  */
@@ -817,7 +830,10 @@ export function isLettering(subpaths: readonly (readonly Pt[])[]): boolean {
     const lengths = subpaths.map((q) => lengthOf(q));
     const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
     const spread = Math.sqrt(lengths.reduce((s, l) => s + (l - mean) ** 2, 0) / lengths.length);
-    if (spread < 0.15 * mean) {
+    // the most pieces alike (outlines within 0.15 of one's length): a word repeats a letter or two (TET3's two Ts keep
+    // its spread at 0.15), a line or a border in pieces is nearly all one piece
+    const alike = Math.max(...lengths.map((l) => lengths.filter((k) => Math.abs(k - l) <= 0.15 * l).length));
+    if (spread < 0.15 * mean && alike >= 0.75 * lengths.length) {
         return false;
     }
     const byX = [...boxes].sort((a, b) => a.x0 - b.x0);

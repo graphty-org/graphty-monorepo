@@ -1,4 +1,4 @@
-import type { F64, GraphSnapshot } from "@graphty/graph-format";
+import type { AdjacencyView, F32, F64, GraphSnapshot } from "@graphty/graph-format";
 
 /** Options of the index-based HITS, matching the legacy `hits`. @public */
 export interface HitsOptions {
@@ -64,6 +64,47 @@ function maxNormalize(v: Float64Array): void {
 }
 
 /**
+ * Sum, for every node, the scores of its row's targets times the arc weights, into `out`.
+ * @param adj - The adjacency whose rows are summed
+ * @param w - Per-arc weights, or null for unit weights
+ * @param scores - The scores read at the arc targets
+ * @param out - Receives one sum per node
+ */
+function rowSums(adj: AdjacencyView, w: F32 | null, scores: Float64Array, out: Float64Array): void {
+    for (let v = 0; v < out.length; v++) {
+        let sum = 0;
+        const end = adj.rowPtr[v + 1];
+        for (let a = adj.rowPtr[v]; a < end; a++) {
+            sum += scores[adj.colIdx[a]] * (w === null ? 1 : w[a]);
+        }
+        out[v] = sum;
+    }
+}
+
+/**
+ * The largest single-node change between two pairs of vectors.
+ * @param h1 - New hubs
+ * @param h0 - Old hubs
+ * @param a1 - New authorities
+ * @param a0 - Old authorities
+ * @returns The largest absolute difference
+ */
+function maxChange(h1: Float64Array, h0: Float64Array, a1: Float64Array, a0: Float64Array): number {
+    let maxDiff = 0;
+    for (let v = 0; v < h1.length; v++) {
+        const dh = Math.abs(h1[v] - h0[v]);
+        if (dh > maxDiff) {
+            maxDiff = dh;
+        }
+        const da = Math.abs(a1[v] - a0[v]);
+        if (da > maxDiff) {
+            maxDiff = da;
+        }
+    }
+    return maxDiff;
+}
+
+/**
  * HITS by alternating power iteration: an authority sums the hub scores of the nodes pointing at
  * it, a hub sums the authority scores of the nodes it points at, and both vectors are
  * L2-normalized every round. On an undirected snapshot the two adjacencies are the same array, so
@@ -87,33 +128,11 @@ export function hits(s: GraphSnapshot, o: HitsOptions = {}): HitsResult {
     let it = 0;
     let converged = false;
     for (; it < maxIter && !converged; it++) {
-        for (let v = 0; v < n; v++) {
-            let auth = 0;
-            const inEnd = rev.rowPtr[v + 1];
-            for (let a = rev.rowPtr[v]; a < inEnd; a++) {
-                auth += hubs[rev.colIdx[a]] * (revW === null ? 1 : revW[a]);
-            }
-            nextAuthorities[v] = auth;
-            let hub = 0;
-            const outEnd = s.rowPtr[v + 1];
-            for (let a = s.rowPtr[v]; a < outEnd; a++) {
-                hub += authorities[s.colIdx[a]] * (fwdW === null ? 1 : fwdW[a]);
-            }
-            nextHubs[v] = hub;
-        }
+        rowSums(rev, revW, hubs, nextAuthorities);
+        rowSums(s, fwdW, authorities, nextHubs);
         l2Normalize(nextAuthorities);
         l2Normalize(nextHubs);
-        let maxDiff = 0;
-        for (let v = 0; v < n; v++) {
-            const dh = Math.abs(nextHubs[v] - hubs[v]);
-            if (dh > maxDiff) {
-                maxDiff = dh;
-            }
-            const da = Math.abs(nextAuthorities[v] - authorities[v]);
-            if (da > maxDiff) {
-                maxDiff = da;
-            }
-        }
+        const maxDiff = maxChange(nextHubs, hubs, nextAuthorities, authorities);
         [hubs, nextHubs] = [nextHubs, hubs];
         [authorities, nextAuthorities] = [nextAuthorities, authorities];
         converged = maxDiff < tol;

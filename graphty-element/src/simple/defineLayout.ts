@@ -196,35 +196,68 @@ function positionsOf(id: string, returned: unknown, graph: GraphView, twoD: bool
         }
 
         matched++;
-        if (point === null || point === undefined) {
-            continue;
-        }
-
-        if (
-            !Array.isArray(point) ||
-            (point.length !== 2 && point.length !== 3) ||
-            !point.every((coordinate) => typeof coordinate === "number")
-        ) {
-            const shown = Array.isArray(point) ? `[${point.map(String).join(", ")}]` : describeValue(point);
-            throw placeRefused(
-                id,
-                `${id}: place() returned ${shown} for node ${quoteId(node.id)}. A position is two or three ` +
-                    "numbers; leave the node out to leave it unplaced.",
-            );
-        }
-
-        const [x, y] = point;
-        // In 2D the z is dropped before it is judged: a position the view never uses cannot unplace a node.
-        const z = point.length === 3 && !twoD ? point[2] : 0;
-        if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
-            positions[String(node.id)] = [x, y, z];
+        const placed = placedPoint(id, node, point, twoD);
+        if (placed !== undefined) {
+            positions[String(node.id)] = placed;
         }
     }
 
-    if (matched === 0 && returned.size > 0) {
+    refuseUnmatched(id, returned.size, matched, unknown, graph);
+
+    return positions;
+}
+
+/**
+ * The position `place` gave one node, refusing a malformed one.
+ * @param id - The layout's id.
+ * @param node - The node.
+ * @param point - What `place` returned for it.
+ * @param twoD - Whether the view is 2D, which drops z.
+ * @returns The position, or undefined when the node is left unplaced (no point, or a coordinate
+ *     that is not finite).
+ */
+function placedPoint(
+    id: string,
+    node: NonNullable<ReturnType<GraphView["node"]>>,
+    point: unknown,
+    twoD: boolean,
+): number[] | undefined {
+    if (point === null || point === undefined) {
+        return undefined;
+    }
+
+    if (
+        !Array.isArray(point) ||
+        (point.length !== 2 && point.length !== 3) ||
+        !point.every((coordinate) => typeof coordinate === "number")
+    ) {
+        const shown = Array.isArray(point) ? `[${point.map(String).join(", ")}]` : describeValue(point);
         throw placeRefused(
             id,
-            `${id}: place() returned ${returned.size} positions but no key matches a node id ` +
+            `${id}: place() returned ${shown} for node ${quoteId(node.id)}. A position is two or three ` +
+                "numbers; leave the node out to leave it unplaced.",
+        );
+    }
+
+    const [x, y] = point;
+    // In 2D the z is dropped before it is judged: a position the view never uses cannot unplace a node.
+    const z = point.length === 3 && !twoD ? point[2] : 0;
+    return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) ? [x, y, z] : undefined;
+}
+
+/**
+ * Refuse a result none of whose keys is a node, and warn of the keys that are not nodes.
+ * @param id - The layout's id.
+ * @param size - How many positions `place` returned.
+ * @param matched - How many of its keys are nodes.
+ * @param unknown - Its keys that are not nodes.
+ * @param graph - The view it read.
+ */
+function refuseUnmatched(id: string, size: number, matched: number, unknown: unknown[], graph: GraphView): void {
+    if (matched === 0 && size > 0) {
+        throw placeRefused(
+            id,
+            `${id}: place() returned ${size} positions but no key matches a node id ` +
                 `(got ${quoteKey(unknown[0])}; node ids here are ${idKinds(graph)}). Key the map by node.id.`,
         );
     }
@@ -238,8 +271,6 @@ function positionsOf(id: string, returned: unknown, graph: GraphView, twoD: bool
             { count: unknown.length, keys },
         );
     }
-
-    return positions;
 }
 
 /**

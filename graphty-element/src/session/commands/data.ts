@@ -29,6 +29,7 @@
  */
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
+import type { FileLayout } from "@graphty/graph-io";
 
 import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
@@ -578,6 +579,8 @@ export const FILE_GRAPH_VALUE = "fileGraph";
 export interface FileGraphValue {
     readonly format: string;
     readonly attributes: Readonly<Record<string, unknown>>;
+    /** The layout the file asks to be drawn with, as graph-io read it; absent when it names none. */
+    readonly layout?: FileLayout;
 }
 
 /**

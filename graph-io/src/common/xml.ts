@@ -730,6 +730,104 @@ interface Pending {
     run: number;
 }
 
+/**
+ * Advance a DOCTYPE scan (Tokenizer.scanDoctype) by one character, keeping its state in the pending token.
+ * @param p - the pending token
+ * @param c - the character code
+ * @returns whether the character is the `>` that ends the declaration
+ */
+function doctypeStep(p: Pending, c: number): boolean {
+    if (p.pi) {
+        // a processing instruction in the subset ends at `?>`; quotes inside it are text
+        doctypePiStep(p, c);
+        return false;
+    }
+    if (p.comment) {
+        doctypeCommentStep(p, c);
+        return false;
+    }
+    if (p.quote !== 0) {
+        if (c === p.quote) {
+            p.quote = 0;
+        }
+        return false;
+    }
+    if (p.depth > 0 && subsetMarkupStep(p, c)) {
+        return false;
+    }
+    if (c === QUOTE || c === APOS) {
+        p.quote = c;
+    } else if (c === OPEN_BRACKET) {
+        p.depth++;
+    } else if (c === CLOSE_BRACKET) {
+        p.depth--;
+    } else {
+        return c === GT && p.depth <= 0;
+    }
+    return false;
+}
+
+/**
+ * One character of a processing instruction inside a DOCTYPE subset: `run` is 1 after a `?`.
+ * @param p - the pending token
+ * @param c - the character code
+ */
+function doctypePiStep(p: Pending, c: number): void {
+    if (c === GT && p.run === 1) {
+        p.pi = false;
+        p.run = 0;
+    } else {
+        p.run = c === QUESTION ? 1 : 0;
+    }
+}
+
+/**
+ * One character of a comment inside a DOCTYPE subset: `run` counts the dashes before a `>`.
+ * @param p - the pending token
+ * @param c - the character code
+ */
+function doctypeCommentStep(p: Pending, c: number): void {
+    if (c === DASH) {
+        p.run++;
+    } else if (c === GT && p.run >= 2) {
+        p.comment = false;
+        p.run = 0;
+    } else {
+        p.run = 0;
+    }
+}
+
+/**
+ * Track the progress through a `<!--` or `<?` opener inside a DOCTYPE subset (`run` 1 after `<`,
+ * 2 after `<!`, 3 after `<!-`).
+ * @param p - the pending token
+ * @param c - the character code
+ * @returns whether the character was consumed as part of an opener
+ */
+function subsetMarkupStep(p: Pending, c: number): boolean {
+    const { run } = p;
+    if (run === 1 && c === BANG) {
+        p.run = 2;
+        return true;
+    }
+    if (run === 2 && c === DASH) {
+        p.run = 3;
+        return true;
+    }
+    if (run === 3 && c === DASH) {
+        p.comment = true;
+        p.run = 0;
+        return true;
+    }
+    if (run === 1 && c === QUESTION) {
+        p.pi = true;
+        p.run = 0;
+        return true;
+    }
+    p.run = c === LT ? 1 : 0;
+    return c === LT;
+}
+
 /** One `xmlns` / `xmlns:prefix` declaration in scope. */
 interface NamespaceBinding {
     /** The prefix; "" for the default namespace. */
@@ -996,68 +1094,8 @@ export class XmlTokenizer {
      * @returns the index one past the `>`, or -1
      */
     private scanDoctype(pending: Pending, text: string, from: number): number {
-        let { quote, depth, comment, pi, run } = pending;
         for (let i = from; i < text.length; i++) {
-            const c = text.charCodeAt(i);
-            if (pi) {
-                // a processing instruction in the subset ends at `?>`; quotes inside it are text
-                if (c === GT && run === 1) {
-                    pi = false;
-                    run = 0;
-                } else {
-                    run = c === QUESTION ? 1 : 0;
-                }
-                continue;
-            }
-            if (comment) {
-                if (c === DASH) {
-                    run++;
-                } else if (c === GT && run >= 2) {
-                    comment = false;
-                    run = 0;
-                } else {
-                    run = 0;
-                }
-                continue;
-            }
-            if (quote !== 0) {
-                if (c === quote) {
-                    quote = 0;
-                }
-                continue;
-            }
-            if (depth > 0) {
-                if (run === 1 && c === BANG) {
-                    run = 2;
-                    continue;
-                }
-                if (run === 2 && c === DASH) {
-                    run = 3;
-                    continue;
-                }
-                if (run === 3 && c === DASH) {
-                    comment = true;
-                    run = 0;
-                    continue;
-                }
-                if (run === 1 && c === QUESTION) {
-                    pi = true;
-                    run = 0;
-                    continue;
-                }
-                run = 0;
-                if (c === LT) {
-                    run = 1;
-                    continue;
-                }
-            }
-            if (c === QUOTE || c === APOS) {
-                quote = c;
-            } else if (c === OPEN_BRACKET) {
-                depth++;
-            } else if (c === CLOSE_BRACKET) {
-                depth--;
-            } else if (c === GT && depth <= 0) {
+            if (doctypeStep(pending, text.charCodeAt(i))) {
                 pending.quote = 0;
                 pending.depth = 0;
                 pending.comment = false;
@@ -1066,11 +1104,6 @@ export class XmlTokenizer {
                 return i + 1;
             }
         }
-        pending.quote = quote;
-        pending.depth = depth;
-        pending.comment = comment;
-        pending.pi = pi;
-        pending.run = run;
         return -1;
     }
 
@@ -1434,85 +1467,146 @@ export class XmlTokenizer {
         let declaresNamespace = false;
         for (;;) {
             const before = i;
-            while (i < length && isSpace(buffer.charCodeAt(i))) {
-                i++;
-            }
+            i = this.skipSpace(i);
             if (i >= length) {
                 return null;
             }
             const c = buffer.charCodeAt(i);
-            if (c === GT) {
-                return { name, attrs, selfClosing: false, declaresNamespace, end: i + 1 };
+            if (c === GT || c === SLASH) {
+                return this.endStartTag(pos, i, name, attrs, declaresNamespace);
             }
-            if (c === SLASH) {
-                if (i + 1 >= length) {
-                    return null;
-                }
-                if (buffer.charCodeAt(i + 1) !== GT) {
-                    throw new XmlSyntaxError(`unexpected "/" in <${name}>`, this.lineIn(pos, i));
-                }
-                return { name, attrs, selfClosing: true, declaresNamespace, end: i + 2 };
-            }
-            if (i === before) {
-                // the name, or the previous value's closing quote, runs into the next attribute
-                throw new XmlSyntaxError(
-                    `the attributes of <${name}> must be separated by whitespace`,
-                    this.lineIn(pos, i),
-                );
-            }
-            const attrEnd = this.readName(i);
+            const attrEnd = this.attributeNameEnd(pos, before, i, name);
             if (attrEnd < 0) {
                 return null;
             }
-            if (attrEnd === i) {
-                throw new XmlSyntaxError(`malformed attribute in <${name}>`, this.lineIn(pos, i));
-            }
             const attrName = buffer.slice(i, attrEnd);
-            i = attrEnd;
-            while (i < length && isSpace(buffer.charCodeAt(i))) {
-                i++;
-            }
-            if (i >= length) {
+            i = this.readAttributeValue(pos, attrEnd, name, attrName, attrs);
+            if (i < 0) {
                 return null;
-            }
-            if (buffer.charCodeAt(i) !== EQUALS) {
-                throw new XmlSyntaxError(`attribute ${attrName} of <${name}> has no value`, this.lineIn(pos, i));
-            }
-            i++;
-            while (i < length && isSpace(buffer.charCodeAt(i))) {
-                i++;
-            }
-            if (i >= length) {
-                return null;
-            }
-            const quote = buffer.charCodeAt(i);
-            if (quote !== QUOTE && quote !== APOS) {
-                throw new XmlSyntaxError(`attribute ${attrName} of <${name}> is not quoted`, this.lineIn(pos, i));
-            }
-            const close = buffer.indexOf(quote === QUOTE ? '"' : "'", i + 1);
-            if (close < 0) {
-                return null;
-            }
-            const line = this.lineIn(pos, i);
-            if (attrs.has(attrName)) {
-                throw new XmlSyntaxError(`duplicate attribute ${attrName} in <${name}>`, line);
-            }
-            const raw = buffer.slice(i + 1, close);
-            if (hasIllegalXmlChar(raw)) {
-                throw new XmlSyntaxError(
-                    `a character XML 1.0 forbids appears in attribute ${attrName} of <${name}>`,
-                    line,
-                );
-            }
-            if (raw.includes("<")) {
-                throw new XmlSyntaxError(`a "<" in the value of attribute ${attrName} of <${name}> (write &lt;)`, line);
             }
             if (attrName.startsWith("xmlns")) {
                 declaresNamespace = true;
             }
-            attrs.set(attrName, this.decode(normalizeAttributeValue(raw), line));
-            i = close + 1;
         }
+    }
+
+    /**
+     * The end of the attribute name at `i`, which must follow whitespace.
+     * @param pos - the index of the tag's `<`
+     * @param before - where the whitespace before the name starts
+     * @param i - the start of the name
+     * @param name - the element name
+     * @returns the index after the name, or -1 when the name may continue past the end of the buffer
+     */
+    private attributeNameEnd(pos: number, before: number, i: number, name: string): number {
+        if (i === before) {
+            // the name, or the previous value's closing quote, runs into the next attribute
+            throw new XmlSyntaxError(
+                `the attributes of <${name}> must be separated by whitespace`,
+                this.lineIn(pos, i),
+            );
+        }
+        const attrEnd = this.readName(i);
+        if (attrEnd === i) {
+            throw new XmlSyntaxError(`malformed attribute in <${name}>`, this.lineIn(pos, i));
+        }
+        return attrEnd;
+    }
+
+    /**
+     * The index of the first non-space character at or after `i` (the buffer length when none).
+     * @param i - the start index
+     * @returns the index
+     */
+    private skipSpace(i: number): number {
+        const { buffer } = this;
+        const { length } = buffer;
+        let j = i;
+        while (j < length && isSpace(buffer.charCodeAt(j))) {
+            j++;
+        }
+        return j;
+    }
+
+    /**
+     * Finish a start tag at the `>` or `/` at `i`.
+     * @param pos - the index of the `<`
+     * @param i - the index of the `>` or `/`
+     * @param name - the element name
+     * @param attrs - its attributes
+     * @param declaresNamespace - whether an attribute name starts with `xmlns`
+     * @returns the tag, or null when the buffer ends after the `/`
+     */
+    private endStartTag(
+        pos: number,
+        i: number,
+        name: string,
+        attrs: Map<string, string>,
+        declaresNamespace: boolean,
+    ): StartTag | null {
+        const { buffer } = this;
+        if (buffer.charCodeAt(i) === GT) {
+            return { name, attrs, selfClosing: false, declaresNamespace, end: i + 1 };
+        }
+        if (i + 1 >= buffer.length) {
+            return null;
+        }
+        if (buffer.charCodeAt(i + 1) !== GT) {
+            throw new XmlSyntaxError(`unexpected "/" in <${name}>`, this.lineIn(pos, i));
+        }
+        return { name, attrs, selfClosing: true, declaresNamespace, end: i + 2 };
+    }
+
+    /**
+     * Read the `= "value"` of an attribute and add it to the tag's attributes.
+     * @param pos - the index of the tag's `<`
+     * @param from - the index after the attribute name
+     * @param name - the element name
+     * @param attrName - the attribute name
+     * @param attrs - the tag's attributes so far
+     * @returns the index after the closing quote, or -1 when the buffer ends inside the value
+     */
+    private readAttributeValue(
+        pos: number,
+        from: number,
+        name: string,
+        attrName: string,
+        attrs: Map<string, string>,
+    ): number {
+        const { buffer } = this;
+        const { length } = buffer;
+        let i = this.skipSpace(from);
+        if (i >= length) {
+            return -1;
+        }
+        if (buffer.charCodeAt(i) !== EQUALS) {
+            throw new XmlSyntaxError(`attribute ${attrName} of <${name}> has no value`, this.lineIn(pos, i));
+        }
+        i = this.skipSpace(i + 1);
+        if (i >= length) {
+            return -1;
+        }
+        const quote = buffer.charCodeAt(i);
+        if (quote !== QUOTE && quote !== APOS) {
+            throw new XmlSyntaxError(`attribute ${attrName} of <${name}> is not quoted`, this.lineIn(pos, i));
+        }
+        const close = buffer.indexOf(quote === QUOTE ? '"' : "'", i + 1);
+        if (close < 0) {
+            return -1;
+        }
+        const line = this.lineIn(pos, i);
+        if (attrs.has(attrName)) {
+            throw new XmlSyntaxError(`duplicate attribute ${attrName} in <${name}>`, line);
+        }
+        const raw = buffer.slice(i + 1, close);
+        if (hasIllegalXmlChar(raw)) {
+            throw new XmlSyntaxError(`a character XML 1.0 forbids appears in attribute ${attrName} of <${name}>`, line);
+        }
+        if (raw.includes("<")) {
+            throw new XmlSyntaxError(`a "<" in the value of attribute ${attrName} of <${name}> (write &lt;)`, line);
+        }
+        attrs.set(attrName, this.decode(normalizeAttributeValue(raw), line));
+        return close + 1;
     }
 
     /**

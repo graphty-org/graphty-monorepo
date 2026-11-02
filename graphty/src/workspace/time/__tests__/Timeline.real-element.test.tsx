@@ -10,9 +10,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession, TimeStepEvent } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { dragAcross } from "../../../test/real-pointer";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";

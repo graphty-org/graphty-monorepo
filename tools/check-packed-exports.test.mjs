@@ -83,6 +83,28 @@ describe("missingFromPack", () => {
     });
 });
 
+describe("files entries npm packs on its own", () => {
+    it("warns, and does not fail, on a LICENSE or README the package does not have", () => {
+        const warnings = [];
+        const m = { ...manifest, files: [...manifest.files, "LICENSE", "licence.txt", "Readme.markdown"] };
+        assert.deepEqual(missingFromPack(m, full, warnings), []);
+        assert.deepEqual(warnings, [
+            "files lists LICENSE, which matches nothing in the pack",
+            "files lists licence.txt, which matches nothing in the pack",
+            "files lists Readme.markdown, which matches nothing in the pack",
+        ]);
+    });
+    it("still fails on any other unmatched files entry", () => {
+        const warnings = [];
+        const m = { ...manifest, files: [...manifest.files, "docs/", "LICENSE/extra"] };
+        assert.deepEqual(missingFromPack(m, full, warnings), [
+            "files lists docs/, which matches nothing in the pack",
+            "files lists LICENSE/extra, which matches nothing in the pack",
+        ]);
+        assert.deepEqual(warnings, []);
+    });
+});
+
 describe("a real npm pack of a fixture package", () => {
     const pkg = join(TMP, "pkg");
     mkdirSync(join(pkg, "bin"), { recursive: true });
@@ -104,5 +126,15 @@ describe("a real npm pack of a fixture package", () => {
         const r = spawnSync(process.execPath, [script, pkg], { encoding: "utf8" });
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.match(r.stdout, /ok {4}@fixture\/pkg/);
+    });
+
+    it("passes with a warning when files lists a LICENSE the package does not have", () => {
+        writeFileSync(
+            join(pkg, "package.json"),
+            JSON.stringify({ ...manifest, files: [...manifest.files, "LICENSE"] }),
+        );
+        const r = spawnSync(process.execPath, [script, pkg], { encoding: "utf8" });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.match(r.stdout, /warn {2}@fixture\/pkg: files lists LICENSE, which matches nothing in the pack/);
     });
 });

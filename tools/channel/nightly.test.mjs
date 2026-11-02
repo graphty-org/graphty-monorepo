@@ -53,6 +53,14 @@ describe("promotion", () => {
         const refused = promotion({ state: "green-clean", publishHold: "", gate: "failure" });
         assert.equal(refused.promote, false);
         assert.match(refused.why, /screenshot gate refused/);
+        const reason =
+            "graph-io-fidelity: 1 unstable (not accepted; a rejected item needs a code change, not another review)";
+        const named = promotion({ state: "approved", publishHold: "", gate: "failure", gateReason: reason });
+        assert.equal(
+            named.why,
+            `the screenshot gate refused: ${reason}`,
+            "the gate's own reason, not the generic text",
+        );
     });
 
     it("waits while a publish hold is open, and says which", () => {
@@ -279,7 +287,7 @@ describe("the missed-slot alarm (#5052)", () => {
         const a = missedSlot(ran({ state: "green-images", hold: "start" }), STARTED);
         assert.match(a.cause, /^waiting on the owner's screenshot review of aaaaaaa$/);
         assert.match(a.detail, /serve --candidate next/);
-        assert.match(a.detail, /&target=master/);
+        assert.match(a.detail, /&change=master/);
     });
     it("a green-images run behind a held candidate awaiting review, and one behind a hold nobody can review", () => {
         const H = "e87f65b".padEnd(40, "0");

@@ -71,6 +71,8 @@ export function createSampleElement(width: number, height: number): Graphty {
  *     when not its first
  * @param formatOptions - the reader's own options the program drew the file with (Gephi's Preview
  *     settings), when there are any
+ * @param imageBaseUrl - where the sample file is served, which the pictures it names by relative paths are beside
+ *     (`url` is a Blob's, which has no directory)
  * @returns how it was loaded and placed, for the scene's provenance
  */
 export async function importSample(
@@ -79,6 +81,7 @@ export async function importSample(
     url: string,
     graphName?: string,
     formatOptions: Readonly<Record<string, unknown>> = {},
+    imageBaseUrl?: string,
 ): Promise<string> {
     await element.updateComplete;
     // session.data.import rather than loadFromUrl, for two reasons. loadFromUrl has no layout
@@ -94,8 +97,15 @@ export async function importSample(
         Object.entries(formatOptions)
             .map(([k, v]) => `, ${k}: ${JSON.stringify(v)}`)
             .join("");
-    const route = `session.data.import({ type: "${format}", config: { url${named} } }, { styles: "file", layout: "recommended" })`;
-    await element.session.data.import({ type: format, config }, { styles: "file", layout: "recommended" });
+    // Framed as the file's program frames it (sigma.js fits node centers 30 px in), as the scorecard judges how much
+    // of the canvas the drawing fills against the program's own (issue #5367).
+    const styleOptions = { framing: "file" as const, ...(imageBaseUrl === undefined ? {} : { imageBaseUrl }) };
+    const based = imageBaseUrl === undefined ? "" : ", imageBaseUrl";
+    const route = `session.data.import({ type: "${format}", config: { url${named} } }, { styles: "file", layout: "recommended", styleOptions: { framing: "file"${based} } })`;
+    await element.session.data.import(
+        { type: format, config },
+        { styles: "file", layout: "recommended", styleOptions },
+    );
     await element.waitForSettled();
     await element.session.styles.settled();
     await element.waitForStableFrame();

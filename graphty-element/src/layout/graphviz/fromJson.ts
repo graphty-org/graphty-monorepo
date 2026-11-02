@@ -9,6 +9,7 @@
 import type { F32 } from "@graphty/graph-format";
 
 import type { GroupMargins } from "../groupMargins";
+import type { EdgePosition } from "../LayoutEngine";
 import { POINTS_PER_UNIT } from "./toDot";
 
 /** The part of a `-Tjson` object or edge this reads. */
@@ -18,9 +19,20 @@ interface JsonObject {
     readonly pos?: unknown;
     readonly lp?: unknown;
     readonly xlp?: unknown;
+    readonly xlabel?: unknown;
     readonly head_lp?: unknown;
     readonly tail_lp?: unknown;
+    readonly label?: unknown;
+    readonly headlabel?: unknown;
+    readonly taillabel?: unknown;
+    /** The xdot drawing of the edge's label and external label, of its head label and of its tail label. */
+    readonly _ldraw_?: unknown;
+    readonly _hldraw_?: unknown;
+    readonly _tldraw_?: unknown;
 }
+
+/** An edge label the layout may leave out, as {@link EdgePosition.leftOut} names it. */
+type EdgeLabelPart = NonNullable<EdgePosition["leftOut"]>[number];
 
 /** The places `-Tjson` gives an edge's labels: its label, its external label, and its head and tail labels. */
 type EdgeLabelKey = "lp" | "xlp" | "head_lp" | "tail_lp";
@@ -157,20 +169,112 @@ export function edgeLabelPlaces(
 }
 
 /**
- * Read where Graphviz put each node's external label (its `xlp`, the label's center) out of its json output, as an
- * offset from the node's center in Graphviz's points, right and down.
- * @param json - the `-Tjson` text
- * @returns each placed external label's offset, by row
+ * The text an xdot drawing writes, each at its baseline's anchor point.
+ * @param ops - the drawing, `-Tjson`'s list of operations
+ * @returns the points its text operations write at
  */
-export function nodeXlabelPlaces(json: string): Map<number, readonly [right: number, down: number]> {
+function textPoints(ops: unknown): Point[] {
+    const out: Point[] = [];
+    for (const op of Array.isArray(ops) ? (ops as unknown[]) : []) {
+        const { op: kind, pt } = (op ?? {}) as { op?: unknown; pt?: unknown };
+        if (kind === "T" && Array.isArray(pt) && pt.length >= 2) {
+            out.push([Number(pt[0]), Number(pt[1])]);
+        }
+    }
+    return out;
+}
+
+/**
+ * A `-Tjson` place ("x,y") as a point.
+ * @param place - the text
+ * @returns the point, or null when it is not one
+ */
+function pointOf(place: unknown): Point | null {
+    const [x, y] = typeof place === "string" ? place.split(",").map(Number) : [];
+    return Number.isFinite(x) && Number.isFinite(y) ? [x, y] : null;
+}
+
+/**
+ * Whether Graphviz drew an edge's label: some text of the drawing it shares with the external label (`_ldraw_`) sits
+ * nearer the label's place (`lp`) than the external label's (`xlp`).
+ * @param edge - the edge's `-Tjson` object
+ * @returns true when the label is drawn
+ */
+function labelDrawn(edge: JsonObject): boolean {
+    const lp = pointOf(edge.lp);
+    const xlp = pointOf(edge.xlp);
+    const far = (p: Point, q: Point | null): number => (q === null ? Infinity : Math.hypot(p[0] - q[0], p[1] - q[1]));
+    return textPoints(edge._ldraw_).some((p) => xlp === null || far(p, lp) < far(p, xlp));
+}
+
+/**
+ * Read which labels Graphviz left out of each edge: with the graph's `forcelabels=false` it drops an edge's external
+ * label, a head or tail label it places as an external label, and, in every engine but dot, its label, where each
+ * would cover a node or another label (lib/common/postproc.c `addXLabels`). It writes no `xlp` for a dropped external
+ * label, but still writes an `lp`, `head_lp` or `tail_lp` for the others, at no place it drew; what it drew says so:
+ * the label's text in `_ldraw_`, `_hldraw_` or `_tldraw_`. An edge with only an external label draws it as its label,
+ * so its external label left out leaves out both.
+ * @param json - the `-Tjson` text
+ * @returns the labels left out, by the edge's place in the list handed over; absent for an edge with none left out
+ */
+export function edgeLabelsLeftOut(json: string): Map<number, EdgeLabelPart[]> {
     const parsed = JSON.parse(json) as JsonGraph;
-    const out = new Map<number, readonly [number, number]>();
-    for (const { name, pos, xlp } of parsed.objects ?? []) {
+    const out = new Map<number, EdgeLabelPart[]>();
+    for (const edge of parsed.edges ?? []) {
+        const k = typeof edge.id === "string" && /^e\d+$/.test(edge.id) ? Number(edge.id.slice(1)) : -1;
+        const gone = leftOutOf(edge);
+        if (k >= 0 && gone.length > 0) {
+            out.set(k, gone);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The labels Graphviz left out of one edge, as {@link edgeLabelsLeftOut} reads them.
+ * @param edge - the edge's `-Tjson` object
+ * @returns the labels left out
+ */
+function leftOutOf(edge: JsonObject): EdgeLabelPart[] {
+    const has = (text: unknown): boolean => typeof text === "string" && text !== "";
+    const gone: EdgeLabelPart[] = [];
+    if (has(edge.xlabel) && edge.xlp === undefined) {
+        gone.push(...(has(edge.label) ? (["xlabel"] as const) : (["label", "xlabel"] as const)));
+    }
+    if (has(edge.label) && !labelDrawn(edge)) {
+        gone.push("label");
+    }
+    if (has(edge.headlabel) && textPoints(edge._hldraw_).length === 0) {
+        gone.push("headLabel");
+    }
+    if (has(edge.taillabel) && textPoints(edge._tldraw_).length === 0) {
+        gone.push("tailLabel");
+    }
+    return gone;
+}
+
+/** The parts of {@link EdgePosition} an edge's labels are placed by. */
+export type EdgeLabelsAt = Pick<EdgePosition, "labelAt" | "headLabelAt" | "tailLabelAt" | "xlabelAt" | "leftOut">;
+
+/**
+ * Read where Graphviz put each node's external label (its `xlp`, the label's center) out of its json output, as an
+ * offset from the node's center in Graphviz's points, right and down; null for an external label Graphviz left out
+ * (with the graph's `forcelabels=false` it drops one that would cover another node, and gives it no `xlp`).
+ * @param json - the `-Tjson` text
+ * @returns each external label's offset, or null when it was left out, by row
+ */
+export function nodeXlabelPlaces(json: string): Map<number, readonly [right: number, down: number] | null> {
+    const parsed = JSON.parse(json) as JsonGraph;
+    const out = new Map<number, readonly [number, number] | null>();
+    for (const { name, pos, xlp, xlabel } of parsed.objects ?? []) {
         const row = typeof name === "string" && /^n\d+$/.test(name) ? Number(name.slice(1)) : -1;
         const [px, py] = typeof pos === "string" ? pos.split(",").map(Number) : [];
         const [lx, ly] = typeof xlp === "string" ? xlp.split(",").map(Number) : [];
         if (row >= 0 && [px, py, lx, ly].every(Number.isFinite)) {
             out.set(row, [lx - px, py - ly]);
+        } else if (row >= 0 && xlp === undefined && typeof xlabel === "string" && xlabel !== "") {
+            out.set(row, null);
         }
     }
 

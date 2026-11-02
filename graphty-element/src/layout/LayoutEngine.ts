@@ -72,6 +72,13 @@ export interface EdgePosition {
      * up and left of the line's middle.
      */
     xlabelAt?: readonly [along: number, across: number];
+    /**
+     * The edge's labels the layout left out, which are not drawn: a Graphviz layout of a graph with
+     * `forcelabels=false` leaves out an external label, an end label or (in every engine but dot) a label that would
+     * cover a node or another label. Absent when none is left out.
+     * @since 3.35.0
+     */
+    leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
 }
 
 /**
@@ -454,6 +461,16 @@ export abstract class LayoutEngine {
      */
     getNodeXlabelOffset(_n: Node): readonly [right: number, down: number] | undefined {
         return undefined;
+    }
+    /**
+     * Whether the layout left a node's external label (`xlabel`) out, so it is not drawn: a Graphviz layout of a graph
+     * with `forcelabels=false` leaves out one that would cover another node. False by default.
+     * @param _n - The node.
+     * @returns True when the label is left out.
+     * @since 3.34.0
+     */
+    isNodeXlabelLeftOut(_n: Node): boolean {
+        return false;
     }
     // for animated layouts
     abstract step(): void;
@@ -1177,6 +1194,30 @@ function carryRows(rows: NodeMask, change: SnapshotReplacement): NodeMask {
 }
 
 /**
+ * How many edges of a graph join each pair of nodes, with its ends renumbered into the next freeze.
+ * @param graph - the graph before the freeze
+ * @param remap - its node rows to the next freeze's, or null when they kept their rows
+ * @param pair - the key of a pair of renumbered ends
+ * @returns the edge count per pair key
+ */
+function pairCounts(
+    graph: GraphSnapshot,
+    remap: SnapshotReplacement["report"]["nodeRemap"],
+    pair: (a: number, b: number) => number,
+): Map<number, number> {
+    const counts = new Map<number, number>();
+    const had = graph.edgeList();
+    for (let e = 0; e < graph.edgeCount; e++) {
+        const a = remap === null ? had.src[e] : remap[had.src[e]];
+        const b = remap === null ? had.dst[e] : remap[had.dst[e]];
+        const key = pair(a, b);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    return counts;
+}
+
+/**
  * The rows of `next` that were already nodes of `previous`, when the freeze only ADDED to the graph:
  * no node left, and the edges between two nodes that were already there are exactly the ones that
  * were there before.
@@ -1212,14 +1253,7 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
     // edge identity.
     const n = next.nodeCount;
     const pair = (a: number, b: number): number => Math.min(a, b) * n + Math.max(a, b);
-    const before = new Map<number, number>();
-    const had = previous.edgeList();
-    for (let e = 0; e < previous.edgeCount; e++) {
-        const a = remap === null ? had.src[e] : remap[had.src[e]];
-        const b = remap === null ? had.dst[e] : remap[had.dst[e]];
-        const key = pair(a, b);
-        before.set(key, (before.get(key) ?? 0) + 1);
-    }
+    const before = pairCounts(previous, remap, pair);
 
     const { src, dst } = next.edgeList();
     let between = 0;

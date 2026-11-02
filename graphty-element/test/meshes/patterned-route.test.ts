@@ -40,7 +40,17 @@ describe("a patterned line laid along a route", () => {
     const line = (pattern: PatternType): PatternedLineMesh =>
         new PatternedLineMesh(pattern, ELL[0], ELL[2], scene, { width: 0.5, color: "#505050", opacity: 1 });
 
-    for (const pattern of ["dash", "dot", "dash-dot", "zigzag", "forward-slash"] as const) {
+    for (const pattern of [
+        "dash",
+        "dot",
+        "star",
+        "box",
+        "diamond",
+        "dash-dot",
+        "sinewave",
+        "zigzag",
+        "forward-slash",
+    ] as const) {
         test(`${pattern}: every element sits on the route and the elements reach both of its legs`, () => {
             const mesh = line(pattern);
             mesh.updatePath(ELL);
@@ -51,6 +61,33 @@ describe("a patterned line laid along a route", () => {
             // the chord from (0,0) to (10,10) passes through neither leg's middle: elements are on both legs
             assert.isTrue(mesh.elements.some((e) => e.position.y < 1e-6 && e.position.x < 9));
             assert.isTrue(mesh.elements.some((e) => e.position.x > 10 - 1e-6 && e.position.y > 1));
+        });
+    }
+
+    // issue #3094: a curve is a run of many short segments; every element lands on it, pointing along it
+    for (const pattern of ["star", "box", "diamond", "dash-dot", "sinewave", "zigzag"] as const) {
+        test(`${pattern}: every element sits on a finely sampled arc, pointing along its tangent`, () => {
+            const radius = 10;
+            const arc = Array.from({ length: 200 }, (_unused, i) => {
+                const angle = (Math.PI * i) / 199;
+                return new Vector3(radius * Math.cos(angle), radius * Math.sin(angle), 0);
+            });
+            const mesh = line(pattern);
+            mesh.updatePath(arc);
+            assert.isAbove(mesh.elements.length, 10);
+            for (const element of mesh.elements) {
+                const p = element.position;
+                assert.isBelow(offRoute(p, arc), 1e-6, `${pattern} element off the arc`);
+                const direction = element.drawnAppearance?.direction;
+                assert.exists(direction);
+                // the tangent of a circle about the origin is perpendicular to the radius
+                assert.isBelow(
+                    Math.abs(Vector3.Dot(direction, p.normalizeToNew())),
+                    0.02,
+                    `${pattern} not along the arc`,
+                );
+            }
+            mesh.dispose();
         });
     }
 

@@ -138,6 +138,26 @@ export class MeshCache {
     }
 
     /**
+     * Dispose and forget the cached meshes that match, with every instance drawn from them, so the
+     * next `get` of their name builds them again: a look whose drawing went stale (a glyph drawn in
+     * the fallback while its web font loaded). Whoever held an instance finds it disposed.
+     * @param match - Whether a cached source mesh is stale.
+     * @returns True when any was forgotten.
+     */
+    forget(match: (mesh: Mesh) => boolean): boolean {
+        let forgot = false;
+        for (const [name, mesh] of this.meshCacheMap) {
+            if (match(mesh)) {
+                MeshCache.disposeSource(mesh);
+                this.meshCacheMap.delete(name);
+                forgot = true;
+            }
+        }
+
+        return forgot;
+    }
+
+    /**
      * Dispose a source mesh and the material it was built with.
      *
      * Every creator handed to get() builds a fresh material for its mesh, so the material dies

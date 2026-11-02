@@ -96,7 +96,7 @@ function rows(): string[] {
 describe("the canvas context menu", () => {
     it("selects exactly the node under the pointer and lists that node's commands", async () => {
         const apply = await rightClick("n1");
-        assert.deepEqual(apply.mock.calls, [[{ nodes: ["n1"] }]]);
+        assert.deepEqual(apply.mock.calls, [[{ nodes: ["n1"] }, "replace", { cause: "user" }]]);
         const labels = rows();
         assert.isTrue(labels.some((label) => label.startsWith("Neighborhood")));
         assert.isTrue(labels.some((label) => label.startsWith("Frame selection")));
@@ -105,7 +105,7 @@ describe("the canvas context menu", () => {
 
     it("selects exactly the edge under the pointer and lists that edge's commands", async () => {
         const apply = await rightClick({ edge: "e1" });
-        assert.deepEqual(apply.mock.calls, [[{ edges: ["e1"] }]]);
+        assert.deepEqual(apply.mock.calls, [[{ edges: ["e1"] }, "replace", { cause: "user" }]]);
         const labels = rows();
         assert.isTrue(labels.some((label) => label.startsWith("Select endpoints")));
         assert.isFalse(labels.some((label) => label.startsWith("Neighborhood")));

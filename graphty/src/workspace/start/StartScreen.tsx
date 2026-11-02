@@ -34,7 +34,17 @@ import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import { NETWORK_DIALOG } from "./NetworkDataDialog";
-import { openDataset, openFiles, openGenerated, openModel, openSample, pictureOf } from "./open";
+import {
+    copyOf,
+    openDataset,
+    openFiles,
+    openGenerated,
+    openModel,
+    openSample,
+    OWN_COPIES,
+    pictureOf,
+    samplePicture,
+} from "./open";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -53,14 +63,6 @@ const HERO: HeroSample = (() => {
     const sample = START_SAMPLES.find((each) => each.id === "les-miserables") ?? START_SAMPLES[0];
     return { url: sample.url, name: sample.name, path: ["Napoleon", "Brujon"] };
 })();
-
-/** The graph-samples dataset each of the app's own four sample files is a copy of, by sample id. */
-const OWN_COPIES: Readonly<Record<string, string>> = {
-    "les-miserables": "les-miserables",
-    karate: "karate",
-    "college-football": "football",
-    florentine: "florentine-families",
-};
 
 /**
  * The field each dataset comes from, for the tag on its tile and the library's field filter: this
@@ -215,7 +217,7 @@ function sampleTiles(
 ): SampleTile[] {
     return [
         ...samples.map((sample) => {
-            const dataset = datasets.find((each) => each.name === OWN_COPIES[sample.id]);
+            const dataset = copyOf(sample);
             const field = FIELDS[sample.id] ?? "Other";
             const hook = HOOKS[sample.id] ?? sample.name;
             return {
@@ -225,7 +227,7 @@ function sampleTiles(
                 field,
                 size: dataset === undefined ? sample.size : sizeWords(dataset),
                 sentence: sample.sentence,
-                picture: () => (dataset === undefined ? sample.picture : pictureOf(dataset)),
+                picture: () => samplePicture(sample),
                 note: undefined,
                 words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
                 open: ({ store }: LibraryActions) => {
@@ -572,7 +574,7 @@ function SampleLibrary(): React.JSX.Element {
                         <LibraryTile
                             key={tile.id}
                             tile={tile}
-                            label={`Open the ${tile.name} sample`}
+                            label={`Open the ${tile.name} sample: ${tile.hook}`}
                             onClick={() => {
                                 tile.open(actions);
                             }}
@@ -654,7 +656,8 @@ function PageFoot(): React.JSX.Element {
                     Docs
                 </a>{" "}
                 &middot; Put it on your own site: <code>npm i @graphty/graphty-element</code>{" "}
-                <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer">
+                {/* The footer's other "Docs" is the app's; this one names what it documents. */}
+                <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer" aria-label="Docs for graphty-element">
                     Docs
                 </a>
             </span>

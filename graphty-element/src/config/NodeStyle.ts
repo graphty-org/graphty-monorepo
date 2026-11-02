@@ -239,6 +239,10 @@ export const NodeStyle = z.strictObject({
             width: z.number().nonnegative().optional(),
             height: z.number().nonnegative().optional(),
             depth: z.number().nonnegative().optional(),
+            // Read `width`, `height` and `depth` as multiples of `size`, so changing the size keeps
+            // the stretch: width 2 at size 3 is drawn 6 wide. Unset or false reads them as extents.
+            // A painted style carries the extents already multiplied, with this flag beside them.
+            relativeExtents: z.boolean().optional(),
             // Draw the node thin along z, as a flat shape facing a 2D camera, even in a 3D view.
             planar: z.boolean().optional(),
             // Drawing order in a 2D view: below 0 draws the node behind every edge and every node
@@ -255,6 +259,10 @@ export const NodeStyle = z.strictObject({
             // than capped at a quarter of it (round-rectangle) or a tenth (the round-* polygons),
             // as Cytoscape.js and vis-network draw a radius a file sets. Unset or false keeps the caps.
             exactCornerRadius: z.boolean().optional(),
+            // The share of the shorter side a round-rectangle's corners are rounded by when
+            // `exactCornerRadius` is not set, never more than `cornerRadius`: unset, a quarter, as
+            // Cytoscape.js rounds; Cytoscape desktop rounds an eighth, Graphviz a third. At most a half.
+            cornerFraction: z.number().min(0).max(0.5).optional(),
             // A "polygon" node's corners, as `x,y` pairs separated by spaces: each relative to the
             // node's center as fractions of its half width and half height, y up ("0,1 1,-1 -1,-1"
             // is a triangle). The outline is stretched so its farthest corners reach the node's
@@ -288,6 +296,10 @@ export const NodeStyle = z.strictObject({
             // (`{ "size": 0.2, "color": "#404040", "font": "Arial", "rotation": 45 }`, the size a share of the node's
             // height: a chart's item labels). Drawn whatever the label says, beside it.
             texts: z.string().optional(),
+            // The label laid out as a table of cells, as JSON (see the `node.labelTable` channel): drawn in place of
+            // the label's own words, each cell's outline a line over the node and each line of its text centered in
+            // its place; with `labelFit` the table is the label's box the node grows round.
+            labelTable: z.string().optional(),
             // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and
@@ -299,6 +311,12 @@ export const NodeStyle = z.strictObject({
             labelPaddingY: z.number().nonnegative().optional(),
             labelFitSquare: z.boolean().optional(),
             labelFitQuantum: z.number().nonnegative().optional(),
+            // With `labelFit`, the node holds its picture (`image.src`) too: the picture's own pixels, each this
+            // long in the units of `size`, padded by `labelFitImagePadding` on each side; the larger of the padded
+            // label and the padded picture decides each way. The node is fitted again once the picture's size is
+            // read. Unset, the picture does not size the node.
+            labelFitImage: z.number().nonnegative().optional(),
+            labelFitImagePadding: z.number().nonnegative().optional(),
             // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
             // URL. `type` stays the placeholder while it loads and the fallback when it fails
             // (design/rendering/node-models.md).

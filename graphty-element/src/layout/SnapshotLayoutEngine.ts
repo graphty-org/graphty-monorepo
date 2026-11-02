@@ -98,6 +98,16 @@ export interface SnapshotLayoutInput {
      * @since 3.30.0
      */
     nodeExtents?(): F32;
+    /**
+     * What the stored edge weights mean, for a layout that reads them: `"strength"` (a larger
+     * weight is a stronger connection, drawn shorter), `"distance"` (a larger weight is a longer
+     * edge), or null to leave them unread. Read from `data.knownFields.edgeWeightMeaning`; an
+     * unstated meaning reads as a strength. When the meaning was assumed or cannot be read, the
+     * element emits a `layout-warning` (`W_WEIGHT_MEANING_ASSUMED`, `W_WEIGHT_MEANING_MISMATCH`).
+     * @returns the meaning
+     * @since 3.34.0
+     */
+    weightMeaning?(): "strength" | "distance" | null;
     /** Aborted when the answer is no longer wanted: the graph changed, the layout was replaced or the element was disposed. */
     readonly signal: AbortSignal;
     /** Tell the consumer how far the arrangement has got; the element emits it as `layout-progress`. */
@@ -148,6 +158,8 @@ interface SnapshotLayoutHost {
     column?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
     /** Draw the style paint that has arrived, so the node sizes read next are the painted ones. */
     drawPaint(): void;
+    /** What the stored edge weights mean; see {@link SnapshotLayoutInput.weightMeaning}. */
+    weightMeaning?(): "strength" | "distance" | null;
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -414,6 +426,10 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             graph,
             stored,
             firstRun: !this.#published,
+            weightMeaning: () => {
+                const host = this.#host;
+                return host?.weightMeaning === undefined ? "strength" : host.weightMeaning();
+            },
             dimensions: dim,
             options,
             scope,

@@ -33,5 +33,10 @@
         "worktree": ".worktrees/pipeline-health-local-live",
         "servers": ["pipeline-health-local"],
         "test": "cd tools/pipeline-health && node --test local/collector.test.mjs"
+    },
+    "workspace": {
+        "worktree": ".",
+        "servers": ["pr-status-broker"],
+        "test": "npx prettier --check CLAUDE.md \".claude/**/*.{md,json}\" && node -e \"JSON.parse(require(\\\"fs\\\").readFileSync(\\\".claude/settings.json\\\"))\""
     }
 }

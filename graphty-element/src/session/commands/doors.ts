@@ -646,6 +646,28 @@ const IGNORE_STEP: SessionCommand = {
 
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
+/** The label column a draft of TINY_JSON names its nodes by, as `data.import` does. */
+const DRAFT_LABEL: SessionCommand = {
+    op: "config.set",
+    values: { data: { knownFields: { nodeLabelPath: "label" } } },
+};
+
+/** A draft of TINY_JSON's load: the rows it held, without reading the source again. */
+const DRAFT_LOAD: SessionCommand = {
+    op: "data.import",
+    source: { type: "json", config: { data: TINY_JSON } },
+    tables: ["json"],
+    mode: "replace",
+    held: {
+        nodes: [{ id: "j1" }, { id: "j2" }],
+        edges: [{ src: "j1", dst: "j2" }],
+        declaredDirection: null,
+        errors: [],
+        errorLimit: 100,
+    },
+    input: "i1",
+};
+
 /**
  * The document's bytes: what a file or a fetched URL is handed to the reader as, for the importer
  * to decode.
@@ -1808,6 +1830,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setMeshPosition: RENDER,
             updateStyle: RENDER,
             refreshFonts: RENDER,
+            refitPicture: RENDER,
             applySessionPaint: RENDER,
             dispose: RENDER,
             isDisposed: READ,
@@ -1834,8 +1857,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             layoutRadius: READ,
             paintedColor: READ,
             borderReach: READ,
-            framingHalf: READ,
+            framingBounds: READ,
             drawnHalfExtents: READ,
+            surfaceIsBox: READ,
             outlineHalfExtents: READ,
             groupSizing: READ,
             wordedLabel: READ,
@@ -2874,26 +2898,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             styles: READ,
             suggestJoin: READ,
             joinReport: READ,
-            // A draft of TINY_JSON: the rows it held, loaded without reading the source again.
-            load: calls(
-                [],
-                [
-                    {
-                        op: "data.import",
-                        source: { type: "json", config: { data: TINY_JSON } },
-                        tables: ["json"],
-                        mode: "replace",
-                        held: {
-                            nodes: [{ id: "j1" }, { id: "j2" }],
-                            edges: [{ src: "j1", dst: "j2" }],
-                            declaredDirection: null,
-                            errors: [],
-                            errorLimit: 100,
-                        },
-                        input: "i1",
-                    },
-                ],
-            ),
+            // A draft of TINY_JSON: the rows it held, loaded without reading the source again, its
+            // nodes named by the file's label column, as `data.import` names them.
+            load: calls([], [{ op: "batch", steps: [DRAFT_LABEL, DRAFT_LOAD] }, DRAFT_LABEL, DRAFT_LOAD]),
             dispose: exempt("Lets go of the rows a draft holds; nothing a project saves changes."),
         },
     },
@@ -3228,6 +3235,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             layoutBehavior: READ,
             layoutTransition: READ,
             viewRotation: READ,
+            framing: READ,
             author: READ,
             name: READ,
             acceleration: READ,
@@ -3384,6 +3392,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getNodePosition: READ,
             getEdgePosition: READ,
             getNodeXlabelOffset: READ,
+            isNodeXlabelLeftOut: READ,
             step: TRANSPORT,
             nodes: READ,
             edges: READ,
@@ -3681,13 +3690,12 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
  * - `edit`: it takes its place in line when called, and lands on what the loads ahead of it
  *   loaded; a clear asked for after it while it waits cancels it.
  * - `clear`: it cancels every load and edit still waiting, and lands at once.
- * - `{ direct: issue }`: it still dispatches at once, outside the line, until that issue routes it.
  *
  * `test/session/load-entry.test.ts` fails on any row, of either half, that dispatches a graph op
  * and has no entry here, and calls every session entry with a load held in line to check the door
  * keeps to it.
  */
-export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear" | { readonly direct: number }>> = {
+export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.addNodes": "edit",
     "SessionDataApi.addEdges": "edit",
     "SessionDataApi.updateNodes": "edit",
@@ -3714,7 +3722,7 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear" | { r
     "LoadDraft.load": "load",
     // The autosave restore opens through it.
     "ProjectApi.open": "load",
-    // The renderer half: its loads and clear take the line; its edits do not yet.
+    // The renderer half: its loads, edits and clears take the same line (issue #3604).
     "Graph.addDataFromSource": "load",
     "Graph.loadFromFile": "load",
     "Graph.loadFromUrl": "load",
@@ -3728,36 +3736,36 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear" | { r
     "Graphty.clearData": "clear",
     "Graphty.nodeData": "edit",
     "Graphty.edgeData": "edit",
-    "Graph.addNode": { direct: 3604 },
-    "Graph.addNodes": { direct: 3604 },
-    "Graph.addEdge": { direct: 3604 },
-    "Graph.addEdges": { direct: 3604 },
-    "Graph.removeNodes": { direct: 3604 },
-    "Graph.removeEdges": { direct: 3604 },
-    "Graph.updateNodes": { direct: 3604 },
-    "Graph.updateEdges": { direct: 3604 },
-    "Graph.batchOperations": { direct: 3604 },
-    "Graph.setData": { direct: 3604 },
-    "Graph.setNodes": { direct: 3604 },
-    "Graph.setEdges": { direct: 3604 },
-    "Graphty.addNode": { direct: 3604 },
-    "Graphty.addNodes": { direct: 3604 },
-    "Graphty.addEdge": { direct: 3604 },
-    "Graphty.addEdges": { direct: 3604 },
-    "Graphty.removeNodes": { direct: 3604 },
-    "Graphty.removeEdges": { direct: 3604 },
-    "Graphty.updateNodes": { direct: 3604 },
-    "Graphty.updateEdges": { direct: 3604 },
-    "Graphty.batchOperations": { direct: 3604 },
-    "Graphty.setData": { direct: 3604 },
-    "DataManager.addNode": { direct: 3604 },
-    "DataManager.addNodes": { direct: 3604 },
-    "DataManager.addEdge": { direct: 3604 },
-    "DataManager.addEdges": { direct: 3604 },
-    "DataManager.removeEdge": { direct: 3604 },
-    "DataManager.removeNodeAndIncidentEdges": { direct: 3604 },
-    "DataManager.setNodes": { direct: 3604 },
-    "DataManager.setEdges": { direct: 3604 },
-    "DataManager.clear": { direct: 3604 },
-    "DataManager.addDataFromSource": { direct: 3604 },
+    "Graph.addNode": "edit",
+    "Graph.addNodes": "edit",
+    "Graph.addEdge": "edit",
+    "Graph.addEdges": "edit",
+    "Graph.removeNodes": "edit",
+    "Graph.removeEdges": "edit",
+    "Graph.updateNodes": "edit",
+    "Graph.updateEdges": "edit",
+    "Graph.batchOperations": "edit",
+    "Graph.setData": "edit",
+    "Graph.setNodes": "edit",
+    "Graph.setEdges": "edit",
+    "Graphty.addNode": "edit",
+    "Graphty.addNodes": "edit",
+    "Graphty.addEdge": "edit",
+    "Graphty.addEdges": "edit",
+    "Graphty.removeNodes": "edit",
+    "Graphty.removeEdges": "edit",
+    "Graphty.updateNodes": "edit",
+    "Graphty.updateEdges": "edit",
+    "Graphty.batchOperations": "edit",
+    "Graphty.setData": "edit",
+    "DataManager.addNode": "edit",
+    "DataManager.addNodes": "edit",
+    "DataManager.addEdge": "edit",
+    "DataManager.addEdges": "edit",
+    "DataManager.removeEdge": "edit",
+    "DataManager.removeNodeAndIncidentEdges": "edit",
+    "DataManager.setNodes": "edit",
+    "DataManager.setEdges": "edit",
+    "DataManager.clear": "clear",
+    "DataManager.addDataFromSource": "load",
 };

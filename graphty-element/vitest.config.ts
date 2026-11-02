@@ -38,7 +38,7 @@ import { shardCacheDir } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
-import { mapTileCommands } from "../vitest.map-tiles.mjs";
+import { isTileServer, mapTileCommands } from "../vitest.map-tiles.mjs";
 
 /**
  * Each pre-push gate shard's own Vite dependency cache (tools/test-slots.mjs shardCacheDir()), set
@@ -58,6 +58,33 @@ import { mapTileCommands } from "../vitest.map-tiles.mjs";
  * other's bundles.
  */
 const SHARD_CACHE_DIR = shardCacheDir();
+
+/**
+ * The "minimum-work" project's files: the tests of "the picture is final" written for the issues
+ * where work split across frames escaped it (#3287, #3361, #3372, #3527, #3528, #3531, #3533, #4218, #5140),
+ * and the frame reads of tests that once read a frame too early (#1473). Not layout-pace.test.ts: it
+ * counts a slow frame's layout catch-up rounds, which this mode turns off by design.
+ */
+const MINIMUM_WORK_TESTS = [
+    "test/browser/pending-work-split-across-frames.test.ts",
+    "test/browser/stable-frame-waits-for-framing.test.ts",
+    "test/browser/stable-frame-waits-for-work-that-came-late.test.ts",
+    "test/browser/stable-frame-rechecks-work-after-the-pass.test.ts",
+    "test/browser/stable-frame-follows-camera-moves.test.ts",
+    "test/browser/a-label-redraws-when-its-font-loads.test.ts",
+    "test/browser/a-glyph-and-an-annotation-redraw-when-their-font-loads.test.ts",
+    "test/browser/an-image-annotation-is-in-the-stable-frame.test.ts",
+    "test/browser/simulation-owed-pre-steps.test.ts",
+    "test/browser/camera/owed-fit-reads-late-inputs.test.ts",
+    "test/browser/camera/view-insets.test.ts",
+    "test/browser/groups-follow-members.test.ts",
+    "test/browser/label-declutter.test.ts",
+    "test/browser/curves-rest-the-same-however-frames-split.test.ts",
+    "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
+    "test/browser/a-layer-added-later-paints.test.ts",
+    "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
+    "test/browser/label-textures-fit-across-frames.test.ts",
+];
 
 /**
  * Babylon modules the element imports only for their side effects (see
@@ -279,6 +306,97 @@ const heldRequestCommands: {
         entry.refuse = refuse;
         await Promise.all(entry.routes.map((route) => answer(route, refuse)));
         await ctx.page.unroute(entry.matches);
+    },
+};
+
+/**
+ * The pictures the style fidelity samples name by a URL on the internet (a Cytoscape custom graphic or image
+ * annotation pointing at the cytoscape.js logo), each answered from a copy committed beside the samples
+ * (graph-io/test/fidelity/pictures/), so what graphty draws, and how it scores, never depends on the network. Any
+ * other internet request a fidelity run makes is refused, and the harness fails the sample naming the URL.
+ */
+const SAMPLE_PICTURES: Readonly<Record<string, string>> = {
+    "https://raw.githubusercontent.com/cytoscape/cytoscape.js/master/documentation/img/cytoscape-logo.png":
+        "../graph-io/test/fidelity/pictures/cytoscape-logo.png",
+};
+
+/** Hosts the test server answers itself: never the internet. */
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"]);
+
+/**
+ * Whether a request goes to the internet.
+ * @param url - the request's URL.
+ * @returns true for an http(s) URL on a host other than the test server's.
+ */
+const isInternet = (url: URL): boolean =>
+    (url.protocol === "http:" || url.protocol === "https:") && !LOCAL_HOSTS.has(url.hostname);
+
+/** A picture's media type, from its file's extension. */
+const PICTURE_TYPES: Readonly<Record<string, string>> = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+};
+
+/**
+ * The browser contexts the sample pictures are served in, and the unmapped internet URLs each refused; `null` while
+ * no sample is loading, when the route leaves every unmapped request to the routes before it (the browser project
+ * shares one context across its files, and the map tile guard must keep seeing its own requests).
+ */
+const refusedPictures = new WeakMap<object, string[] | null>();
+
+/**
+ * The commands the style fidelity harness (test/fidelity/mount.ts) runs around loading a sample, in the `commands` of
+ * every project that runs a test file using it (`fidelity`, `browser`, `minimum-work`).
+ */
+const samplePictureCommands: {
+    serveSamplePictures: BrowserCommand<[]>;
+    takeRefusedSamplePictures: BrowserCommand<[]>;
+} = {
+    /**
+     * Answers every sample picture's URL from its committed copy, and refuses (and records) any other request to the
+     * internet, until `takeRefusedSamplePictures` ends the load; a map tile server is left to the map tile fixture
+     * (vitest.map-tiles.mjs). The route is installed once per browser context.
+     * @param ctx - the browser command context.
+     */
+    async serveSamplePictures(ctx) {
+        const installed = refusedPictures.has(ctx.context);
+        refusedPictures.set(ctx.context, []);
+        if (installed) {
+            return;
+        }
+        const pictures = new Map(
+            Object.entries(SAMPLE_PICTURES).map(([url, file]) => [
+                url,
+                {
+                    body: readFileSync(path.resolve(dirname, file)),
+                    contentType: PICTURE_TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream",
+                },
+            ]),
+        );
+        await ctx.context.route(isInternet, (route) => {
+            const url = route.request().url();
+            const picture = pictures.get(url);
+            if (picture !== undefined) {
+                return route.fulfill({ status: 200, ...picture });
+            }
+            const refused = refusedPictures.get(ctx.context);
+            if (!refused || isTileServer(url)) {
+                return route.fallback();
+            }
+            refused.push(url);
+            return route.abort("blockedbyclient");
+        });
+    },
+    /**
+     * Ends a sample's load: the internet requests refused during it. Requests after it are no longer refused.
+     * @param ctx - the browser command context.
+     * @returns their URLs.
+     */
+    takeRefusedSamplePictures(ctx) {
+        const urls = refusedPictures.get(ctx.context) ?? [];
+        refusedPictures.set(ctx.context, null);
+        return urls;
     },
 };
 
@@ -746,8 +864,17 @@ const config = defineConfig({
                         // the steps before it made due. Its header has the numbers.
                         // `--enable-precise-memory-info` makes performance.memory exact rather than
                         // bucketed, for the restore memory peak in autosave-write.bench.test.ts.
+                        // GRAPHTY_BROWSER_GPU picks the renderer as it does for "browser" (unset: the
+                        // software one CI draws with), so a benchmark can be timed on both.
                         provider: playwright({
-                            launchOptions: { args: ["--js-flags=--expose-gc", "--enable-precise-memory-info"] },
+                            launchOptions: {
+                                args: [
+                                    ...(BROWSER_GPU_FLAGS[browserGpu] ?? []),
+                                    "--js-flags=--expose-gc",
+                                    "--enable-precise-memory-info",
+                                ],
+                                env: browserLaunchEnv(),
+                            },
                         }),
                         instances: [{ browser: "chromium" }],
                     },
@@ -816,7 +943,40 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: mapTileCommands,
+                        commands: { ...mapTileCommands, ...samplePictureCommands },
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [browserInstance()],
+                    },
+                },
+            },
+            {
+                // The tests that pin "the picture is final" again, under the minimum-work-per-frame
+                // test mode (src/managers/minimumWork.ts, issue #4218): one paint batch and one
+                // layout round per frame, every other render tick skipped. A fast machine fits most
+                // split work into one frame, so a wait that reads half-finished work is caught here
+                // rather than when a slow runner happens to split it. They also run in "browser" and
+                // "interactions" at full speed. A new test that reads the final picture of work the
+                // element splits across frames belongs in this list too.
+                define: { ...define },
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "minimum-work",
+                    setupFiles: [
+                        BROWSER_COVERAGE_SETUP,
+                        MAP_TILES_SETUP,
+                        "./test/setup.ts",
+                        "./test/setup-minimum-work.ts",
+                    ],
+                    include: MINIMUM_WORK_TESTS,
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        commands: { ...mapTileCommands, ...heldRequestCommands, ...samplePictureCommands },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -932,7 +1092,7 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: mapTileCommands,
+                        commands: { ...mapTileCommands, ...samplePictureCommands },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),

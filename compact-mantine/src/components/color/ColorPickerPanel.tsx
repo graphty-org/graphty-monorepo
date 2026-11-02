@@ -630,7 +630,8 @@ export function ColorPickerPanel({
                                                     setDraft(shownValue);
                                                 },
                                                 draft !== shownValue,
-                                                shownValue,
+                                                // With its words, as the color field says what it keeps.
+                                                `${shownValue} ${labels.colorWord(toHexa(hsvaRef.current).slice(0, 7))}`,
                                             );
                                         }
                                     }}

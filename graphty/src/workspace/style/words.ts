@@ -32,6 +32,7 @@ import {
 import { wordsFor } from "../analyze/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
+import { formatCount } from "../settings/numberFormat";
 
 /** Where a label sits, as the element names it. */
 type LabelLocation = NonNullable<LabelStyle["location"]>;
@@ -125,6 +126,10 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
             channels: [
                 "node.shape",
                 "node.size",
+                "node.width",
+                "node.height",
+                "node.depth",
+                "node.relativeExtents",
                 "node.wireframe",
                 "node.outline",
                 "node.glow",
@@ -194,6 +199,10 @@ export const OPACITY_OF: Partial<Readonly<Record<Channel, Channel>>> = {
  */
 export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boolean, string])[]>>> = {
     "node.wireframe": [
+        [true, "On"],
+        [false, "Off"],
+    ],
+    "node.relativeExtents": [
         [true, "On"],
         [false, "Off"],
     ],
@@ -318,6 +327,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.width": "Width",
     "node.height": "Height",
     "node.depth": "Depth",
+    "node.relativeExtents": "Scale with size",
     "node.planar": "Planar",
     "node.zIndex": "Z-index",
     "node.drawOrder": "Draw order",
@@ -336,6 +346,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelPaddingY": "Label padding down",
     "node.labelFitSquare": "Keep square when fitted",
     "node.labelFitQuantum": "Round fitted size to",
+    "node.labelFitImage": "Fit image pixel size",
+    "node.labelFitImagePadding": "Fit image padding",
     "edge.color": "Color",
     "edge.width": "Width",
     "edge.opacity": "Opacity",
@@ -493,10 +505,12 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.chartBorderColor": "Chart border color",
     "node.chartBorderWidth": "Chart border width",
     "node.exactCornerRadius": "Exact corner radius",
+    "node.cornerFraction": "Corner fraction",
     "node.shapeStretchPoints": "Polygon stretch",
     "node.shapeParts": "Shape parts",
     "node.shapeLines": "Shape lines",
     "node.shapeTexts": "Shape texts",
+    "node.labelTable": "Label table",
     "node.shapeLineWidth": "Shape line width",
     "node.gradientColors": "Gradient colors",
     "node.gradientStops": "Gradient stops",
@@ -904,7 +918,7 @@ function said(value: CodedFact["params"][string] | undefined): string {
  * @returns the text.
  */
 function amount(value: CodedFact["params"][string] | undefined): string {
-    return typeof value === "number" ? value.toLocaleString() : said(value);
+    return typeof value === "number" ? formatCount(value) : said(value);
 }
 
 /** What the app says for each model code. Typed over the element's codes, so a new one fails to compile here. */
@@ -1069,7 +1083,7 @@ export const SCALE_WORDS: Readonly<Record<string, string>> = {
 };
 
 /** The element's reasons for refusing a style edit, in the app's words, by error code. */
-const REFUSAL_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
+export const REFUSAL_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
     E_LOCKED: "its layer is locked",
     E_PROTECTED: "that layer is drawn by graphty itself; add a layer above it instead",
     E_OPTION_RANGE: "that value is outside what the property accepts",

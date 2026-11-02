@@ -52,13 +52,19 @@ const SIDES: ReadonlyMap<string, number> = new Map([
  *
  * `labelFitQuantum` first rounds the padded box up to a multiple of it each way. `labelFitSquare` then makes both
  * sides the larger one.
+ *
+ * With `labelFitImage`, the node's picture is held too: its own pixels, each `labelFitImage` long, padded by
+ * `labelFitImagePadding` on each side, and the larger of the padded label and the padded picture decides each way
+ * (Graphviz's `poly_init`, a node's `image`).
  * @param shape - The node's shape block.
  * @param box - Its label's box, in the units of its size.
+ * @param picture - Its picture's own width and height in pixels, when it has one and it is known.
  * @returns The width and height, or null when the node does not grow to hold its label.
  */
 export function labelFitExtent(
     shape: NodeStyleConfig["shape"],
     box: LabelBox,
+    picture: LabelBox | null = null,
 ): { width: number; height: number } | null {
     if (shape?.labelFit === undefined) {
         return null;
@@ -69,8 +75,9 @@ export function labelFitExtent(
     // the padded box, rounded up to a multiple of the quantum each way (Graphviz's `quant`)
     const q = shape.labelFitQuantum ?? 0;
     const quantize = (v: number): number => (q > 0 ? Math.ceil(v / q) * q : v);
-    let width = quantize(box.width + 2 * (shape.labelPaddingX ?? 0));
-    let height = quantize(box.height + 2 * (shape.labelPaddingY ?? 0));
+    const held = heldBox(shape, box, picture);
+    let width = quantize(held.width);
+    let height = quantize(held.height);
     const type = shape.type ?? "";
     const corners = type === "polygon" ? shapePointList(shape.points) : null;
     const polygon = corners !== null && corners.length >= 3 ? corners : null;
@@ -100,6 +107,27 @@ export function labelFitExtent(
     }
 
     return { width, height };
+}
+
+/**
+ * The padded box a node holds: its label's, or its picture's where that is larger.
+ * @param shape - The node's shape block.
+ * @param box - Its label's box.
+ * @param picture - Its picture's own width and height in pixels, or null.
+ * @returns The padded box.
+ */
+function heldBox(shape: NonNullable<NodeStyleConfig["shape"]>, box: LabelBox, picture: LabelBox | null): Extent {
+    const width = box.width + 2 * (shape.labelPaddingX ?? 0);
+    const height = box.height + 2 * (shape.labelPaddingY ?? 0);
+    const each = shape.labelFitImage ?? 0;
+    if (picture === null || each <= 0) {
+        return { width, height };
+    }
+    const pad = 2 * (shape.labelFitImagePadding ?? 0);
+    return {
+        width: Math.max(width, picture.width * each + pad),
+        height: Math.max(height, picture.height * each + pad),
+    };
 }
 
 /** A width and a height. */

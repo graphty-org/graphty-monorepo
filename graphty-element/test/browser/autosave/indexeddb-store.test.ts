@@ -143,11 +143,64 @@ describe("IndexedDB autosave store on a real database", () => {
         await store.commit([write("a", "k", 0, big("first"))]);
         // Three new blobs to look up, and three old ones released to look up again.
         const deepest = await deepestRead(() => store.commit([write("a", "k", 1, big("second"))]));
-        // The fence, the sequence number, then the old parts with the new blobs, then the
-        // released blobs: four rounds, however many large parts the commit carries.
-        assert.isAtMost(deepest, 3, "large parts looked up one after another");
+        // Every read the commit needs (the fence, the sequence number, the old parts, the new
+        // blobs), then the released blobs: two rounds, however many large parts it carries (#2957).
+        assert.isAtMost(deepest, 1, "a commit's reads asked one after another");
         assert.strictEqual(await countBlobs(name), 3, "the replaced blobs were dropped, the new ones kept");
         assert.strictEqual((await store.read("a"))?.parts.rest, largeText("second rest "));
+        await store.close();
+        await deleteDatabase(name);
+    });
+
+    it("a commit hashes all its large parts at once", async () => {
+        const name = databaseName();
+        const store = storeFor(name);
+        const { subtle } = crypto;
+        const original = subtle.digest.bind(subtle);
+        let inFlight = 0;
+        let most = 0;
+        Object.defineProperty(subtle, "digest", {
+            configurable: true,
+            value: async (...args: Parameters<SubtleCrypto["digest"]>): Promise<ArrayBuffer> => {
+                inFlight += 1;
+                most = Math.max(most, inFlight);
+                try {
+                    return await original(...args);
+                } finally {
+                    inFlight -= 1;
+                }
+            },
+        });
+        try {
+            await store.commit([
+                write("a", "k", 0, {
+                    data: largeText("data "),
+                    arrangement: largeText("arrangement "),
+                    rest: largeText("rest "),
+                }),
+            ]);
+        } finally {
+            delete (subtle as unknown as { digest?: unknown }).digest;
+        }
+        // Each digest's answer waits for a turn of the page's event loop: one after another, a
+        // page drawing in software waits a frame for each (#2957).
+        assert.strictEqual(most, 3, "large parts hashed one after another");
+        await store.close();
+        await deleteDatabase(name);
+    });
+
+    it("a read asks for the entry, its parts and all its large values in two rounds", async () => {
+        const name = databaseName();
+        const store = storeFor(name);
+        const parts = { data: largeText("data "), arrangement: largeText("arrangement "), rest: largeText("rest ") };
+        await store.commit([write("a", "k", 0, parts)]);
+        let read: Awaited<ReturnType<typeof store.read>> | undefined;
+        const deepest = await deepestRead(async () => {
+            read = await store.read("a");
+        });
+        // The meta with the part records, then every large value: not one round per value (#2957).
+        assert.isAtMost(deepest, 1, "a read's lookups asked one after another");
+        assert.deepEqual(read?.parts, parts);
         await store.close();
         await deleteDatabase(name);
     });

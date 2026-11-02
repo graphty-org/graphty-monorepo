@@ -782,12 +782,13 @@ function buildJoined() {
             scene,
             { vertex: "join", fragment: "join" },
             {
-                attributes: ["position", "pPrev", "pA", "pB", "pNext", "run"],
+                attributes: ["position", "pPrev2", "pPrev", "pA", "pB", "pNext", "pNext2", "run"],
                 uniforms: [
                     "world",
                     "viewProjection",
                     "projection",
                     "resolution",
+                    "fragmentSize",
                     "width",
                     "miterLimit",
                     "color",
@@ -816,6 +817,8 @@ function buildJoined() {
         mesh.setVerticesBuffer(buf.createVertexBuffer("pB", 6, 3, F, true));
         mesh.setVerticesBuffer(buf.createVertexBuffer("pNext", 9, 3, F, true));
         mesh.setVerticesBuffer(buf.createVertexBuffer("run", 12, 2, F, true));
+        mesh.setVerticesBuffer(buf.createVertexBuffer("pPrev2", 14, 3, F, true));
+        mesh.setVerticesBuffer(buf.createVertexBuffer("pNext2", 17, 3, F, true));
         mesh.forcedInstanceCount = n;
         parts.push({ edges, data, buf, n, spacing: DASH ? (DASH_ON + DASH_OFF) * s : 0 });
     }
@@ -829,6 +832,12 @@ function buildJoined() {
                 for (let i = 0; i < n; i++) {
                     const pi = i === 0 ? i : i - 1;
                     const ni = i === n - 1 ? i + 1 : i + 2;
+                    const pi2 = i < 2 ? pi : i - 2;
+                    const ni2 = i >= n - 2 ? ni : i + 3;
+                    for (let k = 0; k < 3; k++) {
+                        data[o + 14 + k] = p[pi2 * 3 + k];
+                        data[o + 17 + k] = p[ni2 * 3 + k];
+                    }
                     data[o] = p[pi * 3];
                     data[o + 1] = p[pi * 3 + 1];
                     data[o + 2] = p[pi * 3 + 2];

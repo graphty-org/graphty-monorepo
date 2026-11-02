@@ -14,6 +14,7 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession, type NodeId } from "../../session";
+import { NGRAPH_SETTLED_SPACING } from "../../src/constants/layoutConstants";
 import { dispatcherOf } from "../../src/session/GraphSession";
 
 /** A Cytoscape.js document: nodes 40 across with a border 2 wide and labels 20 high, edges 2 wide, nodes 400 apart. */
@@ -304,7 +305,7 @@ describe("a DOT file's lengths are drawn in one unit", () => {
  */
 async function loadedPajek(
     text: string,
-    styleOptions?: { readonly lengths?: "median" | "file"; readonly toolDefaults?: boolean },
+    styleOptions?: { readonly lengths?: "median" | "file" | "spacing"; readonly toolDefaults?: boolean },
 ): Promise<GraphSession> {
     const session = createGraphSession();
     await session.data.import(
@@ -371,18 +372,17 @@ describe("a Pajek file's lengths are drawn in one unit", () => {
     });
 });
 
-describe("a sigma.js (graphology) file's labels are canvas px over positions fitted to the canvas", () => {
-    // Nodes 10 across (size 5 is a radius) in a 90 x 90 box. sigma 4 fits the box 540 px tall in an
-    // 800 x 600 canvas (600 less its 30 px stagePadding at each end): 6 px a unit, so a 12 px label
-    // is 2 units tall, a fifth of a node.
+describe("a sigma.js (graphology) file's labels are drawn in screen px, as sigma draws them at every zoom", () => {
+    // Nodes 10 across (size 5 is a radius) in a 90 x 90 box. sigma draws a 12 px label 12 px tall on
+    // screen however the view is zoomed or the canvas sized (issue #3106).
     const doc = JSON.stringify({
-        options: { type: "undirected", multi: false, allowSelfLoops: true },
+        options: { type: "directed", multi: false, allowSelfLoops: true },
         nodes: [
             { key: "a", attributes: { x: 0, y: 0, size: 5, label: "a" } },
-            { key: "b", attributes: { x: 90, y: 0, size: 5, label: "b" } },
+            { key: "b", attributes: { x: 90, y: 0, size: 8, label: "b" } },
             { key: "c", attributes: { x: 0, y: 90, size: 5, label: "c" } },
         ],
-        edges: [],
+        edges: [{ key: "ab", source: "a", target: "b", attributes: { label: "ab" } }],
     });
 
     /**
@@ -400,26 +400,37 @@ describe("a sigma.js (graphology) file's labels are canvas px over positions fit
         return session;
     }
 
-    it("draws a 12 px label as sigma does on the element's canvas, beside nodes in proportion to their spacing", async () => {
+    /**
+     * An element's label style.
+     * @param session - The session.
+     * @param target - The element.
+     * @returns The style.
+     */
+    function labelStyle(session: GraphSession, target: { node: NodeId } | { edge: string }): Record<string, unknown> {
+        const kind = "node" in target ? "node" : "edge";
+        return (drawn(session, target, `${kind}.labelStyle`) ?? {}) as Record<string, unknown>;
+    }
+
+    for (const viewport of [{ width: 800, height: 600 }, { width: 1200, height: 900 }, null]) {
+        it(`draws every node label at sigma's 12 px on screen, whatever the canvas (${JSON.stringify(viewport)})`, async () => {
+            const session = await loadedSigma(viewport);
+            for (const node of ["a", "b"]) {
+                const style = labelStyle(session, { node });
+                assert.strictEqual(style.sizeMode, "screen", `${node}'s label size mode`);
+                assert.strictEqual(style.sizePx, 12, `${node}'s label size`);
+                // never sized in the scene, which would override the screen size
+                assert.isUndefined(style.letterSize, `${node}'s letter size`);
+            }
+            session.dispose();
+        });
+    }
+
+    it("draws an edge label at sigma's 12 px on screen", async () => {
         const session = await loadedSigma({ width: 800, height: 600 });
-        const node = number(session, { node: "a" }, "node.size") * 1.5;
-        assert.approximately(letters(fontSize(session, { node: "a" })) / node, 2 / 10, 1e-6);
-        assert.approximately(spacing(session) / node, 90 / 10, 1e-4);
-        session.dispose();
-    });
-
-    it("draws the label smaller against the graph on a larger canvas, as sigma does", async () => {
-        // 1200 x 900: the box is 840 px tall, 840 / 90 px a unit
-        const session = await loadedSigma({ width: 1200, height: 900 });
-        const node = number(session, { node: "a" }, "node.size") * 1.5;
-        assert.approximately(letters(fontSize(session, { node: "a" })) / node, 12 / (840 / 90) / 10, 1e-6);
-        session.dispose();
-    });
-
-    it("keeps the label in the unit of the node sizes without a canvas to fit to", async () => {
-        const session = await loadedSigma(null);
-        const node = number(session, { node: "a" }, "node.size") * 1.5;
-        assert.approximately(letters(fontSize(session, { node: "a" })) / node, 12 / 10, 1e-6);
+        const [edge] = session.data.edges();
+        const style = labelStyle(session, { edge: edge.id });
+        assert.strictEqual(style.sizeMode, "screen");
+        assert.strictEqual(style.sizePx, 12);
         session.dispose();
     });
 });
@@ -530,5 +541,88 @@ describe("a file whose nodes are sized by their labels alone", () => {
         // the element's own label is 48 px
         assert.approximately(fontSize(session, { node: "a" }), 48, 0.5);
         session.dispose();
+    });
+});
+
+describe('lengths: "spacing" (issues #3168, #3103)', () => {
+    // vis-network, no positions: 40 px dots, which vis-network's layout leaves 87 px apart once it settles
+    const doc = JSON.stringify({
+        nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+        edges: [
+            { from: "a", to: "b" },
+            { from: "b", to: "c" },
+        ],
+        options: { nodes: { shape: "dot", size: 20 } },
+    });
+
+    /**
+     * The drawn extent of node a, loaded with these style options.
+     * @param data - The document.
+     * @param styleOptions - The style options of the load.
+     * @param type - The format of the document.
+     * @param id - The node measured.
+     * @returns Scene units.
+     */
+    async function extent(
+        data: string,
+        styleOptions?: { readonly lengths: "median" | "file" | "spacing" },
+        type = "json",
+        id: NodeId = "a",
+    ): Promise<number> {
+        const session = createGraphSession();
+        await session.data.import(
+            { type, config: { data } },
+            { styles: "file", layout: "recommended", ...(styleOptions === undefined ? {} : { styleOptions }) },
+        );
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        assert.strictEqual(session.layout.id, "force");
+        const size = number(session, { node: id }, "node.size") * 1.5;
+        session.dispose();
+        return size;
+    }
+
+    it("draws a node as large beside the force layout's settled spacing as the program draws it beside its own", async () => {
+        const inFile = await extent(doc, { lengths: "file" });
+        const spaced = await extent(doc, { lengths: "spacing" });
+        // one file unit is one scene unit with lengths: "file", so the file's node over vis-network's settled spacing
+        assert.approximately(spaced / NGRAPH_SETTLED_SPACING, inFile / 1.5 / 87, 1e-6);
+    });
+
+    it("leaves the default unchanged: the median node is the element's node size", async () => {
+        assert.approximately(await extent(doc), 1.5, 1e-6);
+    });
+
+    it("leaves the default unchanged for a Cytoscape desktop file with no positions (#5508)", async () => {
+        // Cytoscape desktop states a 102 px spacing; only lengths: "spacing" reads it, so the default load of a file
+        // such as cx-radiation-bibliography still draws its median node at the element's node size
+        const cx2 = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { nodes: [{ id: 0 }, { id: 1 }, { id: 2 }] },
+            {
+                edges: [
+                    { id: 3, s: 0, t: 1 },
+                    { id: 4, s: 1, t: 2 },
+                ],
+            },
+            { visualProperties: [{ default: { node: { NODE_WIDTH: 60, NODE_HEIGHT: 60 } } }] },
+            { status: [{ success: true }] },
+        ]);
+        assert.approximately(await extent(cx2, undefined, "cx2", "0"), 1.5, 1e-6);
+        const inFile = await extent(cx2, { lengths: "file" }, "cx2", "0");
+        const spaced = await extent(cx2, { lengths: "spacing" }, "cx2", "0");
+        assert.approximately(spaced / NGRAPH_SETTLED_SPACING, inFile / 1.5 / 102, 1e-6);
+    });
+
+    it("scales as the median does for a program that states no spacing", async () => {
+        const cyjs = JSON.stringify({
+            elements: {
+                nodes: [{ data: { id: "a" } }, { data: { id: "b" } }],
+                edges: [{ data: { id: "ab", source: "a", target: "b" } }],
+            },
+            style: [{ selector: "node", style: { width: 40, height: 40 } }],
+        });
+        assert.approximately(await extent(cyjs, { lengths: "spacing" }), await extent(cyjs), 1e-6);
     });
 });

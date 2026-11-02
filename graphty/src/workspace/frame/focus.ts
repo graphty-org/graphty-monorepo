@@ -81,11 +81,13 @@ export function focusOpenedGraph(readerStayed = false): void {
 /**
  * For a graph that opens after a wait (a sample read, a file opened): watches, from now, for the
  * reader's own keys and presses. The function it returns puts focus on the graph's heading
- * (`focusOpenedGraph`) only when the reader did nothing meanwhile or focus has fallen to the page,
- * so focus never jumps away from where the reader went while the graph was loading.
+ * (`focusOpenedGraph`), or where `to` puts it, only when the reader did nothing meanwhile or focus
+ * has fallen to the page, so focus never jumps away from where the reader went while the graph was
+ * loading.
+ * @param to - where focus goes instead of the graph's heading (a reopened tab's main heading).
  * @returns Stops watching; with `focus` (the default) it then moves focus as above.
  */
-export function focusOpenedGraphLater(): (focus?: boolean) => void {
+export function focusOpenedGraphLater(to?: () => void): (focus?: boolean) => void {
     let acted = false;
     const onInput = (event: Event): void => {
         acted ||= event.isTrusted;
@@ -95,8 +97,13 @@ export function focusOpenedGraphLater(): (focus?: boolean) => void {
     return (focus = true) => {
         document.removeEventListener("keydown", onInput, true);
         document.removeEventListener("pointerdown", onInput, true);
-        if (focus && (!acted || focusIsLost())) {
+        if (!focus || (acted && !focusIsLost())) {
+            return;
+        }
+        if (to === undefined) {
             focusOpenedGraph(!acted);
+        } else {
+            to();
         }
     };
 }

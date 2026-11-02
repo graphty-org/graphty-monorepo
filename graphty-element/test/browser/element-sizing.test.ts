@@ -9,7 +9,8 @@
  * The contract now: the host is a block that fills its parent's width (`width: 100%`). Its height is
  * the parent's when the parent has a definite height (`height: 100%`), the element's own when the
  * page sets one, and otherwise half its width (`aspect-ratio: 2 / 1`, which applies only while the
- * used height is `auto`) -- the same 2:1 a bare tag always drew.
+ * used height is `auto`) -- the same 2:1 a bare tag always drew. The ratio is never a minimum
+ * (`min-width: 0`), so the element never forces a grid or flex container wider than its page.
  */
 import "../../src/graphty-element";
 
@@ -80,4 +81,36 @@ test("an element in a fixed-size parent fills it", async () => {
 test("an element in a parent sized by its insets fills it", async () => {
     const size = await canvasSize("position: fixed; left: 0; top: 0; width: 700px; bottom: calc(100vh - 300px);");
     assert.deepEqual(size, { width: 700, height: 300 });
+});
+
+/**
+ * Mounts an element inside a page laid out by `pageStyle`, between a header and a footer, and
+ * measures the page and the element.
+ * @param pageStyle - CSS text for the page container.
+ * @returns The page's scroll width and the element's rendered size.
+ */
+async function pageLayout(pageStyle: string): Promise<{ pageScrollWidth: number; width: number; height: number }> {
+    const page = document.createElement("div");
+    page.setAttribute("style", pageStyle);
+    document.body.appendChild(page);
+    mounted.push(page);
+
+    const header = document.createElement("div");
+    header.style.cssText = "height: 40px;";
+    const element = document.createElement("graphty-element");
+    const footer = document.createElement("div");
+    footer.style.cssText = "height: 40px;";
+    page.append(header, element, footer);
+    await element.updateComplete;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const rect = element.getBoundingClientRect();
+    return { pageScrollWidth: page.scrollWidth, width: Math.round(rect.width), height: Math.round(rect.height) };
+}
+
+// Issue #3597: the 2:1 aspect-ratio made the element's automatic minimum width twice its height,
+// so an implicit (auto) grid column grew wider than the page.
+test("in a grid page with an auto column the element is no wider than the page", async () => {
+    const result = await pageLayout("display: grid; grid-template-rows: auto 1fr auto; width: 600px; height: 600px;");
+    assert.deepEqual(result, { pageScrollWidth: 600, width: 600, height: 520 });
 });

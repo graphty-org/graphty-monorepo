@@ -4,7 +4,7 @@ import { Alert, Badge, Button, Input, Loader, MultiSelect, Text, Tooltip } from 
 import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { animationOptions, fileName, type VideoChoices } from "./choices";
+import { animationOptions, failureWords, fileName, type VideoChoices } from "./choices";
 
 /** The camera views a tour starts with when no two views are saved. */
 const FIRST_TOUR = ["frontView", "isometric", "topView"];
@@ -83,7 +83,7 @@ export function VideoOutput({ choices, onChange, onCancel, onDone }: Readonly<Vi
             } else if (error instanceof Error && error.name === "AnimationCancelledError") {
                 setFailure(null);
             } else {
-                setFailure(error instanceof Error ? error.message : String(error));
+                setFailure(failureWords(error));
             }
         } finally {
             setRecording(false);

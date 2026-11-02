@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { nonGatingJobs } from "../../src/collector/jobs.js";
 import { withPoint } from "../../src/model/benchmarks.js";
-import { HOUR, MIN, type JobItem, type ObservationItem } from "../../src/model/items.js";
+import { HOUR, type JobItem, MIN, type ObservationItem } from "../../src/model/items.js";
 import { putRaw, recordSource, setCursor } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import type { ChronicJob } from "../../src/model/snapshots.js";
@@ -13,6 +13,9 @@ import { SLAS } from "../../src/sla/config.js";
 import { evaluate } from "../../src/sla/engine.js";
 import { benchmarksTable, chronicTable, nonGatingTable } from "../../src/views/job-sections.js";
 import { Reads } from "../../src/views/members.js";
+
+/** A GitHub Actions expression, `${{ body }}`, as a workflow file spells it. */
+const ghExpr = (body: string): string => ["$", "{{ ", body, " }}"].join("");
 
 const NOW = Date.parse("2026-10-27T03:00:00Z");
 const REPO = "graphty-org/graphty-monorepo";
@@ -105,11 +108,15 @@ describe("allowed to fail, and failing", () => {
             job(12, "CI / Story tests (graphty)", "cancelled"),
             // gating jobs are not listed here
             job(13, "CI / Build", "failure"),
+            // Cache hygiene: 1 of 3 failed, past a quarter but short of half
+            ...["failure", "success", "success"].map((c, i) => job(20 + i, "Cache hygiene", c, { workflow: "ci.yml" })),
         ];
         await putRaw(store, items, NOW);
         await setCursor(store, "non-gating", JSON.stringify(nonGatingJobs(CI_YML)), NOW);
         const s = await nonGatingTable(await reads(store));
-        if (s.kind !== "table") throw new Error(s.kind);
+        if (s.kind !== "table") {
+            throw new Error(s.kind);
+        }
         const row = (job: string) => s.rows.find((r) => r.cells.job.t === "name" && r.cells.job.v === job)?.cells;
         expect(row("Performance Benchmarks")).toEqual({
             job: { t: "name", v: "Performance Benchmarks" },
@@ -117,8 +124,14 @@ describe("allowed to fail, and failing", () => {
             failed: { t: "num", n: 3 },
             rate: { t: "mark", state: "bad", cell: { t: "num", n: 25, unit: "pct" } },
         });
+        // a quarter of runs failed marks it yellow, as the heading says ("marked when a quarter of runs fail")
+        expect(row("Cache hygiene")?.rate).toEqual({
+            t: "mark",
+            state: "warn",
+            cell: { t: "num", n: 67, unit: "pct" },
+        });
         // a gating job (Story tests is, since #4613) gets no row, however often it failed
-        expect(row("Story tests (${{ matrix.name || matrix.project }})")).toBeUndefined();
+        expect(row(`Story tests (${ghExpr("matrix.name || matrix.project")})`)).toBeUndefined();
         expect(row("Build")).toBeUndefined();
         expect(s.rows[0].cells.job).toEqual({ t: "name", v: "Performance Benchmarks" });
     });
@@ -128,7 +141,7 @@ describe("allowed to fail, and failing", () => {
         const yaml = [
             "jobs:",
             "    story-tests:",
-            "        name: Story tests (${{ matrix.project }})",
+            `        name: Story tests (${ghExpr("matrix.project")})`,
             "        continue-on-error: true",
             "",
         ].join("\n");
@@ -143,10 +156,12 @@ describe("allowed to fail, and failing", () => {
         );
         await setCursor(store, "non-gating", JSON.stringify(nonGatingJobs(yaml)), NOW);
         const s = await nonGatingTable(await reads(store));
-        if (s.kind !== "table") throw new Error(s.kind);
+        if (s.kind !== "table") {
+            throw new Error(s.kind);
+        }
         expect(s.rows.map((r) => [r.cells.job, r.cells.failed])).toEqual([
             [
-                { t: "name", v: "Story tests (${{ matrix.project }})" },
+                { t: "name", v: `Story tests (${ghExpr("matrix.project")})` },
                 { t: "num", n: 1 },
             ],
         ]);
@@ -158,14 +173,21 @@ describe("benchmarks", () => {
         const store = new MemoryStore();
         const post = async (benchmark: string, vs: number[]) => {
             let item;
-            for (const [i, v] of vs.entries()) item = withPoint(item, benchmark, "ms", { at: i, v, run: i }, NOW);
-            await store.put(item!);
+            for (const [i, v] of vs.entries()) {
+                item = withPoint(item, benchmark, "ms", { at: i, v, run: i }, NOW);
+            }
+            if (!item) {
+                throw new Error(`no points for ${benchmark}`);
+            }
+            await store.put(item);
         };
         await post("algorithms: Dijkstra n=10000", [18, 18, 19, 18, 17, 18, 18, 19, 18, 18, 18, 19, 18]);
         await post("algorithms: PageRank n=10000", [41, 40, 42, 41, 43, 40, 41, 42, 41, 40, 52, 53, 51]);
         await post("webgpu-graph-algorithms: upload / residency", [14, 15]);
         const s = await benchmarksTable(await reads(store));
-        if (s.kind !== "table") throw new Error(s.kind);
+        if (s.kind !== "table") {
+            throw new Error(s.kind);
+        }
         expect(s.rows.map((r) => [r.cells.benchmark, r.cells.ratio])).toEqual([
             [
                 { t: "name", v: "algorithms: PageRank n=10000" },

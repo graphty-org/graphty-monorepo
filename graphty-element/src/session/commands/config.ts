@@ -30,7 +30,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
 import { deepEquals } from "../styles/predicate";
-import type { ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
+import type { GraphFraming, ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
 
 /** `config.set`: write project settings. */
 export interface ConfigSetCommand {
@@ -50,6 +50,7 @@ type ConfigGroup =
     | "layoutBehavior"
     | "layoutTransition"
     | "viewRotation"
+    | "framing"
     | "author"
     | "name";
 
@@ -112,6 +113,15 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
     ]),
     ["layoutTransition", { group: "layoutTransition", schema: LayoutTransition.optional() }],
     ["viewRotation", { group: "viewRotation", schema: z.number().min(-360).max(360).optional() }],
+    [
+        "framing",
+        {
+            group: "framing",
+            schema: z
+                .strictObject({ extent: z.enum(["drawn", "centers"]), padding: z.number().min(0).optional() })
+                .optional(),
+        },
+    ],
     // Who is writing, stamped on each note. Never blank: a blank name is written as no name.
     [
         "author",
@@ -319,6 +329,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
     const name = slice.get("name");
     const layoutTransition = read("layoutTransition") as LayoutTransitionConfig | undefined;
     const viewRotation = read("viewRotation") as number | undefined;
+    const framing = read("framing") as GraphFraming | undefined;
     const pinned = slice.has("pinnedStyle") ? (read("pinnedStyle") as GraphSelectionStyleConfig) : undefined;
     return Object.freeze({
         data: Object.freeze(data) as SessionDataConfig,
@@ -336,6 +347,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
         }),
         ...(layoutTransition === undefined ? {} : { layoutTransition }),
         ...(viewRotation === undefined ? {} : { viewRotation }),
+        ...(framing === undefined ? {} : { framing }),
         ...(typeof author === "string" ? { author } : {}),
         ...(typeof name === "string" ? { name } : {}),
     });

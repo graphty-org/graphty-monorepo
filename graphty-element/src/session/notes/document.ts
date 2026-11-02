@@ -367,6 +367,71 @@ function objectsOf(value: unknown, what: string): readonly object[] {
 }
 
 /**
+ * Check a note's times and author, as the schema checks them.
+ * @param time - Its time.
+ * @param edited - Its edited time, if any.
+ * @param done - Its done time, if any.
+ * @param author - Its author, if any.
+ * @throws With the reason the note is skipped.
+ */
+function checkTimesAndAuthor(
+    time: unknown,
+    edited: unknown,
+    done: unknown,
+    author: unknown,
+): asserts author is string | undefined {
+    if (Number.isNaN(instantOf(time))) {
+        throw new Error("its time is missing or not a real date and time with an offset");
+    }
+
+    if (edited !== undefined && Number.isNaN(instantOf(edited))) {
+        throw new Error("its edited is not a real date and time with an offset");
+    }
+
+    if (done !== undefined && Number.isNaN(instantOf(done))) {
+        throw new Error("its done is not a real date and time with an offset");
+    }
+
+    if (author !== undefined && (!isString(author, 256) || !/\S/u.test(author))) {
+        throw new Error("its author is empty, only white space, or longer than 256 characters");
+    }
+}
+
+/**
+ * Note each time more than a day after the moment of opening.
+ * @param at - The note's pointer.
+ * @param now - The moment of opening.
+ * @param notices - Where notices go.
+ * @param time - Its time.
+ * @param edited - Its edited time, if any.
+ * @param done - Its done time, if any.
+ */
+function pushFutureTimes(
+    at: string,
+    now: number,
+    notices: Problem[],
+    time: unknown,
+    edited: unknown,
+    done: unknown,
+): void {
+    for (const [field, value] of [
+        ["time", time],
+        ["edited", edited],
+        ["done", done],
+    ] as const) {
+        if (value !== undefined && instantOf(value) > now + DAY) {
+            notices.push(
+                Object.freeze({
+                    what: `${at}/${field}`,
+                    reason: `The note's ${field} is more than a day after it was opened; it is kept as written.`,
+                    code: "W_FUTURE_TIME" as const,
+                }),
+            );
+        }
+    }
+}
+
+/**
  * Read one note of a member: checked as the schema checks it, copied as read.
  * @param raw - The note.
  * @param at - Its pointer.
@@ -388,25 +453,8 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
         throw new Error("its id is not note_ followed by 1 to 64 letters, digits, - or _");
     }
 
-    const { time } = raw;
-    if (Number.isNaN(instantOf(time))) {
-        throw new Error("its time is missing or not a real date and time with an offset");
-    }
-
-    const { edited } = raw;
-    if (edited !== undefined && Number.isNaN(instantOf(edited))) {
-        throw new Error("its edited is not a real date and time with an offset");
-    }
-
-    const { done } = raw;
-    if (done !== undefined && Number.isNaN(instantOf(done))) {
-        throw new Error("its done is not a real date and time with an offset");
-    }
-
-    const { author } = raw;
-    if (author !== undefined && (!isString(author, 256) || !/\S/u.test(author))) {
-        throw new Error("its author is empty, only white space, or longer than 256 characters");
-    }
+    const { time, edited, done, author } = raw;
+    checkTimesAndAuthor(time, edited, done, author);
 
     const targets = objectsOf(raw.targets, "targets");
     for (const target of targets) {
@@ -433,21 +481,7 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
         );
     }
 
-    for (const [field, value] of [
-        ["time", time],
-        ["edited", edited],
-        ["done", done],
-    ] as const) {
-        if (value !== undefined && instantOf(value) > now + DAY) {
-            notices.push(
-                Object.freeze({
-                    what: `${at}/${field}`,
-                    reason: `The note's ${field} is more than a day after it was opened; it is kept as written.`,
-                    code: "W_FUTURE_TIME" as const,
-                }),
-            );
-        }
-    }
+    pushFutureTimes(at, now, notices, time, edited, done);
 
     return recordOf(
         {

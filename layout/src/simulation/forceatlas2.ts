@@ -514,7 +514,10 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     private rowPtr: Uint32Array = new Uint32Array(1);
     private colIdx: Uint32Array = new Uint32Array(0);
     private weights: Float64Array | null = null;
+    /** The mass every force reads: the resolved mass, 0 on an inert row (see setInert). */
     private mass: Float64Array = new Float64Array(0);
+    /** The resolved mass, kept so that a row made live again gets it back. */
+    private liveMass: Float64Array = new Float64Array(0);
     /** The owner's stride-3 scene-unit array (empty until load()). */
     private owner: F32 = new Float32Array(0);
     /** Layout-unit positions, stride 3 (z = 0 in 2D). */
@@ -522,6 +525,10 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     /** F(t-1), stride 3 (the paper-mode swing reference). */
     private oldForce: Float64Array = new Float64Array(0);
     private fixed: NodeMask | null = null;
+    /** The rows taken out of the forces (setInert), or null for none. */
+    private inert: NodeMask | null = null;
+    /** n less the inert rows: what every statistic divides by. */
+    private liveRows = 0;
     private scratch: Scratch = allocateScratch(0);
 
     private speedValue = 1;
@@ -538,6 +545,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     /** The tree's approximated repulsion and the exact pairs' sum on one node. */
     private readonly far = new Float64Array(3);
     private readonly near = new Float64Array(3);
+    /** One node's repulsion, then its gravity, as K3 sums them. */
+    private readonly nodeForce = new Float64Array(3);
 
     /**
      * Resolves the options (FA2_DEFAULTS applied, ranges validated: design 7.14) without touching a graph.
@@ -610,11 +619,14 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         const weights = weightSource === null ? null : Float64Array.from(weightSource);
         if (n !== this.n) {
             this.fixed = null;
+            this.inert = null;
         }
         this.n = n;
         this.rowPtr = snapshot.rowPtr;
         this.colIdx = snapshot.colIdx;
-        this.mass = mass;
+        this.liveMass = mass;
+        this.mass = this.inertMass();
+        this.liveRows = this.liveCount();
         this.weights = weights;
         this.owner = positions;
         const { scale, center, seed } = this.options;
@@ -694,6 +706,29 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     }
 
     /**
+     * Takes rows out of the forces (LayoutSimulation.setInert): an inert row weighs 0, so it repels nothing and no
+     * gravity acts on it, its edges pull nothing, and it never moves. The mask must hold ceil(n / 32) words; it is
+     * copied, survives a same-size reload and is cleared when n changes, as the fixed mask is. Never reheats.
+     * @param mask - the NodeMask (LSB-first words, the bool-column bit layout)
+     */
+    setInert(mask: NodeMask): void {
+        this.assertLoaded();
+        const words = Math.ceil(this.n / 32);
+        if (mask.length < words) {
+            throw new RangeError(
+                `ForceAtlas2Simulation: setInert: the mask has ${mask.length} words, ${words} needed for ${this.n} nodes`,
+            );
+        }
+        this.inert = mask.slice(0, words);
+        this.mass = this.inertMass();
+        this.liveRows = this.liveCount();
+        if (this.pending === null) {
+            // the first iteration reads load()'s centroid: count the live rows only, as every later fold does
+            this.writeInitialStatistics();
+        }
+    }
+
+    /**
      * A drag (design 7.12): writes the three scene-unit floats into the owner's array at once, converts them into
      * the layout-unit position (z forced to 0 in 2D), then reheat() -- the settle window and the iteration budget
      * only; the speed controller keeps its state (D8).
@@ -743,6 +778,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         this.positions = new Float64Array(0);
         this.oldForce = new Float64Array(0);
         this.mass = new Float64Array(0);
+        this.liveMass = new Float64Array(0);
+        this.inert = null;
         this.weights = null;
         this.rowPtr = new Uint32Array(1);
         this.colIdx = new Uint32Array(0);
@@ -771,7 +808,47 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
      * @returns true when the node is fixed
      */
     private isFixed(i: number): boolean {
-        return this.fixed !== null && maskTest(this.fixed, i);
+        return (this.fixed !== null && maskTest(this.fixed, i)) || this.isInert(i);
+    }
+
+    /**
+     * Whether setInert took this row out of the forces.
+     * @param i - the node index
+     * @returns true for an inert row
+     */
+    private isInert(i: number): boolean {
+        return this.inert !== null && maskTest(this.inert, i);
+    }
+
+    /**
+     * How many rows are not inert: the count every statistic divides by.
+     * @returns n less the inert rows
+     */
+    private liveCount(): number {
+        let live = this.n;
+        for (let i = 0; i < this.n && this.inert !== null; i++) {
+            if (maskTest(this.inert, i)) {
+                live--;
+            }
+        }
+        return live;
+    }
+
+    /**
+     * The mass the forces read: the resolved mass with every inert row at 0.
+     * @returns liveMass itself when no row is inert, else a copy
+     */
+    private inertMass(): Float64Array {
+        if (this.inert === null) {
+            return this.liveMass;
+        }
+        const mass = this.liveMass.slice();
+        for (let i = 0; i < this.n; i++) {
+            if (this.isInert(i)) {
+                mass[i] = 0;
+            }
+        }
+        return mass;
     }
 
     /** The scene-unit write-back of the free rows (design 7.13 / 7.18: `layout * scale + center`, z = center.z in 2D). */
@@ -797,14 +874,18 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         const { n, positions: pos } = this;
         const c: [number, number, number] = [0, 0, 0];
         for (let i = 0; i < n; i++) {
+            if (this.isInert(i)) {
+                continue;
+            }
             for (let a = 0; a < 3; a++) {
                 c[a] += pos[3 * i + a];
             }
         }
-        if (n === 0) {
+        const live = this.liveRows;
+        if (live === 0) {
             this.centroid = [0, 0, 0];
         } else {
-            this.centroid = [c[0] / n, c[1] / n, c[2] / n];
+            this.centroid = [c[0] / live, c[1] / live, c[2] / live];
         }
         this.settledCountValue = 0;
     }
@@ -831,7 +912,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
      */
     private fold(p: GroupPartials): void {
         const t = this.foldTotals(p);
-        const nf = this.n;
+        const nf = Math.max(this.liveRows, 1); // inert rows are not counted (setInert); all inert: no NaN
         const rmsRadius = Math.sqrt(Math.max(t.sumSq, 0) / nf);
         const meanDisplacement = t.free === 0 ? 0 : t.disp / t.free; // all-fixed: 0, never NaN (7.4)
         this.centroid = [t.sum[0] / nf, t.sum[1] / nf, t.sum[2] / nf];
@@ -878,135 +959,219 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         if (this.pending !== null) {
             this.fold(this.pending);
         }
-        const { positions: pos, mass, rowPtr, colIdx, weights, oldForce } = this;
-        const { scalingRatio, gravity, linlog, distributedAction: distributed, strongGravity } = this.options;
-        const { attraction, force, swing, traction, sumX, sumY, sumZ, sumW, disp, free } = scratch;
         // ---- K2: attraction over the CSR row, in arc order (design 7.5; 7.2 rows "Attraction", "Distributed action")
         for (let i = 0; i < n; i++) {
-            let fx = 0;
-            let fy = 0;
-            let fz = 0;
-            const px = pos[3 * i];
-            const py = pos[3 * i + 1];
-            const pz = pos[3 * i + 2];
-            for (let a = rowPtr[i]; a < rowPtr[i + 1]; a++) {
-                const j = colIdx[a];
-                if (j === i) {
-                    continue; // a self-loop exerts no force
-                }
-                const w = weights === null ? 1 : weights[a];
-                const dx = pos[3 * j] - px;
-                const dy = pos[3 * j + 1] - py;
-                const dz = pos[3 * j + 2] - pz;
-                let mag = w;
-                if (linlog) {
-                    const len = Math.max(len3(dx, dy, dz), FA2_DISTANCE_FLOOR);
-                    mag = (w * detLog(1 + len)) / len; // |F| = w log(1 + d) (7.2 row "Attraction (linlog)")
-                }
-                fx = fx + dx * mag;
-                fy = fy + dy * mag;
-                fz = fz + dz * mag;
-            }
-            if (distributed) {
-                fx = fx / mass[i];
-                fy = fy / mass[i];
-                fz = fz / mass[i];
-            }
-            attraction[3 * i] = fx;
-            attraction[3 * i + 1] = fy;
-            attraction[3 * i + 2] = fz;
+            this.attract(i);
         }
         // ---- K3: all-pairs repulsion in tile order (j ascending), gravity, force +=, swing / traction per node
-        swing.fill(0);
-        traction.fill(0);
+        scratch.swing.fill(0);
+        scratch.traction.fill(0);
         const cx = this.centroid[0];
         const cy = this.centroid[1];
         const cz = this.centroid[2];
-        this.tree?.build(pos, mass, n);
-        // every pair without the tree; with it, barnesHutRepulsion visits the near nodes only
-        const pairs = this.tree === null ? n : 0;
+        this.tree?.build(this.positions, this.mass, n);
         for (let i = 0; i < n; i++) {
-            const px = pos[3 * i];
-            const py = pos[3 * i + 1];
-            const pz = pos[3 * i + 2];
-            const mi = mass[i];
-            let fx = 0;
-            let fy = 0;
-            let fz = 0;
-            if (this.tree !== null) {
-                [fx, fy, fz] = this.barnesHutRepulsion(i);
-            }
-            for (let j = 0; j < pairs; j++) {
-                if (j === i) {
-                    continue;
-                }
-                const mj = mass[j];
-                const dx = px - pos[3 * j];
-                const dy = py - pos[3 * j + 1];
-                const dz = pz - pos[3 * j + 2];
-                let d2 = dx * dx + dy * dy + dz * dz;
-                if (d2 < FA2_COINCIDENT_SQ) {
-                    // coincident: antisymmetric unit kick of magnitude k m_i m_j / 0.01 (7.2 row "Coincident nodes")
-                    const kick = kickDir(i, j, this.dim);
-                    const magnitude = (scalingRatio * mi * mj) / FA2_DISTANCE_FLOOR;
-                    fx = fx + kick[0] * magnitude;
-                    fy = fy + kick[1] * magnitude;
-                    fz = fz + kick[2] * magnitude;
-                    continue;
-                }
-                d2 = Math.max(d2, FA2_DISTANCE_FLOOR_SQ); // d >= 0.01 (7.2 row "Distance floor")
-                const k = scalingRatio * mi * mj;
-                const scale = k / d2; // |F| = k m_i m_j / d along d / d (7.2 row "Repulsion")
-                fx = fx + dx * scale;
-                fy = fy + dy * scale;
-                fz = fz + dz * scale;
-            }
-            // gravity (design 7.9; 7.2 rows "Gravity centre", "Gravity law"; networkx: origin, layout.py 1466-1471)
-            let gx = 0;
-            let gy = 0;
-            let gz = 0;
-            const qx = this.gravityCenter === 0 ? px - cx : px;
-            const qy = this.gravityCenter === 0 ? py - cy : py;
-            const qz = this.gravityCenter === 0 ? pz - cz : pz;
-            const gm = -gravity * mi;
-            if (strongGravity) {
-                gx = gm * qx;
-                gy = gm * qy;
-                gz = gm * qz;
-            } else {
-                const d = len3(qx, qy, qz);
-                if (d > FA2_DISTANCE_FLOOR) {
-                    gx = (gm * qx) / d;
-                    gy = (gm * qy) / d;
-                    gz = (gm * qz) / d;
-                }
-            }
-            // the epilogue: f = repulsion + gravity; fnew = attraction + f (K3 adds to K2's force)
-            fx = fx + gx;
-            fy = fy + gy;
-            fz = fz + gz;
-            const Fx = attraction[3 * i] + fx;
-            const Fy = attraction[3 * i + 1] + fy;
-            const Fz = attraction[3 * i + 2] + fz;
-            force[3 * i] = Fx;
-            force[3 * i + 1] = Fy;
-            force[3 * i + 2] = Fz;
-            const ox = oldForce[3 * i];
-            const oy = oldForce[3 * i + 1];
-            const oz = oldForce[3 * i + 2];
-            if (this.swingMode === 1) {
-                // NetworkX: positions and forces mixed, every node (layout.py 1479-1480)
-                swing[i] = mi * len3(px - Fx, py - Fy, pz - Fz);
-                traction[i] = 0.5 * mi * len3(px + Fx, py + Fy, pz + Fz);
-            } else if (!this.isFixed(i)) {
-                // paper: m |F(t) - F(t-1)|, 0.5 m |F(t) + F(t-1)| over FREE nodes (Gephi ForceAtlas2.java 283-293)
-                swing[i] = mi * len3(Fx - ox, Fy - oy, Fz - oz);
-                traction[i] = 0.5 * mi * len3(Fx + ox, Fy + oy, Fz + oz);
-            }
+            this.applyForces(i, cx, cy, cz);
         }
         // ---- K4: fold partials B, accumulate in networkx mode, estimateFactor
-        const freshSwing = foldGroups(groupTotals(swing, n));
-        const freshTraction = foldGroups(groupTotals(traction, n));
+        this.estimateSpeed();
+        // ---- K5: integrate (design 7.11; 7.2 row "Local speed / apply"; networkx layout.py 1497-1501)
+        const speed = this.speedValue;
+        scratch.disp.fill(0);
+        scratch.free.fill(0);
+        for (let i = 0; i < n; i++) {
+            this.integrate(i, speed, cx, cy, cz);
+        }
+        const { sumX, sumY, sumZ, sumW, disp, free } = scratch;
+        this.pending = {
+            sumX: groupTotals(sumX, n),
+            sumY: groupTotals(sumY, n),
+            sumZ: groupTotals(sumZ, n),
+            sumW: groupTotals(sumW, n),
+            disp: groupTotals(disp, n),
+            free: groupTotals(free, n),
+        };
+    }
+
+    /**
+     * K2 on one node: the attraction of its CSR row, in arc order, into scratch.attraction.
+     * @param i - the node
+     */
+    private attract(i: number): void {
+        const { positions: pos, mass, rowPtr, colIdx, weights } = this;
+        const { linlog, distributedAction: distributed } = this.options;
+        const { attraction } = this.scratch;
+        let fx = 0;
+        let fy = 0;
+        let fz = 0;
+        const px = pos[3 * i];
+        const py = pos[3 * i + 1];
+        const pz = pos[3 * i + 2];
+        for (let a = rowPtr[i]; a < rowPtr[i + 1]; a++) {
+            const j = colIdx[a];
+            if (j === i || mass[j] === 0) {
+                continue; // a self-loop exerts no force, and an inert neighbour none (setInert)
+            }
+            const w = weights === null ? 1 : weights[a];
+            const dx = pos[3 * j] - px;
+            const dy = pos[3 * j + 1] - py;
+            const dz = pos[3 * j + 2] - pz;
+            let mag = w;
+            if (linlog) {
+                const len = Math.max(len3(dx, dy, dz), FA2_DISTANCE_FLOOR);
+                mag = (w * detLog(1 + len)) / len; // |F| = w log(1 + d) (7.2 row "Attraction (linlog)")
+            }
+            fx = fx + dx * mag;
+            fy = fy + dy * mag;
+            fz = fz + dz * mag;
+        }
+        if (distributed && mass[i] > 0) {
+            // an inert row weighs 0 and never moves: its force is left undivided, so it stays finite
+            fx = fx / mass[i];
+            fy = fy / mass[i];
+            fz = fz / mass[i];
+        }
+        attraction[3 * i] = fx;
+        attraction[3 * i + 1] = fy;
+        attraction[3 * i + 2] = fz;
+    }
+
+    /**
+     * K3 and its epilogue on one node: repulsion plus gravity plus K2's attraction into scratch.force, and the node's
+     * swing and traction.
+     * @param i - the node
+     * @param cx - the start-of-iteration centroid, x
+     * @param cy - its y
+     * @param cz - its z
+     */
+    private applyForces(i: number, cx: number, cy: number, cz: number): void {
+        const { positions: pos, mass, oldForce, nodeForce } = this;
+        const { attraction, force, swing, traction } = this.scratch;
+        const px = pos[3 * i];
+        const py = pos[3 * i + 1];
+        const pz = pos[3 * i + 2];
+        const mi = mass[i];
+        this.repulsion(i, px, py, pz, mi);
+        let fx = nodeForce[0];
+        let fy = nodeForce[1];
+        let fz = nodeForce[2];
+        this.gravityForce(px - cx, py - cy, pz - cz, px, py, pz, mi);
+        // the epilogue: f = repulsion + gravity; fnew = attraction + f (K3 adds to K2's force)
+        fx = fx + nodeForce[0];
+        fy = fy + nodeForce[1];
+        fz = fz + nodeForce[2];
+        const Fx = attraction[3 * i] + fx;
+        const Fy = attraction[3 * i + 1] + fy;
+        const Fz = attraction[3 * i + 2] + fz;
+        force[3 * i] = Fx;
+        force[3 * i + 1] = Fy;
+        force[3 * i + 2] = Fz;
+        const ox = oldForce[3 * i];
+        const oy = oldForce[3 * i + 1];
+        const oz = oldForce[3 * i + 2];
+        if (this.swingMode === 1) {
+            // NetworkX: positions and forces mixed, every node (layout.py 1479-1480)
+            swing[i] = mi * len3(px - Fx, py - Fy, pz - Fz);
+            traction[i] = 0.5 * mi * len3(px + Fx, py + Fy, pz + Fz);
+        } else if (!this.isFixed(i)) {
+            // paper: m |F(t) - F(t-1)|, 0.5 m |F(t) + F(t-1)| over FREE nodes (Gephi ForceAtlas2.java 283-293)
+            swing[i] = mi * len3(Fx - ox, Fy - oy, Fz - oz);
+            traction[i] = 0.5 * mi * len3(Fx + ox, Fy + oy, Fz + oz);
+        }
+    }
+
+    /**
+     * The repulsion on one node, into nodeForce: every pair without the tree; with it, barnesHutRepulsion visits the
+     * near nodes only.
+     * @param i - the node
+     * @param px - its x
+     * @param py - its y
+     * @param pz - its z
+     * @param mi - its mass
+     */
+    private repulsion(i: number, px: number, py: number, pz: number, mi: number): void {
+        const { positions: pos, mass, nodeForce } = this;
+        const { scalingRatio } = this.options;
+        let fx = 0;
+        let fy = 0;
+        let fz = 0;
+        if (this.tree !== null) {
+            [fx, fy, fz] = this.barnesHutRepulsion(i);
+        }
+        const pairs = this.tree === null ? this.n : 0;
+        for (let j = 0; j < pairs; j++) {
+            if (j === i) {
+                continue;
+            }
+            const mj = mass[j];
+            const dx = px - pos[3 * j];
+            const dy = py - pos[3 * j + 1];
+            const dz = pz - pos[3 * j + 2];
+            let d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 < FA2_COINCIDENT_SQ) {
+                // coincident: antisymmetric unit kick of magnitude k m_i m_j / 0.01 (7.2 row "Coincident nodes")
+                const kick = kickDir(i, j, this.dim);
+                const magnitude = (scalingRatio * mi * mj) / FA2_DISTANCE_FLOOR;
+                fx = fx + kick[0] * magnitude;
+                fy = fy + kick[1] * magnitude;
+                fz = fz + kick[2] * magnitude;
+                continue;
+            }
+            d2 = Math.max(d2, FA2_DISTANCE_FLOOR_SQ); // d >= 0.01 (7.2 row "Distance floor")
+            const k = scalingRatio * mi * mj;
+            const scale = k / d2; // |F| = k m_i m_j / d along d / d (7.2 row "Repulsion")
+            fx = fx + dx * scale;
+            fy = fy + dy * scale;
+            fz = fz + dz * scale;
+        }
+        nodeForce[0] = fx;
+        nodeForce[1] = fy;
+        nodeForce[2] = fz;
+    }
+
+    /**
+     * The gravity on one node, into nodeForce (design 7.9; 7.2 rows "Gravity centre", "Gravity law"; networkx:
+     * origin, layout.py 1466-1471).
+     * @param rx - its x less the centroid's
+     * @param ry - its y less the centroid's
+     * @param rz - its z less the centroid's
+     * @param px - its x
+     * @param py - its y
+     * @param pz - its z
+     * @param mi - its mass
+     */
+    private gravityForce(rx: number, ry: number, rz: number, px: number, py: number, pz: number, mi: number): void {
+        const { gravity, strongGravity } = this.options;
+        const { nodeForce } = this;
+        let gx = 0;
+        let gy = 0;
+        let gz = 0;
+        const qx = this.gravityCenter === 0 ? rx : px;
+        const qy = this.gravityCenter === 0 ? ry : py;
+        const qz = this.gravityCenter === 0 ? rz : pz;
+        const gm = -gravity * mi;
+        if (strongGravity) {
+            gx = gm * qx;
+            gy = gm * qy;
+            gz = gm * qz;
+        } else {
+            const d = len3(qx, qy, qz);
+            if (d > FA2_DISTANCE_FLOOR) {
+                gx = (gm * qx) / d;
+                gy = (gm * qy) / d;
+                gz = (gm * qz) / d;
+            }
+        }
+        nodeForce[0] = gx;
+        nodeForce[1] = gy;
+        nodeForce[2] = gz;
+    }
+
+    /** K4: fold the swing and traction partials, accumulate them in networkx mode, and estimate the global speed. */
+    private estimateSpeed(): void {
+        const { n } = this;
+        const freshSwing = foldGroups(groupTotals(this.scratch.swing, n));
+        const freshTraction = foldGroups(groupTotals(this.scratch.traction, n));
         let globalSwing = freshSwing;
         let globalTraction = freshTraction;
         if (this.swingMode === 1) {
@@ -1014,7 +1179,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             globalTraction = this.tractionValue + freshTraction;
         }
         const est = estimateFactor(
-            n,
+            Math.max(this.liveRows, 1),
             globalSwing,
             globalTraction,
             this.speedValue,
@@ -1025,57 +1190,57 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         this.speedEfficiencyValue = est.speedEfficiency;
         this.swingValue = globalSwing;
         this.tractionValue = globalTraction;
-        // ---- K5: integrate (design 7.11; 7.2 row "Local speed / apply"; networkx layout.py 1497-1501)
-        const speed = this.speedValue;
-        disp.fill(0);
-        free.fill(0);
-        for (let i = 0; i < n; i++) {
-            const Fx = force[3 * i];
-            const Fy = force[3 * i + 1];
-            const Fz = force[3 * i + 2];
-            const mi = mass[i];
-            let swingI = mi * len3(Fx, Fy, Fz); // SWING_MODE 1: NetworkX's local swinging m |F| (layout.py 1497)
-            if (this.swingMode === 0) {
-                swingI = mi * len3(Fx - oldForce[3 * i], Fy - oldForce[3 * i + 1], Fz - oldForce[3 * i + 2]);
-            }
-            const factor = speed / (1 + Math.sqrt(speed * swingI));
-            const fixed = this.isFixed(i);
-            const dx = fixed ? 0 : Fx * factor; // no clamp on dp (D25)
-            const dy = fixed ? 0 : Fy * factor;
-            let dz = fixed ? 0 : Fz * factor;
-            if (this.dim === 2) {
-                dz = 0; // 2D never integrates z (7.13)
-            }
-            const px = pos[3 * i] + dx;
-            const py = pos[3 * i + 1] + dy;
-            const pz = pos[3 * i + 2] + dz;
-            pos[3 * i] = px;
-            pos[3 * i + 1] = py;
-            pos[3 * i + 2] = pz;
-            if (this.swingMode === 0) {
-                oldForce[3 * i] = Fx; // fixed nodes too, so a later unpin sees no stale swing (7.11)
-                oldForce[3 * i + 1] = Fy;
-                oldForce[3 * i + 2] = Fz;
-            }
-            const qx = px - cx;
-            const qy = py - cy;
-            const qz = pz - cz;
-            sumX[i] = px;
-            sumY[i] = py;
-            sumZ[i] = pz;
-            sumW[i] = qx * qx + qy * qy + qz * qz; // |p - c|^2 about the start-of-iteration centroid
-            if (!fixed) {
-                disp[i] = len3(dx, dy, dz);
-                free[i] = 1;
-            }
+    }
+
+    /**
+     * K5 on one node: move it by its force and local speed, and write its statistics partials.
+     * @param i - the node
+     * @param speed - the global speed
+     * @param cx - the start-of-iteration centroid, x
+     * @param cy - its y
+     * @param cz - its z
+     */
+    private integrate(i: number, speed: number, cx: number, cy: number, cz: number): void {
+        const { positions: pos, mass, oldForce } = this;
+        const { force, sumX, sumY, sumZ, sumW, disp, free } = this.scratch;
+        const Fx = force[3 * i];
+        const Fy = force[3 * i + 1];
+        const Fz = force[3 * i + 2];
+        const mi = mass[i];
+        let swingI = mi * len3(Fx, Fy, Fz); // SWING_MODE 1: NetworkX's local swinging m |F| (layout.py 1497)
+        if (this.swingMode === 0) {
+            swingI = mi * len3(Fx - oldForce[3 * i], Fy - oldForce[3 * i + 1], Fz - oldForce[3 * i + 2]);
         }
-        this.pending = {
-            sumX: groupTotals(sumX, n),
-            sumY: groupTotals(sumY, n),
-            sumZ: groupTotals(sumZ, n),
-            sumW: groupTotals(sumW, n),
-            disp: groupTotals(disp, n),
-            free: groupTotals(free, n),
-        };
+        const factor = speed / (1 + Math.sqrt(speed * swingI));
+        const fixed = this.isFixed(i);
+        const dx = fixed ? 0 : Fx * factor; // no clamp on dp (D25)
+        const dy = fixed ? 0 : Fy * factor;
+        let dz = fixed ? 0 : Fz * factor;
+        if (this.dim === 2) {
+            dz = 0; // 2D never integrates z (7.13)
+        }
+        const px = pos[3 * i] + dx;
+        const py = pos[3 * i + 1] + dy;
+        const pz = pos[3 * i + 2] + dz;
+        pos[3 * i] = px;
+        pos[3 * i + 1] = py;
+        pos[3 * i + 2] = pz;
+        if (this.swingMode === 0) {
+            oldForce[3 * i] = Fx; // fixed nodes too, so a later unpin sees no stale swing (7.11)
+            oldForce[3 * i + 1] = Fy;
+            oldForce[3 * i + 2] = Fz;
+        }
+        const qx = px - cx;
+        const qy = py - cy;
+        const qz = pz - cz;
+        const live = mass[i] > 0; // an inert row is left out of the statistics (setInert)
+        sumX[i] = live ? px : 0;
+        sumY[i] = live ? py : 0;
+        sumZ[i] = live ? pz : 0;
+        sumW[i] = live ? qx * qx + qy * qy + qz * qz : 0; // |p - c|^2 about the start-of-iteration centroid
+        if (!fixed) {
+            disp[i] = len3(dx, dy, dz);
+            free[i] = 1;
+        }
     }
 }

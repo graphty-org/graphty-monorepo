@@ -8,7 +8,7 @@
  * test runs under walk the whole history on every write by design, and would be counted here.
  */
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
@@ -118,6 +118,20 @@ interface Case {
 }
 
 const RED = "#ff0000";
+
+/** A node shader with one parameter, as a reader pastes it. */
+const TINT = `/* graphty-shader 1
+{
+    "id": "user/tint",
+    "name": "Tint",
+    "place": "paint",
+    "params": [{ "name": "amount", "type": "number", "default": 0.5, "min": 0, "max": 1 }]
+}
+*/
+vec4 shade(NodeInput n) {
+    return vec4(n.color.rgb * amount, n.color.a);
+}
+`;
 
 /** A saved view: one camera state, the same at any graph size. */
 const VIEW = { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } };
@@ -911,9 +925,121 @@ const CASES: readonly Case[] = [
             };
         },
     },
+    // Runs, highlight colour and playback
+    {
+        method: "RunsApi.move",
+        growth: "linear",
+        prepare: async (session) => {
+            const run = await session.runs.start("louvain", {});
+            await session.styles.settled();
+            await everyNodeLayer(session);
+            return async () => {
+                await session.runs.move(run.runId, null);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.setHighlightColor",
+        growth: "constant",
+        prepare: (session) =>
+            Promise.resolve(() => {
+                session.styles.setHighlightColor(BLUE);
+            }),
+    },
+    {
+        method: "TimeApi.play",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.time.setField({ edges: { start: "w" } });
+            // One step of a play: it opens the first window, and is paused once that step is shown.
+            return () =>
+                new Promise<void>((done) => {
+                    const off = session.on("time:step", () => {
+                        off();
+                        session.time.pause();
+                        done();
+                    });
+                    session.time.play({ motion: "steps", step: 10 });
+                });
+        },
+    },
+    // Loads that replace the graph with one of the same size
+    {
+        method: "SessionDataApi.generate",
+        growth: "linear",
+        prepare: (session, size) => Promise.resolve(() => session.data.generate("cycle", { n: size })),
+    },
+    {
+        method: "SessionDataApi.loadDataset",
+        growth: "linear",
+        prepare: (session, size) => {
+            const source = pathSession(size);
+            const bytes = source.data.snapshot().toBytes();
+            source.dispose();
+            // A mirror answering from memory, never the network.
+            vi.stubGlobal("fetch", (): Promise<Response> => Promise.resolve(new Response(bytes)));
+            return Promise.resolve(() => session.data.loadDataset("scaling-path", { baseUrl: "https://mirror.test/" }));
+        },
+    },
+    // Shaders, applied to a layer painting every node
+    {
+        method: "SessionShaders.add",
+        growth: "linear",
+        prepare: async (session) => {
+            const layer = await everyNodeLayer(session);
+            return async () => {
+                assert.isTrue((await session.shaders.add(TINT, { apply: { layer } })).ok);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "SessionShaders.replace",
+        growth: "linear",
+        prepare: async (session) => {
+            const layer = await everyNodeLayer(session);
+            await session.shaders.add(TINT, { apply: { layer } });
+            await session.styles.settled();
+            return async () => {
+                assert.isTrue((await session.shaders.replace("user/tint", TINT.replace("0.5", "0.25"))).ok);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "SessionShaders.remove",
+        growth: "linear",
+        prepare: async (session) => {
+            const layer = await everyNodeLayer(session);
+            await session.shaders.add(TINT, { apply: { layer } });
+            await session.styles.settled();
+            return async () => {
+                await session.shaders.remove("user/tint");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "SessionShaders.approve",
+        growth: "linear",
+        prepare: async (session) => {
+            const layer = await everyNodeLayer(session);
+            // Text that arrives in content is held until the reader approves it.
+            await session.shaders.add(TINT, { source: "content", apply: { layer } });
+            await session.styles.settled();
+            return async () => {
+                assert.isTrue((await session.shaders.approve("user/tint")).ok);
+                await session.styles.settled();
+            };
+        },
+    },
 ];
 
 describe("the session's mutating methods do work in proportion to their reach", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
     for (const { method, growth, superlinear, prepare } of CASES) {
         const reach = growth === "linear" ? "no more than linear in the graph" : "about the same at any size";
         // A method with an open superlinear issue is expected to fail, so the fix turns it green.

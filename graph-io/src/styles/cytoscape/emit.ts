@@ -11,6 +11,7 @@ import { escapeXmlAttribute } from "../../common/escape.js";
 import { num6 } from "../canon/number.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { StyleNotes } from "../notes.js";
+import { drawnAnyway } from "../plan/plan.js";
 import { canonicalFor, degreeValues, refSource, resolveRules } from "../plan/resolve.js";
 import type {
     ColumnRef,
@@ -666,10 +667,15 @@ const DRAWN_SO: ReadonlyMap<string, StyleValue> = new Map<string, StyleValue>([
  * Whether every element's value of a property is how Cytoscape draws it anyway, so there is nothing to write.
  * @param p - the property
  * @param values - each element's value
+ * @param drawn - what Cytoscape draws for each property a file leaves unset (its tool defaults)
  * @returns true when nothing is lost by not writing it
  */
-function drawnSo(p: string, values: readonly (StyleValue | null)[]): boolean {
-    const way = DRAWN_SO.get(p);
+function drawnSo(
+    p: string,
+    values: readonly (StyleValue | null)[],
+    drawn: Readonly<Record<string, StyleValue>>,
+): boolean {
+    const way = DRAWN_SO.get(p) ?? drawn[p];
     return way !== undefined && values.every((v) => v === null || v === way);
 }
 
@@ -688,6 +694,7 @@ function emitTarget(
 ): void {
     const { target, notes, truth } = e;
     const writers = WRITERS[e.options.dialect][target];
+    const drawn = drawnAnyway("cytoscape", target, e.extracted.styles.units.length);
     for (const [p, values] of truth) {
         const fixed = FIXED[target].get(p);
         if (fixed !== undefined) {
@@ -697,7 +704,7 @@ function emitTarget(
             if (other > 0) {
                 notes.add(STYLE_ISSUE.APPROXIMATED, target, p, { count: other });
             }
-        } else if (!writers.has(p) && !(FONT_PROPS as readonly string[]).includes(p) && !drawnSo(p, values)) {
+        } else if (!writers.has(p) && !(FONT_PROPS as readonly string[]).includes(p) && !drawnSo(p, values, drawn)) {
             const count = values.filter((v) => v !== null).length;
             notes.add(STYLE_ISSUE.NOT_WRITTEN, target, p, { count: Math.max(count, 1) });
         }

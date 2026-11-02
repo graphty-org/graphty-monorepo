@@ -5,6 +5,13 @@
 import { getCursor } from "./raw.js";
 import type { Store } from "./store.js";
 
+/** The pull requests behind three PR stocks: the oldest open one, and those armed too long or green and stuck. */
+export interface PrStockPrs {
+    oldest?: number;
+    greenStuck: number[];
+    armedLong: number[];
+}
+
 /** An open pull request with auto-merge off by rule (4.2). */
 export interface OwnerWait {
     number: number;
@@ -85,7 +92,7 @@ export interface ChannelsSnapshot {
 /** A release workflow's newest runs (4.5, Release workflows). */
 export interface WorkflowState {
     workflow: string;
-    /** Completed runs created in the last hour, and how many failed. */
+    /** Completed runs created in the last 24 hours, and how many failed. */
     runs: number;
     failed: number;
     /** Newest runs failed in a row (of the runs read). */
@@ -132,18 +139,24 @@ export interface Snapshots {
     /** Every job ci.yml on master defines, by name; `${{ }}` matches anything. */
     "ci-jobs": string[];
     channels: ChannelsSnapshot;
+    /** The pull requests behind the PR stocks (the oldest open one, armed too long, green and stuck). */
+    "pr-stocks": PrStockPrs;
 }
 
 /**
- * @param store
- * @param name
+ * Reads a stored snapshot, kept as JSON in the cursor of its name.
+ * @param store - the table
+ * @param name - snapshot name
+ * @returns the snapshot, or undefined when absent or not valid JSON
  */
 export async function readSnapshot<K extends keyof Snapshots>(
     store: Store,
     name: K,
 ): Promise<Snapshots[K] | undefined> {
     const raw = await getCursor(store, name);
-    if (raw === undefined) return undefined;
+    if (raw === undefined) {
+        return undefined;
+    }
     try {
         return JSON.parse(raw) as Snapshots[K];
     } catch {

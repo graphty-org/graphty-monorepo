@@ -165,7 +165,7 @@ figure { margin: 0; flex: 1 1 380px; max-width: 800px; } figure svg, figure img 
 <h1>Style fidelity</h1>
 <p><b>Drawn pass rates, all samples:</b> ${esc(drawnRates(samples))}</p>
 ${selfCheckSection(selfCheck)}
-<p class="small">Every graphty value is read off the drawn scene (mesh boxes through the camera, material and instance colors, outline and glow layers, label planes, edge batches), never off the requested style; the requested value is shown beside a miss as "requested". Lengths are in reference units: graphty pixels times the fit's scale, fitted on node centers only. A fill under an outline or glow that reaches across the node, or on a node under 1 px, is not visible; so is a label behind its node's front face or under 1 px tall.</p>
+<p class="small">Every graphty value is read off the drawn scene (mesh boxes through the camera, material and instance colors, outline and glow layers, label planes, edge batches), never off the requested style; the requested value is shown beside a miss as "requested". Lengths are in reference units: graphty pixels times the fit's scale, fitted on node centers only. A fill under an outline or glow that reaches across the node, or on a node under 1 px, is not visible; so is a label behind its node's front face (a label drawn under 1 px is visible, and its size is judged by font size).</p>
 <p class="small">Generated ${esc(generatedAt)}. Each property is judged against the highest-ranked reference route that carries it.
 ${(Object.keys(STATUS_HELP) as Status[]).map((s) => `<span class="${s}">&nbsp;${s}&nbsp;</span> ${STATUS_HELP[s]}`).join("; ")}.</p>
 <div class="scroll"><table class="grid"><tr><th>sample</th>${PROPERTIES.map((p) => `<th class="v">${p}</th>`).join("")}</tr>${index}</table></div>

@@ -15,7 +15,7 @@ import {
     type TableMapping,
 } from "@graphty/graphty-element/session";
 
-import { fileStylesChoice } from "../settings/preferences";
+import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
 
 /** A column's role on the page: one of the element's roles, or "attribute" (no role). */
 export type PageRole = ColumnRole | "attribute";
@@ -280,6 +280,7 @@ export function loadChoices(draft: LoadDraft, choices: PageChoices, mode: "repla
         unmatched: choices.unmatched,
         directed: choices.directed,
         styles: choices.styles,
+        styleOptions: FILE_STYLE_OPTIONS,
         ...(Object.keys(tables).length > 0 ? { mapping: { tables } } : {}),
     };
 }

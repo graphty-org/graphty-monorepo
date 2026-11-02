@@ -315,7 +315,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
             - name: Post the benchmark results to the health dashboard
               if: ${{ !cancelled() && steps.bench.outcome == 'success' }}

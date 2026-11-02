@@ -13,6 +13,8 @@ import type {
     TimeWindow,
 } from "@graphty/graphty-element/session";
 
+import { formatCount } from "../settings/numberFormat";
+
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
@@ -234,7 +236,7 @@ export function windowWords(window: TimeWindow, unit: TimeUnit): string {
  * @returns "1 edge", "12 edges".
  */
 export function countWords(count: number, noun: string): string {
-    return `${count.toLocaleString()} ${noun}${count === 1 ? "" : "s"}`;
+    return `${formatCount(count)} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 /** The step and speed a play step happens at: 1x is one step a second. */

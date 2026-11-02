@@ -86,6 +86,52 @@ function collectStrings(node, into) {
 }
 
 /**
+ * Reads one top-level statement of the event module into what {@link readDomEvents} collects: an
+ * interface's event names and description, the internal-event set, or an event union's members.
+ * @param {ts.Statement} statement The statement to read.
+ * @param {ts.SourceFile} source The module the statement is in.
+ * @param {{ interfaces: Map<string, { names: string[], description: string }>, aliases: Map<string, string[]>, internal: Set<string> }} into
+ *     Where to record what the statement declares.
+ */
+function readStatement(statement, source, { interfaces, aliases, internal }) {
+    if (ts.isInterfaceDeclaration(statement)) {
+        const property = statement.members.find(
+            (member) => ts.isPropertySignature(member) && member.name.getText(source) === "type",
+        );
+
+        // An interface with no `type` member is not an event, and there are such interfaces in
+        // the module -- `NodeEventDetail` is the shape a node event's DOM `detail` carries, not
+        // an event. `find` answers undefined for one, and `ts.isPropertySignature` reads
+        // `.kind` off whatever it is handed, so calling it with that undefined threw and took
+        // the whole custom-elements manifest with it: `vite build` and every Storybook test
+        // failed to start, with the error blamed on the manifest plugin.
+        interfaces.set(statement.name.text, {
+            names: property === undefined ? [] : stringLiterals(property.type),
+            description: description(statement),
+        });
+        return;
+    }
+
+    if (ts.isVariableStatement(statement)) {
+        for (const declaration of statement.declarationList.declarations) {
+            if (ts.isIdentifier(declaration.name) && declaration.name.text === INTERNAL_SET) {
+                collectStrings(declaration.initializer, internal);
+            }
+        }
+        return;
+    }
+
+    if (ts.isTypeAliasDeclaration(statement) && EVENT_UNIONS.includes(statement.name.text)) {
+        const members = ts.isUnionTypeNode(statement.type) ? statement.type.types : [statement.type];
+
+        aliases.set(
+            statement.name.text,
+            members.filter((member) => ts.isTypeReferenceNode(member)).map((member) => member.typeName.getText(source)),
+        );
+    }
+}
+
+/**
  * Reads every forwarded DOM event out of the event module's source.
  * @param {string} eventsFile Absolute path to `src/events.ts`.
  * @returns {{ name: string, detail: string, description: string }[]} One entry per event name,
@@ -104,43 +150,7 @@ export function readDomEvents(eventsFile) {
     const internal = new Set();
 
     for (const statement of source.statements) {
-        if (ts.isInterfaceDeclaration(statement)) {
-            const property = statement.members.find(
-                (member) => ts.isPropertySignature(member) && member.name.getText(source) === "type",
-            );
-
-            // An interface with no `type` member is not an event, and there are such interfaces in
-            // the module -- `NodeEventDetail` is the shape a node event's DOM `detail` carries, not
-            // an event. `find` answers undefined for one, and `ts.isPropertySignature` reads
-            // `.kind` off whatever it is handed, so calling it with that undefined threw and took
-            // the whole custom-elements manifest with it: `vite build` and every Storybook test
-            // failed to start, with the error blamed on the manifest plugin.
-            interfaces.set(statement.name.text, {
-                names: property === undefined ? [] : stringLiterals(property.type),
-                description: description(statement),
-            });
-            continue;
-        }
-
-        if (ts.isVariableStatement(statement)) {
-            for (const declaration of statement.declarationList.declarations) {
-                if (ts.isIdentifier(declaration.name) && declaration.name.text === INTERNAL_SET) {
-                    collectStrings(declaration.initializer, internal);
-                }
-            }
-            continue;
-        }
-
-        if (ts.isTypeAliasDeclaration(statement) && EVENT_UNIONS.includes(statement.name.text)) {
-            const members = ts.isUnionTypeNode(statement.type) ? statement.type.types : [statement.type];
-
-            aliases.set(
-                statement.name.text,
-                members
-                    .filter((member) => ts.isTypeReferenceNode(member))
-                    .map((member) => member.typeName.getText(source)),
-            );
-        }
+        readStatement(statement, source, { interfaces, aliases, internal });
     }
 
     /** @type {Map<string, { name: string, detail: string, description: string }>} */

@@ -3,6 +3,7 @@ import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session
 import { ColorSwatch, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CatalogGlyph } from "../style/ValueField";
 import { colorName } from "../style/words";
@@ -285,6 +286,8 @@ function useScrolls(ref: React.RefObject<HTMLElement | null>): { scrolls: boolea
 export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): React.JSX.Element {
     const ref = useRef<HTMLElement>(null);
     const { scrolls, below } = useScrolls(ref);
+    // The reader's Number format respells the key's values.
+    useNumberFormats();
     // The element lists the stack bottom first; the card reads top first, the winner first.
     const names = keyNames(session);
     const sections = keySections(blocks, names);

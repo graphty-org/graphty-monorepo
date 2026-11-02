@@ -85,7 +85,10 @@ async function mounted(
         element.remove();
     });
     await element.updateComplete;
-    element.shaderSettings = { quality: "high", ...element.shaderSettings };
+    // These tests are about what a preset draws, not the frame guard. On a loaded runner one frame
+    // over 250 ms with a heavy preset on screen makes the guard turn heavy shaders off
+    // ("guard.long-frame"), and the node then draws plain; shader-depth.test.ts does the same.
+    element.shaderSettings = { quality: "high", ...element.shaderSettings, guard: false };
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.data.addNodes(nodes.map(({ id, x, y }) => ({ id, position: { x, y, z: 0 } })));
     await element.graph.setLayout("fixed", { dim: 3 });

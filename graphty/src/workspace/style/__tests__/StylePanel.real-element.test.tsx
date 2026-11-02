@@ -498,7 +498,7 @@ describe("the Style tab's rows on the real element", () => {
         await waitFor(() => {
             assert.include(
                 screen.queryAllByRole("tooltip", { hidden: true }).map((t) => t.textContent),
-                "Stop varying by data: use one color for all",
+                "Stop varying node color by data",
             );
         });
         await userEvent.click(await within(styleTab()).findByRole("button", { name: /^Node color: code,/ }));

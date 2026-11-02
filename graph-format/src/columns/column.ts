@@ -341,63 +341,175 @@ function resolveFill(
         case "u32":
         case "u8": {
             if (explicit !== undefined) {
-                if (typeof explicit !== "number") {
-                    throw typeError("fill", `fill of a ${dtype} column must be a number`, { found: typeof explicit });
-                }
-                return explicit;
+                return checkedFill(dtype, explicit, "number");
             }
             if (refersTo !== null) {
                 return INVALID_INDEX;
             }
-            const fromDefault = numericDefaultFill(dtype, components, defaultValue);
-            return fromDefault ?? 0;
+            return numericDefaultFill(dtype, components, defaultValue) ?? 0;
         }
         case "bool": {
             if (explicit !== undefined) {
-                if (typeof explicit !== "boolean") {
-                    throw typeError("fill", "fill of a bool column must be a boolean", { found: typeof explicit });
-                }
-                return explicit;
+                return checkedFill(dtype, explicit, "boolean");
             }
             return typeof defaultValue === "boolean" ? defaultValue : false;
         }
         case "dict": {
             if (explicit !== undefined) {
-                if (typeof explicit !== "string") {
-                    throw typeError("fill", "fill of a dict column must be a string", { found: typeof explicit });
-                }
-                return explicit;
+                return checkedFill(dtype, explicit, "string");
             }
-            if (typeof defaultValue === "string" && (options === null || options.includes(defaultValue))) {
-                return defaultValue;
-            }
-            if (options !== null && options.length > 0 && typeof options[0] === "string") {
-                return options[0];
-            }
-            return "";
+            return dictDefaultFill(defaultValue, options);
         }
         case "string": {
             if (explicit !== undefined) {
-                if (typeof explicit !== "string") {
-                    throw typeError("fill", "fill of a string column must be a string", { found: typeof explicit });
-                }
-                return explicit;
+                return checkedFill(dtype, explicit, "string");
             }
             return "";
         }
         case "list":
         case "json": {
-            // the nominal fill of a list / json column is ""; unset rows physically hold an empty list / undefined
-            if (explicit !== undefined && explicit !== "") {
-                throw typeError("fill", `a ${dtype} column takes no fill value`, { found: explicit });
-            }
-            return "";
+            return noFill(dtype, explicit);
         }
         default: {
             const name: string = dtype;
             throw new GraphFormatError("E_COLUMN_TYPE", `unknown dtype ${name}`, { dtype: name });
         }
     }
+}
+
+/**
+ * The fill of a list / json column: nominally "" (unset rows physically hold an empty list /
+ * undefined), so no other fill may be declared.
+ * @param dtype - the column dtype (named in the error)
+ * @param explicit - the declared fill, if any
+ * @returns ""
+ */
+function noFill(dtype: Dtype, explicit: number | string | boolean | undefined): string {
+    if (explicit !== undefined && explicit !== "") {
+        throw typeError("fill", `a ${dtype} column takes no fill value`, { found: explicit });
+    }
+    return "";
+}
+
+/**
+ * An explicit fill, checked to be of the JavaScript type the dtype stores.
+ * @param dtype - the column dtype (named in the error)
+ * @param explicit - the declared fill
+ * @param expected - the JavaScript type the fill must have
+ * @returns the fill
+ */
+function checkedFill(
+    dtype: Dtype,
+    explicit: number | string | boolean,
+    expected: "number" | "boolean" | "string",
+): number | string | boolean {
+    if (typeof explicit !== expected) {
+        throw typeError("fill", `fill of a ${dtype} column must be a ${expected}`, { found: typeof explicit });
+    }
+    return explicit;
+}
+
+/**
+ * The fill of a dict column with no explicit fill: the default when it is one of the options (or
+ * there are no options), else the first string option, else "".
+ * @param defaultValue - the declared default, if any
+ * @param options - the declared options, if any
+ * @returns the fill
+ */
+function dictDefaultFill(defaultValue: unknown, options: readonly unknown[] | null): string {
+    if (typeof defaultValue === "string" && (options === null || options.includes(defaultValue))) {
+        return defaultValue;
+    }
+    if (options !== null && options.length > 0 && typeof options[0] === "string") {
+        return options[0];
+    }
+    return "";
+}
+
+/**
+ * The item dtype and stride of a list column (both required to be valid), or nulls for any other
+ * dtype (which must not declare them).
+ * @param name - the column name
+ * @param dtype - the column dtype
+ * @param decl - the declaration
+ * @returns the item dtype and item components, null for a non-list column
+ */
+function resolveListItem(
+    name: string,
+    dtype: Dtype,
+    decl: ColumnDeclPatch,
+): { itemDtype: ScalarDtype | null; itemComponents: number | null } {
+    if (dtype !== "list") {
+        if (decl.itemDtype !== undefined || decl.itemComponents !== undefined) {
+            throw typeError("itemDtype", `itemDtype / itemComponents are only allowed on list columns, not ${dtype}`, {
+                name,
+                dtype,
+            });
+        }
+        return { itemDtype: null, itemComponents: null };
+    }
+    const { itemDtype: declaredItem } = decl;
+    if (declaredItem === undefined || !isScalarDtype(declaredItem)) {
+        throw typeError("itemDtype", `list column "${name}" needs a scalar itemDtype`, {
+            name,
+            found: declaredItem,
+        });
+    }
+    return {
+        itemDtype: declaredItem,
+        itemComponents: resolveComponents("itemComponents", decl.itemComponents, declaredItem),
+    };
+}
+
+/**
+ * Check a declared refersTo: "node" or "edge", on a u32 column or a list of u32, stride 1.
+ * @param name - the column name
+ * @param dtype - the column dtype
+ * @param refersTo - the declared refersTo
+ * @param components - the column stride
+ * @param itemDtype - the list item dtype, if any
+ * @param itemComponents - the list item stride, if any
+ */
+function checkRefersTo(
+    name: string,
+    dtype: Dtype,
+    refersTo: string,
+    components: number,
+    itemDtype: ScalarDtype | null,
+    itemComponents: number | null,
+): void {
+    if (refersTo !== "node" && refersTo !== "edge") {
+        throw typeError("refersTo", `refersTo must be "node" or "edge"`, { found: refersTo });
+    }
+    const indexColumn =
+        (dtype === "u32" && components === 1) || (dtype === "list" && itemDtype === "u32" && itemComponents === 1);
+    if (!indexColumn) {
+        throw typeError("refersTo", `refersTo requires a u32 column or a list of u32, not ${dtype}`, {
+            name,
+            dtype,
+        });
+    }
+}
+
+/**
+ * Check and freeze declared options: a JSON array, of strings for a dict column.
+ * @param dtype - the column dtype
+ * @param declared - the declared options
+ * @returns a frozen clone of the options
+ */
+function resolveOptions(dtype: Dtype, declared: unknown): readonly unknown[] {
+    if (!Array.isArray(declared)) {
+        throw typeError("options", "options must be an array");
+    }
+    assertJsonValue(declared, "options");
+    if (dtype === "dict") {
+        for (const option of declared) {
+            if (typeof option !== "string") {
+                throw typeError("options", "options of a dict column must be strings", { found: typeof option });
+            }
+        }
+    }
+    return Object.freeze(cloneJson([...declared]));
 }
 
 /**
@@ -416,57 +528,16 @@ export function resolveColumnMeta(name: string, domain: ColumnDomain, decl: Colu
         throw typeError("dtype", `column "${name}" has no valid dtype`, { name, found: dtype });
     }
     const components = resolveComponents("components", decl.components, dtype);
-    let itemDtype: ScalarDtype | null = null;
-    let itemComponents: number | null = null;
-    if (dtype === "list") {
-        const { itemDtype: declaredItem } = decl;
-        if (declaredItem === undefined || !isScalarDtype(declaredItem)) {
-            throw typeError("itemDtype", `list column "${name}" needs a scalar itemDtype`, {
-                name,
-                found: declaredItem,
-            });
-        }
-        itemDtype = declaredItem;
-        itemComponents = resolveComponents("itemComponents", decl.itemComponents, declaredItem);
-    } else if (decl.itemDtype !== undefined || decl.itemComponents !== undefined) {
-        throw typeError("itemDtype", `itemDtype / itemComponents are only allowed on list columns, not ${dtype}`, {
-            name,
-            dtype,
-        });
-    }
+    const { itemDtype, itemComponents } = resolveListItem(name, dtype, decl);
     const refersTo = decl.refersTo ?? null;
     if (refersTo !== null) {
-        if (refersTo !== "node" && refersTo !== "edge") {
-            throw typeError("refersTo", `refersTo must be "node" or "edge"`, { found: refersTo });
-        }
-        const indexColumn =
-            (dtype === "u32" && components === 1) || (dtype === "list" && itemDtype === "u32" && itemComponents === 1);
-        if (!indexColumn) {
-            throw typeError("refersTo", `refersTo requires a u32 column or a list of u32, not ${dtype}`, {
-                name,
-                dtype,
-            });
-        }
+        checkRefersTo(name, dtype, refersTo, components, itemDtype, itemComponents);
     }
     const defaultValue = decl.default;
     if (defaultValue !== undefined) {
         assertJsonValue(defaultValue, "default");
     }
-    let options: readonly unknown[] | null = null;
-    if (decl.options !== undefined) {
-        if (!Array.isArray(decl.options)) {
-            throw typeError("options", "options must be an array");
-        }
-        assertJsonValue(decl.options, "options");
-        if (dtype === "dict") {
-            for (const option of decl.options) {
-                if (typeof option !== "string") {
-                    throw typeError("options", "options of a dict column must be strings", { found: typeof option });
-                }
-            }
-        }
-        options = Object.freeze(cloneJson([...decl.options]));
-    }
+    const options = decl.options === undefined ? null : resolveOptions(dtype, decl.options);
     const extra = decl.extra ?? {};
     if (!isPlainObject(extra)) {
         throw typeError("extra", "extra must be a plain object");
@@ -1655,6 +1726,161 @@ function slotError(meta: ColumnMeta, message: string): GraphFormatError {
 }
 
 /**
+ * The validity slot of column parts, checked against the nullability and the row count.
+ * @param parts - the storage slots
+ * @returns the validity words, or null when every row is set
+ */
+function checkValidity(parts: MutableColumnParts): U32 | null {
+    const { meta, length, validity } = parts;
+    if (validity === null) {
+        return null;
+    }
+    if (!meta.nullable) {
+        throw slotError(meta, "a non-nullable column cannot carry a validity bitmap");
+    }
+    if (!(validity instanceof Uint32Array)) {
+        throw slotError(meta, "validity must be a Uint32Array");
+    }
+    if (validity.length !== bitmapWordCount(length)) {
+        throw lengthError(meta, "validity", bitmapWordCount(length), validity.length);
+    }
+    return validity;
+}
+
+/**
+ * A u8 column, whose data must admit a padded u32 view.
+ * @param parts - the storage slots
+ * @param validity - the checked validity
+ * @param nullCount - the number of unset rows
+ * @returns the column
+ */
+function createU8Column(parts: MutableColumnParts, validity: U32 | null, nullCount: number): Column {
+    const { meta, length } = parts;
+    const data = checkNumeric(parts, Uint8Array);
+    if (!canViewAsPaddedU32(data)) {
+        throw new GraphFormatError("E_COLUMN_ALIGNMENT", `column "${meta.name}": no padded u32 view over the u8 data`, {
+            column: meta.name,
+            byteOffset: data.byteOffset,
+            byteLength: data.byteLength,
+        });
+    }
+    return new U8ColumnImpl(meta, length, data, validity, nullCount);
+}
+
+/**
+ * A bool column over packed Uint32Array words.
+ * @param parts - the storage slots
+ * @param validity - the checked validity
+ * @param nullCount - the number of unset rows
+ * @returns the column
+ */
+function createBoolColumn(parts: MutableColumnParts, validity: U32 | null, nullCount: number): Column {
+    const { meta, length, data } = parts;
+    if (!(data instanceof Uint32Array)) {
+        throw slotError(meta, "bool data must be packed Uint32Array words");
+    }
+    if (data.length !== bitmapWordCount(length)) {
+        throw lengthError(meta, "data", bitmapWordCount(length), data.length);
+    }
+    return new BoolColumnImpl(meta, length, data, validity, nullCount);
+}
+
+/**
+ * A dict column over Uint32Array codes and a dictionary.
+ * @param parts - the storage slots
+ * @param validity - the checked validity
+ * @param nullCount - the number of unset rows
+ * @returns the column
+ */
+function createDictColumn(parts: MutableColumnParts, validity: U32 | null, nullCount: number): Column {
+    const { meta, length, data, dictionary } = parts;
+    if (!(data instanceof Uint32Array)) {
+        throw slotError(meta, "dict codes must be a Uint32Array");
+    }
+    if (data.length !== length) {
+        throw lengthError(meta, "codes", length, data.length);
+    }
+    if (dictionary === null) {
+        throw slotError(meta, "dict column needs a dictionary");
+    }
+    return new DictColumnImpl(meta, length, data, dictionary, validity, nullCount);
+}
+
+/**
+ * A string column, over a Utf8 store (offsets and bytes) or, without one, over fully decoded rows.
+ * @param parts - the storage slots
+ * @param validity - the checked validity
+ * @param nullCount - the number of unset rows
+ * @returns the column
+ */
+function createStringColumn(parts: MutableColumnParts, validity: U32 | null, nullCount: number): Column {
+    const { meta, length, offsets, utf8, strings } = parts;
+    if (offsets === null || utf8 === null) {
+        if (strings?.length !== length) {
+            throw lengthError(meta, "strings", length, strings === null ? -1 : strings.length);
+        }
+        for (let row = 0; row < length; row++) {
+            if (typeof strings[row] !== "string") {
+                throw slotError(meta, `row ${row} is not a decoded string and no Utf8 store is present`);
+            }
+        }
+        return new StringColumnImpl(meta, length, null, null, strings, validity, nullCount);
+    }
+    if (offsets.length !== length + 1) {
+        throw lengthError(meta, "offsets", length + 1, offsets.length);
+    }
+    if (offsets[length] !== utf8.length) {
+        throw lengthError(meta, "utf8", offsets[length], utf8.length);
+    }
+    return new StringColumnImpl(meta, length, offsets, utf8, strings, validity, nullCount);
+}
+
+/**
+ * A list column over offsets and a non-nullable, non-list child of the declared item type.
+ * @param parts - the storage slots
+ * @param validity - the checked validity
+ * @param nullCount - the number of unset rows
+ * @returns the column
+ */
+function createListColumn(parts: MutableColumnParts, validity: U32 | null, nullCount: number): Column {
+    const { meta, length, offsets, child } = parts;
+    if (offsets?.length !== length + 1) {
+        throw lengthError(meta, "offsets", length + 1, offsets === null ? -1 : offsets.length);
+    }
+    if (child === null || child.dtype === "list") {
+        throw slotError(meta, "list column needs a non-list child column");
+    }
+    if (child.validity !== null || child.meta.nullable) {
+        throw slotError(meta, "list child must be non-nullable");
+    }
+    if (child.dtype !== meta.itemDtype || child.meta.components !== meta.itemComponents) {
+        throw slotError(
+            meta,
+            `list child is ${child.dtype} x${child.meta.components}, declared ${String(meta.itemDtype)} x${String(meta.itemComponents)}`,
+        );
+    }
+    if (offsets[length] !== child.length) {
+        throw lengthError(meta, "child", offsets[length], child.length);
+    }
+    return new ListColumnImpl(meta, length, offsets, child, validity, nullCount);
+}
+
+/**
+ * A json column over one value per row.
+ * @param parts - the storage slots
+ * @param validity - the checked validity
+ * @param nullCount - the number of unset rows
+ * @returns the column
+ */
+function createJsonColumn(parts: MutableColumnParts, validity: U32 | null, nullCount: number): Column {
+    const { meta, length, values } = parts;
+    if (values?.length !== length) {
+        throw lengthError(meta, "values", length, values === null ? -1 : values.length);
+    }
+    return new JsonColumnImpl(meta, length, values, validity, nullCount);
+}
+
+/**
  * Wrap raw column storage into a Column of the dtype named by parts.meta (the column factory of
  * design section 5.7). Checks the slot use and the length rules of invariant I12 (E_COLUMN_LENGTH /
  * E_COLUMN_TYPE / E_COLUMN_ALIGNMENT), recomputes nullCount from the validity bitmap, and adopts
@@ -1670,20 +1896,7 @@ export function createColumn(parts: MutableColumnParts): Column {
             found: length,
         });
     }
-    const { validity: given } = parts;
-    let validity: U32 | null = null;
-    if (given !== null) {
-        if (!meta.nullable) {
-            throw slotError(meta, "a non-nullable column cannot carry a validity bitmap");
-        }
-        if (!(given instanceof Uint32Array)) {
-            throw slotError(meta, "validity must be a Uint32Array");
-        }
-        if (given.length !== bitmapWordCount(length)) {
-            throw lengthError(meta, "validity", bitmapWordCount(length), given.length);
-        }
-        validity = given;
-    }
+    const validity = checkValidity(parts);
     const nullCount = validity === null ? 0 : length - bitmapCount(validity, length);
     const { dtype } = meta;
     switch (dtype) {
@@ -1695,91 +1908,18 @@ export function createColumn(parts: MutableColumnParts): Column {
             return new I32ColumnImpl(meta, length, checkNumeric(parts, Int32Array), validity, nullCount);
         case "u32":
             return new U32ColumnImpl(meta, length, checkNumeric(parts, Uint32Array), validity, nullCount);
-        case "u8": {
-            const data = checkNumeric(parts, Uint8Array);
-            if (!canViewAsPaddedU32(data)) {
-                throw new GraphFormatError(
-                    "E_COLUMN_ALIGNMENT",
-                    `column "${meta.name}": no padded u32 view over the u8 data`,
-                    {
-                        column: meta.name,
-                        byteOffset: data.byteOffset,
-                        byteLength: data.byteLength,
-                    },
-                );
-            }
-            return new U8ColumnImpl(meta, length, data, validity, nullCount);
-        }
-        case "bool": {
-            if (!(parts.data instanceof Uint32Array)) {
-                throw slotError(meta, "bool data must be packed Uint32Array words");
-            }
-            if (parts.data.length !== bitmapWordCount(length)) {
-                throw lengthError(meta, "data", bitmapWordCount(length), parts.data.length);
-            }
-            return new BoolColumnImpl(meta, length, parts.data, validity, nullCount);
-        }
-        case "dict": {
-            if (!(parts.data instanceof Uint32Array)) {
-                throw slotError(meta, "dict codes must be a Uint32Array");
-            }
-            if (parts.data.length !== length) {
-                throw lengthError(meta, "codes", length, parts.data.length);
-            }
-            if (parts.dictionary === null) {
-                throw slotError(meta, "dict column needs a dictionary");
-            }
-            return new DictColumnImpl(meta, length, parts.data, parts.dictionary, validity, nullCount);
-        }
-        case "string": {
-            if (parts.offsets === null || parts.utf8 === null) {
-                const { strings } = parts;
-                if (strings?.length !== length) {
-                    throw lengthError(meta, "strings", length, strings === null ? -1 : strings.length);
-                }
-                for (let row = 0; row < length; row++) {
-                    if (typeof strings[row] !== "string") {
-                        throw slotError(meta, `row ${row} is not a decoded string and no Utf8 store is present`);
-                    }
-                }
-                return new StringColumnImpl(meta, length, null, null, strings, validity, nullCount);
-            }
-            if (parts.offsets.length !== length + 1) {
-                throw lengthError(meta, "offsets", length + 1, parts.offsets.length);
-            }
-            if (parts.offsets[length] !== parts.utf8.length) {
-                throw lengthError(meta, "utf8", parts.offsets[length], parts.utf8.length);
-            }
-            return new StringColumnImpl(meta, length, parts.offsets, parts.utf8, parts.strings, validity, nullCount);
-        }
-        case "list": {
-            if (parts.offsets?.length !== length + 1) {
-                throw lengthError(meta, "offsets", length + 1, parts.offsets === null ? -1 : parts.offsets.length);
-            }
-            const { child } = parts;
-            if (child === null || child.dtype === "list") {
-                throw slotError(meta, "list column needs a non-list child column");
-            }
-            if (child.validity !== null || child.meta.nullable) {
-                throw slotError(meta, "list child must be non-nullable");
-            }
-            if (child.dtype !== meta.itemDtype || child.meta.components !== meta.itemComponents) {
-                throw slotError(
-                    meta,
-                    `list child is ${child.dtype} x${child.meta.components}, declared ${String(meta.itemDtype)} x${String(meta.itemComponents)}`,
-                );
-            }
-            if (parts.offsets[length] !== child.length) {
-                throw lengthError(meta, "child", parts.offsets[length], child.length);
-            }
-            return new ListColumnImpl(meta, length, parts.offsets, child, validity, nullCount);
-        }
-        case "json": {
-            if (parts.values?.length !== length) {
-                throw lengthError(meta, "values", length, parts.values === null ? -1 : parts.values.length);
-            }
-            return new JsonColumnImpl(meta, length, parts.values, validity, nullCount);
-        }
+        case "u8":
+            return createU8Column(parts, validity, nullCount);
+        case "bool":
+            return createBoolColumn(parts, validity, nullCount);
+        case "dict":
+            return createDictColumn(parts, validity, nullCount);
+        case "string":
+            return createStringColumn(parts, validity, nullCount);
+        case "list":
+            return createListColumn(parts, validity, nullCount);
+        case "json":
+            return createJsonColumn(parts, validity, nullCount);
         default: {
             const name: string = dtype;
             throw new GraphFormatError("E_COLUMN_TYPE", `unknown dtype ${name}`, { dtype: name });
@@ -2192,6 +2332,197 @@ function listPartsFromValues(
 }
 
 /**
+ * Whether a row is set under a validity bitmap (null = every row set).
+ * @param validity - the validity words, or null
+ * @param row - the row
+ * @returns true when set
+ */
+function isSetRow(validity: U32 | null, row: number): boolean {
+    return validity === null || bitmapGet(validity, row);
+}
+
+/**
+ * The validity bitmap and null count of a JS array of values, throwing E_COLUMN_TYPE at the first
+ * unset row of a non-nullable column.
+ * @param meta - the resolved metadata
+ * @param values - the entries
+ * @returns the validity (null when every row is set) and the number of unset rows
+ */
+function validityOfValues(meta: ColumnMeta, values: readonly unknown[]): { validity: U32 | null; nullCount: number } {
+    const { length } = values;
+    let validity: U32 | null = null;
+    let nullCount = 0;
+    for (let row = 0; row < length; row++) {
+        if (!isUnsetEntry(values[row], meta.dtype)) {
+            continue;
+        }
+        if (!meta.nullable) {
+            throw new GraphFormatError("E_COLUMN_TYPE", `row ${row} of non-nullable column "${meta.name}" is unset`, {
+                column: meta.name,
+                row,
+            });
+        }
+        validity ??= makeBitmap(length, true);
+        bitmapClear(validity, row);
+        nullCount++;
+    }
+    return { validity, nullCount };
+}
+
+/**
+ * Fill the data slot of a numeric column from values (a boolean becomes 1 / 0).
+ * @param parts - the column parts, validity already set
+ * @param dtype - the numeric dtype
+ * @param values - the entries
+ */
+function numericPartsOfValues(parts: MutableColumnParts, dtype: NumericDtype, values: readonly unknown[]): void {
+    const { meta, length, validity } = parts;
+    const { components, fill, name } = meta;
+    const data = allocNumeric(dtype, length * components);
+    if (fill !== 0) {
+        data.fill(fill as number);
+    }
+    for (let row = 0; row < length; row++) {
+        if (!isSetRow(validity, row)) {
+            continue;
+        }
+        const raw = values[row];
+        const value = typeof raw === "boolean" ? Number(raw) : raw;
+        writeNumeric(dtype, data, row * components, components, value, name, row);
+    }
+    parts.data = data;
+}
+
+/**
+ * Fill the packed words of a bool column from values.
+ * @param parts - the column parts, validity already set
+ * @param values - the entries
+ */
+function boolPartsOfValues(parts: MutableColumnParts, values: readonly unknown[]): void {
+    const { length, validity } = parts;
+    const data = makeBitmap(length, parts.meta.fill === true);
+    for (let row = 0; row < length; row++) {
+        if (!isSetRow(validity, row)) {
+            continue;
+        }
+        if (coerceValue(values[row], "bool") === true) {
+            bitmapSet(data, row);
+        } else {
+            bitmapClear(data, row);
+        }
+    }
+    parts.data = data;
+}
+
+/**
+ * Coerce a set cell of a dict or string column to its text, throwing E_COLUMN_TYPE otherwise.
+ * @param value - the entry
+ * @param kind - "dict" or "string", for the message
+ * @param name - the column name
+ * @param row - the row
+ * @returns the text
+ */
+function textOfValue(value: unknown, kind: "dict" | "string", name: string, row: number): string {
+    const text = coerceValue(value, "string");
+    if (typeof text !== "string") {
+        throw new GraphFormatError("E_COLUMN_TYPE", `row ${row} of ${kind} column "${name}" is not a string`, {
+            column: name,
+            row,
+        });
+    }
+    return text;
+}
+
+/**
+ * Fill the codes and dictionary of a dict column from values.
+ * @param parts - the column parts, validity already set
+ * @param values - the entries
+ */
+function dictPartsOfValues(parts: MutableColumnParts, values: readonly unknown[]): void {
+    const { meta, length, validity } = parts;
+    const dictionary = seedDictionary(meta);
+    const codes = new Uint32Array(length);
+    if (validity !== null) {
+        codes.fill(fillCode(dictionary, meta.fill, false));
+    }
+    for (let row = 0; row < length; row++) {
+        if (isSetRow(validity, row)) {
+            codes[row] = dictionary.intern(textOfValue(values[row], "dict", meta.name, row));
+        }
+    }
+    parts.data = codes;
+    parts.dictionary = dictionary.values;
+}
+
+/**
+ * Fill the decoded strings of a string column from values (unset rows hold the fill text).
+ * @param parts - the column parts, validity already set
+ * @param values - the entries
+ */
+function stringPartsOfValues(parts: MutableColumnParts, values: readonly unknown[]): void {
+    const { meta, length, validity } = parts;
+    const { fill, name } = meta;
+    const fillText = typeof fill === "string" ? fill : "";
+    const strings = new Array<string>(length);
+    for (let row = 0; row < length; row++) {
+        if (!isSetRow(validity, row)) {
+            strings[row] = fillText;
+            continue;
+        }
+        const value = textOfValue(values[row], "string", name, row);
+        assertWellFormedString(value, { column: name, row });
+        strings[row] = value;
+    }
+    parts.strings = strings;
+}
+
+/**
+ * Fill the offsets and child of a list column from values (unset rows are empty).
+ * @param parts - the column parts, validity already set
+ * @param values - the entries
+ */
+function listPartsOfValues(parts: MutableColumnParts, values: readonly unknown[]): void {
+    const { meta, length, validity } = parts;
+    const rows = new Array<readonly unknown[]>(length);
+    for (let row = 0; row < length; row++) {
+        if (!isSetRow(validity, row)) {
+            rows[row] = [];
+            continue;
+        }
+        const value = values[row];
+        if (!Array.isArray(value)) {
+            throw new GraphFormatError("E_COLUMN_TYPE", `row ${row} of list column "${meta.name}" is not an array`, {
+                column: meta.name,
+                row,
+            });
+        }
+        rows[row] = value;
+    }
+    const listParts = listPartsFromValues(meta, rows);
+    parts.offsets = listParts.offsets;
+    parts.child = listParts.child;
+}
+
+/**
+ * Fill the values of a json column (unset rows hold undefined).
+ * @param parts - the column parts, validity already set
+ * @param values - the entries
+ */
+function jsonPartsOfValues(parts: MutableColumnParts, values: readonly unknown[]): void {
+    const { length, validity } = parts;
+    const out = new Array<unknown>(length);
+    for (let row = 0; row < length; row++) {
+        if (!isSetRow(validity, row)) {
+            out[row] = undefined;
+            continue;
+        }
+        assertJsonValue(values[row], `row ${row}`);
+        out[row] = values[row];
+    }
+    parts.values = out;
+}
+
+/**
  * A column from a JS array of values under resolved metadata (one entry per row; undefined, and null
  * except for json, is an unset row). Values are coerced per design section 5.1 (a boolean into a
  * number column becomes 1 / 0, a number or boolean into a string column its canonical text) and
@@ -2201,142 +2532,33 @@ function listPartsFromValues(
  * @returns the column
  */
 export function columnOfValues(meta: ColumnMeta, values: readonly unknown[]): Column {
-    const { length } = values;
-    const { dtype, components, fill, name } = meta;
-    let validity: U32 | null = null;
-    let nullCount = 0;
-    for (let row = 0; row < length; row++) {
-        if (isUnsetEntry(values[row], dtype)) {
-            if (!meta.nullable) {
-                throw new GraphFormatError("E_COLUMN_TYPE", `row ${row} of non-nullable column "${name}" is unset`, {
-                    column: name,
-                    row,
-                });
-            }
-            validity ??= makeBitmap(length, true);
-            bitmapClear(validity, row);
-            nullCount++;
-        }
-    }
-    const parts = emptyParts(meta, length, validity);
+    const { validity, nullCount } = validityOfValues(meta, values);
+    const parts = emptyParts(meta, values.length, validity);
     parts.nullCount = nullCount;
-    const isSet = (row: number): boolean => validity === null || bitmapGet(validity, row);
+    const { dtype } = meta;
     switch (dtype) {
         case "f32":
         case "f64":
         case "i32":
         case "u32":
-        case "u8": {
-            const data = allocNumeric(dtype, length * components);
-            if (fill !== 0) {
-                data.fill(fill as number);
-            }
-            for (let row = 0; row < length; row++) {
-                if (!isSet(row)) {
-                    continue;
-                }
-                const raw = values[row];
-                const value = typeof raw === "boolean" ? Number(raw) : raw;
-                writeNumeric(dtype, data, row * components, components, value, name, row);
-            }
-            parts.data = data;
+        case "u8":
+            numericPartsOfValues(parts, dtype, values);
             break;
-        }
-        case "bool": {
-            const data = makeBitmap(length, fill === true);
-            for (let row = 0; row < length; row++) {
-                if (!isSet(row)) {
-                    continue;
-                }
-                const value = coerceValue(values[row], "bool");
-                if (value === true) {
-                    bitmapSet(data, row);
-                } else {
-                    bitmapClear(data, row);
-                }
-            }
-            parts.data = data;
+        case "bool":
+            boolPartsOfValues(parts, values);
             break;
-        }
-        case "dict": {
-            const dictionary = seedDictionary(meta);
-            const codes = new Uint32Array(length);
-            if (validity !== null) {
-                codes.fill(fillCode(dictionary, fill, false));
-            }
-            for (let row = 0; row < length; row++) {
-                if (!isSet(row)) {
-                    continue;
-                }
-                const value = coerceValue(values[row], "string");
-                if (typeof value !== "string") {
-                    throw new GraphFormatError("E_COLUMN_TYPE", `row ${row} of dict column "${name}" is not a string`, {
-                        column: name,
-                        row,
-                    });
-                }
-                codes[row] = dictionary.intern(value);
-            }
-            parts.data = codes;
-            parts.dictionary = dictionary.values;
+        case "dict":
+            dictPartsOfValues(parts, values);
             break;
-        }
-        case "string": {
-            const fillText = typeof fill === "string" ? fill : "";
-            const strings = new Array<string>(length);
-            for (let row = 0; row < length; row++) {
-                if (!isSet(row)) {
-                    strings[row] = fillText;
-                    continue;
-                }
-                const value = coerceValue(values[row], "string");
-                if (typeof value !== "string") {
-                    throw new GraphFormatError(
-                        "E_COLUMN_TYPE",
-                        `row ${row} of string column "${name}" is not a string`,
-                        { column: name, row },
-                    );
-                }
-                assertWellFormedString(value, { column: name, row });
-                strings[row] = value;
-            }
-            parts.strings = strings;
+        case "string":
+            stringPartsOfValues(parts, values);
             break;
-        }
-        case "list": {
-            const rows = new Array<readonly unknown[]>(length);
-            for (let row = 0; row < length; row++) {
-                if (!isSet(row)) {
-                    rows[row] = [];
-                    continue;
-                }
-                const value = values[row];
-                if (!Array.isArray(value)) {
-                    throw new GraphFormatError("E_COLUMN_TYPE", `row ${row} of list column "${name}" is not an array`, {
-                        column: name,
-                        row,
-                    });
-                }
-                rows[row] = value;
-            }
-            const listParts = listPartsFromValues(meta, rows);
-            parts.offsets = listParts.offsets;
-            parts.child = listParts.child;
+        case "list":
+            listPartsOfValues(parts, values);
             break;
-        }
-        case "json": {
-            const out = new Array<unknown>(length);
-            for (let row = 0; row < length; row++) {
-                if (!isSet(row)) {
-                    out[row] = undefined;
-                    continue;
-                }
-                assertJsonValue(values[row], `row ${row}`);
-                out[row] = values[row];
-            }
-            parts.values = out;
+        case "json":
+            jsonPartsOfValues(parts, values);
             break;
-        }
         default: {
             const dtypeName: string = dtype;
             throw new GraphFormatError("E_COLUMN_TYPE", `unknown dtype ${dtypeName}`, { dtype: dtypeName });

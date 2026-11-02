@@ -94,7 +94,9 @@ describe("pipeline-round skill", () => {
 
     it("reopens a master-guard revert as graphty-agent before arming it, and keeps the main checkout on master", () => {
         assert.match(flat, /gh pr close <n> && gh pr reopen <n>/);
-        assert.match(shared, /git merge -q --ff-only origin\/master/);
+        // A merge, not only a fast-forward: tools/live.sh workspace puts a branch's change there first.
+        assert.match(shared, /git merge -q --no-edit origin\/master/);
+        assert.doesNotMatch(shared, /git merge -q --ff-only origin\/master/);
     });
 });
 

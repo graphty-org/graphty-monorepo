@@ -1,6 +1,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 import {
     type CommonImportOptions,
+    type FileLayout,
     type GraphChoiceOptions,
     type GraphImporter,
     type GraphListing,
@@ -349,6 +350,75 @@ export interface DeclaredDirection {
 }
 
 /**
+ * Check one attempt's response: a client error that would answer the same on every retry is thrown
+ * as a coded failure at once; any other response that is not ok is thrown plainly for the caller to
+ * retry.
+ * @param response - The attempt's response
+ * @param url - URL fetched from
+ * @param attempt - The zero-based attempt number
+ * @param last - Receives the status of a response that came back but was not ok
+ * @param last.status - The status of the last response that came back but was not ok
+ */
+function checkResponse(response: Response, url: string, attempt: number, last: { status?: number }): void {
+    if (response.ok) {
+        return;
+    }
+
+    last.status = response.status;
+    const { status } = response;
+    // A client error (404, 401, 403...) will answer the same on every retry,
+    // so fail at once and say the same call cannot succeed. 408 and 429 are
+    // the two client statuses that mean "try again later".
+    if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        throw new GraphtyError({
+            code: "E_FETCH_FAILED",
+            message: `Failed to fetch from ${url}: HTTP ${status}`,
+            source: "data",
+            recoverable: false,
+            details: { url, attempts: attempt + 1, status },
+        });
+    }
+
+    throw new Error(`HTTP error! status: ${status}`);
+}
+
+/**
+ * The coded failure of a fetch whose every attempt failed.
+ * @param url - URL fetched from
+ * @param retries - The number of attempts made
+ * @param status - The status of the last response that came back but was not ok
+ * @param error - What the last attempt threw
+ * @returns The error
+ */
+function retriesExhausted(url: string, retries: number, status: number | undefined, error: unknown): GraphtyError {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return new GraphtyError({
+        code: "E_FETCH_FAILED",
+        message: `Failed to fetch from ${url} after ${retries} attempts: ${errorMsg}`,
+        source: "data",
+        // A server that was down, a network that dropped: the same call unchanged
+        // could succeed later, which is exactly what this flag is for.
+        recoverable: true,
+        details: { url, attempts: retries, status },
+        cause: error,
+    });
+}
+
+/**
+ * The error an attempt stops with: an aborted attempt is reported as its timeout.
+ * @param error - What the attempt threw
+ * @param timeout - Timeout in milliseconds for the attempt
+ * @returns The error to throw
+ */
+function attemptError(error: unknown, timeout: number): unknown {
+    if (error instanceof Error && error.name === "AbortError") {
+        return new Error(`Request timeout after ${timeout}ms`);
+    }
+
+    return error;
+}
+
+/**
  * Base class for all data source implementations that load graph data from various formats.
  * Provides common functionality for validation, chunking, error handling, and data fetching.
  */
@@ -399,6 +469,8 @@ export abstract class DataSource {
     private declaration: DeclaredDirection | null = null;
     /** Backing field of {@link declaredGraphValues}; written only by {@link declareGraphValues}. */
     private graphValues: Readonly<Record<string, unknown>> | null = null;
+    /** Backing field of {@link declaredFileLayout}; written only by {@link declareFileLayout}. */
+    private fileLayout: FileLayout | null = null;
 
     /**
      * Creates a new DataSource instance.
@@ -461,7 +533,7 @@ export abstract class DataSource {
         // The status of the last response that came back but was not ok, so the coded failure can
         // carry it: a consumer that wants to tell "not found" from "forbidden" reads details.status
         // rather than parsing the message.
-        let lastStatus: number | undefined;
+        const last: { status?: number } = {};
 
         for (let attempt = 0; attempt < retries; attempt++) {
             try {
@@ -471,38 +543,16 @@ export abstract class DataSource {
                     controller.abort();
                 }, timeout);
 
+                // The fetch stays inline, not in an awaited helper, so an attempt settles on the same
+                // tick it always did.
                 try {
                     const response = await fetch(url, { signal: controller.signal });
                     clearTimeout(timeoutId);
-
-                    if (!response.ok) {
-                        lastStatus = response.status;
-                        const { status } = response;
-                        // A client error (404, 401, 403...) will answer the same on every retry,
-                        // so fail at once and say the same call cannot succeed. 408 and 429 are
-                        // the two client statuses that mean "try again later".
-                        if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
-                            throw new GraphtyError({
-                                code: "E_FETCH_FAILED",
-                                message: `Failed to fetch from ${url}: HTTP ${status}`,
-                                source: "data",
-                                recoverable: false,
-                                details: { url, attempts: attempt + 1, status },
-                            });
-                        }
-
-                        throw new Error(`HTTP error! status: ${status}`);
-                    }
-
+                    checkResponse(response, url, attempt, last);
                     return response;
                 } catch (error) {
                     clearTimeout(timeoutId);
-
-                    if (error instanceof Error && error.name === "AbortError") {
-                        throw new Error(`Request timeout after ${timeout}ms`);
-                    }
-
-                    throw error;
+                    throw attemptError(error, timeout);
                 }
             } catch (error) {
                 if (error instanceof GraphtyError) {
@@ -512,17 +562,7 @@ export abstract class DataSource {
                 const isLastAttempt = attempt === retries - 1;
 
                 if (isLastAttempt) {
-                    const errorMsg = error instanceof Error ? error.message : String(error);
-                    throw new GraphtyError({
-                        code: "E_FETCH_FAILED",
-                        message: `Failed to fetch from ${url} after ${retries} attempts: ${errorMsg}`,
-                        source: "data",
-                        // A server that was down, a network that dropped: the same call unchanged
-                        // could succeed later, which is exactly what this flag is for.
-                        recoverable: true,
-                        details: { url, attempts: retries, status: lastStatus },
-                        cause: error,
-                    });
+                    throw retriesExhausted(url, retries, last.status, error);
                 }
 
                 // Exponential backoff: wait 1s, 2s, 4s...
@@ -537,7 +577,7 @@ export abstract class DataSource {
             message: `Failed to fetch from ${url} after ${retries} attempts`,
             source: "data",
             recoverable: true,
-            details: { url, attempts: retries, status: lastStatus },
+            details: { url, attempts: retries, status: last.status },
         });
     }
 
@@ -790,6 +830,26 @@ export abstract class DataSource {
      */
     protected declareGraphValues(values: Readonly<Record<string, unknown>>): void {
         this.graphValues = Object.freeze({ ...values });
+    }
+
+    /**
+     * The layout the file asks to be drawn with, as graph-io's importer read it, or null when the
+     * file names none or the source has not parsed yet. Read it after the last chunk.
+     * @returns the layout
+     * @since 3.35.0
+     */
+    get declaredFileLayout(): FileLayout | null {
+        return this.fileLayout;
+    }
+
+    /**
+     * Record the layout the file being parsed asks for (graph-io's `importer.layout(snapshot)`). A
+     * load that asks for the recommended layout draws the file with it.
+     * @param layout - the layout, or null when the file names none
+     * @since 3.35.0
+     */
+    protected declareFileLayout(layout: FileLayout | null): void {
+        this.fileLayout = layout;
     }
 
     /**

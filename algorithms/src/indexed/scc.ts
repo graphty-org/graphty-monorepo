@@ -38,6 +38,80 @@ export function stronglyConnectedComponents(g: AdjacencyView, options: ArcOrderO
     return withGroups(labels, count);
 }
 
+/** The state of one Tarjan walk, built once per call. */
+interface TarjanState {
+    readonly rowPtr: U32;
+    readonly colIdx: U32;
+    readonly arcOrder: U32 | null;
+    readonly index: Uint32Array;
+    readonly low: Uint32Array;
+    readonly cursor: Uint32Array;
+    readonly onStack: Uint8Array;
+    readonly callStack: Uint32Array;
+    readonly sccStack: Uint32Array;
+    readonly labels: U32;
+    readonly popped: U32;
+    poppedCount: number;
+    next: number;
+    count: number;
+    sp: number;
+    top: number;
+}
+
+/**
+ * The body of the recursive call before its loop over neighbours.
+ * @param st - The run state, updated in place
+ * @param u - The node entered
+ */
+function enter(st: TarjanState, u: number): void {
+    st.index[u] = st.next;
+    st.low[u] = st.next;
+    st.next++;
+    st.cursor[u] = st.rowPtr[u];
+    st.sccStack[st.sp++] = u;
+    st.onStack[u] = 1;
+    st.callStack[st.top++] = u;
+}
+
+/**
+ * Tries the next arc of the stacked node `x`: descends into an unvisited head or lowers `x`'s link.
+ * @param st - The run state, updated in place
+ * @param x - The stacked node
+ */
+function tryNextArc(st: TarjanState, x: number): void {
+    const { index, low, onStack } = st;
+    const a = st.cursor[x]++;
+    const v = st.colIdx[st.arcOrder === null ? a : st.arcOrder[a]];
+    if (index[v] === INVALID_INDEX) {
+        enter(st, v);
+    } else if (onStack[v] === 1 && index[v] < low[x]) {
+        low[x] = index[v];
+    }
+}
+
+/**
+ * `x` returns: close its component if it is a root, then pass its low link to the caller.
+ * @param st - The run state, updated in place
+ * @param x - The returning node
+ */
+function leave(st: TarjanState, x: number): void {
+    const { low, index, callStack } = st;
+    st.top--;
+    if (low[x] === index[x]) {
+        let w: number;
+        do {
+            w = st.sccStack[--st.sp];
+            st.onStack[w] = 0;
+            st.labels[w] = st.count;
+            st.popped[st.poppedCount++] = w;
+        } while (w !== x);
+        st.count++;
+    }
+    if (st.top > 0 && low[x] < low[callStack[st.top - 1]]) {
+        low[callStack[st.top - 1]] = low[x];
+    }
+}
+
 /**
  * The Tarjan walk behind {@link stronglyConnectedComponents}, also returning every node in the
  * order it left the component stack. Each component leaves as one run, in label order, its members
@@ -57,65 +131,39 @@ function tarjan(g: AdjacencyView, options: ArcOrderOption = {}): { labels: U32; 
         );
     }
     const { nodeCount, rowPtr, colIdx } = g;
-    const arcOrder = checkArcOrder(g, options.arcOrder);
-    const index = new Uint32Array(nodeCount).fill(INVALID_INDEX);
-    const low = new Uint32Array(nodeCount);
-    const cursor = new Uint32Array(nodeCount);
-    const onStack = new Uint8Array(nodeCount);
-    const callStack = new Uint32Array(nodeCount);
-    const sccStack = new Uint32Array(nodeCount);
-    const labels = new Uint32Array(nodeCount);
-    const popped = new Uint32Array(nodeCount);
-    let poppedCount = 0;
-    let next = 0;
-    let count = 0;
-    let sp = 0;
-    let top = 0;
-    // The body of the recursive call before its loop over neighbours.
-    const enter = (u: number): void => {
-        index[u] = next;
-        low[u] = next;
-        next++;
-        cursor[u] = rowPtr[u];
-        sccStack[sp++] = u;
-        onStack[u] = 1;
-        callStack[top++] = u;
+    const st: TarjanState = {
+        rowPtr,
+        colIdx,
+        arcOrder: checkArcOrder(g, options.arcOrder),
+        index: new Uint32Array(nodeCount).fill(INVALID_INDEX),
+        low: new Uint32Array(nodeCount),
+        cursor: new Uint32Array(nodeCount),
+        onStack: new Uint8Array(nodeCount),
+        callStack: new Uint32Array(nodeCount),
+        sccStack: new Uint32Array(nodeCount),
+        labels: new Uint32Array(nodeCount),
+        popped: new Uint32Array(nodeCount),
+        poppedCount: 0,
+        next: 0,
+        count: 0,
+        sp: 0,
+        top: 0,
     };
     for (let r = 0; r < nodeCount; r++) {
-        if (index[r] !== INVALID_INDEX) {
+        if (st.index[r] !== INVALID_INDEX) {
             continue;
         }
-        enter(r);
-        while (top > 0) {
-            const x = callStack[top - 1];
-            if (cursor[x] < rowPtr[x + 1]) {
-                const a = cursor[x]++;
-                const v = colIdx[arcOrder === null ? a : arcOrder[a]];
-                if (index[v] === INVALID_INDEX) {
-                    enter(v);
-                } else if (onStack[v] === 1 && index[v] < low[x]) {
-                    low[x] = index[v];
-                }
-                continue;
-            }
-            // x returns: close its component if it is a root, then pass its low link to the caller.
-            top--;
-            if (low[x] === index[x]) {
-                let w: number;
-                do {
-                    w = sccStack[--sp];
-                    onStack[w] = 0;
-                    labels[w] = count;
-                    popped[poppedCount++] = w;
-                } while (w !== x);
-                count++;
-            }
-            if (top > 0 && low[x] < low[callStack[top - 1]]) {
-                low[callStack[top - 1]] = low[x];
+        enter(st, r);
+        while (st.top > 0) {
+            const x = st.callStack[st.top - 1];
+            if (st.cursor[x] < rowPtr[x + 1]) {
+                tryNextArc(st, x);
+            } else {
+                leave(st, x);
             }
         }
     }
-    return { labels, count, popped };
+    return { labels: st.labels, count: st.count, popped: st.popped };
 }
 
 /**

@@ -109,7 +109,12 @@ describe("neptune over HTTPS (recorded shapes)", () => {
         ]);
         const err = await rejection(loadFromSource("neptune", { query: q }, { endpoint: DB, fetch }));
         expect(err.issue?.code).toBe("E_SOURCE_QUERY");
-        expect(err.issue?.params).toMatchObject({ serverCode: "MalformedQueryException", line: 1, column: 10 });
+        expect(err.issue?.params).toMatchObject({
+            origin: DB,
+            serverCode: "MalformedQueryException",
+            line: 1,
+            column: 10,
+        });
     });
 
     it("finds an error appended to a 200 answer cut short", async () => {
@@ -118,7 +123,7 @@ describe("neptune over HTTPS (recorded shapes)", () => {
         const fetch = replayFetch([cypherCall(q, cut)]);
         const err = await rejection(loadFromSource("neptune", { query: q }, { endpoint: DB, fetch }));
         expect(err.issue?.code).toBe("E_SOURCE_TIMEOUT");
-        expect(err.issue?.params).toEqual({ timeoutMs: null, serverSide: true });
+        expect(err.issue?.params).toEqual({ origin: DB, timeoutMs: null, serverSide: true });
     });
 
     it("probe reads the engine version from /status", async () => {

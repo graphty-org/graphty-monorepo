@@ -802,7 +802,6 @@ const openRedIssue = () => {
     const i = listRedIssues().at(-1);
     return i ? `${i.number} ${i.title}` : "";
 };
-const openRed = () => openRedIssue().split(" ")[0];
 
 /**
  * Whether a green verdict on `green` closes the open red issue: only when the red commit its title names
@@ -837,12 +836,67 @@ export function duplicateOf(created, open) {
     return first < created ? first : null;
 }
 
-function fileRed(issue) {
+/**
+ * The title a lane's early red gives the open red issue: on the same commit it keeps the lanes the title already
+ * names (another lane of the run filed them), in LANES order; on another commit it is the new title.
+ * @param openTitle the open red issue's title
+ * @param title the lane's title, as laneRedIssue makes it
+ * @returns the title
+ */
+export function laneRedTitle(openTitle, title) {
+    const parse = (t) => /^Full run red: (.+) on ([0-9a-f]{7,40})$/.exec(t ?? "");
+    const was = parse(openTitle);
+    const now = parse(title);
+    if (!was || !now || was[2] !== now[2]) return title;
+    const names = new Set([...was[1].split(", "), ...now[1].split(", ")]);
+    const ordered = Object.values(LANES)
+        .map((l) => l.name)
+        .filter((n) => names.has(n));
+    return `${RED_TITLE} ${ordered.join(", ")} on ${now[2]}`;
+}
+
+/**
+ * The runs a red issue names that tested the commit its title is on: every filing says "The full run failed on <sha>
+ * (<lanes>): <run url>" (redIssue). release-due cancels only these on a fixing merge (toCancel), and a lane of one of
+ * them files nothing once that merge closed the issue (fixedRecently), so the two always agree.
+ * @param title the red issue's title
+ * @param text its body and comments, joined
+ * @returns the run ids
+ */
+export function runsOnTitleCommit(title, text) {
+    const red = / on ([0-9a-f]{7,40})$/.exec(title ?? "")?.[1];
+    if (!red) return new Set();
+    return new Set(
+        [...(text ?? "").matchAll(/failed on ([0-9a-f]{7,40}) \([^\n]*?\): \S*\/actions\/runs\/(\d+)/g)]
+            .filter((m) => m[1].startsWith(red))
+            .map((m) => Number(m[2])),
+    );
+}
+
+// a red issue's body and comments, joined
+const issueText = (n) =>
+    sh("gh", [
+        "issue",
+        "view",
+        String(n),
+        "--json",
+        "body,comments",
+        "-q",
+        String.raw`[.body, .comments[].body] | join("\n")`,
+    ]);
+
+/**
+ * Files or updates the red issue.
+ * @param issue `{ title, body }`
+ * @param [merge] a lane's early red: keep the lanes the issue's title already names on this commit (laneRedTitle)
+ * @returns its number
+ */
+function fileRed(issue, merge = false) {
     const file = join(tmpdir(), `full-run-red-${process.pid}.md`);
     writeFileSync(file, issue.body);
-    const open = openRed();
+    const [open, ...was] = openRedIssue().split(" ");
     if (open) {
-        sh("gh", ["issue", "edit", open, "--title", issue.title]);
+        sh("gh", ["issue", "edit", open, "--title", merge ? laneRedTitle(was.join(" "), issue.title) : issue.title]);
         sh("gh", ["issue", "comment", open, "--body-file", file]);
         return Number(open);
     }
@@ -861,11 +915,15 @@ function fileRed(issue) {
         file,
     ]);
     const created = Number(url.split("/").pop());
+    const reds = listRedIssues();
     const first = duplicateOf(
         created,
-        listRedIssues().map((i) => i.number),
+        reds.map((i) => i.number),
     );
     if (!first) return created;
+    const firstTitle = reds.find((i) => i.number === first)?.title;
+    if (merge && firstTitle)
+        sh("gh", ["issue", "edit", String(first), "--title", laneRedTitle(firstTitle, issue.title)]);
     sh("gh", ["issue", "comment", String(first), "--body-file", file]);
     sh("gh", ["issue", "close", String(created), "--reason", "not planned", "--comment", `Duplicate of #${first}.`]);
     return first;
@@ -1144,7 +1202,7 @@ async function fileDeferredMain(file, env) {
     // on the fix, so its deferred red is that fix's, not a red to file again (or a commit to hold)
     const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const fixed = bestEffort(
-        () => fixedRecently(listRedIssues("closed", since), facts.sha),
+        () => fixedRecently(listRedIssues("closed", since), facts.sha, facts.runUrl, issueText),
         "reading the red issues a fix closed",
         () => null,
     );
@@ -1158,20 +1216,25 @@ async function fileDeferredMain(file, env) {
 }
 
 /**
- * A red issue on this commit that a fixing merge closed in the last hour: release-due is about to cancel this run, so
- * a lane ending red now files nothing (the verdict still files, if the run is not cancelled after all).
+ * A red issue on this commit that a fixing merge closed in the last hour and that names this run: release-due is
+ * about to cancel this run, so a lane ending red now files nothing (the verdict still files, if the run is not
+ * cancelled after all). A run the issue does not name is one release-due leaves running (toCancel), so it files.
  * @param closed the closed red issues, as listRedIssues returns them
  * @param sha the run's commit
+ * @param runUrl the run's URL
+ * @param textOf (number) => the issue's body and comments, joined; read only for an issue that matches otherwise
  * @param [now] milliseconds
  * @returns its number, or null
  */
-export function fixedRecently(closed, sha, now = Date.now()) {
+export function fixedRecently(closed, sha, runUrl, textOf, now = Date.now()) {
+    const run = Number(/\/actions\/runs\/(\d+)/.exec(runUrl ?? "")?.[1]);
     const hit = closed.find(
         (i) =>
             i.title.endsWith(` on ${short(sha)}`) &&
             i.stateReason === "completed" && // a duplicate fileRed closed is "not_planned"
             i.closedAt &&
-            now - Date.parse(i.closedAt) <= 60 * 60 * 1000,
+            now - Date.parse(i.closedAt) <= 60 * 60 * 1000 &&
+            runsOnTitleCommit(i.title, textOf(i.number)).has(run),
     );
     return hit ? hit.number : null;
 }
@@ -1186,12 +1249,13 @@ function laneRedMain(env) {
         console.log(`::notice::${LANES[env.LANE].name} is red with an owner item: the verdict decides it`);
         return;
     }
-    const fixed = fixedRecently(listRedIssues("closed", new Date(Date.now() - 60 * 60 * 1000).toISOString()), env.SHA);
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const fixed = fixedRecently(listRedIssues("closed", since), env.SHA, env.RUN_URL, issueText);
     if (fixed) {
         console.log(`::notice::#${fixed} was fixed by a merge that cancels this run: filing nothing`);
         return;
     }
-    const issue = fileRed(laneRedIssue({ lane: env.LANE, result: env.RESULT, sha: env.SHA, run: env.RUN_URL }));
+    const issue = fileRed(laneRedIssue({ lane: env.LANE, result: env.RESULT, sha: env.SHA, run: env.RUN_URL }), true);
     output({ issue: String(issue) });
 }
 

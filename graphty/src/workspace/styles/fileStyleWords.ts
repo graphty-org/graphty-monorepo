@@ -13,6 +13,7 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import { property } from "../export/lossWords";
+import { formatCount } from "../settings/numberFormat";
 
 /** A style code a load reports: every style code but the ones only an export reports. */
 type ImportStyleCode = Exclude<FileStyleCode, ExportStyleLossCode>;
@@ -99,7 +100,7 @@ export const STYLE_REASON_WORDS: Readonly<Record<FileStyleReason, string>> = {
  * @returns such as "1 node" or "9 values".
  */
 function count(n: number, noun: string): string {
-    return `${n.toLocaleString("en-US")} ${noun}${n === 1 ? "" : "s"}`;
+    return `${formatCount(n)} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 /**

@@ -77,19 +77,7 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
     let it = 0;
     let converged = false;
     for (; it < maxIter && !converged; it++) {
-        for (let v = 0; v < n; v++) {
-            let sum = x[v];
-            const end = rel.rowPtr[v + 1];
-            for (let a = rel.rowPtr[v]; a < end; a++) {
-                sum += x[rel.colIdx[a]];
-            }
-            next[v] = sum;
-        }
-        scaleToUnitLength(next);
-        let change = 0;
-        for (let v = 0; v < n; v++) {
-            change += Math.abs(next[v] - x[v]);
-        }
+        const change = powerStep(rel, x, next);
         [x, next] = [next, x];
         converged = change < n * tol;
     }
@@ -100,6 +88,31 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
         minMaxRescale(x);
     }
     return { scores: x, iterations: it, converged };
+}
+
+/**
+ * One power-iteration step on `(A + I)`: `next = x + A x`, scaled to unit length.
+ * @param rel - The feeding relation
+ * @param x - The current vector
+ * @param next - Overwritten with the next vector
+ * @returns The L1 change from `x` to `next`
+ */
+function powerStep(rel: Relation, x: F64, next: F64): number {
+    const n = x.length;
+    for (let v = 0; v < n; v++) {
+        let sum = x[v];
+        const end = rel.rowPtr[v + 1];
+        for (let a = rel.rowPtr[v]; a < end; a++) {
+            sum += x[rel.colIdx[a]];
+        }
+        next[v] = sum;
+    }
+    scaleToUnitLength(next);
+    let change = 0;
+    for (let v = 0; v < n; v++) {
+        change += Math.abs(next[v] - x[v]);
+    }
+    return change;
 }
 
 /**

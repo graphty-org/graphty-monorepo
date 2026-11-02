@@ -21,6 +21,7 @@
  * | `/v1/page/overview?range=1h\|6h\|24h`                   | {@link OverviewResponse}   |
  * | `/v1/page/<category page>?range=1h\|6h\|24h`            | {@link PageResponse}       |
  * | `/v1/page/costs?range=7d\|28d`                          | {@link PageResponse}       |
+ * | `/v1/page/issues?range=28d\|all`                        | {@link PageResponse}       |
  * | `/v1/page/<page>/<section>?range=7d\|28d[&kind=...]`    | {@link SectionResponse}    |
  * | `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d`    | {@link TestHistoryResponse}|
  * | `/v1/run/<run id>`                                      | {@link RunResponse}        |
@@ -35,12 +36,18 @@ export type Range = "1h" | "6h" | "24h";
 /** The slow measures' own choice (section 8): Costs, shard times and flake hotspots. */
 export type SlowRange = "7d" | "28d";
 
+/** The Issues page's history: the last 28 days by day, or every issue's history by week. */
+export type IssueRange = "28d" | "all";
+
 /** The seven categories, in pipeline order (section 2.2). */
 export const CATEGORY_IDS = ["master", "pull-requests", "ci", "flaky", "releases", "costs", "data-sources"] as const;
 export type CategoryId = (typeof CATEGORY_IDS)[number];
 
-/** The ten views (section 2.6): the overview, the seven categories, and Runners and Local runs under CI. */
-export type PageId = "overview" | CategoryId | "runners" | "local-runs";
+/**
+ * The eleven views (section 2.6): the overview, the seven categories, Runners and Local runs under CI, and Issues,
+ * which shows facts and no SLA state.
+ */
+export type PageId = "overview" | CategoryId | "runners" | "local-runs" | "issues";
 
 /** An SLA state. NO DATA (`nodata`) counts as yellow in a rollup but is drawn gray and hatched (3.1). */
 export type SlaState = "ok" | "warn" | "bad" | "nodata";
@@ -53,7 +60,7 @@ export type SlaState = "ok" | "warn" | "bad" | "nodata";
  * - `few`: a rate whose last hour holds fewer than its minimum n; out of the rollup.
  * - `partial`: its source covers less than its window; out of the rollup.
  * - `idle`: its activity stopped by design (n=0); out of the rollup.
- * - `slow`: a slow measure, drawn with its own window, never sets a state.
+ * - `slow`: sent by APIs built before 7- and 28-day members were judged; read as out of the rollup.
  * - `info`: informational until it has fired on real data.
  */
 export type MemberState = SlaState | "notsetup" | "few" | "partial" | "idle" | "slow" | "info";
@@ -100,7 +107,8 @@ export interface NumberValue {
 }
 
 export interface WordValue {
-    word: "passed" | "failed" | "yes" | "no" | "filed" | "skipped";
+    /** `quiet`: the weekly stress run found nothing three weeks running. */
+    word: "passed" | "failed" | "yes" | "no" | "filed" | "skipped" | "quiet";
     /** "filed 0": a count after the word. */
     n?: number;
 }
@@ -190,6 +198,7 @@ export const MEMBER_IDS = [
     "flaky.net_new",
     "flaky.detected_to_fixed",
     "releases.lanes_red",
+    "releases.review_wait",
     "releases.workflows_failing",
     "releases.train_skipped",
     "releases.tagged_not_npm",
@@ -270,6 +279,11 @@ export interface CategoryStatus {
     others: MemberRef[];
     /** The headline measure under the block (section 2.3). */
     headline: Member;
+    /**
+     * The member that set the state, as a full row, when it is not the headline: the overview shows it under the
+     * block in the headline's place, so the number under a colored block is the one that colored it.
+     */
+    driver?: Member;
 }
 
 /** One episode of the last 24 h: a member that went past its target (section 2.4). */
@@ -282,6 +296,13 @@ export interface Episode {
     start: Iso;
     /** `null` while ongoing. */
     end: Iso | null;
+    /** The episode began before the history the engine keeps, or at a time it cannot tell: `start` is a bound. */
+    startUnknown?: boolean;
+    /**
+     * Still open (`end` is null), but the member is not judged now (too few samples, no data): the page says so
+     * rather than "ongoing", because the member's row shows no state that could set its category's color.
+     */
+    notJudgedNow?: boolean;
     /** What happened: the member, its value and the cause when the collector knows it. */
     fact: Fact;
     link: Route;
@@ -328,6 +349,18 @@ export interface OverviewResponse extends StatusResponse {
     range: Range;
     /** Canary, Nightly and Production, in that order; absent from payloads built before the channels were. */
     channels?: ChannelTile[];
+    /** The Issues page's headline; absent when no issue is stored and from payloads built before it was. */
+    issues?: IssuesSummary;
+}
+
+/** Open bugs now and 28 days ago, and the issues opened and closed in the last 28 days. */
+export interface IssuesSummary {
+    bugs: number;
+    bugs28dAgo: number;
+    critical: number;
+    critical28dAgo: number;
+    opened: number;
+    closed: number;
 }
 
 /** A release channel: canary.graphty.app, nightly.graphty.app, graphty.app. */
@@ -356,7 +389,7 @@ export interface ChannelTile {
 /** `GET /v1/page/<page>?range=`: one category page, or Runners or Local runs (section 2.6). */
 export interface PageResponse {
     page: Exclude<PageId, "overview">;
-    range: Range | SlowRange;
+    range: Range | SlowRange | IssueRange;
     generated: Iso;
     state: CategoryState;
     setBy?: MemberRef;
@@ -392,7 +425,14 @@ interface SectionBase {
 }
 
 export type Section =
-    StripSection | TableSection | BarsSection | JobsSection | ShardsSection | TreeSection | EmptySection;
+    | StripSection
+    | TableSection
+    | BarsSection
+    | JobsSection
+    | ShardsSection
+    | TreeSection
+    | SeriesSection
+    | EmptySection;
 
 /** A strip by minute: master's state over the range (Master builds). */
 export interface StripSection extends SectionBase {
@@ -407,7 +447,7 @@ export interface StripSection extends SectionBase {
  * A table. The page names the table's columns by section id; each row maps a column key to a cell.
  * Tables: master/red, master/shared, pull-requests/owner, runners/superseded, ci/chronic, ci/non-gating,
  * ci/benchmarks, releases/lanes,
- * releases/trains, releases/workflows, costs/money, costs/unit, data-sources/stress,
+ * releases/trains, releases/workflows, costs/money, costs/unit, flaky/stress,
  * data-sources/sources, data-sources/not-set-up.
  */
 export interface TableSection extends SectionBase {
@@ -478,8 +518,10 @@ export interface JobsSection extends SectionBase {
     saturatedMs?: (number | null)[];
     /** The plan's limit, from config (`slas.json`). */
     limit: number;
-    /** The observed peak: a label beside the limit, never a threshold. */
+    /** The observed peak of running jobs: a label beside the limit, never a threshold. */
     peak: { n: number; at: Iso };
+    /** The observed peak of queued jobs; absent from payloads built before it was. */
+    peakQueued?: { n: number; at: Iso };
 }
 
 /** Shard and test-file times (section 6), a slow section. */
@@ -534,6 +576,25 @@ export interface TreeNode {
     children?: TreeNode[];
 }
 
+/**
+ * Counts per time bucket (Issues): a stock as lines (`lines`) or as bands stacked up from zero (`area`), counts per
+ * bucket stacked by kind (`stacked`), or a flow (`flow`): opened above a zero line, closed below it, and their
+ * difference as a line. Buckets are UTC days (`1d`) or weeks from Monday (`1w`) from `start`; the last one is partial
+ * and ends at `generated`.
+ */
+export interface SeriesSection extends SectionBase {
+    kind: "series";
+    chart: "lines" | "area" | "stacked" | "flow";
+    step: "1d" | "1w";
+    /** The first bucket's start. */
+    start: Iso;
+    /**
+     * Oldest first; `key` is a label code the page names ("issues.prio.critical"). A count per bucket has one value
+     * per bucket; a stock (`lines`, `area`) has one more, its count at `start` and then at each bucket's end.
+     */
+    series: { key: string; values: number[] }[];
+}
+
 /** A section that states an absence ("no quarantine entries"). */
 export interface EmptySection extends SectionBase {
     kind: "empty";
@@ -578,11 +639,24 @@ export interface RunResponse {
     jobs: { name: string; conclusion: string | null; created: Iso; started: Iso | null; completed: Iso | null }[];
 }
 
-/** The path of an API route, relative to the API base. */
+/** The live health API, the page's data source unless VITE_HEALTH_API_URL names another. */
+export const LIVE_API = "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com";
+
+/**
+ * The dev server's same-origin path to the API (vite.config.ts proxies it), so a dev server on any host
+ * reads the live data without that host being on the API's CORS list.
+ */
+export const DEV_API_PATH = "/health-api";
+
+/**
+ * The path of an API route, relative to the API base.
+ * @param route - The route and its parameters.
+ * @returns The path with its query string.
+ */
 export function apiPath(
     route:
         | { kind: "status" }
-        | { kind: "page"; page: PageId; range: Range | SlowRange }
+        | { kind: "page"; page: PageId; range: Range | SlowRange | IssueRange }
         | { kind: "section"; page: Exclude<PageId, "overview">; section: string; range: SlowRange; runKind?: string }
         | { kind: "test-history"; file: string; test?: string; range: SlowRange }
         | { kind: "run"; id: number },
@@ -593,16 +667,17 @@ export function apiPath(
         case "page":
             return `/v1/page/${route.page}?range=${route.range}`;
         case "section":
-            return (
-                `/v1/page/${route.page}/${route.section}?range=${route.range}` +
-                (route.runKind ? `&kind=${route.runKind}` : "")
-            );
+            return `/v1/page/${route.page}/${route.section}?range=${route.range}${
+                route.runKind ? `&kind=${route.runKind}` : ""
+            }`;
         case "test-history": {
             const q = new URLSearchParams({ file: route.file, range: route.range });
-            if (route.test) q.set("test", route.test);
+            if (route.test) {
+                q.set("test", route.test);
+            }
             return `/v1/test-history?${q.toString()}`;
         }
-        case "run":
+        default:
             return `/v1/run/${route.id}`;
     }
 }

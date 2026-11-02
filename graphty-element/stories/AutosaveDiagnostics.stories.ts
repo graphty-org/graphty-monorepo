@@ -94,12 +94,7 @@ function ring(n: number, probe: number): { nodes: Record<string, unknown>[]; edg
  */
 function diagnostics(): HTMLElement {
     const root = document.createElement("div");
-    // One column as wide as the page: an implicit (auto) column would take the element's minimum
-    // width, which its 2:1 aspect-ratio makes twice the 1fr row's height, so the page grew wider
-    // than the viewport, and wider still as the log below it changed the row's height. A workaround
-    // for the element's host sizing (issue #3597): remove it when that is fixed.
-    root.style.cssText =
-        "display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto;height:100vh;font:13px/1.4 monospace";
+    root.style.cssText = "display:grid;grid-template-rows:auto 1fr auto;height:100vh;font:13px/1.4 monospace";
     const bar = document.createElement("div");
     bar.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;padding:6px";
     const graph = document.createElement("graphty-element");

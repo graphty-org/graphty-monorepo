@@ -1,9 +1,10 @@
 // Tests of the no-test-timing lint rule: a valid and an invalid case per pattern.
 //
 //   node tools/eslint-rules/no-test-timing.test.mjs
+import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { RuleTester } from "eslint";
+import { Linter, RuleTester } from "eslint";
 
 import rule from "./no-test-timing.mjs";
 
@@ -284,4 +285,30 @@ tester.run("no-test-timing", rule, {
         },
         { code: "await page.$eval('#x', (el) => setTimeout(() => el.click(), 10));", errors: [pageTimer] },
     ],
+});
+
+// A comment cannot switch the rule off: each form of inline disable is reported, under the name the
+// repository's eslint.config.js gives the rule, however the comment is worded, and the comment's own
+// reach does not hide the report.
+describe("no-test-timing: inline disables", () => {
+    const linter = new Linter();
+    const config = [
+        { plugins: { local: { rules: { "no-test-timing": rule } } }, rules: { "local/no-test-timing": "error" } },
+    ];
+    const SLEEP = "await new Promise((r) => setTimeout(r, 300));";
+    const ids = (code) => linter.verify(code, config).map((m) => m.messageId ?? m.message);
+
+    for (const [name, code] of [
+        ["-next-line", `// eslint-disable-next-line local/no-test-timing -- a reason\n${SLEEP}`],
+        ["-line", `${SLEEP} // eslint-disable-line local/no-test-timing\nrun();`],
+        ["-line on the last line", `run();\n${SLEEP} // eslint-disable-line local/no-test-timing`],
+        ["a block disable", `run();\n/* eslint-disable local/no-test-timing */\n${SLEEP}`],
+        ["one naming several rules", `// eslint-disable-next-line no-console, local/no-test-timing\n${SLEEP}`],
+        ["one naming no rule", `// eslint-disable-next-line\n${SLEEP}`],
+    ]) {
+        it(`reports ${name}`, () => assert.ok(ids(code).includes("disabled"), JSON.stringify(ids(code))));
+    }
+
+    it("leaves a comment that disables another rule alone", () =>
+        assert.ok(!ids(`// eslint-disable-next-line no-console\nconsole.log(1);`).includes("disabled")));
 });

@@ -477,7 +477,7 @@ describe("the rest source", () => {
                 },
             ),
         );
-        expect(err.issue?.params).toEqual({ expected: "json", contentType: "text/html" });
+        expect(err.issue?.params).toEqual({ origin: API, expected: "json", contentType: "text/html" });
     });
 
     it("expands breadth-first with batched {ids}", async () => {

@@ -291,29 +291,29 @@ E_SOURCE_AUTH {
 
 <!-- generated:end -->
 
-| Code                   | When                                           | `params`                                        |
-| ---------------------- | ---------------------------------------------- | ----------------------------------------------- |
-| `E_FETCH`              | another status, or an unreachable host         | `url`, `status`                                 |
-| `E_SOURCE_BLOCKED`     | refused by the browser, cause hidden           | `url`, `cause`                                  |
-| `E_SOURCE_AUTH`        | 401 or a database login failure                | `origin`, `status`, `scheme`, `serverCode`      |
-| `E_SOURCE_FORBIDDEN`   | 403 or a database authorization failure        | `status`, `serverCode`                          |
-| `E_SOURCE_NOT_FOUND`   | the named item does not exist                  | `what`, `value`                                 |
-| `E_SOURCE_QUOTA`       | 429 after retries                              | `retryAfterMs`                                  |
-| `E_SOURCE_TIMEOUT`     | `limits.timeoutMs`, or the server's own        | `timeoutMs`, `serverSide`                       |
-| `E_SOURCE_QUERY`       | the server rejected the query                  | `serverCode`, `line`, `column`, `serverMessage` |
-| `E_SOURCE_NOT_A_GRAPH` | no node, relationship or path in the result    | `columns`                                       |
-| `E_SOURCE_RESPONSE`    | a body of the wrong shape                      | `expected`, `contentType`                       |
-| `E_SOURCE_REDIRECT`    | a redirect or changed origin with a credential | `from`, `to`                                    |
-| `E_SOURCE_RUNTIME`     | cannot run in this runtime                     | `runtime`, `reason`, `package`                  |
-| `E_SOURCE_PARAM`       | a parameter or option is invalid               | `name`, `reason`                                |
-| `E_SOURCE_LIMIT`       | a cap under `onLimit: "error"`                 | `limit`, `value`                                |
-| `E_SOURCE_UNKNOWN`     | no source of that id                           | `id`, `known`                                   |
-| `E_SOURCE_UNSUPPORTED` | the source lacks the feature                   | `feature`, `needs`                              |
-| `E_SOURCE_INVALID`     | a malformed source at registration             | `id`, `reason`                                  |
-| `W_SOURCE_LIMIT`       | a cap stopped the load                         | `limit`, `value`                                |
-| `W_SOURCE_AUTH`        | a later page needs a credential; pages kept    | `origin`, `status`                              |
-| `W_SOURCE_RETRIED`     | success after retries                          | `attempts`, `statuses`                          |
-| `W_SOURCE_VALUE`       | a server value with no type                    | `type`, `column`, `as`                          |
+| Code                   | When                                           | `params`                                                  |
+| ---------------------- | ---------------------------------------------- | --------------------------------------------------------- |
+| `E_FETCH`              | another status, or an unreachable host         | `url`, `status`                                           |
+| `E_SOURCE_BLOCKED`     | refused by the browser, cause hidden           | `url`, `cause`                                            |
+| `E_SOURCE_AUTH`        | 401 or a database login failure                | `origin`, `status`, `scheme`, `serverCode`                |
+| `E_SOURCE_FORBIDDEN`   | 403 or a database authorization failure        | `origin`, `status`, `serverCode`                          |
+| `E_SOURCE_NOT_FOUND`   | the named item does not exist                  | `origin`, `what`, `value`                                 |
+| `E_SOURCE_QUOTA`       | 429 after retries                              | `origin`, `retryAfterMs`                                  |
+| `E_SOURCE_TIMEOUT`     | `limits.timeoutMs`, or the server's own        | `origin`, `timeoutMs`, `serverSide`                       |
+| `E_SOURCE_QUERY`       | the server rejected the query                  | `origin`, `serverCode`, `line`, `column`, `serverMessage` |
+| `E_SOURCE_NOT_A_GRAPH` | no node, relationship or path in the result    | `columns`                                                 |
+| `E_SOURCE_RESPONSE`    | a body of the wrong shape                      | `origin`, `expected`, `contentType`                       |
+| `E_SOURCE_REDIRECT`    | a redirect or changed origin with a credential | `from`, `to`                                              |
+| `E_SOURCE_RUNTIME`     | cannot run in this runtime                     | `runtime`, `reason`, `package`                            |
+| `E_SOURCE_PARAM`       | a parameter or option is invalid               | `name`, `reason`                                          |
+| `E_SOURCE_LIMIT`       | a cap under `onLimit: "error"`                 | `limit`, `value`                                          |
+| `E_SOURCE_UNKNOWN`     | no source of that id                           | `id`, `known`                                             |
+| `E_SOURCE_UNSUPPORTED` | the source lacks the feature                   | `feature`, `needs`                                        |
+| `E_SOURCE_INVALID`     | a malformed source at registration             | `id`, `reason`                                            |
+| `W_SOURCE_LIMIT`       | a cap stopped the load                         | `limit`, `value`                                          |
+| `W_SOURCE_AUTH`        | a later page needs a credential; pages kept    | `origin`, `status`                                        |
+| `W_SOURCE_RETRIED`     | success after retries                          | `attempts`, `statuses`                                    |
+| `W_SOURCE_VALUE`       | a server value with no type                    | `type`, `column`, `as`                                    |
 
 URLs in `params` are origin and path only: a key in a query string never reaches a report.
 

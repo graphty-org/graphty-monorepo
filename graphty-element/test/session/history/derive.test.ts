@@ -246,4 +246,30 @@ describe("derivation lane", () => {
         assert.deepEqual(order, ["hook", "end", "hook"], "one call per pass, after the hooks, none once cleared");
         assert.lengthOf(errors, 1, "the throw is reported and the pass still ends");
     });
+
+    it("ends a pass on the same microtask its last hook settles on", async () => {
+        // Pinned because every change to project state reaches the screen through a pass: an
+        // extra async boundary in the pass moved `show` a tick against the layout builds around it
+        // and a story's layout was cancelled (pull request #5605).
+        const ticksToEnd = async (withHook: boolean): Promise<number> => {
+            const lane = new DerivationLane(createProjectState());
+            let ended = false;
+            lane.passEnded = () => {
+                ended = true;
+            };
+            if (withHook) {
+                lane.register("config", () => undefined);
+            }
+            lane.touch("config", "k");
+            let ticks = 0;
+            while (!ended) {
+                await Promise.resolve();
+                ticks++;
+            }
+            return ticks;
+        };
+
+        assert.strictEqual(await ticksToEnd(false), 1, "a pass with no hook to run ends on the scheduling tick");
+        assert.strictEqual(await ticksToEnd(true), 2, "one awaited hook adds one tick");
+    });
 });

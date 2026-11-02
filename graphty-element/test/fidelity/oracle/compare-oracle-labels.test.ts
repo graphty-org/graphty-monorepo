@@ -252,6 +252,19 @@ describe("label checks", () => {
         assert.deepEqual(labelPair({ align: "start" }, { content: "A\nB", lines }), {});
     });
 
+    it("reads a table's lines cell by cell, not across the cells beside each other", () => {
+        // dot-specimen-labels-p2 html-td-balign-left: "a" and "wide" flush left in one cell, "b" in the cell beside it
+        const a = { x0: 88.71, y0: 168.6, x1: 94.83, y1: 178.6 };
+        const wide = { x0: 88.71, y0: 181.35, x1: 112.31, y1: 191.35 };
+        // "b" a hair narrower than "a": across the cells their middles line up 0.01 px better than their left edges
+        const b = { x0: 128.96, y0: 175.0, x1: 135.06, y1: 185.0 };
+        assert.strictEqual(lineAlign(text("a\nwide\nb", 110, 180, { lines: [a, wide, b] })), "start");
+        // the defect planted: the cell's lines centered on each other, as a table drawn without BALIGN is
+        const shift = (wide.x1 - wide.x0 - (a.x1 - a.x0)) / 2;
+        const centered = { ...a, x0: a.x0 + shift, x1: a.x1 + shift };
+        assert.strictEqual(lineAlign(text("a\nwide\nb", 110, 180, { lines: [centered, wide, b] })), "middle");
+    });
+
     it("fails a label at the start of its node where the program centered it, a shift the offset check passes", () => {
         // 4 px left of center: within half a font size, but no longer centered on the 40 px node
         assert.deepEqual(labelPair({ x: 96, box: { x0: 81, y0: 95, x1: 111, y1: 105 } }), { "label.anchor": ["a"] });

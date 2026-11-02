@@ -443,7 +443,8 @@ For VR/AR modes, see the [VR/AR Guide](./vr-ar).
 
 The element is a block that fills its container's width. Its height is 2:1 -- half its width --
 unless you give it a height or place it in a parent that has one, in which case it fills that
-parent. Size it with ordinary CSS:
+parent. The 2:1 ratio is a preferred size, never a minimum: in a grid or flex layout the element
+shrinks to the space it is given rather than pushing the page wider. Size it with ordinary CSS:
 
 ```css
 graphty-element {

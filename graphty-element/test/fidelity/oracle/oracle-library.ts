@@ -10,7 +10,7 @@
 import type { Graphty } from "../../../index.js";
 import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../../src/layout/graphviz/engines";
 import { readDrawn } from "../drawn-scene";
-import { extractScene } from "../extract-scene";
+import { extractScene, groupsOf } from "../extract-scene";
 import {
     associate,
     type Association,
@@ -31,6 +31,7 @@ import {
 } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
 import { judgesFor, type Reference, SHEET_JUDGES, specificationScene } from "./judges";
+import type { Pixels } from "./picture-gradient";
 import type { PScene } from "./primitives";
 import { pngPixels } from "./raster";
 import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
@@ -318,7 +319,18 @@ export async function compareWithOracle(
     // round a smaller one, Gephi's `label-overlap`, was read as a group and its oracle node as missing).
     const raster = meta.svgKind === "raster" && meta.drawn !== undefined;
     const groupless = raster || NO_GROUP_PROGRAMS.has(String(meta.program));
-    const unmutated = drawnPrimitives(scene, drawn, { groups: !groupless });
+    // A label under one render pixel is not shown here, as the oracle's is not (`compareOracle`); the scene shows it
+    // and leaves its size to `fontSize`, which the reference scenes judge in their own units.
+    const nodes = scene.nodes.map((n) => {
+        const d = drawn.nodes.get(n.id);
+        const fontPx = (d?.label ?? d?.tableLabel)?.fontPx ?? 0;
+        return n.label === null || fontPx >= 1 ? n : { ...n, label: { ...n.label, visible: false } };
+    });
+    // An SVG names no group, so a box graphty draws round others is read as one by its drawing alone, as the oracle's
+    // is, not only where the file nests nodes (the scene's groups, which the reference scenes are judged by)
+    const unmutated = drawnPrimitives({ ...scene, nodes, groups: groupsOf(nodes, drawn.nodes) }, drawn, {
+        groups: !groupless,
+    });
     // A specimen sheet whose format ids its nodes otherwise (Cytoscape desktop by SUID, GML by number) keeps `cap-*`
     // and `anchor-*` in an attribute (`name`, GML's `comment` or `template`): its captions and corner anchors are
     // named by that on both sides, so the comparison leaves the captions out and fixes the frame on the anchors
@@ -352,9 +364,16 @@ let lastRead: { svg: string; read: SvgPrimitives } | undefined;
  * @param svg - the SVG's text
  * @returns its primitives
  */
-function readSvgOnce(svg: string): SvgPrimitives {
+async function readSvgOnce(svg: string): Promise<SvgPrimitives> {
     if (lastRead?.svg !== svg) {
-        lastRead = { svg, read: readSvgPrimitives(svg) };
+        // the PNGs it embeds (Cytoscape desktop's gradient custom graphics), decoded so their pixels can be read
+        // keyed without whitespace: base64 written across lines reads back from the DOM with spaces for the breaks
+        const hrefs = new Set((svg.match(/data:image\/png;base64,[^"']+/gi) ?? []).map((h) => h.replace(/\s+/g, "")));
+        const pictures = new Map<string, Pixels>();
+        for (const href of hrefs) {
+            pictures.set(href, await pngPixels(href));
+        }
+        lastRead = { svg, read: readSvgPrimitives(svg, pictures) };
     }
     return structuredClone(lastRead.read);
 }
@@ -384,7 +403,7 @@ export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInp
         drawnBy: Record<string, unknown>,
         reference: Reference,
     ): Promise<{ association: Association; report: OracleReport; width: number; height: number }> => {
-        const read = readSvgOnce(svg);
+        const read = await readSvgOnce(svg);
         const associated = await associateOracle(
             id,
             drawnBy,

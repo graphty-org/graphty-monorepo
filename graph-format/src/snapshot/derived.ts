@@ -37,6 +37,7 @@ import {
     type EdgeListView,
     type EdgeMask,
     type F32,
+    type F64,
     type GraphSnapshot,
     type NodeIdMap,
     type NodeMask,
@@ -366,20 +367,7 @@ function checkReducers(field: string, reducers: Readonly<Record<string, unknown>
 function reduceWeights(weights: F32 | null, grouping: EdgeGrouping, reducer: WeightReducer): F32 | null {
     const { count, remap, origin } = grouping;
     if (weights === null) {
-        if (reducer !== "sum") {
-            return null;
-        }
-        const out = new Float32Array(count);
-        if (remap === null) {
-            out.fill(1);
-            return out;
-        }
-        for (let e = 0; e < remap.length; e++) {
-            if (remap[e] !== INVALID_INDEX) {
-                out[remap[e]]++;
-            }
-        }
-        return out;
+        return reducer === "sum" ? groupMultiplicities(count, remap) : null;
     }
     if (remap === null || origin === null) {
         return weights;
@@ -396,33 +384,63 @@ function reduceWeights(weights: F32 | null, grouping: EdgeGrouping, reducer: Wei
         if (d === INVALID_INDEX || origin[d] === e) {
             continue;
         }
-        const w = weights[e];
-        switch (reducer) {
-            case "last":
-                out[d] = w;
-                break;
-            case "sum":
-                out[d] += w;
-                break;
-            case "min":
-                if (w < out[d]) {
-                    out[d] = w;
-                }
-                break;
-            case "max":
-                if (w > out[d]) {
-                    out[d] = w;
-                }
-                break;
-            default: {
-                const unknown: never = reducer;
-                throw new GraphFormatError("E_UNSUPPORTED", `unknown weight reducer ${String(unknown)}`, {
-                    reducer: unknown,
-                });
-            }
+        foldWeight(out, d, weights[e], reducer);
+    }
+    return out;
+}
+
+/**
+ * The group sizes as F32 weights: what `"sum"` yields on an unweighted source.
+ * @param count - the new edge count
+ * @param remap - old edge -> new edge (INVALID_INDEX when dropped), or null for the identity
+ * @returns the per-new-edge multiplicities
+ */
+function groupMultiplicities(count: number, remap: U32 | null): F32 {
+    const out = new Float32Array(count);
+    if (remap === null) {
+        out.fill(1);
+        return out;
+    }
+    for (let e = 0; e < remap.length; e++) {
+        if (remap[e] !== INVALID_INDEX) {
+            out[remap[e]]++;
         }
     }
     return out;
+}
+
+/**
+ * Fold one non-survivor member's weight into its group's weight.
+ * @param out - the per-new-edge weights
+ * @param d - the group
+ * @param w - the member's weight
+ * @param reducer - the weight reducer
+ */
+function foldWeight(out: F32, d: number, w: number, reducer: Exclude<WeightReducer, "first">): void {
+    switch (reducer) {
+        case "last":
+            out[d] = w;
+            break;
+        case "sum":
+            out[d] += w;
+            break;
+        case "min":
+            if (w < out[d]) {
+                out[d] = w;
+            }
+            break;
+        case "max":
+            if (w > out[d]) {
+                out[d] = w;
+            }
+            break;
+        default: {
+            const unknown: never = reducer;
+            throw new GraphFormatError("E_UNSUPPORTED", `unknown weight reducer ${String(unknown)}`, {
+                reducer: unknown,
+            });
+        }
+    }
 }
 
 /**
@@ -444,6 +462,100 @@ function groupingFromPredicate(edgeCount: number, keep: (e: number) => boolean):
 
 /** The five flat numeric column shapes the group reducers accumulate. */
 type NumericColumn = Extract<Column, { dtype: "f32" | "f64" | "i32" | "u32" | "u8" }>;
+
+/**
+ * Fold one source row of `width` components into its group's accumulator row.
+ * @param acc - the accumulators
+ * @param at - the group row's first accumulator
+ * @param source - the source column data
+ * @param from - the source row's first value
+ * @param width - the components per row
+ * @param reducer - the reducer, or null for the group's first member (its values are copied)
+ */
+function foldNumericRow(
+    acc: F64,
+    at: number,
+    source: ArrayLike<number>,
+    from: number,
+    width: number,
+    reducer: "sum" | "min" | "max" | "mean" | null,
+): void {
+    for (let k = 0; k < width; k++) {
+        const value = source[from + k];
+        if (reducer === null) {
+            acc[at + k] = value;
+            continue;
+        }
+        switch (reducer) {
+            case "sum":
+            case "mean":
+                acc[at + k] += value;
+                break;
+            case "min":
+                if (value < acc[at + k]) {
+                    acc[at + k] = value;
+                }
+                break;
+            case "max":
+                if (value > acc[at + k]) {
+                    acc[at + k] = value;
+                }
+                break;
+            default: {
+                const unknown: never = reducer;
+                throw new GraphFormatError("E_UNSUPPORTED", `unknown reducer ${String(unknown)}`, {
+                    reducer: unknown,
+                });
+            }
+        }
+    }
+}
+
+/**
+ * Turn the per-group sums into means (a group of one keeps its value as is).
+ * @param acc - the accumulators, `width` per group
+ * @param members - the set members per group
+ * @param width - the components per row
+ */
+function divideByMembers(acc: F64, members: U32, width: number): void {
+    for (let d = 0; d < members.length; d++) {
+        if (members[d] > 1) {
+            for (let k = 0; k < width; k++) {
+                acc[d * width + k] /= members[d];
+            }
+        }
+    }
+}
+
+/**
+ * The accumulators as column data of the result dtype.
+ * @param acc - the f64 accumulators
+ * @param dtype - the result dtype
+ * @returns the data (acc itself for f64; a 4-byte padded buffer for u8)
+ */
+function narrowAccumulator(acc: F64, dtype: NumericColumn["dtype"]): TypedArrayData {
+    switch (dtype) {
+        case "f64":
+            return acc;
+        case "f32":
+            return new Float32Array(acc);
+        case "i32":
+            return new Int32Array(acc);
+        case "u32":
+            return new Uint32Array(acc);
+        case "u8": {
+            const data = new Uint8Array(new ArrayBuffer(Math.ceil(acc.length / 4) * 4), 0, acc.length);
+            data.set(acc);
+            return data;
+        }
+        default: {
+            const unknown: never = dtype;
+            throw new GraphFormatError("E_COLUMN_TYPE", `cannot reduce a ${String(unknown)} column`, {
+                dtype: unknown,
+            });
+        }
+    }
+}
 
 /**
  * A group reducer's numeric accumulation for one column into a new row space.
@@ -471,76 +583,17 @@ function reduceNumericColumn(
             continue;
         }
         members[d]++;
-        for (let k = 0; k < width; k++) {
-            const value = source[r * width + k];
-            const at = d * width + k;
-            if (seen[d] === 0) {
-                acc[at] = value;
-            } else {
-                switch (reducer) {
-                    case "sum":
-                    case "mean":
-                        acc[at] += value;
-                        break;
-                    case "min":
-                        if (value < acc[at]) {
-                            acc[at] = value;
-                        }
-                        break;
-                    case "max":
-                        if (value > acc[at]) {
-                            acc[at] = value;
-                        }
-                        break;
-                    default: {
-                        const unknown: never = reducer;
-                        throw new GraphFormatError("E_UNSUPPORTED", `unknown reducer ${String(unknown)}`, {
-                            reducer: unknown,
-                        });
-                    }
-                }
-            }
-        }
+        foldNumericRow(acc, d * width, source, r * width, width, seen[d] === 0 ? null : reducer);
         seen[d] = 1;
     }
     if (reducer === "mean") {
-        for (let d = 0; d < count; d++) {
-            if (members[d] > 1) {
-                for (let k = 0; k < width; k++) {
-                    acc[d * width + k] /= members[d];
-                }
-            }
-        }
+        divideByMembers(acc, members, width);
     }
     // "mean" is f64; a "sum" over an integer dtype widens to f64 too, so a total can never wrap
     // silently in a typed array that every write path would have refused (design section 5.1)
     const widen = reducer === "mean" || (reducer === "sum" && column.dtype !== "f32" && column.dtype !== "f64");
     const dtype = widen ? "f64" : column.dtype;
-    let data: TypedArrayData;
-    switch (dtype) {
-        case "f64":
-            data = acc;
-            break;
-        case "f32":
-            data = new Float32Array(acc);
-            break;
-        case "i32":
-            data = new Int32Array(acc);
-            break;
-        case "u32":
-            data = new Uint32Array(acc);
-            break;
-        case "u8":
-            data = new Uint8Array(new ArrayBuffer(Math.ceil((count * width) / 4) * 4), 0, count * width);
-            data.set(acc);
-            break;
-        default: {
-            const unknown: never = dtype;
-            throw new GraphFormatError("E_COLUMN_TYPE", `cannot reduce a ${String(unknown)} column`, {
-                dtype: unknown,
-            });
-        }
-    }
+    const data = narrowAccumulator(acc, dtype);
     let validity: U32 | null = null;
     let nullCount = 0;
     for (let d = 0; d < count; d++) {
@@ -1377,6 +1430,82 @@ function groupByBlockPair(first: U32, second: U32, blockCount: number): U32 {
 }
 
 /**
+ * Write each edge's block pair, ordered low-high when undirected, or INVALID_INDEX for a dropped
+ * intra-block edge.
+ * @param list - the source edge list
+ * @param blocks - node -> block
+ * @param directed - whether the source is directed
+ * @param dropLoops - whether intra-block edges are dropped
+ * @param first - out: the first block per edge
+ * @param second - out: the second block per edge
+ */
+function blockPairs(
+    list: EdgeListView,
+    blocks: U32,
+    directed: boolean,
+    dropLoops: boolean,
+    first: U32,
+    second: U32,
+): void {
+    for (let e = 0; e < first.length; e++) {
+        const bu = blocks[list.src[e]];
+        const bv = blocks[list.dst[e]];
+        if (bu === bv && dropLoops) {
+            first[e] = INVALID_INDEX;
+            second[e] = INVALID_INDEX;
+        } else if (directed || bu <= bv) {
+            first[e] = bu;
+            second[e] = bv;
+        } else {
+            first[e] = bv;
+            second[e] = bu;
+        }
+    }
+}
+
+/**
+ * The survivors when parallels are kept: every edge with a block pair survives on its own.
+ * @param first - the first block per edge (INVALID_INDEX when dropped)
+ * @returns edge -> survivor
+ */
+function keptPairs(first: U32): U32 {
+    const survivorOf = new Uint32Array(first.length);
+    for (let e = 0; e < first.length; e++) {
+        survivorOf[e] = first[e] === INVALID_INDEX ? INVALID_INDEX : e;
+    }
+    return survivorOf;
+}
+
+/**
+ * The edge columns a contraction keeps: those named in `edgeReducers`, reduced over the grouping.
+ * @param source - the source snapshot
+ * @param grouping - the edge grouping
+ * @param reducers - the per-column reducers, or undefined to keep none
+ * @returns the reduced columns, in source order
+ */
+function contractEdgeColumns(
+    source: GraphSnapshot,
+    grouping: EdgeGrouping,
+    reducers: Readonly<Record<string, ColumnReducer>> | undefined,
+): Column[] {
+    const edgeColumns: Column[] = [];
+    if (reducers === undefined) {
+        return edgeColumns;
+    }
+    for (const column of source.edges) {
+        const columnReducer = reducers[column.meta.name];
+        if (columnReducer === undefined) {
+            continue;
+        }
+        const reduced = reduceColumn(column, grouping, columnReducer);
+        if (reduced !== null) {
+            edgeColumns.push(reduced);
+        }
+    }
+    return edgeColumns;
+}
+
+/**
  * `contract(partition, options)` (design section 7.3): the nodes of each block become one node (block
  * indices as labels, ids 0..k-1), every source edge contributes once: an inter-block edge becomes an
  * edge block(u) -> block(v), an intra-block edge one self-loop with weight w, kept or dropped per
@@ -1413,29 +1542,8 @@ export function deriveContract(
     }
     const first = new Uint32Array(edgeCount);
     const second = new Uint32Array(edgeCount);
-    for (let e = 0; e < edgeCount; e++) {
-        const bu = blocks[list.src[e]];
-        const bv = blocks[list.dst[e]];
-        if (bu === bv && dropLoops) {
-            first[e] = INVALID_INDEX;
-            second[e] = INVALID_INDEX;
-        } else if (source.directed || bu <= bv) {
-            first[e] = bu;
-            second[e] = bv;
-        } else {
-            first[e] = bv;
-            second[e] = bu;
-        }
-    }
-    let survivorOf: U32;
-    if (merge) {
-        survivorOf = groupByBlockPair(first, second, blockCount);
-    } else {
-        survivorOf = new Uint32Array(edgeCount);
-        for (let e = 0; e < edgeCount; e++) {
-            survivorOf[e] = first[e] === INVALID_INDEX ? INVALID_INDEX : e;
-        }
-    }
+    blockPairs(list, blocks, source.directed, dropLoops, first, second);
+    const survivorOf = merge ? groupByBlockPair(first, second, blockCount) : keptPairs(first);
     const grouping = groupingFromSurvivors(survivorOf);
     const { src, dst } = gatherEndpoints(list, grouping, blocks);
     const weights = reduceWeights(list.weights, grouping, reducer);
@@ -1448,19 +1556,7 @@ export function deriveContract(
         weights,
     });
     const nodes = contractNodeTable(source, blocks, blockCount, blockOrigin, options.nodeReducers);
-    const edgeColumns: Column[] = [];
-    if (options.edgeReducers !== undefined) {
-        for (const column of source.edges) {
-            const columnReducer = options.edgeReducers[column.meta.name];
-            if (columnReducer === undefined) {
-                continue;
-            }
-            const reduced = reduceColumn(column, grouping, columnReducer);
-            if (reduced !== null) {
-                edgeColumns.push(reduced);
-            }
-        }
-    }
+    const edgeColumns = contractEdgeColumns(source, grouping, options.edgeReducers);
     const edges = new AttributeTableClass({ domain: "edge", rowCount: grouping.count, columns: edgeColumns });
     const parts = assembleParts(source, core, {
         directed: source.directed,

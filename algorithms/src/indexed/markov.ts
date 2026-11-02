@@ -268,21 +268,7 @@ export function markovClustering(s: AdjacencyView, options: MarkovOptions = {}):
     const maxIterations = options.maxIterations ?? 100;
     const tolerance = options.tolerance ?? 1e-6;
     const pruningThreshold = options.pruningThreshold ?? 1e-5;
-    if (!Number.isInteger(expansion) || expansion < 1) {
-        throw withCode(new RangeError(`expansion must be an integer of at least 1, got ${expansion}`), "E_BAD_OPTION");
-    }
-    if (!(inflation > 0) || inflation === Infinity) {
-        throw withCode(new RangeError(`inflation must be finite and above 0, got ${inflation}`), "E_BAD_OPTION");
-    }
-    if (!Number.isInteger(maxIterations) || maxIterations < 0) {
-        throw withCode(
-            new RangeError(`maxIterations must be a non-negative integer, got ${maxIterations}`),
-            "E_BAD_OPTION",
-        );
-    }
-    if (!(tolerance >= 0) || !(pruningThreshold >= 0)) {
-        throw withCode(new RangeError("tolerance and pruningThreshold must be non-negative"), "E_BAD_OPTION");
-    }
+    checkMarkovOptions(expansion, inflation, maxIterations, tolerance, pruningThreshold);
     const weights = options.weights ?? s.weights;
     if (weights !== null && weights.length !== s.arcCount) {
         throw withCode(
@@ -306,7 +292,52 @@ export function markovClustering(s: AdjacencyView, options: MarkovOptions = {}):
         converged = withinTolerance(m, next, tolerance);
         m = next;
     }
+    const { attractors, attractorOf } = attractorsOf(m, n);
+    const { labels, count } = labelsByAttractor(attractorOf);
+    return { ...withGroups(labels, count), attractors: Uint32Array.from(attractors), iterations, converged };
+}
 
+/**
+ * Check the MCL parameters.
+ * @param expansion - The expansion power
+ * @param inflation - The inflation power
+ * @param maxIterations - The round cap
+ * @param tolerance - The convergence tolerance
+ * @param pruningThreshold - The pruning threshold
+ * @throws RangeError for a bad option
+ */
+function checkMarkovOptions(
+    expansion: number,
+    inflation: number,
+    maxIterations: number,
+    tolerance: number,
+    pruningThreshold: number,
+): void {
+    if (!Number.isInteger(expansion) || expansion < 1) {
+        throw withCode(new RangeError(`expansion must be an integer of at least 1, got ${expansion}`), "E_BAD_OPTION");
+    }
+    if (!(inflation > 0) || inflation === Infinity) {
+        throw withCode(new RangeError(`inflation must be finite and above 0, got ${inflation}`), "E_BAD_OPTION");
+    }
+    if (!Number.isInteger(maxIterations) || maxIterations < 0) {
+        throw withCode(
+            new RangeError(`maxIterations must be a non-negative integer, got ${maxIterations}`),
+            "E_BAD_OPTION",
+        );
+    }
+    if (!(tolerance >= 0) || !(pruningThreshold >= 0)) {
+        throw withCode(new RangeError("tolerance and pruningThreshold must be non-negative"), "E_BAD_OPTION");
+    }
+}
+
+/**
+ * The attractors of the final flow matrix, and each column's attractor.
+ * @param m - The converged matrix
+ * @param n - The node count
+ * @returns The attractors in column order, and per column the row of its largest positive entry
+ *   (the first on a tie), or -1 for a column that emptied
+ */
+function attractorsOf(m: Csc, n: number): { attractors: number[]; attractorOf: Int32Array } {
     const attractors: number[] = [];
     // Column j's attractor: the row of its largest positive entry, the first on a tie.
     const attractorOf = new Int32Array(n).fill(-1);
@@ -322,6 +353,17 @@ export function markovClustering(s: AdjacencyView, options: MarkovOptions = {}):
             }
         }
     }
+    return { attractors, attractorOf };
+}
+
+/**
+ * Label the flow clusters in order of their lowest member, then each node whose column emptied as
+ * a community of its own.
+ * @param attractorOf - Each column's attractor, or -1
+ * @returns The label of every node and the community count
+ */
+function labelsByAttractor(attractorOf: Int32Array): { labels: Uint32Array<ArrayBuffer>; count: number } {
+    const n = attractorOf.length;
     const labels = new Uint32Array(n);
     const labelOfAttractor = new Map<number, number>();
     for (let j = 0; j < n; j++) {
@@ -341,5 +383,5 @@ export function markovClustering(s: AdjacencyView, options: MarkovOptions = {}):
             labels[j] = count++;
         }
     }
-    return { ...withGroups(labels, count), attractors: Uint32Array.from(attractors), iterations, converged };
+    return { labels, count };
 }

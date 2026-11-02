@@ -7,7 +7,6 @@ import {
     dirtyKey,
     floorTo,
     HOUR,
-    type JobItem,
     rollKey,
     type Step,
     STEP_MS,
@@ -193,7 +192,7 @@ describe("folds by the stored run (#5053)", () => {
         const store = new MemoryStore();
         const r = run(7, { event: "push", branch: "master" });
         const { load: _load, ...noLoad } = job(70, { runId: 7, startedAt: T0 - 30 * MIN, completedAt: T0 - 20 * MIN });
-        await putRaw(store, [r, noLoad as JobItem], T0);
+        await putRaw(store, [r, noLoad], T0);
         await recompute(store, T0);
         const [b] = (await loadSeries(store, "ci.runner_minutes", "1d", floorTo(T0, "1d"), T0, T0)).values();
         expect(b?.dims?.master?.sum).toBe(10);

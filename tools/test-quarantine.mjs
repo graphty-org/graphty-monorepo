@@ -637,6 +637,7 @@ export function fileIssue(t, had, gh) {
     try {
         if (had) {
             gh(["issue", "comment", String(had), "--body", `Quarantined again on ${t.since}.\n\n${body}`]);
+            raiseToCritical(had, gh);
             return had;
         }
         const url = gh([
@@ -657,6 +658,22 @@ export function fileIssue(t, had, gh) {
     } catch (e) {
         console.log(`test-quarantine: could not file the issue for ${idOf(t)} (${e.message.split("\n")[0]})`);
         return 0;
+    }
+}
+
+/**
+ * A quarantine issue is priority:critical (owner, 2026-10-22: a test that fails under load or timing is a critical
+ * defect), so a repeat quarantine raises an earlier issue that was filed or re-triaged lower (#3311). Never throws:
+ * the comment has already landed.
+ * @param number the issue
+ * @param gh `(args) => stdout`
+ */
+function raiseToCritical(number, gh) {
+    try {
+        const lower = ["priority:high", "priority:medium", "priority:low"].flatMap((l) => ["--remove-label", l]);
+        gh(["issue", "edit", String(number), "--add-label", "priority:critical", ...lower]);
+    } catch (e) {
+        console.log(`test-quarantine: could not raise #${number} to priority:critical (${e.message.split("\n")[0]})`);
     }
 }
 

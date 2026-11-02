@@ -73,6 +73,7 @@ import {
 } from "./columns";
 import type { BatchCommand } from "./commands";
 import {
+    checkMutation,
     COLUMNS_VALUE,
     type ColumnSettings,
     type DataImportCommand,
@@ -260,6 +261,8 @@ interface DataWrites {
 interface PageSources {
     /** The session's input tick: it moves whenever anything a page could show moves. */
     revision(): number;
+    /** The data's own revision: it moves on a freeze or an attribute write, never on a mask. */
+    dataRevision(): unknown;
     /**
      * A scope's members now.
      * @param spec - the scope
@@ -419,6 +422,69 @@ function textOf(value: unknown): string {
  */
 function isAbsent(value: unknown): boolean {
     return value === undefined || value === null || Number.isNaN(value);
+}
+
+/**
+ * Whether an edge has the node at either end.
+ * @param snapshot - the current snapshot
+ * @param index - the edge's row
+ * @param end - the node's row, or INVALID_INDEX when the graph does not hold it
+ * @returns true when one end is the node
+ */
+function edgeTouches(snapshot: GraphSnapshot, index: number, end: number): boolean {
+    return end !== INVALID_INDEX && (snapshot.edgeSource(index) === end || snapshot.edgeTarget(index) === end);
+}
+
+/**
+ * Whether a row is in a scope.
+ * @param snapshot - the current snapshot
+ * @param space - the snapshot's edge id space
+ * @param members - the scope's nodes and edges
+ * @param target - nodes or edges
+ * @param index - the row
+ * @returns true when the row's element is in the scope
+ */
+function rowInScope(
+    snapshot: GraphSnapshot,
+    space: ReturnType<typeof edgeSpaceOf>,
+    members: ResolvedScope,
+    target: "node" | "edge",
+    index: number,
+): boolean {
+    return target === "node" ? members.nodes.has(snapshot.ids.idOf(index)) : members.edges.has(space.idOf(index));
+}
+
+/**
+ * Sort rows by a value, absent values last, keeping graph order among equals.
+ * @param rows - the rows, in graph order
+ * @param sort - the direction and what a row sorts by
+ * @param sort.descending - true to sort largest first
+ * @param sort.value - what a row sorts by
+ * @returns the sorted rows
+ */
+function sortRows(
+    rows: readonly number[],
+    sort: { readonly descending: boolean; value(index: number): unknown },
+): Uint32Array {
+    const values = rows.map((index) => sort.value(index));
+    const direction = sort.descending ? -1 : 1;
+    const positions = rows.map((_row, position) => position);
+    positions.sort((x, y) => {
+        const a = values[x];
+        const b = values[y];
+        const absentA = isAbsent(a);
+        const absentB = isAbsent(b);
+        if (absentA !== absentB) {
+            return absentA ? 1 : -1;
+        }
+
+        if (absentA) {
+            return x - y;
+        }
+
+        return direction * compareSortValues(a, b) || x - y;
+    });
+    return Uint32Array.from(positions, (position) => rows[position] ?? 0);
 }
 
 /**
@@ -668,7 +734,7 @@ export class SessionData implements SessionDataApi {
     private readonly orders: RevisionCache<Uint32Array>;
     /** The last few neighbor lists, by node and options, for the current revision. */
     private readonly neighborLists: RevisionCache<NeighborList>;
-    /** The attribute walk, for the current revision. */
+    /** The attribute walk, for the current data revision. */
     private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
     /** The descriptors with their declarations and roles laid over, and what they were laid from. */
     private attributeOverlay: {
@@ -756,7 +822,7 @@ export class SessionData implements SessionDataApi {
         this.pages = pages;
         this.orders = new RevisionCache(() => pages.revision());
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
-        this.attributeCache = new RevisionCache(() => pages.revision());
+        this.attributeCache = new RevisionCache(() => pages.dataRevision());
     }
 
     /**
@@ -843,6 +909,7 @@ export class SessionData implements SessionDataApi {
      * @returns Settles once it is applied, or cancelled by a clear.
      */
     private edit(mutation: DataMutation): Promise<unknown> {
+        checkMutation(mutation);
         const send = this.writes.applier();
         return this.loadLine.edit(() => send(mutation), undefined);
     }
@@ -2200,10 +2267,7 @@ export class SessionData implements SessionDataApi {
         // ponytail: `touching` scans every edge once per revision; read the undirected CSR if a
         // host pages the edges of many nodes per revision.
         for (let index = 0; index < count; index++) {
-            if (
-                touching !== undefined &&
-                (end === INVALID_INDEX || (snapshot.edgeSource(index) !== end && snapshot.edgeTarget(index) !== end))
-            ) {
+            if (touching !== undefined && !edgeTouches(snapshot, index, end)) {
                 continue;
             }
 
@@ -2211,42 +2275,14 @@ export class SessionData implements SessionDataApi {
                 continue;
             }
 
-            if (members !== null) {
-                const inScope =
-                    target === "node"
-                        ? members.nodes.has(snapshot.ids.idOf(index))
-                        : members.edges.has(space.idOf(index));
-                if (!inScope) {
-                    continue;
-                }
+            if (members !== null && !rowInScope(snapshot, space, members, target, index)) {
+                continue;
             }
 
             rows.push(index);
         }
 
-        if (sort !== undefined) {
-            const values = rows.map((index) => sort.value(index));
-            const direction = sort.descending ? -1 : 1;
-            const positions = rows.map((_row, position) => position);
-            positions.sort((x, y) => {
-                const a = values[x];
-                const b = values[y];
-                const absentA = isAbsent(a);
-                const absentB = isAbsent(b);
-                if (absentA !== absentB) {
-                    return absentA ? 1 : -1;
-                }
-
-                if (absentA) {
-                    return x - y;
-                }
-
-                return direction * compareSortValues(a, b) || x - y;
-            });
-            return Uint32Array.from(positions, (position) => rows[position] ?? 0);
-        }
-
-        return Uint32Array.from(rows);
+        return sort === undefined ? Uint32Array.from(rows) : sortRows(rows, sort);
     }
 
     /**
@@ -3582,8 +3618,9 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     attributes(): readonly AttributeDescriptor[] {
-        // Keyed on the input tick, which moves on a freeze AND on an attribute write: keyed on the
-        // snapshot alone, an edited value never reached the descriptors.
+        // Keyed on the data revision, which moves on a freeze AND on an attribute write (keyed on the
+        // snapshot alone, an edited value never reached the descriptors), and not on a mask change,
+        // which moves the input tick but no column, type or value (issue #4386).
         const snapshot = this.current();
         // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns.
         const described = this.attributeCache.get("", () =>
@@ -4715,33 +4752,53 @@ export function recordsInRowOrder(
     snapshot: GraphSnapshot,
     target: "node" | "edge",
 ): readonly SessionAttributes[] {
-    const out: SessionAttributes[] = [];
-    if (target === "node") {
-        const ids = snapshot.ids.toArray();
-        for (const id of ids) {
-            const record = slice.nodes.get(id);
-            if (record !== undefined) {
-                out.push(record);
-            }
-        }
+    const out = target === "node" ? nodeRecordsInRowOrder(slice, snapshot) : edgeRecordsInRowOrder(slice, snapshot);
+    return Object.freeze(out);
+}
 
-        const rowed = new Set<unknown>(ids);
-        for (const [id, record] of slice.nodes) {
-            if (!rowed.has(id)) {
-                out.push(record);
-            }
-        }
-    } else {
-        for (let row = 0; row < snapshot.edgeCount; row++) {
-            const counter = snapshot.edges.value(EDGE_ID_COLUMN, row);
-            const record = typeof counter === "number" ? slice.edges.get(edgeIdOf(counter)) : undefined;
-            if (record !== undefined) {
-                out.push(record);
-            }
+/**
+ * The node records in row order, then those with no row.
+ * @param slice - The `graph` slice.
+ * @param snapshot - The snapshot of the same graph.
+ * @returns The records.
+ */
+function nodeRecordsInRowOrder(slice: GraphSlice, snapshot: GraphSnapshot): SessionAttributes[] {
+    const out: SessionAttributes[] = [];
+    const ids = snapshot.ids.toArray();
+    for (const id of ids) {
+        const record = slice.nodes.get(id);
+        if (record !== undefined) {
+            out.push(record);
         }
     }
 
-    return Object.freeze(out);
+    const rowed = new Set<unknown>(ids);
+    for (const [id, record] of slice.nodes) {
+        if (!rowed.has(id)) {
+            out.push(record);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The edge records in row order.
+ * @param slice - The `graph` slice.
+ * @param snapshot - The snapshot of the same graph.
+ * @returns The records.
+ */
+function edgeRecordsInRowOrder(slice: GraphSlice, snapshot: GraphSnapshot): SessionAttributes[] {
+    const out: SessionAttributes[] = [];
+    for (let row = 0; row < snapshot.edgeCount; row++) {
+        const counter = snapshot.edges.value(EDGE_ID_COLUMN, row);
+        const record = typeof counter === "number" ? slice.edges.get(edgeIdOf(counter)) : undefined;
+        if (record !== undefined) {
+            out.push(record);
+        }
+    }
+
+    return out;
 }
 
 /** A JMESPath expression that is nothing but a top-level property name. */
@@ -4830,7 +4887,8 @@ export function headlessDataService(
         apply: (mutation, draft) => {
             ingest.apply(mutation, dispatcher.graph.writer(draft, store));
         },
-        import: (command, draft, signal) => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal),
+        import: (command, draft, signal) =>
+            ingest.oneAtATime(() => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal)),
         values: (values, draft) => {
             dispatcher.graph.writer(draft, store).setGraphValues(values);
         },

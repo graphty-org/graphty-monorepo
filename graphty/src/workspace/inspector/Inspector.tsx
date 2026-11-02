@@ -1,4 +1,4 @@
-import { PopoutManager } from "@graphty/compact-mantine";
+import { PopoutManager, TargetTooltip } from "@graphty/compact-mantine";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { ActionIcon, Anchor, ColorSwatch, Group, Menu, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
@@ -33,6 +33,7 @@ import { findTreeRow, layerKindWords, placeOf, rowName, rowsHeading, runRowKind 
 import { LayerRowPanel } from "../graph-place/StyleTree";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
+import { useNumberFormats } from "../settings/numberFormat";
 import { tabFor, type WorkspaceState } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FolderPanel } from "../style/FolderPanel";
@@ -416,7 +417,7 @@ function HeaderMenu({
     return (
         <Menu position="bottom-end">
             <Menu.Target>
-                <Tooltip label={`${kindWord} actions`}>
+                <TargetTooltip label={`${kindWord} actions`}>
                     <ActionIcon
                         variant="subtle"
                         size="sm"
@@ -427,7 +428,7 @@ function HeaderMenu({
                     >
                         <GLYPHS.more size={14} />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
                 {treeRow === undefined ? (
@@ -458,6 +459,8 @@ function HeaderMenu({
 export function Inspector(): React.JSX.Element {
     const { session, store, registry, run: runCommand } = useWorkspace();
     const version = useSessionVersion(session);
+    // The reader's Number format respells every value the inspector draws.
+    useNumberFormats();
     // A filter step turned on or off changes its editor's header.
     useVisibilityVersion(session);
     const inspected = useWorkspaceState((state) => state.inspected);

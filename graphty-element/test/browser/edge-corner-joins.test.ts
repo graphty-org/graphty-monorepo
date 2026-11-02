@@ -14,7 +14,7 @@ import { Camera, Color4, Engine, FreeCamera, Scene, Vector3 } from "@babylonjs/c
 import { afterEach, assert, describe, test } from "vitest";
 
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
-import { EDGE_MITER_LIMIT } from "../../src/meshes/edgeJoinShader";
+import { EDGE_MITER_LIMIT, JOIN_FLOATS_PER_PIECE } from "../../src/meshes/edgeJoinShader";
 import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { Simple2DLineRenderer } from "../../src/meshes/Simple2DLineRenderer";
 
@@ -223,7 +223,7 @@ async function draw(dash: number, all: Bend[] = bends(), W = WIDTH, H = HEIGHT):
         }
         batch.placeRun(slots, flat);
         const data = (batch as unknown as { slots: Float32Array }).slots;
-        spacings.set(bend, data[slots[0] * 14 + 13]);
+        spacings.set(bend, data[slots[0] * JOIN_FLOATS_PER_PIECE + 13]);
     }
 
     await scene.whenReadyAsync();
@@ -350,9 +350,9 @@ describe("a bent edge's corners", () => {
 
     test("draw no pixel twice on a translucent line", async () => {
         const drawn = await draw(0);
-        // The U whose middle is shorter than the line is wide is the one exception: its two arms
-        // are not neighbours and overlap each other (design/edges/sharp-corners.md).
-        const twice = report(drawn, (d, bend) => (CASES[bend.row] === "U" ? 0 : d.overlap));
+        // The U whose middle is shorter than the line is wide included: its two arms are not
+        // neighbours, and the later one gives the overlap to the earlier (issue #3096).
+        const twice = report(drawn, (d) => d.overlap);
         assert.deepEqual(twice, [], "pixels drawn twice, per bend");
     });
 

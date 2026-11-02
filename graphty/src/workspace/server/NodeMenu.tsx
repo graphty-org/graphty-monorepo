@@ -68,6 +68,7 @@ export function NodeMenu(): React.JSX.Element | null {
                     <Popout.Panel
                         width={260}
                         header={{ variant: "title", title: "Expand" }}
+                        closeLabel="Close Expand"
                         anchorX={point}
                         anchorY={point}
                         placement="right"

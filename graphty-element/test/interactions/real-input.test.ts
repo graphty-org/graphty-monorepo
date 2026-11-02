@@ -100,6 +100,29 @@ function at(element: Graphty, id: string): Point {
 }
 
 /**
+ * A corner of the canvas, 30 pixels in, that no node is drawn over, read from the nodes' public
+ * screen bounds: after the camera moves, a fixed spot such as `EMPTY` can land on a node.
+ * @param element - The element.
+ * @returns The spot.
+ */
+function emptyCorner(element: Graphty): Point {
+    const corners: Point[] = [
+        { x: 30, y: 30 },
+        { x: WIDTH - 30, y: 30 },
+        { x: 30, y: HEIGHT - 30 },
+        { x: WIDTH - 30, y: HEIGHT - 30 },
+    ];
+    const spot = corners.find((p) =>
+        NODES.every(({ id }) => {
+            const b = element.nodeScreenPosition(id)?.bounds;
+            return !b || p.x < b.left || p.x > b.right || p.y < b.top || p.y > b.bottom;
+        }),
+    );
+    assert.isDefined(spot, "a corner of the canvas is empty");
+    return spot;
+}
+
+/**
  * How far apart nodes a and b are drawn, on screen or not: how zoomed in the view is.
  * @param element - The element.
  * @returns The distance in CSS pixels.
@@ -1057,7 +1080,12 @@ describe("the selection as the camera's pivot", () => {
 
         const before = at(element, "c");
         const unturned = camera(element);
-        await drag(element, EMPTY, { x: EMPTY.x + 120, y: EMPTY.y - 40 });
+        // The pivot's glide brings node a down over `EMPTY`, so the drag starts where no node is
+        const from = emptyCorner(element);
+        await drag(element, from, {
+            x: from.x + (from.x < WIDTH / 2 ? 120 : -120),
+            y: from.y + (from.y < HEIGHT / 2 ? 40 : -40),
+        });
         await applied(element);
 
         assert.notStrictEqual(camera(element), unturned, "the camera turned");

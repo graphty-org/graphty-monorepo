@@ -302,7 +302,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {

@@ -12,6 +12,7 @@ import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
+import { sampleTile } from "../../../test/samples-dialog";
 import { render, screen } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
@@ -22,7 +23,7 @@ describe("opened: an open's whole run", () => {
     it("settles once the sample is read, its history started and focus is on its heading", async () => {
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
-        await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
+        await userEvent.click(screen.getByRole("button", { name: sampleTile("Les Miserables") }));
         const { opened } = store.get();
         assert.instanceOf(opened, Promise, "the click started an open the workspace tracks");
         await opened;

@@ -24,6 +24,106 @@ export interface BarabasiAlbertOptions extends WeightOptions {
     seed?: number | undefined;
 }
 
+/** The growing graph of {@link barabasiAlbertGraph}. */
+interface Growth {
+    /** The edges so far. */
+    readonly out: EdgeBuffer;
+    /** The repeated-endpoint list; `length` entries are filled. */
+    readonly repeated: Uint32Array;
+    /** The filled length of `repeated`. */
+    length: number;
+    /** Neighbour lists, only for the triad step. */
+    readonly adjacency: number[][] | null;
+}
+
+/**
+ * Add the edge (s, t) and append t to the repeated list.
+ * @param g - the growing graph
+ * @param s - the new node
+ * @param t - the target
+ */
+function link(g: Growth, s: number, t: number): void {
+    g.out.push(s, t);
+    g.repeated[g.length++] = t;
+    if (g.adjacency !== null) {
+        g.adjacency[s].push(t);
+        g.adjacency[t].push(s);
+    }
+}
+
+/**
+ * Draw m distinct targets from the repeated list, in draw order.
+ * @param g - the growing graph
+ * @param stream - the stream
+ * @param m - the target count
+ * @param targets - receives the targets
+ */
+function drawTargets(g: Growth, stream: RandomStream, m: number, targets: number[]): void {
+    let found = 0;
+    while (found < m) {
+        const t = g.repeated[stream.nextBelow(g.length)];
+        let fresh = true;
+        for (let i = 0; i < found; i++) {
+            fresh &&= targets[i] !== t;
+        }
+        if (fresh) {
+            targets[found++] = t;
+        }
+    }
+}
+
+/**
+ * The triad step: join s to a uniformly chosen neighbour of `target` that s is not yet joined to.
+ * @param adjacency - the neighbour lists
+ * @param g - the growing graph
+ * @param stream - the stream
+ * @param s - the new node
+ * @param target - the previous target
+ * @returns false when no such neighbour exists (nothing drawn, nothing joined)
+ */
+function triadLink(adjacency: number[][], g: Growth, stream: RandomStream, s: number, target: number): boolean {
+    const mine = adjacency[s];
+    const candidates = adjacency[target].filter((x) => x !== s && !mine.includes(x));
+    if (candidates.length === 0) {
+        return false;
+    }
+    link(g, s, candidates[stream.nextBelow(candidates.length)]);
+    return true;
+}
+
+/**
+ * Add the new node's m edges: the first to the first target; each further one a triad step with
+ * probability `triad`, otherwise to the next unused target.
+ * @param g - the growing graph
+ * @param stream - the stream
+ * @param s - the new node
+ * @param triad - the triad probability
+ * @param targets - the m drawn targets
+ */
+function attachNode(g: Growth, stream: RandomStream, s: number, triad: number, targets: number[]): void {
+    const { adjacency } = g;
+    const m = targets.length;
+    let next = 0;
+    let target = targets[next++];
+    link(g, s, target);
+    for (let count = 1; count < m; count++) {
+        if (adjacency !== null && stream.nextFloat() < triad && triadLink(adjacency, g, stream, s, target)) {
+            continue;
+        }
+        // the next unused target (a triad step may already have joined s to it)
+        do {
+            target = targets[next++];
+        } while (adjacency !== null && adjacency[s].includes(target) && next < m);
+        if (adjacency?.[s].includes(target)) {
+            // every planned target is taken: fall back to a fresh preferential draw
+            do {
+                target = g.repeated[stream.nextBelow(g.length)];
+            } while (target === s || adjacency[s].includes(target));
+        }
+        link(g, s, target);
+    }
+}
+
 /**
  * Barabasi-Albert preferential attachment (A.-L. Barabasi and R. Albert, "Emergence of scaling in
  * random networks", Science 286, 509-512, 1999), optionally with triad formation (P. Holme and
@@ -54,61 +154,19 @@ export function barabasiAlbertGraph(options: BarabasiAlbertOptions): SampleGraph
     const stream = new RandomStream(seed, "barabasi-albert", 0);
     const out = new EdgeBuffer(edgeCount);
     const repeated = new Uint32Array(m + 2 * edgeCount);
-    let length = 0;
     for (let i = 0; i < m; i++) {
-        repeated[length++] = i;
+        repeated[i] = i;
     }
     // neighbour lists, only for the triad step
     // ponytail: number[][] per node; a CSR-like growable adjacency if HK at 1M+ nodes matters
     const adjacency: number[][] | null = triad > 0 ? Array.from({ length: n }, () => []) : null;
+    const growth: Growth = { out, repeated, length: m, adjacency };
     const targets = new Array<number>(m);
-    const link = (s: number, t: number): void => {
-        out.push(s, t);
-        repeated[length++] = t;
-        if (adjacency !== null) {
-            adjacency[s].push(t);
-            adjacency[t].push(s);
-        }
-    };
     for (let s = m; s < n; s++) {
-        // m distinct targets from the repeated list, in draw order
-        let found = 0;
-        while (found < m) {
-            const t = repeated[stream.nextBelow(length)];
-            let fresh = true;
-            for (let i = 0; i < found; i++) {
-                fresh &&= targets[i] !== t;
-            }
-            if (fresh) {
-                targets[found++] = t;
-            }
-        }
-        let next = 0;
-        let target = targets[next++];
-        link(s, target);
-        for (let count = 1; count < m; count++) {
-            if (adjacency !== null && stream.nextFloat() < triad) {
-                const mine = adjacency[s];
-                const candidates = adjacency[target].filter((x) => x !== s && !mine.includes(x));
-                if (candidates.length > 0) {
-                    link(s, candidates[stream.nextBelow(candidates.length)]);
-                    continue;
-                }
-            }
-            // the next unused target (a triad step may already have joined s to it)
-            do {
-                target = targets[next++];
-            } while (adjacency !== null && adjacency[s].includes(target) && next < m);
-            if (adjacency?.[s].includes(target)) {
-                // every planned target is taken: fall back to a fresh preferential draw
-                do {
-                    target = repeated[stream.nextBelow(length)];
-                } while (target === s || adjacency[s].includes(target));
-            }
-            link(s, target);
-        }
+        drawTargets(growth, stream, m, targets);
+        attachNode(growth, stream, s, triad, targets);
         for (let i = 0; i < m; i++) {
-            repeated[length++] = s;
+            repeated[growth.length++] = s;
         }
     }
     return applyWeights(toGraph(n, out, false), options);

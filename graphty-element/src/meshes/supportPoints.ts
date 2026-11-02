@@ -576,7 +576,10 @@ const MAX_STEPS_TO_REST = 1500;
 
 /**
  * Every support point of a graph, carried from frame to frame: each held as where it sits along and across its
- * edge, so it moves with its nodes, and stepped a few times a frame until it comes to rest.
+ * edge, so it moves with its nodes, and stepped a few times a frame. Once the nodes and forces hold still for a
+ * frame, every point starts again from its edge's middle and is stepped to rest out of sight, a fixed number of
+ * steps a frame, so where it rests depends only on where the nodes stopped and on the forces: not on how the
+ * frames split the nodes' movement, nor on how fast the device draws them (#5299).
  * @template E - The edge.
  */
 export class SupportPoints<E> {
@@ -588,6 +591,11 @@ export class SupportPoints<E> {
     /** Each support point in the scene as last placed; a point is a new object each time it moves. */
     private placed: Xyz[] = [];
     private isResting = true;
+    /**
+     * Whether the points were started again from their edges' middles since the nodes or forces last changed: only
+     * a settle from there may come to rest.
+     */
+    private seeded = false;
     /** Steps taken since the nodes last moved. */
     private steps = 0;
     /** How many steps in a row every support point has stayed under the resting speed. */
@@ -628,6 +636,14 @@ export class SupportPoints<E> {
             this.steps = 0;
             this.calm.steps = 0;
             this.isResting = false;
+            this.seeded = false;
+        } else if (!this.isResting && !this.seeded) {
+            // the nodes held still for a frame: settle from a fixed start, so the history of how they got here is gone
+            this.rel = new Float64Array(this.rel.length).map((_, i) => (i % 2 === 0 ? 0.5 : 0));
+            this.velocities.fill(0);
+            this.steps = 0;
+            this.calm.steps = 0;
+            this.seeded = true;
         }
         if (this.isResting) {
             return false;
@@ -638,16 +654,17 @@ export class SupportPoints<E> {
             this.isResting = true;
             return had;
         }
-        this.step(nodes(), ends);
-        return true;
+        return this.step(nodes(), ends);
     }
 
     /**
-     * Step the support points a frame's worth, from where they sit on their edges, and place them.
+     * Step the support points a frame's worth, from where they sit on their edges, and place them: every step while
+     * the nodes move, and a settle from the middles only once it rests, so the curves do not flick straight and back.
      * @param centers - Every node's center.
      * @param ends - Each edge's ends and forces.
+     * @returns Whether any placed point moved.
      */
-    private step(centers: readonly Xyz[], ends: readonly SupportEdge[]): void {
+    private step(centers: readonly Xyz[], ends: readonly SupportEdge[]): boolean {
         const m = ends.length;
         const points = new Float64Array(2 * m);
         for (let j = 0; j < m; j++) {
@@ -659,15 +676,21 @@ export class SupportPoints<E> {
         const steps = Math.max(1, Math.min(MAX_FRAME_STEPS, Math.floor(FRAME_BUDGET / perStep)));
         this.steps += steps;
         const moving = stepSupportPoints(centers, ends, points, this.velocities, steps, this.calm);
-        this.isResting = !moving || this.steps >= MAX_STEPS_TO_REST;
-        this.placed = [];
+        this.isResting = this.seeded && (!moving || this.steps >= MAX_STEPS_TO_REST);
+        const shown = !this.seeded || this.isResting || this.placed.length !== m;
+        if (shown) {
+            this.placed = [];
+        }
         for (let j = 0; j < m; j++) {
             const { src, dst } = ends[j];
             const [along, across] = toRel(ends[j], points[2 * j], points[2 * j + 1]);
             this.rel[2 * j] = along;
             this.rel[2 * j + 1] = across;
-            this.placed.push({ x: points[2 * j], y: points[2 * j + 1], z: src.z + (dst.z - src.z) * along });
+            if (shown) {
+                this.placed.push({ x: points[2 * j], y: points[2 * j + 1], z: src.z + (dst.z - src.z) * along });
+            }
         }
+        return shown;
     }
 
     /**
@@ -698,29 +721,7 @@ export class SupportPoints<E> {
         });
         const was = this.lastEnds;
         this.lastEnds = now;
-        if (was.length === now.length) {
-            this.reseedChangedForces(was, now);
-        }
         return was.length !== now.length || now.some((v, i) => Math.abs(v - was[i]) > 1e-6);
-    }
-
-    /**
-     * Start again from its edge's middle every support point whose forces changed, so where a point rests depends on
-     * its forces and the nodes, not on the forces it had before (a style set and then removed draws the curve it drew
-     * before it was set).
-     * @param was - Each edge's ends and forces at the call before, flat, as {@link endsChanged} keeps them.
-     * @param now - The same, now.
-     */
-    private reseedChangedForces(was: Float64Array, now: Float64Array): void {
-        for (let j = 0; j < now.length / 11; j++) {
-            const changed = now
-                .subarray(11 * j + 4, 11 * j + 11)
-                .some((v, k) => Math.abs(v - was[11 * j + 4 + k]) > 1e-6);
-            if (changed) {
-                this.rel.set([0.5, 0], 2 * j);
-                this.velocities.set([0, 0], 2 * j);
-            }
-        }
     }
 
     /**

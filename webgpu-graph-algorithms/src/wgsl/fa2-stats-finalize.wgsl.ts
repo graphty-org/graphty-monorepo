@@ -52,7 +52,7 @@ fn stats_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
     let tKe = wg_reduce_f32(ke, lid.x, 0u);
     if (lid.x == 0u) {
         if (fold) {
-            let n = f32(P.n);
+            let n = f32(max(P.live, 1u));                              // inert rows are not counted (setInert)
             let c = tSum.xyz / n;
             S.centroid = vec4f(c, 0.0);
             S.rmsRadius = sqrt(max(tSum.w, 0.0) / n);                  // RMS radius about the previous centroid (7.17)

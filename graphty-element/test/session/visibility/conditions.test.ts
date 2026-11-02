@@ -4,7 +4,7 @@
  * what all of them match over the whole graph. Each condition says what its rule matches, and the
  * filter steps are a view of the keep and exclude conditions.
  */
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import {
     createGraphSession,
@@ -292,6 +292,63 @@ describe("filter conditions", () => {
         assert.deepStrictEqual(selected(session).nodes, ["a"]);
         await session.redo();
         assert.deepStrictEqual(selected(session).nodes, []);
+        session.dispose();
+    });
+
+    it("switches the select conditions off for a selection.apply a reader made, never for a script's", async () => {
+        const session = await graph();
+        await session.visibility.addCondition({ id: "hosts", effect: "select", rule: HOSTS });
+        const causes: string[] = [];
+        session.on("selection:changed", (delta) => causes.push(delta.cause));
+
+        // A script's selection leaves the condition on, as it always did.
+        await session.selection.apply({ nodes: ["c"] });
+        assert.isTrue(session.visibility.conditions[0]?.on);
+
+        // A reader's pick from a table acts like a click on the canvas.
+        const delta = await session.selection.apply({ nodes: ["d"] }, "replace", { cause: "user" });
+        assert.strictEqual(delta.cause, "user");
+        assert.isFalse(session.visibility.conditions[0]?.on, "the reader's selection switched the condition off");
+        assert.deepStrictEqual(selected(session).nodes, ["d"], "the reader's selection stands");
+        assert.deepStrictEqual(session.selection.origin, { nodes: ["d"] }, "the target is still the origin");
+        assert.deepStrictEqual(causes, ["api", "user"]);
+
+        await session.undo();
+        assert.isTrue(session.visibility.conditions[0]?.on, "undo switches the condition back on");
+
+        try {
+            await session.selection.apply({ nodes: ["d"] }, "replace", { cause: "history" as "user" });
+            assert.fail("a cause other than user or api is refused");
+        } catch (error) {
+            assert.strictEqual((error as { code?: string }).code, "E_BAD_COMMAND");
+        }
+        session.dispose();
+    });
+
+    it("switches the select conditions off for a selection.clear a reader made, never for a script's", async () => {
+        const session = await graph();
+        await session.visibility.addCondition({ id: "hosts", effect: "select", rule: HOSTS });
+        const causes: string[] = [];
+        session.on("selection:changed", (delta) => causes.push(delta.cause));
+
+        // A script's clear leaves the condition on, as it always did.
+        assert.strictEqual(session.selection.clear().cause, "api");
+        assert.isTrue(session.visibility.conditions[0]?.on);
+
+        // A reader's clear (Escape) acts like a click on empty canvas.
+        await session.selection.apply({ nodes: ["c"] });
+        const delta = session.selection.clear({ cause: "user" });
+        assert.strictEqual(delta.cause, "user");
+        await vi.waitFor(() => {
+            assert.isFalse(session.visibility.conditions[0]?.on, "the reader's clear switched the condition off");
+        });
+        assert.strictEqual(session.selection.size, 0, "the reader's clear stands");
+        assert.deepStrictEqual(causes, ["api", "api", "user"]);
+
+        await session.undo();
+        assert.isTrue(session.visibility.conditions[0]?.on, "undo switches the condition back on");
+
+        assert.throws(() => session.selection.clear({ cause: "history" as "user" }), /not by "history"/);
         session.dispose();
     });
 

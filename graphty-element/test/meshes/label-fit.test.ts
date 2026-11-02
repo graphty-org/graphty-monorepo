@@ -33,6 +33,26 @@ describe("labelFitExtent", () => {
         });
     });
 
+    it("holds its picture too, padded on its own, where that is larger than the padded label (image-fixedsize-false)", () => {
+        // Graphviz: a 24 pixel picture at 96 pixels an inch is 18 points, 2 more each way: a 20 x 20 box
+        const shape = { type: "rectangle" as const, labelFit: "inside" as const, labelFitImage: 0.75, size: 0 };
+        const picture = { width: 24, height: 24 };
+        const none = { width: 0, height: 0 };
+        assert.deepEqual(labelFitExtent({ ...shape, labelFitImagePadding: 1 }, none, picture), {
+            width: 20,
+            height: 20,
+        });
+        // the padded label where it is larger, each way on its own
+        const padded = { ...shape, labelFitImagePadding: 1, labelPaddingX: 8, labelPaddingY: 4 };
+        assert.deepEqual(labelFitExtent(padded, box, picture), { width: 26, height: 20 });
+        // not known yet, or no labelFitImage: the label alone
+        assert.deepEqual(labelFitExtent(padded, box, null), { width: 26, height: 10 });
+        assert.deepEqual(labelFitExtent({ ...padded, labelFitImage: undefined }, box, picture), {
+            width: 26,
+            height: 10,
+        });
+    });
+
     it("grows an ellipse by the square root of 2 around the box, as Graphviz does", () => {
         const fitted = labelFitExtent({ type: "ellipse", labelFit: "inside", width: 1, height: 1 }, box);
         assert.closeTo(fitted?.width ?? 0, 10 * Math.SQRT2, 1e-9);

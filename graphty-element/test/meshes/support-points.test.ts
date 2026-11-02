@@ -46,6 +46,30 @@ function settle(nodes: Xyz[], edges: SupportEdge[]): [number, number][] {
     return edges.map((_, j) => [points[2 * j], points[2 * j + 1]]);
 }
 
+/**
+ * Update support points frame after frame, the nodes moved on the first, until they rest.
+ * @param support - The support points.
+ * @param nodes - Every node's center.
+ * @param edges - The edges.
+ * @param read - An edge's ends and forces.
+ * @param limit - How many frames at most.
+ * @returns How many frames it took.
+ */
+function framesToRest<E>(
+    support: SupportPoints<E>,
+    nodes: () => readonly Xyz[],
+    edges: E[],
+    read: (edge: E) => SupportEdge,
+    limit: number,
+): number {
+    let frames = 0;
+    do {
+        support.update(nodes, edges, read, frames === 0);
+        frames++;
+    } while (frames < limit && !support.resting);
+    return frames;
+}
+
 describe("support points", () => {
     it("stay at the middle of a lone edge, which is then drawn straight", () => {
         const nodes = [at(0, 0), at(100, 0)];
@@ -164,9 +188,7 @@ describe("support points", () => {
         let forces: SupportForces = BARNES_HUT;
         const read = (): SupportEdge => ({ src: nodes[0], dst: nodes[1], forces });
         const rest = (): Xyz | null => {
-            for (let frame = 0; frame < 400 && support.update(() => nodes, ["e"], read, frame === 0); frame++) {
-                // stepped until the point rests
-            }
+            framesToRest(support, () => nodes, ["e"], read, 400);
             return support.pointOf("e");
         };
         const first = rest();
@@ -189,9 +211,7 @@ describe("support points", () => {
             asked++;
             return nodes;
         };
-        for (let frame = 0; frame < 200 && support.update(centers, ["e"], read, frame === 0); frame++) {
-            // stepped until the point rests
-        }
+        framesToRest(support, centers, ["e"], read, 200);
         const rested = support.pointOf("e");
         assert.isNotNull(rested);
         assert.closeTo(rested?.y ?? 0, -38.1, 0.1);
@@ -208,6 +228,39 @@ describe("support points", () => {
         assert.isNull(support.pointOf("other"));
     });
 
+    it("rest where the final nodes and forces put them, however the frames split the nodes' movement (#5299)", () => {
+        // the same nodes reach the same places by two different histories: one in 3 frames, one in 7 with a pause
+        // (a frame in which nothing moved) half way, as a slow device or a split load draws them
+        const end = [at(0, 0), at(100, 0), at(50, 30), at(20, -40)];
+        const edges: (readonly [number, number])[] = [
+            [0, 1],
+            [0, 1],
+            [1, 2],
+            [2, 3],
+            [3, 0],
+        ];
+        const rested = (path: number[]): (Xyz | null)[] => {
+            const nodes = end.map((p) => at(p.x, p.y));
+            const read = ([a, b]: readonly [number, number]): SupportEdge => ({
+                src: nodes[a],
+                dst: nodes[b],
+                forces: BARNES_HUT,
+            });
+            const support = new SupportPoints<readonly [number, number]>();
+            for (const t of path) {
+                end.forEach((p, i) => (nodes[i] = at(p.x * t + 300 * (1 - t), p.y * t - 200 * (1 - t))));
+                support.update(() => nodes, edges, read, true);
+            }
+            framesToRest(support, () => nodes, edges, read, 400);
+            assert.isTrue(support.resting);
+            return edges.map((e) => support.pointOf(e));
+        };
+        const fast = rested([0, 0.5, 1]);
+        const slow = rested([0, 0.1, 0.2, 0.2, 0.2, 0.6, 0.9, 1]);
+        assert.deepStrictEqual(slow, fast);
+        assert.isAbove(Math.abs((fast[0]?.y ?? 0) - (fast[1]?.y ?? 0)), 1, "the two parallel curves are apart");
+    });
+
     it("come to rest beside an edge whose two ends are at one place, whose point stays there", () => {
         // two nodes at one spot (a self-loop, or nodes moved onto each other): the edge has no length to hold its
         // point along, so each frame put the point back and the push sent it off again, and nothing ever rested
@@ -222,10 +275,7 @@ describe("support points", () => {
             forces: BARNES_HUT,
         });
         const support = new SupportPoints<readonly [number, number]>();
-        let frames = 0;
-        while (frames < 100 && support.update(() => nodes, edges, read, frames === 0)) {
-            frames++;
-        }
+        const frames = framesToRest(support, () => nodes, edges, read, 100);
         assert.isTrue(support.resting);
         assert.isAtMost(frames, 15, "at rest by speed, not at the 1500-step limit (38 frames)");
         assert.deepInclude(support.pointOf(edges[1]), { x: 40, y: 20 });
@@ -252,10 +302,7 @@ describe("support points", () => {
             forces: BARNES_HUT,
         });
         const support = new SupportPoints<readonly [number, number]>();
-        let frames = 0;
-        while (frames < 100 && support.update(() => nodes, edges, read, frames === 0)) {
-            frames++;
-        }
+        const frames = framesToRest(support, () => nodes, edges, read, 100);
         assert.isTrue(support.resting);
         assert.isAtMost(frames, 15, "at rest in 15 frames of 39 steps, not at the 1500-step limit");
         assert.isFalse(

@@ -41,7 +41,7 @@ export const TITLE = "Release status";
  * channel/nightly.mjs: release.yml's held job checks out this file alone.
  */
 export const REVIEW_PAGE =
-    "the review page (servherd `visual-review-v3`, `node visual-review/trusted/cli.mjs serve --candidate next`): the tokenized URL its log prints, plus `&target=master`";
+    "the proofroom review page (servherd `proofroom-review`, `node /home/apowers/Projects/proofroom/trusted/cli.mjs serve --candidate next`): the tokenized URL its log prints, plus `&change=master`";
 
 /**
  * Whether a green-images run held its commit for the owner's review (the hold step's action, #5052).

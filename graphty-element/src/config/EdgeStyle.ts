@@ -47,6 +47,13 @@ export const EdgeArrowTypes = z.enum([
     "open-cross-delta",
     // the inverted triangle's outline (Graphviz oinv, invempty)
     "open-inverted",
+    // half-open's arm drawn as one thin stroke, the line running on under it to where it meets the line
+    // (Cytoscape HALF_TOP), and that barb on the line's other side (HALF_BOTTOM)
+    "half-barb",
+    "half-barb-flipped",
+    // a vee turned round: its point on the line, its two corners toward the node and its notch empty, with no tine
+    // along the line (vis-network crow)
+    "inverted-vee",
 ]);
 
 const ArrowStyle = z.strictObject({

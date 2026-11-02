@@ -33,6 +33,7 @@ import { ExpandRequest } from '@graphty/graph-io';
 import { ExportCapabilities } from '@graphty/graph-io';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
+import { FileLayout } from '@graphty/graph-io';
 import { FreezeReport } from '@graphty/graph-format';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
@@ -459,6 +460,9 @@ export interface CameraState {
 }
 
 // @public
+export type CameraViewExtent = "centers" | "drawn";
+
+// @public
 export interface CameraViewInput {
     readonly aspect: number;
     readonly bounds: GraphBounds;
@@ -598,8 +602,10 @@ export abstract class DataSource {
     protected chunkSize: number;
     dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean>;
     get declaredDirection(): DeclaredDirection | null;
+    get declaredFileLayout(): FileLayout | null;
     get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
+    protected declareFileLayout(layout: FileLayout | null): void;
     protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
     // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
@@ -846,6 +852,7 @@ export interface EdgePosition {
     dst: Position;
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
+    leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
     // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];
@@ -1594,23 +1601,23 @@ export type GraphtyErrorCode =
 */
 | "E_SOURCE_AUTH"
 /**
-* A network source refused the request for this credential. `details.status`, `details.serverCode`. Experimental.
+* A network source refused the request for this credential. `details.origin` is the host that answered, `details.status`, `details.serverCode`. Experimental.
 */
 | "E_SOURCE_FORBIDDEN"
 /**
-* The item a network source was asked for does not exist. `details.what`, `details.value`. Experimental.
+* The item a network source was asked for does not exist. `details.origin` is the host that answered, `details.what`, `details.value`. Experimental.
 */
 | "E_SOURCE_NOT_FOUND"
 /**
-* A network source answered 429 after the retries. `details.retryAfterMs`. Recoverable later. Experimental.
+* A network source answered 429 after the retries. `details.origin` is the host that answered, `details.retryAfterMs`. Recoverable later. Experimental.
 */
 | "E_SOURCE_QUOTA"
 /**
-* A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.timeoutMs`, `details.serverSide`. Experimental.
+* A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.origin` is the host, `details.timeoutMs`, `details.serverSide`. Experimental.
 */
 | "E_SOURCE_TIMEOUT"
 /**
-* A database rejected the query. `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
+* A database rejected the query. `details.origin` is the host that answered, `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
 */
 | "E_SOURCE_QUERY"
 /**
@@ -1618,7 +1625,7 @@ export type GraphtyErrorCode =
 */
 | "E_SOURCE_NOT_A_GRAPH"
 /**
-* A network source answered with a body of the wrong shape. `details.expected`, `details.contentType`. Experimental.
+* A network source answered with a body of the wrong shape. `details.origin` is the host that answered, `details.expected`, `details.contentType`. Experimental.
 */
 | "E_SOURCE_RESPONSE"
 /**
@@ -1934,6 +1941,7 @@ export abstract class LayoutEngine {
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
+    isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
     loadArrangement(): void;
@@ -2066,7 +2074,10 @@ class Node_2 implements ModelUser {
     }>;
     get drawnRadius(): number;
     // @internal
-    framingHalf(axis: "x" | "y" | "z"): number;
+    framingBounds(): {
+        min: Vector3;
+        max: Vector3;
+    };
     getPosition(): {
         x: number;
         y: number;
@@ -2113,6 +2124,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
+    refitPicture(): void;
+    // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
     refreshScreenBorder(): boolean;
@@ -2133,6 +2146,8 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    get surfaceIsBox(): boolean;
     // @internal
     syncXlabelPlace(): void;
     tooltip?: RichTextLabel;
@@ -2729,6 +2744,7 @@ export interface SnapshotLayoutInput {
     readonly signal: AbortSignal;
     readonly stored: GraphSnapshot;
     warn(warning: SnapshotLayoutWarning): void;
+    weightMeaning?(): "strength" | "distance" | null;
 }
 
 // @public

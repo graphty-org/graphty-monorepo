@@ -454,6 +454,36 @@ export function shapeLinePieces(
 }
 
 /**
+ * A table label's backgrounds (`BGCOLOR`) as filled boxes, in the order given, each box in fractions of the node's
+ * half width and half height, y up; a color that cannot be read is dropped.
+ * @param fills - The boxes and their colors.
+ * @param width - The face's width.
+ * @param height - Its height.
+ * @returns The pieces.
+ */
+export function tableFillPieces(
+    fills: readonly { readonly box: PieceBox; readonly color: string }[],
+    width: number,
+    height: number,
+): (ColorPiece & { readonly box: PieceBox })[] {
+    const [hw, hh] = [width / 2, height / 2];
+    return fills.flatMap(({ box: b, color }) => {
+        const c = paint(color);
+        if (c === null) {
+            return [];
+        }
+        const box = { x0: b.x0 * hw, y0: b.y0 * hh, x1: b.x1 * hw, y1: b.y1 * hh };
+        const outline: Point2[] = [
+            [box.x0, box.y0],
+            [box.x1, box.y0],
+            [box.x1, box.y1],
+            [box.x0, box.y1],
+        ];
+        return [{ outline, box, ...c }];
+    });
+}
+
+/**
  * The further pieces of a flat node's body (`shape.parts`): each polygon filled in the node's color and outlined in
  * its border's color and width, centered on it, as the node is. A polygon of fewer than three points is dropped.
  * @param shape - The node's shape block.

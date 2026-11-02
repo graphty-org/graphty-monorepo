@@ -9,15 +9,17 @@
  * from a bounding box to a camera state. That is exactly the shape `registerCameraView` takes,
  * so the element's own views and a plugin's are the same kind of thing and travel the same path.
  *
- * THE NUMBERS ARE UNCHANGED, deliberately and to the digit. Padding of 5 percent in 2D, 10
- * percent in 3D times an isometric correction of 0.65, a straight-on distance of one and a half
- * times the longest side: every one of those is what the element computed before, so no picture
- * moves. They disagree with each other -- the orbit controller's own framing pads 5 percent and
+ * THE NUMBERS ARE MOSTLY UNCHANGED, deliberately. Padding of 5 percent in 2D, 10 percent in 3D,
+ * a straight-on distance of one and a half times the longest side: each is what the element
+ * computed before, so those pictures do not move. They disagree with each other -- the orbit controller's own framing pads 5 percent and
  * the 2D controller's pads 10 percent -- and this file does not average them, because averaging
- * them would change what a saved screenshot looks like. A plugin picks its own. Two exceptions:
+ * them would change what a saved screenshot looks like. A plugin picks its own. Three exceptions:
  * the isometric `beta` was 0.615, the elevation above the horizon, in a field measured down from
  * the pole, and no picture depended on it because nothing applied it; and the 2D `fitToGraph`
- * zoom was pixels per unit with the aspect upside down, which framed a single edge.
+ * zoom was pixels per unit with the aspect upside down, which framed a single edge; and the 3D
+ * `fitToGraph` distance was the longest side over the field of view times a tuned 0.65, which
+ * stood too close for any box but a cube and cut a framed node off (#5349); it now holds every
+ * corner inside both fields of view.
  *
  * THESE ARE NOT REGISTERED. A built-in id is reserved and `registerCameraView` refuses one, so
  * the table below is looked up first and the registry second, which is what keeps a registration
@@ -49,18 +51,6 @@ export const FLAT_HALF_WIDTH_AT_ZOOM_ONE = 5;
 /** How much room a perspective framing leaves around the box: 10 percent. */
 const PERSPECTIVE_PADDING = 1.1;
 
-/**
- * How much closer an angled view sits than a straight-on one.
- *
- * Seen from equal x, y and z offsets the graph is about 35 degrees off each axis, so it covers
- * less of the frame than its size suggests -- cos(35.26 degrees) is roughly 0.816. The value here
- * is the empirically tuned correction the element has always used, not the trigonometric one.
- */
-const ISOMETRIC_FACTOR = 0.65;
-
-/** One over the square root of three: the offset along each axis that puts the viewer on the diagonal. */
-const DIAGONAL_OFFSET = 0.577;
-
 /** How far a straight-on view sits from the box, as a multiple of its longest side. */
 const STRAIGHT_ON_DISTANCE = 1.5;
 
@@ -88,55 +78,94 @@ function fromCurrentAngle(input: CameraViewInput, fov: number): CameraState | un
         return undefined;
     }
 
-    return fromDirection(input, fov, {
-        x: current.position.x - current.target.x,
-        y: current.position.y - current.target.y,
-        z: current.position.z - current.target.z,
-    });
+    return fromDirection(
+        input,
+        fov,
+        {
+            x: current.position.x - current.target.x,
+            y: current.position.y - current.target.y,
+            z: current.position.z - current.target.z,
+        },
+        true,
+    );
+}
+
+/** A direction in world space. */
+interface Direction {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
 }
 
 /**
- * Frame everything from one direction: every corner of the box, padded 10 percent off the view
- * axis, inside the narrower of the two fields of view. The current pivot rotation is carried over.
+ * The screen's right and up axes for a camera looking back along `toViewer` with no roll, the
+ * way an orbit state with a position and a target is applied: yaw about +y, then pitch, so right
+ * is level and up leans toward +y. Undefined when the camera looks straight up or down, where
+ * yaw has no meaning.
+ * @param toViewer - Unit vector from the box toward the viewer.
+ * @returns Both unit axes, or undefined.
+ */
+function screenAxes(toViewer: Direction): { right: Direction; up: Direction } | undefined {
+    const level = Math.hypot(toViewer.x, toViewer.z);
+    if (level < 1e-9) {
+        return undefined;
+    }
+
+    const right = { x: toViewer.z / level, y: 0, z: -toViewer.x / level };
+    const up = {
+        x: toViewer.y * right.z,
+        y: toViewer.z * right.x - toViewer.x * right.z,
+        z: -toViewer.y * right.x,
+    };
+    return { right, up };
+}
+
+/**
+ * Frame everything from one direction: every corner of the box, padded 10 percent, inside the
+ * view. With no turn to keep, the screen's axes are known, so each corner is held to the
+ * horizontal field of view across and the vertical one up and down, at its own depth. A kept
+ * turn (`keepTurn`) may roll the screen, so each corner's distance off the view axis is held to
+ * the narrower field instead, which fits whatever the roll. The current pivot rotation is carried
+ * over only when `keepTurn` is set.
  * @param input - The box to frame and where the camera is now.
  * @param fov - The vertical field of view in radians.
  * @param direction - From the box's center toward the viewer; any length but zero.
- * @param direction.x - Its x.
- * @param direction.y - Its y.
- * @param direction.z - Its z.
+ * @param keepTurn - Whether to carry the current pivot rotation over.
  * @returns The state, or undefined when the direction has no length.
  */
 function fromDirection(
     input: CameraViewInput,
     fov: number,
-    direction: { readonly x: number; readonly y: number; readonly z: number },
+    direction: Direction,
+    keepTurn: boolean,
 ): CameraState | undefined {
     const { current, bounds, aspect } = input;
-    const { x: dx, y: dy, z: dz } = direction;
-    const length = Math.hypot(dx, dy, dz);
+    const length = Math.hypot(direction.x, direction.y, direction.z);
     if (length === 0 || !Number.isFinite(length)) {
         return undefined;
     }
 
-    const ux = dx / length;
-    const uy = dy / length;
-    const uz = dz / length;
-    const halfFov = aspect > 0 ? Math.min(fov / 2, Math.atan(Math.tan(fov / 2) * aspect)) : fov / 2;
-    const tanHalf = Math.tan(halfFov);
+    const u = { x: direction.x / length, y: direction.y / length, z: direction.z / length };
+    const tanY = Math.tan(fov / 2);
+    const tanX = aspect > 0 ? tanY * aspect : tanY;
+    const turn = keepTurn ? current.pivotRotation : undefined;
+    const axes = turn === undefined ? screenAxes(u) : undefined;
     const { center } = bounds;
+    const dot = (a: Direction, b: Direction): number => a.x * b.x + a.y * b.y + a.z * b.z;
 
-    // The nearest distance from the center that keeps each corner of the box, padded off the
-    // view axis, inside the narrower field of view; the farthest of those keeps them all.
+    // A corner `along` units toward the viewer stands `distance - along` in front of the camera,
+    // where the frame's half-width is `tanX` and its half-height `tanY` times that.
     let distance = 0;
     for (const x of [bounds.min.x, bounds.max.x]) {
         for (const y of [bounds.min.y, bounds.max.y]) {
             for (const z of [bounds.min.z, bounds.max.z]) {
-                const cx = x - center.x;
-                const cy = y - center.y;
-                const cz = z - center.z;
-                const along = cx * ux + cy * uy + cz * uz;
-                const off = Math.hypot(cx - along * ux, cy - along * uy, cz - along * uz);
-                distance = Math.max(distance, along + (off * PERSPECTIVE_PADDING) / tanHalf);
+                const c = { x: x - center.x, y: y - center.y, z: z - center.z };
+                const along = dot(c, u);
+                const reach =
+                    axes === undefined
+                        ? Math.hypot(c.x - along * u.x, c.y - along * u.y, c.z - along * u.z) / Math.min(tanX, tanY)
+                        : Math.max(Math.abs(dot(c, axes.right)) / tanX, Math.abs(dot(c, axes.up)) / tanY);
+                distance = Math.max(distance, along + reach * PERSPECTIVE_PADDING);
             }
         }
     }
@@ -144,12 +173,12 @@ function fromDirection(
     return {
         type: "arcRotate",
         position: {
-            x: center.x + ux * distance,
-            y: center.y + uy * distance,
-            z: center.z + uz * distance,
+            x: center.x + u.x * distance,
+            y: center.y + u.y * distance,
+            z: center.z + u.z * distance,
         },
         target: center,
-        ...(current.pivotRotation === undefined ? {} : { pivotRotation: current.pivotRotation }),
+        ...(turn === undefined ? {} : { pivotRotation: turn }),
         cameraDistance: distance,
     };
 }
@@ -206,24 +235,16 @@ function fitToGraph(input: CameraViewInput): CameraState {
     // A drawing meant to be seen from one side (a map, a globe) is framed from that side: from the
     // diagonal it would be seen from behind, or from inside the globe.
     // Like the diagonal, it drops any turn the reader gave the drawing.
-    const faced = input.facing === undefined ? undefined : fromDirection(input, fov, input.facing);
+    const faced = input.facing === undefined ? undefined : fromDirection(input, fov, input.facing, false);
     if (faced !== undefined) {
-        const { pivotRotation: _turn, ...straight } = faced;
-        return farther(straight, room);
+        return farther(faced, room);
     }
 
-    const straightOn = (bounds.maxDimension / Math.tan(fov / 2)) * PERSPECTIVE_PADDING;
-    const distance = (straightOn * ISOMETRIC_FACTOR) / room;
-
-    return {
-        type: "arcRotate",
-        position: {
-            x: center.x + distance * DIAGONAL_OFFSET,
-            y: center.y + distance * DIAGONAL_OFFSET,
-            z: center.z + distance * DIAGONAL_OFFSET,
-        },
-        target: center,
-    };
+    // Otherwise from the diagonal, every corner held inside both fields of view at its own depth
+    // (#5349): the old distance, the longest side over the field of view times a tuned 0.65,
+    // stood too close for a box that is not a cube, and cut a framed node off.
+    const diagonal = fromDirection(input, fov, { x: 1, y: 1, z: 1 }, false);
+    return diagonal === undefined ? { type: "arcRotate", target: center } : farther(diagonal, room);
 }
 
 /**
@@ -275,13 +296,12 @@ function facedView(input: CameraViewInput, view: "top" | "side" | "isometric"): 
     }
 
     const free = freeArea(input.insets, input.viewport.width, input.viewport.height);
-    const state = fromDirection(input, input.fov ?? DEFAULT_FOV, facedDirection(input.facing, view));
+    const state = fromDirection(input, input.fov ?? DEFAULT_FOV, facedDirection(input.facing, view), false);
     if (state === undefined) {
         return undefined;
     }
 
-    const { pivotRotation: _turn, ...straight } = state;
-    return farther(straight, Math.min(free.width, free.height));
+    return farther(state, Math.min(free.width, free.height));
 }
 
 /**

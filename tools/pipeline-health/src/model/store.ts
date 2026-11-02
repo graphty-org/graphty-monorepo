@@ -66,98 +66,127 @@ function holds(item: Item | undefined, c: Condition | undefined): boolean {
             return v >= c.value;
         case ">":
             return v > c.value;
+        default:
+            return false;
     }
 }
 
-const id = (k: Key) => `${k.pk}\u0000${k.sk}`;
+const id = (k: Key): string => `${k.pk}\u0000${k.sk}`;
 const copy = <T>(v: T): T => structuredClone(v);
-
 /**
- *
+ * Runs f now and wraps its result in a promise; a throw becomes a rejection, as in an async function.
+ * @param f - the synchronous work
+ * @returns a promise of f's result
  */
+const settle = <T>(f: () => T): Promise<T> =>
+    new Promise((resolve) => {
+        resolve(f());
+    });
+
+/** In-memory Store for tests: same semantics as the DynamoDB adapter, and it counts writes. */
 export class MemoryStore implements Store {
     readonly items = new Map<string, Item>();
     /** Write units spent, one per put, update or delete: lets tests count work. */
     writes = 0;
 
     /**
-     *
-     * @param key
+     * Reads one item.
+     * @param key - partition and sort key of the item
+     * @returns a copy of the item, or undefined when absent
      */
-    async get(key: Key) {
-        const item = this.items.get(id(key));
-        return item && copy(item);
+    get(key: Key): Promise<Item | undefined> {
+        return settle(() => {
+            const item = this.items.get(id(key));
+            return item && copy(item);
+        });
     }
 
     /**
-     *
-     * @param item
-     * @param condition
+     * Writes one item when the condition holds.
+     * @param item - the item to store (copied)
+     * @param condition - optional condition on the existing item
+     * @returns false when the condition failed, true when written
      */
-    async put(item: Item, condition?: Condition) {
-        if (!holds(this.items.get(id(item)), condition)) {
-            return false;
-        }
-        this.writes++;
-        this.items.set(id(item), copy(item));
-        return true;
-    }
-
-    /**
-     *
-     * @param pk
-     * @param range
-     * @param range.from
-     * @param range.to
-     */
-    async query(pk: string, range: { from?: string; to?: string } = {}) {
-        return [...this.items.values()]
-            .filter(
-                (i) =>
-                    i.pk === pk &&
-                    (range.from === undefined || i.sk >= range.from) &&
-                    (range.to === undefined || i.sk <= range.to),
-            )
-            .sort((a, b) => Number(a.sk > b.sk) - Number(a.sk < b.sk))
-            .map(copy);
-    }
-
-    /**
-     *
-     * @param key
-     * @param change
-     * @param condition
-     */
-    async update(key: Key, change: Change, condition?: Condition) {
-        const old = this.items.get(id(key));
-        if (!holds(old, condition)) {
-            return undefined;
-        }
-        const next: Item = { ...(old ? copy(old) : {}), pk: key.pk, sk: key.sk, ...copy(change.set ?? {}) };
-        for (const [f, n] of Object.entries(change.add ?? {})) {
-            next[f] = ((next[f] as number | undefined) ?? 0) + n;
-        }
-        this.writes++;
-        this.items.set(id(key), next);
-        return copy(next);
-    }
-
-    /**
-     *
-     * @param ops
-     */
-    async batch(ops: BatchOp[]) {
-        for (const op of ops) {
-            this.writes++;
-            if ("put" in op) {
-                this.items.set(id(op.put), copy(op.put));
-            } else {
-                this.items.delete(id(op.delete));
+    put(item: Item, condition?: Condition): Promise<boolean> {
+        return settle(() => {
+            if (!holds(this.items.get(id(item)), condition)) {
+                return false;
             }
-        }
+            this.writes++;
+            this.items.set(id(item), copy(item));
+            return true;
+        });
     }
 
-    async transact(ops: TransactOp[]) {
+    /**
+     * Reads the items of one partition.
+     * @param pk - partition key
+     * @param range - optional inclusive sort-key bounds
+     * @param range.from - lowest sort key to include
+     * @param range.to - highest sort key to include
+     * @returns copies of the matching items, sk ascending
+     */
+    query(pk: string, range: { from?: string; to?: string } = {}): Promise<Item[]> {
+        return settle(() =>
+            [...this.items.values()]
+                .filter(
+                    (i) =>
+                        i.pk === pk &&
+                        (range.from === undefined || i.sk >= range.from) &&
+                        (range.to === undefined || i.sk <= range.to),
+                )
+                .sort((a, b) => Number(a.sk > b.sk) - Number(a.sk < b.sk))
+                .map(copy),
+        );
+    }
+
+    /**
+     * Applies adds and sets to one item, creating it when absent.
+     * @param key - partition and sort key of the item
+     * @param change - fields to add to and fields to set
+     * @param condition - optional condition on the existing item
+     * @returns a copy of the item after the change, or undefined when the condition failed
+     */
+    update(key: Key, change: Change, condition?: Condition): Promise<Item | undefined> {
+        return settle(() => {
+            const old = this.items.get(id(key));
+            if (!holds(old, condition)) {
+                return undefined;
+            }
+            const next: Item = { ...(old ? copy(old) : {}), pk: key.pk, sk: key.sk, ...copy(change.set ?? {}) };
+            for (const [f, n] of Object.entries(change.add ?? {})) {
+                next[f] = ((next[f] as number | undefined) ?? 0) + n;
+            }
+            this.writes++;
+            this.items.set(id(key), next);
+            return copy(next);
+        });
+    }
+
+    /**
+     * Applies unconditional puts and deletes in order.
+     * @param ops - the puts and deletes
+     * @returns a promise that settles once every op is applied
+     */
+    batch(ops: BatchOp[]): Promise<void> {
+        return settle(() => {
+            for (const op of ops) {
+                this.writes++;
+                if ("put" in op) {
+                    this.items.set(id(op.put), copy(op.put));
+                } else {
+                    this.items.delete(id(op.delete));
+                }
+            }
+        });
+    }
+
+    /**
+     * Applies all the ops, or none when any put's condition fails.
+     * @param ops - conditional puts and deletes
+     * @returns false, writing nothing, when a condition failed; true otherwise
+     */
+    async transact(ops: TransactOp[]): Promise<boolean> {
         if (!ops.every((op) => !("put" in op) || holds(this.items.get(id(op.put)), op.condition))) {
             return false;
         }

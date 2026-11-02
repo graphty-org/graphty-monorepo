@@ -12,31 +12,27 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-10-30) Tier 4 closed after one round without meeting its bars. Carry forward: keyboard
-  (axe critical on 14 of 16 screens), the owner's data rule (joined source row clips "17/19" and
-  the second file's name), and cost on T61 (about 12 inputs against a key of 7).
-- (2026-10-30) Most severe open problem: the join preview does not show what Join will do (the
-  unknown-end row untagged, the repeat tagged as added). People learned the outcome from counts
-  after the act. Show the result before the act, in counts the reader already trusts.
-- (2026-10-30) Choices after the act with a default already applied ("Add nodes" after Join, a new
-  filter card on Hide) cost steps every time a task disagrees with the default. Prefer asking at
-  the act, or a default that removes nothing. Renaming the effect does not fix the default.
-- (2026-10-30) One fact drawn two ways (time set but column glyph says text; chip counts on two
-  bases) makes people open a second menu to check. One fact, one drawing.
-- (2026-10-30) The study tool lied: a hover that opens a popover printed "tooltip: null", and four
-  participants trusted the line over the screenshot. A tool output that can contradict the screen
-  must be fixed before any round; until then graders read the screenshot, not the line.
-- (2026-10-30) Skeptic checks moved every severity 3 candidate to 2 or lower. Score severity from
-  a repro and the end state, not from what participants said; my sev 3 calls need a repro first.
-- (2026-10-30) A false done judged only against the answer key's definition (column kind) while the
-  user's answer was right is a key problem, not a user failure. Grade the user's goal.
-- (2026-10-30) Wrong-turn counts mixed checks after success with real detours. Count only moves
-  before success, and define a hover once for every grader.
-- (2026-10-29) Grading needs an end-of-session data-state capture (roles, kinds, filter effects);
-  the last screenshot cannot show them. Still a refusal to ask for in `real.mjs --end`.
-- (2026-10-29) "Returning" means "knows the shell"; nothing measured second-time cost. Say so.
+- (2026-11-02) Tier 5's tools do not know tier 5: no `bars.mjs --tier 5` walk, `steps.mjs` CORE
+  is tier 4's, nothing parses `Overwhelm:`, and `--gate` checks only line one and the literal
+  "pilot to confirm". Gate items 3-7 are prose; prose asks have failed four tiers running.
+- (2026-11-02) A same-model overwhelm rating did not discriminate (placement study: 2-3 for all
+  three placements). Gate on the reasons people name, not on a median of 2.
+- (2026-11-02) Known sev 3 candidates in the build notes (false "covered", a count on two bases,
+  table and matches strip drawn together, T75 A blocked) fail bars 4 and 9 by plan unless the dry
+  run may fix them.
+- (2026-11-02) Large graphs: a 17 s wait per tick at 50,000 nodes is graded by no bar. A wait
+  needs a severity rule, not only a report line.
+- (2026-10-30) Show the result before the act, in counts the reader already trusts; decide at the
+  act, not after with a default applied; one fact, one drawing.
+- (2026-10-30) A tool line that can contradict the screen is fixed before any round; graders read
+  the screenshot.
+- (2026-10-30) Severity 3 only with a scripted repro and an end-state check; grade the user's
+  goal, not a route property; wrong turns count only before success.
+- (2026-10-29) "Returning" means "knows the shell"; nothing measures second-time cost. Say so.
 - Top risk, every tier: a picture (or a count) that looks right and answers wrong. Severity 3+.
 - Same-model participants: a failure is strong evidence, a pass is weak; blind graders to the key.
+- Follow-ups that describe what happened ("the drawing changed its colors") prime the rating that
+  follows; rate first, then ask neutral questions.
 - A new task brings its route's screens into the scripted walk; task wording never reuses the
   target's screen words.
 - No tours, hint panels or first-run aids; the same screens for everyone.
@@ -100,6 +96,19 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- **2026-11-02 (me, review of tier 5 criteria and tasks; no frozen build named, no session
+  run):** Seven changes: `--gate` refuses gate items 3-7 and the answer key's "the dry run reads"
+  phrases (T73 A, T74 B), with `steps.mjs` CORE, a tier 5 walk and an `Overwhelm:` parser built
+  before the dry run; the dry run may fix every build-note sev 3 candidate (false "covered", the
+  two-base count, table plus strip, T75 A) or round 1 is headlined not passable; bar 9 gates on
+  named reasons (no screen named for a 4+ in two halves) with the median reported against the
+  placement study's 2-3; the rating asked first and the owner's questions made neutral; bar 5
+  counts keyboard blocks the accessibility walk confirms on screens Sam never reaches; a
+  severity rule for waits (T79's 17 s per tick); T78 B's "neighboring" walked as a detour
+  ("Neighbors of selection"). Prompts: no success-path echo found; two kinds of data in every
+  task. Evidence: `tool/steps.mjs:27`, `tool/bars.mjs:91-94`, `tool/real.mjs` gateCheck (~line
+  695, ~760), `tier5/answers.md` T73 A / T74 B / build notes / T79 timing,
+  `placement-study.md` table, `graphty/src/workspace/selection/values.ts:274`.
 - **2026-10-30 (me, tier 4 round 1 closed at the one-round cap):** Lessons taken: (1) a study
   tool line that can contradict the screenshot is a severity-raising defect in the study, so it
   is fixed before any round; (2) severity 3 only with a scripted repro and an end-state check,
@@ -187,6 +196,10 @@ insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/
 
 ## Tried: worked / did not work
 
+- 2026-11-02 -- WORKED: grepping the tools for the tier's task ids before reading the bars; it
+  showed in one command that no tier 5 bar has a script. WORKED again: grepping the app's source
+  for each prompt's words (no success-path echo in tier 5). DID NOT (in the placement study): a
+  1-7 overwhelm rating from same-model participants as a discriminating measure.
 - 2026-10-30 -- Tier 4 with one round and a safety cap: did not reach the bars; three of seven
   failed on real defects (keyboard, clipped source row, join cost), two only as frozen. A single
   round finds problems but cannot credit fixes.
@@ -273,6 +286,9 @@ insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/
 
 ## Sources
 
+- 2026-11-02: `tier5/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `decided.md` headings,
+  `owner-feedback-2026-11-01.md`, `placement-study.md`; `selection-groups/spec.md` headings;
+  main checkout `tmp/selection-redesign/study/panel.md`; `tool/steps.mjs`, `bars.mjs`, `real.mjs`.
 - 2026-10-29: `tier4/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `decided.md` (R1-R15),
   `backlog.md`; `design/data/filter-cards.md`, `data-management-requirements.md`;
   `graphty/src/workspace/start/NetworkDataDialog.tsx`, `data-place/Fields.tsx`, `data-place/words.ts`.

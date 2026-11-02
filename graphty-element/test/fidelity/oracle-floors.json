@@ -357,12 +357,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.9,
+            "raster.arrowhead": 0.86,
             "raster.canvas": 0.99,
-            "raster.edge": 0.98,
+            "raster.edge": 0.97,
             "raster.label": 0.92,
-            "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.91,
+            "raster.nodeBody": 0.93,
+            "raster.nodeOutline": 0.9,
             "edge.wiggle": 1
         },
         "cx-ndex-90f78bcd@matched": {
@@ -39427,12 +39427,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.94,
-            "raster.canvas": 0.96,
+            "raster.arrowhead": 0.92,
+            "raster.canvas": 0.95,
             "raster.edge": 0.82,
             "raster.label": 0.87,
             "raster.nodeBody": 0.92,
-            "raster.nodeOutline": 0.91,
+            "raster.nodeOutline": 0.89,
             "edge.wiggle": 1
         },
         "graphml-yed-voctomix@matched": {

@@ -100,6 +100,69 @@ function resultOf(s: GraphSnapshot, treeEdge: Uint32Array, expected: number): Gp
 }
 
 /**
+ * Refuses `dest` and a signal aborted before any work started.
+ * @param options - the run options
+ */
+function checkOptions(options: GpuRunOptions | undefined): void {
+    if (options?.dest !== undefined) {
+        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: dest is not supported`, {
+            option: "dest",
+            hint: "the forest's edge count is known only after the run",
+        });
+    }
+    if (options?.signal?.aborted) {
+        throw new WebGpuGraphError("E_ABORTED", `${ALGORITHM}: the signal was aborted before any work started`, {});
+    }
+}
+
+/**
+ * Throws E_ABORTED when the caller's signal was aborted after a submit.
+ * @param options - the run options
+ * @param batchId - the submitted batch
+ */
+function throwIfAborted(options: GpuRunOptions | undefined, batchId: number): void {
+    if (options?.signal?.aborted) {
+        throw new WebGpuGraphError("E_ABORTED", `${ALGORITHM}: the signal was aborted`, { batchId });
+    }
+}
+
+/**
+ * Adds a submit's per-round edge counts to the forest's; a round that recorded nothing settles the forest.
+ * @param counts - the rounds' counts
+ * @param recorded - the forest edges before the submit
+ * @param n - the node count
+ * @returns the forest edges after the submit and whether it settled
+ */
+function tallyCounts(counts: Uint32Array, recorded: number, n: number): { recorded: number; settled: boolean } {
+    let total = recorded;
+    let settled = false;
+    for (const count of counts) {
+        total += count;
+        settled ||= count === 0;
+    }
+    if (total > n - 1) {
+        throw new WebGpuGraphError("E_VALIDATION", `${ALGORITHM}: ${total} forest edges on ${n} nodes`, {
+            label: `${ALGORITHM}/counters`,
+            message: "a spanning forest has at most n - 1 edges",
+        });
+    }
+    return { recorded: total, settled };
+}
+
+/**
+ * Boruvka halves the components every round: still merging after MAX_ROUNDS is a device bug.
+ * @param rounds - the rounds run
+ */
+function assertStillHalving(rounds: number): void {
+    if (rounds >= MAX_ROUNDS) {
+        throw new WebGpuGraphError("E_VALIDATION", `${ALGORITHM}: still merging after ${rounds} rounds`, {
+            label: `${ALGORITHM}/rounds`,
+            message: "Boruvka halves the components every round; the device did not",
+        });
+    }
+}
+
+/**
  * Boruvka's minimum spanning forest on the device (see the file header).
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (its edge list is uploaded through ctx.residency, or found there)
@@ -113,15 +176,7 @@ export async function minimumSpanningTree(
 ): Promise<GpuMstResult> {
     ctx.assertReady();
     await assertDeviceComputes(ctx);
-    if (options?.dest !== undefined) {
-        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: dest is not supported`, {
-            option: "dest",
-            hint: "the forest's edge count is known only after the run",
-        });
-    }
-    if (options?.signal?.aborted) {
-        throw new WebGpuGraphError("E_ABORTED", `${ALGORITHM}: the signal was aborted before any work started`, {});
-    }
+    checkOptions(options);
     const n = s.nodeCount;
     const m = s.edgeCount;
     if (n === 0 || m === 0) {
@@ -190,9 +245,8 @@ export async function minimumSpanningTree(
                 edgeWeight: edgeWeight ?? edges.bindings.src,
             };
             for (let i = 0; i < BORUVKA_ROUNDS_PER_SUBMIT; i++) {
-                for (const dst of [bestKey, bestEdge]) {
-                    fill.dispatch(pass, fill.bind({ dst, P: reset.binding }), nodePlan, [reset.offset]);
-                }
+                fill.dispatch(pass, fill.bind({ dst: bestKey, P: reset.binding }), nodePlan, [reset.offset]);
+                fill.dispatch(pass, fill.bind({ dst: bestEdge, P: reset.binding }), nodePlan, [reset.offset]);
                 for (const kernel of [minKey, minEdge]) {
                     kernel.dispatch(
                         pass,
@@ -229,33 +283,15 @@ export async function minimumSpanningTree(
             const bytes = await submitted.readback;
             ctx.assertReady();
             first = false;
-            if (options?.signal?.aborted) {
-                throw new WebGpuGraphError("E_ABORTED", `${ALGORITHM}: the signal was aborted`, {
-                    batchId: submitted.id,
-                });
-            }
+            throwIfAborted(options, submitted.id);
             const counts = new Uint32Array(bytes, countsRequest.offset, BORUVKA_ROUNDS_PER_SUBMIT);
-            let settled = false;
-            for (const count of counts) {
-                recorded += count;
-                settled ||= count === 0;
-            }
+            const tally = tallyCounts(counts, recorded, n);
+            ({ recorded } = tally);
             rounds += BORUVKA_ROUNDS_PER_SUBMIT;
-            if (recorded > n - 1) {
-                throw new WebGpuGraphError("E_VALIDATION", `${ALGORITHM}: ${recorded} forest edges on ${n} nodes`, {
-                    label: `${ALGORITHM}/counters`,
-                    message: "a spanning forest has at most n - 1 edges",
-                });
-            }
-            if (settled) {
+            if (tally.settled) {
                 break;
             }
-            if (rounds >= MAX_ROUNDS) {
-                throw new WebGpuGraphError("E_VALIDATION", `${ALGORITHM}: still merging after ${rounds} rounds`, {
-                    label: `${ALGORITHM}/rounds`,
-                    message: "Boruvka halves the components every round; the device did not",
-                });
-            }
+            assertStillHalving(rounds);
             batch = new CommandBatch(ctx, `${ALGORITHM}/rounds`);
         }
         const raw = new Uint32Array(n);

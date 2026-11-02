@@ -48,21 +48,7 @@ function withBody(spec: WgslModuleSpec, edit: (body: string) => string, id: stri
     return { ...spec, id, body: edit(spec.body) };
 }
 
-async function main(): Promise<void> {
-    installRemoteLog();
-    let ctx: Awaited<ReturnType<typeof requestGpuContext>>;
-    try {
-        ctx = await requestGpuContext({ powerPreference: "high-performance" });
-    } catch (error) {
-        adapterBox.textContent = `no device: ${error instanceof Error ? error.message : String(error)}`;
-        return;
-    }
-    const caps = ctx.caps;
-    const head = `adapter ${caps.vendor} / ${caps.architecture} / ${caps.device} / ${caps.description}; software=${caps.software}; features=${[...caps.features].join(",")}; wgsl=${[...caps.wgslFeatures].join(",")}; subgroups ${caps.subgroupMinSize}-${caps.subgroupMaxSize}; ua=${navigator.userAgent}`;
-    adapterBox.textContent = head;
-    log(head);
-
-    // 1. The bounded matrix (the same table the node and browser compile tests use).
+async function runMatrix(ctx: Awaited<ReturnType<typeof requestGpuContext>>): Promise<void> {
     const table = document.createElement("table");
     table.innerHTML = "<tr><th>kernel | overrides</th><th>result</th></tr>";
     out.appendChild(table);
@@ -79,6 +65,51 @@ async function main(): Promise<void> {
         }
     }
     log(`matrix: ${OVERRIDE_MATRIX.length} cases, ${failures} failures`);
+}
+
+async function variantError(
+    ctx: Awaited<ReturnType<typeof requestGpuContext>>,
+    v: WgslModuleSpec,
+): Promise<string | null> {
+    try {
+        composeWgsl(v, ctx.caps);
+        return await tryPipeline(ctx, v);
+    } catch (e) {
+        return `compose: ${e instanceof Error ? e.message : String(e)}`;
+    }
+}
+
+async function runVariants(
+    ctx: Awaited<ReturnType<typeof requestGpuContext>>,
+    variants: WgslModuleSpec[],
+): Promise<void> {
+    const table2 = document.createElement("table");
+    table2.innerHTML = "<tr><th>fa2-attraction variant</th><th>result</th></tr>";
+    out.appendChild(table2);
+    for (const v of variants) {
+        const error = await variantError(ctx, v);
+        row(table2, [v.id, error ?? "ok"], error === null);
+        const detail = error === null ? "" : ` -- ${error}`;
+        log(`${error === null ? "OK  " : "FAIL"} ${v.id}${detail}`);
+    }
+}
+
+async function main(): Promise<void> {
+    installRemoteLog();
+    let ctx: Awaited<ReturnType<typeof requestGpuContext>>;
+    try {
+        ctx = await requestGpuContext({ powerPreference: "high-performance" });
+    } catch (error) {
+        adapterBox.textContent = `no device: ${error instanceof Error ? error.message : String(error)}`;
+        return;
+    }
+    const caps = ctx.caps;
+    const head = `adapter ${caps.vendor} / ${caps.architecture} / ${caps.device} / ${caps.description}; software=${caps.software}; features=${[...caps.features].join(",")}; wgsl=${[...caps.wgslFeatures].join(",")}; subgroups ${caps.subgroupMinSize}-${caps.subgroupMaxSize}; ua=${navigator.userAgent}`;
+    adapterBox.textContent = head;
+    log(head);
+
+    // 1. The bounded matrix (the same table the node and browser compile tests use).
+    await runMatrix(ctx);
 
     // 2. Bisecting variants of fa2-attraction (each changes ONE thing; a variant that compiles names the culprit).
     const base = kernelSpec("fa2-attraction", { TIER: 0, LINLOG: false, DISTRIBUTED: false });
@@ -147,21 +178,7 @@ fn attraction(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_i
             "bisect:minimal-body",
         ),
     ];
-    const table2 = document.createElement("table");
-    table2.innerHTML = "<tr><th>fa2-attraction variant</th><th>result</th></tr>";
-    out.appendChild(table2);
-    for (const v of variants) {
-        let error: string | null;
-        try {
-            composeWgsl(v, caps);
-            error = await tryPipeline(ctx, v);
-        } catch (e) {
-            error = `compose: ${e instanceof Error ? e.message : String(e)}`;
-        }
-        row(table2, [v.id, error ?? "ok"], error === null);
-        const detail = error === null ? "" : ` -- ${error}`;
-        log(`${error === null ? "OK  " : "FAIL"} ${v.id}${detail}`);
-    }
+    await runVariants(ctx, variants);
 
     // 3. The composed source of the failing kernel, for the report.
     const composed = composeWgsl(base, caps);

@@ -1538,10 +1538,8 @@ function issuesBlock(s: IssuesSummary | undefined): string {
         return "";
     }
     const net = s.opened - s.closed;
-    const flow =
-        net === 0
-            ? "as many opened as closed"
-            : `${fmtN(Math.abs(net))} more ${net > 0 ? "opened than closed" : "closed than opened"}`;
+    const more = net > 0 ? "opened than closed" : "closed than opened";
+    const flow = net === 0 ? "as many opened as closed" : `${fmtN(Math.abs(net))} more ${more}`;
     return (
         `<h2>Issues<span class="h2sub">facts, not judged; details on the Issues page</span></h2>` +
         `<p class="issl"><a href="${href(PAGE_PATH.issues)}"><b>${fmtN(s.bugs)} open bugs</b>, ${since28d(s.bugs, s.bugs28dAgo)}; ` +

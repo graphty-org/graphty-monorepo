@@ -692,7 +692,8 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
     const fixed = makeMask(n);
     const rng = new Lcg(o.seed ?? null);
     let anyLocked = false;
-    cs.nodes.forEach((node, i) => {
+    for (let i = 0; i < cs.nodes.length; i++) {
+        const node = cs.nodes[i];
         const locked = node.locked();
         anyLocked ||= locked;
         maskSet(fixed, i, locked);
@@ -701,7 +702,7 @@ function simulate(layout: LayoutThis, type: SimulationType, accelerator: LayoutA
         pos[3 * i] = keep ? p.x : b.x1 + rng.next() * b.w;
         pos[3 * i + 1] = keep ? p.y : b.y1 + rng.next() * b.h;
         pos[3 * i + 2] = keep || dim === 2 ? 0 : (rng.next() * 2 - 1) * radius;
-    });
+    }
     // A continuation (randomize: false) reads the positions at the scale the last run of this simulation on this core
     // drew them at, about their centroid. Read at the box's scale instead, the graph would start far smaller than the
     // simulation's own size, and the first steps would jolt it back out.

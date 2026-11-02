@@ -27,7 +27,7 @@ export interface DegreeTiers {
  * ascending numbers ending at the row count (4 bytes per row of the perm binding)
  */
 export function degreeTiersOf(view: ViewBinding): DegreeTiers {
-    const { perm }: { readonly perm?: Binding | undefined } = view.bindings;
+    const perm = "perm" in view.bindings ? view.bindings.perm : undefined;
     if (perm === undefined) {
         throw new WebGpuGraphError("E_INVALID_ARGUMENT", `the ${view.view} view has no perm binding`, {
             argument: "view",
@@ -35,7 +35,7 @@ export function degreeTiersOf(view: ViewBinding): DegreeTiers {
             expected: "a view with a perm binding (degreeOrder, reverseDegreeOrder)",
         });
     }
-    const so: readonly number[] | undefined = view.scalars.segmentOffsets;
+    const so = "segmentOffsets" in view.scalars ? view.scalars.segmentOffsets : undefined;
     const ascending =
         so?.length === 5 &&
         so[0] === 0 &&
@@ -188,7 +188,7 @@ export function assertWholeCore(core: CoreBinding, arcCount: number, limit: numb
  * @returns the equivalent CoreBinding
  */
 export function coreOfView(v: ViewBinding, arcCount: number): CoreBinding {
-    const { rowPtr }: { readonly rowPtr?: Binding | undefined } = v.bindings;
+    const rowPtr = "rowPtr" in v.bindings ? v.bindings.rowPtr : undefined;
     if (rowPtr === undefined) {
         throw new WebGpuGraphError("E_INVALID_ARGUMENT", `the ${v.view} view has no rowPtr binding`, {
             argument: "view",
@@ -198,8 +198,8 @@ export function coreOfView(v: ViewBinding, arcCount: number): CoreBinding {
     }
     // an arc-less DIRECTED snapshot's reverse view uploads zero-byte arc arrays; the core spells "no arcs" as null
     // (graphBindings then binds the rowPtr dummy), and a zero-size binding is never bound (spec 3.6)
-    const colIdx = v.bindings.colIdx === undefined || v.bindings.colIdx.size === 0 ? null : v.bindings.colIdx;
-    const weights = v.bindings.weights === undefined || v.bindings.weights.size === 0 ? null : v.bindings.weights;
+    const colIdx = "colIdx" in v.bindings && v.bindings.colIdx.size > 0 ? v.bindings.colIdx : null;
+    const weights = "weights" in v.bindings && v.bindings.weights.size > 0 ? v.bindings.weights : null;
     const bound = colIdx === null ? 0 : colIdx.size / 4;
     if (bound !== arcCount) {
         throw new WebGpuGraphError(

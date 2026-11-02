@@ -238,7 +238,8 @@ export async function buildSimpleSymmetric(
     // the edge list, so it asks for rowPtr alone
     ctx.residency.core(s, ["rowPtr"]);
     const edges = ctx.residency.view(s, "edgeList");
-    const edgeWeights = edges.bindings.weights ?? null;
+    // the edge list carries a weights binding only for a weighted snapshot
+    const edgeWeights = "weights" in edges.bindings ? edges.bindings.weights : null;
     const emitPlan = plan1d(arcs, wg, ctx.caps);
     const emit = new Map<boolean, Kernel>();
     for (const indexed of [false, true]) {

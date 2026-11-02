@@ -163,7 +163,7 @@ describe("installUncapturedErrorSink", () => {
         await device.queue.onSubmittedWorkDone();
         expect(seen).toHaveLength(1);
         expect(seen[0].code).toBe("E_VALIDATION");
-        expect(seen[0].details.label).toBe(device.label ?? "");
+        expect(seen[0].details.label).toBe((device.label as string | undefined) ?? "");
         expect(String(seen[0].details.message)).toMatch(/1024|binding/i);
         expect(seen[0].message).toContain(String(seen[0].details.message));
         expect(slot.pending).toBe(false);

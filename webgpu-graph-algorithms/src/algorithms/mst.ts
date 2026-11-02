@@ -186,7 +186,8 @@ export async function minimumSpanningTree(
     // core() is what records (or re-records, after a release) the snapshot in the residency; only the edge list is read
     ctx.residency.core(s, ["rowPtr"]);
     const edges = ctx.residency.view(s, "edgeList");
-    const edgeWeight = edges.bindings.weights ?? null;
+    // the edge list carries a weights binding only for a weighted snapshot
+    const edgeWeight = "weights" in edges.bindings ? edges.bindings.weights : null;
     const scope = algorithmScope(ctx, ALGORITHM, RING_SLOTS);
     try {
         const wg = ctx.workgroupSize;

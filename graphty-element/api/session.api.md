@@ -1152,6 +1152,7 @@ export interface FileStyleOptions {
     readonly imageBaseUrl?: string;
     // @deprecated
     readonly labelLayers?: number;
+    readonly labelSizes?: "proportional" | "file";
     readonly lengths?: "median" | "file" | "spacing";
     readonly shapes?: FileStyleShapeTable;
     readonly toolDefaults?: boolean;
@@ -3083,6 +3084,7 @@ export interface LoadReport extends ImportReport {
 // @public
 export interface LoadStyleReport {
     readonly layers: readonly LayerId[];
+    readonly lengthScale?: number;
     readonly notes: readonly FileStyleNote[];
 }
 

@@ -30,6 +30,7 @@ import {
     type PStroke,
     type Pt,
     type PText,
+    shapeId,
 } from "./primitives";
 
 /** Every property the oracle comparison judges, in report order. */
@@ -2885,6 +2886,7 @@ export function compareOracle(
         stroke: null,
         text: null,
     }));
+    const twins = new Map<string, number>();
     const overlaps = (a: PBox, b: PBox): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
     const strays = [
         ...oracle.strays
@@ -2901,26 +2903,23 @@ export function compareOracle(
         // a picture the program draws as part of a node (vis-network's image nodes) is one graphty draws over the
         // node's face as an annotation: it must be drawn. Only the other way round was judged (an annotation of
         // graphty's over a program's picture is no extra), so a picture graphty left out passed (json-vis-synth).
-        // Last, so every other stray keeps its id
         ...oracle.nodes.flatMap((n) =>
             (n.pictures ?? []).map((box) => ({ tag: "picture", box, fill: null, stroke: null, text: null })),
         ),
     ]
         .filter((s) => onCanvas(s.box))
-        .map((s, i) => {
+        .map((s) => {
+            // named by what it is and where the program drew it, a counter only for exact twins
+            const base = shapeId(s.tag, s.box);
+            const twin = (twins.get(base) ?? 0) + 1;
+            twins.set(base, twin);
+            const id = twin === 1 ? base : `${base}~${String(twin)}`;
             const matched =
                 gAnn.some((b) => strayIou(b, s.box) >= T.strayIoU) ||
                 (s.tag === "picture" && gPictures.some((b) => strayIou(b, s.box) >= T.strayIoU)) ||
                 (s.text !== null && textDrawn(s.text, s.box, gTexts)) ||
                 (s.tag === "lettering" && gTexts.some((t) => overlaps(t.box, s.box)));
-            j.add(
-                "stray.present",
-                "stray",
-                `${s.tag}#${String(i)}`,
-                matched ? 0 : 1,
-                s.text ?? s.fill ?? s.stroke,
-                matched,
-            );
+            j.add("stray.present", "stray", id, matched ? 0 : 1, s.text ?? s.fill ?? s.stroke, matched);
             return { ...s, matched };
         });
     // an annotation graphty draws where the oracle draws nothing like it: a box, or words the oracle draws nowhere near;

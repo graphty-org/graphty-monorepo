@@ -88,6 +88,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { dotLayout } from "./layout.js";
 import {
     CLUSTER_COLUMN,
     DOT_FORMAT,
@@ -373,6 +374,7 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
     mimeTypes: MIME_TYPES,
     styles: dotStyles,
     positions: dotPositions,
+    layout: dotLayout,
 
     /**
      * Confidence that the head of an input is DOT: the `[strict] graph | digraph` header after

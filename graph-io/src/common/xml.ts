@@ -429,55 +429,108 @@ export function decodeEntities(raw: string, line: number, repairs?: XmlRepairs):
     }
     let out = "";
     let start = 0;
+    const cursor = { end: 0 };
     while (amp >= 0) {
         out += raw.slice(start, amp);
         const semi = raw.indexOf(";", amp + 1);
-        if (
-            repairs?.bareAmpersand !== undefined &&
-            (semi < 0 || semi - amp > BARE_AMPERSAND_LOOKAHEAD) &&
-            // a well-formed character reference longer than the lookahead (&#128512;) is not bare
-            !CHAR_REFERENCE.test(raw.slice(amp, amp + 12))
-        ) {
+        if (repairs?.bareAmpersand !== undefined && isBareAmpersand(raw, amp, semi)) {
             repairs.bareAmpersand(lineAt(raw, amp, line));
             out += "&";
             start = amp + 1;
-            amp = raw.indexOf("&", start);
-            continue;
-        }
-        if (semi < 0) {
-            throw new XmlSyntaxError("unterminated entity reference", lineAt(raw, amp, line));
-        }
-        const name = raw.slice(amp + 1, semi);
-        if (name.startsWith("#")) {
-            const hex = name.startsWith("#x") || name.startsWith("#X");
-            const digits = name.slice(hex ? 2 : 1);
-            // XML 1.0 puts no limit on leading zeros (&#x0000000041; is "A")
-            const ok = hex ? /^0*[\da-fA-F]{1,6}$/.test(digits) : /^0*\d{1,7}$/.test(digits);
-            const radix = hex ? 16 : 10;
-            const cp = ok ? Number.parseInt(digits, radix) : -1;
-            const low = cp >= 0xd800 && cp <= 0xdbff ? lowSurrogateAfter(raw, semi + 1, repairs) : null;
-            if (low !== null) {
-                repairs?.surrogatePair?.(lineAt(raw, amp, line));
-                out += String.fromCharCode(cp, low.unit);
-                start = low.end;
-                amp = raw.indexOf("&", start);
-                continue;
-            }
-            if (cp < 0 || !isXmlChar(cp)) {
-                throw new XmlSyntaxError(`invalid character reference &${name};`, lineAt(raw, amp, line));
-            }
-            out += String.fromCodePoint(cp);
         } else {
-            const value = NAMED_ENTITIES[name];
-            if (value === undefined) {
-                throw new XmlSyntaxError(`unknown entity &${name};`, lineAt(raw, amp, line));
-            }
-            out += value;
+            out += decodeReference(raw, amp, semi, line, repairs, cursor);
+            start = cursor.end;
         }
-        start = semi + 1;
         amp = raw.indexOf("&", start);
     }
     return out + raw.slice(start);
+}
+
+/**
+ * Whether the `&` at an index is a bare ampersand for the bare-ampersand repair: no `;` within the lookahead, and not
+ * a well-formed character reference longer than the lookahead (&#128512;).
+ * @param raw - the text
+ * @param amp - the index of the `&`
+ * @param semi - the index of the next `;`, or -1
+ * @returns true when the `&` stands for itself
+ */
+function isBareAmpersand(raw: string, amp: number, semi: number): boolean {
+    return (semi < 0 || semi - amp > BARE_AMPERSAND_LOOKAHEAD) && !CHAR_REFERENCE.test(raw.slice(amp, amp + 12));
+}
+
+/**
+ * Decode the entity or character reference at an `&` for decodeEntities(), and set `cursor.end` to the index after it.
+ * @param raw - the text
+ * @param amp - the index of the `&`
+ * @param semi - the index of the next `;`, or -1
+ * @param line - the line the text starts on, for errors
+ * @param repairs - the opt-in repairs
+ * @param cursor - receives the index after the reference
+ * @param cursor.end - the index after the reference
+ * @returns the decoded text
+ */
+function decodeReference(
+    raw: string,
+    amp: number,
+    semi: number,
+    line: number,
+    repairs: XmlRepairs | undefined,
+    cursor: { end: number },
+): string {
+    if (semi < 0) {
+        throw new XmlSyntaxError("unterminated entity reference", lineAt(raw, amp, line));
+    }
+    const name = raw.slice(amp + 1, semi);
+    if (name.startsWith("#")) {
+        return decodeCharReference(raw, amp, semi, name, line, repairs, cursor);
+    }
+    const value = NAMED_ENTITIES[name];
+    if (value === undefined) {
+        throw new XmlSyntaxError(`unknown entity &${name};`, lineAt(raw, amp, line));
+    }
+    cursor.end = semi + 1;
+    return value;
+}
+
+/**
+ * Decode a character reference (`&#...;` or `&#x...;`) for decodeReference(), joining a surrogate pair when that repair
+ * is on, and set `cursor.end` to the index after it.
+ * @param raw - the text
+ * @param amp - the index of the `&`
+ * @param semi - the index of the `;`
+ * @param name - the text between them
+ * @param line - the line the text starts on, for errors
+ * @param repairs - the opt-in repairs
+ * @param cursor - receives the index after the reference
+ * @param cursor.end - the index after the reference
+ * @returns the decoded character
+ */
+function decodeCharReference(
+    raw: string,
+    amp: number,
+    semi: number,
+    name: string,
+    line: number,
+    repairs: XmlRepairs | undefined,
+    cursor: { end: number },
+): string {
+    const hex = name.startsWith("#x") || name.startsWith("#X");
+    const digits = name.slice(hex ? 2 : 1);
+    // XML 1.0 puts no limit on leading zeros (&#x0000000041; is "A")
+    const ok = hex ? /^0*[\da-fA-F]{1,6}$/.test(digits) : /^0*\d{1,7}$/.test(digits);
+    const radix = hex ? 16 : 10;
+    const cp = ok ? Number.parseInt(digits, radix) : -1;
+    const low = cp >= 0xd800 && cp <= 0xdbff ? lowSurrogateAfter(raw, semi + 1, repairs) : null;
+    if (low !== null) {
+        repairs?.surrogatePair?.(lineAt(raw, amp, line));
+        cursor.end = low.end;
+        return String.fromCodePoint(cp, low.unit);
+    }
+    if (cp < 0 || !isXmlChar(cp)) {
+        throw new XmlSyntaxError(`invalid character reference &${name};`, lineAt(raw, amp, line));
+    }
+    cursor.end = semi + 1;
+    return String.fromCodePoint(cp);
 }
 
 /**
@@ -1034,23 +1087,7 @@ export class XmlTokenizer {
         for (;;) {
             const lt = buffer.indexOf("<", pos);
             if (lt < 0) {
-                let end = length;
-                if (!this.final) {
-                    // an entity reference may be split across chunks: hold back from its "&"
-                    const amp = buffer.lastIndexOf("&");
-                    if (
-                        amp >= pos &&
-                        !buffer.includes(";", amp) &&
-                        // ponytail: a zero-padded reference longer than MAX_ENTITY_LENGTH is held back
-                        // whole, so an absurdly long run of zeros is re-scanned once per chunk
-                        (amp >= length - MAX_ENTITY_LENGTH || /^&#[xX]?0[\da-fA-F]*$/.test(buffer.slice(amp)))
-                    ) {
-                        end = amp;
-                    }
-                    if (this.repairs?.surrogatePair !== undefined) {
-                        end = this.holdHighSurrogate(pos, end);
-                    }
-                }
+                const end = this.final ? length : this.textEndBeforeHeldBack(pos);
                 this.takeText(pos, end);
                 pos = end;
                 break;
@@ -1073,6 +1110,33 @@ export class XmlTokenizer {
             this.buffer = pos === 0 ? buffer : buffer.slice(pos);
         }
         this.nextBreak = -2;
+    }
+
+    /**
+     * Where the text after the last markup of a non-final buffer ends for scan(): before an entity reference that may
+     * be split across chunks, and before a high-surrogate reference when that repair is on.
+     * @param pos - where the text starts
+     * @returns the index the text taken now ends at
+     */
+    private textEndBeforeHeldBack(pos: number): number {
+        const { buffer } = this;
+        const { length } = buffer;
+        let end = length;
+        // an entity reference may be split across chunks: hold back from its "&"
+        const amp = buffer.lastIndexOf("&");
+        if (
+            amp >= pos &&
+            !buffer.includes(";", amp) &&
+            // ponytail: a zero-padded reference longer than MAX_ENTITY_LENGTH is held back
+            // whole, so an absurdly long run of zeros is re-scanned once per chunk
+            (amp >= length - MAX_ENTITY_LENGTH || /^&#[xX]?0[\da-fA-F]*$/.test(buffer.slice(amp)))
+        ) {
+            end = amp;
+        }
+        if (this.repairs?.surrogatePair !== undefined) {
+            end = this.holdHighSurrogate(pos, end);
+        }
+        return end;
     }
 
     /**

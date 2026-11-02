@@ -1062,8 +1062,21 @@ describe("oracle comparison", () => {
             texts: [text("Short", 1665, 538), text("Seen", 100, 380)],
         };
         const r = compareOracle("t", o, graphtyScene());
-        assert.deepEqual(r.failures["stray.present"], ["text#0"]);
+        assert.deepEqual(r.failures["stray.present"], ["text@88,374,112,386"]);
         assert.strictEqual(r.properties["stray.present"].n, 1);
+    });
+
+    it("names a stray by what it is and where the program drew it, so one more or one fewer before it renames none", () => {
+        // the oracle-known-failures.json entries named strays by their place in the list, so every later stray was
+        // renumbered when the association left one more shape unmatched (#5384)
+        const o = (texts: PText[]): PScene => ({ ...graphtyScene(), side: "oracle" as const, texts });
+        const failing = (texts: PText[]): string[] =>
+            compareOracle("t", o(texts), graphtyScene()).failures["stray.present"] ?? [];
+        const seen = text("Seen", 100, 380);
+        assert.deepEqual(failing([seen]), ["text@88,374,112,386"]);
+        assert.deepEqual(failing([text("Also", 300, 380), seen]), ["text@288,374,312,386", "text@88,374,112,386"]);
+        // two alike in one place are told apart by a counter
+        assert.deepEqual(failing([seen, seen]), ["text@88,374,112,386", "text@88,374,112,386~2"]);
     });
 
     it("fixes the frame on anchors named by their role, so a misplaced specimen does not pull it", () => {
@@ -1754,7 +1767,7 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.notInclude(failing(compareOracle("t", o, g)), "stray.present");
         // planted: words graphty does not draw there still fail
         g.texts = [text("HSPA8:\u200bSubstrate", 300, 201)];
-        assert.deepEqual(compareOracle("t", o, g).failures["stray.present"], ["text#0"]);
+        assert.deepEqual(compareOracle("t", o, g).failures["stray.present"], ["text@288,195,312,207"]);
     });
 
     it("matches a stray only to an annotation drawn over most of it", () => {
@@ -1911,7 +1924,7 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         g.texts = [text("9606.ENSP00000336894", 305, 185)];
         assert.strictEqual(compareOracle("t", o, g).properties["stray.present"].passRate, 1);
         g.texts = [];
-        assert.deepEqual(compareOracle("t", o, g).failures["stray.present"], ["lettering#0"]);
+        assert.deepEqual(compareOracle("t", o, g).failures["stray.present"], ["lettering@280,180,330,190"]);
     });
 
     it("fails an arrowhead a quarter too long, and lets a few-pixel head round by a pixel", () => {

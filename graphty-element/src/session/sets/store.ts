@@ -424,39 +424,7 @@ export class SetsStore implements RecordView {
         }
 
         const told: SetChange["cause"] = cause === "restore" ? moved : cause;
-        const changes: SetChange[] = [];
-        for (const id of new Set([...was.keys(), ...now.keys()])) {
-            const before = was.get(id);
-            const after = now.get(id);
-            if (before === after) {
-                continue;
-            }
-
-            if (after === undefined) {
-                changes.push({ id, change: "removed", fields: [], set: null, cause: told });
-            } else if (before === undefined) {
-                changes.push({ id, change: "created", fields: [], set: after, cause: told });
-            } else {
-                const fields: ("name" | "definition" | "order")[] = [];
-                if (before.name !== after.name) {
-                    fields.push("name");
-                }
-
-                if (before.definition !== after.definition) {
-                    fields.push("definition");
-                }
-
-                if (before.order !== after.order) {
-                    fields.push("order");
-                }
-
-                // Written and put back within one step (renamed and renamed back): no change.
-                if (fields.length > 0) {
-                    changes.push({ id, change: "updated", fields, set: after, cause: told });
-                }
-            }
-        }
-
+        const changes = sliceDiff(was, now, told);
         if (changes.length === 0) {
             return;
         }
@@ -465,23 +433,91 @@ export class SetsStore implements RecordView {
             changes.map((change) => Object.freeze({ ...change, fields: Object.freeze(change.fields) })),
         );
         for (const listener of [...this.commitListeners]) {
-            try {
+            quietly(() => {
                 listener(committed);
-            } catch {
-                // A listener's failure is the listener's; the write has committed.
-            }
+            });
         }
 
         for (const frozen of committed) {
             for (const listener of [...this.listeners]) {
-                try {
+                quietly(() => {
                     listener(frozen);
-                } catch {
-                    // A listener's failure is the listener's; the write has committed.
-                }
+                });
             }
         }
     }
+}
+
+/**
+ * Call a listener, swallowing what it throws: a listener's failure is the listener's, and the
+ * write has committed.
+ * @param call - The call.
+ */
+function quietly(call: () => void): void {
+    try {
+        call();
+    } catch {
+        // A listener's failure is the listener's; the write has committed.
+    }
+}
+
+/**
+ * The changes between two states of the slice, one per changed key, in key order of first sight.
+ * @param was - The records the listeners were last told of.
+ * @param now - The records now.
+ * @param cause - The cause each change carries.
+ * @returns The changes.
+ */
+function sliceDiff(
+    was: ReadonlyMap<SetId, ElementSet>,
+    now: ReadonlyMap<SetId, ElementSet>,
+    cause: SetChange["cause"],
+): SetChange[] {
+    const changes: SetChange[] = [];
+    for (const id of new Set([...was.keys(), ...now.keys()])) {
+        const before = was.get(id);
+        const after = now.get(id);
+        if (before === after) {
+            continue;
+        }
+
+        if (after === undefined) {
+            changes.push({ id, change: "removed", fields: [], set: null, cause });
+        } else if (before === undefined) {
+            changes.push({ id, change: "created", fields: [], set: after, cause });
+        } else {
+            const fields = changedFields(before, after);
+            // Written and put back within one step (renamed and renamed back): no change.
+            if (fields.length > 0) {
+                changes.push({ id, change: "updated", fields, set: after, cause });
+            }
+        }
+    }
+
+    return changes;
+}
+
+/**
+ * The fields of a set record that differ between two versions of it.
+ * @param before - The earlier record.
+ * @param after - The later record.
+ * @returns The changed fields, in the order name, definition, order.
+ */
+function changedFields(before: ElementSet, after: ElementSet): ("name" | "definition" | "order")[] {
+    const fields: ("name" | "definition" | "order")[] = [];
+    if (before.name !== after.name) {
+        fields.push("name");
+    }
+
+    if (before.definition !== after.definition) {
+        fields.push("definition");
+    }
+
+    if (before.order !== after.order) {
+        fields.push("order");
+    }
+
+    return fields;
 }
 
 /**

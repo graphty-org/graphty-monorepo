@@ -154,6 +154,51 @@ describe("camera.pivotOnSelectionCauses", () => {
         assert.isBelow(Math.abs(after.x - WIDTH / 2), 2, "the clicked node is centered");
     });
 
+    it("a held selection leaves the camera where the selections put it, whichever frame the hold lands on", async () => {
+        /**
+         * Picks n0 by script (a cause that moves the pivot), lets `frames` frames of the glide run,
+         * then lets a filter select the staff (a cause that does not) and draws until still.
+         * @param frames - Frames drawn between the pick and the filter.
+         * @returns Where the camera ends, and where it was when the filter arrived.
+         */
+        async function endsAt(frames: number): Promise<{ end: string; held: string }> {
+            const element = await mounted(["api"]);
+            const { graph } = element;
+            // Frames drawn by hand, so the test chooses the frame the hold lands on.
+            const pass = (graph as unknown as { updateManager: { update: (ms: number) => void } }).updateManager;
+            graph.engine.stopRenderLoop();
+            const state = (): string =>
+                JSON.stringify(graph.getCameraState(), (_, v: unknown) =>
+                    typeof v === "number" ? Math.round(v * 1000) / 1000 : v,
+                );
+
+            await element.session.selection.apply({ nodes: ["n0"], edges: [] });
+            for (let frame = 0; frame < frames; frame++) {
+                pass.update(16);
+            }
+
+            const held = state();
+            await element.session.visibility.addCondition({ id: "f", effect: "select", rule: RULE });
+            assert.deepStrictEqual(element.session.selection.nodes, STAFF, "the filter selected the staff");
+            for (let frame = 0; frame < 120; frame++) {
+                pass.update(16);
+            }
+
+            return { end: state(), held };
+        }
+
+        const none = await endsAt(0);
+        const start = none.held;
+        const one = await endsAt(1);
+        const many = await endsAt(240);
+
+        assert.notStrictEqual(one.held, start, "the hold landed after the glide had started");
+        assert.notStrictEqual(one.held, many.held, "and before it had finished");
+        assert.strictEqual(one.end, many.end, "held on frame 1 or after the glide, the camera ends in one place");
+        assert.strictEqual(none.end, many.end, "held before any frame, too");
+        assert.notStrictEqual(many.end, start, "and that place is the picked node's, not the start");
+    });
+
     it("unset, a filter's Select moves the pivot as it always has", async () => {
         const element = await mounted();
         const start = screen(element, ALL);

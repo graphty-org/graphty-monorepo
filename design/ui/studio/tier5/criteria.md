@@ -1,4 +1,4 @@
-The study runs on build baac78342b served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1-baac78342b
+The study runs on build 797a4f6b47 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d1-797a4f6b47
 
 Frozen on 2026-11-02 for the tier 5 rounds. This is the dry run's first build: each dry-run fix
 pass refreezes on a new build, names it on the first line and the build before it here.
@@ -390,3 +390,6 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
       name, E4572E spoken "red") and for counts that are not the picture's (a hiding layer's
       "Show:" key, the node table's "Matches only" list after Done), plus "Build notes
       (baac78342b)" and the T79 timings read on this build.
+- 2026-11-02: the dry run's second build, 797a4f6b47 in `.study-builds/tier5-r1d1-797a4f6b47`,
+  replaces baac78342b (`.study-builds/tier5-r1-baac78342b`). It carries the first dry-run pass's
+  fixes, among them the main table's columns and a test's mode kept as the step's own.

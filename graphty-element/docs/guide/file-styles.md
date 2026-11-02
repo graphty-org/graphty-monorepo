@@ -64,7 +64,11 @@ documents carry styles. CSV and OBO files hold none.
 - `notes`: what reading the file and turning it into layers met, each `{ code, params }`. `params`
   names the `property` (`fill`, `shape`, `borderWidth`, ...), the `target` (`node`, `edge` or
   `graph`), how many elements (`count`, each element counted once) and, for a value left out, up
-  to 8 `samples` of the file's values (empty when the note has none to show).
+  to 8 `samples` of the file's values (empty when the note has none to show);
+- `lengthScale`: the scene units one unit of the file's lengths was drawn as. Node sizes, borders,
+  edge widths, label sizes (unless `labelSizes: "file"`) and the file's stored positions all took
+  this one factor, so the drawing keeps the file's proportions. It is 1 when the load kept the
+  file's numbers (`lengths: "file"`, or a file graphty wrote).
 
 A note never stops the load: every style that can be drawn is drawn. The codes graphty-element adds
 while it turns a file's rules into layers:
@@ -109,6 +113,7 @@ await element.loadFromUrl(url, {
 | Option         | Default             | What it decides                                                                                                                                                                                                                                                                                                |
 | -------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lengths`      | `"median"`          | `"median"` scales every length by one factor, so the file's median node size (each node by its larger side) is the element's default node size and node sizes, borders, edge widths, label sizes and a kept layout's positions keep the file's proportions; `"file"` keeps the file's numbers as they are      |
+| `labelSizes`   | `"proportional"`    | `"proportional"` scales label sizes by the factor `lengths` scales every other length by, so each label keeps its size against its node; `"file"` keeps the file's label sizes as they are                                                                                                                     |
 | `shapes`       | `FILE_STYLE_SHAPES` | The element shape each 2D shape of the file is drawn as (every 2D shape as the flat shape of the same name: `ellipse`, `rectangle`, `hexagon`, ...; a body-less `none` as an `ellipse`). A shape the table leaves out is not drawn from the file, and the load notes it                                        |
 | `labelLayers`  | none                | Deprecated, and ignored: every label position the file sets is drawn, element by element, by one layer (`node.labelLocation`)                                                                                                                                                                                  |
 | `toolDefaults` | `true`              | Whether a property the file leaves unset gets the default of the program that wrote it (below)                                                                                                                                                                                                                 |

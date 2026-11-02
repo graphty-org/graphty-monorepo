@@ -105,6 +105,13 @@ export interface LoadStyleReport {
     readonly layers: readonly LayerId[];
     /** What reading and translating the file's styles met, as codes and facts. */
     readonly notes: readonly FileStyleNote[];
+    /**
+     * The scene units one unit of the file's lengths was drawn as: the ONE factor node sizes, borders, edge widths,
+     * label sizes (unless `labelSizes: "file"`) and the file's stored positions took, so the drawing keeps the file's
+     * proportions. 1 when the load kept the file's numbers (`lengths: "file"`, or a file graphty wrote). Absent when no
+     * file styles were read.
+     */
+    readonly lengthScale?: number;
 }
 
 /**
@@ -191,11 +198,13 @@ export async function applyFileStyles(
     const notes: FileStyleNote[] = [];
     const layers: LayerId[] = [];
     let sceneScale: number | null = null;
+    let lengthScale: number | undefined;
     if (read !== null) {
         const applied = await applyRead(outcome, read, options, ctx, replacing);
         layers.push(...applied.layers);
         notes.push(...applied.notes);
         sceneScale = replacing ? applied.sceneScale : null;
+        ({ lengthScale } = applied);
     }
 
     // The program fits the stored positions' centers into its canvas (sigma.js): framed the same, the drawing fills
@@ -210,7 +219,11 @@ export async function applyFileStyles(
 
     const report: LoadReport = Object.freeze({
         ...outcome.report,
-        styles: Object.freeze({ layers: Object.freeze(layers), notes: Object.freeze(notes) }),
+        styles: Object.freeze({
+            layers: Object.freeze(layers),
+            notes: Object.freeze(notes),
+            ...(lengthScale === undefined ? {} : { lengthScale }),
+        }),
     });
     ctx.services.data?.values?.({ importReport: report }, ctx.draft);
     return sceneScale;
@@ -361,7 +374,7 @@ async function applyRead(
         ctx.services.data?.values?.({ [ANNOTATIONS_VALUE]: value }, ctx.draft);
     }
 
-    return { layers, notes, sceneScale };
+    return { layers, notes, sceneScale, lengthScale: translation.sceneScale ?? 1 };
 }
 
 /**

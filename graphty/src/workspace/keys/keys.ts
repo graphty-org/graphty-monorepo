@@ -14,6 +14,7 @@
  */
 
 import { CANVAS_KEY_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+import type React from "react";
 
 /** A key string split into its parts. */
 interface KeyCombo {
@@ -229,4 +230,20 @@ export function isPanelEscape(event: Pick<KeyboardEvent, "key" | "defaultPrevent
     }
     // A combobox field marks its open list with data-expanded (Mantine's Select, Autocomplete).
     return !(event.target instanceof Element && "expanded" in (event.target as HTMLElement).dataset);
+}
+
+/**
+ * Whether a key types a character (no Ctrl, Cmd or Alt; not Space, which presses the field).
+ * @param event - the key.
+ * @returns true when it types.
+ */
+export function printable(event: React.KeyboardEvent): boolean {
+    return (
+        event.key.length === 1 &&
+        event.key !== " " &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !event.nativeEvent.isComposing
+    );
 }

@@ -225,11 +225,11 @@ export function FiltersSection(): React.JSX.Element {
     const empty = cards.length === 0 && !timed;
     // What the cards together leave, on the header: "Passes none" when they empty the picture.
     const { summary } = session?.visibility ?? { summary: null };
-    // While a card's workspace is open its header is the one place a count is drawn (spec 3.0).
-    const editing = useWorkspaceState((state) => state.selectionWorkspace?.host === "filter");
+    // Kept while a card's workspace is open: what the cards leave together is another fact than the
+    // card's own count in the workspace's header (spec 3.0, ws-polish 3).
     const together =
         // Drawn only when two or more cards are on: one card's own count already says it.
-        editing || summary === null || conditions.filter((c) => c.on && hides(c)).length < 2 ? null : (
+        summary === null || conditions.filter((c) => c.on && hides(c)).length < 2 ? null : (
             <Text size="sm" className="dp-filters-count" data-filters-count="">
                 {summary.visibleNodes === 0
                     ? "Passes none"
@@ -572,9 +572,11 @@ function FilterCard({
                             ) : undefined
                         }
                         openFirst={draft && !stepless}
-                        // Switching a new card's side opens the picker again, on the other side's values.
-                        openPicker={draft && stepless}
+                        // Only on arrival: a side switch keeps focus on Nodes | Edges, the picker shut
+                        // and nothing said, so the arrows go on switching (WCAG 3.2.2, ws-polish 3).
+                        openPicker={draft && stepless && !switched}
                         openTitle={(draft && switched) || switchIn.current}
+                        switchedSide={draft && switched}
                         hostPicks={timePick(() => {
                             if (draft) {
                                 onDiscard();
@@ -599,6 +601,11 @@ function FilterCard({
                         {/* The whole row opens the card, as Figma's collapsed layer rows do; the on box stays its own. */}
                         <UnstyledButton
                             className="dp-filter-name"
+                            aria-label={[
+                                title,
+                                ...(total === undefined ? [] : [`${total} ${things}`]),
+                                ...(on ? [] : ["off"]),
+                            ].join(", ")}
                             aria-expanded={open}
                             onClick={() => {
                                 focusOnOpen.current = !open;

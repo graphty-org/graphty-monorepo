@@ -1025,8 +1025,12 @@ export class UpdateManager implements Manager {
      * @param deadline - When this frame stops starting batches; the first always runs.
      */
     private syncEdgeStyles(painter: StylePainter, deadline: number): void {
-        // A repainted edge's own appearance changed: the frame visits every edge.
-        this.forceEdgeWalk();
+        // ONLY THE EDGES PAINTED ARE PLACED AGAIN. A repaint that rebuilt an edge's line drops its
+        // position cache, so the edge places itself the next time it is updated; it is updated here,
+        // with its batch. Forcing the walk of every edge on each frame of a repaint spread over
+        // many frames walked 200,000 edges about 200 times on a 50,000-node graph (ws-polish 3):
+        // the frame that empties the queue still walks them all once, as syncNodeStyles does.
+        this.sceneChanged = true;
 
         do {
             for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
@@ -1035,9 +1039,14 @@ export class UpdateManager implements Manager {
 
                 if (edge !== undefined && paint !== null) {
                     edge.applySessionPaint(paint);
+                    edge.update();
                 }
             }
         } while (painter.hasPendingEdges && performance.now() < deadline);
+
+        if (!painter.hasPendingEdges) {
+            this.forceEdgeWalk();
+        }
     }
 
     /**

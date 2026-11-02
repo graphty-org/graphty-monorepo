@@ -60,9 +60,20 @@ export const shortCount = (count: number): string =>
         ? formatNumber(count)
         : new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(count).toLowerCase();
 
+/**
+ * A count written short from 1,000 up ("1.9k"), for a row's "N values".
+ * @param count - the count.
+ * @returns the words.
+ */
+const compactCount = (count: number): string =>
+    count < 1000
+        ? formatNumber(count)
+        : new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(count).toLowerCase();
+
 /** A reason's short word on a step's row, and its whole words in the row's tooltip. */
 const REASONS: Readonly<Record<StepReasonCode, { short: string; long: string }>> = {
-    "test-unset": { short: "No test", long: "No test yet: this step changes nothing" },
+    // A step with a value and no test is said as its value alone (the owner's review, ws-polish 3).
+    "test-unset": { short: "", long: "No test yet: this step changes nothing" },
     "no-reference": { short: "No reference", long: "No reference chosen: this step changes nothing" },
     "one-node-only": { short: "One node", long: "This option takes one node; the reference holds several" },
     computing: { short: "Computing", long: "Computing" },
@@ -252,10 +263,22 @@ function ruleStepWords(
 }
 
 /**
- * A step's Links condition as its tag and Advanced say it: the edge value and its short test
- * ("weight min 2").
+ * Whether a step's Links condition has a test set, so it can leave an edge out: untouched, every
+ * edge with a value passes, and the step is tagged with nothing (ws-polish 3).
  * @param session - the element's session.
- * @param links - the step's edge condition.
+ * @param links - the condition.
+ * @returns true when its test is set.
+ */
+export function linksTested(session: GraphSession, links: RuleTree): boolean {
+    const card = cardOf(session, links, cardFields(session, "edge"), 0);
+    // A test with no short words (text, a date) is taken as set.
+    return !("field" in card) || shortTest(session, card) !== "";
+}
+
+/**
+ * A step's Links condition in words: the edge value and its short test.
+ * @param session - the element's session.
+ * @param links - the condition.
  * @returns the words.
  */
 export function linksSaid(session: GraphSession, links: RuleTree): string {
@@ -281,11 +304,13 @@ export function rowWords(
     step: UnionStep,
     side: Side,
     reading?: StepReading,
-): { value: string; test: string; tags: string[]; more?: string } {
+): { value: string; test: string; tags: string[]; more?: string; moreShort?: string } {
     const words = ruleStepWords(session, step, side, reading);
     const tags = [
         ...(step.computedOn === "so-far" ? ["So far"] : []),
-        ...(step.links === undefined ? [] : [`Edges: ${linksSaid(session, step.links)}`]),
+        ...(step.links === undefined || !linksTested(session, step.links)
+            ? []
+            : [`Edges: ${linksSaid(session, step.links)}`]),
         ...(step.ends === "either" ? ["Either end"] : []),
     ];
     if (isRelative(step.rule) || step.rule.kind === "member" || STRUCTURE[step.rule.kind] !== undefined) {
@@ -302,7 +327,15 @@ export function rowWords(
         card?.type === "category" && card.match === "values" ? valuesParts(categoryNames(session, card)) : null;
     if (many !== null && many.more > MANY_NAMED) {
         // A long list is its count alone: two names of 1,898 say little and cost the value its width.
-        return { value: words.value, test: "", more: `${formatNumber(many.more + 2)} values`, tags };
+        // Drawn short ("1.9k values"), so the value keeps its name in a narrow row; said in full
+        // (ws-polish 3).
+        return {
+            value: words.value,
+            test: "",
+            more: `${formatNumber(many.more + 2)} values`,
+            moreShort: `${compactCount(many.more + 2)} values`,
+            tags,
+        };
     }
     if (many !== null && many.more > 0) {
         return { value: words.value, test: many.listed, more: `and ${formatNumber(many.more)} more`, tags };

@@ -1235,6 +1235,7 @@ const EXTRA = "extra:";
  * @param props.sections - headings of rows that are not fields, after the field groups
  * @param props.anchor - drawn in place of the opener button (the list opens under it)
  * @param props.placeholder - the search box's words
+ * @param props.seed - typed into the search as the list opens from outside
  * @returns The control
  */
 export function AddCondition({
@@ -1251,6 +1252,7 @@ export function AddCondition({
     sections: more = [],
     anchor,
     placeholder = FIND_ATTRIBUTE,
+    seed,
 }: Readonly<{
     fields: readonly CardField[];
     elsewhere?: readonly CardField[];
@@ -1273,6 +1275,8 @@ export function AddCondition({
     anchor?: React.ReactElement;
     /** The search box's words. */
     placeholder?: string;
+    /** Typed into the search as the list opens from outside (a key pressed on the anchor). */
+    seed?: string;
 }>): React.JSX.Element {
     const [search, setSearch] = useState("");
     // The option Enter takes, which the search names as its active descendant.
@@ -1367,12 +1371,16 @@ export function AddCondition({
         }
     }, [nothing, spoken, store]);
     // Opened from outside (the toolbar's Filters): the list opens, its search focused.
-    const { openDropdown } = combobox;
+    const { openDropdown, focusSearchInput } = combobox;
     useEffect(() => {
         if (opened === true) {
             openDropdown();
+            if (seed !== undefined && seed !== "") {
+                setSearch(seed);
+                focusSearchInput();
+            }
         }
-    }, [opened, openDropdown]);
+    }, [opened, openDropdown, focusSearchInput, seed]);
     // After typing, the first match is the active option, so Enter takes it with no arrow key.
     useEffect(() => {
         if (!dropdownOpened) {
@@ -1444,7 +1452,8 @@ export function AddCondition({
     return (
         <Combobox
             store={combobox}
-            width={width}
+            // A list under a field is as wide as the field, however it was opened (ws-polish 3).
+            width={anchor === undefined ? width : "target"}
             position="bottom-start"
             // A list under a field (the selection workspace's value fields) always opens below it,
             // inside its column, never flipped up over the header and Done (ws-polish 2).
@@ -1787,14 +1796,31 @@ function OptionLine({
     fact?: string | undefined;
     used?: boolean;
 }>): React.JSX.Element {
+    const cut = name.lastIndexOf(":");
     return (
         <Group gap={8} wrap="nowrap" justify="space-between" style={{ minWidth: 0 }}>
             <Group gap={8} wrap="nowrap" style={{ minWidth: 0, flex: "1 1 auto" }}>
                 <Glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
                 <Tooltip label={name}>
-                    <Text span inherit truncate="end" c={used ? "dimmed" : undefined} style={{ minWidth: 0 }}>
-                        {name}
-                    </Text>
+                    {cut === -1 ? (
+                        <Text span inherit truncate="end" c={used ? "dimmed" : undefined} style={{ minWidth: 0 }}>
+                            {name}
+                        </Text>
+                    ) : (
+                        // "Label propagation: Community size": the algorithm's name gives way, never
+                        // the field's, so two fields of one run are told apart (ws-polish 3).
+                        <Text
+                            span
+                            inherit
+                            c={used ? "dimmed" : undefined}
+                            style={{ minWidth: 0, display: "flex", whiteSpace: "nowrap" }}
+                        >
+                            <span style={{ minWidth: "3ch", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {name.slice(0, cut + 1)}
+                            </span>
+                            <span style={{ flex: "none", whiteSpace: "pre" }}>{name.slice(cut + 1)}</span>
+                        </Text>
+                    )}
                 </Tooltip>
                 {used && (
                     <Text span c="dimmed" style={{ display: "inline-flex", flex: "none" }}>
@@ -1952,7 +1978,7 @@ export function CardBody({
         case "category":
             return <CategoryCard session={session} card={card} side={side} onChange={onChange} variant={variant} />;
         case "text":
-            return <TextCard session={session} card={card} onChange={onChange} />;
+            return <TextCard session={session} card={card} onChange={onChange} variant={variant} />;
         case "source":
             return <SourceCard session={session} card={card} side={side} onChange={onChange} variant={variant} />;
         case "yes-no":
@@ -2956,14 +2982,15 @@ function CategoryCard({
                             {`${formatNumber(moreChecked)} more checked`}
                         </Text>
                     )}
+                    {/* How many values are not drawn, as "N more checked" says the checked ones (ws-polish 3). */}
                     {typed === "" && unchecked > shownUnchecked && (
                         <Text size="xs" c="dimmed">
-                            {`${formatNumber(shownUnchecked)} of ${formatNumber(unchecked)}`}
+                            {`${formatNumber(unchecked - shownUnchecked)} more`}
                         </Text>
                     )}
                     {typed !== "" && matches.length > rows.length && (
                         <Text size="xs" c="dimmed">
-                            {`${formatNumber(rows.length)} of ${formatNumber(matches.length)}`}
+                            {`${formatNumber(matches.length - rows.length)} more`}
                         </Text>
                     )}
                 </>
@@ -3032,13 +3059,20 @@ function SourceCard({
  * @param props.session - the element's session
  * @param props.card - the card
  * @param props.onChange - takes the card as edited
+ * @param props.variant - a selection step's body keeps Match case in its Advanced (ws-polish 3)
  * @returns The body
  */
 function TextCard({
     session,
     card,
     onChange,
-}: Readonly<{ session: GraphSession; card: Extract<Card, { type: "text" }>; onChange: OnCard }>): React.JSX.Element {
+    variant,
+}: Readonly<{
+    session: GraphSession;
+    card: Extract<Card, { type: "text" }>;
+    onChange: OnCard;
+    variant?: CardVariant;
+}>): React.JSX.Element {
     const { name } = card.field;
     const isName = card.field.kind === "name";
     // The menu is in sentence case like every other Match menu; a chip keeps the words lower case.
@@ -3141,14 +3175,16 @@ function TextCard({
                                 onChange({ ...card, text });
                             }}
                         />
-                        <Checkbox
-                            size="xs"
-                            label="Match case"
-                            checked={card.caseSensitive}
-                            onChange={(event) => {
-                                onChange({ ...card, caseSensitive: event.currentTarget.checked });
-                            }}
-                        />
+                        {variant !== "step" && (
+                            <Checkbox
+                                size="xs"
+                                label="Match case"
+                                checked={card.caseSensitive}
+                                onChange={(event) => {
+                                    onChange({ ...card, caseSensitive: event.currentTarget.checked });
+                                }}
+                            />
+                        )}
                     </>
                 )
             )}

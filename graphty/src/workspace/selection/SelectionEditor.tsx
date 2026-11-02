@@ -47,11 +47,10 @@ import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { PreviewKey } from "../canvas/PreviewKey";
 import { canFocus, focusInspectorTitle, focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
-import { isTypingTarget, matchesKey } from "../keys/keys";
+import { isTypingTarget, matchesKey, printable } from "../keys/keys";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddCondition } from "../style/WhichPicker";
@@ -131,6 +130,8 @@ interface SelectionEditorProps {
     readonly openPicker?: boolean;
     /** Opens the workspace on the title row at once (a new filter card switched to the other side). */
     readonly openTitle?: boolean;
+    /** The host's side was just switched (Nodes | Edges): the arrival says nothing and keeps focus there. */
+    readonly switchedSide?: boolean;
     /** The host's own picker entries, listed after Results (the import filter's Time window). */
     readonly hostPicks?: readonly PickSection[];
     /** Takes focus on arrival, on its title row. */
@@ -184,6 +185,7 @@ const SPEAK_AFTER_MS = 500;
  * @param props.ownerName - what the selection belongs to, after its name in the workspace's title
  * @param props.openPicker - opens the workspace with the value picker on the first group at once
  * @param props.openTitle - opens the workspace on the title row at once
+ * @param props.switchedSide - the host's side was just switched: arrive quietly, focus on the switch
  * @param props.hostPicks - the host's own picker entries
  * @param props.autoFocus - takes focus on arrival
  * @param props.lead - drawn first in the title row
@@ -206,6 +208,7 @@ export function SelectionEditor({
     ownerName,
     openPicker = false,
     openTitle = false,
+    switchedSide = false,
     hostPicks = [],
     autoFocus = false,
     lead,
@@ -281,13 +284,27 @@ export function SelectionEditor({
     // left alone by a delete never takes another group's letter (spec 3.1).
     const branchName = (branch: UnionBranch): string =>
         branch.name ?? (rule.branches.length === 1 ? name : letterOf(rule.branches.indexOf(branch)));
-    // The import filter says its own count once typing pauses; the table's and the selection's
-    // lines stay quiet while an editor is open.
+    // A group whose every member an earlier group already draws is drawn "under" those groups: its
+    // row's tooltip says so, as the canvas key did (ws-polish 3).
+    const underOf = (at: number): string[] => {
+        const read = reading.branches.find((each) => each.id === rule.branches[at]?.id);
+        if (read === undefined || read.drawn > 0 || read.count === 0) {
+            return [];
+        }
+        return rule.branches
+            .slice(0, at)
+            .filter(
+                (each) => each.on !== false && (reading.branches.find((other) => other.id === each.id)?.drawn ?? 0) > 0,
+            )
+            .map((each) => branchName(each));
+    };
+    // The open workspace says its count once typing pauses, in either host (WCAG 4.1.3); the
+    // table's and the selection's lines stay quiet while an editor is open.
     const [heardCount] = useDebouncedValue(
         reading.pending.length > 0 ? null : countWords(reading.total.count, of, side),
         SPEAK_AFTER_MS,
     );
-    useAnnounceChange(host === "filter" && open ? heardCount : null);
+    useAnnounceChange(open ? heardCount : null);
 
     /**
      * Opens the workspace on a row (or switches the one open to this selection), keeping every
@@ -295,13 +312,16 @@ export function SelectionEditor({
      * @param row - the row to select.
      * @param from - the sidebar row or Edit that opened it, where focus returns.
      * @param add - a group to add a step to, its value picker open.
+     * @param quiet - says nothing as it opens (a host's side switch).
      */
-    const openAt = (row: string, from: string, add?: UnionBranch): void => {
+    const openAt = (row: string, from: string, add?: UnionBranch, quiet = false): void => {
         if (!open) {
             openedIn.current = store.get().place;
             openedWith.current = reading.rule;
             opener.current = from;
-            say(`Editing ${[name, ownerName].filter((each) => each !== undefined).join(", ")}`);
+            if (!quiet) {
+                say(`Editing ${[name, ownerName].filter((each) => each !== undefined).join(", ")}`);
+            }
         }
         // A selection with no step opens on its new step's pane, the value field focused (spec 3.0).
         const only = rule.branches.length === 1 ? rule.branches[0] : undefined;
@@ -324,10 +344,10 @@ export function SelectionEditor({
         if (add !== undefined) {
             setAdding({ branch: add.id ?? "", op: newVerb(add), open: true, back: row });
         } else if (stepless) {
-            // The new step's row is the one lit, never the title's too.
+            // The new step's row is the one lit, never the title's too, and its value picker is
+            // open under its field, its search focused (the owner's review, ws-polish 3).
             setSelected(null);
-            setAdding({ branch: only.id ?? "", op: newVerb(only), open: false });
-            focusAfter.current = PANE_FOCUS;
+            setAdding({ branch: only.id ?? "", op: newVerb(only), open: true });
         } else {
             focusAfter.current = [
                 `[data-row="${CSS.escape(shown)}"]`,
@@ -385,7 +405,12 @@ export function SelectionEditor({
             openAt(firstStep, TITLE);
             focusAfter.current = PANE_FOCUS;
         } else if (openTitle) {
-            openAt(TITLE, TITLE);
+            openAt(TITLE, TITLE, undefined, switchedSide);
+            if (switchedSide) {
+                // The side's segment was replaced with the editor: focus goes back to the side chosen.
+                // Only there: the sidebar's title row would take it before the workspace is drawn.
+                focusAfter.current = ".sel-ws-props input[type=radio]:checked";
+            }
         }
     });
     // Leaving the place it was opened in is Done.
@@ -444,6 +469,26 @@ export function SelectionEditor({
         },
         [],
     );
+    // While graphty-element still applies the preview's paint (a large graph repaints over many
+    // frames), the header says "Drawing" beside the count, so the count is not read as the
+    // canvas's; it clears once the element has drawn the last batch (ws-polish 3).
+    const [drawing, setDrawing] = useState(false);
+    useEffect(() => {
+        if (!open || element === null || element === undefined) {
+            setDrawing(false);
+            return undefined;
+        }
+        let live = true;
+        setDrawing(true);
+        void element.waitForPainted().then(() => {
+            if (live) {
+                setDrawing(false);
+            }
+        });
+        return () => {
+            live = false;
+        };
+    }, [open, element, viewKey, previewing, markedNow]);
 
     // The table's Group column and Matches only, and the key's title, read the open selection
     // (spec 8). One slot, two hosts: an editor that is open claims it, one at rest keeps it only
@@ -700,11 +745,15 @@ export function SelectionEditor({
     const clear = (): void => {
         const empty = newSelection(rule.side, rule.within);
         const first = empty.branches[0];
-        onChange(first === undefined ? empty : editBranch(empty, first.id ?? "", { start: "all" }));
-        setSelected(TITLE);
-        setAdding(null);
+        const cleared = first === undefined ? empty : editBranch(empty, first.id ?? "", { start: "all" });
+        onChange(cleared);
         say("Cleared");
-        focusAfter.current = `[data-row="${TITLE}"]`;
+        // A cleared rule has no step: it opens on its new step with the value picker open, as a new
+        // rule does (ws-polish 3).
+        const only = cleared.branches[0];
+        setSelected(null);
+        setAdding(only === undefined ? null : { branch: only.id ?? "", op: newVerb(only), open: true });
+        focusAfter.current = only === undefined ? `[data-row="${TITLE}"]` : null;
     };
     // A group's members: selected (a style layer), or the strip on them (a filter, spec 2).
     const showMembers = (members: StepsReading["result"] | undefined, branch: string | null): void => {
@@ -951,6 +1000,12 @@ export function SelectionEditor({
         // with no outline and no count: the workspace's header is the one place the count is drawn
         // (spec 3.0, the owner's review, ws-polish 2).
         const editing = !ws && open;
+        const levelOf = (branch: UnionBranch | null, stepId: string | undefined): number => {
+            if (branch === null) {
+                return 1;
+            }
+            return multi && stepId !== undefined ? 3 : 2;
+        };
         const rowProps = (
             id: string,
             selects: string,
@@ -959,6 +1014,9 @@ export function SelectionEditor({
             stepId?: string,
         ): React.HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, string | undefined> => ({
             role: "treeitem",
+            // The levels the indent draws: a step of one of several groups is under its group's row,
+            // which a role=group holding both does not say by itself (ws-polish 3).
+            "aria-level": levelOf(branch, stepId),
             tabIndex: tabbed === id ? 0 : -1,
             "data-row": id,
             "data-selects": selects,
@@ -1005,7 +1063,8 @@ export function SelectionEditor({
                     <Text size="sm" fw={600} className="sel-title">
                         {name}
                     </Text>
-                    {recipeTitle && loneStep !== undefined && !(ws && recipeOpen) && recipeState !== "" && (
+                    {/* Its state word stays drawn while selected, as every step row's does (ws-polish 3). */}
+                    {recipeTitle && loneStep !== undefined && recipeState !== "" && (
                         <Text size="sm" c="dimmed" className="sel-state">
                             {recipeState}
                         </Text>
@@ -1060,100 +1119,109 @@ export function SelectionEditor({
                             data-multi={multi ? "" : undefined}
                         >
                             {multi && (
-                                <div
-                                    {...rowProps(
-                                        branchId,
-                                        branchId,
-                                        [
-                                            letter,
-                                            colorWord(color),
-                                            countWords(branchRead?.count ?? 0, of, side),
-                                            branch.on === false ? "off" : "",
-                                            startEmpties(branch, branchRead) ? "passes none" : "",
-                                        ]
-                                            .filter((each) => each !== "")
-                                            .join(", "),
-                                        branch,
-                                    )}
-                                    {...(ws ? dragProps(branch, branchId, false) : {})}
-                                    className="sel-row sel-group-row"
-                                    onPointerEnter={() => {
-                                        if (ws) {
-                                            setMarked(branchId);
-                                        }
-                                    }}
-                                    onPointerLeave={() => {
-                                        if (ws) {
-                                            setMarked(null);
-                                        }
-                                    }}
-                                    onDoubleClick={() => {
-                                        if (ws) {
-                                            setRenaming(branchId);
-                                        }
-                                    }}
+                                <Tooltip
+                                    label={`${formatNumber(branchRead?.count ?? 0)}, under ${underOf(at).join(", ")}`}
+                                    disabled={!ws || !previewing || underOf(at).length === 0}
+                                    openDelay={500}
                                 >
-                                    <Text size="sm" className="sel-verb sel-or-word">
-                                        {at > 0 ? "or" : ""}
-                                    </Text>
-                                    <span
-                                        className="sel-chit"
-                                        data-filled={previewing ? "" : undefined}
-                                        style={{ borderColor: color, background: previewing ? color : "transparent" }}
-                                        aria-hidden
-                                    />
-                                    {ws && renaming === branch.id ? (
-                                        // Figma's rename: the name preselected, Enter or a click away keeps it.
-                                        <InlineRename
-                                            value={letter}
-                                            label={`Rename ${letter}`}
-                                            onCommit={(typed) => {
-                                                const text = typed.trim();
-                                                if (text !== letter) {
-                                                    onChange(
-                                                        editBranch(rule, branchId, {
-                                                            name: text === "" ? undefined : text,
-                                                        }),
-                                                    );
-                                                }
-                                                setRenaming(null);
-                                            }}
-                                            onCancel={() => {
-                                                setRenaming(null);
-                                            }}
-                                        />
-                                    ) : (
-                                        <Text size="sm" className="sel-value">
-                                            {letter}
+                                    <div
+                                        {...rowProps(
+                                            branchId,
+                                            branchId,
+                                            [
+                                                letter,
+                                                colorWord(color),
+                                                countWords(branchRead?.count ?? 0, of, side),
+                                                branch.on === false ? "off" : "",
+                                                startEmpties(branch, branchRead) ? "passes none" : "",
+                                            ]
+                                                .filter((each) => each !== "")
+                                                .join(", "),
+                                            branch,
+                                        )}
+                                        {...(ws ? dragProps(branch, branchId, false) : {})}
+                                        className="sel-row sel-group-row"
+                                        onPointerEnter={() => {
+                                            if (ws) {
+                                                setMarked(branchId);
+                                            }
+                                        }}
+                                        onPointerLeave={() => {
+                                            if (ws) {
+                                                setMarked(null);
+                                            }
+                                        }}
+                                        onDoubleClick={() => {
+                                            if (ws) {
+                                                setRenaming(branchId);
+                                            }
+                                        }}
+                                    >
+                                        <Text size="sm" className="sel-verb sel-or-word">
+                                            {at > 0 ? "or" : ""}
                                         </Text>
-                                    )}
-                                    {(branch.on === false || startEmpties(branch, branchRead)) && (
-                                        <Text size="sm" c="dimmed" className="sel-state">
-                                            {branch.on === false ? "Off" : "Passes none"}
-                                        </Text>
-                                    )}
-                                    <span className="sel-spacer" />
-                                    {ws && (
-                                        <ToggleIconButton
-                                            className="sel-eye"
-                                            variant="swap"
-                                            label={`Use ${letter}`}
-                                            tooltip={`Use ${letter} (Space)`}
-                                            icon={<GLYPHS.hide size={12} aria-hidden />}
-                                            checkedIcon={<GLYPHS.show size={12} aria-hidden />}
-                                            checked={branch.on !== false}
-                                            tabIndex={-1}
-                                            onChange={() => {
-                                                toggle(branch);
+                                        <span
+                                            className="sel-chit"
+                                            data-filled={previewing ? "" : undefined}
+                                            style={{
+                                                borderColor: color,
+                                                background: previewing ? color : "transparent",
                                             }}
+                                            aria-hidden
                                         />
-                                    )}
-                                    <Text size="sm" className="sel-count">
-                                        {branchRead?.state === "pending"
-                                            ? "Waits"
-                                            : formatNumber(branchRead?.count ?? 0)}
-                                    </Text>
-                                </div>
+                                        {ws && renaming === branch.id ? (
+                                            // Figma's rename: the name preselected, Enter or a click away keeps it.
+                                            <InlineRename
+                                                value={letter}
+                                                label={`Rename ${letter}`}
+                                                onCommit={(typed) => {
+                                                    const text = typed.trim();
+                                                    if (text !== letter) {
+                                                        onChange(
+                                                            editBranch(rule, branchId, {
+                                                                name: text === "" ? undefined : text,
+                                                            }),
+                                                        );
+                                                    }
+                                                    setRenaming(null);
+                                                }}
+                                                onCancel={() => {
+                                                    setRenaming(null);
+                                                }}
+                                            />
+                                        ) : (
+                                            <Text size="sm" className="sel-value">
+                                                {letter}
+                                            </Text>
+                                        )}
+                                        {(branch.on === false || startEmpties(branch, branchRead)) && (
+                                            <Text size="sm" c="dimmed" className="sel-state">
+                                                {branch.on === false ? "Off" : "Passes none"}
+                                            </Text>
+                                        )}
+                                        <span className="sel-spacer" />
+                                        {ws && (
+                                            <ToggleIconButton
+                                                className="sel-eye"
+                                                variant="swap"
+                                                label={`Use ${letter}`}
+                                                tooltip={`Use ${letter} (Space)`}
+                                                icon={<GLYPHS.hide size={12} aria-hidden />}
+                                                checkedIcon={<GLYPHS.show size={12} aria-hidden />}
+                                                checked={branch.on !== false}
+                                                tabIndex={-1}
+                                                onChange={() => {
+                                                    toggle(branch);
+                                                }}
+                                            />
+                                        )}
+                                        <Text size="sm" className="sel-count">
+                                            {branchRead?.state === "pending"
+                                                ? "Waits"
+                                                : formatNumber(branchRead?.count ?? 0)}
+                                        </Text>
+                                    </div>
+                                </Tooltip>
                             )}
                             {/* Hidden while a step is added to the group: the new step's row says what it starts from. */}
                             {allRow(branch) && !(ws && adding?.branch === branch.id) && (
@@ -1243,7 +1311,7 @@ export function SelectionEditor({
                                             )}
                                             {words.more !== undefined && (
                                                 <Text size="sm" className="sel-more">
-                                                    {words.more}
+                                                    {words.moreShort ?? words.more}
                                                 </Text>
                                             )}
                                             {words.tags.map((tag) => (
@@ -1297,6 +1365,21 @@ export function SelectionEditor({
                         </div>
                     );
                 })}
+                {ws && previewing && reading.pending.length === 0 && of > reading.total.count && (
+                    // What no group holds, drawn faint on the canvas: the outline's last row, in place
+                    // of a key over the preview (the owner's review, ws-polish 3).
+                    <div className="sel-row sel-nomatch-row" role="none" data-no-match="">
+                        <span className="sel-verb" />
+                        <span className="sel-chit sel-chit-faint" aria-hidden />
+                        <Text size="sm" c="dimmed" className="sel-value">
+                            No match
+                        </Text>
+                        <span className="sel-spacer" />
+                        <Text size="sm" c="dimmed" className="sel-count">
+                            {formatNumber(of - reading.total.count)}
+                        </Text>
+                    </div>
+                )}
             </div>
         );
     };
@@ -1557,6 +1640,22 @@ export function SelectionEditor({
         // The canvas is placed once per opening; its observer follows the cell from there.
     }, [open, placed, frame, element]);
 
+    // While it is the preview, the drawing is named for it, as its F6 stop follows the workspace's.
+    useEffect(() => {
+        if (!open || element === null || element === undefined) {
+            return undefined;
+        }
+        const was = element.getAttribute("aria-label");
+        element.setAttribute("aria-label", `Preview: ${wsTitle}`);
+        return () => {
+            if (was === null) {
+                element.removeAttribute("aria-label");
+            } else {
+                element.setAttribute("aria-label", was);
+            }
+        };
+    }, [open, element, wsTitle]);
+
     useLayoutEffect(() => {
         if (!open || wsPlace === null) {
             setOutlineWidth(null);
@@ -1651,6 +1750,11 @@ export function SelectionEditor({
                           <Text size="sm" className="sel-count">
                               {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
                           </Text>
+                          {drawing && (
+                              <Text size="sm" c="dimmed" className="sel-state" data-drawing="">
+                                  Drawing
+                              </Text>
+                          )}
                           <span className="sel-spacer" />
                           <SegmentedControl
                               label="Preview"
@@ -1715,7 +1819,6 @@ export function SelectionEditor({
                           </div>
                           <div className="sel-ws-center" data-strip={strip ? "" : undefined}>
                               <div className="sel-ws-preview">
-                                  <PreviewKey session={session}>{null}</PreviewKey>
                                   <Tooltip label="Frame the matches">
                                       <Button
                                           size="compact-xs"
@@ -1887,6 +1990,8 @@ function NewStepPane({
     onCancel: () => void;
 }>): React.JSX.Element {
     const [open, setOpen] = useState(openAtFirst);
+    // A letter typed on the closed field opens the picker with it in the search (ws-polish 3).
+    const [seed, setSeed] = useState("");
     const picked = useRef(false);
     const choose = (stepRule: RuleTree): void => {
         picked.current = true;
@@ -1901,6 +2006,7 @@ function NewStepPane({
                 placeholder="Find attributes, results"
                 sections={open ? [...hostPicks, ...pickSections(session, rule, choose)] : []}
                 opened={open}
+                seed={seed}
                 onAdd={(field) => {
                     choose(ruleOfField(session, field));
                 }}
@@ -1908,6 +2014,7 @@ function NewStepPane({
                     // The list closes before a pick is handed over: decide once the pick has had its turn.
                     if (!next) {
                         setOpen(false);
+                        setSeed("");
                         requestAnimationFrame(() => {
                             if (!picked.current) {
                                 onCancel();
@@ -1927,9 +2034,17 @@ function NewStepPane({
                         pointer
                         data-first-focus=""
                         aria-label="Value"
-                        aria-haspopup="listbox"
+                        aria-haspopup="dialog"
+                        aria-expanded={open}
                         onClick={() => {
                             setOpen(true);
+                        }}
+                        onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) => {
+                            if (printable(event)) {
+                                event.preventDefault();
+                                setSeed(event.key);
+                                setOpen(true);
+                            }
                         }}
                     >
                         <span className="sel-field-text sel-field-empty">Value...</span>

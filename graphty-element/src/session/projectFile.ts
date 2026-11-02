@@ -1850,9 +1850,15 @@ async function readFilterConditions(
     const steps = (Array.isArray(visibility.steps) ? visibility.steps : []).map((step: unknown) =>
         typeof step === "object" && step !== null ? { ...step, rule: remap((step as { rule?: unknown }).rule) } : step,
     ) as FilterStep[];
-    const read = readSavedConditions(visibility.conditions, steps, remap, (rule) => {
-        assertVisibility(rule, null);
-    });
+    const read = readSavedConditions(
+        visibility.conditions,
+        steps,
+        remap,
+        (rule) => {
+            assertVisibility(rule, null);
+        },
+        Array.isArray(visibility.steps),
+    );
     opening.problems.push(...read.problems);
     if (read.conditions !== null) {
         await (tx.visibility as SessionVisibilityApi).restoreConditions(read.conditions);

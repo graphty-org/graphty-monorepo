@@ -3797,3 +3797,29 @@ graphty-element's canvas now takes the preview cell's box (beside the columns, a
 open the graph is framed once when more than a quarter of the nodes drawn fall outside the cell;
 on close the canvas takes its whole box and the camera goes back where it was. **Choices.**
 (a) keep it; (b) resize but never frame (Fit only); (c) the old overlay.
+
+## 2026-11-01 -- For the owner: "Condition... / Or..." or "And... / Or..."
+
+**What.** Not changed; a word choice. The pane's first row reads "Condition... Or...": the first
+adds a step to the selected group, the second a group. The owner-lens review found "Condition" a
+word a reader has to guess at. **Choices.** (a) keep "Condition... / Or..."; (b) "And... / Or...",
+which says how each combines with what is there; (c) "Narrow... / Or...".
+
+## 2026-11-01 -- For the owner: the preview key is gone; No match is the outline's last row
+
+**What.** Done, reversible. The key over the preview's top left covered the top of the graph and
+repeated the outline's group rows. It is no longer drawn in the workspace: the outline's group rows
+carry the chit, letter and count, "No match N" is the outline's last row (dimmed, faint chit) while
+group colors are drawn, "1, under A" is the group row's tooltip, and "Drawing" sits after the
+header's count until graphty-element has drawn the last repaint batch (its new `waitForPainted()`).
+The graph is not framed around anything: the canvas is the frame. **Choices.** (a) keep it; (b) the
+key back, outside the preview cell.
+
+## 2026-11-01 -- For the owner: smaller wording and layout changes in the selection editor
+
+**What.** Done, reversible. A step with a value and no test reads as its value alone (no "No
+test"); a text step's Match case moved into Advanced, named on its right when set; a step's "N so
+far" sits on its value field's row when there is no Except switch above; a checklist's footer says
+how many values are not drawn ("32 more", as "2,077 more checked"); a list of more than nine values
+is drawn short ("1.9k values") and said in full; the sidebar's read-only outline drops its 40 px
+verb column and its step indent. **Choices.** (a) keep them; (b) name the ones to undo.

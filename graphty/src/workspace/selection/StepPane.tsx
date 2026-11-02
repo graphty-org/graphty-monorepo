@@ -35,7 +35,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { optionWords } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
-import { isTypingTarget } from "../keys/keys";
+import { isTypingTarget, printable } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
 import { AddCondition, CardBody } from "../style/WhichPicker";
@@ -58,7 +58,7 @@ import {
     WHILE,
     withReference,
 } from "./values";
-import { linksSaid, NOUNS, reasonWords, rowWords, VERB_WORDS } from "./words";
+import { linksSaid, linksTested, NOUNS, reasonWords, rowWords, VERB_WORDS } from "./words";
 
 /** What a step pane asks its editor to do. */
 export interface StepActions {
@@ -306,6 +306,8 @@ function ValueField({
     onRule: (stepRule: RuleTree) => void;
 }>): React.JSX.Element {
     const [open, setOpen] = useState(false);
+    // A letter typed on the field opens the picker with it in the search (ws-polish 3).
+    const [seed, setSeed] = useState("");
     const choose = (stepRule: RuleTree): void => {
         setOpen(false);
         onRule(stepRule);
@@ -318,12 +320,14 @@ function ValueField({
             placeholder="Find attributes, results"
             sections={open ? [...hostPicks, ...pickSections(session, rule, choose)] : []}
             opened={open}
+            seed={seed}
             onAdd={(field) => {
                 choose(ruleOfField(session, field));
             }}
             onOpened={(next) => {
                 if (!next) {
                     setOpen(false);
+                    setSeed("");
                 }
             }}
             anchor={
@@ -337,9 +341,17 @@ function ValueField({
                     type="button"
                     pointer
                     aria-label={`Value: ${value}`}
-                    aria-haspopup="listbox"
+                    aria-haspopup="dialog"
+                    aria-expanded={open}
                     onClick={() => {
                         setOpen(true);
+                    }}
+                    onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) => {
+                        if (printable(event)) {
+                            event.preventDefault();
+                            setSeed(event.key);
+                            setOpen(true);
+                        }
                     }}
                 >
                     <span className="sel-field-text">{value}</span>
@@ -400,6 +412,19 @@ function LinksBody({
             field.current?.focus();
         }
     }, [toField]);
+    // A picked edge value hands focus to its test's first box (Min), where the reader types next.
+    const testBox = useRef<HTMLDivElement>(null);
+    const toTest = useRef(false);
+    useEffect(() => {
+        if (!toTest.current) {
+            return;
+        }
+        const box = testBox.current?.querySelector<HTMLElement>("input:not([type=hidden]):not([readonly])");
+        if (box !== null && box !== undefined) {
+            toTest.current = false;
+            box.focus();
+        }
+    });
     const fields = useMemo(
         () =>
             cardFields(session, "edge")
@@ -439,6 +464,7 @@ function LinksBody({
                     opened={picking}
                     onAdd={(field) => {
                         setPicking(false);
+                        toTest.current = true;
                         // Untouched: every link with a value passes until a test is set.
                         onLinks(ruleOfField(session, field));
                     }}
@@ -458,7 +484,8 @@ function LinksBody({
                             type="button"
                             pointer
                             aria-label={`Edge value: ${name === "" ? "none" : name}`}
-                            aria-haspopup="listbox"
+                            aria-haspopup="dialog"
+                            aria-expanded={picking}
                             onClick={() => {
                                 setPicking(true);
                             }}
@@ -469,15 +496,17 @@ function LinksBody({
                 />
             )}
             {where && shown !== null && (
-                <CardBody
-                    session={session}
-                    card={shown}
-                    side="edge"
-                    onChange={(next) => {
-                        onLinks(leafOf(next) ?? undefined);
-                    }}
-                    variant="step"
-                />
+                <div ref={testBox}>
+                    <CardBody
+                        session={session}
+                        card={shown}
+                        side="edge"
+                        onChange={(next) => {
+                            onLinks(leafOf(next) ?? undefined);
+                        }}
+                        variant="step"
+                    />
+                </div>
             )}
         </>
     );
@@ -648,17 +677,36 @@ export function StepPane({
     // An edge step reading a node value says whether both ends must pass, or either.
     const readsEnds = side === "edge" && card !== null && "field" in card && card.field.on === "node";
     const linked = readsLinks(step.rule);
-    const linksWords = step.links === undefined ? "" : `Edges: ${linksSaid(session, step.links)}`;
+    // Said only once the edge condition can leave an edge out (ws-polish 3).
+    const linksWords =
+        step.links === undefined || !linksTested(session, step.links) ? "" : `Edges: ${linksSaid(session, step.links)}`;
+    // A text test's Match case lives in Advanced, named on its right when set (ws-polish 3).
+    const textCard = card?.type === "text" && card.match !== "list" ? card : null;
     const changed = [
+        ...(textCard?.caseSensitive === true ? ["Match case"] : []),
         ...(step.computedOn === "so-far" ? ["So far"] : []),
         ...(linksWords === "" ? [] : [linksWords]),
         ...(step.ends === "either" ? ["Either end"] : []),
         ...(missing === true ? ["Not measured"] : []),
     ];
     const hasAdvanced =
-        canSoFar || linked || readsEnds || offersMissing || step.rule.kind === "touching" || settings.length > 0;
+        textCard !== null ||
+        canSoFar ||
+        linked ||
+        readsEnds ||
+        offersMissing ||
+        step.rule.kind === "touching" ||
+        settings.length > 0;
     const base = host === "filter" ? "Full graph" : "Filtered graph";
     const verbs = verbsAt(branch, branch.steps.indexOf(step));
+    // Whether the Except switch (or the word Add) is drawn: as ExceptSwitch decides.
+    const switchShown = step.op === "add" ? verbs.length >= 2 : step.op === "except" || verbs.includes("except");
+    const soFar =
+        count !== undefined && count !== total ? (
+            <Text size="sm" c="dimmed" className="sel-count" aria-hidden>
+                {`${formatNumber(count)} so far`}
+            </Text>
+        ) : null;
     return (
         <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
             role="group"
@@ -712,39 +760,43 @@ export function StepPane({
                         {done}
                     </Group>
                 )}
+                {switchShown || stateShown !== "" ? (
+                    <Group gap={6} wrap="nowrap">
+                        <ExceptSwitch
+                            verb={step.op}
+                            verbs={verbs}
+                            onVerb={(op) => {
+                                onStep({ op });
+                            }}
+                        />
+                        <span className="sel-spacer" />
+                        {soFar}
+                        {stateShown !== "" && (
+                            <Text size="sm" c="dimmed" className="sel-state">
+                                {stateShown}
+                            </Text>
+                        )}
+                    </Group>
+                ) : null}
+                {/* With no switch and no state word above, "so far" sits on the value field's row (ws-polish 3). */}
                 <Group gap={6} wrap="nowrap">
-                    <ExceptSwitch
-                        verb={step.op}
-                        verbs={verbs}
-                        onVerb={(op) => {
-                            onStep({ op });
-                        }}
-                    />
-                    <span className="sel-spacer" />
-                    {count !== undefined && count !== total && (
-                        <Text size="sm" c="dimmed" className="sel-count" aria-hidden>
-                            {`${formatNumber(count)} so far`}
-                        </Text>
-                    )}
-                    {stateShown !== "" && (
-                        <Text size="sm" c="dimmed" className="sel-state">
-                            {stateShown}
-                        </Text>
-                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <ValueField
+                            session={session}
+                            rule={rule}
+                            branch={branch}
+                            // "While ... has nodes" stays whole in its field; the reference picker holds the node.
+                            value={step.rule.kind === "nonempty" ? WHILE : value}
+                            hostPicks={hostPicks}
+                            onRule={(stepRule) => {
+                                setDraft(null);
+                                toTest.current = true;
+                                onStep({ rule: stepRule });
+                            }}
+                        />
+                    </div>
+                    {!(switchShown || stateShown !== "") && soFar}
                 </Group>
-                <ValueField
-                    session={session}
-                    rule={rule}
-                    branch={branch}
-                    // "While ... has nodes" stays whole in its field; the reference picker holds the node.
-                    value={step.rule.kind === "nonempty" ? WHILE : value}
-                    hostPicks={hostPicks}
-                    onRule={(stepRule) => {
-                        setDraft(null);
-                        toTest.current = true;
-                        onStep({ rule: stepRule });
-                    }}
-                />
                 <div ref={testBox} className="sel-test-box">
                     {isRelative(step.rule) ? (
                         <RelativeBody
@@ -801,6 +853,16 @@ export function StepPane({
                         </UnstyledButton>
                         <Collapse in={advanced}>
                             <Stack gap={6}>
+                                {textCard !== null && (
+                                    <Checkbox
+                                        size="xs"
+                                        label="Match case"
+                                        checked={textCard.caseSensitive}
+                                        onChange={(event) => {
+                                            commit({ ...textCard, caseSensitive: event.currentTarget.checked });
+                                        }}
+                                    />
+                                )}
                                 {canSoFar && (
                                     <CaptionedRow>
                                         <SegmentedControl

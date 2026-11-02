@@ -762,3 +762,38 @@ reviews above judged their build, so nothing of it was left unverified.
   computed values for the strip (Degree and Links-scoped columns); a GraphML file's node names
   (owner-decisions.md); sharing one `watchSteps` evaluation between watchers. The Data place's
   count-row "+" and the layer kind are owner questions (owner-decisions.md).
+
+## Workspace polish round 3 (ws-polish-3-*.md)
+
+- **No key over the preview**: the outline's last row is No match (dimmed, faint chit, count) while
+  group colors are drawn; "1, under A" is a group row's tooltip; "Drawing" follows the header's
+  count until graphty-element's `waitForPainted()` (new, @beta) resolves, which waits for the last
+  repaint batch where `styles.settled()` does not.
+- **The Filters header keeps its total** ("Passes none", "41 of 77") while a card is edited.
+- **A new or cleared rule opens on its value picker**, the search focused; a letter typed on a
+  closed value field opens the picker with it. The picker is always its field's width
+  (`width="target"`), and the value fields say `aria-expanded` and `aria-haspopup="dialog"`.
+- **A click on the preview canvas never closes the workspace**: the inspector ignores canvas clicks
+  and selection changes while it is open, and follows the selection once it closes.
+- **Both hosts say the count** as it changes (WCAG 4.1.3), not the filter only.
+- **A new card's side switch** keeps focus on Nodes | Edges, the picker shut, nothing said.
+- **Rows**: no "No test" word; an Edges tag only once its condition tests; a picked edge value goes
+  on to its Min box; a cut test keeps an ellipsis and a tag the width of "Edges"; with two or more
+  groups the outline's levels are 1, 2, 3; a filter card's title row keeps its state word while
+  selected; a collapsed card's name is "title, N of M nodes[, off]". Match case is in Advanced; "so
+  far" sits on the value row with no switch above. A picker option cuts the algorithm's name, never
+  the field's. The sidebar outline is not indented. F6 goes workspace, preview ("Preview: ..."),
+  side panel. Spec 3.0's 1280 x 800 minimum is 423 px.
+- **Speed on 50,000 nodes**: graphty-element's edge repaint updated every edge on each frame of a
+  repaint spread over many frames (about 200 walks of 200,000 edges); each frame now updates only
+  the edges it painted and walks all of them once, on the frame that empties the queue.
+- **graphty-element**: a project with filter conditions and no steps list (tier 4's) opens with no
+  "parts did not come back" notice (`W_FILTER_STEPS_DIFFER` only when the file holds steps).
+- **Not fixed this round** (element work of its own): disposing and rebuilding node meshes when a
+  filter changes what is visible (`DataManager.setAsideAndDispose`, 3.3 s a tick); deferring the
+  count and repaint off the main thread; members drawn above faint non-members in 3D (needs an
+  on-top render group for a layer's elements); step-local runs in the Worker with Cancel, and a
+  filter reusing the full-graph run; a step's run writing no undo step and replacing its stale run
+  per scope; per-step computed values for the strip; saving a ticked community as "the group of X";
+  GraphML node names (owner question). Fit after the Table toggles was not reproduced on Les
+  Miserables (see the round's check).

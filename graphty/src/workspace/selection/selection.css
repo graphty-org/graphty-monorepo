@@ -50,9 +50,11 @@
     text-overflow: ellipsis;
 }
 
+/* Cut, the test keeps a visible ellipsis ("3 t..."), never a bare first number that reads like a
+   count (ws-polish 3). */
 .sel-test {
     flex: 0 1000 auto;
-    min-width: 0;
+    min-width: 3ch;
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -67,7 +69,8 @@
    Advanced's right; it gives way before the test, so the condition keeps its row (spec 3.1). */
 .sel-tag {
     flex: 0 100000 auto;
-    min-width: 0;
+    /* As wide as "Edges", which changes the result: a tag is never cut out of sight (ws-polish 3). */
+    min-width: 5ch;
     overflow: hidden;
     text-overflow: ellipsis;
     color: var(--mantine-color-dimmed);
@@ -101,6 +104,35 @@
     height: 12px;
     border: 2px solid;
     border-radius: 3px;
+}
+
+/* What no group holds, the outline's last row while the preview draws group colors: the faint
+   rest, as the canvas draws it (ws-polish 3). */
+.sel-chit-faint {
+    border-color: var(--mantine-color-dimmed);
+    background: var(--mantine-color-dimmed);
+    opacity: 0.35;
+}
+
+/* The sidebar's read-only outline is narrow: its verb column is only as wide as its words ("or"),
+   a lone group's rows start under the title's text, and steps take no extra indent (ws-polish 3). */
+.sel-rest .sel-verb {
+    flex: 0 0 auto;
+    width: auto;
+}
+
+.sel-rest .sel-group:not([data-multi]) .sel-verb:empty {
+    display: none;
+}
+
+.sel-rest .sel-group[data-multi] .sel-verb {
+    min-width: 1.4em;
+}
+
+.sel-rest .sel-group[data-multi] > .sel-step-row,
+.sel-rest .sel-group[data-multi] > .sel-all-row,
+.sel-rest .sel-group[data-multi] > .sel-add-row {
+    padding-inline-start: 8px;
 }
 
 /* A group's eye is drawn on hover or focus only, and takes no space at rest. */

@@ -28,6 +28,7 @@ import type { PickSection } from "./values";
  * @param props.openFirst - selects the first step on arrival
  * @param props.openPicker - opens the value picker at once (a new card)
  * @param props.openTitle - opens the workspace on the title row at once (a new card switched to edges)
+ * @param props.switchedSide - a new card's side was just switched: focus stays on Nodes | Edges
  * @param props.hostPicks - the filter's own picker entries (Time window)
  * @param props.title - the card's name
  * @param props.lead - the card's on box
@@ -49,6 +50,7 @@ export function FilterSelection({
     openFirst,
     openPicker,
     openTitle,
+    switchedSide,
     hostPicks,
     title,
     lead,
@@ -68,6 +70,7 @@ export function FilterSelection({
     openFirst?: boolean;
     openPicker?: boolean;
     openTitle?: boolean;
+    switchedSide?: boolean;
     hostPicks?: readonly PickSection[];
     title?: string;
     lead?: React.ReactNode;
@@ -94,6 +97,7 @@ export function FilterSelection({
             ownerName="Filters"
             openFirst={openFirst}
             openTitle={openTitle}
+            switchedSide={switchedSide}
             openPicker={openPicker}
             hostPicks={hostPicks}
             hold={id}

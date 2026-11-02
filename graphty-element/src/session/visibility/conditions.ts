@@ -445,6 +445,8 @@ export interface SavedConditions {
  * @param steps - The file's steps, their rules already rewritten for this session.
  * @param remap - Rewrites a saved rule for this session (the set ids it names).
  * @param check - Refuses a rule this session cannot hold.
+ * @param stepsSaved - Whether the file holds a steps list at all. A file with conditions and no
+ *   steps (tier 4's) has nothing to disagree with, so nothing is reported.
  * @returns The conditions and the problems.
  */
 export function readSavedConditions(
@@ -452,6 +454,7 @@ export function readSavedConditions(
     steps: readonly FilterStep[],
     remap: (rule: RuleTree) => RuleTree,
     check: (rule: RuleTree) => void,
+    stepsSaved = true,
 ): SavedConditions {
     if (saved === undefined) {
         return { conditions: null, problems: [] };
@@ -490,7 +493,7 @@ export function readSavedConditions(
         return { conditions: conditionsOfSteps(steps, selects), problems };
     }
 
-    if (JSON.stringify(stepsOf(read)) !== JSON.stringify(steps)) {
+    if (stepsSaved && JSON.stringify(stepsOf(read)) !== JSON.stringify(steps)) {
         problems.push({ code: "W_FILTER_STEPS_DIFFER", params: { slice: "visibility" } });
     }
 

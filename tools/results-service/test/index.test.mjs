@@ -315,6 +315,27 @@ describe("POST /v1/failures", () => {
 });
 
 describe("POST /v1/durations", () => {
+    it("leaves trend and lastSeen out until the summary tables are whole (#5597), and stores the rows", async () => {
+        const { call, env } = service();
+        const row = { runId: 4010, attempt: 1, workflow: "ci.yml", ms: 61000, startedAt: NOW };
+        const post = async (job) =>
+            (await call("POST", "/v1/durations", { token: master("ci.yml"), body: { rows: [{ ...row, job }] } })).body;
+        // before migration 0010 ran
+        env.DB.sqlite.exec("ALTER TABLE duration_backfill RENAME TO kept");
+        assert.deepEqual(await post("Build"), { stored: 1, kind: "full" });
+        // mid-backfill
+        env.DB.sqlite.exec(
+            "ALTER TABLE kept RENAME TO duration_backfill; UPDATE duration_backfill SET done = 1, last = 9",
+        );
+        assert.deepEqual(await post("Test"), { stored: 1, kind: "full" });
+        // finished
+        env.DB.sqlite.exec("UPDATE duration_backfill SET done = 9");
+        const done = await post("Lint");
+        assert.deepEqual(Object.keys(done), ["stored", "kind", "trend", "lastSeen"]);
+        assert.equal(done.lastSeen["job:ci.yml:Lint"].runId, 4010);
+        const [{ n }] = env.DB.sqlite.prepare("SELECT count(*) AS n FROM duration").all();
+        assert.equal(n, 3);
+    });
     it("stores a run's own durations with the credential's kind, a site repository's as deploy", async () => {
         const { call, rows } = service();
         const row = {

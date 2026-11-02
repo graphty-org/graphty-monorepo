@@ -29,7 +29,8 @@ jobs:
         name: Test and deploy the Workers
         if: github.ref == 'refs/heads/master'
         runs-on: ubuntu-24.04
-        timeout-minutes: 15
+        # the D1 retries can wait 7 min per call (#5597)
+        timeout-minutes: 45
         env:
             CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
             CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -56,29 +57,39 @@ jobs:
                   [ -n "$id" ] || { echo "::error::no D1 database graphty-results after creating it"; exit 1; }
                   sed -i "s/00000000-0000-0000-0000-000000000000/$id/" wrangler.toml
 
-            # A migration holds the database for as long as it runs, so it only changes the schema. The rows a summary
-            # table needs from before it existed are copied by backfill.sql, one bounded batch per call, until it
-            # answers finished = 1 (#5597); the Worker that reads them deploys only after. A failed batch changes
-            # nothing, and the next call repeats it. Once finished, each call is one cheap read.
-            - name: Apply the migrations, backfill the summary tables and deploy the results Worker
+            # The Worker deploys first, and needs no D1 to do it (#5597): its durations post answers no trend or
+            # lastSeen until the summary tables are whole, so it stops the scans that held D1 for 10 s per post and
+            # kept its queue too full for the migration to start ("D1 DB is overloaded", code 7429). Then the
+            # migrations, schema only, and backfill.sql, one bounded batch per call until it answers finished = 1,
+            # after which the deployed Worker answers trend and lastSeen again by itself. A call D1 refuses is
+            # retried with a growing wait; a failed batch changes nothing and is repeated. A rerun resumes.
+            - name: Deploy the results Worker, apply the migrations and backfill the summary tables
               working-directory: tools/results-service
               run: |
-                  $WRANGLER d1 migrations apply graphty-results --remote
+                  $WRANGLER deploy
+                  # tries "$@" up to 8 times, waiting 15 s, 30 s, ... between tries
+                  retry() {
+                    local n=1
+                    until "$@"; do
+                      [ "$n" -lt 8 ] || { echo "::error::D1 refused 8 times running: $*"; return 1; }
+                      echo "::warning::D1 refused (try $n); trying again in $((15 * n)) s"
+                      sleep $((15 * n))
+                      n=$((n + 1))
+                    done
+                  }
+                  retry $WRANGLER d1 migrations apply graphty-results --remote
                   sql="$(cat backfill.sql)"
-                  finished=0 fails=0 batches=0
+                  batch() {
+                    out="$($WRANGLER d1 execute graphty-results --remote --json --command="$sql")" &&
+                      finished="$(jq -er '.[-1].results[0].finished' <<< "$out")"
+                  }
+                  finished=0 batches=0
                   while [ "$finished" != 1 ]; do
-                    if out="$($WRANGLER d1 execute graphty-results --remote --json --command="$sql")" &&
-                        finished="$(jq -er '.[-1].results[0].finished' <<< "$out")"; then
-                      fails=0 batches=$((batches + 1))
-                      jq -r '.[-1].results[0] | "batch '"$batches"': done \(.done) of \(.last)"' <<< "$out"
-                    else
-                      fails=$((fails + 1))
-                      [ "$fails" -lt 5 ] || { echo "::error::the summary backfill failed 5 times running"; exit 1; }
-                      sleep 10
-                    fi
+                    retry batch
+                    batches=$((batches + 1))
+                    jq -r '.[-1].results[0] | "batch '"$batches"': done \(.done) of \(.last)"' <<< "$out"
                     [ "$batches" -lt 1000 ] || { echo "::error::the summary backfill did not finish in 1000 batches"; exit 1; }
                   done
-                  $WRANGLER deploy
 
             - name: Deploy the release scheduler
               working-directory: tools/release-scheduler

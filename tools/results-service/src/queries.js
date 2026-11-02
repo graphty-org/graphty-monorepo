@@ -506,6 +506,23 @@ const NEWEST_TASKS = `WITH k AS (SELECT DISTINCT json_extract(value, '$[0]') AS 
          AND x.started_at >= ?3 AND coalesce(x.conclusion, '') != 'cancelled' ORDER BY x.started_at DESC LIMIT 1 OFFSET 14), ?3)`;
 
 /**
+ * Whether the durations post may answer its trend and lastSeen (#5597): only once migration 0009's summary
+ * tables and task index exist and backfill.sql has copied every older row into them. Before that the post
+ * leaves both out -- the old way, scanning the duration table, held D1 past 10 s per post and kept its queue
+ * full, so the migration could not run -- and ci-budgets.mjs files and closes nothing for that run.
+ * @param db the D1 database
+ * @returns true once duration_backfill says finished
+ */
+export async function summariesReady(db) {
+    try {
+        return Boolean((await db.prepare("SELECT done >= last AS ready FROM duration_backfill").first())?.ready);
+    } catch (error) {
+        if (/no such table/.test(String(error?.message))) return false;
+        throw error;
+    }
+}
+
+/**
  * Each key's last sample within a run kind, and how many runs of its workflow and kind came after it (#5176): a
  * key that stops getting samples (its job or step was renamed or removed) has an alarm the trend never judges
  * again, and the posting `timings` job closes it once the key has missed enough runs. 30 days, cancelled rows

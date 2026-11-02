@@ -53,6 +53,12 @@ export interface CardField {
     readonly counted?: Scope;
     /** How many of them have no value, when the card cannot read it by its path. */
     readonly missing?: number;
+    /** A selection step's Links: the edge condition a structure value (degree) is counted over. */
+    readonly links?: RuleTree;
+    /** Plain words for what it is, as the picker's tooltip (selection spec 3.5). */
+    readonly tip?: string;
+    /** Other words the picker's search finds it by ("links" for Degree). */
+    readonly aliases?: readonly string[];
 }
 
 /** How a text or a name card compares. */

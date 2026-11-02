@@ -3,7 +3,6 @@ import {
     HistogramRow,
     LISTBOX_CLASS_NAMES,
     RangeSlider,
-    SegmentedControl,
     useNumberParser,
 } from "@graphty/compact-mantine";
 import type { GraphSession, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
@@ -1173,7 +1172,24 @@ export interface ExtraItem {
     readonly fact?: string;
     /** Why it cannot be picked here: greyed, with the reason as its tooltip and in its name. */
     readonly unusable?: string;
+    /** Plain words for what it is, as its tooltip (selection spec 3.5). */
+    readonly tip?: string;
+    /** Other words a search finds it by ("links" for Degree). */
+    readonly aliases?: readonly string[];
 }
+
+/**
+ * Whether a typed search finds a picker row: by its name, or by one of its other words.
+ * @param typed - the search, trimmed and lower case.
+ * @param row - the row's name and other words.
+ * @param row.name - its name.
+ * @param row.aliases - its other words.
+ * @returns true when it is found.
+ */
+const finds = (typed: string, row: { name: string; aliases?: readonly string[] }): boolean =>
+    typed === "" ||
+    row.name.toLowerCase().includes(typed) ||
+    (row.aliases ?? []).some((alias) => alias.toLowerCase().startsWith(typed));
 
 /** A heading of rows that are not fields, listed after the field groups. */
 interface ExtraSection {
@@ -1263,7 +1279,7 @@ export function AddCondition({
         },
     });
     const typed = search.trim().toLowerCase();
-    const found = (each: CardField): boolean => typed === "" || each.name.toLowerCase().includes(typed);
+    const found = (each: CardField): boolean => finds(typed, each);
     // A name that starts with the typed text first, in its group, and its group first.
     const sections: readonly { group: string; has: (field: CardField) => boolean }[] = bySide
         ? [
@@ -1285,11 +1301,11 @@ export function AddCondition({
     );
     // The rows that are not fields stay last, under Structure, whatever is typed.
     const extras = prefixFirst(
-        extra.filter((each) => typed === "" || each.name.toLowerCase().includes(typed)),
+        extra.filter((each) => finds(typed, each)),
         (each) => each.name,
         search,
     );
-    const foundRow = (each: ExtraItem): boolean => typed === "" || each.name.toLowerCase().includes(typed);
+    const foundRow = (each: ExtraItem): boolean => finds(typed, each);
     const moreShown = more
         .map(({ group, items }) => ({ group, items: prefixFirst(items.filter(foundRow), (each) => each.name, search) }))
         .filter(({ items }) => items.length > 0);
@@ -1542,12 +1558,21 @@ export function AddCondition({
                                                         ...(inUse ? ["already a condition"] : []),
                                                     ].join(", ")}
                                                 >
-                                                    <OptionLine
-                                                        glyph={Glyph}
-                                                        name={field.name}
-                                                        fact={field.fact}
-                                                        used={inUse}
-                                                    />
+                                                    <Tooltip
+                                                        label={field.tip}
+                                                        disabled={field.tip === undefined}
+                                                        position="right"
+                                                        openDelay={300}
+                                                    >
+                                                        <div>
+                                                            <OptionLine
+                                                                glyph={Glyph}
+                                                                name={field.name}
+                                                                fact={field.fact}
+                                                                used={inUse}
+                                                            />
+                                                        </div>
+                                                    </Tooltip>
                                                 </Combobox.Option>
                                             );
                                         })}
@@ -1596,7 +1621,11 @@ function ExtraOption({ item }: Readonly<{ item: ExtraItem }>): React.JSX.Element
             disabled={item.unusable !== undefined}
             aria-label={[item.name, item.fact, item.unusable].filter((each) => each !== undefined).join(", ")}
         >
-            <OptionLine glyph={item.glyph} name={item.name} fact={item.fact} />
+            <Tooltip label={item.tip} disabled={item.tip === undefined} position="right" openDelay={300}>
+                <div>
+                    <OptionLine glyph={item.glyph} name={item.name} fact={item.fact} />
+                </div>
+            </Tooltip>
         </Combobox.Option>
     );
     return item.unusable === undefined ? (
@@ -1622,12 +1651,14 @@ function ExtraOption({ item }: Readonly<{ item: ExtraItem }>): React.JSX.Element
  * @param props.step - how far a thumb moves
  * @param props.value - the test's bounds, clamped to the values
  * @param props.onChangeEnd - takes the bounds a gesture ended on
+ * @param props.links - a selection step's Links, the edges a degree is counted over
  * @returns The row, or nothing while the values are not numbers
  */
 function ValueBrush({
     session,
     path,
     within,
+    links,
     name,
     low,
     high,
@@ -1638,6 +1669,7 @@ function ValueBrush({
     session: GraphSession;
     path: string;
     within: CardField["within"];
+    links?: CardField["links"];
     name: string;
     low: number;
     high: number;
@@ -1645,9 +1677,14 @@ function ValueBrush({
     value: [number, number];
     onChangeEnd: (value: [number, number]) => void;
 }>): React.JSX.Element | null {
+    const linksKey = links === undefined ? "" : JSON.stringify(links);
     const spread = useMemo(
-        () => session.scope.histogram(path, within === undefined ? {} : { within }),
-        [session, path, within],
+        () =>
+            session.scope.histogram(path, {
+                ...(within === undefined ? {} : { within }),
+                ...(linksKey === "" ? {} : { links: JSON.parse(linksKey) as RuleTree }),
+            }),
+        [session, path, within, linksKey],
     );
     const [moving, setMoving] = useState<[number, number] | null>(null);
     if (spread.kind !== "numeric" || spread.bins.length === 0 || high <= low) {
@@ -2224,7 +2261,7 @@ function checkDrafts(
  */
 function NumberCard({
     session,
-    card,
+    card: heldCard,
     side,
     onChange,
     variant,
@@ -2235,6 +2272,13 @@ function NumberCard({
     onChange: OnCard;
     variant?: CardVariant;
 }>): React.JSX.Element {
+    // A step's mode is the reader's explicit choice (selection spec 3.5): By position chosen starts
+    // untouched, so the step reads No test, and By value chosen again brings back its range.
+    const [stepMode, setStepMode] = useState<"range" | "top" | null>(null);
+    const lastRange = useRef<{ min?: number; max?: number }>({});
+    const untouched = heldCard.match === "range" && heldCard.min === undefined && heldCard.max === undefined;
+    const card =
+        variant === "step" && stepMode === "top" && untouched ? { ...heldCard, match: "top" as const } : heldCard;
     const { name, path, range, within, missing: given } = card.field;
     // Counted over the selection's base when the card has one, so a filtered-out node is not.
     const missing = useMemo(
@@ -2359,6 +2403,19 @@ function NumberCard({
     );
     const pickMatch = (match: string): void => {
         clear();
+        if (variant === "step" && (match === "top" || match === "range")) {
+            if (match === card.match) {
+                return;
+            }
+            setStepMode(match);
+            if (match === "top") {
+                lastRange.current = { min: card.min, max: card.max };
+                onChange({ ...card, match: "range", min: undefined, max: undefined, top: undefined });
+                return;
+            }
+            onChange({ ...card, match: "range", top: undefined, ...lastRange.current });
+            return;
+        }
         onChange({
             ...card,
             match: match as typeof card.match,
@@ -2371,15 +2428,16 @@ function NumberCard({
         <Stack gap={4} data-card-body>
             {variant === "step" ? (
                 // A step's test (selection spec 5): By value, a brush over the values' bars; By
-                // position, the highest N.
-                <SegmentedControl
+                // position, the highest N. A select that shows its mode, above the histogram, so a
+                // click on the bars never switches it (spec 3.5).
+                <MatchSelect
+                    name={name}
                     label={`${name} test`}
-                    fullWidth
+                    value={card.match === "top" ? "top" : "range"}
                     data={[
                         { value: "range", label: "By value" },
                         { value: "top", label: "By position" },
                     ]}
-                    value={card.match === "top" ? "top" : "range"}
                     onChange={pickMatch}
                 />
             ) : (
@@ -2395,6 +2453,7 @@ function NumberCard({
                     session={session}
                     path={path}
                     within={within}
+                    links={card.field.links}
                     name={name}
                     low={low}
                     high={high}
@@ -2755,7 +2814,14 @@ function CategoryCard({
         [counts, session, path],
     );
     const checked = useMemo(() => new Set(card.values), [card.values]);
-    const { rows, moreChecked, matches, unchecked } = checklistRows(named, checked, typed);
+    // The order is set when the list opens and when the search changes, never by a tick: a row
+    // ticked under the pointer stays where it is (selection spec 3.5).
+    const ordered = useRef({ typed, checked });
+    if (ordered.current.typed !== typed) {
+        ordered.current = { typed, checked };
+    }
+    const { rows } = checklistRows(named, ordered.current.checked, typed);
+    const { moreChecked, matches, unchecked } = checklistRows(named, checked, typed);
     const toggle = (value: string, on: boolean): void => {
         const values = on ? [...card.values, value] : card.values.filter((v) => v !== value);
         onChange({ ...card, match: "values", values });

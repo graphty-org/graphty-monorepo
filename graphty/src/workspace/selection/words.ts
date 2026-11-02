@@ -17,7 +17,7 @@ import type {
 
 import { costLine, wordsFor } from "../analyze/words";
 import { formatNumber } from "../inspector/words";
-import { type Card, cardWords, type Side } from "../style/cards";
+import { type Card, cardFields, cardOf, cardWords, type Side } from "../style/cards";
 import { NATURAL, valueName } from "../style/words";
 import type { Verb } from "./model";
 import { isRelative, referenceOf, stepCard, WHILE } from "./values";
@@ -239,6 +239,21 @@ function ruleStepWords(
 }
 
 /**
+ * A step's Links condition as its tag and Advanced say it: the edge value and its short test
+ * ("weight min 2").
+ * @param session - the element's session.
+ * @param links - the step's edge condition.
+ * @returns the words.
+ */
+export function linksSaid(session: GraphSession, links: RuleTree): string {
+    const card = cardOf(session, links, cardFields(session, "edge"), 0);
+    if (!("field" in card)) {
+        return "a rule";
+    }
+    return [card.field.name, shortTest(session, card) ?? ""].filter((each) => each !== "").join(" ");
+}
+
+/**
  * A step as its outline row says it (spec 3.1): the value, the short test in the Min and Max
  * boxes' words ("min 10", "3 to 7", "top 10") or a summary of the values ("1, 3 and 2,083 more"),
  * and a tag per setting that is not its default ("So far", "Either end").
@@ -257,6 +272,7 @@ export function rowWords(
     const words = ruleStepWords(session, step, side, reading);
     const tags = [
         ...(step.computedOn === "so-far" ? ["So far"] : []),
+        ...(step.links === undefined ? [] : [`Links: ${linksSaid(session, step.links)}`]),
         ...(step.ends === "either" ? ["Either end"] : []),
     ];
     if (isRelative(step.rule) || step.rule.kind === "member" || STRUCTURE[step.rule.kind] !== undefined) {

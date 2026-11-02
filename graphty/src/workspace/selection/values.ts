@@ -28,6 +28,19 @@ import type { ExtraItem } from "../style/WhichPicker";
 /** The While preset's name until it has a reference: the reference goes where the dots are. */
 export const WHILE = "While ... has nodes";
 
+/** Plain words for the structure values readers guessed at (spec 3.5), by path. */
+const STRUCTURE_WORDS: Readonly<Record<string, string>> = {
+    "graphty.degree": "Links at a node",
+    "graphty.inDegree": "Incoming links at a node",
+    "graphty.outDegree": "Outgoing links at a node",
+};
+
+/** The reader's words a search finds Degree by. */
+const LINK_ALIASES: readonly string[] = ["links", "connections"];
+
+/** The While preset's tooltip: what it holds, in plain words. */
+export const WHILE_TIP = "Everything while it holds a node, else nothing";
+
 /** The hosts a selection is edited in: a style layer's selector, or an import filter card. */
 export type Host = "selector" | "filter";
 
@@ -87,7 +100,16 @@ function stepFields(session: GraphSession, side: Side, within?: UnionLeaf["withi
             histogram.kind === "numeric" && histogram.min !== undefined && histogram.max !== undefined
                 ? { range: { min: histogram.min, max: histogram.max } }
                 : {};
-        return { path: value.path, on: "node", kind: "number", name: value.plainName, group: "Structure", ...range };
+        const words = STRUCTURE_WORDS[value.path];
+        return {
+            path: value.path,
+            on: "node",
+            kind: "number",
+            name: value.plainName,
+            group: "Structure",
+            ...range,
+            ...(words === undefined ? {} : { tip: words, aliases: LINK_ALIASES }),
+        };
     });
     return [...fields, ...structure];
 }
@@ -194,10 +216,14 @@ export function pickSections(
                             field.name !== "percentile",
                     );
                     const method = wordsFor(each).name;
+                    // The catalog's own words find it too: its keywords and its technical name.
+                    const aliases = [...(each.keywords ?? []), each.technicalName];
                     return fields.map((field) => ({
                         key: `alg:${each.key}:${field.name}`,
                         name: fields.length === 1 ? method : `${method}: ${field.plainName}`,
                         glyph: GLYPHS.analyze,
+                        ...(each.description === undefined || each.description === "" ? {} : { tip: each.description }),
+                        aliases,
                         onPick: () => {
                             onPick({ kind: "measure", algorithm: each.key, field: field.name });
                         },
@@ -259,13 +285,13 @@ export function pickSections(
                             item("upstream", "Upstream of", GLYPHS.neighborhood, { kind: "hops", direction: "in" }),
                         ]
                       : []),
-                  item("while", WHILE, GLYPHS.selection, { kind: "nonempty" }),
+                  { ...item("while", WHILE, GLYPHS.selection, { kind: "nonempty" }), tip: WHILE_TIP },
               ]
             : [
                   item("touching", "Edges touching", GLYPHS.edge, { kind: "touching", ends: "either" }),
                   item("within-edges", "Edges within", GLYPHS.edge, { kind: "touching", ends: "both" }),
                   item("leaving", "Edges leaving", GLYPHS.edge, { kind: "touching", ends: "one" }),
-                  item("while", WHILE, GLYPHS.selection, { kind: "nonempty" }),
+                  { ...item("while", WHILE, GLYPHS.selection, { kind: "nonempty" }), tip: WHILE_TIP },
               ];
     const sections: PickSection[] = [
         ...analyze.map((each) => ({ group: each.heading, items: each.items })),
@@ -354,9 +380,27 @@ export function stepCard(
         ...stepFields(session, side, within),
         ...stepFields(session, side === "node" ? "edge" : "node", within),
     ].map((field) => (within === undefined ? field : { ...field, within }));
-    const { rule } = step;
+    const { rule, links } = step;
+    // A degree step scoped by its Links counts only the links that pass: its range and bars too.
+    const scoped =
+        links === undefined
+            ? fields
+            : fields.map((field) => {
+                  if (field.group !== "Structure") {
+                      return field;
+                  }
+                  const histogram = session.scope.histogram(field.path, {
+                      ...(within === undefined ? {} : { within }),
+                      links,
+                  });
+                  const range =
+                      histogram.kind === "numeric" && histogram.min !== undefined && histogram.max !== undefined
+                          ? { range: { min: histogram.min, max: histogram.max } }
+                          : {};
+                  return { ...field, links, ...range };
+              });
     if (rule.kind !== "measure") {
-        const card = cardOf(session, rule, fields, 0);
+        const card = cardOf(session, rule, scoped, 0);
         return card.type === "fixed" ? { card: null } : { card, ...("field" in card ? { field: card.field } : {}) };
     }
     const run = reading?.run ?? null;

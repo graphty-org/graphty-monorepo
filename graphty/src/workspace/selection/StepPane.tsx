@@ -38,7 +38,7 @@ import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { isTypingTarget } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
-import type { Card, Side } from "../style/cards";
+import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
 import { AddCondition, CardBody } from "../style/WhichPicker";
 import { type Verb, VERBS, verbsAt } from "./model";
 import { ReferencePicker } from "./ReferencePicker";
@@ -58,7 +58,7 @@ import {
     usedPaths,
     withReference,
 } from "./values";
-import { NOUNS, reasonWords, rowWords, VERB_WORDS } from "./words";
+import { linksSaid, NOUNS, reasonWords, rowWords, VERB_WORDS } from "./words";
 
 /** What a step pane asks its editor to do. */
 export interface StepActions {
@@ -358,6 +358,138 @@ function ValueField({
     );
 }
 
+/** The structure values whose count reads the links (Degree, In and Out), by path. */
+const LINK_PATHS = new Set(["graphty.degree", "graphty.inDegree", "graphty.outDegree"]);
+
+/**
+ * Whether a step's value is computed from the links, so Links in its Advanced can scope it
+ * (spec 3.5): an algorithm's field, Degree, a hops or touching condition.
+ * @param rule - the step's rule.
+ * @returns true when it reads the links.
+ */
+function readsLinks(rule: RuleTree): boolean {
+    if (rule.kind === "measure" || rule.kind === "hops" || rule.kind === "touching") {
+        return true;
+    }
+    const read = rule as { attribute?: unknown; path?: unknown };
+    const path = read.attribute ?? read.path;
+    return typeof path === "string" && LINK_PATHS.has(path);
+}
+
+/**
+ * Links, in a step's Advanced (spec 3.5): All links, or Links where one edge condition holds --
+ * an edge value and its test, the controls of section 5 -- so the step reads only the links that
+ * pass ("ignore links with weight under 2") without the graph-wide Data filter.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.step - the step
+ * @param props.within - the selection's base
+ * @param props.onLinks - takes the edge condition, or undefined for every link
+ * @returns The rows
+ */
+function LinksBody({
+    session,
+    step,
+    within,
+    onLinks,
+}: Readonly<{
+    session: GraphSession;
+    step: UnionStep;
+    within: UnionLeaf["within"];
+    onLinks: (links: RuleTree | undefined) => void;
+}>): React.JSX.Element {
+    const [where, setWhere] = useState(step.links !== undefined);
+    const [picking, setPicking] = useState(false);
+    // Choosing "Links where ..." hands focus to the edge value's field, where Enter opens its list.
+    const field = useRef<HTMLButtonElement>(null);
+    const [toField, setToField] = useState(false);
+    useEffect(() => {
+        if (toField) {
+            setToField(false);
+            field.current?.focus();
+        }
+    }, [toField]);
+    const fields = useMemo(
+        () =>
+            cardFields(session, "edge")
+                .filter((field) => field.group === "Data")
+                .map((field) => ({ ...field, within })),
+        [session, within],
+    );
+    const card = step.links === undefined ? null : cardOf(session, step.links, fields, 0);
+    const shown = card === null || card.type === "fixed" ? null : card;
+    const name = shown !== null && "field" in shown ? shown.field.name : "";
+    return (
+        <>
+            <CaptionedRow>
+                <SegmentedControl
+                    label="Links"
+                    fullWidth
+                    data={[
+                        { value: "all", label: "All links" },
+                        { value: "where", label: "Links where ..." },
+                    ]}
+                    value={where ? "where" : "all"}
+                    onChange={(next) => {
+                        setWhere(next === "where");
+                        if (next === "all") {
+                            onLinks(undefined);
+                        } else if (step.links === undefined) {
+                            setToField(true);
+                        }
+                    }}
+                />
+            </CaptionedRow>
+            {where && (
+                <AddCondition
+                    fields={picking ? fields : []}
+                    used={[]}
+                    placeholder="Find edge attributes"
+                    opened={picking}
+                    onAdd={(field) => {
+                        setPicking(false);
+                        // Untouched: every link with a value passes until a test is set.
+                        onLinks(ruleOfField(session, field));
+                    }}
+                    onOpened={(next) => {
+                        if (!next) {
+                            setPicking(false);
+                        }
+                    }}
+                    anchor={
+                        <InputBase
+                            ref={field}
+                            component="button"
+                            type="button"
+                            pointer
+                            aria-label={`Links value: ${name === "" ? "none" : name}`}
+                            aria-haspopup="listbox"
+                            rightSection={<Combobox.Chevron aria-hidden />}
+                            rightSectionPointerEvents="none"
+                            onClick={() => {
+                                setPicking(true);
+                            }}
+                        >
+                            <span className="sel-field-text">{name === "" ? "Edge value..." : name}</span>
+                        </InputBase>
+                    }
+                />
+            )}
+            {where && shown !== null && (
+                <CardBody
+                    session={session}
+                    card={shown}
+                    side="edge"
+                    onChange={(next) => {
+                        onLinks(leafOf(next) ?? undefined);
+                    }}
+                    variant="step"
+                />
+            )}
+        </>
+    );
+}
+
 /** Props of a step pane. */
 interface StepPaneProps extends StepActions {
     readonly session: GraphSession;
@@ -485,13 +617,21 @@ export function StepPane({
     const pending = reading?.state === "pending";
     // An edge step reading a node value says whether both ends must pass, or either.
     const readsEnds = side === "edge" && card !== null && "field" in card && card.field.on === "node";
+    const linked = readsLinks(step.rule);
+    const linksWords = step.links === undefined ? "" : `Links: ${linksSaid(session, step.links)}`;
     const changed = [
         ...(step.computedOn === "so-far" ? ["So far"] : []),
+        ...(linksWords === "" ? [] : [linksWords]),
         ...(step.ends === "either" ? ["Either end"] : []),
         ...(missing === true ? ["Not measured"] : []),
     ];
     const hasAdvanced =
-        canSoFar || readsEnds || missing !== undefined || step.rule.kind === "touching" || settings.length > 0;
+        canSoFar ||
+        linked ||
+        readsEnds ||
+        missing !== undefined ||
+        step.rule.kind === "touching" ||
+        settings.length > 0;
     const base = host === "filter" ? "Full graph" : "Filtered graph";
     return (
         <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
@@ -633,6 +773,16 @@ export function StepPane({
                                             }}
                                         />
                                     </CaptionedRow>
+                                )}
+                                {linked && (
+                                    <LinksBody
+                                        session={session}
+                                        step={step}
+                                        within={rule.within}
+                                        onLinks={(links) => {
+                                            onStep({ links });
+                                        }}
+                                    />
                                 )}
                                 {readsEnds && (
                                     <CaptionedRow>

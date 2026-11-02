@@ -107,5 +107,27 @@ describe("Network retry behavior", () => {
             assert.isUndefined(error);
             assert.strictEqual(fetchMock.mock.calls.length, 3);
         });
+
+        test("an ok response settles the fetch two microtasks after fetch resolves", async () => {
+            // Pinned because a source load runs beside layout builds and derivation passes: an
+            // extra async boundary here moved a story's load one tick against its layout and the
+            // layout was cancelled (pull request #5605).
+            stubFetch(200);
+            const source = new GraphMLDataSource({ url: "https://example.test/data.xml" });
+            const fetchWithRetry = (
+                source as unknown as { fetchWithRetry(url: string): Promise<Response> }
+            ).fetchWithRetry.bind(source);
+            let settled = false;
+            void fetchWithRetry("https://example.test/data.xml").then(() => {
+                settled = true;
+            });
+            let ticks = 0;
+            while (!settled) {
+                await Promise.resolve();
+                ticks++;
+            }
+
+            assert.strictEqual(ticks, 2);
+        });
     });
 });

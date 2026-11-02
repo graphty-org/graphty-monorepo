@@ -349,60 +349,72 @@ export interface DeclaredDirection {
 }
 
 /**
- * One fetch attempt with a timeout. A client error that would answer the same on every retry is
- * thrown as a coded failure at once; any other failure is thrown plainly for the caller to retry.
- * @param url - URL to fetch from
+ * Check one attempt's response: a client error that would answer the same on every retry is thrown
+ * as a coded failure at once; any other response that is not ok is thrown plainly for the caller to
+ * retry.
+ * @param response - The attempt's response
+ * @param url - URL fetched from
  * @param attempt - The zero-based attempt number
- * @param timeout - Timeout in milliseconds for the attempt
  * @param last - Receives the status of a response that came back but was not ok
  * @param last.status - The status of the last response that came back but was not ok
- * @returns The ok response
  */
-async function fetchAttempt(
-    url: string,
-    attempt: number,
-    timeout: number,
-    last: { status?: number },
-): Promise<Response> {
-    // Create AbortController for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-        controller.abort();
-    }, timeout);
-
-    try {
-        const response = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            last.status = response.status;
-            const { status } = response;
-            // A client error (404, 401, 403...) will answer the same on every retry,
-            // so fail at once and say the same call cannot succeed. 408 and 429 are
-            // the two client statuses that mean "try again later".
-            if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
-                throw new GraphtyError({
-                    code: "E_FETCH_FAILED",
-                    message: `Failed to fetch from ${url}: HTTP ${status}`,
-                    source: "data",
-                    recoverable: false,
-                    details: { url, attempts: attempt + 1, status },
-                });
-            }
-
-            throw new Error(`HTTP error! status: ${status}`);
-        }
-
-        return response;
-    } catch (error) {
-        clearTimeout(timeoutId);
-
-        if (error instanceof Error && error.name === "AbortError") {
-            throw new Error(`Request timeout after ${timeout}ms`);
-        }
-
-        throw error;
+function checkResponse(response: Response, url: string, attempt: number, last: { status?: number }): void {
+    if (response.ok) {
+        return;
     }
+
+    last.status = response.status;
+    const { status } = response;
+    // A client error (404, 401, 403...) will answer the same on every retry,
+    // so fail at once and say the same call cannot succeed. 408 and 429 are
+    // the two client statuses that mean "try again later".
+    if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        throw new GraphtyError({
+            code: "E_FETCH_FAILED",
+            message: `Failed to fetch from ${url}: HTTP ${status}`,
+            source: "data",
+            recoverable: false,
+            details: { url, attempts: attempt + 1, status },
+        });
+    }
+
+    throw new Error(`HTTP error! status: ${status}`);
+}
+
+/**
+ * The coded failure of a fetch whose every attempt failed.
+ * @param url - URL fetched from
+ * @param retries - The number of attempts made
+ * @param status - The status of the last response that came back but was not ok
+ * @param error - What the last attempt threw
+ * @returns The error
+ */
+function retriesExhausted(url: string, retries: number, status: number | undefined, error: unknown): GraphtyError {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return new GraphtyError({
+        code: "E_FETCH_FAILED",
+        message: `Failed to fetch from ${url} after ${retries} attempts: ${errorMsg}`,
+        source: "data",
+        // A server that was down, a network that dropped: the same call unchanged
+        // could succeed later, which is exactly what this flag is for.
+        recoverable: true,
+        details: { url, attempts: retries, status },
+        cause: error,
+    });
+}
+
+/**
+ * The error an attempt stops with: an aborted attempt is reported as its timeout.
+ * @param error - What the attempt threw
+ * @param timeout - Timeout in milliseconds for the attempt
+ * @returns The error to throw
+ */
+function attemptError(error: unknown, timeout: number): unknown {
+    if (error instanceof Error && error.name === "AbortError") {
+        return new Error(`Request timeout after ${timeout}ms`);
+    }
+
+    return error;
 }
 
 /**
@@ -522,7 +534,23 @@ export abstract class DataSource {
 
         for (let attempt = 0; attempt < retries; attempt++) {
             try {
-                return await fetchAttempt(url, attempt, timeout, last);
+                // Create AbortController for timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                }, timeout);
+
+                // The fetch stays inline, not in an awaited helper, so an attempt settles on the same
+                // tick it always did.
+                try {
+                    const response = await fetch(url, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    checkResponse(response, url, attempt, last);
+                    return response;
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    throw attemptError(error, timeout);
+                }
             } catch (error) {
                 if (error instanceof GraphtyError) {
                     throw error;
@@ -531,17 +559,7 @@ export abstract class DataSource {
                 const isLastAttempt = attempt === retries - 1;
 
                 if (isLastAttempt) {
-                    const errorMsg = error instanceof Error ? error.message : String(error);
-                    throw new GraphtyError({
-                        code: "E_FETCH_FAILED",
-                        message: `Failed to fetch from ${url} after ${retries} attempts: ${errorMsg}`,
-                        source: "data",
-                        // A server that was down, a network that dropped: the same call unchanged
-                        // could succeed later, which is exactly what this flag is for.
-                        recoverable: true,
-                        details: { url, attempts: retries, status: last.status },
-                        cause: error,
-                    });
+                    throw retriesExhausted(url, retries, last.status, error);
                 }
 
                 // Exponential backoff: wait 1s, 2s, 4s...

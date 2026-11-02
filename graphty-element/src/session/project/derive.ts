@@ -402,7 +402,19 @@ export class DerivationLane {
             const copies = this.targetCopies(dirty);
             const target = frozenOver(this.state, copies);
 
-            await this.runHooks(dirty, target, restores);
+            // Inline, not an awaited helper: an extra async boundary would move every pass's
+            // `show` a few microtasks later relative to the writes and builds around it.
+            for (const slice of HOOK_ORDER) {
+                const keys = dirty.get(slice);
+                for (const hook of this.hooksFor(slice, keys)) {
+                    if (this.closed) {
+                        break;
+                    }
+                    await this.call(hook, target, keys ?? new Set());
+                }
+
+                this.endSlice(slice, restores);
+            }
 
             this.show(target, copies, before, dirty);
             this.checkAfterPass();
@@ -421,28 +433,25 @@ export class DerivationLane {
     }
 
     /**
-     * Run each dirty slice's hooks, in hook order, until the lane closes.
-     * @param dirty - The keys this pass derives.
-     * @param target - The state the picture must show.
+     * The hooks a pass calls for one slice, copied so a hook that registers another does not
+     * change this pass: none when the slice is not dirty.
+     * @param slice - The slice.
+     * @param keys - The slice's dirty keys, undefined when it is clean.
+     * @returns The hooks.
+     */
+    private hooksFor(slice: DerivedSlice, keys: ReadonlySet<string> | undefined): DeriveHook[] {
+        return keys === undefined ? [] : [...(this.hooks.get(slice) ?? [])];
+    }
+
+    /**
+     * After a slice's hooks: the arrangement ends the restore this pass began with, unless another
+     * restore began since.
+     * @param slice - The slice whose hooks ran.
      * @param restores - The restore count when the pass began.
      */
-    private async runHooks(
-        dirty: ReadonlyMap<DerivedSlice, ReadonlySet<string>>,
-        target: ProjectState,
-        restores: number,
-    ): Promise<void> {
-        for (const slice of HOOK_ORDER) {
-            const keys = dirty.get(slice);
-            for (const hook of keys === undefined ? [] : [...(this.hooks.get(slice) ?? [])]) {
-                if (this.closed) {
-                    break;
-                }
-                await this.call(hook, target, keys ?? new Set());
-            }
-
-            if (slice === "arrangement" && this.restores === restores) {
-                this.restoringFlag = false;
-            }
+    private endSlice(slice: DerivedSlice, restores: number): void {
+        if (slice === "arrangement" && this.restores === restores) {
+            this.restoringFlag = false;
         }
     }
 

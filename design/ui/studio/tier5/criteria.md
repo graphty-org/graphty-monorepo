@@ -462,3 +462,13 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
   replaces f0a9a014cb (`.study-builds/tier5-r1d1-f0a9a014cb`). It carries the fifth dry-run
   pass's fixes, among them record pages following a history move that changes the filter and a
   setup start ending with an empty undo history.
+- 2026-11-02: `answers.md` matched to d3fda9f2b6 from the targeted re-pilot of T72 B; no bar
+  changed and no prompt was wrong, so `tasks.md` is unchanged. Each change with its reason:
+    - T72 B's path and count hold on this build (telemetry yes / Except installed before 2000, 5 of
+      11, the key "5 of 11"), so the path names d3fda9f2b6 among the builds it was walked on; the
+      Enter after 2000 still changes nothing visible, as the key already says.
+    - The note on Undo after Cancel on a new filter card records what this build shows: Undo and
+      Redo are off at a setup start, and Control+Z after that Cancel changes nothing, so no card
+      returns and the setup's label role stays.
+    - The orange node half under the canvas toolbar with the node table open is still drawn, so
+      the note to count from the inspector or the key stands.

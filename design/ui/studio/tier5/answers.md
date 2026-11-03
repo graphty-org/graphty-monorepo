@@ -15,7 +15,8 @@ re-pilots re-read T70 B, T72 B, T73, T74, T75 A and T77 B on build 797a4f6b47 (w
 checkout's `tmp/design-studio/tier5/r1d1/pilot/<task>/`); where that build differs, the task says
 so, and "Build notes (797a4f6b47)" lists what can still spoil a grade. Later dry-run builds were
 re-read the same way: 47c95a09fc (T72 B, T75 A; `r1d2`) and c3100058ab (T72 B, T75 A, T77 B, T79 A
-and B; `r1d3`), each with its own build notes. Each core
+and B; `r1d3`), and d3fda9f2b6 (T72 B; `r1d2`, where the older build's walks of the same names
+moved to `_47c95a09fc/`), each with its own build notes. Each core
 task's path step count is written as "Path steps: N" (bar 8) in `tool/steps.mjs`'s units: every
 click, key, typed text and file chosen counts, looking does not.
 
@@ -185,7 +186,7 @@ state. One example of each kind:
   Final outline: "kind agency, company / Except on_record Yes", header "7 of 24".
 - **Path (B)**: + > Layer; Which nodes; `telemetry`; tick yes; Condition...; `installed`; type
   2000; Enter; the Except switch; Done; Fill; hex; Enter.
-  Path (B) walked on 797a4f6b47, 47c95a09fc, c3100058ab and f0a9a014cb: telemetry yes / Except installed before 2000, 5 of
+  Path (B) walked on 797a4f6b47, 47c95a09fc, c3100058ab, f0a9a014cb and d3fda9f2b6: telemetry yes / Except installed before 2000, 5 of
   11, the key "5 of 11". The date box applies as typed (the count changes while the digits are
   typed), so the Enter after 2000 changes nothing visible; it is still one step of the path.
 - **Also success**: a second step with on_record No (A; an equal result). B on 797a4f6b47 and f0a9a014cb (read):
@@ -410,7 +411,9 @@ candidate, not a confirmed finding.
   2026-11-02, any build): a setup start now ends with an empty undo history, as a reopened saved
   project does, so every task starts with Undo off ("Nothing to undo"); Undo or Control+Z after
   that Cancel changes nothing, and the setup's PageRank colors, orange layers, label role and
-  layout stay. Undo still takes back the participant's own steps.
+  layout stay. Undo still takes back the participant's own steps. Read on d3fda9f2b6 (T72 B):
+  at the start Undo and Redo are off ("Nothing to undo", "Nothing to redo"); after Cancel on a new
+  card, Control+Z changes nothing, no card returns and `station` keeps its label role.
 - **Keyboard**: Enter on Largest component in a new card sends focus to Add filter with the
   workspace still open (T75 B's first step); one number box is named "Piece size from" before So
   far and "Connected components from" after it (T75 A); Control+Z with nothing to undo says
@@ -420,7 +423,7 @@ candidate, not a confirmed finding.
   of 50,000 nodes so far" for a single step (T79 B); Shift+Tab out of a new card's empty picker
   keeps the card as "New filter / All nodes" until Cancel (T79 A).
 - **Unchanged**: one orange node half under the canvas toolbar with the node table open (T72 B, T77
-  B: count from the inspector or the key); Edit in place of the count on a focused card or Which
+  B; still on d3fda9f2b6, T72 B: count from the inspector or the key); Edit in place of the count on a focused card or Which
   nodes row after Done (T75 A, T79); the key's "Draw order: graphty.style.json.node.el.drawOrder"
   (T75 A); "Node color, not set, drawn #6366F1 indigo" before a color is committed (T79 B); a new
   card's preview is not framed after the find box moved the camera (T79 A); a click on Condition...

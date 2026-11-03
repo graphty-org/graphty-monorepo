@@ -10,9 +10,11 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-02) On c3100058ab Undo after Cancel on a new card no longer brings it back; it undoes
-  the step before the card, often a setup step (T77 B: the colleague's orange). New grade spoiler:
-  the node table keeps a cancelled new card's rows (T77 B "1 of 11" vs top bar 7). Watch both.
+- (2026-11-02) On d3fda9f2b6 the empty undo history at a setup start holds (T72 B): Undo after
+  Cancel on a new card does nothing, so the setup-step spoiler is gone. The half-hidden orange
+  node with the table open is still there: grade counts from the inspector or key.
+- (2026-11-02) Grade spoiler seen on c3100058ab: the node table keeps a cancelled new card's rows
+  (T77 B "1 of 11" vs top bar 7). Watch it on each new build.
 - (2026-11-02) Subagent pilots cannot write report.md; their findings arrive as text and the
   caller must save them. A keyboard walk without --keys does not count as keyboard for the gate.
 - (2026-11-02) The canvas key now counts over the filtered graph (T70 B "2 of 7"); it drops its
@@ -71,6 +73,12 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-02 (answer key matched to d3fda9f2b6 from the T72 B re-pilot):** Changed only
+  `answers.md` (path names the build; the Undo-after-Cancel note records Undo off at start and no
+  card returning; the half-hidden node note says still drawn) and the change log. No bar, no
+  prompt: the one mismatch (Enter after 2000 changes nothing) the key already explains. Reason:
+  graders need to know which caveats still apply on the frozen build.
 
 - **2026-11-02 (answer key matched to c3100058ab from 5 targeted re-pilots):** Changed only
   `answers.md` and the change log; no bar, no prompt. T72 B, T75 A and T77 B paths hold; T75 B's
@@ -179,6 +187,10 @@ logged). Their reasons, in short:
   (T72); a card off the pointer shows Edit in place of its count after Done (T75 A).
 
 ## Tried: worked / did not work
+
+- 2026-11-02 (key vs d3fda9f2b6, T72 B) -- Worked: reusing a round folder (`r1d2`) for a newer
+  build by moving the older walks to `_<oldbuild>/`; the key names the move so walk paths stay
+  traceable. Did not work: the pilot subagent could not write its report.md; the caller saves it.
 
 - 2026-11-02 (key vs 47c95a09fc, T72 B and T75 A) -- Worked: a per-build "Build notes" section
   that records what is fixed as well as what still spoils a grade, so graders stop applying an

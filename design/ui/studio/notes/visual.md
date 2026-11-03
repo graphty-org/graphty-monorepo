@@ -5,47 +5,33 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-30 (tier 4 closed after round 1). Summarized on 2026-10-21: the tier 2
+Last updated: 2026-11-03 (tier 5 round 1 walkthrough). Summarized on 2026-10-21: the tier 2
 rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
 in git history of this file.
 
 ## Top of mind
 
-0. (2026-10-31) Tier 5 panel: selection groups and steps (mock J). My proposal is
-   `tier5/panel/visual.md`: no automatic table, a picking view owned by the element with a visible
-   "Group colors" toggle, monochrome Figma boolean icons, one picker and one count chip look for
-   both surfaces, group color only as a chit (A2). Live drift found: two picker headings, two
-   count-chip looks, 8 px effect words, the Louvain column's number glyph on a category.
-1. (2026-10-30) Tier 4 closed after one round without meeting its bars; the studio is stopped.
-   Settled result: `tier4/rounds/round-1/insights.md`. Next tier starts from it.
-2. The most severe open problem is visual: the join preview tags the wrong rows and leaves the
-   unknown-end row untagged beside "1 not in graph", which 3 of 4 read as "left out". A preview
-   must draw exactly what the act will do, mark by mark.
-3. Bar 6 fails on layout, not removal: the joined source row's "17/19 rows joined" ratio and second
-   name are clipped out of sight while the text still holds them. Clipped equals removed for a
-   reader. One layout fix (counts win, R11) covers both; "17 of 19 joined" next to 18 edges also
-   needs to agree.
-4. One fact drawn two ways costs a second menu: setting the time leaves the header's text glyph
-   while the timeline draws dates (four sessions named it). The header glyph must follow the
-   column's designated role/kind.
-5. The header is where readers do column work (3 of 4 on T62); put the state there (role chips for
-   place roles are missing).
-6. A new filter card starts on Hide and the deciding words are about 8 px; the default bit 5 of 5
-   who meant to mark. Give the effect control enough weight to be seen before it acts.
-7. Issue mark still has a default cursor and image role; fix with a pointer cursor and a name.
-8. Downgraded this round, do not re-raise without new evidence: "With issues 11" (sev 1), the Hide
-   label (sev 1), differing kind glyphs (sev 1, no reader tripped), the name cut alone.
-9. A study-tool defect (hover popovers reported as `tooltip: null`) made false findings. Before
-   trusting any "nothing appeared on hover", look at the screenshot.
-10. Lesson held: a visual finding needs a reader who paid for it or a scripted repro to hold sev 3;
-    none held at 3 this round, and two skeptics cut most candidates by one level.
-11. The link glyph doubles as "web address" and "joined" (`SourceRow.tsx`); cheapest fix still open.
-12. Focus visibility, `colorWord` hue names and the purple "Layer" token are still open from tier 3.
-13. compact-mantine is Figma-locked: PageList hover = selected fill, dark dropdown with no edge go to
-    the owner, never into code.
-14. Read `decided.md` (R1-R15) before rating: unfinished decisions are not new findings.
-15. Tool habits: `REAL_SLOT_WAIT_SECONDS=600` on `--start`; crop with `tmp/visual-t4/crop.py`;
-    `--hover-at` on the name text itself.
+1. (2026-11-03) Tier 5 round 1 walk done: `tier5/rounds/round-1/expert/visual.md`, 19 findings,
+   8 at sev 2 (4 new), none at 3. Sessions `expert/visual/v1..v3` (light 1440, dark 1280 with the
+   node table open, light 50,000 nodes).
+2. New sev 2s to defend with a reader or a repro: the No match chit drawn as a grey checkbox; the
+   sidebar outline's Except flush with the title (reads as applying to the whole rule; rises to 3
+   on a reader who misreads a two-group count); Within hops leaves its center unmarked.
+3. The blank band under the preview (canvas keeps the hidden node table's height) is known and
+   decided cosmetic, but it hits four task halves; keep it at 2 and in line first.
+4. Known and still on the frozen build: picker flips up over the header while typing (decided, not
+   built), picker list cut under "Results", key grows over a node, 50k members under the fog.
+5. One idea, one look, still breaking: Table "on" and Done share lime (compact-mantine, Figma
+   lock); a result count in three spellings at 50,000 ("50,000", "50k").
+6. compact-mantine is Figma-locked: button variants, PageList hover, dark dropdown go to the owner.
+7. Read `decided.md` and the backlog before rating; grep them for each candidate (it took one
+   command and turned five "new" into "known").
+8. A visual finding keeps sev 3 only with a paying reader or a scripted repro.
+9. Tool habits: `--click "role=option:<name>, N values"` when an attribute shares its name with an
+   algorithm; `--click "Edit#1"` for a filter card's Edit when a layer is also open; start the
+   50k session in the background with `REAL_SLOT_WAIT_SECONDS=600`.
+10. Open from tier 3 and 4: focus visibility, `colorWord` hue names, the purple "Layer" token, the
+    link glyph doing two jobs.
 
 ## Priorities and values
 
@@ -68,6 +54,19 @@ in git history of this file.
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- **2026-11-03 (tier 5 round 1 walk):** Rated nothing 3. Rated the No match chit 2, not 1: on a
+  filter card it sits one row under the card's real on box with the same shape, and with one group
+  nothing else in the outline has a chit (measured: grey 206 vs the canvas's lavender 209/210/232,
+  so it is not a legend either). Fix proposed: the preview's non-member color, no edge.
+- **2026-11-03:** Rated the sidebar Except row 2 and named what would make it 3 (a reader who
+  applies Except to both groups). Reason: spec 3.1 says the same rows draw both outlines; the
+  workspace keeps a 40 px verb column, the sidebar does not.
+- **2026-11-03:** Kept the blank preview band at 2 although `decided.md` calls it cosmetic: it is
+  the calm-first "blank pane the step does not use" and four task halves start with the node
+  table open. Proved the cause by closing the table and reopening (`v2/11.png` fills the cell).
+- **2026-11-03:** Marked Within hops' unmarked center "watch" at 2 and proposed the existing ring,
+  through the preview's style layer, so no element API is needed.
 
 - **2026-10-30 (tier 4 round 1 walk):** Rated nothing 3. The kind-glyph conflict (`opened` a
   calendar in the picker while text in the table) could mislead T62, but no reader has paid for it
@@ -182,6 +181,18 @@ in git history of this file.
 
 ## Tried: worked / did not work
 
+- 2026-11-03 worked: three sessions (light 1440 volunteers, dark 1280 x 800 colleague's river
+  project with the node table open, light 50,000 nodes in the background while the first two ran)
+  covered every tier 5 screen in about 50 steps.
+- 2026-11-03 worked: a small `tmp/visual-t5/crop.py` (crop + scale) and PIL `getpixel` for chit,
+  switch and field fills; measured the Except switch's thumb at 3.6:1 and dropped a contrast claim.
+- 2026-11-03 worked: an accidental Done with no value gave the "pick yes or no" card for free; a
+  wrong turn is a screen too.
+- 2026-11-03 did not work: `--click Yes` with a layer's outline also holding "Yes" (ambiguous, and
+  the batch's next step still ran: Done closed a half-made card). Name options by role.
+- 2026-11-03 did not work: typing a value ("Grants") into the attribute picker's search finds
+  nothing; type the attribute first.
+
 - 2026-10-30: Worked: rating no visual finding at sev 3 without a paying reader -- the skeptics cut
   every other team's sev 3 candidates to 2 or 1. Did not work: my "kind glyphs differ" finding (36)
   had no reader trip on it; ended at 1. Missed: the join preview's wrong tags and the clipped ratio
@@ -254,6 +265,12 @@ in git history of this file.
   designers too.
 
 ## Sources
+
+- `design/ui/studio/tier5/rounds/round-1/expert/visual.md` (tier 5 round 1 walkthrough, 19
+  findings); sessions `expert/visual/v1..v3`; crops in the worktree's `tmp/visual-t5/`
+- `design/ui/selection-groups/spec.md` 3.0 (workspace layout, canvas takes the preview cell), 3.1
+  (row anatomy: 40 px verb column, No match faint chit); `tier5/decided.md` workspace polish 2-3;
+  `tier5/rounds/round-1/calm-first-frozen.md` (calm-first findings 1-7)
 
 - `design/ui/studio/tier4/rounds/round-1/expert/visual.md` (tier 4 round 1 walkthrough, 29
   findings); sessions in `expert/visual/v1..v4`

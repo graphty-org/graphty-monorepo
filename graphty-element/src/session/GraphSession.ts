@@ -194,6 +194,7 @@ import type {
     GroupOutlineClick,
     HistoryClearOptions,
     HistoryOutcome,
+    HistoryRestoreOptions,
     LocationColumns,
     ModelChange,
     PositionEntry,
@@ -1673,7 +1674,8 @@ function historyOf(dispatcher: Dispatcher, version: () => number): SessionHistor
         set limitSteps(value: number) {
             history.limitSteps = value;
         },
-        restoreTo: (step: string | null) => dispatcher.restoreTo(step) as Promise<HistoryOutcome>,
+        restoreTo: (step: string | null, options?: HistoryRestoreOptions) =>
+            dispatcher.restoreTo(step, options?.redo === "drop") as Promise<HistoryOutcome>,
         cancel: (pending: string) => dispatcher.cancel(pending) as Published["pending"],
         clear: (options?: HistoryClearOptions) => {
             dispatcher.clear(options?.pending === "keep");

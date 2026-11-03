@@ -1181,10 +1181,17 @@ export class Dispatcher {
      * once. Back to the baseline (null) cancels all pending work and aborts every open
      * transaction.
      * @param id - The step, or null for the baseline.
+     * @param dropRedo - Discard the redo tail once there, so nothing passed can be redone.
      * @returns What was done, once the picture has caught up.
      */
-    restoreTo(id: string | null): Promise<HistoryOutcome> {
-        return this.historyCall(() => this.restore(id));
+    restoreTo(id: string | null, dropRedo = false): Promise<HistoryOutcome> {
+        return this.historyCall(() => {
+            const outcome = this.restore(id);
+            if (dropRedo) {
+                this.history.dropRedo();
+            }
+            return outcome;
+        });
     }
 
     /**

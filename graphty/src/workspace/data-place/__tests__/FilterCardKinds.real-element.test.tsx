@@ -218,6 +218,34 @@ describe("Cancel in a filter card's workspace", () => {
         assert.equal(session.visibility.summary.visibleNodes, session.visibility.summary.totalNodes);
     });
 
+    it("on a new card leaves the history as it was: nothing to undo or redo brings the card back", async () => {
+        const { session, store } = await openPeople();
+        const { position, steps } = session.history;
+        const newest = steps[position - 1]?.id;
+        await newCardOn("role");
+        await userEvent.click(
+            within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^board/ }),
+        );
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 1, "the ticked value writes the card");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");
+            assert.equal(session.history.position, position, "back to the step before the card");
+        });
+        assert.lengthOf(session.history.steps, position, "nothing to redo");
+        assert.equal(session.history.steps[position - 1]?.id, newest);
+        assert.equal(store.get().announcement, "Filter not added");
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await userEvent.keyboard("{Control>}{Shift>}z{/Shift}{/Control}");
+        await waitFor(() => {
+            assert.equal(session.history.pending.length, 0);
+        });
+        assert.lengthOf(session.visibility.conditions, 0, "Undo and Redo bring no card back");
+        assert.equal(cardsDrawn(), 0);
+    });
+
     it("on a new card opened from Quick actions, Cancel and Escape send focus to Add filter", async () => {
         const { session } = await openPeople();
         // Cancel on a written card.

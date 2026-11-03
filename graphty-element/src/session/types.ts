@@ -3438,9 +3438,10 @@ export interface SessionHistory {
      * Move to the state just after a step, or to the baseline with `null`, as the equivalent run
      * of undos or redos. Resolves once the picture matches the state.
      * @param step - The step, or null for the state before every step.
+     * @param options - Whether the steps after it can still be redone.
      * @returns What was done.
      */
-    restoreTo(step: HistoryStepId | null): Promise<HistoryOutcome>;
+    restoreTo(step: HistoryStepId | null, options?: HistoryRestoreOptions): Promise<HistoryOutcome>;
     /**
      * Cancel a pending item, and every later-dispatched item that depends on what it writes.
      * @param pending - The item.
@@ -3457,6 +3458,16 @@ export interface SessionHistory {
      * @param options - What happens to pending work that has changed nothing yet.
      */
     clear(options?: HistoryClearOptions): void;
+}
+
+/** What `history.restoreTo` leaves to redo. */
+export interface HistoryRestoreOptions {
+    /**
+     * `"keep"` (the default) leaves the steps after the one restored to as redo steps, as a run of
+     * undos does; `"drop"` discards them, as a new edit would, so taking back work the reader
+     * abandoned (a cancelled edit) leaves nothing to redo.
+     */
+    readonly redo?: "keep" | "drop";
 }
 
 /** How `history.clear` treats work that is still pending. */

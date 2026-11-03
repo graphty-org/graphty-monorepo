@@ -4,6 +4,22 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-02 -- Decided by the team: going back in the history with nothing left to redo (graphty-element)
+
+**What.** Additive. `session.history.restoreTo(step, { redo: "drop" })` (new optional
+`HistoryRestoreOptions`, exported from `./session`): moves to the state just after `step` (or the
+baseline for `null`), as `restoreTo` always has, and then discards the steps after it, as a new
+edit would. The default, `redo: "keep"`, is today's behavior.
+
+**Why.** `tier5/decided.md`, "Dry run pass 3", "Cancel on a new filter card leaves no undo step".
+A new filter card is written by its first tick and each edit is an undo step, as every edit is.
+Taking the card away with Cancel had only `removeCondition` to call, which records a third step,
+so Undo then put the card back. Going back with `restoreTo` alone leaves the card's steps to redo,
+so Redo put it back. A transaction cannot hold the card open instead, because the reader's Undo
+inside the card would then cancel the whole card rather than its last edit. Any consumer with an
+abandonable edit (a draft that writes as it goes) needs the same take-back, so it belongs in the
+element, as one option on the call that already moves the history.
+
 ## 2026-11-02 -- Decided by the team: a selection step keeps its test's mode (graphty-element)
 
 **What.** Additive. `UnionStep.mode?: string`: the consumer's own name for how the step's test is

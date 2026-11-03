@@ -8,7 +8,13 @@
  */
 
 import { ControlSection, EntityChip, focusWithRing, SegmentedControl } from "@graphty/compact-mantine";
-import type { FilterCondition, FilterConditionCount, GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
+import type {
+    FilterCondition,
+    FilterConditionCount,
+    GraphSession,
+    HistoryStepId,
+    UnionLeaf,
+} from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Button,
@@ -55,6 +61,9 @@ const TIME_WINDOW = "Time window";
 
 /** Where focus goes once the Filters section draws next: a card (or its on box), or `PLUS` for "+". */
 let pendingFocus: { readonly target: string; readonly onBox?: boolean } | null = null;
+
+/** While a new card is taken back, its removal is no filter change to say: "Filter not added" says it. */
+let takingBack = 0;
 
 /** The controls that open a new filter card and stay on screen: the canvas toolbar's Filters, "+". */
 const OPENS_FILTERS = '[data-command="filters.open"], [data-filters-plus] [data-add]';
@@ -452,6 +461,8 @@ function FilterCard({
     const draft = condition === undefined;
     // Added in this card's life: Cancel in the workspace it opened takes it away again, written or not.
     const born = useRef(draft);
+    // The newest step before a new card was asked for: taking the card away goes back to it.
+    const before = useRef(draft ? (session.history.steps[session.history.position - 1]?.id ?? null) : null);
     if (!open) {
         born.current = false;
     }
@@ -625,7 +636,13 @@ function FilterCard({
                                 ? () => {
                                       born.current = false;
                                       if (!draft) {
-                                          void writeCondition(store, () => session.visibility.removeCondition(id));
+                                          // The card's tick and edits go with it, and none can be redone.
+                                          takingBack += 1;
+                                          void writeCondition(store, () =>
+                                              takeBack(session, id, before.current),
+                                          ).finally(() => {
+                                              takingBack -= 1;
+                                          });
                                       }
                                       onDiscard();
                                   }
@@ -687,6 +704,25 @@ function FilterCard({
             </div>
         </li>
     );
+}
+
+/**
+ * Takes a new card away again: back to the step before it was asked for, with nothing to redo, when
+ * every step since is a filter step (its tick and edits); else (that step is gone from the history,
+ * or other work came after it) by removing the card as one step.
+ * @param session - the element's session.
+ * @param id - the card's condition id.
+ * @param before - the newest step before the card, or null when there was none.
+ * @returns once taken away.
+ */
+function takeBack(session: GraphSession, id: string, before: HistoryStepId | null): PromiseLike<unknown> {
+    const { steps, position } = session.history;
+    const from = before === null ? 0 : steps.findIndex((step) => step.id === before) + 1;
+    const since = steps.slice(from, position);
+    if ((before === null || from > 0) && since.every((step) => step.slices.every((slice) => slice === "visibility"))) {
+        return session.history.restoreTo(before, { redo: "drop" });
+    }
+    return session.visibility.removeCondition(id);
 }
 
 /**
@@ -858,7 +894,7 @@ export function FilterChip(): React.JSX.Element | null {
             if (now !== conditions) {
                 conditions = now;
                 // A card being edited says its own count; the filter's line waits for Done.
-                if (store.get().editingSelection !== null) {
+                if (store.get().editingSelection !== null || takingBack > 0) {
                     return;
                 }
                 store.set({

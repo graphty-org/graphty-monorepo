@@ -2588,6 +2588,11 @@ export type HistoryOutcome = {
 };
 
 // @public
+export interface HistoryRestoreOptions {
+    readonly redo?: "keep" | "drop";
+}
+
+// @public
 export interface HistoryStep {
     readonly at: string;
     readonly bytes: number;
@@ -5533,7 +5538,7 @@ export interface SessionHistory {
     } | null;
     readonly pending: readonly PendingStep[];
     readonly position: number;
-    restoreTo(step: HistoryStepId | null): Promise<HistoryOutcome>;
+    restoreTo(step: HistoryStepId | null, options?: HistoryRestoreOptions): Promise<HistoryOutcome>;
     readonly steps: readonly HistoryStep[];
     readonly version: number;
 }

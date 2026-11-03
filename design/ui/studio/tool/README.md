@@ -441,7 +441,7 @@ frozen build. So no runner, continuation script or start by hand can run a sessi
 passed. Pilots (`<round>/pilot/`) and expert walkthroughs (`<round>/expert/`) are not sessions of
 the round and start without it.
 
-The round runner (`../tier2/rounds/workflow-tier2.js`) runs the bars and the gate after the plan
+The round runner (`.claude/workflows/design-studio.js`) runs the gate after the plan and the tool dry run
 and stops the round on a failure, and runs the round's leak check before scoring.
 
 ## Browsers

@@ -5,41 +5,35 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-11-03 (tier 5 round 1 closed; insights after two skeptic checks).
+Last updated: 2026-11-03 (tier 5 round 1 rerun walk on 1e123d7d33).
 
 ## Top of mind
 
-1. (2026-11-03) Tier 5 round 1 closed with no valid session: the start gate never ran, so every
-   start was refused. Only expert walks count. Next round: confirm the gate evidence exists before
-   trusting any session bar.
-2. (2026-11-03) After two skeptic checks, bar 7 has ONE confirmed severity 2 (Clear renames a
-   card "a selection", decided.md 631-632). My 8 severity 2s mostly fell to 1 or to candidates:
-   seven Figma candidates remain unconfirmed. Next walk: a scripted repro plus screenshot for each,
-   or it does not survive.
-3. (2026-11-03) The reference picker is a second build of the picker (own Combobox.Search in a
-   portal): Tab escapes to Main menu, no expanded state or count, different grouping. Figma has one
-   searchable dropdown; one shared searchable combobox closes all of it.
-4. (2026-11-03) Speak only from the surface that is showing: the covered inspector row announced
-   its count over the workspace's (the round's one severity 3). Figma's rule too -- the open
-   panel owns focus and feedback.
-5. (2026-11-03) The workspace has no layout below 1280 px (preview a 44 px sliver at 900 x 700).
-   Figma collapses side panels before the canvas; the width rule belongs in decided.md.
-6. (2026-11-03) Clear then Escape drops a new card unrecoverably: two decided rules collide.
-   Figma's answer: Escape never destroys work that undo cannot return. Needs a decided.md entry.
-7. (2026-11-03) A chosen reference shows only its id ("v02"); decided.md 694 says show the
-   matched value. Figma shows the layer's name, never its id.
-8. (2026-11-03) Pickers jumping above their field and covering Done, and the two hosts' value
-   pickers differing, are still mine and unconfirmed -- re-walk them first.
-9. (2026-11-03) Spec 5 controls not built (Yes | No segment, "# / %", top / bottom): grep the
-   spec's control table before a walk.
-10. (2026-11-03) Drawing contradicts count: an untouched range draws a full brush while counting 0.
-    Draw unset as placeholder.
-11. (2026-11-03) Words-at-rest counts from the script confirm nothing; chrome, graph statistics
-    and the user's own names are excluded. Hand count or no claim.
-12. (2026-10-30) One fact drawn two ways sends people to a second menu: one component, one
+1. (2026-11-03, rerun walk) Tier 5 round 1 rerun on the same build 1e123d7d33: no severity 3,
+   nine severity 2, eight of them in bar 7 against an allowance of 5. Every one now has a scripted
+   repro, a screenshot and a decided.md or spec line (`tier5/rounds/round-1/expert/figma.md`).
+2. (2026-11-03) The step's value picker moves up over its field and Done once typed (4 datasets,
+   both hosts); flip is off at `WhichPicker.tsx:1483`, so the cause is elsewhere. The reference
+   and edge-value pickers do NOT move: the void walk over-claimed. Fix this first.
+3. (2026-11-03) Two candidates from the void walk did not reproduce on the same build (filter
+   picker missing Results; reference picker jump). Re-walk before re-raising anything.
+4. (2026-11-03) A reopened multi-step filter card rests collapsed, naming only its first step,
+   with no caret (decided.md 573 says one line per step). A card built in-session stays open.
+5. (2026-11-03) Yes-or-no is a dropdown without counts; decided.md 55 says tests are visible
+   segments by kind (only number and time narrowed to a Select, 604-606).
+6. (2026-11-03) The preview zooms and cuts the graph when the strip hides (volunteers); decided.md
+   799 thought it unreproduced. Likely the canvas keeps its vertical field of view on resize.
+7. (2026-11-03) By position lacks # / %, top / bottom and a base choice: "top 5" inside "trained"
+   kept 4 (counts over all nodes).
+8. (2026-11-03) Untested card names differ by kind: "trained pick yes or no" vs "dept". The
+   category card's bare attribute is the fix for both.
+9. (2026-11-03) Speak only from the surface that is showing (the void round's one severity 3).
+10. (2026-11-03) The workspace has no layout below 1280 px; the width rule belongs in decided.md.
+11. (2026-11-03) Clear then Escape drops a new card unrecoverably; needs a decided.md entry.
+12. (2026-11-03) "Condition..." narrows in group A but widens ("Add") in an Or group: spec, not a
+    finding; check T71 and T72 sessions for readers who expected "and".
+13. (2026-10-30) One fact drawn two ways sends people to a second menu: one component, one
     resting drawing, one number format per surface.
-13. (2026-10-30) Rate by the cost a reader paid; say "rule broken" separately. Skeptics cut
-    single-source findings and decided behavior; scripted repros survive.
 14. (2026-10-20, owner) No UI sentences; tooltips or names that instruct are sentences too.
 15. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
     graphty's ontology.
@@ -107,6 +101,13 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   its forcing fact, or it goes back to Figma's way.
 
 ## Decisions and reasons
+
+- **2026-11-03, tier 5 round 1 rerun severities.** Kept the picker jump at 2 (recover by closing
+  the list) and dropped the reference picker from it (it stays under its field). Rated the
+  collapsed multi-step card 2, not 3: one click opens it, but it breaks decided.md 573. Rated the
+  preview cut on Table toggle 2 and named graphty-element only as "check first": the mechanism is
+  inferred, not traced. Moved the nested Edges where drawing to 1: no rule names it, and rule-less
+  severity 2s did not survive last time. Dropped "filter picker has no Results": PageRank is there.
 
 - **2026-11-03, tier 5 round 1 severities.** Picker jumping over the header rated 2, not 3: the
   reader recovers by closing the list, but it is in every typed pick of both hosts, so it leads
@@ -176,6 +177,15 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-11-03 Tier 5 round 1 rerun, eight `real.mjs` sessions (w1 to w8, about 75 shots), one per
+  dataset including three the void walk skipped (sources, yeast, shifts). Worked: grepping
+  decided.md and the spec's control table for each finding before rating, so each cites a line;
+  PIL ink-column scans to measure text x positions (verb column) and caption heights; comparing the
+  same control in an All group and an Or group (it exposed the full-brush contradiction only in Add
+  steps); re-running the void walk's candidates before keeping them (two dropped). Did not:
+  `--click "By value"` (the select's name is "<attribute> test": click its point); a wrapper that
+  ran `--start` through with-browser.sh (real.mjs takes its own slot: never wrap it).
+
 - 2026-11-03 Tier 5 round 1 walk, five `real.mjs` sessions (w1 to w5, about 120 shots), one per
   start (volunteers style host, volunteers filter host, the colleague's project, gauges with
   Within hops and Edges where, 50,000 staff). Worked: a small env file in the scratchpad with
@@ -196,20 +206,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   `--start` with `setup:` must run from the setups folder or name it. Lesson: grep decided.md's
   team entries before walking, so a missing build reads as "decided, not built", not a new idea.
 
-- 2026-10-21 Round 1 outcome versus my walk. Worked: my walk's sev 3 (Shift-click anchor) and
-  the four-ways list held as real; my Figma comparisons mapped onto 4 of the top 6 insights.
-  Did not: my severity 3 did not survive into bar 5 (no session reached it) -- a walk finding
-  without a session reaching it is a watch item, not a blocker. My "jargon" verdict on the
-  <<Layer>> token was weakened as opinion; bring behavior evidence, not reading verdicts.
-
-- 2026-10-21 Round 1 walk, three `real.mjs` sessions (82 shots). Worked: one long session per
-  dataset walking every screen; `--hover-at` on each icon for tooltip and role; PIL crops at 4x of
-  the tree and inspector made 9 px text and glyph meaning checkable; a PIL difference box proved a
-  hover changed only the row, not the canvas. Did not: `--shift-click-at` does not exist (use
-  `--shift-click "<name>"`); `"X#2"` is refused when only one control has that exact name; every
-  `--hover-at` writes a screenshot, so numbering jumps. Lesson: when a modifier click gives an
-  odd result, write down what the previous command selected: the anchor bug showed only because
-  Duplicate, not a click, had made the selection.
+- 2026-10-21, summarized 2026-11-03. Tier 3 round 1: my walk's comparisons mapped onto 4 of the top
+  6 insights; a severity 3 no session reached stayed a check item; reading verdicts ("jargon") were
+  weakened. Worked: one long session per dataset, `--hover-at` on every icon, PIL 4x crops, writing
+  down what selected the anchor before a modifier click. Did not: `--shift-click-at` (use
+  `--shift-click "<name>"`), `"X#2"` with one control of that name.
 - 2026-10-12 to 10-13, summarized. Tier 3 iterations 1 to 3. Worked: one driver per walk with a
   try per section; measuring in the page (scrollWidth vs clientWidth, left edges, aria names)
   turned "looks cut" into numbers; the Figma capture (`design/ui/figma/`) answered Figma

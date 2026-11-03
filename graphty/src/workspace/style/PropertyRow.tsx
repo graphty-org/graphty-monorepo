@@ -667,7 +667,7 @@ interface FieldKeys {
 /**
  * The keyboard's remove: empty a typed field and press Enter, or Delete / Backspace on a closed
  * select or a color chit. "=" opens the value picker; Escape before any value is picked takes back
- * the line "+" added.
+ * the line "+" added, and Enter on it with nothing typed leaves it waiting.
  * @param event - the key.
  * @param keys - what the keys do.
  */
@@ -682,7 +682,8 @@ function fieldKeyDown(event: React.KeyboardEvent<HTMLDivElement>, keys: FieldKey
         act = keys.openVary;
     } else if (event.key === "Escape" && keys.unset && target.getAttribute("aria-expanded") !== "true") {
         act = keys.cancel;
-    } else if (removesField(event.key, input, target)) {
+    } else if (!(keys.unset && event.key === "Enter") && removesField(event.key, input, target)) {
+        // A line still waiting for its first value stays waiting on Enter: Escape takes it back.
         act = keys.remove;
     }
     if (act !== undefined) {
@@ -751,8 +752,9 @@ function fieldControl(props: FieldControlProps): React.ReactNode {
     }
     if (own === undefined) {
         // Several rows that set it differently: Mixed, with no value borrowed from any of them,
-        // and a typed or picked value writes to them. Just added with "+": what the elements draw
-        // now, else the element's starting value, as a field not set yet, until a value is picked.
+        // and a typed or picked value writes to them. Just added with "+": a field not set yet,
+        // until a value is picked, holding what the elements draw now, else the element's starting
+        // value (a color shows neither and only opens its picker there).
         const fresh = pending && partly === undefined;
         return (
             <ValueField
@@ -765,6 +767,7 @@ function fieldControl(props: FieldControlProps): React.ReactNode {
                         : undefined
                 }
                 mixed={!fresh}
+                waiting={fresh}
                 swatches={ctx.documentColors}
                 extraChoices={extraChoices}
                 onChange={pick}

@@ -40,6 +40,17 @@ notes-only commit cannot regress a route): `git show a93110cfb5:design/ui/studio
 Trimmed again 2026-11-02 (file at 27 KB): the cancel-new-card focus re-walk and the covered-claim
 fix in full: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) A JUST-ADDED COLOR LINE SHOWS NO COLOR UNTIL ONE IS PICKED (decided.md "Dry run
+  pass 7"). `ValueField` takes `waiting` (PropertyRow's fieldControl passes it for a line "+" added
+  and set on no row); the color field then gives compact-mantine's CompactColorInput
+  `emptySwatch` plus `emptyText=""` -- BOTH are needed: `emptySwatch` alone still puts the hex
+  digits in the box and names it "drawn #...". `shown` stays as `defaultColor`, so the picker opens
+  at the one color beneath, else the element's starting color. Second half: PropertyRow's
+  `fieldKeyDown` treated Enter in an empty typed box as "remove the line"; a waiting line now stays
+  waiting on Enter (Escape takes it back). Applies to every waiting line, not only colors. Test:
+  `UnsetLine.real-element.test.tsx` (rewritten: its old cases asserted the superseded "Enter writes
+  the color shown"); 3 of 5 fail without the change. Re-walk on a fresh dist:
+  `design/ui/studio/tmp/r1-dry1-fill-box-truth/` (`walk.sh`, routes cut at the Fill "+").
 - (2026-11-02) THE STUDY TOOL SCORES TIER 5 (tool dry run 1's check 6 and gate gap). What each
   script now does, each with a planted case of its own that fails without the change:
   `steps.mjs` `CORE_BY_TIER` (tier 5: T70 T71 T73 T74 T78; "Path\nsteps" across a line break counts:

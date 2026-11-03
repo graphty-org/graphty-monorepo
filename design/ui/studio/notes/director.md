@@ -5,12 +5,21 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-02 (tier 5 criteria applied from the second reviews and frozen for the rounds).
+Last updated: 2026-11-02 (dry run pass 7, the first fix pass on the round's build 0c163f54bf).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
 2026-10-30 (five times) and 2026-11-02 (four times); the full earlier text is in this file's git history.
 
 ## Top of mind
 
+- (2026-11-02) DRY RUN PASS 7 on 0c163f54bf (`tier5/dry-run-r1-7.md`): 293 pilot lines, 8 fix now
+  in two units, both graphty app: fill-box-truth (a just-added color line shows no color and Enter
+  writes nothing; item 8's Fill box repro) and busy-close-focus (the close hands focus back only if
+  the reader has not moved on; a regression of pass 3's busy-Done fix). 247 backlog rows. This is
+  fix pass 1 of the 2 the cap allows; the second takes only what the bars' re-run on 0c163f54bf
+  still fails (50,000-node lists, axe) and new grade spoilers.
+- (2026-11-02) Item 8's two calm-first "two counts" candidates are two facts by the criteria's own
+  log (a second card or step separates them; `T77A/detour-1 03.png`); the skeptics still owe the
+  written refutation. Do not send them to fix.
 - (2026-11-02) TIER 5 CRITERIA FROZEN AGAIN for the rounds after the second three reviews. The next
   build must carry 4fb3f45d59 (matches strip search, value picker scroller) and d801a0fddd (large
   repaints); items 5, 8, 9 and T79's timings are re-read on it, never carried over from d3fda9f2b6.
@@ -89,6 +98,13 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Decisions and reasons
 
+- **2026-11-02, dry run pass 7** (`tier5/dry-run-r1-7.md`, `decided.md` "Dry run pass 7"). Fix now:
+  fill-box-truth (item 8 names it; it was backlog in passes 1 to 5 because only the screen-reader
+  name looked wrong, but the box itself draws a color nothing paints and Enter commits it) and
+  busy-close-focus (`answers.md` "can spoil the fill"; one check in the shared close). Not taken: the
+  hiding layer's key (not-success route), nodes under overlays (the canvas is the frame), the calm-
+  first double counts (two facts by the criteria log), the bars' failures (4fb3f45d59 aims at each;
+  re-run first). Why: the cap limits this pass to item 8 and new spoilers, and the round must start.
 - **2026-11-02, tier 5 criteria after the second reviews, frozen for the rounds** (researcher
   7e4f4e71aa, red team 7881e4e012, user advocate ba5a319098; they agreed on almost every point).
   Taken: bar 9 counts named elements at any rating and T79 waits; "two counts" needs a reachable
@@ -147,6 +163,14 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (dry run pass 7) -- Worked: reading item 8's files (bars.json, calm-first-frozen.md, the
+  rating check, the answer key's build notes) before the defect list, which turned a long-standing
+  backlog row (the Fill box) into the gate's item; reading the pilot's `route.jsonl` for T79 A
+  detour-4, which showed the batched steps (Done, Fill +, type) a session can send in one call, so the
+  focus steal is reachable in a session; reading `PropertyRow.tsx` to find the mechanism (`shown`
+  falls back to the starting color whenever the layers beneath vary) before naming the unit; the
+  criteria log's own ruling on "two counts". Did not work: nothing new; a 293-row list again needed
+  a generator script with an assert on the total.
 - 2026-11-02 (criteria, second reviews) -- Worked: running `wording.mjs` and filtering out the rating
   question's words, which showed the follow-ups made half the hits; reading the catalog's keyword
   dump in `vocabulary.json` to tell a real lure (a search keyword: "route") from a deep result name
@@ -199,6 +223,11 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Thinking
 
+- **2026-11-02, dry run pass 7:** a defect that sat in the backlog for five passes as "screen reader
+  only" was a visible lie all along (a swatch of a color nothing draws); the class came from the row's
+  first wording, not from looking at the screen. Read the screenshot, not only the line. And every
+  fix that holds the screen longer (pass 3's busy Done) opens a window where the reader acts first:
+  ask what the reader can do during the wait, and what the end of the wait does to it.
 - **2026-11-02, second criteria review:** all three reviewers found the same shape of defect: a
   rule that cannot fire (4+ ratings), a check that did not walk its own screens, a list naming an
   old build's problems, a cap nobody enforced. Each passes by construction. The test for every bar
@@ -247,7 +276,8 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 - Tier 5: report returned as text 2026-11-02 (meant for `tier5/report.md`); round 1 `tier5/rounds/round-1/{plan,tool-dry-run-1,tool-dry-run-2}.md`, `bars/`, `bars-light/`; briefings under the worktree's `tmp/studio-sessions/tier5/rounds/round-1/sessions/`;
   `tier5/{criteria,tasks,answers,roster,decided,owner-feedback-2026-11-01,placement-study}.md`;
-  dry run triages `tier5/dry-run-r1-{1,2,3,4,5,6}.md` (pass 6 pilots: main checkout
+  dry run triages `tier5/dry-run-r1-{1,2,3,4,5,6,7}.md` (pass 7 pilots on 0c163f54bf: main checkout
+  `tmp/design-studio/tier5/r1/pilot/`; pass 6 pilots: main checkout
   `tmp/design-studio/tier5/r1d2/pilot/`; pass 4 pilots: main checkout
   `tmp/design-studio/tier5/r1d3/pilot/`; pass 5 pilots: `r1d1/pilot/`), `tier5/backlog.md`, `tier5/rejected-fixes.md`; pass 2
   pilots under the main checkout's `tmp/design-studio/tier5/r1d1/pilot/`; pilots under the main checkout's

@@ -982,6 +982,33 @@ the backlog and the decide-and-fix loop builds them; none blocks a session.
   Ctrl+Z the status spoke "Filter on: 549 of 549 nodes, 2,084 edges", after Ctrl+Shift+Z "112 of 549
   nodes, 896 edges", while the screen read "896 of 2,084 edges" (T75 A touched-14 59.png, 60.png).
 
+## Dry run pass 7, 2026-11-02 (Design Director)
+
+From the triage of the round 1 pilots on 0c163f54bf (`dry-run-r1-7.md`). Each entry narrows an entry
+above; none reverses one.
+
+- **A just-added color line shows no color until one is picked.** The line "+" adds (Fill's Color,
+  and every color line the style host adds the same way) draws an empty swatch and an empty hex box,
+  named "<property>, not set"; the picker opens at the color drawn there when one color is in force,
+  else at the element's starting color; Enter or Tab with nothing typed writes nothing and leaves the
+  line waiting. Narrows the style host's "'+' starts a property from what the layers beneath paint"
+  (`row.ts` `beneathOf`), which fell back to the element's starting color, 6366F1, whenever the
+  layers beneath vary. Why: `criteria.md` item 8 names this repro; on every start with PageRank's
+  colors beneath (T70 A, T73 A, T74 A) the box showed 6366F1 and an indigo swatch while no node is
+  drawn indigo, and a rating-check participant named it as the moment of least certainty ("the new
+  color didn't show on any dot"); Enter on the untouched box committed 6366F1 (pass 5 T72B.p5.3), a
+  value nobody chose.
+- **Closing the workspace hands focus back only if the reader has not moved on.** When the workspace
+  closes (Done, Cancel, Escape, including a busy Done that closes on the painted result), focus goes
+  to its opener as decided only while focus is still inside the workspace or on nothing (the page
+  body); a control the reader moved to outside the workspace keeps focus and every key typed there.
+  Narrows the placement entry "focus returned to what opened it" and pass 3's "Done, Cancel and
+  Escape on a large graph keep 'Drawing' on screen until the result is painted". Why: on 50,000 nodes
+  the reader clicked the Fill box while Done was still drawing; the close then sent focus to the
+  Which nodes row, so the typed E4572E went to page shortcuts (E reopened the workspace, 2 switched
+  the view to 2D) and the color was never set (T79 A detour-4, `r1/pilot/T79A/detour-4-0c163f54bf
+04.png` to `06.png`; `answers.md`, "Can spoil the fill").
+
 ## Speed on 50,000 nodes, round 2, 2026-11-02 (graphty-element engineer)
 
 The first blocker of `ws-polish-3-scale.md` (every edit locks the page 13 to 38 s), after the edge

@@ -38,7 +38,7 @@ import { StyleSelection } from "../selection/StyleSelection";
 import { layerSelection } from "../selection/values";
 import { formatCount } from "../settings/numberFormat";
 import { useAnnounceChange } from "../state/useAnnounceChange";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { barHeights } from "./barHeights";
 import {
     type Card,
@@ -432,7 +432,12 @@ export function WhichPicker({
     // spoken once, when typing pauses.
     const head = useHead(session, rows, side, held?.cards);
     const [settled] = useDebouncedValue(head, SPEAK_AFTER_MS);
-    useAnnounceChange(/\d of \d/.test(settled) ? settled : null);
+    // Under an open selection workspace only the workspace says its count: this row is covered (or
+    // beside it), and its count is often over another base (tier 5 round 1). It stays quiet until its
+    // count settles after the workspace closes, so a change made in the workspace is not said twice.
+    const covered = useWorkspaceState((state) => state.selectionWorkspace !== null);
+    const [wasCovered] = useDebouncedValue(covered, SPEAK_AFTER_MS);
+    useAnnounceChange(/\d of \d/.test(settled) ? settled : null, true, covered || wasCovered);
     if (rows.length === 0 && held === undefined) {
         return null;
     }

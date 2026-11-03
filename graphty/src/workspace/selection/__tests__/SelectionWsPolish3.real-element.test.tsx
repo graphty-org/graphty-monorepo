@@ -220,6 +220,51 @@ describe("a style layer's workspace", () => {
         });
     });
 
+    // Tier 5 round 1 (design/ui/studio/tier5/rounds/round-1-void/insights.md, insight 1): with a
+    // layer selected in the inspector, a filter card's workspace said its count, then the covered
+    // inspector row said that layer's count over another base, which nothing on screen showed.
+    it("a filter card's workspace says only its own count, never the covered inspector row's", async () => {
+        const { session, heard } = await openSample();
+        await openLayer(session, "Behind", degreeAtLeast(10));
+        await session.visibility.addCondition({
+            id: "f1",
+            effect: "keep",
+            rule: {
+                kind: "union",
+                side: "nodes",
+                within: "graph",
+                branches: [
+                    {
+                        start: "all",
+                        steps: [{ op: "keep", rule: { kind: "range", attribute: "graphty.degree", min: 2 } }],
+                    },
+                ],
+            },
+        });
+        await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
+        const inspector = screen.getByRole("complementary", { name: "Inspector" });
+        await waitFor(() => {
+            assert.isNotNull(inspector.querySelector(".ws-which"), "the layer's Which row is in the inspector");
+        });
+        await userEvent.click(await screen.findByRole("button", { name: /Degree min 2/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit Degree min 2/ }));
+        const ws = await screen.findByRole("region", { name: "Degree min 2 -- Filters" });
+        const said = heard.length;
+        const counts = (): string[] => heard.slice(said).filter((each) => /^[\d,]+ of [\d,]+ nodes$/.test(each));
+        await userEvent.click(within(ws).getByRole("textbox", { name: "Degree from, number" }));
+        await userEvent.keyboard("{Control>}a{/Control}5{Tab}");
+        await waitFor(() => {
+            assert.isNotEmpty(counts(), `the workspace said its count: ${heard.join(" | ")}`);
+        });
+        // Done is a round trip through the browser: the covered row's count, due with the
+        // workspace's, would have been said by the time the workspace has closed.
+        await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+        });
+        assert.lengthOf(new Set(counts()), 1, `one count was said: ${counts().join(" | ")}`);
+    });
+
     it("a new rule opens with its value picker open, and so does Clear", async () => {
         const { session } = await openSample();
         await openLayer(session, "Fresh");

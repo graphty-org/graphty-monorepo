@@ -32,6 +32,14 @@ Trimmed again 2026-11-02 (file at 28 KB): the main-table and test-mode re-walk, 
 50,000-node edit blocks, and the data table never taking an editor's selection:
 `git show 64cd59e285:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) "A test's mode is the step's own" came back as a unit from the round 1 pilot
+  (walked on baac78342b). Already fixed by a6257fe0c7 (element `UnionStep.mode`, measure runs
+  keyed without their test; tests `SelectionWorkspace.real-element.test.tsx` number card and
+  `DateCard.real-element.test.tsx`), re-walked in `design/ui/studio/tmp/r1-dry1-recheck-main-table/`
+  (T74A 5 of 24, T74B 3 of 11 G02 G03 G04, both reopen as By position; Between 1990 to 1999 3 of
+  11), and inside the frozen build c3100058ab. No code change. Second unit this round that a walk
+  on an older commit re-raised: compare the unit's walk commit with `git log` first.
+
 - (2026-11-02) "The data table never takes an editor's selection" came back as a unit from the
   round 1 pilot (walked on baac78342b). Already fixed by 1c02b8a883 (test
   `TableEditorSelection.real-element.test.tsx`), re-walked in `design/ui/studio/tmp/r1-dry1-recheck-main-table/`

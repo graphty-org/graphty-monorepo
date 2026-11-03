@@ -61,7 +61,8 @@ Replayed from the previous pass's success walk; all 11 steps matched the screen.
   `tmp/design-studio/tier5/r1d2/pilot/T77A/touched-8-prove.log`) on this build: a setup start runs
   its steps before 01.png, leaves no control lit, leaves Undo disabled with "Nothing to undo", lists
   the setup's work at the start; a setup step that misses and a setup click on a control that never
-  becomes clickable both fail the start loudly. All ok.
+  becomes clickable both fail the start loudly. Every one of its 99 checks passed ("every check
+  passed", exit 0).
 
 ## Mismatches with the answer key
 

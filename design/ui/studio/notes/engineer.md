@@ -37,6 +37,22 @@ selection, 1c02b8a883), with their re-walk evidence, and the covered-claim and r
 `git show e464917d43:design/ui/studio/notes/engineer.md`.
 Trimmed again 2026-11-02: check a re-walk request for product changes before walking (a
 notes-only commit cannot regress a route): `git show a93110cfb5:design/ui/studio/notes/engineer.md`.
+Trimmed again 2026-11-02 (file at 27 KB): the cancel-new-card focus re-walk and the covered-claim
+fix in full: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
+
+- (2026-11-02) RE-CHECK of the record-pages-after-history fix (a93110cfb5) on `graphty/dist`
+  (stamp bd404856c8 plus the uncommitted fix; the bundle's `load` calls `this.bump()`): holds, no
+  regression. Fresh replays of the nine names-only routes
+  (`design/ui/studio/tmp/r1-dry2-recheck-table-after-history/walk.sh`): T77B touched-1/2 table 7
+  rows through Cancel, Ctrl+Z and Ctrl+Shift+Z, All 11 then Shown 7; T76B touched-6 Ctrl+Z "0 of
+  11" and No rows, redo back to 7 and 7 rows; T77B success 9 of 11 in top bar, table and 9 rows;
+  T79A Cancel then Undo/Redo name "changing the layout", no card; T79B Cancel restores Otter Creek
+  1,050; T75A (keys + screen reader) Ctrl+Z speaks "Filter on: 549 of 549 nodes", table 549.
+  Keyboard passes `keys.sh`, `keys2.sh`. Seen, not from this fix, same on the frozen build: the
+  checklist moves a newly ticked value above the ticked one (T79B touched-6 04.png); Tab from a
+  date card's value field leaves the workspace for the status bar's "Local only" (T77B success
+  14.png). Tool fact: `role=button:All` is ambiguous on gauges ("installed" contains "all"); the
+  table's Shown | All need `--click-at`.
 
 - (2026-11-02) Record pages now follow a history move that changes the filter (a93110cfb5).
   Mechanism: undo, redo, restore and restoreTo load the landing step's kept masks through
@@ -53,15 +69,8 @@ notes-only commit cannot regress a route): `git show a93110cfb5:design/ui/studio
   T75A touched-5 Ctrl+Z: top bar, Overview and table all 549 of 549.
 
 - (2026-11-02) RE-WALK of one count base (50d50e28ae) on `graphty/dist` c3100058ab: holds, no
-  regression. With a filter on, the layer row, Everything ("styles all 7 nodes"), the Which nodes
-  header and the key's "N of M" all count the drawn graph: T72A detour-2 Everything 7 (was 24);
-  T72B detour-3 row 5, Which nodes "5 of 5", no key line, then a condition "1 of 5" everywhere
-  (was row 11); T77A success/detour-1 "6 of 10"; T70A filter-first "4 of 15"; T70B "2 of 7".
-  Enter/Escape/Tab/Shift+Tab on the row and in Which nodes keep focus sane. The "no condition is
-  left" notice is unreachable on a single layer (by design, `LayerPanel` test skipped), so its
-  count was not seen. Tool facts: `--replay` refuses a folder an earlier session used (exit 2,
-  "already holds a session's screenshots"): pick fresh names. Sessions under
-  `design/ui/studio/tmp/r1-dry1-recheck-style-count-base/` (`rewalk.sh`, `rewalk2.sh`).
+  regression. Full entry: `git show 918f88b37e:design/ui/studio/notes/engineer.md`. Tool fact kept:
+  `--replay` refuses a folder an earlier session used (exit 2): pick fresh names.
 
 - (2026-11-02) Cancel on a new filter card now leaves the history as it was before the card. Mechanism
   on 47c95a09fc: Cancel called `removeCondition`, a third step, so Undo read "Undo deleting a filter
@@ -83,17 +92,8 @@ notes-only commit cannot regress a route): `git show a93110cfb5:design/ui/studio
   Lesson: a negative check that patches a source file must not run in the background past the
   turn; the hang guard holds the patched file for 15 minutes.
 
-- (2026-11-02) Cancel on a new filter card takes the card away, focus back to its opener (toolbar
-  Filters or Add filter; `OPENS_FILTERS`, `takeDraftOpener`, focus moved once `selectionWorkspace`
-  is null), fixed by 47c95a09fc and 9610767e29, both inside the frozen build c3100058ab. Re-raised
-  from the round 1 pilot (walked on baac78342b, before both). RE-WALK on `graphty/dist` c3100058ab
-  (`design/ui/studio/tmp/r1-dry1-cancel-new-card/c310/walk.sh`): T70B detour-5 (telemetry yes,
-  Cancel) and T79A detour-3 (staff-50k, dept Grants, Cancel) leave no card, no top-bar mark,
-  `data.json` `filters: []` and all nodes drawn, `--read` around focus ends on "Add filter"; T77B
-  detour-2 Cancel on the existing card after an Or depth_cm 140 restores "telemetry yes" 7 of 11
-  (saved rule has its one step); T77B detour-3 toolbar Filters, Escape: no card, focus on the
-  toolbar's Filters. Tests `FilterCardKinds.real-element.test.tsx` "Cancel in a filter card's
-  workspace" pass (5). No code change. Full earlier entry: `git show 4d9a4d4643:design/ui/studio/notes/engineer.md`.
+- (2026-11-02) Cancel on a new filter card takes the card away, focus back to its opener
+  (47c95a09fc, 9610767e29); re-walk and tests: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
 
 - (2026-11-02) RE-CHECK of the open-busy-sign fix: script `design/ui/studio/tmp/r1-dry2-recheck-open-busy-sign/rewalk.sh`;
   full entry: `git show bba6b7e9bb:design/ui/studio/notes/engineer.md`.
@@ -111,22 +111,9 @@ notes-only commit cannot regress a route): `git show a93110cfb5:design/ui/studio
   `useHead`, MultiRowPanel, LayerValues "on N of M", PropertyRow "on N" -- check them if a reader
   meets two bases again.
 
-- (2026-11-02) The false "Covered by <lower layer>" (tier 5 dry run, 8 pilots) was a reading
-  taken in the window between `view.end()` of a branches view and the view's end repaint landing:
-  a layer whose selector was written during the view had no prepared bindings yet, so agreement,
-  counts and the legend read the layer below as deciding. `style:branches-shown-changed` fires in
-  that window and no event follows the repaint, so the app kept the stale reading until any
-  unrelated re-render. Fix in graphty-element `StylesApi.ts` (`viewPending`): until that repaint
-  lands, the stack's readings read what the layer last painted, as they already did during the
-  view. Also the legend's value reach now reads the stack's own layers, never the view's
-  suspended stand-ins. Tests: `graphty-element/test/session/scope/covered-claim.test.ts` (fails
-  without the fix), `graphty/src/workspace/style/__tests__/CoveredClaim.real-element.test.tsx`.
-  Residual: a CHANNEL added to a layer while a view is drawn reads from the old bindings until
-  the next style event; no pilot route does that.
-  Re-walked all eight routes on a fresh build (`design/ui/studio/tmp/r1-dry1-covered-claim/`):
-  no Fill "Covered by" and no key "covered by" for the edited layer on any; the key's count equals
-  Which nodes. Where the key still says "covered by", it is under the LOWER layer, which the edited
-  layer truly paints over (T70A, T73A) -- correct.
+- (2026-11-02) The false "Covered by <lower layer>" was a reading taken before a branches view's
+  end repaint landed; fixed in `StylesApi.ts` (`viewPending`). Full entry with tests and re-walks:
+  `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
 
 ## Working facts and open defects
 

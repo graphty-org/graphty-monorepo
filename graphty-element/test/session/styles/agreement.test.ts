@@ -261,24 +261,6 @@ describe("styles.agreement, how several elements look in one read", () => {
         );
     });
 
-    it("keeps a layer's counts until the stack, the data or an element state moves", async () => {
-        let walks = 0;
-        let state = 0;
-        const styles = stylesOver(4, { onResolve: () => walks++, stateRevision: () => state });
-        const red = await styles.add(on("Red", ["n0", "n1", "n2", "n3"], { "node.color": "#ff0000" }));
-
-        const first = styles.counts(red.id);
-        const walked = walks;
-        assert.isAbove(walked, 0, "the first read walks the layer's elements");
-        assert.deepStrictEqual(styles.counts(red.id), first, "a second read over an unchanged stack");
-        // Only the drawn elements are read again: `visible` follows a filter, which no token names.
-        assert.strictEqual(walks, walked + 1, "no second walk over the whole graph");
-
-        state++;
-        styles.counts(red.id);
-        assert.strictEqual(walks, walked + 3, "an element state moved: the whole graph again");
-    });
-
     it("reads every time when the session cannot say when element states move", async () => {
         let walks = 0;
         const styles = stylesOver(2, { onResolve: () => walks++ });

@@ -953,9 +953,12 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "measure":
-            known(["algorithm", "params", "bind", "field", "test"]);
+            known(["algorithm", "params", "bind", "field", "test", "scope"]);
             checkStepLeaf(value, walker);
             checkMeasure(value, walker);
+            if (value.scope !== undefined) {
+                checkScope(value.scope, walker);
+            }
 
             return;
         case "all":

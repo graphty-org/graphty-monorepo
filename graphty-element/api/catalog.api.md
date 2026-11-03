@@ -1770,6 +1770,7 @@ export interface MeasureLeaf {
     readonly kind: "measure";
     // (undocumented)
     readonly params?: Readonly<Record<string, unknown>>;
+    readonly scope?: Scope;
     readonly test?: MeasureTest;
 }
 

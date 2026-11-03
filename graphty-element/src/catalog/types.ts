@@ -2414,6 +2414,17 @@ export interface MeasureLeaf {
     readonly field: string;
     /** The test. Absent, the step is inert (`test-unset`). */
     readonly test?: MeasureTest;
+    /**
+     * The scope of the session run the step reads, as that run's `scope.spec` gives it: a step
+     * picked from a run's results stays bound to that run, whatever the step's base. The step reads
+     * the newest listed run with this algorithm, params and scope, as the run left it (a later
+     * change to what the scope holds does not re-run it), and starts one over the scope only when
+     * none is listed. Absent, the step's base. Ignored for a step computed on So far, with `links`
+     * or bound to a live reference: those compute their own.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly scope?: Scope;
 }
 
 /**

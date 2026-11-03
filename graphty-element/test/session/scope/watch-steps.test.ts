@@ -504,6 +504,37 @@ describe("measure steps and runs", () => {
         });
     });
 
+    it("a measure that names its run's scope reads that run, never a second one over its own base", async () => {
+        const executions: Executions = { sizes: [], hold: false };
+        const session = await lesMis(executions);
+        await session.visibility.addCondition({ effect: "keep", rule: STAFF });
+        const staff = session.visibility.nodes.size;
+        // The reader ran it on what was showing, then picked its values in a new filter card.
+        const run = session.runs.start("degree", {}, { scope: "visible", style: false });
+        await run;
+        assert.strictEqual(run.status, "succeeded");
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                {
+                    start: "all",
+                    steps: [{ op: "keep", rule: { ...TOP_BY_MEASURE, params: run.params, scope: run.scope.spec } }],
+                },
+            ],
+        };
+        await session.visibility.addCondition({ effect: "keep", rule });
+        await vi.waitFor(() => {
+            assert.isBelow(session.visibility.nodes.size, staff);
+        });
+        assert.strictEqual(session.runs.list().length, 1, "no second run over the whole graph");
+        assert.deepEqual(executions.sizes, [staff], "computed once, over what was showing");
+        const watch = session.scope.watchSteps(rule, () => undefined);
+        assert.strictEqual(watch.current.branches[0].steps[0].run, run.id, "the step reads the run it was picked from");
+        watch.end();
+    });
+
     it("a measure with no test yet stays inert but starts its run, so a picker can show its values", async () => {
         const executions: Executions = { sizes: [], hold: false };
         const session = await lesMis(executions);

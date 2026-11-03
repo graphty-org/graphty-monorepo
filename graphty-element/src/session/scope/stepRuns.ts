@@ -23,7 +23,8 @@ import type {
 } from "../../catalog/types";
 import type { RunResult } from "../results/types";
 import type { RunExecutor } from "../runs";
-import type { ResolvedScope, RunsApi } from "../runs/types";
+import { canonicalize } from "../runs/runId";
+import type { ResolvedScope, Run, RunsApi } from "../runs/types";
 import type { CodedFact } from "../shared";
 import type { FilterRunResult, UnionStepSource } from "../visibility/filter";
 import { type Bytes, referenceOf, type StepFrame, type StepGate } from "../visibility/union";
@@ -236,6 +237,26 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
     };
 
     /**
+     * The newest listed run a measure that names its scope is bound to: same algorithm, params and
+     * scope, finished, read as it left it (a change to what the scope holds does not re-run it).
+     * @param leaf - The measure.
+     * @param params - The bound params.
+     * @returns The run, or undefined when none is listed.
+     */
+    const boundRun = (leaf: MeasureLeaf, params: Readonly<Record<string, unknown>>): Run | undefined => {
+        const wanted = canonicalize([leaf.algorithm, params, leaf.scope]);
+        return sources.runs
+            .list()
+            .filter(
+                (run) =>
+                    run.status === "succeeded" &&
+                    run.result !== undefined &&
+                    canonicalize([run.algorithm, run.params, run.scope.spec]) === wanted,
+            )
+            .at(-1);
+    };
+
+    /**
      * Whether the limits hold a run back, and why.
      * @param step - The step.
      * @param leaf - Its measure.
@@ -414,9 +435,10 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         params: Readonly<Record<string, unknown>>,
         frame: StepFrame,
     ): { gate: StepGate | null; result?: FilterRunResult } => {
-        const scope = baseScope(frame);
+        const scope = leaf.scope ?? baseScope(frame);
         const options = { scope, style: false } as const;
-        const done = sources.runs.answered(leaf.algorithm, params, options);
+        const done =
+            leaf.scope === undefined ? sources.runs.answered(leaf.algorithm, params, options) : boundRun(leaf, params);
         if (done?.result !== undefined) {
             started.set(definitionKey(step, frame.within), done.id);
             return { gate: null, result: sources.readerOf(done.result, done.id) };

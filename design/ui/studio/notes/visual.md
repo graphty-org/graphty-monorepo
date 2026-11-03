@@ -11,26 +11,35 @@ in git history of this file.
 
 ## Top of mind
 
-1. (2026-11-03) Tier 5 round 1 walk done: `tier5/rounds/round-1/expert/visual.md`, 19 findings,
-   8 at sev 2 (4 new), none at 3. Sessions `expert/visual/v1..v3` (light 1440, dark 1280 with the
-   node table open, light 50,000 nodes).
-2. New sev 2s to defend with a reader or a repro: the No match chit drawn as a grey checkbox; the
-   sidebar outline's Except flush with the title (reads as applying to the whole rule; rises to 3
-   on a reader who misreads a two-group count); Within hops leaves its center unmarked.
-3. The blank band under the preview (canvas keeps the hidden node table's height) is known and
-   decided cosmetic, but it hits four task halves; keep it at 2 and in line first.
-4. Known and still on the frozen build: picker flips up over the header while typing (decided, not
-   built), picker list cut under "Results", key grows over a node, 50k members under the fog.
-5. One idea, one look, still breaking: Table "on" and Done share lime (compact-mantine, Figma
-   lock); a result count in three spellings at 50,000 ("50,000", "50k").
-6. compact-mantine is Figma-locked: button variants, PageList hover, dark dropdown go to the owner.
-7. Read `decided.md` and the backlog before rating; grep them for each candidate (it took one
-   command and turned five "new" into "known").
-8. A visual finding keeps sev 3 only with a paying reader or a scripted repro.
-9. Tool habits: `--click "role=option:<name>, N values"` when an attribute shares its name with an
-   algorithm; `--click "Edit#1"` for a filter card's Edit when a layer is also open; start the
-   50k session in the background with `REAL_SLOT_WAIT_SECONDS=600`.
-10. Open from tier 3 and 4: focus visibility, `colorWord` hue names, the purple "Layer" token, the
+1. (2026-11-03) Tier 5 round 1 closed with no valid session (start gate never ran), so every
+   visual finding is from walks only: it says what is wrong on screen, not how often it hurts.
+   The studio stopped at its 1-round cap; next tier starts from `round-1/insights.md`.
+2. Of my sev 2s, only "Except out of line with its group's rows" survived, and weakly (audit said 1):
+   x 985 vs 1006 in `engineer/style-1200x900/13.png`. Measure pixel offsets before rating
+   alignment; a few px reads as 1 to skeptics.
+3. "One idea, one look" findings shrink under checks: mixed "37.5k" vs "35,960" in one outline fell
+   to 1 because the short form is decided (`decided.md` 729). Rate the mix within ONE surface,
+   and cite the decided format, or it falls.
+4. A gap in decided rules is not a sev 3: the workspace below 1280 px (preview a 44 px sliver at
+   900 x 700) stayed 2 because `decided.md` settles widths only to 1280 x 800. Propose the width
+   rule for `decided.md` instead of rating it up.
+5. Clear renames a filter card "a selection" (sev 2, confirmed, bar 7): a name change is a visual
+   identity break too; card header, outline and sidebar must agree.
+6. A chosen reference shows only its id ("v02"); `decided.md` 694 wants the matched value.
+7. Word-budget counts from the script include chrome, statistics and user layer names; they confirm
+   nothing alone. Hand-count before calling a screen over 50 words.
+8. Cut columns and cut lists (matches strip "hou", value list cut mid-row) are sev 1 unless the
+   cut hides the only copy of a fact; check scroll-on-hover before rating.
+9. A visual finding keeps sev 3 only with a paying reader or a scripted repro; with no sessions,
+   nothing of mine can reach 3.
+10. Read `decided.md` and the backlog before rating; grep each candidate (it turns "new" into
+    "known" or "decided" in one command).
+11. Known and still open: Table "on" and Done share lime (compact-mantine, Figma lock), blank band
+    under the preview, picker flips over the header, key over a node.
+12. compact-mantine is Figma-locked: button variants, PageList hover, dark dropdown go to the owner.
+13. Tool habits: `--click "role=option:<name>, N values"`; `--click "Edit#1"`; 50k session in the
+    background with `REAL_SLOT_WAIT_SECONDS=600`.
+14. Open from tier 3 and 4: focus visibility, `colorWord` hue names, the purple "Layer" token, the
     link glyph doing two jobs.
 
 ## Priorities and values
@@ -55,6 +64,10 @@ in git history of this file.
 
 ## Decisions (dated, with reasons)
 
+- **2026-11-03 (tier 5 round 1 closed):** After two skeptic checks, 1 of my 8 sev 2s held (Except
+  out of line, weakly); number mix and cut strip fell to 1; nothing visual gates a bar. Reason:
+  decided rules (short counts, widths to 1280) absorb findings I rated without citing them. From
+  now on each rating cites the decided line it breaks, or the gap it proposes to fill.
 - **2026-11-03 (tier 5 round 1 walk):** Rated nothing 3. Rated the No match chit 2, not 1: on a
   filter card it sits one row under the card's real on box with the same shape, and with one group
   nothing else in the outline has a chit (measured: grey 206 vs the canvas's lavender 209/210/232,
@@ -181,6 +194,8 @@ in git history of this file.
 
 ## Tried: worked / did not work
 
+- 2026-11-03: Rating from screenshots without pixel measures or decided-line citations -- did
+  not work; skeptics cut most sev 2s. Measuring offsets (985 vs 1006) -- worked, the one survivor.
 - 2026-11-03 worked: three sessions (light 1440 volunteers, dark 1280 x 800 colleague's river
   project with the node table open, light 50,000 nodes in the background while the first two ran)
   covered every tier 5 screen in about 50 steps.

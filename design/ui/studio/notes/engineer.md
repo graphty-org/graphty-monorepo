@@ -40,6 +40,19 @@ notes-only commit cannot regress a route): `git show a93110cfb5:design/ui/studio
 Trimmed again 2026-11-02 (file at 27 KB): the cancel-new-card focus re-walk and the covered-claim
 fix in full: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) RE-WALK of the empty-history setup start (c8581ff123, tool only; `graphty/dist`
+  bd404856c8 needed no rebuild): holds, no regression. `design/ui/studio/tmp/r1-dry2-recheck-setup-history/`
+  (`walk.sh`, `run.mjs` replays a route then carries on by hand). Every start shows Undo and Redo
+  off; Undo or Ctrl+Z after Cancel changes nothing: T77A touched-1 Staff E4572E 4 of 14 (09.png),
+  touched-3 (06.png), T77B touched-1/2 Oldest 2 of 7, table 7 rows (04.png, 06.png), T71A touched-31
+  PageRank colors (04.png, 05.png), T72B touched-3 Label station (04.png), T79B touched-2 layout
+  kept on 50,000 (04.png). Own steps still undo: T77A success Undo back to the setup's 14 of 24 then
+  "Nothing to undo" (09.png); T77B and T72B success name their own filter; T71B keyboard Tab order
+  unchanged but Undo/Redo announced disabled (focusable, interaction-patterns.md 777), four Ctrl+Z
+  walk back its own filter edits, Label kept (49.png). Seen, not from this change: Redo's tooltip
+  after an Undo names the filter as it is now ("hours 10 or more"), not what Redo brings back. `--prove`:
+  every check passed, with "after a setup start Undo is disabled, with the tooltip Nothing to undo".
+
 - (2026-11-02) A setup start now ends with no undo history (study tool, `real.mjs` opStart:
   `setupHistoryClear` waits up to 30 s for pending work, then calls graphty-element's public
   `session.history.clear()`; history it cannot empty fails the start with SETUP FAILED). Why: every
@@ -52,19 +65,9 @@ fix in full: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
   "after a setup start Undo is disabled, with the tooltip Nothing to undo". Seen: Control+s then
   Save leaves Undo enabled on a project with no history (reopen/04.png), unexplained yet.
 
-- (2026-11-02) RE-CHECK of the record-pages-after-history fix (a93110cfb5) on `graphty/dist`
-  (stamp bd404856c8 plus the uncommitted fix; the bundle's `load` calls `this.bump()`): holds, no
-  regression. Fresh replays of the nine names-only routes
-  (`design/ui/studio/tmp/r1-dry2-recheck-table-after-history/walk.sh`): T77B touched-1/2 table 7
-  rows through Cancel, Ctrl+Z and Ctrl+Shift+Z, All 11 then Shown 7; T76B touched-6 Ctrl+Z "0 of
-  11" and No rows, redo back to 7 and 7 rows; T77B success 9 of 11 in top bar, table and 9 rows;
-  T79A Cancel then Undo/Redo name "changing the layout", no card; T79B Cancel restores Otter Creek
-  1,050; T75A (keys + screen reader) Ctrl+Z speaks "Filter on: 549 of 549 nodes", table 549.
-  Keyboard passes `keys.sh`, `keys2.sh`. Seen, not from this fix, same on the frozen build: the
-  checklist moves a newly ticked value above the ticked one (T79B touched-6 04.png); Tab from a
-  date card's value field leaves the workspace for the status bar's "Local only" (T77B success
-  14.png). Tool fact: `role=button:All` is ambiguous on gauges ("installed" contains "all"); the
-  table's Shown | All need `--click-at`.
+- (2026-11-02) RE-CHECK of the record-pages-after-history fix (a93110cfb5): holds; nine names-only
+  routes in `design/ui/studio/tmp/r1-dry2-recheck-table-after-history/`. Full entry:
+  `git show c8581ff123:design/ui/studio/notes/engineer.md`.
 
 - (2026-11-02) Record pages now follow a history move that changes the filter (a93110cfb5).
   Mechanism: undo, redo, restore and restoreTo load the landing step's kept masks through
@@ -114,14 +117,9 @@ fix in full: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
   frame (StylesApi `kept` agreement per token; `stateRevision`; the box drawn ticked). Full entry:
   `git show ae2a7f5a03:design/ui/studio/notes/engineer.md`.
 
-- (2026-11-02) Tier 5: every style count reads over the graph the filter leaves. graphty-element
-  added `StyleCounts.visible { matched, of }` and legend `scope.visible` (additive; `matched` and
-  `scope.of` unchanged). The app reads them in the tree rows, Everything's "styles all N", the
-  "no condition is left" notice and the key's "N of M" (no key line once a layer holds every node
-  drawn). Re-walked T72A d2, T72B d3, T77A d1, T70A success on a fresh build: 7 / "all 7", 5 / "5 of
-  5", 10 beside "10 of 10", key "4 of 15". Still over the whole graph: the collapsed Which row's
-  `useHead`, MultiRowPanel, LayerValues "on N of M", PropertyRow "on N" -- check them if a reader
-  meets two bases again.
+- (2026-11-02) Tier 5: every style count reads over the graph the filter leaves (`StyleCounts.visible`,
+  legend `scope.visible`); still over the whole graph: the collapsed Which row's `useHead`,
+  MultiRowPanel, LayerValues, PropertyRow. Full entry: `git show c8581ff123:design/ui/studio/notes/engineer.md`.
 
 - (2026-11-02) The false "Covered by <lower layer>" was a reading taken before a branches view's
   end repaint landed; fixed in `StylesApi.ts` (`viewPending`). Full entry with tests and re-walks:

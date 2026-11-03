@@ -168,6 +168,11 @@ export function FiltersSection(): React.JSX.Element {
             return;
         }
         setGoingBack(null);
+        // A control the reader moved to while the workspace was closing keeps focus and its keys.
+        const at = document.activeElement;
+        if (at !== null && at !== document.body && at.isConnected && at.closest(".sel-ws") === null) {
+            return;
+        }
         const { to } = goingBack;
         if (to?.isConnected === true && to.checkVisibility()) {
             to.focus();

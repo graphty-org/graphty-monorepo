@@ -60,14 +60,20 @@ async function openGenerated(): Promise<GraphSession> {
  * @param session - The session.
  * @param name - Its name.
  * @param rule - Its selection.
+ * @param set - What it paints.
  * @returns The layer.
  */
-async function openLayer(session: GraphSession, name: string, rule: UnionLeaf): Promise<Layer> {
+async function openLayer(
+    session: GraphSession,
+    name: string,
+    rule: UnionLeaf,
+    set: Layer["set"] = { "node.color": "#d55e00" },
+): Promise<Layer> {
     const layer = await session.styles.add({
         name,
         target: "node",
         selector: { match: "rule", where: rule },
-        set: { "node.color": "#d55e00" },
+        set,
     });
     const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
@@ -480,6 +486,71 @@ describe("the selection editor on 50,000 nodes", () => {
         );
         assert.isTrue(cancel.paintedAtClose, "Cancel: the result was painted when the workspace closed");
         assert.isFalse(session.styles.showingBranches);
+    });
+
+    it("a control the reader moves to while Done waits for the paint keeps focus and every key typed there", async () => {
+        const session = await openGenerated();
+        await session.layout.set("random");
+        const layer = await openLayer(
+            session,
+            "Moved on",
+            oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
+            { "node.size": 2 },
+        );
+        const row = document.querySelector<HTMLElement>('.sel-rest [data-row="com"] .sel-value');
+        if (row === null) {
+            throw new Error("the step's row is drawn");
+        }
+        await userEvent.click(row);
+        const values = await screen.findByRole("group", { name: "community values" });
+        await userEvent.click(within(values).getAllByRole("checkbox")[0]);
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws-head [data-drawing]"));
+        });
+        // The close waits on graphty-element's paint; it is held until the reader has moved on, so
+        // the move always lands while the workspace still says "Drawing".
+        const element = document.querySelector("graphty-element");
+        if (element === null) {
+            throw new Error("the element is drawn");
+        }
+        let release = (): void => undefined;
+        const held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const painted = element.waitForPainted.bind(element);
+        element.waitForPainted = async () => {
+            await held;
+            return painted();
+        };
+        const ws = document.querySelector<HTMLElement>(".sel-ws");
+        if (ws === null) {
+            throw new Error("the workspace is open");
+        }
+        await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isNotNull(document.querySelector(".sel-ws-head [data-drawing]"));
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Add to node fill" }));
+        const line = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(
+                '[data-testid="style-tab"] .ws-row[data-line="node.color"]',
+            );
+            assert.isNotNull(found);
+            assert.isTrue(found?.contains(document.activeElement), "focus is in the new Color line");
+            return found;
+        });
+        release();
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+        });
+        assert.isTrue(line?.contains(document.activeElement), "the closed workspace left focus in the Color line");
+        await userEvent.keyboard("E4572E{Enter}");
+        await waitFor(() => {
+            const now = session.styles.list().find((one: Layer) => one.id === layer.id);
+            const color = now?.set?.["node.color"];
+            assert.strictEqual(typeof color === "string" ? color.toUpperCase() : color, "#E4572E");
+        });
+        assert.isNull(document.querySelector(".sel-ws"), "no key reopened the workspace");
     });
 
     it("opening Which nodes right after adding a layer walks no style agreement before its first frame", async () => {

@@ -10,17 +10,17 @@ main checkout's `tmp/design-studio/tier5/materials/p1` to `p9`); a path marked "
 walked there end to end, the others follow the same controls and the dry run walks them. The round 1
 pilots re-read every task but T72 A and T76 on the frozen build baac78342b (walks under the main
 checkout's `tmp/design-studio/tier5/r1/pilot/<task>/`); where that build draws something else, the
-task says so, and "Build notes (baac78342b)" lists what can spoil a grade. The dry run's targeted
+task says so. The dry run's targeted
 re-pilots re-read T70 B, T72 B, T73, T74, T75 A and T77 B on build 797a4f6b47 (walks under the main
 checkout's `tmp/design-studio/tier5/r1d1/pilot/<task>/`); where that build differs, the task says
-so, and "Build notes (797a4f6b47)" lists what can still spoil a grade. Later dry-run builds were
+so. Later dry-run builds were
 re-read the same way: 47c95a09fc (T72 B, T75 A; `r1d2`) and c3100058ab (T72 B, T75 A, T77 B, T79 A
 and B; `r1d3`), and d3fda9f2b6 (T72 B; `r1d2`, where the older build's walks of the same names
-moved to `_47c95a09fc/`), each with its own build notes. The round 1 pilots then re-read T70 A
+moved to `_47c95a09fc/`). The round 1 pilots then re-read T70 A
 and B, T71 A and B, T72 B, T73 A and B, T74 B, T75 A, T76 A, T77 B, T78 A and B and T79 A on the
 round's frozen build 0c163f54bf (walks under the main checkout's
-`tmp/design-studio/tier5/r1/pilot/<task>/`; the older builds' walks of the same names were moved aside there); "Build notes
-(0c163f54bf)" lists what can spoil a grade on it. Each core
+`tmp/design-studio/tier5/r1/pilot/<task>/`; the older builds' walks of the same names were moved aside there). "Build notes
+(1e123d7d33)" lists what can spoil a grade on the frozen build the round runs on. Each core
 task's path step count is written as "Path steps: N" (bar 8) in `tool/steps.mjs`'s units: every
 click, key, typed text and file chosen counts, looking does not.
 
@@ -475,7 +475,7 @@ outline that differs from this key.
   named "Node color, not set", and no node changes until a color is committed (T70, T72 B, T73 A,
   T79 B); Enter or Tab with nothing typed writes nothing and leaves the line waiting (Tab moves
   focus on to "Node color by attribute"); the swatch's picker opens at 6366F1 when the colors
-  beneath vary, and writes nothing until a color is picked (T70 A). The notes below about a new
+  beneath vary, and writes nothing until a color is picked (T70 A). An earlier note about a new
   Fill showing 6366F1, or Enter committing it, describe older builds.
 - **Escape in a color box**: in a just-added line, Escape takes the line back, typed text and all
   ("Node color not added"; focus on Fill "+", one more "+" brings it back) (T70 A, T73 A); in a
@@ -491,188 +491,23 @@ outline that differs from this key.
 - **Keyboard** (T71 A): after Or..., typing "ho", Tab, Escape, Escape and Control+Z, the card
   still shows an empty third group "or C 0" while the toast names the undone edit with its "hours
   any value" group; the count stays 10 of 24.
-
-## Build notes (0c163f54bf)
-
-Seen in the round 1 pilots on the frozen build (walks under the main checkout's
-`tmp/design-studio/tier5/r1/pilot/<task>/`); each is a candidate, not a confirmed finding. No
-pilot found a value, a step count or a final outline that differs from this key, apart from T74's
-count (13, an addition slip) and T76's by-hand route (P on this build).
-
-- **Fixed since baac78342b**: every setup start has Undo and Redo off; one Escape from a
-  properties column reaches the outline (T71 A); the date mode keeps Before, After and Between; no
-  table drawn under the preview; a layer row under a filter shows its inspector's count (T72 B).
-- **Can spoil a count read off the screen**: with the node table open, one node sits under the
-  canvas toolbar (T70 B, T71 B, T72 B, T74 B, T77 B, T78 B): count from the top bar, the inspector
-  or the key. Right after Done, the Which nodes row or the card shows Edit in place of its count.
-  The start's PageRank colors run orange to brown (T73 A): a count of orange by eye is unreliable.
-  A style layer with Visibility hidden keys "Show: Layer 1, N of M nodes" for the hidden ones and
-  leaves their edges drawn, and no screen counts the ones left (T70, T71 A, T71 B, T75 A).
-  "With issues" counts every gauge row (11). A screen reader speaks each count twice, the second
-  sometimes another host's or over the full graph ("15 of 24", then "4 of 24" for a layer reading
-  4 of 15).
-- **Can spoil the fill**: typing at once after a busy Done on 50,000 nodes can send keys to page
-  shortcuts (T79 A). A new Fill shows 6366F1 before its color is committed. Escape in a color box
-  discarded a typed new color in T70 A and T73 A and did nothing in T70 B and T73 B; Enter and Tab
-  commit it: grade the fill the layer ends with.
-- **Can mislead a route**: a filter card has no remove control and no right-click menu; only Edit
-    > "..." > Delete removes it (T71 A, T71 B, T77 B). A click on a collapsed card's row shows Edit
-    > and opens nothing (T71 A, T75 A, T77 B); by keyboard Enter twice. Cancel on a new or reopened
-    > workspace drops the edits with no word on screen (decided); Control+Z restores them.
-    > Shortest path's "On the route" gives a plausible wrong 3 (T74 B). A plain click, a right-click
-    > or a find result moves the camera, and no node names itself on hover.
-- **Keyboard**: Tab from a workspace's last field leaves it for the status bar's "Local only"
-  (the page scrolls up 1 px and stays), and Escape there does nothing; the workspace header comes
-  after the preview and the inspector in Tab order (about 25 Tabs to Done, or Escape twice from
-  the outline); Tab in a picker's search goes to Main menu (T73, T77 B); one range takes three
-  slider Tab stops; ArrowDown does nothing in a value checklist; the reference search announces no
-  highlighted option (T73).
-
-## Build notes (c3100058ab)
-
-Seen in the dry run's third targeted re-pilots of 2026-11-02 (T72 B, T75 A, T77 B, T79 A and B;
-walks under the main checkout's `tmp/design-studio/tier5/r1d3/pilot/<task>/`); each is a
-candidate, not a confirmed finding.
-
-- **Fixed since 47c95a09fc**: Control+Z or Undo right after Cancel on a new filter card no longer
-  brings the card back, and Redo does not either (every opener tried); Cancel and Escape on the
-  empty picker announce only "Filter not added", with focus on Add filter. T79's waits show
-  "Drawing" throughout (see T79's timing).
-- **Can spoil a grade**: after Cancel on a new filter card that had a result, the node table keeps
-  that card's rows (T77 B: "Shown 1 of 11 nodes", one row G09, while the top bar and the canvas
-  show 7 of 11; "0 of 11, No rows" after a card with no match). Switching Shown to All and back
-  does not refresh it; the next Done on a card does. A participant who counts from the table after
-  that wrong turn reads 1 or 0 instead of 7.
-- **What Undo takes after that Cancel** (decided behavior, `decided.md`): the step before the card,
-  often one the setup made and the participant never saw: the label role on `station` (T72 B, toast
-  "Undid changing a column's role."), the colleague's orange on Oldest (T77 B, the fill goes to
-  6366F1 and the key disappears), the setup's layout (T79, the camera is left close up on a few
-  large nodes; Undo is named "Undo changing the layout"). No count changes; Redo restores it. A
-  participant who loses the colleague's orange this way and does not redo it has changed the
-  layer (T77 B's grade reads the layer as it ends). **No longer reachable** (study tool,
-  2026-11-02, any build): a setup start now ends with an empty undo history, as a reopened saved
-  project does, so every task starts with Undo off ("Nothing to undo"); Undo or Control+Z after
-  that Cancel changes nothing, and the setup's PageRank colors, orange layers, label role and
-  layout stay. Undo still takes back the participant's own steps. Read on d3fda9f2b6 (T72 B):
-  at the start Undo and Redo are off ("Nothing to undo", "Nothing to redo"); after Cancel on a new
-  card, Control+Z changes nothing, no card returns and `station` keeps its label role.
-- **Keyboard**: Enter on Largest component in a new card sends focus to Add filter with the
-  workspace still open (T75 B's first step); one number box is named "Piece size from" before So
-  far and "Connected components from" after it (T75 A); Control+Z with nothing to undo says
-  nothing, and the announcement after an undo can name the count before it ("Filter on: 549 of
-  549 nodes" after the condition went, T75 A); spoken counts drop the thousands separators the
-  screen shows ("1050 of 50000 nodes"), and the Which nodes row is named "basin Otter Creek, 1,050
-  of 50,000 nodes so far" for a single step (T79 B); Shift+Tab out of a new card's empty picker
-  keeps the card as "New filter / All nodes" until Cancel (T79 A).
-- **Unchanged**: one orange node half under the canvas toolbar with the node table open (T72 B, T77
-  B; still on d3fda9f2b6, T72 B: count from the inspector or the key); Edit in place of the count on a focused card or Which
-  nodes row after Done (T75 A, T79); the key's "Draw order: graphty.style.json.node.el.drawOrder"
-  (T75 A); "Node color, not set, drawn #6366F1 indigo" before a color is committed (T79 B); a new
-  card's preview is not framed after the find box moved the camera (T79 A); a click on Condition...
-  right after a tick can miss once while the pane redraws (T79 A).
-
-## Build notes (47c95a09fc)
-
-Seen in the dry run's second targeted re-pilots of 2026-11-02 (walks under the main checkout's
-`tmp/design-studio/tier5/r1d2/pilot/<task>/`); each is a candidate, not a confirmed finding.
-
-- **Fixed since 797a4f6b47**: Cancel or Escape on a new filter card removes the card and clears
-  the top bar's filter mark, from Data > Add filter, the canvas toolbar's Filters and Quick actions
-  (T72 B, T75 A); Escape on the empty picker sends focus to Add filter. Cancel on an existing card
-  keeps it and restores it as it was.
-- **Can spoil a grade**: Control+Z right after Cancel on a new filter card brings the cancelled
-  card back, switched on (T72 B: "telemetry yes 7 of 11", top bar "7 of 11 nodes"), with the toast
-  "Undid deleting a filter condition." A card brought back this way counts as a card where the
-  number of filter cards is graded (T71, T77, T79).
-- **Keyboard**: Cancel on a new card announces "Filter not added" and then "Filter off" (T72 B).
-- **Unchanged from 797a4f6b47**: with the node table open, one orange node sits half under the
-  canvas toolbar (T72 B 4 of 5 in the picture); "With issues" counts every row (11); a filter card
-  is named by its first step only; the value picker flips up over Done once a search narrows it
-  (T75 A); a Piece size card shows Edit in place of its count after Done (T75 A); the canvas key
-  reads "Draw order: graphty.style.json.node.el.drawOrder" from the start (T75 A).
-
-## Build notes (797a4f6b47)
-
-Seen in the dry run's targeted re-pilots of 2026-11-02 (walks under the main checkout's
-`tmp/design-studio/tier5/r1d1/pilot/<task>/`); each is a candidate, not a confirmed finding.
-
-- **Fixed since baac78342b**: By position on a Results step (T74 unblocked, both halves); the date
-  step keeps After and Between (T72 B's equal routes); the reference search finds a node by name
-  (T73 A); the node table no longer switches to "Matches only"; the matches strip is not clipped;
-  no false "Covered by" warning was seen in T73 A or B.
-- **Can spoil a grade**: Cancel on a new filter card still leaves an empty card "a selection, All
-  nodes" switched on (top bar "11 of 11 nodes"), and it stays in the project beside the real card
-  (T70 B touched-35); T71, T77 and T79 grade the number of filter cards. Escape on a new card
-  opened from the canvas toolbar's Filters removes it (T77 B touched-34).
-- **Can mislead a count read off the canvas**: with the node table open, one orange node sits half
-  under the canvas toolbar, so a count of the picture finds one fewer (T72 B 4 of 5, T74 B Fox
-  Creek); the matches strip and the inspector hold the right count.
-- **Colors that are not drawn**: a new Fill shows 6366F1 and a blue chip before its color is
-  committed, and the canvas changes only on Enter (T72 B); on a node already painted by another
-  layer, the new color box is named "Node color, not set, drawn #6366F1 indigo" while the canvas
-  draws the other layer's color (T74 A keyboard).
-- **A Between step with only its from box typed** (1990) reads "installed after 1989" in the
-  outline, one year early (T72 B).
-- **Keyboard**: Tab from a date box or the workspace's last field leaves the workspace for the
-  status bar's "Local only" (the page scrolls up 1 px), and Escape there does nothing (T70 B,
-  T77 B, T74 A); Tab in the reference picker's search goes to the app's Main menu with the picker
-  left open (T73 A, T73 B); after Escape on a toolbar-opened card, focus lands on the sidebar's
-  Filters "+" (T77 B); Enter on an algorithm's "how many" box announces the count twice (T74).
-- **Accessibility**: nine buttons and twelve rows with no accessible name are present whenever a
-  workspace is open: the main table drawn under the preview (T72 B, T73 A).
-- **Looks only**: a blank band of about 200 px between the preview and the matches strip; the
-  value picker flips up over Done once a search narrows it; Largest component's card shows Edit
-  in place of its count after Done; the open card repeats its name as its first step; a filter
-  card is named by its first step only ("telemetry yes" while it also holds an Except step);
-  "With issues" counts every row (11) on the gauges; Cancel on a new layer turns "Node and edge
-  layer" into "Node layer" (nothing painted).
-
-## Build notes (baac78342b)
-
-Seen in the round 1 pilots of 2026-11-02 (walks under the main checkout's
-`tmp/design-studio/tier5/r1/pilot/<task>/`); each is a candidate, not a confirmed finding. Those
-that can spoil a grade:
-
-- **Blocked**: T74, both halves (By position on a Results step started in the editor); T72 B's
-  After route (the date mode select stays on Before). **Unblocked**: T75 A (Piece size on So far).
-- **The reference search ignores names** (T73 A): the participant must find `v02`.
-- **A false "covered" warning** on more hosts: "Covered by PageRank on 5 of 5" (T70 A, a fill added
-  while the layer matched every node; T73 A after Hops edits) and "Covered by Everything" (T73 B,
-  T74 A and B, T77 A and B), while the canvas draws the layer's color. Still a severity 3 candidate.
-- **The data table and the matches strip both draw** inside the workspace on every start that
-  leaves the table open (all tasks), and after Done the table keeps the editor's Group column and
-  "Matches only".
-- **Pickers flip up over the workspace header** once a search narrows them, covering Done (T73,
-  T74, T75 B, T78 A, T79 B).
-- **Cancel on a new filter card** leaves an empty card named "a selection" switched on, and the top
-  bar keeps a filter mark ("11 of 11 nodes": T70 B, T79 A).
-- **A plain click on a node moves the camera** (T70, T73, T79); no node shows its name on hover.
-- **Keyboard**: Tab from the workspace's last field leaves it for the status bar's "Local only"
-  (and the page scrolls up 1 px); each count is announced twice, the second sometimes the other
-  host's ("15 of 24" then "4 of 24"); Enter on a single-step filter card must be pressed twice.
-
-## Build notes (fc1d7ee4f6)
-
-Seen in the walks of 2026-11-02; each is a candidate for the dry run, not a confirmed finding.
-
-- **The data table and the matches strip both draw** when the data table was open before the
-  workspace opened (every gauges start leaves it open): the strip's header is cut and the table
-  shows under it (p1 `04.png`, `11.png`; p4 `08.png`). Fails the calm-first check.
-- **A false "covered" warning after an edit**: the Fill row reads "Covered by Everything on 6 of 6"
-  and the key "6 nodes covered by Everything" while the canvas draws the six orange (T77 A after
-  the Or group, p2 `12.png`; T77 B after the date change, "5 of 5", p4 `20.png`). Two halves: a
-  severity 3 candidate (still present from 7ca4cae647).
-- **The camera after a setup**: on `volunteers-thanks.txt` the canvas is zoomed in on a corner
-  after the setup's last Done, and opening the workspace does not frame it (p2 `01.png` to
-  `09.png`); spec 3.0 frames once when more than a quarter of the nodes fall outside the cell.
-- **A collapsed card named by its first step only**: "trained Yes" never says hours until opened
-  (T77 A). A flag step with no value names its card "trained pick yes or no" while the picker is
-  shut (setup walk).
-- **A click on a single-step card's row** ("telemetry yes") showed Edit but did not open the
-  workspace; Enter on the row did (p4 `03.png` to `08.png`, once).
-- **T79**: the staff file's `name` ("Person 00017") is offered as a time on the Values tab ("Time:
-  name, Set in Data"), graphty-element's sniffing (p5 `01.png`).
-- **T75 A**: no So far on Largest component (above).
-- Fixed since 7ca4cae647: the reference row names the node ("Within 2 hops of Cedar Bend"); no
-  preview key over the canvas; no effect word on a filter card. Not re-read: the date test's mode
-  select (Before, After, Between); every tier 5 date prompt needs only Before.
+- **Read again on this build from the earlier builds' notes.** Replays on 1e123d7d33 of the
+  earlier pilots' walks that matched them step for step (each step printed the same lines and ended
+  on the same controls), under the main checkout's `tmp/design-studio/tier5/r1/pilot/<task>/` (the
+  walks named `-1e123d7d33`), `tmp/design-studio/tier5/recheck-1e123d7d33/pilot/<task>/` and
+  `tmp/design-studio/tier5/r1/tool-check-2/2026-11-03/detours/<task>/`:
+    - A filter card has no remove control and no right-click menu (a right-click on it opens
+      nothing); only Edit, then "More for <card>", then Delete removes it (T71 A, T77 B).
+    - A screen reader hears a count twice, the second over another base: ticking Yes on `trained`
+      in a new filter card says "15 of 24 nodes", then "4 of 24 nodes" (T70 A keyboard). This build
+      does not carry the fix (`decided.md`, "After round 1 (void)").
+    - Tab from the workspace's last field leaves it for the status bar's "Local only", and Escape
+      there does nothing; Shift+Tab goes back into the workspace (T70 A and T70 B keyboard).
+    - "With issues" counts every gauge row (11) (T70 B keyboard).
+    - **Changed from earlier builds**: Escape with focus on a workspace header button (Clear)
+      finishes the edit as Done ("Done, 3 of 11", focus on "Edit Which nodes"), where earlier
+      builds left focus on Clear (T70 B keyboard).
+- **Earlier builds' notes removed.** The notes read on 0c163f54bf, c3100058ab, 47c95a09fc,
+  797a4f6b47, baac78342b and fc1d7ee4f6 are no longer in this key: an item not listed above was not
+  read again on this build and is not known to hold on it. They are in this file's history before
+  this change.

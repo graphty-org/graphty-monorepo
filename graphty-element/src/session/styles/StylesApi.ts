@@ -5659,8 +5659,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
 
             // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
+            // Kept while nothing it reads moves: a style tree reads every layer's counts when it
+            // draws, about 22 ms a layer on 50,000 nodes, and it draws again on any edit around it
+            // (nine layers took 200 ms of the task after a selection workspace's Done; tier 5's
+            // fix pass).
             const counts = {
-                ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision),
+                ...kept(JSON.stringify(["counts", id]), () =>
+                    styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision),
+                ),
                 visible: amongDrawn(id),
             };
             // Groups past the outline cap draw nothing; said here, never dropped silently.

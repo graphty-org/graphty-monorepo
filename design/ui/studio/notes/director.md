@@ -5,37 +5,22 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-02 (tier 5 dry run pass 5 triaged on f0a9a014cb: 44 defects, 2 carried fix units).
+Last updated: 2026-11-02 (tier 5 dry run pass 6 triaged on d3fda9f2b6: 8 product defects, 0 fix now; SESSION-READY).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
 2026-10-30 (five times) and 2026-11-02 (twice); the full earlier text is in this file's git history.
 
 ## Top of mind
 
-- (2026-11-02) DRY RUN PASS 5 TRIAGED (`tier5/dry-run-r1-5.md`; `dry-run-r1-2.md` already held pass 2,
-  so pass 5 took the next free name): 44 product defects on f0a9a014cb, none fix now by itself; 5
-  decided, 1 design question (T78 B's Which edges vs Degree), 38 backlog. But f0a9a014cb's code IS
-  c3100058ab's (only `design/` changed): pass 4's two units were never built (the workflow restarted
-  and re-walked pass 1's units instead). Carried them as fix now, repeat: setup-history (study tool,
-  `session.history.clear()` at a setup's end; T71 A/B still start with Undo on) and
-  table-after-history (graphty-element record pages after a history move). New rule in `decided.md`
-  pass 5: a unit stays open until a build carries it.
-- (2026-11-02) DRY RUN PASS 4 TRIAGED (`tier5/dry-run-r1-4.md`): 37 product defects on c3100058ab; 3
-  fix now (all spoils) in 2 units: table-after-history (a regression of pass 3's take-back: after a
-  history move the node table keeps the old filter's rows, T77 B reads 1 of 11 for 7; graphty-element's
-  record pages, keyed on the input tick) and setup-history (the study tool leaves a setup's steps as
-  undo history, so Undo after a cancelled card took the colleague's orange off, T77 A and B; the tool
-  empties history at the setup's end). 7 decided, 0 design questions, 27 backlog. Both pass 3 units
-  held. Next pass re-walks T77 A/B, T76 B touched-6 and the Undo routes of T72 B and T79.
-- (2026-11-02) DRY RUN PASS 3 TRIAGED (`tier5/dry-run-r1-3.md`): 34 product defects on 47c95a09fc; 2 fix
-  now in 2 units: cancel-no-undo (a regression of pass 2's Cancel fix: Cancel writes the card's removal
-  as an undo step, so Undo reads "deleting a filter condition" and brings the cancelled card back on;
-  spoils T79) and done-busy-sign (a repeat: Done on 50,000 nodes closes at once and the canvas keeps the
-  preview look 13-15 s with no "Drawing"). 5 decided, 0 design questions, 27 backlog. Next pass re-walks
-  those units' routes only; nothing else on a session task crashes, blocks or spoils.
-- (2026-11-02) DRY RUN PASS 2 TRIAGED (`tier5/dry-run-r1-2.md`): 93 defects on 797a4f6b47; 3 fix now
-  in 2 units (cancel-new-card refix, open-busy-sign), all repeats; 81 backlog.
-- (2026-11-02) DRY RUN PASS 1 TRIAGED (`tier5/dry-run-r1-1.md`): 319 defects on baac78342b; 33 fix now
-  in 7 units; 275 backlog (50 "decided, not built", which the decide-and-fix loop takes first).
+- (2026-11-02) DRY RUN PASS 6 TRIAGED (`tier5/dry-run-r1-6.md`; `dry-run-r1-3.md` holds pass 3, so
+  pass 6 took the next free name): 8 product defects on d3fda9f2b6, 0 fix now, 1 decided (nodes under
+  the toolbar), 7 backlog (5 keyboard/screen-reader, 1 friction, 1 cosmetic), all but three repeats.
+  Both pass 4 units are in the build and held on their acceptance routes (T77 A/B touched-1/2, T71 A
+  touched-8). The build is SESSION-READY by the dry run's rule: the r1 sessions can start on it.
+- (2026-11-02) Dry run passes 1-5 (`tier5/dry-run-r1-{1..5}.md`): 319, 93, 34, 37, 44 defects; fix
+  units in order: covered-claim, main-table, test mode, reference names, count base, busy sign (pass
+  1); Cancel on a new card refix, open busy sign (2); cancel-no-undo, done-busy-sign (3);
+  table-after-history, setup-history (4, carried unbuilt through 5, built in d3fda9f2b6). Rule from
+  pass 5: a fix-now unit stays open until a build carries it.
 - (2026-11-02) Criteria item 8 makes every named severity 3 candidate a round blocker, so the dry run
   fixes them even where no single step is blocked (rule in `tier5/decided.md`, "Dry run pass 1").
   T75 A is no longer blocked: the Piece size So far route reaches 105.
@@ -105,6 +90,15 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Decisions and reasons
 
+- **2026-11-02, dry run pass 6 triage** (`tier5/dry-run-r1-6.md`, entries in `tier5/decided.md` "Dry
+  run pass 6"). Fix now: none. Settled for the backlog: when Undo or Redo takes away the focused
+  control, focus goes to its section (Add filter for a filter card), never the status bar; Ctrl+Z /
+  Ctrl+Shift+Z with nothing to undo or redo speak what the disabled button speaks; the status after
+  Undo and Redo uses one wording with each count's "of N". Not taken: those three (keyboard or screen
+  reader only, no such round session), nodes under the toolbar (decided), the 'PageRank test' select
+  name and the key card's gradient (graded values right), Edit for a focused count (friction). Not a
+  product defect: two `--prove` self-tests collide because `real.mjs` line 3145 names the round folder
+  from `basename(REAL_PROVE_DIR)` (both "prove"); the engineer's, sessions never meet it.
 - **2026-11-02, dry run pass 5 triage** (`tier5/dry-run-r1-5.md`, entries in `tier5/decided.md` "Dry
   run pass 5"). Fix now: only pass 4's two units, carried because f0a9a014cb does not carry them
   (`git diff --stat c3100058ab f0a9a014cb` is design files only, so pass 4's walks stand). Settled: a
@@ -166,6 +160,11 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (dry run pass 6) -- Worked: `git merge-base --is-ancestor` on each unit's fix commit
+  before reading the defects (both in d3fda9f2b6), then the re-pilot reports of the units' own
+  acceptance routes (T77 A/B, T71 A) to confirm they held, so a quiet defect list was real evidence
+  this time; reading the self-test source line behind the tool row to name its mechanism instead of
+  calling it a collision. Did not work: nothing new.
 - 2026-11-02 (dry run pass 5) -- Worked: `git diff --stat <previous build> <frozen build>` first,
   as the 2026-10-30 note says; it showed at once that no code had changed, so the pilots' "unchanged"
   rows were not new evidence and pass 4's units were simply unbuilt. Checking the engineer's commits
@@ -214,6 +213,11 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Thinking
 
+- **2026-11-02, dry run pass 6:** the dry run converged once every unit's acceptance walked one step
+  past its action and the triage checked the build carried each unit. What is left is all one family:
+  what a keyboard or screen-reader user meets around Undo and Redo (focus, silence, wording). No round
+  session exercises it, so the accessibility walk, not the sessions, will tell whether it matters;
+  take it first in the decide-and-fix loop because three passes in a row have found a new instance.
 - **2026-11-02, dry run pass 5:** a re-pilot only sees the routes it is told to walk. When a
   workflow restarts, its "touched routes" list comes from the units it re-ran, not from the last
   triage, so an unbuilt unit goes silent instead of failing. Before trusting "nothing spoils", check
@@ -257,7 +261,8 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 ## Sources
 
 - Tier 5: `tier5/{criteria,tasks,answers,roster,decided,owner-feedback-2026-11-01,placement-study}.md`;
-  dry run triages `tier5/dry-run-r1-{1,2,3,4,5}.md` (pass 4 pilots: main checkout
+  dry run triages `tier5/dry-run-r1-{1,2,3,4,5,6}.md` (pass 6 pilots: main checkout
+  `tmp/design-studio/tier5/r1d2/pilot/`; pass 4 pilots: main checkout
   `tmp/design-studio/tier5/r1d3/pilot/`; pass 5 pilots: `r1d1/pilot/`), `tier5/backlog.md`, `tier5/rejected-fixes.md`; pass 2
   pilots under the main checkout's `tmp/design-studio/tier5/r1d1/pilot/`; pilots under the main checkout's
   `tmp/design-studio/tier5/r1/pilot/<task>/`;

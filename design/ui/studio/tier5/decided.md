@@ -958,3 +958,26 @@ none reverses one.
   the screen read 7 of 7 and 2 of 7 while the status spoke "7 of 11 nodes" and "2 of 11 nodes"
   (T70 B keyboard, `r1d1/pilot/T70B/keyboard 65.png`, `66.png`). Backlog, first for the accessibility
   walk: no round session runs with a screen reader.
+
+## Dry run pass 6, 2026-11-02 (Design Director)
+
+From the triage of the re-walks on d3fda9f2b6 (`dry-run-r1-6.md`). Each entry settles what the entries
+above leave open; none reverses one. All three are keyboard or screen-reader behaviors, so they go to
+the backlog and the decide-and-fix loop builds them; none blocks a session.
+
+- **When Undo or Redo takes away the control that held focus, focus goes to that control's section.**
+  A filter card that goes sends focus to Filters' Add filter; a layer row that goes, to the Style
+  section's add control; never to the status bar, the page body or the first Tab stop. A control that
+  survives the history move keeps focus. Why: Ctrl+Z on the adding of a filter card left focus on the
+  status bar's "Local only", far from Filters (T71 B touched-5 21.png); pass 2's rule for a new card's
+  Cancel already sends focus to Add filter, and a history move is the same disappearance.
+- **Ctrl+Z and Ctrl+Shift+Z with nothing to undo or redo say what the disabled button says**
+  ("Nothing to undo", "Nothing to redo") in the live status, and change nothing. Why: the chord was
+  silent while Enter on the disabled Undo button spoke "Nothing to undo" (T71 B touched-5 05.png
+  against 22.png to 24.png; T75 A touched-14 61.png, 64.png); one command, one answer, whichever way
+  it is reached.
+- **The status spoken after Undo and after Redo uses one wording**, the one a command's own change
+  speaks, with each count's "of N" as the screen shows it ("112 of 549 nodes, 896 of 2,084 edges").
+  Extends pass 5's "A spoken count reads over the same base as the count on screen". Why: after
+  Ctrl+Z the status spoke "Filter on: 549 of 549 nodes, 2,084 edges", after Ctrl+Shift+Z "112 of 549
+  nodes, 896 edges", while the screen read "896 of 2,084 edges" (T75 A touched-14 59.png, 60.png).

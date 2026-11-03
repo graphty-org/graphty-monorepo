@@ -598,3 +598,33 @@ re-checks every accessibility row. Screenshots are under the main checkout's
 | T79B.p5.2 | The tick is announced twice in two formats ('1050 of 50000 nodes', then '1,050 of 50,000 nodes')                                                                     | pilot/T79B/ keyboard 30.png                  | accessibility | screen reader only; pass 3 T79B.p3.4                                                                                                                                                                                                             |
 | T79B.p5.3 | Before a color is committed the new color box is named 'Node color, not set, drawn #6366F1 indigo'                                                                   | pilot/T79B/ keyboard 40.png                  | accessibility | screen reader only; pass 4 T79B.p4.6                                                                                                                                                                                                             |
 | T79B.p5.4 | The Which nodes tree row is named 'Which nodes, 50000 of 50000 nodes', without the separators the screen shows                                                       | pilot/T79B/ keyboard 22.png                  | accessibility | screen reader only; pass 4 T79B.p4.5                                                                                                                                                                                                             |
+
+## From the dry run, pass 6 (2026-11-02, build d3fda9f2b6)
+
+7 rows. Screenshots are under the main checkout's `tmp/design-studio/tier5/r1d2/` (`pilot/<task>/<route> NN.png`); row names are `dry-run-r1-6.md`'s. "Decided, not built" rows go first.
+
+### Decided, not built (0)
+
+### Friction (1)
+
+| Row       | Defect                                                                                            | Route and screenshots                     | Kind     | Note                                                    |
+| --------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------- | -------- | ------------------------------------------------------- |
+| T79B.p6.1 | After Done the focused Which nodes title row shows 'Edit' in place of its count until focus moves | pilot/T79B/ success 09.png against 12.png | friction | the count comes back when focus moves; pass 5 T79B.p5.5 |
+
+### Wording (0)
+
+### Cosmetic (1)
+
+| Row       | Defect                                                                                                 | Route and screenshots      | Kind     | Note                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------------ | -------------------------- | -------- | --------------------------------------------------------------------- |
+| T74A.p6.2 | The key card titled 'Color: Layer 1' also shows PageRank's gradient instead of only the layer's orange | pilot/T74A/ success 14.png | cosmetic | two entries drawn as one card; the counts are right; pass 5 T74A.p5.2 |
+
+### Accessibility (5)
+
+| Row       | Defect                                                                                                                                                                                      | Route and screenshots                   | Kind          | Note                                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ------------- | ------------------------------------------------------------------------------------- |
+| T71B.p6.1 | When Ctrl+Z undoes the adding of a filter card and the card goes, focus lands on the status bar's 'Local only', far from Filters                                                            | pilot/T71B/ touched-5 21.png            | accessibility | keyboard only; decided.md pass 6 (focus goes to the section, here Add filter)         |
+| T71B.p6.2 | Ctrl+Z with nothing left to undo says nothing, while Enter on the disabled Undo button speaks 'Nothing to undo'                                                                             | pilot/T71B/ touched-5 05.png; 22-24.png | accessibility | screen reader only; decided.md pass 6; pass 4 T75A.p4.4                               |
+| T74A.p6.1 | The mode select is named 'PageRank test', not by the 'By value' it shows, so a click on the words misses                                                                                    | pilot/T74A/ success 06.png              | accessibility | the box itself takes the click; pass 5 T74A.p5.1                                      |
+| T75A.p6.1 | The spoken count is worded two ways: after Ctrl+Z 'Filter on: 549 of 549 nodes, 2,084 edges'; after Ctrl+Shift+Z '112 of 549 nodes, 896 edges', while the screen shows '896 of 2,084 edges' | pilot/T75A/ touched-14 59.png, 60.png   | accessibility | screen reader only; numbers right; decided.md pass 6 (one wording, the screen's "of") |
+| T75A.p6.2 | Ctrl+Z or Ctrl+Shift+Z with nothing left to undo or redo is silent                                                                                                                          | pilot/T75A/ touched-14 61.png, 64.png   | accessibility | same as T71B.p6.2; decided.md pass 6                                                  |

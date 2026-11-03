@@ -7,34 +7,32 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-0. (2026-11-03, tier 5 round 1 closed at its 1-round cap, no valid session) Every session was void
-   (start gate never ran), so only expert walks speak. Bar 4 fails on one severity 3: speech from
-   a panel the reader cannot see. Next round: gate before launch; fix the leak check first.
-1. (2026-11-03) One surface speaks. While a workspace covers the inspector, the covered row still
-   announces its count and overwrites the visible one in the shared status region. Structural rule:
-   only the surface on screen owns announcements (the selection editor already goes quiet).
-2. (2026-11-03) One picker, not two. The reference picker is a second build (own search, own
-   grouping, broken Tab and Escape). Confirms the tier 5 panel call: one shared searchable picker
-   for every "choose a thing" step; differing data paths never justify a differing control.
-3. (2026-11-03) Names must survive edits and choices: Clear renamed a card "a selection" (decided:
-   Clear keeps the name); a chosen reference shows only its id (decided: show the matched value).
-4. (2026-11-03) Decided rules collide: "Escape on a new card's picker takes the card back" plus
-   "a cleared rule opens on its picker" loses steps against "Clear has an undo" and "Escape never
-   discards work". Needs a precedence entry in decided.md, not a local patch.
-5. (2026-11-03) The workspace has no layout below 1280 px (preview a 44 px sliver at 900 x 700);
-   decided.md stops at 1280 x 800. A width rule belongs in decided.md.
-6. (2026-11-03) One number format per surface (short "37.5k of 50k" next to "35,960" in one outline).
-7. (2026-10-31, tier 5 panel) Group selection editor: one editor and one field picker for Which
-   nodes / Which edges and Filters; a filter card is the header around a selection; count chip is
-   the door to the table; runs stay outside the cards; "Hovered", not "Focus". `tier5/panel/ia.md`.
-8. (2026-10-30) Decide before the act: a choice whose effect is already applied is a hidden door.
-9. (2026-10-30) One fact, one drawing: every place showing a fact reads the same element fact.
-10. (2026-10-30) A door must land on the control the reader came for (table header for column work).
-11. (2026-10-21) Graph inspector points to the layer list for appearance (a door, not a home). Open.
-12. Study lessons: the scripted word count includes chrome and user names -- confirm by hand; check
-    the screenshot over the tool's text; a void round measures nothing about people.
-13. Standing rules: one home per capability; "+" only adds; unset is the minus; two row kinds;
-    check proposals at their edges and on the round trip.
+0. (2026-11-03, tier 5 round 1 closed at its cap after 30 valid sessions) Bars 1, 3, 4, 8, 9 fail.
+   Severity 3: speech from a covered panel, and a results-derived filter step bound to another run.
+1. (2026-11-03) One surface speaks: only the surface on screen writes to the status region (the
+   covered inspector row announced "4 of 24" over the workspace's "15 of 24"). Fixed after freeze.
+2. (2026-11-03) A run's scope is a fact, not a label. Two runs (visible, whole graph) named alike
+   let a picker entry describe one and bind the other. graphty-element supplies scope; the app names it.
+3. (2026-11-03) Connectives must be words: "Condition..." and "Or..." never say and / or else; three
+   sessions resolved it only by watching the count. A new Or group must open at a neutral state.
+4. (2026-11-03) A control's labels must carry direction and unit (By position: top or bottom,
+   number or percent); an error must never claim a default the screen does not apply.
+5. (2026-11-03) Empty value boxes need a cue: the empty Fill color box was the least-sure moment for
+   8 of 28 sessions and the largest share of T70's overage.
+6. (2026-11-03) Escape and Clear must never delete saved work (Clear then Escape removed a reopened
+   card). Needs a precedence entry in decided.md, not a local patch.
+7. (2026-11-03) Names must survive edits: Clear renamed a card "a selection"; a card's name goes
+   stale after an Or group; a chosen reference shows only its id.
+8. (2026-11-03) One picker for every "choose a thing" step; one number format per surface.
+9. (2026-11-03) No workspace layout below 1280 px (44 px preview at 900 x 700); add a width rule.
+10. (2026-11-03) Workspace header sits far back in Tab order (Done 11 to 34 keys away, no F6 stop).
+11. (2026-10-31) One editor, one field picker for Which nodes / Which edges and Filters; count chip
+    is the door to the table; runs stay outside the cards. `tier5/panel/ia.md`.
+12. (2026-10-30) Decide before the act; one fact, one drawing; a door lands on its control.
+13. Study lessons: a task whose key wants a rule must ask for something only a rule gives (T73);
+    "would you rather" follow-ups invite wishes; fixtures pre-colored in the task's color inflate
+    "drowned color" findings; a held bar on 2 to 4 sessions is weak evidence.
+14. Standing rules: one home per capability; "+" only adds; unset is the minus; two row kinds.
 
 ## Priorities and values
 
@@ -264,3 +262,15 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 - Tried: the 1-round cap with no start gate -- did not work; 60 sessions void, bars 1-3, 8 unmeasured.
 - Insight: severity from expert walks alone tends to weaken under skeptic checks (3 of 4 severity
   claims fell to 2); IA findings that survive are departures from already decided rules.
+
+### 2026-11-03 correction: round 1 insights (30 valid sessions, two skeptic checks)
+
+The earlier "no valid session" entry above is superseded: insights.md scores 30 valid sessions.
+
+- Learned: scope ambiguity between runs is an IA defect (two things named alike); the fix is a
+  neutral scope fact from graphty-element worded by the app, not a rename in one picker.
+- Learned: the editor's connective words carry its logic; doubt is resolved by the count, which
+  costs steps (bar 8) and confidence (bar 9).
+- Did not work: By position as one bare box; empty color box with no cue; Escape branch ignoring
+  whether a card was newly opened.
+- Study: T73 measured its key, not the build; reword before round 2.

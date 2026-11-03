@@ -2059,7 +2059,7 @@ async function opEnd(s) {
 }
 // What the studio's bars read on the page as it is now (bars.mjs): axe, controls sharing a name,
 // focus fallen to the page, the app's words on screen, bar 10's cut text and raw strings. A plant
-// ("img", "twins", "blur", "cut", "raw", "unscroll") puts a known failure on the page first and
+// ("img", "twins", "blur", "cut", "raw", "unscroll", "biglist", "wordy") puts a known failure on the page first and
 // takes it away after, to prove each check can fail.
 async function measure(s, planted) {
     const { page } = s;
@@ -2075,6 +2075,9 @@ async function measure(s, planted) {
                 axe: await axeViolations(page),
                 names: await sameNames(s.cdp),
                 words: await page.evaluate(wordsOnScreen),
+                // the selection workspace's own words, apart from the screen behind it (tier 5's
+                // words at rest), or null when no workspace is open
+                wsWords: await page.evaluate(wordsOnScreen, ".sel-ws"),
                 keywords: await page.evaluate(catalogKeywords).catch(() => []),
                 lists: await page
                     .evaluate(largeLists)
@@ -3230,6 +3233,10 @@ async function prove() {
     await rm(base, { recursive: true, force: true });
     // the warm pool is off for every check but its own, so each start below is the cold one it tests
     process.env.REAL_WARM_POOL = "0";
+    // its planted rounds and briefings use tier 2's tasks (T18, T20): a REAL_TIER exported for a study
+    // of another tier (tier 5's briefing start command does) would brief and grade them against that
+    // tier's files, which hold no such task
+    process.env.REAL_TIER = "2";
     let bad = 0;
     const node = (args, cwd) =>
         spawnSync(process.execPath, [self, ...args], { encoding: "utf8", env: process.env, ...(cwd && { cwd }) });
@@ -3340,6 +3347,8 @@ async function prove() {
     // a participant's session runs outside the studio's files, from its own briefing; one whose
     // transcript opened a facilitator file is void, by name
     {
+        // the planted round must sit inside the studio's files (that is what a participant's folder is
+        // mirrored out of), so with REAL_PROVE_DIR elsewhere it goes under the studio's own tmp/ (ignored)
         const R = join(under(base, STUDIO) ? base : join(STUDIO, "tmp", basename(base)), "rounds/round-9");
         await rm(R, { recursive: true, force: true });
         await rm(scratchOf(R), { recursive: true, force: true });
@@ -3530,7 +3539,8 @@ async function prove() {
         };
         while (spawnSync("flock", ["-n", join(pool, "slot1"), "true"]).status === 0)
             await new Promise((ok) => setTimeout(ok, 100));
-        const full = { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_SLOTS: "1" };
+        // the planted pool takes a machine slot too, so its browser never runs beside the machine's
+        const full = { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_SLOTS: "1", BROWSER_SLOT_ALSO: dirname(QUEUE) };
         r = spawnSync(process.execPath, [self, "--start", own4, "empty"], {
             encoding: "utf8",
             env: { ...full, REAL_SLOT_WAIT_SECONDS: "2" },
@@ -4170,6 +4180,8 @@ async function proveWarm(base, check) {
         ...process.env,
         BROWSER_SLOT_DIR: pool,
         BROWSER_SLOTS: "6",
+        // and a slot of the machine's pool, so the browsers it starts never run beside the machine's 8
+        BROWSER_SLOT_ALSO: dirname(QUEUE),
         REAL_WARM_POOL: "1",
         REAL_WARM_SECONDS: "180",
     };

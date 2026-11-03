@@ -100,6 +100,18 @@ if (scheme !== "dark" && scheme !== "light") {
     process.exit(2);
 }
 const FILES = join(here, "files");
+// the build the owner rejected (../tier5/criteria.md, "The rating check"): its kept copy in the main
+// checkout's tmp/, or --rejected <build dir>
+const MAIN = dirname(
+    spawnSync("git", ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
+        encoding: "utf8",
+    }).stdout.trim(),
+);
+const REJECTED = resolve(
+    args.includes("--rejected")
+        ? args[args.indexOf("--rejected") + 1]
+        : join(MAIN, "tmp/design-studio/tier5/prep/build-7ca4cae647"),
+);
 const TIER = args.includes("--tier") ? args[args.indexOf("--tier") + 1] : "2";
 const RECORD = args.includes("--record-limits");
 // tier 3 and later measure only their own screens, at their two sizes, in the scheme given
@@ -394,12 +406,14 @@ const SIZES = args.includes("--size")
 // --only <walk>[,<walk>] walks only those, --size <WxH> at one size only (a partial run, for writing
 // a walk: every screen it leaves out is a MISS line)
 const ONLY = args.includes("--only") ? args[args.indexOf("--only") + 1].split(",") : null;
+// the build a walk runs on: --dist's, or a walk's own (tier 5's rejected-build case)
+let walkDist = dist;
 const real = (size, ...a) => {
     const r = spawnSync(process.execPath, [REAL, ...a], {
         encoding: "utf8",
         env: {
             ...process.env,
-            REAL_DIST: dist,
+            REAL_DIST: walkDist,
             REAL_VIEWPORT: size,
             ...(TIER === "4" || TIER === "5" || (OWN && si > 0) ? { REAL_SCHEME: scheme } : {}),
             // tier 5's walks start from tier 5's setups (rounds/tier-5/setups)
@@ -1049,8 +1063,9 @@ const EDITOR5 = (host) => [
     {
         do: steps("--click role=option:role", "--click staff", "--expect Except"),
         screen: `${host}: a step pane`,
+        rest: "workspace",
     },
-    { do: steps("--click Except"), screen: `${host}: the Except switch on` },
+    { do: steps("--click Except"), screen: `${host}: the Except switch on`, rest: "workspace" },
     {
         do: steps("--click Or...", "--expect role=option:Within hops of"),
         screen: `${host}: an Or group, its picker open`,
@@ -1084,7 +1099,12 @@ const WALKS5 = [
         name: "style",
         setup: "volunteers.txt",
         moves: [
-            { do: steps("--key Shift", "--expect Style layers"), screen: "the graph at the start", plant: true },
+            {
+                do: steps("--key Shift", "--expect Style layers"),
+                screen: "the graph at the start",
+                plant: true,
+                rest: "screen",
+            },
             {
                 do: steps(
                     "--click Add a layer or a folder",
@@ -1095,20 +1115,33 @@ const WALKS5 = [
                 screen: "style: a new rule, its picker open",
             },
             ...EDITOR5("style"),
-            { do: steps("--click Done", "--expect Edit"), screen: "style: the read-only outline at rest" },
+            {
+                do: steps("--click Done", "--expect Edit"),
+                screen: "style: the read-only outline at rest",
+                rest: "screen",
+            },
         ],
     },
     {
         name: "filter",
         setup: "volunteers.txt",
         moves: [
-            { do: steps("--key Shift", "--expect Style layers"), screen: "the graph at the start", plant: true },
+            {
+                do: steps("--key Shift", "--expect Style layers"),
+                screen: "the graph at the start",
+                plant: true,
+                rest: "screen",
+            },
             {
                 do: steps("--click Data", "--click Add filter", "--expect role=combobox:Find attributes, results"),
                 screen: "filter: a new rule, its picker open",
             },
             ...EDITOR5("filter"),
-            { do: steps("--click Done", "--expect Filters"), screen: "filter: the read-only outline at rest" },
+            {
+                do: steps("--click Done", "--expect Filters"),
+                screen: "filter: the read-only outline at rest",
+                rest: "screen",
+            },
         ],
     },
     {
@@ -1121,6 +1154,7 @@ const WALKS5 = [
                 screen: "the graph at the start",
                 plant: true,
                 large: true,
+                rest: "screen",
             },
             {
                 do: steps(
@@ -1138,6 +1172,7 @@ const WALKS5 = [
                 do: steps("--click Check 26"),
                 screen: "50,000: the outline of a step with many values",
                 large: true,
+                rest: "workspace",
             },
             {
                 do: steps("--click Or...", "--click role=option:Within hops of", "--expect Choose a reference"),
@@ -1175,10 +1210,42 @@ const WALKS5 = [
                 screen: "50,000: Hovered or selected",
                 large: true,
             },
-            { do: steps("--click Done", "--expect Edit"), screen: "50,000: the outline at rest", large: true },
+            {
+                do: steps("--click Done", "--expect Edit"),
+                screen: "50,000: the outline at rest",
+                large: true,
+                rest: "screen",
+            },
+        ],
+    },
+    {
+        // the case the large-list check must flag (item 5): the rejected build's "While has nodes"
+        // step at 50,000 nodes, which lists every node. Not a screen of this build: nothing else is
+        // read from it
+        name: "rejected",
+        dist: REJECTED,
+        only: "1440x900",
+        setup: "staff-50k.txt",
+        moves: [
+            {
+                do: steps(
+                    "--click Add a layer or a folder",
+                    "--click Layer",
+                    "--click Add a step: Keep",
+                    "--type While has",
+                    "--click role=option:While has nodes",
+                    "--expect Hovered or selected",
+                ),
+                mustFlag: '"While has nodes" at 50,000 on the rejected build',
+            },
         ],
     },
 ];
+// tier 5's words-at-rest budget (../tier5/criteria.md, the calm-first check): the whole screen at
+// rest 50 app words at most, the workspace open on a step 40 (counted apart from the screen behind
+// it), every heading 3. Over it is a severity 2 candidate for bar 9, reported, not failed here
+const REST_LIMIT = { screen: 50, workspace: 40 };
+const HEADING_LIMIT = 3;
 
 async function walkTier2(base) {
     const screens = {};
@@ -1195,6 +1262,8 @@ async function walkTier2(base) {
     const typed = {};
     // tier 5: every list on a 50,000-node screen, held to "Large graphs"
     const lists = {};
+    // tier 5: the app's words at rest on each screen, against the budget
+    const rest = {};
     // what a screen says out loud: its controls' accessible names, and after each move what took
     // focus, what live regions said and the notices shown (real.mjs --sr), by move
     const spoken = {};
@@ -1210,6 +1279,11 @@ async function walkTier2(base) {
             const at = (k) => (first ? k : `${k} at ${size}`);
             if (w.only && w.only !== size) continue;
             if (ONLY && !ONLY.includes(w.name)) continue;
+            walkDist = w.dist ?? dist;
+            if (!existsSync(join(walkDist, "index.html"))) {
+                planted.push(`the ${w.name} walk's build is not there (${walkDist}): its case was not checked`);
+                continue;
+            }
             const dir = join(base, `${w.name}-${size}`);
             await rm(dir, { recursive: true, force: true });
             let r = real(size, "--start", dir, w.setup ? `setup:${w.setup}` : "empty");
@@ -1255,8 +1329,18 @@ async function walkTier2(base) {
                             }
                         }
                     }
-                    if (!m.screen && !m.audit && !m.focus && !(first && (m.words || m.scroll))) continue;
+                    if (!m.screen && !m.audit && !m.focus && !m.mustFlag && !(first && (m.words || m.scroll))) continue;
                     const { data } = await ask(dir, { op: "measure" });
+                    if (m.mustFlag) {
+                        const flagged = data.lists.filter((l) => !l.ok);
+                        if (flagged.length)
+                            caught.push(
+                                `${m.mustFlag}: caught by the large-list check (${flagged.map((l) => `${l.list}, ${l.items} rendered`).join("; ")})`,
+                            );
+                        else planted.push(`the large-list check passed ${m.mustFlag} (${shot})`);
+                        log.push(`ok   ${label} (${shot})`);
+                        continue;
+                    }
                     if (m.plant) {
                         // bar 10: a planted clipped name and a planted code, each found by screen and element
                         const pc = (await ask(dir, { op: "measure", plant: "cut" })).data;
@@ -1318,6 +1402,20 @@ async function walkTier2(base) {
                                 `the large-list check missed a list of 2,000 with no count and no search on "${label}"`,
                             );
                         }
+                        if (TIER === "5") {
+                            // sixty words and a five-word heading must put the screen over its budget
+                            const wordy = (await ask(dir, { op: "measure", plant: "wordy" })).data;
+                            const n = wordy.words.words.length;
+                            proved(
+                                "words at rest",
+                                n > REST_LIMIT.screen &&
+                                    n >= data.words.words.length + 60 &&
+                                    wordy.words.headings.some((h) => h.startsWith("Planted heading")) &&
+                                    !data.words.headings.some((h) => h.startsWith("Planted heading")),
+                                `sixty words and a five-word heading: counted (${n} words) on "${label}"`,
+                                `the words-at-rest count missed sixty planted words or a five-word heading on "${label}" (${n} words)`,
+                            );
+                        }
                         if (TIER === "3") {
                             // nothing on the start screen takes text, so typing must not write
                             const t = real(size, "--step", dir, "--type", "Plantedtext", "--expect", "Plantedtext");
@@ -1331,6 +1429,22 @@ async function walkTier2(base) {
                     }
                     if (!data.names.controls) planted.push(`the shared-name check read no controls on "${label}"`);
                     if (m.large) lists[at(m.screen)] = data.lists;
+                    if (m.rest) {
+                        const w = m.rest === "workspace" ? data.wsWords : data.words;
+                        const limit = REST_LIMIT[m.rest];
+                        if (!w?.words.length)
+                            planted.push(
+                                `the words-at-rest count read no words on "${label}"${w ? "" : " (no workspace open)"}`,
+                            );
+                        else
+                            rest[at(m.screen)] = {
+                                counted: m.rest,
+                                words: w.words.length,
+                                limit,
+                                headings: w.headings.filter((h) => h.split(" ").length > HEADING_LIMIT),
+                                text: w.words.join(" "),
+                            };
+                    }
                     if (TIER === "5" && first && !vocab["the catalog's search keywords"] && data.keywords?.length)
                         vocab["the catalog's search keywords"] = { words: [], names: data.keywords };
                     if (m.screen) {
@@ -1402,6 +1516,7 @@ async function walkTier2(base) {
         spoken,
         walked,
         lists,
+        rest,
     };
 }
 
@@ -1493,7 +1608,7 @@ async function outer() {
                 tier: TIER,
                 tags: AXE_TAGS,
                 screens: inn.screens,
-                wordsAtRest: inn.rest,
+                wordsAtRest: TIER === "5" ? t2.rest : inn.rest,
                 tier2: {
                     screens: t2.screens,
                     sharedNames: t2.names,
@@ -1583,6 +1698,14 @@ async function outer() {
             .flat()
             .filter((l) => l.judged && l.ok).length;
         console.log(`  ${held} long or partial lists hold${tooBig.length ? "" : "; none fails"}`);
+        // words at rest: severity 2 candidates for the calm-first check (bar 9), never a failure here
+        console.log(
+            `\nwords at rest (the screen at rest <= ${REST_LIMIT.screen}, the workspace on a step <= ${REST_LIMIT.workspace}, a heading <= ${HEADING_LIMIT}):`,
+        );
+        for (const [k, r] of Object.entries(t2.rest))
+            console.log(
+                `  ${r.words > r.limit || r.headings.length ? "OVER" : "ok  "} ${k}: ${r.words} words (${r.counted}, limit ${r.limit})${r.headings.length ? `; headings over ${HEADING_LIMIT} words: ${r.headings.map((h) => `"${h}"`).join(", ")}` : ""}`,
+            );
     }
     console.log(`\n${join(out, "bars.json")}`);
     // bar 5 of tier 4 is axe on its screens: a screen not reached or a planted case not caught also fails

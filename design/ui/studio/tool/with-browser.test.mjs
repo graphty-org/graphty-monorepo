@@ -136,3 +136,42 @@ test("BROWSER_SLOTS above 16 is refused", () => {
     assert.equal(r.status, 2);
     assert.match(r.stderr, /1 to 16/);
 });
+
+test("a planted pool with BROWSER_SLOT_ALSO also waits for, and holds, a slot of that pool", async () => {
+    const [planted, machine] = [0, 1].map(() => mkdtempSync(join(tmpdir(), "with-browser-test-")));
+    const held = (pool) => spawnSync("flock", ["-n", join(pool, "slot1"), "true"]).status !== 0;
+    // the other pool full: its four slots (a command not drawn on the GPU takes one of 1 to 4)
+    const hold = [1, 2, 3, 4].flatMap((i) => ["flock", join(machine, `slot${i}`)]);
+    const holder = spawn(hold[0], [...hold.slice(1), "sleep", "600"], { stdio: "ignore", detached: true });
+    const said = join(planted, "said");
+    const go = join(planted, "go");
+    spawnSync("mkfifo", [go]);
+    try {
+        await until(() => spawnSync("flock", ["-n", join(machine, "slot4"), "true"]).status !== 0);
+        const env = { ...process.env, BROWSER_SLOT_DIR: planted, BROWSER_SLOTS: "1", BROWSER_SLOT_ALSO: machine };
+        // the command says which slot it holds, then runs until the test lets it go
+        const w = spawn(gate, ["sh", "-c", `echo "$BROWSER_SLOT_FILE" > ${said}; read x < ${go}`], {
+            env,
+            stdio: "ignore",
+        });
+        const done = new Promise((ok) => w.on("exit", ok));
+        // its own slot taken, it queues in the other pool and runs nothing while that one is full
+        await until(() => existsSync(join(machine, "queue")) && readdirSync(join(machine, "queue")).length === 1);
+        assert.ok(held(planted), "the planted slot was let go while waiting");
+        assert.ok(!existsSync(said), "the command ran with the other pool full");
+        process.kill(-holder.pid);
+        await until(() => existsSync(said) && readFileSync(said, "utf8").trim());
+        assert.equal(readFileSync(said, "utf8").trim(), join(machine, "slot1"));
+        assert.ok(held(planted) && held(machine), "a slot was let go while the command ran");
+        writeFileSync(go, "\n");
+        assert.equal(await done, 0);
+        assert.ok(!held(planted) && !held(machine), "a slot outlived the command");
+    } finally {
+        try {
+            process.kill(-holder.pid);
+        } catch {
+            // already let go
+        }
+        for (const p of [planted, machine]) rmSync(p, { recursive: true, force: true });
+    }
+});

@@ -317,8 +317,13 @@ export function workGone(start, end) {
 // Bar 9: the app's own words on screen -- visible light-DOM text outside graphty-element, one entry
 // per word -- with the data's words and numbers left out: ids and values, and the names the session
 // holds for the data (each source's name, its file name without the extension, its tables, the
-// columns the file brought, each node's name; "Ava's" is the name Ava)
-export function wordsOnScreen() {
+// columns the file brought, each node's name; "Ava's" is the name Ava). With a selector, only the
+// words inside the first visible element it matches (tier 5 counts the workspace apart from the
+// screen behind it), or null when none is shown. headings: each heading (h1 to h6, role=heading,
+// legend) with its app words, for the words-at-rest rule "every heading 3 words at most".
+export function wordsOnScreen(within) {
+    const root = within ? [...document.querySelectorAll(within)].find((e) => e.checkVisibility()) : document.body;
+    if (!root) return null;
     const el = document.querySelector("graphty-element");
     const data = new Set();
     const add = (v) => {
@@ -346,10 +351,16 @@ export function wordsOnScreen() {
     const isData = (w) => data.has(w.toLowerCase()) || names.has(w) || names.has(w.replace(/['\u2019]s$/, ""));
     const words = [];
     const left = [];
-    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const heads = new Map();
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let t = walk.nextNode(); t; t = walk.nextNode()) {
         const p = t.parentElement;
-        if (!p || p.closest("script, style, graphty-element, [role=tooltip], #studio-planted") || !p.checkVisibility())
+        // a planted failure is left out, but for the one planted to be counted (data-count)
+        if (
+            !p ||
+            p.closest("script, style, graphty-element, [role=tooltip], #studio-planted:not([data-count])") ||
+            !p.checkVisibility()
+        )
             continue;
         // text a screen reader hears but nobody sees (a visually hidden status line) is not on screen
         let clipped = false;
@@ -363,14 +374,20 @@ export function wordsOnScreen() {
         const b = r.getBoundingClientRect();
         if (b.width < 1 || b.height < 1 || b.right < 0 || b.bottom < 0 || b.left > innerWidth || b.top > innerHeight)
             continue;
+        const head = p.closest("h1, h2, h3, h4, h5, h6, [role=heading], legend");
+        if (head && !heads.has(head)) heads.set(head, []);
         for (const raw of t.textContent.split(/\s+/)) {
             const w = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
             if (!w) continue;
             if (/\d/.test(w) || isData(w)) left.push(w);
-            else words.push(w);
+            else {
+                words.push(w);
+                heads.get(head)?.push(w);
+            }
         }
     }
-    return { words, left };
+    const headings = [...heads.values()].filter((h) => h.length).map((h) => h.join(" "));
+    return { words, left, headings };
 }
 
 // Bar 10's two scripted counts, outside graphty-element, each with the element it is in:
@@ -633,9 +650,12 @@ export function plant(kind) {
             // a long name in a narrow box, ellipsized, with no title, name or tooltip giving it whole
             cut: '<span style="display:block;width:90px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Planted cut Northern Regional Distribution Center 01</span>',
             raw: "<p>The rule was refused: E_BAD_SELECTOR</p>",
+            // sixty words and a five-word heading, counted as the app's own (words at rest)
+            wordy: `<h3>Planted heading of many words</h3><p>${"planted words at rest ".repeat(15)}</p>`,
             // a list of 2,000 names, every one rendered, with no count and no search ("Large graphs")
             biglist: `<section><div role="listbox" aria-label="Planted long list" style="max-height:40px;overflow:auto">${Array.from({ length: 2000 }, (_, i) => `<div role="option">Planted ${i}</div>`).join("")}</div></section>`,
         }[kind] ?? '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="8" height="8">';
+    if (kind === "wordy") d.dataset.count = "1";
     document.body.append(d);
 }
 export function unplant() {
@@ -832,7 +852,7 @@ export const BAR5_TIER5 = {
     focus: [],
     typed: [],
 };
-export const BAR5_TIER5_PLANTS = ["axe", "shared names", "focus", "large lists"];
+export const BAR5_TIER5_PLANTS = ["axe", "shared names", "focus", "large lists", "words at rest"];
 export function tier5Gaps(seen, sizes) {
     return walkGaps(BAR5_TIER5, BAR5_TIER5_PLANTS, "item 5", seen, sizes);
 }

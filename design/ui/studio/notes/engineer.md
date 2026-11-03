@@ -17,6 +17,34 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-11-03) STUDY TOOL, TIER 5 TOOL DRY RUN 1 FIXES. (1) Browser cap: `--prove`'s warm-pool and
+  bounded-start checks planted pools of their own (`BROWSER_SLOT_DIR`) and started real GPU
+  browsers outside the machine's 8 (9 seen beside 8 sessions). `with-browser.sh` now takes
+  `BROWSER_SLOT_ALSO=<pool>`: after its own slot it moves the lock to fd 7 and `exec`s itself on
+  that pool, so the pid real.mjs names tickets and warm markers by is unchanged; --prove passes the
+  machine pool. Test: `with-browser.test.mjs` "a planted pool with BROWSER_SLOT_ALSO" (hangs, i.e.
+  fails, without it; it holds slots 1 to 4 because a non-GPU command defaults to 4).
+  (2) Matcher: `find` refuses a shared name only if it stays shared for `SETTLE_MS` (1 s), looking
+  every 50 ms; a planted second "Condition..." removed after 300 ms is resolved (fails at 0).
+  (3) `refusedName` also reads a replay's own "was refused when recorded" note, so a route an
+  earlier replay recorded replays it as not done. (4) `--prove` pins `REAL_TIER=2` (its planted
+  rounds use T18 and T20); its planted round stays under the studio's ignored `tmp/` by design.
+  (5) New `waits.mjs` (T79 waits over 10 s from route.jsonl, `ms.act + ms.settleDom`, `--build`),
+  words at rest per screen in `bars.mjs --tier 5` (`wordsOnScreen(within)` counts `.sel-ws` apart;
+  headings; planted "wordy"), and the rejected build's real "While has nodes" list at 50,000 as a
+  case the large-list check must flag (walk "rejected", `--rejected`).
+- (2026-11-03) The rejected build 7ca4cae647 (main checkout `tmp/design-studio/tier5/prep/`) reaches
+  "While has nodes" by Add a layer, Layer, "Add a step: Keep", type "While has", the option; its
+  list renders 52 of 50,000 node ids with no search: `largeLists` flags it (ok false). Its "count"
+  read true only from "Selected (0)" in the same pane, a weak spot of the count regex.
+- (2026-11-03) Evidence on the frozen build (`design/ui/studio/tmp/r1-tool-r1-tool/`): 10 starts at
+  once plus `--prove` with REAL_TIER=5 beside 8 sessions: the one-second poll never above 8, all 10
+  GPU, prove 100 ok (`gate/`); T72 A detour-2 replayed 6 of 6 to the end; T70 A detour-5 (recorded
+  on 0c163f54bf) now matches all 12 steps; `bars.mjs --tier 5` exit 0, every plant caught, the
+  rejected "While has nodes" caught, read-only outlines at rest 57, 66 and 67 words (over 50).
+- (2026-11-03) waits.mjs on the frozen build's T79 pilot walks (r1d1, `--build 1e123d7d33`): 213
+  timed steps, one over 10 s (10.6 s, the sum of 5 actions in one batch, touched-9 02.png).
+
 Trimmed 2026-10-30 (the file passed 25 KB); the full earlier Top of mind (the Select-card count
 fix 71230abff1, the unknown-end mark, inspector node names, the weight re-run, Select within the
 picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360dd57f:design/ui/studio/notes/engineer.md`.
@@ -64,44 +92,16 @@ fix in full: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
   and the 50,000 staff network, 33 screens per size, axe, `largeLists`, catalog keywords into
   vocabulary.json); `real.mjs --gate` for tier 5 (items 2, 3, 4, 6, 7, 9; `tier5Gate`). Tests:
   `tool/tier5.test.mjs` (3), each script's `--self-test`, two new `--prove` checks.
-- (2026-11-02) Tool defects fixed: (1) a click on a control the app re-rendered between find and
-  act failed "Element is not attached to the DOM"; now found again by name and clicked once more
-  (`run`, the `act` catch; planted `rerender` in --prove marks-then-swaps on `data-try-key`).
-  (2) `screenOf` used `checkVisibility()` with no options and kept `visibility: hidden` controls
-  (21 nameless table buttons and rows behind an open workspace); now `{ visibilityProperty: true }`,
-  and `divergence` leaves nameless controls out on both sides so old routes still compare.
-  (3) FOUND WHILE BUILDING: `warmKey` hashed only real.mjs's mtime, so after a `measure.mjs` edit
-  every start took over a warm browser running the OLD measure code (my first large-list probes read
-  nothing); it now hashes real.mjs, measure.mjs and match.mjs.
+- (2026-11-02) Tool defects fixed then (a click on a re-rendered control found again by name;
+  `screenOf` with `visibilityProperty`; `warmKey` hashing measure.mjs and match.mjs too), in full:
+  `git show 265e85b63f:design/ui/studio/notes/engineer.md`.
 - (2026-11-02) The scripted walk's first real finding: at 50,000 nodes the matches strip (the data
   table under the workspace's canvas, `aria-rowcount` 50,001) renders 16 rows with no search box,
   on every 50,000-node workspace screen ("Large graphs": severity 3 by the criteria's own rule).
   Count is taken from the workspace header ("35,960 of 50,000"). Not fixed here (app, not tool).
 
-- (2026-11-02) RE-WALK of the empty-history setup start (c8581ff123, tool only; `graphty/dist`
-  bd404856c8 needed no rebuild): holds, no regression. `design/ui/studio/tmp/r1-dry2-recheck-setup-history/`
-  (`walk.sh`, `run.mjs` replays a route then carries on by hand). Every start shows Undo and Redo
-  off; Undo or Ctrl+Z after Cancel changes nothing: T77A touched-1 Staff E4572E 4 of 14 (09.png),
-  touched-3 (06.png), T77B touched-1/2 Oldest 2 of 7, table 7 rows (04.png, 06.png), T71A touched-31
-  PageRank colors (04.png, 05.png), T72B touched-3 Label station (04.png), T79B touched-2 layout
-  kept on 50,000 (04.png). Own steps still undo: T77A success Undo back to the setup's 14 of 24 then
-  "Nothing to undo" (09.png); T77B and T72B success name their own filter; T71B keyboard Tab order
-  unchanged but Undo/Redo announced disabled (focusable, interaction-patterns.md 777), four Ctrl+Z
-  walk back its own filter edits, Label kept (49.png). Seen, not from this change: Redo's tooltip
-  after an Undo names the filter as it is now ("hours 10 or more"), not what Redo brings back. `--prove`:
-  every check passed, with "after a setup start Undo is disabled, with the tooltip Nothing to undo".
-
-- (2026-11-02) A setup start now ends with no undo history (study tool, `real.mjs` opStart:
-  `setupHistoryClear` waits up to 30 s for pending work, then calls graphty-element's public
-  `session.history.clear()`; history it cannot empty fails the start with SETUP FAILED). Why: every
-  start stands for a saved project the person reopens, and a reopen has no history; before, Undo
-  after Cancel took back the setup's PageRank colors, orange layer, label role or layout. Evidence
-  (`design/ui/studio/tmp/r1-dry2-setup-history/`, `walk.sh`, `graphty/dist` bd404856c8): a saved
-  volunteers project reopened with --reopen shows Undo off ("Nothing to undo", reopen/06.png); T71A
-  touched-31 Ctrl+Z keeps the PageRank colors with Undo off (04.png); T71B keyboard starts with
-  Undo disabled; T77A touched-1 Staff keeps E4572E, 4 of 14 (08.png). --prove gained the case
-  "after a setup start Undo is disabled, with the tooltip Nothing to undo". Seen: Control+s then
-  Save leaves Undo enabled on a project with no history (reopen/04.png), unexplained yet.
+- (2026-11-03) Older Top of mind entries (the empty-history setup start and its re-walk, c8581ff123),
+  in full: `git show 265e85b63f:design/ui/studio/notes/engineer.md`.
 
 - (2026-11-02) Older Top of mind entries (record pages after a history move a93110cfb5, one count
   base 50d50e28ae, Cancel on a new filter card and `history.restoreTo(.., { redo: "drop" })`, the
@@ -226,6 +226,10 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-11-03) Did not work: a gate test holding only slot1 of a planted "machine" pool: a command
+  not drawn on the GPU defaults to 4 slots and took slot2 at once. Hold 1 to 4. Worked: `exec 7>&9
+9>&-` then `exec` the gate on the second pool keeps both locks and the pid.
 
 - 2026-11-02 did not work: resolving the page's scope before reading the revision in `page()`
   (as `neighbors` does). The scope resolution cache is itself keyed on the tick, so it served the

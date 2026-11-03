@@ -27,10 +27,10 @@ import {
  * `clustering`, `average_clustering` and `transitivity`.
  */
 export class ClusteringCoefficientAlgorithm extends DeclaredAlgorithm {
-    static namespace = "graphty";
-    static type = "clustering-coefficient";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "clustering-coefficient";
     /** Counts over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Count every node's triangles and publish its clustering coefficient.

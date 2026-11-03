@@ -56,16 +56,16 @@ interface PrimOptions extends Record<string, unknown> {
  * the tree from a starting node.
  */
 export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
-    static namespace = "graphty";
-    static type = "prim";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "prim";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "distance" as const;
     /** Spans the run's scope: the edge list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = primOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = primOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         startNode: {
             type: "nodeId",
             default: null,

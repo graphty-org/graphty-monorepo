@@ -71,16 +71,16 @@ interface LeidenOptions extends Record<string, unknown> {
  *
  */
 export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
-    static namespace = "graphty";
-    static type = "leiden";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "leiden";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = leidenOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = leidenOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         resolution: {
             type: "number",
             default: 1,

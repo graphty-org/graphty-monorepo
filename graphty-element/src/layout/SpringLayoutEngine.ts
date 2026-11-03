@@ -75,10 +75,10 @@ const springLayoutOptionsSchema = defineOptions({
  * under `force`.
  */
 export class SpringLayout extends SimulationLayoutEngine {
-    static type = "spring";
-    static simulationType: SimulationType = "spring";
-    static maxDimensions = 3;
-    static zodOptionsSchema: OptionsSchema = springLayoutOptionsSchema;
+    static readonly type: string = "spring";
+    static readonly simulationType: SimulationType = "spring";
+    static readonly maxDimensions: number = 3;
+    static readonly zodOptionsSchema: OptionsSchema = springLayoutOptionsSchema;
 
     /**
      * Get dimension-specific options for spring layout.

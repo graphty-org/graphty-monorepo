@@ -95,13 +95,13 @@ const EIGENVECTOR_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
  * important connections count for more than many unimportant ones.
  */
 export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorCentralityOptions> {
-    static namespace = "graphty";
-    static type = "eigenvector";
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "eigenvector";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = eigenvectorCentralityOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = eigenvectorCentralityOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         maxIterations: {
             type: "integer",
             default: 1000,

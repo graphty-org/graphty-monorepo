@@ -5,33 +5,40 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-11-03 (tier 5 round 1 rerun walk on 1e123d7d33).
+Last updated: 2026-11-03 (tier 5 round 1 closed; insights read).
 
 ## Top of mind
 
-1. (2026-11-03, rerun walk) Tier 5 round 1 rerun on the same build 1e123d7d33: no severity 3,
-   nine severity 2, eight of them in bar 7 against an allowance of 5. Every one now has a scripted
-   repro, a screenshot and a decided.md or spec line (`tier5/rounds/round-1/expert/figma.md`).
-2. (2026-11-03) The step's value picker moves up over its field and Done once typed (4 datasets,
-   both hosts); flip is off at `WhichPicker.tsx:1483`, so the cause is elsewhere. The reference
-   and edge-value pickers do NOT move: the void walk over-claimed. Fix this first.
-3. (2026-11-03) Two candidates from the void walk did not reproduce on the same build (filter
-   picker missing Results; reference picker jump). Re-walk before re-raising anything.
-4. (2026-11-03) A reopened multi-step filter card rests collapsed, naming only its first step,
-   with no caret (decided.md 573 says one line per step). A card built in-session stays open.
-5. (2026-11-03) Yes-or-no is a dropdown without counts; decided.md 55 says tests are visible
-   segments by kind (only number and time narrowed to a Select, 604-606).
-6. (2026-11-03) The preview zooms and cuts the graph when the strip hides (volunteers); decided.md
-   799 thought it unreproduced. Likely the canvas keeps its vertical field of view on resize.
-7. (2026-11-03) By position lacks # / %, top / bottom and a base choice: "top 5" inside "trained"
-   kept 4 (counts over all nodes).
-8. (2026-11-03) Untested card names differ by kind: "trained pick yes or no" vs "dept". The
-   category card's bare attribute is the fix for both.
-9. (2026-11-03) Speak only from the surface that is showing (the void round's one severity 3).
-10. (2026-11-03) The workspace has no layout below 1280 px; the width rule belongs in decided.md.
-11. (2026-11-03) Clear then Escape drops a new card unrecoverably; needs a decided.md entry.
-12. (2026-11-03) "Condition..." narrows in group A but widens ("Add") in an Or group: spec, not a
-    finding; check T71 and T72 sessions for readers who expected "and".
+1. (2026-11-03, round 1 closed) Tier 5 round 1 closed failing bars 1, 3, 4, 8 and 9; bar 7 was
+   not measured because the interaction designer's walk did not run. My nine bar 7 severity 2
+   findings were cut to three confirmed (picker jump, Clear renames to "a selection", collapsed
+   two-step card). Lesson: a walk finding counts only when a session met it or it breaks a cited
+   decided.md line; lead with those.
+2. (2026-11-03) Fix order for round 2: the step value picker jumping over its field and Done
+   (met by two sessions, decided.md 734); the Or group's first state (opens at "B 0", untouched
+   range step drawn full); By position's box (needs # / %, top / bottom; its error claims a limit
+   of 10 it does not apply).
+3. (2026-11-03) The empty Fill color box is the editor's biggest cost: no cue, a text cursor, and
+   the picker closes on its first click and commits. If the close is the shared color input's,
+   the fix goes in compact-mantine, never a bespoke control; swatches stay Figma-locked.
+4. (2026-11-03) "Condition..." and "Or..." do not say "and" / "or else": three sessions on three
+   halves, unprompted. Figma names the combinator on the row; a word, not a sentence.
+5. (2026-11-03) A picker entry must bind the run it names: a results entry offered "Connected
+   components" from the visible run but bound the whole-graph run. graphty-element gives the run's
+   scope as a fact; the app words it.
+6. (2026-11-03) Speak only from the surface that is showing: the covered inspector wrote a second
+   count to the status region (fixed after the freeze; re-walk).
+7. (2026-11-03) Clear then Escape (and probably Clear then Done) on a reopened card deletes it and
+   Undo cannot return it: undo must cover every destructive path, no confirmations.
+8. (2026-11-03) The workspace header sits far back in Tab order (Done 11 to 34 keys away, no F6
+   stop): counted in bar 9. Figma's header is an F6 region.
+9. (2026-11-03) A reopened multi-step card rests collapsed with no caret; decided.md 573 says one
+   line per step.
+10. (2026-11-03) Re-walk before re-raising: two void-walk candidates did not reproduce; a severity
+    claim needs a scripted repro on the frozen build.
+11. (2026-11-03) Do not generalize fixture effects: "orange drowned in an orange ramp" and "no
+    orange swatch" were the study's tasks, not the product.
+12. (2026-11-03) At 900 x 700 the preview is a 44 px sliver; the width rule belongs in decided.md.
 13. (2026-10-30) One fact drawn two ways sends people to a second menu: one component, one
     resting drawing, one number format per surface.
 14. (2026-10-20, owner) No UI sentences; tooltips or names that instruct are sentences too.
@@ -177,6 +184,10 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- (2026-11-03, round 1 close) Did not work: raising nine walk-only bar 7 findings. Only three
+  survived two skeptics, each because a session met it or a decided.md line it breaks was cited.
+  Worked: scripted repros on the frozen build; they let skeptics keep findings no session met
+  (Clear then Escape survived at severity 2 on its repro alone).
 - 2026-11-03 Tier 5 round 1 rerun, eight `real.mjs` sessions (w1 to w8, about 75 shots), one per
   dataset including three the void walk skipped (sources, yeast, shifts). Worked: grepping
   decided.md and the spec's control table for each finding before rating, so each cites a line;

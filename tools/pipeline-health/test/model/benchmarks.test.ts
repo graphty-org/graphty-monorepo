@@ -20,12 +20,16 @@ describe("benchmark regressions", () => {
         // layout-exact ms/iteration (profiler) n=1024 on the T4 lane: the GPU profiler reads in 65.536 us ticks, so
         // every result is 2 or 3 ticks and a one-tick step reads as 1.5x.
         const tick = 0.065536;
-        const oneTick = trend(pts([...Array.from({ length: 10 }, () => 2 * tick), 3 * tick, 3 * tick, 3 * tick]));
+        const oneTick = trend(pts([2, 3, 2, 2, 3, 2, 2, 3, 2, 2, 3, 3, 3].map((n) => n * tick)));
         expect(oneTick.ratio).toBeCloseTo(1.5);
         expect(oneTick.regressed).toBe(false);
         // two ticks above is a real change
         const twoTicks = [2, 2, 3, 2, 2, 3, 2, 2, 2, 2, 4, 4, 4].map((n) => n * tick);
         expect(trend(pts(twoTicks)).regressed).toBe(true);
+        // a clean step between two levels is judged by the earlier results' resolution, never by the step itself
+        const step = [...Array.from({ length: 10 }, () => 2), 6, 6, 6].map((n) => n * tick);
+        expect(trend(pts(step))).toMatchObject({ ratio: 3, regressed: true });
+        expect(trend(pts([...Array.from({ length: 10 }, () => 100), 300, 300, 300])).regressed).toBe(true);
     });
 
     it("compares results only with results of the newest one's machine", () => {

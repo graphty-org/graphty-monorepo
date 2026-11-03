@@ -3,7 +3,7 @@
  * REAL graphty-element and Les Miserables, driven by real clicks and keys: the canvas takes the
  * preview cell's box while the workspace is open; the sidebar keeps only its title row; a
  * narrowing step says no verb and has one Except switch; Advanced says edges; an existing rule
- * reopens on a step's pane; the sidebar's Edit takes the count's place; the value picker opens
+ * reopens on a step's pane; the sidebar's Edit shows on hover; the value picker opens
  * below its field; Escape closes an open Advanced; a new filter card keeps Nodes | Edges over its
  * picker, its first Escape goes to the outline and a discarded one is announced; Redo names the
  * filter as it comes back.
@@ -247,17 +247,21 @@ describe("reopening", () => {
 });
 
 describe("the sidebar's title row", () => {
-    it("Edit takes the count's place on hover, never drawn over half of it", async () => {
+    it("draws no count at rest in a style layer, and Edit shows on hover inside the row", async () => {
         const { session } = await openSample();
         await openLayer(session, "Hover", TWO);
         const row = document.querySelector<HTMLElement>(".sel-rest .sel-title-row");
-        const count = row?.querySelector<HTMLElement>(".sel-count");
-        assert.strictEqual(getComputedStyle(count ?? document.body).visibility, "visible");
+        assert.isNotNull(row);
+        // The layer row and the canvas key say the layer's count; its outline does not (tier5 decided.md).
+        assert.isNull(row?.querySelector(".sel-count") ?? null, "no count at rest");
         await userEvent.hover(row ?? document.body);
+        const button = row?.querySelector<HTMLElement>("[data-edit]") ?? document.body;
         await waitFor(() => {
-            assert.strictEqual(getComputedStyle(count ?? document.body).visibility, "hidden");
-            assert.strictEqual(getComputedStyle(row?.querySelector("[data-edit]") ?? document.body).opacity, "1");
+            assert.strictEqual(getComputedStyle(button).opacity, "1");
         });
+        const inner = button.getBoundingClientRect();
+        const outer = row?.getBoundingClientRect();
+        assert.isAtMost(inner.right, outer?.right ?? 0, "Edit is drawn inside the row");
     });
 });
 

@@ -13,7 +13,9 @@ checkout's `tmp/design-studio/tier5/r1/pilot/<task>/`); where that build draws s
 task says so, and "Build notes (baac78342b)" lists what can spoil a grade. The dry run's targeted
 re-pilots re-read T70 B, T72 B, T73, T74, T75 A and T77 B on build 797a4f6b47 (walks under the main
 checkout's `tmp/design-studio/tier5/r1d1/pilot/<task>/`); where that build differs, the task says
-so, and "Build notes (797a4f6b47)" lists what can still spoil a grade. Each core
+so, and "Build notes (797a4f6b47)" lists what can still spoil a grade. Later dry-run builds were
+re-read the same way: 47c95a09fc (T72 B, T75 A; `r1d2`) and c3100058ab (T72 B, T75 A, T77 B, T79 A
+and B; `r1d3`), each with its own build notes. Each core
 task's path step count is written as "Path steps: N" (bar 8) in `tool/steps.mjs`'s units: every
 click, key, typed text and file chosen counts, looking does not.
 
@@ -54,7 +56,10 @@ click, key, typed text and file chosen counts, looking does not.
   Layer 1, 9 of 24 nodes", where 9 are the hidden ones, and leaves their edges drawn; on baac78342b,
   after a filter card's Done the node table kept that card's "Matches only" list (T75 A listed 549
   while 112 were in the picture; on 797a4f6b47 the table lists what is in the picture, with Shown
-  selected). A count read from either is graded as the count it is, not the top bar's.
+  selected). A count read from either is graded as the count it is, not the top bar's. On
+  c3100058ab, after Cancel on a new filter card that had a result, the node table keeps that
+  cancelled card's rows ("Shown 1 of 11 nodes" while the top bar reads 7 of 11, T77 B) until the
+  next Done on a card; a count read off it is graded the same way.
 
 ## Wrong turns, worked examples
 
@@ -180,7 +185,7 @@ state. One example of each kind:
   Final outline: "kind agency, company / Except on_record Yes", header "7 of 24".
 - **Path (B)**: + > Layer; Which nodes; `telemetry`; tick yes; Condition...; `installed`; type
   2000; Enter; the Except switch; Done; Fill; hex; Enter.
-  Path (B) walked on 797a4f6b47 and 47c95a09fc: telemetry yes / Except installed before 2000, 5 of
+  Path (B) walked on 797a4f6b47, 47c95a09fc and c3100058ab: telemetry yes / Except installed before 2000, 5 of
   11, the key "5 of 11". The date box applies as typed (the count changes while the digits are
   typed), so the Enter after 2000 changes nothing visible; it is still one step of the path.
 - **Also success**: a second step with on_record No (A; an equal result). B on 797a4f6b47 (read):
@@ -270,11 +275,14 @@ state. One example of each kind:
   count.
 - **Path (B)**: Data; Add filter; type "largest"; Enter (Structure: Largest component);
   Condition...; type "degree"; Enter; type 2; Enter; Condition...; type "gal80"; Enter; type 0.5;
-  Enter; Done.
+  Enter; Done. By keyboard on c3100058ab (read in T75 A's walks), Enter on Largest component in a
+  new card sends focus to the side panel's Add filter while the workspace stays open: the next
+  Condition... is reached by Tab or Shift+Tab across the panel, so a keyboard walk takes more
+  steps than these.
 - **Path (A)** (walked on baac78342b, pointer and keyboard): Data; Add filter; type "degree";
   Enter; type 10; Enter; Condition...; type "component"; Connected components: Piece size;
   Advanced; So far; type 100; Enter; Done: "105 of 549 nodes, 869 of 2,084 edges" (14 steps; the
-  same on 797a4f6b47 and 47c95a09fc). The picker lists both "Connected components: Piece" and "Connected
+  same on 797a4f6b47, 47c95a09fc and c3100058ab). The picker lists both "Connected components: Piece" and "Connected
   components: Piece size" and highlights the first, so Enter after "component" takes Piece, not
   Piece size: the path clicks Piece size. The
   row is cut to "Connected compon... m... So far" (its bound cannot be read) and the strip's column
@@ -317,7 +325,8 @@ state. One example of each kind:
   drawn at rest or on hover: a click on the card opens nothing and swaps its count for Edit, then
   Edit opens it (one more step); by keyboard Enter on the card twice. On 797a4f6b47 the Graph step
   is needless (the inspector keeps the Oldest layer while Data is open): 14 steps by pointer
-  (read). Counts read there: 9 of 11, Oldest 5 of 9.
+  (read). Counts read there: 9 of 11, Oldest 5 of 9. The same on c3100058ab (16 steps replayed,
+  the Graph step needless, Enter after 2005 changes nothing visible).
 - **Also success**: a new card or layer that gives the same counts while the old one is removed
   (SD); Clear on the old one and rebuilt (SD); the participant's own color.
 - **Not success**: a second filter card for the deep gauges (both must hold: 1 in the picture,
@@ -359,12 +368,52 @@ state. One example of each kind:
 - **Timing** (read, fc1d7ee4f6 on this machine's GPU): load 38 to 50 s; the tick 3 s input delay
   then 14 s busy; Done 3 s then 14 s; Fill and its color under 2 s each. On baac78342b: load about
   20 to 23 s; opening Which nodes 14 to 17 s (a wait of its own); the tick about 3 s then 11 to 16
-  s; Done 12 to 19 s; no settled screen shows that work is under way. Graded never by time; the
-  report lists each session's waits.
+  s; Done 12 to 19 s; no settled screen shows that work is under way. On c3100058ab: "Drawing"
+  shows beside the count on open, on the tick, on Done and on Cancel, and Done keeps the workspace
+  open until the result is painted, then closes it; opening Which nodes, the tick and Done each
+  took 15 to 22 s (A) and about 20 to 21 s (B), with several 50,000-node browsers running at once.
+  Graded never by time; the report lists each session's waits.
 - **Read on baac78342b**: after Done, while focus stays on it, Which nodes' title row shows Edit in
   place of "1,076 of 50k"; the count shows once focus moves. Enter in the checklist search ticks
   nothing; "Check 1" beside the one match ticks it. "32 more" is plain text. The Values tab offers
   `station` as a time too (B).
+
+## Build notes (c3100058ab)
+
+Seen in the dry run's third targeted re-pilots of 2026-11-02 (T72 B, T75 A, T77 B, T79 A and B;
+walks under the main checkout's `tmp/design-studio/tier5/r1d3/pilot/<task>/`); each is a
+candidate, not a confirmed finding.
+
+- **Fixed since 47c95a09fc**: Control+Z or Undo right after Cancel on a new filter card no longer
+  brings the card back, and Redo does not either (every opener tried); Cancel and Escape on the
+  empty picker announce only "Filter not added", with focus on Add filter. T79's waits show
+  "Drawing" throughout (see T79's timing).
+- **Can spoil a grade**: after Cancel on a new filter card that had a result, the node table keeps
+  that card's rows (T77 B: "Shown 1 of 11 nodes", one row G09, while the top bar and the canvas
+  show 7 of 11; "0 of 11, No rows" after a card with no match). Switching Shown to All and back
+  does not refresh it; the next Done on a card does. A participant who counts from the table after
+  that wrong turn reads 1 or 0 instead of 7.
+- **What Undo takes after that Cancel** (decided behavior, `decided.md`): the step before the card,
+  often one the setup made and the participant never saw: the label role on `station` (T72 B, toast
+  "Undid changing a column's role."), the colleague's orange on Oldest (T77 B, the fill goes to
+  6366F1 and the key disappears), the setup's layout (T79, the camera is left close up on a few
+  large nodes; Undo is named "Undo changing the layout"). No count changes; Redo restores it. A
+  participant who loses the colleague's orange this way and does not redo it has changed the
+  layer (T77 B's grade reads the layer as it ends).
+- **Keyboard**: Enter on Largest component in a new card sends focus to Add filter with the
+  workspace still open (T75 B's first step); one number box is named "Piece size from" before So
+  far and "Connected components from" after it (T75 A); Control+Z with nothing to undo says
+  nothing, and the announcement after an undo can name the count before it ("Filter on: 549 of
+  549 nodes" after the condition went, T75 A); spoken counts drop the thousands separators the
+  screen shows ("1050 of 50000 nodes"), and the Which nodes row is named "basin Otter Creek, 1,050
+  of 50,000 nodes so far" for a single step (T79 B); Shift+Tab out of a new card's empty picker
+  keeps the card as "New filter / All nodes" until Cancel (T79 A).
+- **Unchanged**: one orange node half under the canvas toolbar with the node table open (T72 B, T77
+  B: count from the inspector or the key); Edit in place of the count on a focused card or Which
+  nodes row after Done (T75 A, T79); the key's "Draw order: graphty.style.json.node.el.drawOrder"
+  (T75 A); "Node color, not set, drawn #6366F1 indigo" before a color is committed (T79 B); a new
+  card's preview is not framed after the find box moved the camera (T79 A); a click on Condition...
+  right after a tick can miss once while the pane redraws (T79 A).
 
 ## Build notes (47c95a09fc)
 

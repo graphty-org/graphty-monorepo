@@ -426,3 +426,20 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
 - 2026-11-02: the dry run's fourth build, c3100058ab in `.study-builds/tier5-r1d3-c3100058ab`,
   replaces 47c95a09fc (`.study-builds/tier5-r1d2-47c95a09fc`). It carries the third dry-run
   pass's fixes.
+- 2026-11-02: `answers.md` matched to c3100058ab from the targeted re-pilots of T72 B, T75 A, T77 B,
+  T79 A and T79 B; no bar changed and no prompt was wrong, so `tasks.md` is unchanged. Each change
+  with its reason:
+    - T72 B's, T75 A's and T77 B's paths and counts hold on this build (5 of 11; 105 of 549 in 14
+      steps; 9 of 11 and Oldest 5 of 9), so each path names c3100058ab among the builds it was
+      walked on.
+    - T75 B's path notes that Enter on Largest component sends keyboard focus out to Add filter:
+      a keyboard walk of B takes more steps than the path lists, and a grader must not count them
+      as wrong turns of the participant's own.
+    - T79's timing adds what c3100058ab draws: "Drawing" through every wait, Done closing the
+      workspace only on the painted result, waits of 15 to 22 s. The old "no settled screen shows
+      work" line stays as baac78342b's.
+    - The note on counts that are not the picture's adds the node table keeping a cancelled new
+      card's rows (T77 B), a count that can spoil a grade read off the table.
+    - "Build notes (c3100058ab)" added: Control+Z after Cancel on a new card no longer brings the
+      card back (the 47c95a09fc spoiler is gone); what Undo takes instead is a setup step the
+      participant never saw, and in T77 B that is the colleague's orange.

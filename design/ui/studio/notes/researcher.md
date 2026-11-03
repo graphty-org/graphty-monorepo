@@ -10,11 +10,11 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-02) On 47c95a09fc Cancel and Escape on a new filter card remove it (every opener). New
-  grade spoiler: Control+Z right after that Cancel brings the card back switched on, with an
-  "Undid deleting" toast; it counts as a card in T71, T77, T79. Watch for it in round 1 walks.
-- (2026-11-02) On 797a4f6b47 T74 is unblocked (By position walked, both halves, 12 steps), T72 B's
-  After / Between routes and T73 A's name search work.
+- (2026-11-02) On c3100058ab Undo after Cancel on a new card no longer brings it back; it undoes
+  the step before the card, often a setup step (T77 B: the colleague's orange). New grade spoiler:
+  the node table keeps a cancelled new card's rows (T77 B "1 of 11" vs top bar 7). Watch both.
+- (2026-11-02) Subagent pilots cannot write report.md; their findings arrive as text and the
+  caller must save them. A keyboard walk without --keys does not count as keyboard for the gate.
 - (2026-11-02) The canvas key now counts over the filtered graph (T70 B "2 of 7"); it drops its
   count line when the layer covers all drawn nodes: grade from the inspector or header then.
 - (2026-11-02) Severity 3 candidates still open on baac78342b: the false "Covered by" warning (now
@@ -34,11 +34,9 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 - (2026-10-30) Simulated participants trust the tool's text over the picture: check tool lines
   (tooltip: null, ambiguous names like `role`) against the screenshot.
 - (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing.
-- (2026-10-30) Count wrong turns before success only; hovers are not turns.
 - (2026-10-30) An A/B split with 2 sessions per half is confounded with dataset and persona.
 - (2026-10-30) A prompt word that is a detour control's label steers into it.
 - (2026-10-30) First check of any pilot finding: the build in its walk's session.json.
-- (2026-10-21) Count a 3 only with its behavioral cost; an expert-only 3 needs a repro.
 - (2026-10-21) Leading risk: every participant is one model; read tasks and key for leading.
 
 ## Priorities and values
@@ -73,6 +71,16 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-02 (answer key matched to c3100058ab from 5 targeted re-pilots):** Changed only
+  `answers.md` and the change log; no bar, no prompt. T72 B, T75 A and T77 B paths hold; T75 B's
+  path notes that Enter on Largest component sends keyboard focus to Add filter (extra steps are
+  the build's, not the participant's wrong turns); T79's timing adds "Drawing" and 15 to 22 s
+  waits; new "Build notes (c3100058ab)". Why: the 47c95a09fc spoiler (Undo bringing a cancelled
+  card back) is gone, and a new one (the node table keeping the cancelled card's rows) replaces
+  it. Evidence: viewed T77B touched-2/03.png myself (table "1 of 11 nodes" one row G09, top bar
+  "7 of 11"; session.json build c3100058ab15). Did not work: four of five pilots could not write
+  report.md, so their walks have no committed report.
 
 - **2026-11-02 (answer key matched to 797a4f6b47 from 8 targeted re-pilots):** Changed only
   `answers.md` and the change log; no bar, no prompt. Unblocked T74 (path as written, B cut read:

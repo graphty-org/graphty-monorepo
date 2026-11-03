@@ -35,6 +35,7 @@ const SKIP_LABELS = [
     "research",
     "enhancement",
     "githerd-heartbeat",
+    "ci-budget",
 ];
 const HELD_MAJOR = new Set([676, 702, 843, 1370]);
 const PRIORITIES = ["high", "medium", "low"];
@@ -80,6 +81,7 @@ export function skipReason(issue) {
     if (HELD_MAJOR.has(issue.number)) return "held major";
     if (issue.title.startsWith("Release held:")) return "release held";
     if (issue.title.includes("lane red on master")) return "lane red on master";
+    if (/^Nightly (held on|missed slot)/.test(issue.title)) return "nightly alarm";
     if (/design\/brand|brand kit/i.test(issue.title)) return "design/brand";
     return null;
 }

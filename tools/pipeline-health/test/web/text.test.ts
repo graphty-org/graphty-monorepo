@@ -645,6 +645,11 @@ describe("the Issues page", () => {
         expect(side).toContain('aria-current="page"><span class="bar"></span>Issues</a>');
         setHere({ page: "issues", range: "all", q: new URLSearchParams("range=all") });
         expect(pageView(fixture("all"))).toContain("since the first issue");
+        setHere({ page: "issues", range: "6h", q: new URLSearchParams("range=6h") });
+        const short = pageView(fixture("6h"));
+        expect(short).toContain("over the last 6 hours");
+        expect(short).toMatch(/<td>\d{4}-\d\d-\d\d \d\d:\d\d<\/td>/);
+        expect(html).toMatch(/href="#\/issues\?range=1h"/);
     });
 
     it("draws every chart inside its plot when every value is zero", async () => {

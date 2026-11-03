@@ -247,7 +247,7 @@ export function nav(status: StatusResponse | null, fixture: boolean): string {
 function rangePicker(slow: boolean): string {
     let opts: (Range | SlowRange | IssueRange)[] = slow ? ["7d", "28d"] : ["1h", "6h", "24h"];
     if (here.page === "issues") {
-        opts = ["28d", "all"];
+        opts = ["1h", "6h", "1d", "7d", "28d", "all"];
     }
     // Costs charts days while its money is always this month; a test's history only lists days.
     const label = here.page === "costs" ? "days in the charts (the money is always this month)" : "history";

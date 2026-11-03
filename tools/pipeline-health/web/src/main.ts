@@ -128,7 +128,7 @@ function rangeOf(page: Here["page"], r: string): Here["range"] {
         return r === "28d" ? "28d" : "7d";
     }
     if (page === "issues") {
-        return r === "all" ? "all" : "28d";
+        return (["1h", "6h", "1d", "7d", "all"] as const).find((x) => x === r) ?? "28d";
     }
     return r === "6h" || r === "24h" ? r : "1h";
 }

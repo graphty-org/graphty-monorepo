@@ -100,6 +100,7 @@ describe("list", () => {
             "research",
             "enhancement",
             "githerd-heartbeat",
+            "ci-budget",
         ].map((l, i) => issue(100 + i, `t${i}`, ["bug", l]));
         const pages = [
             [
@@ -110,6 +111,8 @@ describe("list", () => {
                 issue(3, "Release held: graphty 1.0", ["bug"]),
                 issue(4, "ci lane red on master", ["bug"]),
                 issue(5, "update design/brand logo", ["bug"]),
+                issue(7, "Nightly held on ca38ff3c3d02", ["bug"]),
+                issue(8, "Nightly missed slot 2026-11-02 18:00 UTC: waiting", ["bug"]),
                 issue(6, "kept", ["bug"]),
             ],
         ];

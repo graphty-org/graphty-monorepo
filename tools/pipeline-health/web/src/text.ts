@@ -1414,11 +1414,18 @@ function netText(n: number): string {
 }
 
 /**
- * The span an Issues count covers: the last 28 days, or every issue's history.
+ * The span an Issues count covers: the last hour to 28 days, or every issue's history.
  * @param p The fact's parameters, with `range`.
  * @returns The words.
  */
-const issueSpan = (p: P): string => (p.range === "all" ? "since the first issue" : "over the last 28 days");
+const issueSpan = (p: P): string => ISSUE_SPANS[String(p.range)] ?? "over the last 28 days";
+const ISSUE_SPANS: Record<string, string> = {
+    "1h": "over the last hour",
+    "6h": "over the last 6 hours",
+    "1d": "over the last day",
+    "7d": "over the last 7 days",
+    all: "since the first issue",
+};
 
 /**
  * The words for a fact; an unknown code is drawn as its code and parameters, never dropped.

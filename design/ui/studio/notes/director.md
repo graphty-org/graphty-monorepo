@@ -5,12 +5,30 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-02 (tier 5 dry run pass 6 triaged on d3fda9f2b6: 8 product defects, 0 fix now; SESSION-READY).
+Last updated: 2026-11-02 (tier 5 report written before round 1: 0 sessions run; the gate refuses the round).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
-2026-10-30 (five times) and 2026-11-02 (twice); the full earlier text is in this file's git history.
+2026-10-30 (five times) and 2026-11-02 (three times); the full earlier text is in this file's git history.
 
 ## Top of mind
 
+- (2026-11-02) TIER 5 REPORT WRITTEN WITH ROUND 1 NOT RUN: 0 sessions, 0 void, 0 Sonnet; all 30
+  briefings exist but `--start` refuses (no "Gate evidence" in `tier5/rounds/round-1/plan.md`). Every
+  bar is "not measured"; pre-round evidence is reported as previews only. The report file is refused
+  to a subagent: it went back as text for the caller to save at `tier5/report.md`.
+- (2026-11-02) Round 1 gate, open items on d3fda9f2b6: the workspace's node table at 50,000 nodes has
+  a count and no search (18 lists per theme, sev 3, item 8); 14 serious axe findings per theme
+  (value picker scroll region, reference picker contrast); 66 prompt words on screen (wording.mjs);
+  rating check and calm-first check never run (item 9); 10 detours to re-walk; two tool defects
+  (matcher refuses a short-lived duplicate name with no second look; `--prove` fails with
+  REAL_TIER=5).
+- (2026-11-02) The criteria's cap of 2 dry-run fix passes was exceeded (fixes built in 4 passes, 6
+  triaged) with no recorded decision. Said so plainly in the report; the extra passes only fixed
+  regressions and leftovers, no bar or task changed.
+- (2026-11-02) Owner items for tier 5, breaking or Figma only: 5 element (selection condition goes
+  stale, ordinal algorithm levels, GraphML node names, repeated text as category, saved Select
+  rewrite) and 5 compact-mantine (sub-24 px targets, Chip contrast + split button word, list height
+  cap + disabled items, histogram hairlines, InputBase themed). Eight "For the owner" entries are
+  reversible and built: not his decision.
 - (2026-11-02) DRY RUN PASS 6 TRIAGED (`tier5/dry-run-r1-6.md`; `dry-run-r1-3.md` holds pass 3, so
   pass 6 took the next free name): 8 product defects on d3fda9f2b6, 0 fix now, 1 decided (nodes under
   the toolbar), 7 backlog (5 keyboard/screen-reader, 1 friction, 1 cosmetic), all but three repeats.
@@ -33,13 +51,9 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
   for a 4+ in two sessions on different halves, and the median <= 2 ONLY if the rating check separates the
   rejected build (7dfd51c277) from the frozen one by 2+ points. The calm-first check must fail the rejected
   build before it gates.
-- (2026-11-02) T78 core (4 sessions), T76 dry run only (its path never opens the editor). Round: 30
-  sessions, 8 alive at once, rating first in every follow-up.
 - (2026-10-30) Tier 4 lessons that shaped tier 5: freezing with a known bar-failer backlogged fails the bar
   by construction; a dry run graded only on spoils lets decided fixes go unbuilt (each decided fix now gets
   its own acceptance check); wrong turn = input before success; preview must equal result.
-- (2026-10-30) A tool line that contradicts the screenshot is worse than none: check every tool line
-  against its image before a round.
 - (2026-10-30) Run `git diff <earlier> <frozen>` over source FIRST in any triage; an earlier walk stands when
   the diff is code its route never reaches.
 - (2026-10-29) A fix that gives an answer a new input must move every count and cache derived from it.
@@ -90,35 +104,23 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Decisions and reasons
 
-- **2026-11-02, dry run pass 6 triage** (`tier5/dry-run-r1-6.md`, entries in `tier5/decided.md` "Dry
-  run pass 6"). Fix now: none. Settled for the backlog: when Undo or Redo takes away the focused
-  control, focus goes to its section (Add filter for a filter card), never the status bar; Ctrl+Z /
-  Ctrl+Shift+Z with nothing to undo or redo speak what the disabled button speaks; the status after
-  Undo and Redo uses one wording with each count's "of N". Not taken: those three (keyboard or screen
-  reader only, no such round session), nodes under the toolbar (decided), the 'PageRank test' select
-  name and the key card's gradient (graded values right), Edit for a focused count (friction). Not a
-  product defect: two `--prove` self-tests collide because `real.mjs` line 3145 names the round folder
-  from `basename(REAL_PROVE_DIR)` (both "prove"); the engineer's, sessions never meet it.
-- **2026-11-02, dry run pass 5 triage** (`tier5/dry-run-r1-5.md`, entries in `tier5/decided.md` "Dry
-  run pass 5"). Fix now: only pass 4's two units, carried because f0a9a014cb does not carry them
-  (`git diff --stat c3100058ab f0a9a014cb` is design files only, so pass 4's walks stand). Settled: a
-  fix-now unit stays open until a build carries it; a spoken count reads over the same base as the
-  screen's (T70 B's status spoke "of 11" over 7 of 7; backlog, no screen-reader sessions). Not taken:
-  a hidden layer's edges left drawn (not-success route), nodes under the toolbar (decided), the
-  50,000-node Done turning every node blue under "Drawing" (cosmetic), the Edit-for-count swap
-  (friction, standing since pass 2).
-- **2026-11-02, dry run pass 4 triage** (`tier5/dry-run-r1-4.md`, entries in `tier5/decided.md` "Dry
-  run pass 4"). Fix now: the node table after a new card's take-back (T77 B touched-2: "Shown 1 of 11"
-  while 7 are drawn; 47c95a09fc listed 7, 9610767e29's `restoreTo` does not move what the table's
-  cached pages are keyed on; T76 B's Undo shows the same) and the study start's undo history (T77 A
-  and B: Undo after Cancel undid the setup's orange, which T77 grades; every start is a saved project,
-  and a reopened project has no history). Settled: a history move reaches every reading of the filter;
-  a study start has no undo history (the tool's job, not the product's); Undo right after Cancel on an
-  existing card undoes the Cancel (line 586 read literally; the sessions say whether readers expect
-  it); a new card left with only an untested step stays inert and is graded as no change
-  (`answers.md` T77). Not taken: the wrong spoken counts (no screen-reader sessions), Redo restoring an
-  inert card after Undo on an open new card (T76 only, filters nothing), the 50,000-node waits (busy
-  with a sign).
+- **2026-11-02, tier 5 report before round 1** (returned as text; the harness refuses the file).
+  Reported what was tested (builds, tasks, 7 personas, 0 sessions, every expert walk), each bar as
+  "not measured" with its pre-round preview (bars 4 and 5 preview fail; 9 not measurable), the gate
+  items, the 9 dry-run fixes and which re-walk held each, the 455-row backlog, and only breaking or
+  Figma-lock owner items. Why: a report that dressed previews as results would be the false "done"
+  bar 2 forbids; a stranger must see at once that no round ran. Decided the next steps without the
+  owner: tool fixes, node-table search (or a cited decision that the find box is its search), axe
+  fixes, rating and calm-first checks, prompt rewording, detour re-walks, gate, then round 1.
+- **2026-11-02, dry run passes 4-6** (summarized; full text in git history and
+  `tier5/dry-run-r1-{4,5,6}.md`, entries in `tier5/decided.md` "Dry run pass 4" to "pass 6"). Fixed:
+  the node table after a history move (graphty-element record pages follow it, a93110cfb5) and the
+  study start's undo history (c8581ff123); both held on pass 6. Settled for the backlog: focus after
+  Undo removes the focused control goes to its section's opener; a chord with nothing to undo speaks
+  what the disabled button speaks; one wording for spoken counts after Undo and Redo, over the
+  screen's base; Undo right after Cancel on an existing card undoes the Cancel. Rule: a fix-now unit
+  stays open until a build carries it. Not taken: nodes under the toolbar (the canvas is the frame),
+  Edit replacing a focused count (friction), the 50,000-node Done turning nodes blue (cosmetic).
 - **2026-11-02, dry run passes 1-3** (summarized 2026-11-02; full text in git history and
   `tier5/dry-run-r1-{1,2,3}.md`, entries in `tier5/decided.md` "Dry run pass 1" to "pass 3"). Fixed:
   the false "covered" claim, the data table under the workspace, a test's mode, the reference names,
@@ -160,24 +162,17 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Tried: worked / did not work
 
-- 2026-11-02 (dry run pass 6) -- Worked: `git merge-base --is-ancestor` on each unit's fix commit
-  before reading the defects (both in d3fda9f2b6), then the re-pilot reports of the units' own
-  acceptance routes (T77 A/B, T71 A) to confirm they held, so a quiet defect list was real evidence
-  this time; reading the self-test source line behind the tool row to name its mechanism instead of
-  calling it a collision. Did not work: nothing new.
-- 2026-11-02 (dry run pass 5) -- Worked: `git diff --stat <previous build> <frozen build>` first,
-  as the 2026-10-30 note says; it showed at once that no code had changed, so the pilots' "unchanged"
-  rows were not new evidence and pass 4's units were simply unbuilt. Checking the engineer's commits
-  between the builds (all notes, re-walking pass 1's units) explained why. Did not work: trusting the
-  defect list alone; it had no T77 Undo rows only because no re-pilot walked those routes.
-- 2026-11-02 (dry run pass 4) -- Worked: reading the previous fix's mechanism (a take-back by
-  `restoreTo` instead of `removeCondition`) next to the pilot's "the earlier build showed 7 rows"; it
-  pointed straight at a cache keyed on something only commands move (`RevisionCache` on the input
-  tick in graphty-element's `data.ts`), and T76 B's stale table after Undo confirmed it was a history
-  move, not the take-back. Reading `roster.md` for screen-reader sessions before classing a spoken
-  count (none, so backlog). Reading the answer key's build notes: they already said T77 B's grade
-  reads the layer as it ends, which made the setup-history rows spoils, not notes. Did not work:
-  nothing new.
+- 2026-11-02 (tier 5 report) -- Worked: listing the round's session folders before writing (30
+  folders, each only `briefing.md`) instead of trusting the plan; reading the tool dry run's
+  "Problems" as the gate's state; grepping `owner-decisions.md` for tier 5 "For the owner" entries
+  and keeping only breaking or Figma-lock ones. Did not work: writing `tier5/report.md` from a
+  subagent (refused again, as in tier 4); the workflow should write it from the returned text.
+- 2026-11-02 (dry run passes 4-6) -- Worked: `git merge-base --is-ancestor` on each unit's fix commit
+  and `git diff --stat <previous> <frozen>` before reading defects (pass 5 showed no code change, so
+  pass 4's units were simply unbuilt); reading a fix's mechanism next to the pilot's symptom (the
+  table cache keyed on commands, not history moves); reading `roster.md` for screen-reader sessions
+  before classing spoken counts. Did not work: trusting a quiet defect list when no re-pilot walked
+  the unit's route.
 - 2026-11-02 (dry run pass 3) -- Worked: reading the previous fix's diff before classing (47c95a09fc's
   `removeCondition` on Cancel explained the Undo label at once); reading the walk's `route.jsonl` timing
   (Done: firstFrame 29 ms, settle 13 s) and its 1 s glance, which separated "busy with a sign" (open,
@@ -213,22 +208,16 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Thinking
 
-- **2026-11-02, dry run pass 6:** the dry run converged once every unit's acceptance walked one step
-  past its action and the triage checked the build carried each unit. What is left is all one family:
-  what a keyboard or screen-reader user meets around Undo and Redo (focus, silence, wording). No round
-  session exercises it, so the accessibility walk, not the sessions, will tell whether it matters;
-  take it first in the decide-and-fix loop because three passes in a row have found a new instance.
-- **2026-11-02, dry run pass 5:** a re-pilot only sees the routes it is told to walk. When a
-  workflow restarts, its "touched routes" list comes from the units it re-ran, not from the last
-  triage, so an unbuilt unit goes silent instead of failing. Before trusting "nothing spoils", check
-  that the frozen build carries every unit the last triage sent; a quiet pass on unchanged code is
-  not a pass.
-- **2026-11-02, dry run pass 4:** pass 3's "walk one step past the fix" held, and found the next step
-  was not in the product at all: once Undo after Cancel did the decided thing, it reached history the
-  study tool had made. An instrument that builds a start by clicking leaves traces a real start never
-  has (history, focus, hover); each trace is a way a correct participant can be graded wrong. Ask of
-  every setup: what would a reopened saved project NOT have? Also: a fix that swaps a command for a
-  history move must be checked against every cache keyed on what commands move.
+- **2026-11-02, tier 5 report:** the dry run converged on what crashes, blocks and spoils, but the
+  gate failed on things no pilot grades: a list with no search, axe findings, words shared with the
+  prompts, and two instrument checks never run. A dry run's triage should read the scripted gate's
+  output every pass, not only at the end, or the studio learns its round is blocked after six passes.
+  And a fix-pass cap nobody enforces is a wish: the tool should count passes and refuse the next.
+- **2026-11-02, dry run passes 4-6:** a re-pilot only sees the routes it is told to walk, so check
+  the build carries every unit before trusting "nothing spoils"; an instrument that builds a start
+  by clicking leaves traces a real start never has (ask what a reopened saved project would NOT
+  have); what is left after six passes is one family, keyboard and screen-reader users around Undo
+  and Redo, which only the accessibility walk can test.
 - **2026-11-02, dry run pass 3:** each pass's fix leaves one neighbor open: pass 1's busy sign covered
   edits but not the close, pass 2's Cancel removed the card but wrote history. The neighbor is always
   what happens just AFTER the fixed step (the next Undo, the frame after the close). A unit's acceptance
@@ -260,7 +249,8 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Sources
 
-- Tier 5: `tier5/{criteria,tasks,answers,roster,decided,owner-feedback-2026-11-01,placement-study}.md`;
+- Tier 5: report returned as text 2026-11-02 (meant for `tier5/report.md`); round 1 `tier5/rounds/round-1/{plan,tool-dry-run-1,tool-dry-run-2}.md`, `bars/`, `bars-light/`; briefings under the worktree's `tmp/studio-sessions/tier5/rounds/round-1/sessions/`;
+  `tier5/{criteria,tasks,answers,roster,decided,owner-feedback-2026-11-01,placement-study}.md`;
   dry run triages `tier5/dry-run-r1-{1,2,3,4,5,6}.md` (pass 6 pilots: main checkout
   `tmp/design-studio/tier5/r1d2/pilot/`; pass 4 pilots: main checkout
   `tmp/design-studio/tier5/r1d3/pilot/`; pass 5 pilots: `r1d1/pilot/`), `tier5/backlog.md`, `tier5/rejected-fixes.md`; pass 2

@@ -7,49 +7,34 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-0. (2026-10-31, tier 5 panel) Group selection editor: one editor and one field picker for the
-   Which nodes / Which edges selector and Filters (the two pickers already drift); a filter card is
-   the approved header around a selection; no auto-open table (the count chip is the door); a
-   group-color preview while the editor is open, as an element preview layer; runs stay outside
-   the cards, with no second Runs list; "Hovered", not "Focus" (that collides with "focused"
-   rows). Proposal: `tier5/panel/ia.md`.
-1. (2026-10-30, tier 4 round 1 closed at its 1-round cap) Returning users managing data: task
-   success holds (25 of 26), no severity 3 or 4 after the skeptic checks. Bars fail on keyboard
-   (a tab names a panel never rendered), the owner's data rule (joined source row clips its
-   ratio) and cost on core tasks (joining a second file: about 12 inputs against a path of 7).
-2. (2026-10-30) Decide before the act, not after. The join preview tags the wrong rows and leaves
-   the unknown-end row looking "left out" while Join adds it; the unknown end is chosen after Join
-   with "Add nodes" already applied; "Leave out" does not say it deletes. A choice whose effect is
-   already in place is a door hidden behind its own consequence.
-3. (2026-10-30) One fact, one drawing. Setting a column as the time left its kind glyph on text
-   while the timeline drew dates; filter-card counts use two bases (whole graph under Hide, the
-   picture under Select); place roles are set but unmarked on headers. Each costs a second menu
-   to check. Every place that shows a fact must read it from the same element fact.
-4. (2026-10-30) The table header is where readers go for column work (T62 3 of 4). The
-   inspector's "Set in Data" is a fine door for a role and a trap when the task is the column's
-   kind -- a door must land on the control the reader came for, not near it.
-5. (2026-10-30) New filter cards start on Hide; with mark-first tasks 5 of 5 lost part of the
-   picture. Watch, not proven a design failure (task order drove it, and Hide helped T66). The
-   planned "Select | Filter to | Filter out" renames the effect but keeps the take-away default.
-6. (2026-10-30) Approved surfaces are a structural floor: the joined source row must show both
-   names and "N of M joined" at every width; and "17 of 19 joined" beside 18 edges contradicts
-   itself -- state what the count counts.
-7. (2026-10-30) Study lesson: the tool printed `tooltip: null` over open popovers and four
-   participants believed it over the screenshot. Before scoring a findability problem on a hover,
-   check the screenshot. A grading-key definition (column type must be date) can make a false
-   "done" that is not one -- read the key against what the product shows.
-8. (2026-10-21) Graph inspector must point to the layer list for node and edge appearance (a
-   door, not a second home). Still open.
-9. (2026-10-21) A new style line starting at the current value reads as nothing happened; fix in
-   the shared row (show set and what it overrides, give units).
-10. (2026-10-21) Checking a layer's members needs one readable home: the table scoped to the
-    layer, named by the label column. Element supplies membership.
-11. (2026-10-21) A door that looks like a rule must make a rule (find-box value rows).
-12. Every participant is one model: a fail is strong evidence, a pass weak; n of 2 per half
-    shows nothing about where people go.
-13. Standing rules: one home per capability; "+" only adds to lists; unset is the minus and says
-    what comes back; two row kinds only; check proposals at their edges (keyboard, edges,
-    non-community data) and round trip (made, then read back).
+0. (2026-11-03, tier 5 round 1 closed at its 1-round cap, no valid session) Every session was void
+   (start gate never ran), so only expert walks speak. Bar 4 fails on one severity 3: speech from
+   a panel the reader cannot see. Next round: gate before launch; fix the leak check first.
+1. (2026-11-03) One surface speaks. While a workspace covers the inspector, the covered row still
+   announces its count and overwrites the visible one in the shared status region. Structural rule:
+   only the surface on screen owns announcements (the selection editor already goes quiet).
+2. (2026-11-03) One picker, not two. The reference picker is a second build (own search, own
+   grouping, broken Tab and Escape). Confirms the tier 5 panel call: one shared searchable picker
+   for every "choose a thing" step; differing data paths never justify a differing control.
+3. (2026-11-03) Names must survive edits and choices: Clear renamed a card "a selection" (decided:
+   Clear keeps the name); a chosen reference shows only its id (decided: show the matched value).
+4. (2026-11-03) Decided rules collide: "Escape on a new card's picker takes the card back" plus
+   "a cleared rule opens on its picker" loses steps against "Clear has an undo" and "Escape never
+   discards work". Needs a precedence entry in decided.md, not a local patch.
+5. (2026-11-03) The workspace has no layout below 1280 px (preview a 44 px sliver at 900 x 700);
+   decided.md stops at 1280 x 800. A width rule belongs in decided.md.
+6. (2026-11-03) One number format per surface (short "37.5k of 50k" next to "35,960" in one outline).
+7. (2026-10-31, tier 5 panel) Group selection editor: one editor and one field picker for Which
+   nodes / Which edges and Filters; a filter card is the header around a selection; count chip is
+   the door to the table; runs stay outside the cards; "Hovered", not "Focus". `tier5/panel/ia.md`.
+8. (2026-10-30) Decide before the act: a choice whose effect is already applied is a hidden door.
+9. (2026-10-30) One fact, one drawing: every place showing a fact reads the same element fact.
+10. (2026-10-30) A door must land on the control the reader came for (table header for column work).
+11. (2026-10-21) Graph inspector points to the layer list for appearance (a door, not a home). Open.
+12. Study lessons: the scripted word count includes chrome and user names -- confirm by hand; check
+    the screenshot over the tool's text; a void round measures nothing about people.
+13. Standing rules: one home per capability; "+" only adds; unset is the minus; two row kinds;
+    check proposals at their edges and on the round trip.
 
 ## Priorities and values
 
@@ -266,3 +251,16 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   (IA canon research: Rosenfeld/Morville/Arango; tree test vs first click, 2026-09-27)
 - `design/ui/studio/tmp/explore-02.png` (smoke render of the real build, 2026-10-06)
 - Extraction script: `design/ui/studio/tmp/ia/agents.py`
+
+## 2026-11-03: tier 5 round 1 (closed, expert walks only)
+
+- Decision: only the surface on screen announces; covered panels go quiet. Reason: the covered
+  inspector row overwrote the workspace's count in the shared status region (severity 3, kept by
+  both skeptic checks). Owner: graphty app (WhichPicker announces while the workspace is open).
+- Decision: the reference picker becomes the shared searchable picker. Reason: its own build broke
+  Tab, Escape, expanded state and result count, and grouped its list differently.
+- Decision needed in decided.md: precedence between "Escape takes a new card back" and "Escape
+  never discards work / Clear has an undo"; a workspace width rule below 1280 px.
+- Tried: the 1-round cap with no start gate -- did not work; 60 sessions void, bars 1-3, 8 unmeasured.
+- Insight: severity from expert walks alone tends to weaken under skeptic checks (3 of 4 severity
+  claims fell to 2); IA findings that survive are departures from already decided rules.

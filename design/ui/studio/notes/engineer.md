@@ -32,6 +32,12 @@ Trimmed again 2026-11-02 (file at 28 KB): the main-table and test-mode re-walk, 
 50,000-node edit blocks, and the data table never taking an editor's selection:
 `git show 64cd59e285:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) "The data table never takes an editor's selection" came back as a unit from the
+  round 1 pilot (walked on baac78342b). Already fixed by 1c02b8a883 (test
+  `TableEditorSelection.real-element.test.tsx`), re-walked in `design/ui/studio/tmp/r1-dry1-recheck-main-table/`
+  (T75A d1 04.png: Shown 112 of 549, no Group column; T76B d2 28.png: strip lists edges), and in the
+  frozen build c3100058ab. No code change. Check a unit's walk commit against `git log` first.
+
 - (2026-11-02) RE-WALK of the covered-claim fix (557f065428, ff4d33c452) and the reference search
   by name, on `graphty/dist` built from c3100058ab (newer than both fixes; same commit as the
   frozen build). Script `design/ui/studio/tmp/r1-dry1-recheck-covered-claim/v2/walk.sh` replays the

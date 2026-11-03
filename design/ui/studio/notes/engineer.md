@@ -77,44 +77,22 @@ selection, 1c02b8a883), with their re-walk evidence, and the covered-claim and r
 
 - (2026-11-02) Cancel on a new filter card takes the card away, focus back to its opener (toolbar
   Filters or Add filter; `OPENS_FILTERS`, `takeDraftOpener`, focus moved once `selectionWorkspace`
-  is null). Full entry with its tests, re-walks and the 15-minute hang-guard lesson:
-  `git show 4d9a4d4643:design/ui/studio/notes/engineer.md`.
+  is null), fixed by 47c95a09fc and 9610767e29, both inside the frozen build c3100058ab. Re-raised
+  from the round 1 pilot (walked on baac78342b, before both). RE-WALK on `graphty/dist` c3100058ab
+  (`design/ui/studio/tmp/r1-dry1-cancel-new-card/c310/walk.sh`): T70B detour-5 (telemetry yes,
+  Cancel) and T79A detour-3 (staff-50k, dept Grants, Cancel) leave no card, no top-bar mark,
+  `data.json` `filters: []` and all nodes drawn, `--read` around focus ends on "Add filter"; T77B
+  detour-2 Cancel on the existing card after an Or depth_cm 140 restores "telemetry yes" 7 of 11
+  (saved rule has its one step); T77B detour-3 toolbar Filters, Escape: no card, focus on the
+  toolbar's Filters. Tests `FilterCardKinds.real-element.test.tsx` "Cancel in a filter card's
+  workspace" pass (5). No code change. Full earlier entry: `git show 4d9a4d4643:design/ui/studio/notes/engineer.md`.
 
 - (2026-11-02) RE-CHECK of the open-busy-sign fix: script `design/ui/studio/tmp/r1-dry2-recheck-open-busy-sign/rewalk.sh`;
   full entry: `git show bba6b7e9bb:design/ui/studio/notes/engineer.md`.
 
-- (2026-11-02) Opening Which nodes right after adding a layer on 50,000 nodes now shows the
-  workspace with "Drawing" in its first frame, 345 to 374 ms after the click (was 1.3 to 2.3 s),
-  and a tick shows the box ticked beside "Drawing" (was an empty box for the 13 to 20 s of work).
-  Two mechanisms, two fixes:
-  (1) graphty-element: `styles.agreement` walked every element of its scope on every call, and the
-  style row reads it in render (`row.ts` `paintedOverOf`/`beneathOf`), so any re-render of the row
-  (the press that closes the new layer's name field) cost ~0.9 s. `StylesApi.ts` now keeps the
-  answer over `"graph"` and `"selection"` per question (`kept`, keyed by scope, channel, below,
-  over) while a token holds: the compiled stack array, the branches view, `viewPending`,
-  `styleRevision`, `inputRevision`, a new internal `stateRevision` source, `editableBase`,
-  `liftDrawn`. `GraphSession.ts` bumps `stateRevision` on every selection change and in
-  `repaintStates` (hover, ghosts, pins), because a selection change advances no input tick and a
-  `{match:"state"}` selector reads it. Without the source (bare `createStylesApi`) nothing is kept.
-  The "costs nothing" claim in StylesApi's header is corrected. No public API change (`StylesSources`
-  is not in the API report). `counts()` is NOT kept yet (~0.26 s per layer on 50,000; it reads
-  `"visible"`, which also moves with ghosts and time windows): the next step if the first frame
-  must get under ~350 ms.
-  (2) app: the box was not stale state. `CategoryCard` already read the waiting edit ("Uncheck 1"
-  showed); Mantine's Checkbox fills and grows its tick by a 100 ms CSS transition, and the work
-  started one frame after the click, so the transition froze at its start for the whole block.
-  `afterPaint` in `SelectionEditor.tsx` now waits for every running `CSSTransition` to finish
-  (never `CSSAnimation`: a spinner may never end) before handing the edit on. Every control the
-  editor holds gets it, not only the checkbox.
-  Tests: `agreement.test.ts` "keeps its answer over the graph until the stack, the data or an
-  element state moves" (identity and resolve counts; fails uncached); `LargeGraph.real-element.test.tsx`
-  "opening Which nodes right after adding a layer walks no style agreement before its first frame"
-  (wraps `styles.agreement`, counts answers not given before; 6 fresh walks without the cache) and
-  the tick in "an edit says Drawing..." asserts no transition on the box is running when
-  `scope.watchSteps` is first called (fails without the wait: [true, true, true]).
-  Re-walk on a fresh `graphty/dist` into `design/ui/studio/tmp/r1-dry2-open-busy-sign/`: T79B
-  touched-40 and success, T79A success, detour-3 and touched-30, T74A and T70A success all matched
-  their pilots; settled 1,050 of 50,000.
+- (2026-11-02) Opening Which nodes on 50,000 nodes shows the workspace with "Drawing" in its first
+  frame (StylesApi `kept` agreement per token; `stateRevision`; the box drawn ticked). Full entry:
+  `git show ae2a7f5a03:design/ui/studio/notes/engineer.md`.
 
 - (2026-11-02) Tier 5: every style count reads over the graph the filter leaves. graphty-element
   added `StyleCounts.visible { matched, of }` and legend `scope.visible` (additive; `matched` and

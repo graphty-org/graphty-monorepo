@@ -185,17 +185,19 @@ state. One example of each kind:
   Final outline: "kind agency, company / Except on_record Yes", header "7 of 24".
 - **Path (B)**: + > Layer; Which nodes; `telemetry`; tick yes; Condition...; `installed`; type
   2000; Enter; the Except switch; Done; Fill; hex; Enter.
-  Path (B) walked on 797a4f6b47, 47c95a09fc and c3100058ab: telemetry yes / Except installed before 2000, 5 of
+  Path (B) walked on 797a4f6b47, 47c95a09fc, c3100058ab and f0a9a014cb: telemetry yes / Except installed before 2000, 5 of
   11, the key "5 of 11". The date box applies as typed (the count changes while the digits are
   typed), so the Enter after 2000 changes nothing visible; it is still one step of the path.
-- **Also success**: a second step with on_record No (A; an equal result). B on 797a4f6b47 (read):
+- **Also success**: a second step with on_record No (A; an equal result). B on 797a4f6b47 and f0a9a014cb (read):
   installed After 2000 instead of the Except switch (5 of 11), and Except installed Between 1990
   and 1999 (5 of 11); the date step keeps Before, After or Between whether picked before or after a
   date is typed, and carries the typed date across a change of mode. (On baac78342b the mode select
   stayed on Before and the Except switch was B's only route.) The value picker's search finds
   nothing for "not" or "1990".
 - **Not success**: a filter card; a second layer painting the on-record ones back in the default
-  color (P: the count is right on the canvas but no layer holds the rule).
+  color (P: the count is right on the canvas but no layer holds the rule). Enter on a new layer's
+  Fill with nothing typed commits the default 6366F1, so such a second layer can change nothing on
+  the canvas (B, read on f0a9a014cb); grade the layers, not the picture.
 
 ## T73. Close to one person or place
 
@@ -208,7 +210,7 @@ state. One example of each kind:
 - **Path (B)** (walked): + > Layer; Which nodes; type "within"; Enter (Within hops of; focus goes
   to the reference field); Enter (the reference picker opens, its search focused); type Cedar;
   Enter; Done; Fill; hex; Enter. Hops is 2 by default. Path steps: 12 (B), walked again on
-  797a4f6b47 (lowercase "cedar" works too). The row reads "Within 2 hops of Cedar Bend". Before a
+  797a4f6b47 and f0a9a014cb (lowercase "cedar" works too). The row reads "Within 2 hops of Cedar Bend". Before a
   reference is picked the header reads "11 of 11", not the answer.
 - **Path (A)** (walked on 797a4f6b47): + > Layer; Which nodes; type "within"; Enter; Enter; type
   James (or Carter, or James Carter: each lists "v02 name James Carter"); Enter (or a click on that
@@ -282,13 +284,15 @@ state. One example of each kind:
 - **Path (A)** (walked on baac78342b, pointer and keyboard): Data; Add filter; type "degree";
   Enter; type 10; Enter; Condition...; type "component"; Connected components: Piece size;
   Advanced; So far; type 100; Enter; Done: "105 of 549 nodes, 869 of 2,084 edges" (14 steps; the
-  same on 797a4f6b47, 47c95a09fc and c3100058ab). The picker lists both "Connected components: Piece" and "Connected
+  same on 797a4f6b47, 47c95a09fc, c3100058ab and f0a9a014cb). The picker lists both "Connected components: Piece" and "Connected
   components: Piece size" and highlights the first, so Enter after "component" takes Piece, not
   Piece size: the path clicks Piece size. The
   row is cut to "Connected compon... m... So far" (its bound cannot be read) and the strip's column
   "Connected components" reads "Group 1", not the piece size. Condition... > "largest" > Largest
   component reads "112 of 549" and stays P: Largest component has no Advanced, so it cannot be
-  computed on So far (spec 4.2), and nothing says why it changes nothing.
+  computed on So far (spec 4.2), and nothing says why it changes nothing. Added as a step inside
+  the Degree card it also reads 112. After Done, a card the pointer is not on can show Edit in
+  place of its count (read on f0a9a014cb): read the count from the top bar.
 - **Not success**: a style layer that fades the rest (the network still holds them); deleting.
 
 ## T76. The start screen's pointing effect
@@ -325,7 +329,7 @@ state. One example of each kind:
   drawn at rest or on hover: a click on the card opens nothing and swaps its count for Edit, then
   Edit opens it (one more step); by keyboard Enter on the card twice. On 797a4f6b47 the Graph step
   is needless (the inspector keeps the Oldest layer while Data is open): 14 steps by pointer
-  (read). Counts read there: 9 of 11, Oldest 5 of 9. The same on c3100058ab (16 steps replayed,
+  (read). Counts read there: 9 of 11, Oldest 5 of 9. The same on c3100058ab and f0a9a014cb (16 steps replayed,
   the Graph step needless, Enter after 2005 changes nothing visible).
 - **Also success**: a new card or layer that gives the same counts while the old one is removed
   (SD); Clear on the old one and rebuilt (SD); the participant's own color.

@@ -172,6 +172,12 @@ logged). Their reasons, in short:
   every task walked first; task words never echo the screen; VOIDs re-run as `<id>b`; change the
   prompt, not the key, when a prompt leads.
 
+- **2026-11-02 (f0a9a014cb key match):** Matched T72 B, T73 B, T75 A and T77 B to f0a9a014cb by
+  adding the build to each walked-on list, not by rewording paths: its source equals c3100058ab's,
+  so every count held (5, 7, 105, 9 and 5). Two grader notes added because they can mislead a grade:
+  Enter on an empty new Fill commits default 6366F1, so a decoy layer changes nothing on canvas
+  (T72); a card off the pointer shows Edit in place of its count after Done (T75 A).
+
 ## Tried: worked / did not work
 
 - 2026-11-02 (key vs 47c95a09fc, T72 B and T75 A) -- Worked: a per-build "Build notes" section
@@ -210,6 +216,11 @@ logged). Their reasons, in short:
 - 2026-09-28 to 10-11 (tiers 1 and 2) -- Worked: `git status`, `git log` and round listings after
   any stop; viewing every cited screenshot; a browser gate. Did not work: launching every agent at
   once; editing a script while it runs.
+
+- 2026-11-02 -- Worked: a key match on a notes-only rebuild is a build-name pass plus the grade
+  spoilers the walks surfaced; the "Fill; hex" mismatch was already covered by the general "Small
+  things every path meets" note, so no path edit. Did not work: subagent pilots writing report.md
+  (T73 B, T75 A, T77 B reports still hold 797a4f6b47's text).
 
 ## Thinking
 

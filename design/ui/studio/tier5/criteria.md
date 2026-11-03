@@ -446,3 +446,15 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
 - 2026-11-02: the dry run's fifth build, f0a9a014cb in `.study-builds/tier5-r1d1-f0a9a014cb`,
   replaces c3100058ab (`.study-builds/tier5-r1d3-c3100058ab`). Its source is the same as
   c3100058ab's: the fourth dry-run pass changed only notes and the answer key.
+- 2026-11-02: `answers.md` matched to f0a9a014cb from the targeted re-pilots of T72 B, T73 B, T75 A
+  and T77 B; no bar changed and no prompt was wrong, so `tasks.md` is unchanged. Each change with
+  its reason:
+    - T72 B's, T73 B's, T75 A's and T77 B's paths and counts hold on this build (5 of 11; 7 of 11;
+      105 of 549 in 14 steps; 9 of 11 and Oldest 5 of 9), so each path names f0a9a014cb among the
+      builds it was walked on. T72 B's After and Between routes hold too (5 of 11 each).
+    - T72's "Not success" notes that Enter on a new layer's Fill with nothing typed commits the
+      default 6366F1, so a decoy second layer can leave the canvas unchanged: the grade reads the
+      layers, not the picture.
+    - T75 A's Largest component note adds that the step inside the Degree card also reads 112, and
+      that after Done a card the pointer is not on can show Edit in place of its count, so the
+      count is read from the top bar.

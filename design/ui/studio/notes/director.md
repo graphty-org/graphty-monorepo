@@ -5,39 +5,42 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-03 (tier 5 report after round 1: no valid sessions; studio stopped at the run's
-one-round budget).
+Last updated: 2026-11-03 (tier 5 round 1 closed with 30 valid sessions; studio stopped at
+the one-round cap).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
 2026-10-30 (five times), 2026-11-02 (four times) and 2026-11-03 (twice); the full earlier text is in this
 file's git history.
 
 ## Top of mind
 
-- (2026-11-03) TIER 5 ROUND 1: 60 of 60 sessions void, one cause (the start gate never ran, so
-  every start was refused; the re-run rule re-ran all 30 into the same refusal). Sessions-bars
-  1, 2, 3, 8 and the session parts of 5 and 9 unmeasured. See `tier5/rounds/round-1/insights.md`.
-- (2026-11-03) DECIDED: round 1 does not count toward the 3-round cap nor as "a round with no
-  progress" -- it measured nothing about the build. Restart it in full on the next frozen build.
-- (2026-11-03) Before any restart: fix the leak check (`tool/real.mjs` tests only paths a call
-  opens, never written content); runner checks the gate before launch and stops at the first
-  shared refusal; ONE smoke session before the roster. The launch path is the bottleneck.
-- (2026-11-03) Bar 4 fails on one finding: counts spoken from the covered inspector row
-  (`WhichPicker.tsx:435`). First fix of the next pass: speak only from the surface that shows.
-- (2026-11-03) Severity 2 owed: one shared searchable combobox for the reference picker; Clear
-  keeps the card's name (decided 631-632); a chosen reference shows its matched value (decided 694).
-- (2026-11-03) Rules to settle in `decided.md`: Clear-then-Escape on a new card against "Escape
-  never discards work"; the workspace layout below 1280 px wide.
-- (2026-11-03) Missing feeds for bars 6, 7, 9: calm-first check on the frozen build over every
-  screen it lists, the content designer's hand count, the interaction designer's walk, the audit of
-  the 7 Figma candidates. Run them with the restart, not after.
+- (2026-11-03) TIER 5 ROUND 1 CLOSED, studio stopped at the 1-round cap: 30 valid sessions on
+  1e123d7d33. Fails bars 1 and 3 (T75 only), 4 (two sev 3), 8 (T70, T74, T78; T71 B), 9 (4 of 3, a
+  floor). Holds 2 and 5. 6 and 7 not measured. See `tier5/rounds/round-1/insights.md`.
+- (2026-11-03) Bar 4 = two sev 3: counts spoken from the covered inspector row (fixed after the
+  freeze, re-walk), and a picker entry from a visible-scope run binding a whole-graph run. A run's
+  scope is an element fact the app words; fix it there, not by renaming entries in the app.
+- (2026-11-03) Next fixes, each with a repro re-walk: By position box (direction, unit, an error
+  built from `card.top ?? 10` that lies), empty Fill color box and its first-click commit, "Is
+  exactly" on an empty step, Clear then Escape/Done deleting a reopened card (`openedNew` check).
+- (2026-11-03) Bar 9 work: the new Or group's first state (B 0, full-width untouched range), the
+  words "Condition..." / "Or..." that never say and / or else, the workspace header's Tab order.
+- (2026-11-03) Bar 8 cost is dominated by the color row (largest share of T70 overage), then By
+  position. Cheapest cost win is there, not in the editor's structure.
+- (2026-11-03) The instrument failed twice: T73's key wants a live rule the words never ask for
+  (0 of 4 measures the key); "Would you rather it had shown something else?" invites a wish. Fix
+  both, and vary fixture colors vs asked colors, before round 2.
+- (2026-11-03) Bars 6, 7, 9 lacked feeds AGAIN: content designer, interaction designer and
+  calm-first walks did not run. Make them part of the round's launch, gated like sessions.
+- (2026-11-03) One round per run was too few to close a tier with 5 failing bars; next run needs
+  room for fix, refreeze, re-walk and a second round.
+- (2026-11-03) Launch path: gate check before launch, stop at first shared refusal, ONE smoke
+  session before the roster (the 60-void first attempt).
 - (2026-11-03) The report file is refused from a subagent every tier; return the full report as
   text and let the workflow write `tier5/report.md`.
-- (2026-11-02) Bar 9 = calm-first counts (0 sev 3-4, at most 3 sev 2); the rating cannot see
-  crowding (gap 1.5 < 2, reasons were bugs). Words at rest confirmed only by a hand count.
-- (2026-11-02) Owner items for tier 5, breaking or Figma only: 5 element and 5 compact-mantine;
-  reversible entries are built, not his decision. Round 1 added none.
+- (2026-11-02) Owner items for tier 5, breaking or Figma only: 5 element, 5 compact-mantine. Round
+  1 added none.
 - (2026-10-30) Freezing with a known bar-failer fails the bar by construction; each decided fix
-  gets its own acceptance check that walks one step past its own action.
+  gets an acceptance check that walks one step past its own action.
 - (2026-10-30) Run `git diff <earlier> <frozen>` over source FIRST in any triage.
 - (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak; settle every
   score through two skeptics.
@@ -86,6 +89,10 @@ file's git history.
 
 ## Decisions and reasons
 
+- **2026-11-03, tier 5 round 1 closed.** Studio stops at the cap with bars 1, 3, 4, 8, 9 failing.
+  Carry-over order for the next run: the two sev 3 (scope of a run as an element fact), then the
+  four repro'd sev 2, then bar 9's three elements, then the T73 and follow-up rewording. Why: bar 4
+  and bar 9 are the owner's; cost (bar 8) mostly falls out of the color row and By position fixes.
 - **2026-11-03, tier 5 report after round 1** (returned as text; the harness refused the file
   again). Results table per round with a "predicted before the round" column beside round 1's
   checked result, so the reader sees what moved: the three pre-round blockers (50k table search,
@@ -154,6 +161,9 @@ file's git history.
 
 ## Tried: worked / did not work
 
+- (2026-11-03, round 1 close) Worked: two skeptic checks cut overclaims (T73's 0 of 4, orange
+  swatches, "drowned" color, wish-inviting answers). Did not work: running a round without the
+  designer walks (bars 6, 7 unmeasured twice now); a task whose key and wording disagree.
 - (2026-11-03, tier 5 report) Worked: reading `insights.md` (after both checks) over `scores.md`
   where they differ (bar 9 went "failing" to "not measured"); summing the backlog's per-pass
   section headers instead of grepping rows (722 = 136 + 158 + 115 + 78 + 235); `git log
@@ -214,6 +224,9 @@ d3fda9f2b6..1e123d7d33 -- . ':!design'` to list what changed since the last repo
 
 ## Thinking
 
+- **2026-11-03, round 1 close:** the editor's structure held (0 false "done", every Or task
+  succeeded); its doubt lives in small words and empty first states. Expect the next round to move
+  on wording and defaults, not a redesign.
 - **2026-11-03, tier 5 report:** the studio's failures this tier were all upstream of the
   participant: a gate nobody ran, a re-run rule blind to cause, a leak check reading its own
   messages. Each was a rule written down and not enforced by the tool. Before a costly launch, ask

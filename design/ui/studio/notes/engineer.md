@@ -32,6 +32,12 @@ Trimmed again 2026-11-02 (file at 28 KB): the main-table and test-mode re-walk, 
 50,000-node edit blocks, and the data table never taking an editor's selection:
 `git show 64cd59e285:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) A walk's defect may already be fixed: check the walk's `session.json` commit against
+  the fix before building anything. The round 1 pilot's reference search "Nodes 0" for a person's
+  name ran on baac78342b, before 92a64cffe5; on HEAD the search lists "v02 name James Carter"
+  first (fresh walk in `design/ui/studio/tmp/r1-dry1-reference-names/`), and the element test
+  `page-matching-file-names.test.ts` fails with the old line. No code change was needed.
+
 - (2026-11-02) Cancel on a new filter card now leaves the history as it was before the card. Mechanism
   on 47c95a09fc: Cancel called `removeCondition`, a third step, so Undo read "Undo deleting a filter
   condition" and put the card back; the removal landed after the workspace closed, so the status
@@ -243,6 +249,14 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-11-02 worked: before fixing a walk's defect, read the walk's `session.json` `commit` and ask
+  `git merge-base --is-ancestor <fix> <that commit>`. The round 1 pilot's "Nodes 0" for "James" on
+  volunteers.graphml ran on baac78342b, which predates the fix 92a64cffe5 (a graph file's load names
+  `label` as the label column even when the file has none; `query.textTest` now reads every value
+  when no name path is a held column). Nothing had regressed: the test
+  `test/session/page-matching-file-names.test.ts` passes on HEAD and fails with the old line put
+  back, and a fresh walk lists "v02 name James Carter" first for James, Carter and James Carter.
 
 - 2026-11-02 did not work: asserting "the frame before the longest pause between frames shows the
   box ticked" (or "the last frame with the old count") in the 50,000-node test: in the test the

@@ -5,12 +5,18 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-02 (dry run pass 7, the first fix pass on the round's build 0c163f54bf).
+Last updated: 2026-11-03 (dry run pass 8, the second and last fix pass, on build 1e123d7d33).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
-2026-10-30 (five times) and 2026-11-02 (four times); the full earlier text is in this file's git history.
+2026-10-30 (five times), 2026-11-02 (four times) and 2026-11-03; the full earlier text is in this
+file's git history.
 
 ## Top of mind
 
+- (2026-11-03) DRY RUN PASS 8 on 1e123d7d33 (`tier5/dry-run-r1-8.md`; written there because
+  `dry-run-r1-2.md` already holds pass 2): 26 pilot lines, 0 fix now, 4 decided, 20 backlog. Both
+  pass 7 units are carried and walked. The build is session-ready; round 1 starts on it. First in
+  the backlog: focus after Enter in the color box during a busy close, and the color box's Escape
+  (three faces of `fieldKeyDown`), both now settled in `decided.md` "Dry run pass 8".
 - (2026-11-02) DRY RUN PASS 7 on 0c163f54bf (`tier5/dry-run-r1-7.md`): 293 pilot lines, 8 fix now
   in two units, both graphty app: fill-box-truth (a just-added color line shows no color and Enter
   writes nothing; item 8's Fill box repro) and busy-close-focus (the close hands focus back only if
@@ -40,11 +46,9 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 - (2026-11-02) Prompts: T74 B "journeys ... go through" (not "routes": Shortest route's keyword),
   T75 drops "at the middle"; follow-up asks for the least-sure moment, anchor "you knew what to do
   next". `wording.mjs` grades prompts only: 0 shared words on d3fda9f2b6's vocabulary.
-- (2026-11-02) Each finding counts once, toward the smaller allowance (bar 9 before bar 7).
 - (2026-11-02) Owner items for tier 5, breaking or Figma only: 5 element and 5 compact-mantine (see
-  the tier 5 report); eight reversible "For the owner" entries are built, not his decision.
-- (2026-11-02) The tier 5 report was written before any session (0 run); a subagent cannot write
-  `tier5/report.md`, so it goes back as text.
+  the tier 5 report); eight reversible "For the owner" entries are built, not his decision. Each
+  finding counts once, toward the smaller allowance (bar 9 before bar 7).
 - (2026-10-30) Tier 4 lessons that shaped tier 5: freezing with a known bar-failer backlogged fails the bar
   by construction; each decided fix gets its own acceptance check; wrong turn = input before success;
   preview must equal result.
@@ -98,13 +102,19 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Decisions and reasons
 
-- **2026-11-02, dry run pass 7** (`tier5/dry-run-r1-7.md`, `decided.md` "Dry run pass 7"). Fix now:
-  fill-box-truth (item 8 names it; it was backlog in passes 1 to 5 because only the screen-reader
-  name looked wrong, but the box itself draws a color nothing paints and Enter commits it) and
-  busy-close-focus (`answers.md` "can spoil the fill"; one check in the shared close). Not taken: the
-  hiding layer's key (not-success route), nodes under overlays (the canvas is the frame), the calm-
-  first double counts (two facts by the criteria log), the bars' failures (4fb3f45d59 aims at each;
-  re-run first). Why: the cap limits this pass to item 8 and new spoilers, and the round must start.
+- **2026-11-03, dry run pass 8** (`tier5/dry-run-r1-8.md`, `decided.md` "Dry run pass 8"). No fix
+  now. Backlog, not fix now: focus leaving the color box after Enter when a busy close ends (the fill
+  is set and `answers.md` grades the fill the layer ends with; only a correction typed next would
+  miss), and Escape in the color box (takes a just-added line away with its typed text; swallowed
+  with nothing typed; Enter, Tab and "+" still reach the fill). Settled by the framework's key table
+  (`interaction-patterns.md` line 702), not by a new opinion: pending edit, Esc reverts and stays;
+  no pending edit, Esc goes on to the overlay or the section heading; Enter commits and stays. Why:
+  the cap allows two fix passes, and nothing on a success path or listed detour crashes, blocks or
+  spoils.
+- **2026-11-02, dry run pass 7** (`tier5/dry-run-r1-7.md`). Fixed fill-box-truth (a box drawing a
+  color nothing paints, item 8's repro) and busy-close-focus (keys typed during a busy Done went to
+  shortcuts); left the bars' failures for their re-run, nodes under overlays (the canvas is the
+  frame) and the calm-first double counts (two facts by the criteria log).
 - **2026-11-02, tier 5 criteria after the second reviews, frozen for the rounds** (researcher
   7e4f4e71aa, red team 7881e4e012, user advocate ba5a319098; they agreed on almost every point).
   Taken: bar 9 counts named elements at any rating and T79 waits; "two counts" needs a reachable
@@ -163,6 +173,13 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Tried: worked / did not work
 
+- 2026-11-03 (dry run pass 8) -- Worked: `git diff --stat <previous> <frozen> -- . ':!design'`
+  first (five files, so only the two fix routes needed new eyes); reading the fix diffs to tell
+  regression from pre-existing (the Escape branch in `fieldKeyDown` and the close's body check were
+  untouched, and pass 7 already listed T76B.p7.7); grepping the framework's key table for the Escape
+  and Enter rows instead of inventing a rule; looking at the T73 A screenshot, which showed the
+  "table under the preview" is the matches strip. Did not work: the task's file name for the triage
+  collided with an older pass's file; wrote `dry-run-r1-8.md` instead of overwriting history.
 - 2026-11-02 (dry run pass 7) -- Worked: reading item 8's files (bars.json, calm-first-frozen.md, the
   rating check, the answer key's build notes) before the defect list, which turned a long-standing
   backlog row (the Fill box) into the gate's item; reading the pilot's `route.jsonl` for T79 A
@@ -182,29 +199,13 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
   "Problems" as the gate's state; grepping `owner-decisions.md` for tier 5 "For the owner" entries
   and keeping only breaking or Figma-lock ones. Did not work: writing `tier5/report.md` from a
   subagent (refused again, as in tier 4); the workflow should write it from the returned text.
-- 2026-11-02 (dry run passes 4-6) -- Worked: `git merge-base --is-ancestor` on each unit's fix commit
-  and `git diff --stat <previous> <frozen>` before reading defects (pass 5 showed no code change, so
-  pass 4's units were simply unbuilt); reading a fix's mechanism next to the pilot's symptom (the
-  table cache keyed on commands, not history moves); reading `roster.md` for screen-reader sessions
-  before classing spoken counts. Did not work: trusting a quiet defect list when no re-pilot walked
-  the unit's route.
-- 2026-11-02 (dry run pass 3) -- Worked: reading the previous fix's diff before classing (47c95a09fc's
-  `removeCondition` on Cancel explained the Undo label at once); reading the walk's `route.jsonl` timing
-  (Done: firstFrame 29 ms, settle 13 s) and its 1 s glance, which separated "busy with a sign" (open,
-  tick) from "no sign" (Done); classing each row by its own task's grade, so one mechanism gave one
-  fix-now row and two backlog rows fixed with it. Did not work: nothing new.
-- 2026-11-02 (dry run pass 2) -- Worked: reading the previous pass's fix commits and the engineer's
-  re-walk notes before classing (they explained the blank band as the hidden table's kept place, showed
-  that T73 A's "data table still draws" was the matches strip, and had already found the open-workspace
-  block's mechanism); one data list generating both the triage tables and the backlog section, with an
-  assert on the total (93). Did not work: citing interaction-patterns.md line 333 for the T77 A search
-  before reading on; line 342 decides the opposite (an out-of-scope selection is allowed and marked).
-- 2026-11-02 (dry run pass 1) -- Worked: reading `criteria.md` item 8 before classing (it turned four
-  "friction" candidates into round blockers); reading the source behind each unit before naming files
-  (the main table follows `editingSelection`, which an editor at rest keeps; the date mode is lost
-  because a card with no bound reads back as Before); generating `backlog.md` from the triage's rows
-  with a script and counting classes from the file (319 rows matched the brief). Did not work: a
-  first regex that dropped rows with an empty reason cell (112 of 275); caught by checking the total.
+- 2026-11-02 (dry run passes 1-6, summarized 2026-11-03; full text in git history) -- Worked:
+  `git merge-base --is-ancestor` on each unit's fix and `git diff --stat` before reading defects;
+  reading the previous fix's diff and the engineer's re-walk notes before classing; `route.jsonl`
+  timings to tell "busy with a sign" from "no sign"; reading `criteria.md` item 8 and the source
+  behind each unit before naming files; one data list generating the triage and the backlog with an
+  assert on the total. Did not work: trusting a quiet defect list when no re-pilot walked the unit's
+  route; a regex that dropped rows with an empty cell; citing a framework line before reading on.
 - 2026-11-02 (tier 5 criteria) -- Worked: reading the answer key's build notes against each bar to find bars
   that would fail by construction (five candidates); grepping the catalog's `keywords` for prompt words (it
   found "neighbors" behind "neighboring", which the noun list could not); checking the dist's
@@ -223,6 +224,10 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Thinking
 
+- **2026-11-03, dry run pass 8:** the first pass with nothing to fix. Its two leftovers are again the
+  step just after the fixed one (the Enter after the typed color; the Escape after the typed text),
+  as pass 3 predicted. What converged it was the answer key, not the build: `answers.md` already
+  grades the end state, so a focus slip after a commit cannot spoil. Keep grading end states.
 - **2026-11-02, dry run pass 7:** a defect that sat in the backlog for five passes as "screen reader
   only" was a visible lie all along (a swatch of a color nothing draws); the class came from the row's
   first wording, not from looking at the screen. Read the screenshot, not only the line. And every
@@ -276,7 +281,7 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 - Tier 5: report returned as text 2026-11-02 (meant for `tier5/report.md`); round 1 `tier5/rounds/round-1/{plan,tool-dry-run-1,tool-dry-run-2}.md`, `bars/`, `bars-light/`; briefings under the worktree's `tmp/studio-sessions/tier5/rounds/round-1/sessions/`;
   `tier5/{criteria,tasks,answers,roster,decided,owner-feedback-2026-11-01,placement-study}.md`;
-  dry run triages `tier5/dry-run-r1-{1,2,3,4,5,6,7}.md` (pass 7 pilots on 0c163f54bf: main checkout
+  dry run triages `tier5/dry-run-r1-{1,...,8}.md` (pass 8 pilots on 1e123d7d33: main checkout `tmp/design-studio/tier5/r1d1/pilot/`; pass 7 pilots on 0c163f54bf: main checkout
   `tmp/design-studio/tier5/r1/pilot/`; pass 6 pilots: main checkout
   `tmp/design-studio/tier5/r1d2/pilot/`; pass 4 pilots: main checkout
   `tmp/design-studio/tier5/r1d3/pilot/`; pass 5 pilots: `r1d1/pilot/`), `tier5/backlog.md`, `tier5/rejected-fixes.md`; pass 2

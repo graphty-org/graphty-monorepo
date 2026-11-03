@@ -1009,6 +1009,34 @@ above; none reverses one.
   the view to 2D) and the color was never set (T79 A detour-4, `r1/pilot/T79A/detour-4-0c163f54bf
 04.png` to `06.png`; `answers.md`, "Can spoil the fill").
 
+## Dry run pass 8, 2026-11-03 (Design Director)
+
+From the triage of the pilots on 1e123d7d33 (`dry-run-r1-8.md`). Each entry applies the framework's
+key table (`../../framework/interaction-patterns.md`, the table under "This table and 3.8's charts are
+the normative statement", line 702) to the style host's value boxes, or narrows an entry above; none
+reverses one. All three go to the backlog: none crashes, blocks or spoils a grade.
+
+- **Escape in a just-added line.** In the box of a line "+" just added, Escape with text typed and not
+  committed reverts the text and keeps focus in the box (the key table: "a field with a pending edit:
+  the field reverts, stays"); only an Escape with nothing typed takes the line back, as tier 3 and 4
+  decided ("Escape on a just-added line that holds nothing takes it back"). Why: one Escape after
+  typing E4572E took the whole Color line away and sent focus to Fill "+" (T70 A
+  `touched-1 14.png`; T76B.p7.7), so the innermost thing (the typed text) and the line went at once.
+- **Escape in a value box with nothing typed leaves the box.** In a style host's value box (a color, a
+  number) with no pending edit, Escape is not swallowed: inside the workspace it is the workspace's
+  Escape (Done); in the inspector focus goes to the box's section heading (the key table: "a field
+  with no pending edit: rung 1 in an overlay ...; else focus to its section's heading"). Why: Escape
+  in a color box holding a committed value, or with nothing typed, did nothing (T73 A
+  `touched-5 72.png`, T79 A `touched-7b-1e123d7d33 38.png`, T73B.p7.7).
+- **A commit keeps focus in its box, also while a busy close finishes.** Enter in a value box commits
+  and stays (the key table); when the workspace's close ends after that commit and finds focus on
+  nothing because the box re-rendered, it gives focus back to the box the reader was in, not to the
+  opener. Narrows pass 7's "Closing the workspace hands focus back only if the reader has not moved
+  on": the close reads where the reader went outside the workspace while it was closing, not only
+  where focus is at its end. Why: Done on 50,000 nodes, then at once Fill "+", E4572E, Enter set the
+  color, but focus ended on the Which nodes row (T79 A `touched-9-1e123d7d33 04.png`, `06.png`), so a
+  correction typed next would reach the row and its shortcuts.
+
 ## Speed on 50,000 nodes, round 2, 2026-11-02 (graphty-element engineer)
 
 The first blocker of `ws-polish-3-scale.md` (every edit locks the page 13 to 38 s), after the edge

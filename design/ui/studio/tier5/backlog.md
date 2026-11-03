@@ -904,3 +904,52 @@ re-checks every accessibility row. Screenshots are under the main checkout's
 | T79B.p7.3  | Ticking the box is announced twice, '1050 of 50000 nodes' and '1,050 of 50,000 nodes'                                                                                                                  | pilot/T79B/ keyboard 30.png                         | accessibility | screen reader only; each count spoken is right                                                                                                                                 |
 | T79B.p7.4  | Some accessible names drop the separators the screen shows ('Which nodes, 50000 of 50000 nodes'; 'Otter Creek, 1050 nodes')                                                                            | pilot/T79B/ keyboard 22, 29.png                     | accessibility | screen reader only                                                                                                                                                             |
 | T79B.p7.6  | ArrowDown in the attribute search with only one match keeps basin highlighted but removes its 'selected' state; Enter still picks basin                                                                | pilot/T79B/ keyboard 25.png                         | accessibility | screen reader only                                                                                                                                                             |
+
+## From the dry run, pass 8 (2026-11-03, build 1e123d7d33)
+
+20 rows, from the pilots on the frozen build (`dry-run-r1-8.md`; screenshots under the main checkout's `tmp/design-studio/tier5/r1d1/pilot/<task>/`, T79 A's in `<route>-1e123d7d33/`). Fifteen repeat a pass 7 row that still stands (named in the note); "Decided, not built" rows go first. T76 rows wait behind the rest (T76 runs in no session).
+
+### Decided, not built (6)
+
+| Row       | Defect                                                                                                                              | Route and screenshots                        | Kind          | Note                                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| T79A.p8.1 | Done on 50,000 nodes, then at once Fill "+", type, Enter: the color is set but focus ends on the Which nodes row, not the color box | pilot/T79A/ touched-9-1e123d7d33 04, 06.png  | friction      | first in line; decided.md pass 8, "A commit keeps focus in its box, also while a busy close finishes"                      |
+| T70A.p8.1 | Typing in a just-added Color line, then Escape, takes the whole line away; focus goes to Fill "+"                                   | pilot/T70A/ touched-1 14.png                 | friction      | decided.md pass 8, "Escape in a just-added line"; one fix in `PropertyRow.tsx` `fieldKeyDown` with T73A.p8.1 and T79A.p8.3 |
+| T73A.p8.1 | Escape in a color box holding a committed value does nothing; focus stays in the box                                                | pilot/T73A/ touched-5 72.png                 | accessibility | decided.md pass 8, "Escape in a value box with nothing typed leaves the box"; T73B.p7.7                                    |
+| T79A.p8.3 | Escape in the color box with nothing typed does nothing                                                                             | pilot/T79A/ touched-7b-1e123d7d33 38.png     | accessibility | decided.md pass 8, "Escape in a value box with nothing typed leaves the box"                                               |
+| T79A.p8.2 | After Escape closes the workspace, the step row under Which nodes is named 'dept Grants, 1,076 of 50,000 nodes so far'              | pilot/T79A/ touched-12-1e123d7d33 31, 32.png | accessibility | ws polish 1, "One count per place" ("so far" only where it differs); T79B.p7.2                                             |
+| T78B.p8.1 | Tab from km to goes to 'Local only'; Done is 24 Tabs away; Search matches is not in the Tab order                                   | pilot/T78B/ keyboard 10.png                  | accessibility | placement accessibility, "Cancel, Clear and Done in the header's Tab order"; T78B.p7.1                                     |
+
+### Friction (2)
+
+| Row       | Defect                                                                                       | Route and screenshots       | Kind     | Note                                                                               |
+| --------- | -------------------------------------------------------------------------------------------- | --------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| T71B.p8.2 | A filter card has no remove control of its own, and Delete on the selected card does nothing | pilot/T71B/ detour-1 11.png | friction | no control at rest is decided; the Delete key the menu names is the ask; T71B.p7.2 |
+| T75A.p8.3 | Right after Done the focused card shows Edit in place of its count                           | pilot/T75A/ keyboard 38.png | friction | the count comes back when focus moves; T75A.p7.3                                   |
+
+### Wording (3)
+
+| Row       | Defect                                                                                                                                     | Route and screenshots           | Kind    | Note                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- | ------- | ---------------------------------- |
+| T71B.p8.3 | After Visibility > Hide the key reads 'Show: Layer 1, 6 of 11 nodes' for the six hidden; Undo toast 'Undid changing node show on Layer 1.' | pilot/T71B/ detour-3 09, 10.png | wording | not-success route; T71B.p7.6, p7.7 |
+| T75A.p8.2 | The canvas key reads 'Draw order: graphty.style.json.node.el.drawOrder' from the start                                                     | pilot/T75A/ success 10.png      | wording | T75A.p7.12                         |
+| T76B.p8.1 | Both Which nodes rule steps in the Hover highlight folder read 'The rule: <<Layer>>, 1 of 2 layers' (typographic guillemets)               | pilot/T76B/ success 03, 09.png  | wording | T76 runs in no session; T76B.p7.3  |
+
+### Cosmetic (4)
+
+| Row       | Defect                                                                                                                   | Route and screenshots                            | Kind     | Note                                                                                              |
+| --------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------- |
+| T73B.p8.1 | After Done the main node table returns scrolled sideways (lon first in view; id and lat off to the left)                 | pilot/T73B/ success 06-09.png; touched-12 04.png | cosmetic | T78B.p7.12                                                                                        |
+| T70A.p8.2 | E4572E sits inside the PageRank gradient's orange range, so the 4 staff nodes are hard to tell apart by eye              | pilot/T70A/ success 16.png                       | cosmetic | the task names the color and the start holds the gradient; graded counts are read from the panels |
+| T76B.p8.2 | Tab out of Halo opacity lands on its link button; the tooltip 'Node halo opacity by attribute' stays over the line below | pilot/T76B/ success 14.png                       | cosmetic | T76 runs in no session                                                                            |
+| T76B.p8.3 | The Except step's pass count is cut to 'Passes nor' and the inspector scrolls sideways                                   | pilot/T76B/ by-hand 06.png                       | cosmetic | T76 runs in no session; T76B.p7.11                                                                |
+
+### Accessibility (5)
+
+| Row       | Defect                                                                                                                         | Route and screenshots                       | Kind          | Note                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- | ------------- | -------------------------------------------------- |
+| T71A.p8.1 | After Or..., 'ho', Tab, Escape, Escape, Ctrl+Z the card still shows an empty 'or C 0' while the notice names the filter with C | pilot/T71A/ keyboard 43.png                 | accessibility | keyboard only; the count stays 10 of 24; T71A.p7.9 |
+| T71B.p8.1 | Tab from the date box leaves the workspace for 'Local only'                                                                    | pilot/T71B/ keyboard 46.png; success 10.png | accessibility | T71B.p7.1                                          |
+| T74B.p8.1 | Enter in 'Betweenness: how many' announces '3 of 11 nodes' twice                                                               | pilot/T74B/ keyboard                        | accessibility | T74B.p7.13                                         |
+| T75A.p8.1 | One number box is named 'Piece size from' before So far and 'Connected components from' after                                  | pilot/T75A/ keyboard 30, 35.png             | accessibility | T75A.p7.8                                          |
+| T78B.p8.2 | Each count change is announced twice ('9 of 11 nodes' x2, '7 of 11 nodes' x2)                                                  | pilot/T78B/ keyboard 08, 09.png             | accessibility | T78B.p7.8                                          |

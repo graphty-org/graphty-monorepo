@@ -10,6 +10,9 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-11-02) Tier 5 round 1 plan: 30 sessions on d3fda9f2b6 exactly as roster.md (core tasks
+  first, A and B alternating, Sam last with `--keys`); all 30 brief on the frozen build. The
+  plan has no "Gate evidence" yet: `real.mjs --gate` must write it before any session starts.
 - (2026-11-02) On d3fda9f2b6 the empty undo history at a setup start holds (T72 B): Undo after
   Cancel on a new card does nothing, so the setup-step spoiler is gone. The half-hidden orange
   node with the table open is still there: grade counts from the inspector or key.
@@ -74,6 +77,13 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-11-02 (tier 5 round 1 plan):** Wrote `tier5/rounds/round-1/plan.md`: 30 rows, the
+  roster's assignments unchanged (core tasks T70, T71, T73, T74, T78 at 2 per half; T72, T75, T77,
+  T79 at 1 per half; T76 none; Sam's T70 A and T71 A last with `setup:volunteers.txt --keys`).
+  Starts are the roster's "Where each session starts" cells, written into each row so the plan
+  alone says what a session opens. Follow-ups come from tasks.md through the tool. Reason: the
+  criteria and roster are frozen; the plan only orders them. Evidence: `--brief` on all 30 printed
+  a briefing on REAL_DIST tier5-r1d2-d3fda9f2b6 with the expected setup.
 - **2026-11-02 (answer key matched to d3fda9f2b6 from the T72 B re-pilot):** Changed only
   `answers.md` (path names the build; the Undo-after-Cancel note records Undo off at start and no
   card returning; the half-hidden node note says still drawn) and the change log. No bar, no
@@ -188,6 +198,9 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (round 1 plan) -- Worked: copying tier 4's plan layout (the parser reads columns
+  id, task, half, persona, start) and briefing every row in one loop, tallying REAL_DIST and the
+  start. Note: `--brief` writes to the worktree's `tmp/studio-sessions/`, not the round folder.
 - 2026-11-02 (key vs d3fda9f2b6, T72 B) -- Worked: reusing a round folder (`r1d2`) for a newer
   build by moving the older walks to `_<oldbuild>/`; the key names the move so walk paths stay
   traceable. Did not work: the pilot subagent could not write its report.md; the caller saves it.

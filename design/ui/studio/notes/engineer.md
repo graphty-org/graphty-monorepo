@@ -227,6 +227,12 @@ date)` lost its kind and column arguments: a text or number time field shows its
 
 ## Tried: worked / did not work
 
+- (2026-11-03) Re-check of the study tool fix (2aa3ff3fad): it changes only design/ui/studio/tool, no app
+  route, so no walk. Worked: with-browser.test (11 pass, incl. BROWSER_SLOT_ALSO), match.test (2),
+  bar8-9.test (3), waits.mjs --self-test, and waits.mjs on round-1/bars/sessions (9 waits over 10 s on
+  the 50k path, longest 33.7 s on Done). Did not work: waits.mjs on rounds/*/pilot reads 0 routes (the
+  pilot folders hold none; routes live under rounds/round-1/bars/sessions). Slip: ran bar8-9.test
+  without with-browser.sh; it starts a browser, so always wrap it as its header says.
 - (2026-11-03) Did not work: a gate test holding only slot1 of a planted "machine" pool: a command
   not drawn on the GPU defaults to 4 slots and took slot2 at once. Hold 1 to 4. Worked: `exec 7>&9
 9>&-` then `exec` the gate on the second pool keeps both locks and the pid.

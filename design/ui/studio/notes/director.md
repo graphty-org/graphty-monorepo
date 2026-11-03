@@ -5,41 +5,40 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-03 (tier 5 round 1 closed, no valid sessions; studio stopped at its cap).
+Last updated: 2026-11-03 (tier 5 report after round 1: no valid sessions; studio stopped at the run's
+one-round budget).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
-2026-10-30 (five times), 2026-11-02 (four times) and 2026-11-03; the full earlier text is in this
+2026-10-30 (five times), 2026-11-02 (four times) and 2026-11-03 (twice); the full earlier text is in this
 file's git history.
 
 ## Top of mind
 
-- (2026-11-03) TIER 5 ROUND 1 CLOSED WITH ZERO VALID SESSIONS; the studio stops at its 1-round
-  cap without meeting the bars. All 60 sessions are void because the start gate never ran (plan.md
-  had no "Gate evidence" section; every start refused on the same line). Bars 1, 2, 3, 6, 8 and the
-  session parts of 5 and 9 are unmeasured. See `tier5/rounds/round-1/insights.md`.
-- (2026-11-03) Before any restart: the start gate runs and its evidence is in plan.md BEFORE launch,
-  and the runner stops the round at the first refused start whose cause every session shares. A
-  shared refusal burning 60 slots is a runner defect, not a round.
-- (2026-11-03) Fix the leak check before any restart: `leakCheck` in `tool/real.mjs` must test only
-  the paths a call opens, never written content (about 34 grades flagged the tool's own FAIL line).
-- (2026-11-03) Bar 4 fails on one finding: a workspace over a selected layer speaks twice into one
-  status region, so the reader may hear the hidden inspector's count (`WhichPicker.tsx:435`). Fix:
-  speak only from the surface that is showing (graphty app). First fix of the next pass.
-- (2026-11-03) Severity 2 fixes owed: one shared searchable combobox for the reference picker
-  (Tab escape, no result count); Clear keeps the card's name (decided 631-632); a chosen reference
-  shows its matched value (decided 694).
-- (2026-11-03) Rule gaps to settle in `decided.md`: which wins when Clear-then-Escape on a new card
-  meets "Escape never discards work"; the workspace layout below 1280 px wide.
-- (2026-11-03) Eight dry-run passes produced zero sessions, and the one round produced zero too.
-  The studio's bottleneck is the launch path, not the build. Next time, spend the first effort on a
-  one-session smoke start before the full roster.
-- (2026-11-02) Bar 9 = calm-first (0 sev 3-4, at most 3 sev 2); the words-at-rest count is
-  confirmed only by a hand count, never the scripted one.
+- (2026-11-03) TIER 5 ROUND 1: 60 of 60 sessions void, one cause (the start gate never ran, so
+  every start was refused; the re-run rule re-ran all 30 into the same refusal). Sessions-bars
+  1, 2, 3, 8 and the session parts of 5 and 9 unmeasured. See `tier5/rounds/round-1/insights.md`.
+- (2026-11-03) DECIDED: round 1 does not count toward the 3-round cap nor as "a round with no
+  progress" -- it measured nothing about the build. Restart it in full on the next frozen build.
+- (2026-11-03) Before any restart: fix the leak check (`tool/real.mjs` tests only paths a call
+  opens, never written content); runner checks the gate before launch and stops at the first
+  shared refusal; ONE smoke session before the roster. The launch path is the bottleneck.
+- (2026-11-03) Bar 4 fails on one finding: counts spoken from the covered inspector row
+  (`WhichPicker.tsx:435`). First fix of the next pass: speak only from the surface that shows.
+- (2026-11-03) Severity 2 owed: one shared searchable combobox for the reference picker; Clear
+  keeps the card's name (decided 631-632); a chosen reference shows its matched value (decided 694).
+- (2026-11-03) Rules to settle in `decided.md`: Clear-then-Escape on a new card against "Escape
+  never discards work"; the workspace layout below 1280 px wide.
+- (2026-11-03) Missing feeds for bars 6, 7, 9: calm-first check on the frozen build over every
+  screen it lists, the content designer's hand count, the interaction designer's walk, the audit of
+  the 7 Figma candidates. Run them with the restart, not after.
+- (2026-11-03) The report file is refused from a subagent every tier; return the full report as
+  text and let the workflow write `tier5/report.md`.
+- (2026-11-02) Bar 9 = calm-first counts (0 sev 3-4, at most 3 sev 2); the rating cannot see
+  crowding (gap 1.5 < 2, reasons were bugs). Words at rest confirmed only by a hand count.
 - (2026-11-02) Owner items for tier 5, breaking or Figma only: 5 element and 5 compact-mantine;
-  reversible entries are built, not his decision.
+  reversible entries are built, not his decision. Round 1 added none.
 - (2026-10-30) Freezing with a known bar-failer fails the bar by construction; each decided fix
-  gets its own acceptance check; preview must equal result.
+  gets its own acceptance check that walks one step past its own action.
 - (2026-10-30) Run `git diff <earlier> <frozen>` over source FIRST in any triage.
-- (2026-10-29) A fix that gives an answer a new input must move every count and cache derived from it.
 - (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak; settle every
   score through two skeptics.
 
@@ -87,6 +86,13 @@ file's git history.
 
 ## Decisions and reasons
 
+- **2026-11-03, tier 5 report after round 1** (returned as text; the harness refused the file
+  again). Results table per round with a "predicted before the round" column beside round 1's
+  checked result, so the reader sees what moved: the three pre-round blockers (50k table search,
+  14 serious axe, 66 shared prompt words) closed on 1e123d7d33; bar 4 now fails on a different
+  finding. Round 1 does not count toward the cap. Why: a round that never showed the app is a tool
+  failure; counting it would stop the studio on a measurement of nothing. Owner list unchanged at
+  10 (5 breaking element, 5 Figma lock).
 - **2026-11-03, dry run pass 8** (`tier5/dry-run-r1-8.md`, `decided.md` "Dry run pass 8"). No fix
   now. Backlog, not fix now: focus leaving the color box after Enter when a busy close ends (the fill
   is set and `answers.md` grades the fill the layer ends with; only a correction typed next would
@@ -124,21 +130,11 @@ file's git history.
   setup start. Rules: a fix-now unit stays open until a build carries it; item 8 makes every named
   sev 3 candidate a blocker. Not taken: nodes under the toolbar (the canvas is the frame), keyboard
   and screen-reader rows (backlog).
-- **2026-11-02, tier 5 criteria reviewed and frozen** (three reviews: researcher 81e993f52d, user advocate
-  65a6f779a1, red team 6946dd5032; they agreed on most points). Taken: bar 9 split into calm-first (gating
-  sev 2 at most 3, with counts of what is drawn, gaps, row breaks, alignment, words budget, at 1440 x 900 and
-  1280 x 800), named reasons, and a median that gates only after a rating check on the rejected build
-  (reason: the placement study rated 2-3 everywhere, including the cards the owner rejected); the check must
-  fail the rejected build too; a table from each of the owner's six complaints to its check; "Large graphs"
-  severities (unbounded 50k list 3; >1 s blocked with no sign 3; >10 s busy without progress 2, 3 if anyone
-  gave up); the 50k walk of every list; bar 5 counts a11y-walk keyboard blocks with a `--keys` repro; wrong
-  turns before success only, never hovers, with worked examples in `answers.md`; expert-to-bar table; item 8
-  (no half blocked, no known sev 3 open; the dry run may fix confirmed sev 3 candidates); T78 core and T76
-  dry-run only; rating first and neutral owner questions; prompt words "either direction", "neighboring",
-  "instead of" replaced; 8 alive at once (the browser pool). Roster: Grace takes T78 A with the shifts file
-  added to her history, Tom T78 B, Ruth drops T76 A; every start is a saved project. Not taken: lowering bar
-  9's median target (the rating check decides whether it gates); keeping "neighboring" as a detour (the
-  alias makes it a direct route). Froze d13c2ff3da (its dist's stamp d13c2ff3dabe; only notes since).
+- **2026-11-02, tier 5 criteria reviewed and frozen** (summarized 2026-11-03; full text in git
+  history; reviews 81e993f52d, 65a6f779a1, 6946dd5032). Bar 9 split into calm-first counts and a
+  rating median that gates only if a rating check separates the rejected build; "Large graphs"
+  severities; bar 5 counts walk keyboard blocks; item 8 (no half blocked, no known sev 3 open).
+  Froze d13c2ff3da. Why: the owner's complaint must be able to fail the round.
 - **2026-10-30, tier 4 round 1 and its report** (summarized 2026-11-02; full text in git history and
   `tier4/rounds/round-1/`). 28 sessions on 79ed770292; bars 1 and 4 held, 5, 6, 7 failed, 2 and 3 failed only
   as frozen (never re-scored after results). Stopped at the round cap; the top blocker was the study tool
@@ -158,6 +154,11 @@ file's git history.
 
 ## Tried: worked / did not work
 
+- (2026-11-03, tier 5 report) Worked: reading `insights.md` (after both checks) over `scores.md`
+  where they differ (bar 9 went "failing" to "not measured"); summing the backlog's per-pass
+  section headers instead of grepping rows (722 = 136 + 158 + 115 + 78 + 235); `git log
+d3fda9f2b6..1e123d7d33 -- . ':!design'` to list what changed since the last report. Did not
+  work: writing `tier5/report.md` from a subagent (refused a third time).
 - (2026-11-03) Did not work: launching the full 60-session roster without a recorded start gate.
   One shared cause voided every session. Worked: two skeptic checks still turned four expert walks
   into a short, cited fix list (1 sev 3, 4 sev 2) despite no sessions.
@@ -213,6 +214,10 @@ file's git history.
 
 ## Thinking
 
+- **2026-11-03, tier 5 report:** the studio's failures this tier were all upstream of the
+  participant: a gate nobody ran, a re-run rule blind to cause, a leak check reading its own
+  messages. Each was a rule written down and not enforced by the tool. Before a costly launch, ask
+  the tool to prove it would start one session, not whether the roster is ready.
 - **2026-11-03, dry run pass 8:** the first pass with nothing to fix. Its two leftovers are again the
   step just after the fixed one (the Enter after the typed color; the Escape after the typed text),
   as pass 3 predicted. What converged it was the answer key, not the build: `answers.md` already

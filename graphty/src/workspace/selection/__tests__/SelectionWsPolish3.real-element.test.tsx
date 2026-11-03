@@ -7,13 +7,16 @@
  * condition's pick goes on to its Min box and tags nothing until it tests; a long checklist says
  * how many values are not drawn; F6 goes from the workspace to its preview; the Filters header
  * keeps its total while a card is edited; a new card's Nodes | Edges keeps focus on a side switch;
- * a collapsed card's name says its count apart from its title.
+ * a collapsed card's name says its count apart from its title. And round 1's gate
+ * (design/ui/studio/tier5/report.md): the matches strip is searched first, the value picker's list
+ * is itself the region that scrolls, and a disabled reference says it is unavailable.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
 import type { GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
+import axe from "axe-core";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -172,7 +175,11 @@ describe("the preview canvas", () => {
         const { session } = await openSample();
         await openLayer(session, "Keyed", TWO);
         const ws = await edit();
-        assert.isNull(document.querySelector(".ws-legend-card"), "no key over the preview");
+        // From the workspace's first frame: no key is drawn over the preview.
+        assert.isFalse(
+            document.querySelector(".ws-legend-card")?.checkVisibility() ?? false,
+            "no key over the preview",
+        );
         const row = await waitFor(() => {
             const found = ws.querySelector<HTMLElement>(".sel-ws-outline [data-no-match]");
             assert.isNotNull(found);
@@ -377,5 +384,76 @@ describe("the Filters", () => {
             assert.strictEqual(active?.value, "node", "ArrowLeft goes back to Nodes");
             assert.isTrue(active?.checked);
         });
+    });
+});
+
+/**
+ * Axe's serious and critical violations of some rules inside an element.
+ * @param root - where to look.
+ * @param rules - the rules to run.
+ * @returns each violation's rule and first target.
+ */
+async function violations(root: Element, rules: string[]): Promise<string[]> {
+    const result = await axe.run(root, { runOnly: { type: "rule", values: rules } });
+    return result.violations.map((each) => `${each.id} ${String(each.nodes[0]?.target ?? "")}`);
+}
+
+describe("round 1's gate", () => {
+    it("the matches strip is searched first, and typing finds a match among its rows", async () => {
+        const { session } = await openSample();
+        await openLayer(session, "Searched", degreeAtLeast(1));
+        const ws = await edit();
+        const strip = await within(ws).findByRole("region", { name: "Matches" });
+        const rows = (): number =>
+            Number(strip.querySelector("[aria-rowcount]")?.getAttribute("aria-rowcount") ?? Number.NaN);
+        await waitFor(() => {
+            assert.isAbove(rows(), 20, "every match is in the strip's table");
+        });
+        const search = within(strip).getByRole("searchbox", { name: "Search matches" });
+        assert.isTrue(
+            Boolean(search.compareDocumentPosition(strip.querySelector("table, [role=grid]") ?? strip) & 4),
+            "the search comes before the table",
+        );
+        await userEvent.click(search);
+        await userEvent.keyboard("Valjean");
+        await waitFor(() => {
+            assert.isAtMost(rows(), 3, "the table holds what the search found");
+            assert.include(strip.textContent ?? "", "Valjean");
+        });
+    });
+
+    it("the value picker's list is the region that scrolls, so no key-less scroller is left", async () => {
+        const { session } = await openSample();
+        await openLayer(session, "Scrolled");
+        await edit();
+        const search = await screen.findByRole("combobox", { name: "Find attributes, results" });
+        const dropdown = search.closest(".mantine-Combobox-dropdown") ?? document.body;
+        const scroller = await waitFor(() => {
+            const found = [...dropdown.querySelectorAll<HTMLElement>("*")].find(
+                (each) =>
+                    each.scrollHeight > each.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(each).overflowY),
+            );
+            assert.isDefined(found, "the list holds more than it shows");
+            return found;
+        });
+        assert.strictEqual(scroller?.getAttribute("role"), "listbox", "what scrolls is the list");
+        assert.strictEqual(scroller?.id, search.getAttribute("aria-controls"), "the search's own list");
+        assert.deepEqual(await violations(dropdown, ["scrollable-region-focusable"]), []);
+    });
+
+    it("a reference that cannot be taken yet says so, as its dimmed ink shows", async () => {
+        const { session } = await openSample();
+        await openLayer(session, "Referred", TWO);
+        const ws = await edit();
+        const row = await waitFor(() => {
+            const found = ws.querySelector<HTMLElement>('[data-row="b1"] .sel-value');
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(row ?? ws);
+        await userEvent.click(await within(ws).findByRole("button", { name: /^Reference/ }));
+        const soFar = await screen.findByRole("option", { name: "So far" });
+        assert.strictEqual(soFar.getAttribute("aria-disabled"), "true");
+        assert.deepEqual(await violations(soFar.closest("[role=listbox]") ?? soFar, ["color-contrast"]), []);
     });
 });

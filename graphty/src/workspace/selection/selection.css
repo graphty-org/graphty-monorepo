@@ -295,10 +295,21 @@
 }
 
 .sel-ws-strip {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
     min-height: 0;
     overflow: hidden;
     background: var(--cm-bg);
     border-top: 1px solid var(--cm-border);
+}
+
+.sel-ws-strip-search {
+    width: min(240px, 100% - 16px);
+    margin: 4px 8px;
+}
+
+.sel-ws-strip-table {
+    min-height: 0;
 }
 
 .sel-ws-props.sel-pane-box {
@@ -312,4 +323,10 @@
     padding: 8px 16px;
     background: var(--cm-bg);
     border-inline-start: 1px solid var(--cm-border);
+}
+
+/* No canvas key over the preview from the workspace's first frame on, before the store names it:
+   its outline says what the key would (ws-polish 3, finding 1). */
+.ws-body:has(> .sel-ws) .ws-canvas-overlays .ws-legend-card {
+    display: none;
 }

@@ -2,13 +2,14 @@
  * The workspace's matches strip (design/ui/selection-groups/spec.md, sections 3.0 and 8): the
  * selection's matches only, a Group column first, columns sized to their content, virtualized. It
  * reads the members graphty-element counts (`scope.watchSteps`); a row clicked while Pick on canvas
- * is armed fills the reference instead of selecting.
+ * is armed fills the reference instead of selecting. Its search comes first ("Large graphs", spec
+ * 4.3): past the rows it draws, typing finds the rest (graphty-element's `matching`).
  */
 
-import type { DataTableSort } from "@graphty/compact-mantine";
+import { type DataTableSort, SearchInput } from "@graphty/compact-mantine";
 import type { EdgeId, GraphSession, NodeId, UnionLeaf } from "@graphty/graphty-element/session";
 import { useElementSize } from "@mantine/hooks";
-import React, { useState } from "react";
+import React, { useDeferredValue, useState } from "react";
 
 import { columnChoices, type RecordKind } from "../table/columns";
 import { RecordTable } from "../table/RecordTable";
@@ -33,6 +34,9 @@ export function MatchesStrip({
     const reading = useEditedSelection(session, rule);
     const { ref, height } = useElementSize();
     const [sort, setSort] = useState<DataTableSort | null>(null);
+    const [text, setText] = useState("");
+    // The table reads its page as the search allows: a keystroke is drawn at once.
+    const typed = useDeferredValue(text.trim());
     const kind: RecordKind = rule.side === "nodes" ? "node" : "edge";
     // The Group column is drawn only when there are two groups to tell apart.
     const groupOf =
@@ -49,20 +53,30 @@ export function MatchesStrip({
               };
     const columns = columnChoices(session, kind).filter((choice) => choice.hidden !== true);
     return (
-        <section className="sel-ws-strip" aria-label="Matches" ref={ref}>
-            {reading !== null && height > 0 && (
-                <RecordTable
-                    key={JSON.stringify(reading.rule)}
-                    session={session}
-                    kind={kind}
-                    columns={columns}
-                    scope={reading.branches.find((each) => each.id === branch)?.members ?? reading.result}
-                    groupOf={groupOf}
-                    sort={sort}
-                    onSortChange={setSort}
-                    height={height}
-                />
-            )}
+        <section className="sel-ws-strip" aria-label="Matches">
+            <SearchInput
+                className="sel-ws-strip-search"
+                aria-label="Search matches"
+                placeholder="Search matches"
+                value={text}
+                onChange={setText}
+            />
+            <div className="sel-ws-strip-table" ref={ref}>
+                {reading !== null && height > 0 && (
+                    <RecordTable
+                        key={`${JSON.stringify(reading.rule)} ${typed}`}
+                        session={session}
+                        kind={kind}
+                        columns={columns}
+                        scope={reading.branches.find((each) => each.id === branch)?.members ?? reading.result}
+                        groupOf={groupOf}
+                        sort={sort}
+                        onSortChange={setSort}
+                        height={height}
+                        matching={typed === "" ? undefined : typed}
+                    />
+                )}
+            </div>
         </section>
     );
 }

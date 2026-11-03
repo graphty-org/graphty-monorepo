@@ -1370,7 +1370,11 @@ export function AddCondition({
                   combobox.closeDropdown();
                   onElsewhere(other);
               };
-    const { dropdownOpened, selectFirstOption, selectOption, resetSelectedOption } = combobox;
+    const { dropdownOpened, selectFirstOption, selectOption, resetSelectedOption, setListId } = combobox;
+    // The store finds its options in the list by this id (Combobox.Options would tell it).
+    useEffect(() => {
+        setListId(listId);
+    }, [setListId, listId]);
     // "Nothing found" sits in the list, which a screen reader does not read while focus is in the
     // search: the status line says it each time typing empties the list.
     const { store } = useWorkspace();
@@ -1548,115 +1552,120 @@ export function AddCondition({
                     withKeyboardNavigation={false}
                     onKeyDown={keys}
                 />
-                <Combobox.Options
-                    id={listId}
-                    // The list is reached from the search with the arrows, never by Tab.
-                    tabIndex={-1}
-                    aria-label="Attributes"
+                {/* compact-mantine's overlay scrollbar, as every Select's list; never sideways. */}
+                <ScrollArea.Autosize
+                    mah={240}
+                    type="scroll"
+                    scrollbars="y"
+                    // Mantine lays the content out as a table, which widens to its longest row:
+                    // a block keeps every row inside the list, cut short at its tail.
+                    classNames={{ content: "ws-list-content" }}
+                    // The listbox is what scrolls: the search's popup, whose rows the arrows reach
+                    // through aria-activedescendant, never by Tab. A listbox inside a scroller
+                    // would leave the scroller a region no key can reach.
+                    viewportProps={{
+                        id: listId,
+                        role: "listbox",
+                        "aria-label": "Attributes",
+                        tabIndex: -1,
+                        onMouseDown: (event) => {
+                            event.preventDefault();
+                        },
+                    }}
                 >
-                    {/* compact-mantine's overlay scrollbar, as every Select's list; never sideways. */}
-                    <ScrollArea.Autosize
-                        mah={240}
-                        type="scroll"
-                        scrollbars="y"
-                        // Mantine lays the content out as a table, which widens to its longest row:
-                        // a block keeps every row inside the list, cut short at its tail.
-                        classNames={{ content: "ws-list-content" }}
-                    >
-                        {count === 0 ? (
-                            <Combobox.Empty>
-                                {nothingWords}
-                                {goElsewhere !== undefined && other !== undefined && (
-                                    <Button
-                                        size="compact-xs"
-                                        variant="subtle"
-                                        mt={4}
-                                        // A long attribute name wraps inside the list's width, never
-                                        // scrolling the list sideways.
-                                        h="auto"
-                                        maw="100%"
-                                        styles={{
-                                            label: {
-                                                whiteSpace: "normal",
-                                                overflowWrap: "anywhere",
-                                                textAlign: "start",
-                                            },
-                                        }}
-                                        // A press in the list must not take focus from the search first.
-                                        onMouseDown={(event) => {
-                                            event.preventDefault();
-                                        }}
-                                        onClick={goElsewhere}
-                                    >
-                                        Add {other.name} on the {otherTab} tab
-                                    </Button>
-                                )}
-                            </Combobox.Empty>
-                        ) : (
-                            <>
-                                {groups.map(({ group, items }) => (
-                                    <Combobox.Group key={group} label={group} role="group" aria-label={group}>
-                                        {items.map((field) => {
-                                            const key = keyOf(field);
-                                            const inUse = used.includes(key);
-                                            // The icon the Vary by list draws for the same value; the node id reads as text.
-                                            const Glyph = glyphOf(field.kind);
-                                            const fieldOption = (
-                                                <Combobox.Option
-                                                    key={key}
-                                                    value={key}
-                                                    data-used={inUse || undefined}
-                                                    // Its fact and whether it is a condition already are part of
-                                                    // what it is: "Degree, 1 to 36", as in the Vary by list.
-                                                    aria-label={[
-                                                        field.name,
-                                                        ...(field.fact === undefined ? [] : [field.fact]),
-                                                        ...(inUse ? ["already a condition"] : []),
-                                                    ].join(", ")}
-                                                >
-                                                    <OptionLine
-                                                        glyph={Glyph}
-                                                        name={field.name}
-                                                        fact={field.fact}
-                                                        used={inUse}
-                                                    />
-                                                </Combobox.Option>
-                                            );
-                                            // Its plain words, as its tooltip (selection spec 3.5).
-                                            return field.tip === undefined ? (
-                                                fieldOption
-                                            ) : (
-                                                <Tooltip key={key} label={field.tip} position="right" openDelay={300}>
-                                                    <div>{fieldOption}</div>
-                                                </Tooltip>
-                                            );
-                                        })}
-                                    </Combobox.Group>
-                                ))}
-                                {moreShown.map(({ group, items }) => (
-                                    <Combobox.Group key={group} label={group} role="group" aria-label={group}>
-                                        {items.map((each) => (
-                                            <ExtraOption key={each.key} item={each} />
-                                        ))}
-                                    </Combobox.Group>
-                                ))}
-                                {extras.length > 0 && (
-                                    <Combobox.Group label="Structure" role="group" aria-label="Structure">
-                                        {extras.map((each) => (
+                    {count === 0 ? (
+                        <Combobox.Empty>
+                            {nothingWords}
+                            {goElsewhere !== undefined && other !== undefined && (
+                                <Button
+                                    size="compact-xs"
+                                    variant="subtle"
+                                    mt={4}
+                                    // A long attribute name wraps inside the list's width, never
+                                    // scrolling the list sideways.
+                                    h="auto"
+                                    maw="100%"
+                                    styles={{
+                                        label: {
+                                            whiteSpace: "normal",
+                                            overflowWrap: "anywhere",
+                                            textAlign: "start",
+                                        },
+                                    }}
+                                    // A press in the list must not take focus from the search first.
+                                    onMouseDown={(event) => {
+                                        event.preventDefault();
+                                    }}
+                                    onClick={goElsewhere}
+                                >
+                                    Add {other.name} on the {otherTab} tab
+                                </Button>
+                            )}
+                        </Combobox.Empty>
+                    ) : (
+                        <>
+                            {groups.map(({ group, items }) => (
+                                <Combobox.Group key={group} label={group} role="group" aria-label={group}>
+                                    {items.map((field) => {
+                                        const key = keyOf(field);
+                                        const inUse = used.includes(key);
+                                        // The icon the Vary by list draws for the same value; the node id reads as text.
+                                        const Glyph = glyphOf(field.kind);
+                                        const fieldOption = (
                                             <Combobox.Option
-                                                key={each.key}
-                                                value={`${EXTRA}${each.key}`}
-                                                aria-label={each.name}
+                                                key={key}
+                                                value={key}
+                                                data-used={inUse || undefined}
+                                                // Its fact and whether it is a condition already are part of
+                                                // what it is: "Degree, 1 to 36", as in the Vary by list.
+                                                aria-label={[
+                                                    field.name,
+                                                    ...(field.fact === undefined ? [] : [field.fact]),
+                                                    ...(inUse ? ["already a condition"] : []),
+                                                ].join(", ")}
                                             >
-                                                <OptionLine glyph={each.glyph} name={each.name} />
+                                                <OptionLine
+                                                    glyph={Glyph}
+                                                    name={field.name}
+                                                    fact={field.fact}
+                                                    used={inUse}
+                                                />
                                             </Combobox.Option>
-                                        ))}
-                                    </Combobox.Group>
-                                )}
-                            </>
-                        )}
-                    </ScrollArea.Autosize>
-                </Combobox.Options>
+                                        );
+                                        // Its plain words, as its tooltip (selection spec 3.5).
+                                        return field.tip === undefined ? (
+                                            fieldOption
+                                        ) : (
+                                            <Tooltip key={key} label={field.tip} position="right" openDelay={300}>
+                                                <div>{fieldOption}</div>
+                                            </Tooltip>
+                                        );
+                                    })}
+                                </Combobox.Group>
+                            ))}
+                            {moreShown.map(({ group, items }) => (
+                                <Combobox.Group key={group} label={group} role="group" aria-label={group}>
+                                    {items.map((each) => (
+                                        <ExtraOption key={each.key} item={each} />
+                                    ))}
+                                </Combobox.Group>
+                            ))}
+                            {extras.length > 0 && (
+                                <Combobox.Group label="Structure" role="group" aria-label="Structure">
+                                    {extras.map((each) => (
+                                        <Combobox.Option
+                                            key={each.key}
+                                            value={`${EXTRA}${each.key}`}
+                                            aria-label={each.name}
+                                        >
+                                            <OptionLine glyph={each.glyph} name={each.name} />
+                                        </Combobox.Option>
+                                    ))}
+                                </Combobox.Group>
+                            )}
+                        </>
+                    )}
+                </ScrollArea.Autosize>
             </Combobox.Dropdown>
         </Combobox>
     );
@@ -1674,6 +1683,8 @@ function ExtraOption({ item }: Readonly<{ item: ExtraItem }>): React.JSX.Element
         <Combobox.Option
             value={`${EXTRA}${item.key}`}
             disabled={item.unusable !== undefined}
+            // Mantine marks a disabled option for its styles only; a screen reader is told too.
+            aria-disabled={item.unusable !== undefined || undefined}
             aria-label={[item.name, item.fact, item.unusable].filter((each) => each !== undefined).join(", ")}
         >
             <OptionLine glyph={item.glyph} name={item.name} fact={item.fact} />

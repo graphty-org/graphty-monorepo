@@ -196,6 +196,9 @@ export function ReferencePicker({
                                     key={each.value}
                                     value={each.value}
                                     disabled={each.disabled}
+                                    // Mantine marks a disabled option for its styles only: say it is
+                                    // unavailable, as its dimmed ink shows.
+                                    aria-disabled={each.disabled}
                                     active={each.value === chosen}
                                 >
                                     {each.label}

@@ -81,6 +81,8 @@ interface RecordTableProps {
     header?: (column: TableColumnChoice) => Partial<DataTableColumn<object>>;
     /** While a selection is edited: the group a record is in, for a Group column drawn first. */
     groupOf?: (id: NodeId | EdgeId) => { name: string; color: string } | null;
+    /** Only the records that match this text, as graphty-element's `matching` finds them. */
+    matching?: string;
 }
 
 /**
@@ -170,6 +172,7 @@ function groupCell(group: { name: string; color: string } | null, filled: boolea
  * @param props.onMoveColumn - Moves a column one place
  * @param props.header - A column's header parts
  * @param props.groupOf - The group a record is in, while a selection is edited
+ * @param props.matching - Only the records that match this text
  * @returns The table
  */
 export function RecordTable({
@@ -185,6 +188,7 @@ export function RecordTable({
     onMoveColumn,
     header,
     groupOf,
+    matching,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const numberFormats = useNumberFormats();
@@ -201,6 +205,7 @@ export function RecordTable({
         scope,
         columns: runIds,
         ...(issue === null ? {} : { issue }),
+        ...(matching === undefined ? {} : { matching: { text: matching } }),
         ...(sorted === undefined ? {} : { sort: elementSort(sorted, sort?.desc ?? false) }),
     };
     const page: RecordPage<NodeRecord | EdgeRecord> =

@@ -561,6 +561,9 @@ logic is unchanged, so a non-gating job still never fails a lane.
   machine, one per run, 100 in all (source `benchmarks`). A benchmark regressed when the median of
   its last 3 results on the newest result's machine is over 1.2 times the median of the 10 before
   them on that machine, so it is judged only with 13 such results and one slow run never counts.
+  The two medians must also differ by more than one step of the series' resolution (the smallest gap
+  between two of its 13 values): a GPU profiler reading quantized to a 65.536 us timer tick reads
+  2 then 3 ticks as 1.5x, and a one-tick change never counts.
   The Benchmarks section lists every benchmark with its newest result, that ratio and that
   machine's results as a line, regressions first. A benchmark job that fails before it produces numbers
   posts nothing: that is the chronic member's to catch. graphty-element's timing benchmarks print

@@ -89,8 +89,22 @@ export const sameMachine = (points: BenchPoint[]): BenchPoint[] =>
     points.filter((p) => p.machine === points.at(-1)?.machine);
 
 /**
+ * The series' resolution: the smallest gap between two of its distinct values. A reading quantized to a timer tick
+ * (the T4 lane's GPU profiler reads in 65.536 us ticks) takes only whole ticks, so this is the tick; on an unquantized
+ * series it is tiny.
+ * @param vs - the values
+ * @returns the smallest positive gap, or 0 with fewer than two distinct values
+ */
+export function quantum(vs: number[]): number {
+    const s = [...new Set(vs)].sort((a, b) => a - b);
+    return s.slice(1).reduce((q, v, i) => Math.min(q, v - s[i]), s.length > 1 ? Infinity : 0);
+}
+
+/**
  * A sustained regression: the median of the newest 3 results is over 1.2 times the median of the 10 before them,
- * among the results of the newest one's machine. Judged only with all 13, so one slow run never counts.
+ * among the results of the newest one's machine, and the medians differ by more than one step of the series' own
+ * resolution (quantum), so a one-tick change of a reading at its timer's resolution never counts. Judged only with
+ * all 13, so one slow run never counts.
  * @param all - oldest first
  * @returns the two medians, their ratio and whether it regressed
  */
@@ -102,7 +116,15 @@ export function trend(all: BenchPoint[]): BenchTrend {
     const recent = median(points.slice(-RECENT).map((p) => p.v));
     const before = median(points.slice(-(RECENT + BEFORE), -RECENT).map((p) => p.v));
     const ratio = before > 0 ? recent / before : undefined;
-    return { recent, before, ...(ratio === undefined ? {} : { ratio }), regressed: (ratio ?? 0) > REGRESSION_RATIO };
+    // ponytail: 1.5 quanta so float noise in a one-tick gap never passes; a deterministic series that steps by its
+    // only gap (20 -> 30 with nothing between) reads as one tick too, acceptable for timing results.
+    const aboveTick = recent - before > 1.5 * quantum(points.slice(-(RECENT + BEFORE)).map((p) => p.v));
+    return {
+        recent,
+        before,
+        ...(ratio === undefined ? {} : { ratio }),
+        regressed: (ratio ?? 0) > REGRESSION_RATIO && aboveTick,
+    };
 }
 
 /**

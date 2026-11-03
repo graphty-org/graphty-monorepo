@@ -16,6 +16,18 @@ describe("benchmark regressions", () => {
         expect(trend(pts([40, 41, 42, 90, 90, 90]))).toEqual({ regressed: false });
     });
 
+    it("never flags a change of one timer tick", () => {
+        // layout-exact ms/iteration (profiler) n=1024 on the T4 lane: the GPU profiler reads in 65.536 us ticks, so
+        // every result is 2 or 3 ticks and a one-tick step reads as 1.5x.
+        const tick = 0.065536;
+        const oneTick = trend(pts([...Array.from({ length: 10 }, () => 2 * tick), 3 * tick, 3 * tick, 3 * tick]));
+        expect(oneTick.ratio).toBeCloseTo(1.5);
+        expect(oneTick.regressed).toBe(false);
+        // two ticks above is a real change
+        const twoTicks = [2, 2, 3, 2, 2, 3, 2, 2, 2, 2, 4, 4, 4].map((n) => n * tick);
+        expect(trend(pts(twoTicks)).regressed).toBe(true);
+    });
+
     it("compares results only with results of the newest one's machine", () => {
         // Min-Cut n=50 as GitHub's hosted runners measured it (ms): EPYC 9V45 and 9V74 near 0.17, EPYC 7763 and
         // Xeon 8370C near 0.37, with nothing in the code changed. Across machines it reads as a 2.2x regression.

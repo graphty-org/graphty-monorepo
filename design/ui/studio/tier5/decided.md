@@ -1109,3 +1109,21 @@ fix of round 3 above. Profiles and walks: `tmp/design-studio/tier5/scale-fix/` i
   `SelectionWsPolish3.real-element.test.tsx`. **The frozen build 1e123d7d33 does not carry it**: a
   session on that build still hears the second count, and it counts against bar 4 until the build is
   refrozen with this fix.
+
+## Reference screenshots of the approved surfaces, 2026-11-03 (studio engineer)
+
+The owner-approved Which nodes card and attribute picker (tier 4, bar 6) changed as
+`../../selection-groups/spec.md` section 13 says, at the owner's request, so tier 4's references
+for them no longer apply. The screenshot audit judges "restyled" against these, taken on the frozen
+build 1e123d7d33 at 1440 x 900 in the default color scheme, from the round's `volunteers.txt` setup
+(the volunteers network with PageRank run), by replaying the T70 A success walk. The walk is the main
+checkout's `tmp/design-studio/tier5/reference/walk-1e123d7d33/`; the images are beside it and are
+never committed. A fix may add to these surfaces but never removes or restyles them other than as
+the spec's section 13 allows.
+
+| Surface                                                                                                                                 | Reference                                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| The attribute picker, opened from a new layer's Which nodes (search, Data with kind glyphs and value summaries, Results)                | `/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/reference/style-which-nodes-picker.png`       |
+| The Which nodes workspace on a step (outline, Except, the attribute box, the value checklist with counts)                               | `/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/reference/style-which-nodes-step.png`         |
+| A filter card in the workspace (the Data place host, its outline and step pane)                                                         | `/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/reference/filter-card-workspace.png`          |
+| Both read-only outlines at rest: the layer's Which nodes row ("4 of 15", "role staff") and the filter card header ("trained Yes", Edit) | `/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/reference/which-nodes-and-filter-outline.png` |

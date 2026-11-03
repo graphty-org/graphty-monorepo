@@ -981,3 +981,64 @@ the backlog and the decide-and-fix loop builds them; none blocks a session.
   Extends pass 5's "A spoken count reads over the same base as the count on screen". Why: after
   Ctrl+Z the status spoke "Filter on: 549 of 549 nodes, 2,084 edges", after Ctrl+Shift+Z "112 of 549
   nodes, 896 edges", while the screen read "896 of 2,084 edges" (T75 A touched-14 59.png, 60.png).
+
+## Speed on 50,000 nodes, round 2, 2026-11-02 (graphty-element engineer)
+
+The first blocker of `ws-polish-3-scale.md` (every edit locks the page 13 to 38 s), after the edge
+fix of round 3 above. Profiles and walks: `tmp/design-studio/tier5/scale-fix/` in the main checkout.
+
+- **Cause left after the edge fix.** A frame of a node repaint that rebuilt meshes (a node going
+  faint or full strength changes its source mesh, since opacity is per source mesh) still forced
+  the walk of all 200,000 edges, and each batch of 128 nodes paid a teardown that passes over every
+  scene list (`disposeReleased`, about 28 ms at 50,000 nodes): a 50,000-node repaint made about 390
+  of them and took about 375 frames.
+- **Fixed in graphty-element (`UpdateManager`).**
+    - A frame takes one node batch, so it pays one teardown at most. The batch is what the last
+      batch's speed says fits in the frame's budget, and never less than a 32nd of the graph
+      (`REPAINT_FRAMES`), so the teardown is paid at most 32 times however large the graph; edges
+      take the same 32nd floor. Labels a batch drops are released together.
+    - A frame places only the edges of the nodes whose size or shape changed; a mesh rebuilt at the
+      same size and shape moves no edge end. Every edge is still walked once, when the queue empties.
+- **Tests (counted work, both fail before the fix).** `test/browser/node-repaint-teardowns.test.ts`:
+  at most one teardown a frame (before: 13 in one frame), and edge updates during a node repaint
+  split across frames below six per edge (before: 3,570 for 119 edges). Bench:
+  `test/browser/style-repaint-50k.bench.test.ts` (`browser-bench`, `GRAPHTY_BROWSER_GPU=nvidia`).
+- **Bench, 50,000 nodes and 200,000 edges, RTX 4070, until `waitForPainted()`:**
+
+    | Step                                          | Before             | After            |
+    | --------------------------------------------- | ------------------ | ---------------- |
+    | everything faint, one group full (preview on) | 22.4 s, 86 frames  | 7.5 s, 36 frames |
+    | the three layers removed (preview off)        | 30.1 s, 108 frames | 6.8 s, 36 frames |
+    | most teardowns in one frame                   | 14                 | 1                |
+
+- **Walk with `real.mjs`, `big-50k.graphml`, layout Random, the style host's workspace.** Input
+  delay, then busy (`route.jsonl` `act` and `settleDom`), on the build before (786f76466b) and after:
+
+    | Action                         | Before       | After       |
+    | ------------------------------ | ------------ | ----------- |
+    | open the workspace (All nodes) | 0.9 + 16.6 s | 1.0 + 7.2 s |
+    | commit Contains T0001          | 4.2 + 9.9 s  | 7.1 + 0.4 s |
+    | Styled                         | 0.7 + 16.6 s | 1.9 + 5.8 s |
+    | Group colors                   | 0.9 + 15.5 s | 2.3 + 4.0 s |
+    | Clear                          | 5.6 + 10.0 s | 7.1 + 3.3 s |
+    | Done                           | 1.4 + 17.1 s | 2.7 + 6.3 s |
+
+- **The trade.** With the 32nd floor a repaint frame on 50,000 nodes runs about 200 ms instead of
+  16 ms plus a 28 ms teardown, so the repaint ends in about 32 frames instead of about 375. Input
+  delay rose 1 to 3 s on some steps while the busy time fell by half to nine tenths. With the budget
+  alone (no floor) the same walk measured busy times of 7.7 s for Styled and 10.4 s for Done.
+- **`styles.settled()`** still resolves when the passes end; `waitForPainted()` (added in round 3,
+  @beta) is the wait for the last batch, and the key's "Drawing" uses it. Not changed.
+- **Left.**
+    - The input delay of 5 to 7 s on choosing a value column, committing a test and Clear: in the
+      Clear profile, the app's re-render (1.3 s: `WhichPicker`, `RowStyle`) and its reads of
+      `StylesApi.counts` (0.6 s) and the agreement (0.25 s) on every edit, the app half of the
+      blocker.
+    - The node rebuild itself: about 60 microseconds a node, because opacity lives on the source
+      mesh. A per-instance alpha would remove the rebuild but puts every instance in the blended
+      pass, where an unsorted faint instance in front writes depth and hides a member behind it.
+    - Members drawn above faint non-members (item 3): not built. The faint nodes are blended, drawn
+      after the opaque members, and on 50,000 nodes in 3D the layers in front add up. It needs a
+      drawing order for translucent nodes (a rendering group, or a stencil test that the highlight
+      layer's use of the stencil leaves free), which changes how every graph with mixed opacity is
+      drawn, so it should be an element option, not a default.

@@ -350,6 +350,15 @@ const NODE_PAINT_BATCH = 128;
 /** How many edges are painted between two looks at the clock. */
 const EDGE_PAINT_BATCH = 1024;
 
+/**
+ * The most frames a repaint of a large graph is spread over: a frame's batch is never less than
+ * this share of the graph. A batch has costs in proportion to the scene, not to the batch (a
+ * rebuilt node's teardown passes over every scene list), and a graph of 50,000 nodes and 200,000
+ * edges painted in fixed batches took about 390 frames and 12 s to show one view switch. With this
+ * floor a frame there paints for about 60 ms, still a short task, and the switch takes 32 frames.
+ */
+const REPAINT_FRAMES = 32;
+
 /** What an unbound renderer reads: no selection, no filter, nothing hidden. */
 const EMPTY_MASKS: ViewMasks = Object.freeze({});
 
@@ -1084,7 +1093,8 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Paint the pending edges, batch by batch, until none is left or the frame's time is up.
+     * Paint the pending edges, batch by batch, until none is left or the frame's time is up and it
+     * has painted its share of the graph (see {@link REPAINT_FRAMES}).
      * @param painter - Where the paint is read from.
      * @param deadline - When this frame stops starting batches; the first always runs.
      */
@@ -1099,6 +1109,8 @@ export class UpdateManager implements Manager {
         // earlier frame was placed before the siblings painted after it.
         this.sceneChanged = true;
         const painted: Edge[] = [];
+        // Never less than a REPAINT_FRAMES-th of the graph's edges a frame, whatever the budget.
+        const least = minimumWorkPerFrame() ? 0 : Math.ceil(this.dataManager.edges.size / REPAINT_FRAMES);
 
         do {
             for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
@@ -1110,7 +1122,7 @@ export class UpdateManager implements Manager {
                     painted.push(edge);
                 }
             }
-        } while (painter.hasPendingEdges && performance.now() < deadline);
+        } while (painter.hasPendingEdges && (performance.now() < deadline || painted.length < least));
 
         if (painter.hasPendingEdges) {
             for (const edge of painted) {
@@ -1131,12 +1143,17 @@ export class UpdateManager implements Manager {
      * Take one batch of pending nodes and the paint each is to be drawn with.
      * @param painter - Where the paint is read from.
      * @param pending - The nodes that were pending when the frame began, by index.
+     * @param size - The most nodes the batch takes.
      * @returns Each node of the batch and its paint.
      */
-    private takeNodeBatch(painter: StylePainter, pending: ReadonlyMap<number, Node>): [Node, NodePaint][] {
+    private takeNodeBatch(
+        painter: StylePainter,
+        pending: ReadonlyMap<number, Node>,
+        size: number,
+    ): [Node, NodePaint][] {
         const painted: [Node, NodePaint][] = [];
 
-        for (const index of painter.takeNodes(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : NODE_PAINT_BATCH)) {
+        for (const index of painter.takeNodes(size)) {
             const node = pending.get(index);
             const paint = node === undefined ? null : painter.nodePaint(index);
 
@@ -1148,10 +1165,34 @@ export class UpdateManager implements Manager {
         return painted;
     }
 
+    /** How many nodes the last node batch painted a millisecond, or 0 before one has been timed. */
+    private nodePaintRate = 0;
+
     /**
-     * Paint the pending nodes, batch by batch, until none is left or the frame's time is up.
+     * How many nodes a frame's batch takes: what the last batch's speed says fits in the budget,
+     * never fewer than {@link NODE_PAINT_BATCH}, and never fewer than a {@link REPAINT_FRAMES}-th of
+     * the graph's nodes.
+     * @param budgetMs - The frame's paint budget.
+     * @param nodes - How many nodes the graph holds.
+     * @returns The batch size.
+     */
+    private nodeBatchSize(budgetMs: number, nodes: number): number {
+        if (minimumWorkPerFrame()) {
+            return MINIMUM_PAINT_BATCH;
+        }
+
+        // An unbounded frame (no budget given) takes everything at once.
+        if (budgetMs === Number.POSITIVE_INFINITY) {
+            return budgetMs;
+        }
+
+        return Math.max(NODE_PAINT_BATCH, Math.ceil(nodes / REPAINT_FRAMES), Math.floor(this.nodePaintRate * budgetMs));
+    }
+
+    /**
+     * Paint one batch of the pending nodes, sized to the frame's budget.
      * @param painter - Where the paint is read from.
-     * @param deadline - When this frame stops starting batches; the first always runs.
+     * @param deadline - When this frame's paint budget runs out.
      */
     private syncNodeStyles(painter: StylePainter, deadline: number): void {
         // Walked once a frame rather than indexed, because the data manager keeps its nodes by id.
@@ -1165,26 +1206,39 @@ export class UpdateManager implements Manager {
             }
         }
 
-        const resized = new Set<Node>();
+        // ONE BATCH, AND SO ONE TEARDOWN, A FRAME. A batch that rebuilds a mesh pays a pass over
+        // every scene list (`disposeReleased`) whatever its size, about 28 ms at 50,000 nodes, so
+        // batches of 128 nodes made a 50,000-node repaint about 390 such passes: 3.3 s of one
+        // checklist tick (ws-polish 3), and the pass alone overran the frame's budget. A frame now
+        // takes one batch: as many nodes as the last batch's speed says fit in the budget, and never
+        // less than a REPAINT_FRAMES-th of the graph, so the pass is paid at most that many times
+        // however large the graph. Labels the batch's rebuilds drop are released together too.
+        const { resized, rebuilt } = disposeLabelsTogether(() => {
+            const start = performance.now();
+            const batch = this.takeNodeBatch(
+                painter,
+                pending,
+                this.nodeBatchSize(deadline - start, this.dataManager.nodes.size),
+            );
+            const painted = this.paintNodes(batch);
+            const spent = performance.now() - start;
+            this.nodePaintRate = spent > 0 ? batch.length / spent : 0;
+            return { resized: new Set(painted.resized), rebuilt: painted.rebuilt };
+        });
 
-        do {
-            for (const node of this.paintNodes(this.takeNodeBatch(painter, pending))) {
-                resized.add(node);
-            }
-        } while (painter.hasPendingNodes && performance.now() < deadline);
-
-        if (resized.size > 0) {
+        if (rebuilt || resized.size > 0) {
             for (const group of this.redrawGroups()) {
                 resized.add(group);
             }
         }
 
         // A repaint can change how a node is drawn in ways that move where its edges stop without
-        // moving the node, so the frame that finishes the repaint visits every edge. So does any
-        // frame that resized a node, and the edges of those nodes, found in one walk however many
-        // batches ran, measure again. The frames in between walk no edge: on a graph of 36,906
-        // edges that walk was most of every frame a repaint was spread over.
-        if (resized.size > 0 || !painter.hasPendingNodes) {
+        // moving the node, so the frame that finishes the repaint visits every edge. A frame that
+        // resized a node or changed its shape places only that node's edges again, found in one
+        // pass over the edges. Walking every edge on each such frame placed all 200,000 edges of a
+        // 50,000-node graph on every frame of a repaint that rebuilt meshes: 3.8 s of an 8.8 s view
+        // switch (ws-polish 3). A mesh rebuilt at the same size and shape moves no edge end.
+        if (!painter.hasPendingNodes) {
             this.forceEdgeWalk();
         }
 
@@ -1192,9 +1246,11 @@ export class UpdateManager implements Manager {
             return;
         }
 
+        this.sceneChanged = true;
         for (const edge of this.dataManager.edges.values()) {
             if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
                 edge.invalidatePositionCache();
+                edge.update();
             }
         }
     }
@@ -1251,10 +1307,14 @@ export class UpdateManager implements Manager {
      * every node's shape cost the size of the graph per node (issue #2749). So the meshes about to
      * go are all disposed first, inside the bulk teardown the data manager removes nodes with, the
      * new ones are built after it, and the caller finds the edges of the resized nodes in one walk.
+     *
+     * A mesh rebuilt at the same size and shape (a new opacity) leaves its edges where they end, so
+     * only the nodes whose geometry changed are handed back for their edges to be placed again.
      * @param painted - Each node and the paint it is to be drawn with.
-     * @returns The nodes whose size or shape changed, or whose mesh was rebuilt.
+     * @returns The nodes whose size or shape changed, and whether any mesh was rebuilt (a group's
+     *     rebuilt mesh has to be stretched over its members again).
      */
-    private paintNodes(painted: readonly [Node, NodePaint][]): ReadonlySet<Node> {
+    private paintNodes(painted: readonly [Node, NodePaint][]): { resized: ReadonlySet<Node>; rebuilt: boolean } {
         const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
         disposeReleased(rebuilt, [], () => {
             for (const node of rebuilt) {
@@ -1267,11 +1327,7 @@ export class UpdateManager implements Manager {
             }
         });
 
-        for (const node of rebuilt) {
-            resized.add(node);
-        }
-
-        return resized;
+        return { resized, rebuilt: rebuilt.length > 0 };
     }
 
     /**

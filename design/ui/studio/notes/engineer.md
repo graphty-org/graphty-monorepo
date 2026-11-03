@@ -17,6 +17,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-11-03) TIER 5 ROUND 1 SCREENSHOT AUDIT (`tier5/rounds/round-1/expert/engineer.md`), frozen
+  build 1e123d7d33 at 1200x900 and 900x700, sessions `expert/engineer/{style,filter,thanks,big}-<size>`.
+  Worst: at 900x700 the workspace preview collapses to 44 px (style) or 84 px (filter) because the
+  outline, the 320 px step pane and the properties column keep fixed widths (severity 3; decided.md
+  settles only 1280x800). Severity 2: outline reference cut ("No re" hard clip in a filter, ellipsis
+  elsewhere), matches strip clips its last column with no scrollbar, header drops the layer name at
+  900, "37.5k of 50k" beside "37,512", Values panel run-on dept list and "972 nodes joined to no other
+  n...", picture cropped at the start of volunteers-thanks, Control+A at 50,000 selects 5,000 silently,
+  chosen reference shows "v02" not the name, a filter card keeps its first step's name after an Or.
+  Way of working that held: one walk script per host and size in the worktree's `tmp/engineer-audit/`
+  (own folder each, run in parallel), the 50,000-node walk started first by hand to pick an empty
+  canvas point per size (1200x900: 620,790; 900x700: 480,575). Before reporting a layout difference
+  between hosts, check decided.md "Workspace built": the host-dependent panel cover is settled.
 - (2026-11-03) STUDY TOOL, TIER 5 TOOL DRY RUN 1 FIXES. (1) Browser cap: `--prove`'s warm-pool and
   bounded-start checks planted pools of their own (`BROWSER_SLOT_DIR`) and started real GPU
   browsers outside the machine's 8 (9 seen beside 8 sessions). `with-browser.sh` now takes
@@ -63,35 +76,17 @@ Trimmed again 2026-11-02 (file at 28 KB): the two units the round 1 pilot re-rai
 fixed (a test's mode is the step's own, a6257fe0c7; the data table never takes an editor's
 selection, 1c02b8a883), with their re-walk evidence, and the covered-claim and reference-search-by-name re-walk:
 `git show e464917d43:design/ui/studio/notes/engineer.md`.
+Trimmed again 2026-11-03 (file at 25.7 KB): the color-line and tier 5 scoring entries, now pointers.
 Trimmed again 2026-11-02: check a re-walk request for product changes before walking (a
 notes-only commit cannot regress a route): `git show a93110cfb5:design/ui/studio/notes/engineer.md`.
 Trimmed again 2026-11-02 (file at 27 KB): the cancel-new-card focus re-walk and the covered-claim
 fix in full: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
 
-- (2026-11-02) A JUST-ADDED COLOR LINE SHOWS NO COLOR UNTIL ONE IS PICKED (decided.md "Dry run
-  pass 7"). `ValueField` takes `waiting` (PropertyRow's fieldControl passes it for a line "+" added
-  and set on no row); the color field then gives compact-mantine's CompactColorInput
-  `emptySwatch` plus `emptyText=""` -- BOTH are needed: `emptySwatch` alone still puts the hex
-  digits in the box and names it "drawn #...". `shown` stays as `defaultColor`, so the picker opens
-  at the one color beneath, else the element's starting color. Second half: PropertyRow's
-  `fieldKeyDown` treated Enter in an empty typed box as "remove the line"; a waiting line now stays
-  waiting on Enter (Escape takes it back). Applies to every waiting line, not only colors. Test:
-  `UnsetLine.real-element.test.tsx` (rewritten: its old cases asserted the superseded "Enter writes
-  the color shown"); 3 of 5 fail without the change. Re-walk on a fresh dist:
-  `design/ui/studio/tmp/r1-dry1-fill-box-truth/` (`walk.sh`, routes cut at the Fill "+").
-- (2026-11-02) THE STUDY TOOL SCORES TIER 5 (tool dry run 1's check 6 and gate gap). What each
-  script now does, each with a planted case of its own that fails without the change:
-  `steps.mjs` `CORE_BY_TIER` (tier 5: T70 T71 T73 T74 T78; "Path\nsteps" across a line break counts:
-  T74 A was missing); `score.mjs` `scoreTier5` (bar 1 at 75% with 2 of 2 / 3 of 4 and no half at 0,
-  Sam's `--keys` sessions out and reported as bar 5, bar 2, bar 3, and bar 9 from
-  `Overwhelm: <1-7> -- <screen element> -- <reason>`; the median gates only with `--rating-gates`);
-  `endstate.mjs` `layerProblems` (each layer's count against the members graphty-element paints,
-  counted element by element through public `explain` at --start and --end as `painted` in
-  `styles-start.json` / `styles.json`; a preview still drawn with no workspace open fails; ended
-  with the workspace open, layers are listed not counted); `bars.mjs --tier 5` (WALKS5: both hosts
-  and the 50,000 staff network, 33 screens per size, axe, `largeLists`, catalog keywords into
-  vocabulary.json); `real.mjs --gate` for tier 5 (items 2, 3, 4, 6, 7, 9; `tier5Gate`). Tests:
-  `tool/tier5.test.mjs` (3), each script's `--self-test`, two new `--prove` checks.
+- (2026-11-02) A just-added color line shows no color until one is picked (`ValueField` `waiting`,
+  CompactColorInput `emptySwatch` plus `emptyText=""`; Enter keeps a waiting line): in full,
+  `git show cc99cf7ef6:design/ui/studio/notes/engineer.md`.
+- (2026-11-02) The study tool scores tier 5 (steps, score, endstate, bars --tier 5, the gate), each
+  script with a planted case: in full, `git show cc99cf7ef6:design/ui/studio/notes/engineer.md`.
 - (2026-11-02) Tool defects fixed then (a click on a re-rendered control found again by name;
   `screenOf` with `visibilityProperty`; `warmKey` hashing measure.mjs and match.mjs too), in full:
   `git show 265e85b63f:design/ui/studio/notes/engineer.md`.

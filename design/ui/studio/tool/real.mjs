@@ -2197,6 +2197,19 @@ async function watchInput(s, t0) {
                 // when that frame was drawn, from the input (negative: nothing new was drawn by then)
                 got.glance = last.at - seenAt;
             }
+            // REAL_GLANCE_EVERY_MS=<ms>: also the screen every that long after the input until the
+            // step settled, NN-glance-<ms>.png, to see a sign of work hold through the whole wait
+            const every = Number(process.env.REAL_GLANCE_EVERY_MS) || 0;
+            const end = frames.length > 0 ? frames[frames.length - 1].at : 0;
+            for (let t = every; every > 0 && seenAt !== null && seenAt + t <= end; t += every) {
+                const at = frames.filter((f) => f.at <= seenAt + t).pop();
+                if (!at) continue;
+                const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
+                await writeFile(
+                    join(s.dir, `${String(n).padStart(2, "0")}-glance-${t}.png`),
+                    Buffer.from(at.data, "base64"),
+                );
+            }
         }
         if (profile) {
             const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;

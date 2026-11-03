@@ -173,6 +173,54 @@ async function firstFrameAfter(session: GraphSession, input: () => Promise<void>
     return frame;
 }
 
+/** What the frames from an input to the workspace's closing drew. */
+interface Closing {
+    /** Frames drawn with the workspace open but no "Drawing" in its header. */
+    readonly quiet: number;
+    /** Frames drawn with the workspace open. */
+    readonly open: number;
+    /** The canvas held its finished picture in the frame the workspace was gone from. */
+    readonly paintedAtClose: boolean;
+}
+
+/**
+ * Does an input that closes the workspace and reads every animation frame until it is gone: whether
+ * each frame with it open said "Drawing", and whether graphty-element had painted the result by the
+ * frame it closed (a wait started then ends before the next frame).
+ * @param input - The input, by real pointer or keys.
+ * @returns What those frames drew.
+ */
+async function framesUntilClosed(input: () => Promise<void>): Promise<Closing> {
+    const element = document.querySelector("graphty-element");
+    if (element === null) {
+        throw new Error("the element is drawn");
+    }
+    let quiet = 0;
+    let open = 0;
+    const closed = new Promise<boolean>((resolve) => {
+        const look = (): void => {
+            if (document.querySelector(".sel-ws") === null) {
+                let painted = false;
+                void element.waitForPainted().then(() => {
+                    painted = true;
+                });
+                requestAnimationFrame(() => {
+                    resolve(painted);
+                });
+                return;
+            }
+            open++;
+            if (document.querySelector(".sel-ws-head [data-drawing]") === null) {
+                quiet++;
+            }
+            requestAnimationFrame(look);
+        };
+        requestAnimationFrame(look);
+    });
+    await input();
+    return { quiet, open, paintedAtClose: await closed };
+}
+
 describe("the selection editor on 50,000 nodes", () => {
     it("the reference picker lists no node before typing, and at most 8 after", async () => {
         const session = await openGenerated();
@@ -387,6 +435,51 @@ describe("the selection editor on 50,000 nodes", () => {
             assert.isNull(document.querySelector(".sel-ws"));
             assert.isFalse(session.styles.showingBranches);
         });
+    });
+
+    it("Done and Cancel keep the workspace open, saying Drawing, until the result is painted", async () => {
+        const session = await openGenerated();
+        await session.layout.set("random");
+        await openLayer(
+            session,
+            "Closing",
+            oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
+        );
+        const tickAndClose = async (button: "Done" | "Cancel"): Promise<Closing> => {
+            const row = document.querySelector<HTMLElement>('.sel-rest [data-row="com"] .sel-value');
+            if (row === null) {
+                throw new Error("the step's row is drawn");
+            }
+            await userEvent.click(row);
+            const values = await screen.findByRole("group", { name: "community values" });
+            await waitFor(() => {
+                assert.isTrue(session.styles.showingBranches);
+                assert.isNull(document.querySelector(".sel-ws-head [data-drawing]"));
+            });
+            const count = document.querySelector(".sel-ws-head .sel-count")?.textContent ?? null;
+            await userEvent.click(within(values).getAllByRole("checkbox")[0]);
+            await waitFor(() => {
+                assert.notStrictEqual(document.querySelector(".sel-ws-head .sel-count")?.textContent ?? null, count);
+                assert.isNull(document.querySelector(".sel-ws-head [data-drawing]"));
+            });
+            const ws = document.querySelector<HTMLElement>(".sel-ws");
+            if (ws === null) {
+                throw new Error("the workspace is open");
+            }
+            return framesUntilClosed(() => userEvent.click(within(ws).getByRole("button", { name: button })));
+        };
+        const done = await tickAndClose("Done");
+        assert.strictEqual(done.quiet, 0, `Done: ${String(done.quiet)} of ${String(done.open)} frames without Drawing`);
+        assert.isTrue(done.paintedAtClose, "Done: the result was painted when the workspace closed");
+        assert.isFalse(session.styles.showingBranches);
+        const cancel = await tickAndClose("Cancel");
+        assert.strictEqual(
+            cancel.quiet,
+            0,
+            `Cancel: ${String(cancel.quiet)} of ${String(cancel.open)} frames without Drawing`,
+        );
+        assert.isTrue(cancel.paintedAtClose, "Cancel: the result was painted when the workspace closed");
+        assert.isFalse(session.styles.showingBranches);
     });
 
     it("opening Which nodes right after adding a layer walks no style agreement before its first frame", async () => {

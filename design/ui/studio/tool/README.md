@@ -75,7 +75,9 @@ person watching would have read it.
   saves `NN-glance.png`, the last frame the browser drew by that long after the input (from its
   screencast, so a busy page cannot delay it): the screen a person looks at while the step works.
   `ms.glance` is when that frame was drawn, from the input (negative: nothing new was drawn by
-  then); the line names the file as `glance`. `REAL_PROFILE=1` saves `NN.cpuprofile`, a CPU
+  then); the line names the file as `glance`. `REAL_GLANCE_EVERY_MS=<ms>` with it also saves
+  `NN-glance-<ms>.png` every that long after the input until the screen stopped changing, to see
+  a sign of work hold through a long wait. `REAL_PROFILE=1` saves `NN.cpuprofile`, a CPU
   profile of the step, for DevTools.
 - Scrollbars are drawn as a person's desktop Chrome draws them: Playwright's headless Chromium
   hides them by default (`--hide-scrollbars`), and the tool turns that off, so a pane that

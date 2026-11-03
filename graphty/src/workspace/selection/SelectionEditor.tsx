@@ -467,14 +467,45 @@ export function SelectionEditor({
         ];
     };
     closeRef.current = close;
-    // Done, Cancel and Escape say "Drawing" in their own frame: ending the preview and handing the
-    // rule on repaints the whole graph. An edit still waiting is handed on first.
+    // Done, Cancel and Escape say "Drawing" in their own frame, and the workspace stays open with it
+    // while ending the preview and handing the rule on repaint the whole graph: it closes once
+    // graphty-element has painted the result, so the canvas never shows the preview look without
+    // "Drawing" beside it. Where the repaint does not block, that is the next frame. An edit still
+    // waiting is handed on first.
+    const [closing, setClosing] = useState(false);
+    // The preview ends while the workspace is still open, as the first part of closing it.
+    const [ending, setEnding] = useState(false);
+    const closingNow = useRef(false);
+    const handBackRef = useRef<(how: "done" | "cancel") => void>(() => undefined);
+    handBackRef.current = (how) => {
+        const back = openedWith.current;
+        const goes = onEmptyCancel !== undefined && how === "cancel" && openedNew.current;
+        if (how === "cancel" && !goes && back !== null && JSON.stringify(back) !== JSON.stringify(reading.rule)) {
+            handOn(back);
+        }
+    };
     const closeAfterPaint = (how: "done" | "cancel"): void => {
-        setStarting(true);
+        if (closingNow.current) {
+            return;
+        }
+        closingNow.current = true;
+        setClosing(true);
         afterPaint(() => {
             flushSync(() => {
-                setStarting(false);
-                closeRef.current(how);
+                setEnding(true);
+                handBackRef.current(how);
+            });
+            const painted = element?.waitForPainted() ?? Promise.resolve();
+            void painted.then(() => {
+                closingNow.current = false;
+                if (!mounted.current) {
+                    return;
+                }
+                flushSync(() => {
+                    setClosing(false);
+                    setEnding(false);
+                    closeRef.current(how);
+                });
             });
         });
     };
@@ -555,7 +586,7 @@ export function SelectionEditor({
             live = false;
         };
     }, [open]);
-    const previewing = open && warm && colors;
+    const previewing = open && warm && colors && !ending;
     // The group pointed at, else the group whose row is selected, is marked: its members on top in
     // its color, the other groups faint (spec 9).
     const markedNow = marked ?? (multi && rule.branches.some((branch) => branch.id === selected) ? selected : null);
@@ -1862,7 +1893,7 @@ export function SelectionEditor({
                           <Text size="sm" className="sel-count">
                               {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
                           </Text>
-                          {(drawing || starting || !warm) && (
+                          {(drawing || starting || closing || !warm) && (
                               <Text size="sm" c="dimmed" className="sel-state" data-drawing="">
                                   Drawing
                               </Text>

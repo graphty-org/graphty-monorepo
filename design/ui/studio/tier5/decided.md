@@ -1097,3 +1097,15 @@ fix of round 3 above. Profiles and walks: `tmp/design-studio/tier5/scale-fix/` i
       drawing order for translucent nodes (a rendering group, or a stencil test that the highlight
       layer's use of the stencil leaves free), which changes how every graph with mixed opacity is
       drawn, so it should be an element option, not a default.
+
+## After round 1 (void), 2026-11-03 (studio engineer)
+
+- **Only the open workspace says a count.** While a selection workspace is open, in either host, the
+  inspector's Which row says nothing; its count settles quietly and is not said when the workspace
+  closes either. Why: round 1's accessibility walk heard the workspace's count, then the covered
+  inspector row's count over another base ("15 of 24" then "4 of 24 nodes" in the filter host), a
+  count nothing on screen showed (severity 3, `rounds/round-1-void/insights.md`, insight 1). Built in
+  `graphty/src/workspace/style/WhichPicker.tsx` with a real-input test in
+  `SelectionWsPolish3.real-element.test.tsx`. **The frozen build 1e123d7d33 does not carry it**: a
+  session on that build still hears the second count, and it counts against bar 4 until the build is
+  refrozen with this fix.

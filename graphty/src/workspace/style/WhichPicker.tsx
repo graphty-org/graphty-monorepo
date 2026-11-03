@@ -2399,6 +2399,21 @@ function useFocusAfterMode(body: React.RefObject<HTMLDivElement | null>, match: 
 }
 
 /**
+ * What a By position card cuts at, in words ("the top 5", "the bottom 10%"), or null while it has
+ * no count and so cuts nothing.
+ * @param card - the card.
+ * @returns the words, or null.
+ */
+function heldTopWords(card: Extract<Card, { type: "number" }>): string | null {
+    if (card.top === undefined) {
+        return null;
+    }
+    const end = card.from === "low" ? "bottom" : "top";
+    const unit = card.percent === true ? "%" : "";
+    return `the ${end} ${String(card.top)}${unit}`;
+}
+
+/**
  * A number card: between two values (a range slider and two boxes, unclamped), or the highest N of
  * all the elements, or has / has no value. A box holds what is typed until the card can take it: a
  * text that is no number, or a from above its to, says why under the boxes and writes nothing.
@@ -2461,11 +2476,12 @@ function NumberCard({
             : formatNumber(Number(((low + high) / 2).toPrecision(2)));
     // What the count and the drawing still use while a box holds what the card cannot take: a
     // By position with no count yet uses none, so it names none.
-    const heldTop =
-        card.top === undefined
-            ? null
-            : `the ${card.from === "low" ? "bottom" : "top"} ${String(card.top)}${card.percent === true ? "%" : ""}`;
-    const held = card.match === "top" ? heldTop : `${String(card.min ?? low)} to ${String(card.max ?? high)}`;
+    const held =
+        card.match === "top" ? heldTopWords(card) : `${String(card.min ?? low)} to ${String(card.max ?? high)}`;
+    const heldWords =
+        held === null
+            ? "The step keeps everything until a count is typed."
+            : `The count and drawing still use ${held}.`;
     // Typing still held when the card goes (the picker closed, the card removed) is said, not lost.
     const leaving = useRef<string | null>(null);
     const count = { count: total, side };
@@ -2502,7 +2518,7 @@ function NumberCard({
         if (now.bad.length > 0) {
             const refusal = {
                 bad: now.bad,
-                why: `${now.why ?? ""} ${held === null ? "The step keeps everything until a count is typed." : `The count and drawing still use ${held}.`}`,
+                why: `${now.why ?? ""} ${heldWords}`,
                 reason: now.reason,
             };
             if (leaving && pressing.current) {

@@ -114,13 +114,18 @@ async function newFill(session: GraphSession): Promise<{ line: HTMLElement; box:
 }
 
 /**
- * Asserts a just-added Fill line shows no color: an empty swatch and an empty box, named "not set".
+ * Asserts a just-added Fill line shows no color: an empty swatch and an empty box, named "not set"
+ * with the box's cue.
  * @param line - the line.
  * @param box - its hex box.
  */
 function assertBlank(line: HTMLElement, box: HTMLInputElement): void {
     assert.equal(box.value, "", "no hex in the box");
-    assert.equal(box.getAttribute("aria-label"), "Node color, not set", "named not set, with no color drawn");
+    assert.equal(
+        box.getAttribute("aria-label"),
+        "Node color, not set, Pick or type",
+        "named not set, with no color drawn",
+    );
     const swatch = within(line).getByTestId("compact-color-input-swatch");
     assert.equal(swatch.dataset.empty, "true", "an empty swatch");
 }

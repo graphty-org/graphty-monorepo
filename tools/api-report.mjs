@@ -125,6 +125,9 @@ const SESSION_ROOT = "GraphSession";
 export const PLAIN_STRING_ALLOWLIST = new Set([
     // identifiers and keys
     "id",
+    // the consumer's own name for how a step's test is edited (UnionStep.mode): written and read
+    // only by the consumer, never words graphty-element shows
+    "mode",
     "key",
     "nodeId",
     "edgeId",

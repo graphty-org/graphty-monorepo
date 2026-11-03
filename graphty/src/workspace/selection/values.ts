@@ -437,17 +437,8 @@ export function stepCard(
  * @returns the card.
  */
 function withMode(card: Card, mode: string | undefined): Card {
-    // By position, with its end and its unit, kept before its count is typed: "top", "top low percent".
-    if (card.type === "number" && mode?.split(" ")[0] === "top" && card.match === "range") {
-        const words = mode.split(" ");
-        return card.min === undefined && card.max === undefined
-            ? {
-                  ...card,
-                  match: "top",
-                  ...(words.includes("low") ? { from: "low" as const } : {}),
-                  ...(words.includes("percent") ? { percent: true } : {}),
-              }
-            : card;
+    if (card.type === "number") {
+        return topMode(card, mode);
     }
     // A text test picked before any text is typed: the empty rule cannot hold it, the step does.
     if (card.type === "text" && card.text === "" && card.match === "substring" && isTextMode(mode)) {
@@ -461,6 +452,26 @@ function withMode(card: Card, mode: string | undefined): Card {
     // A bound the mode has no box for is not the reader's: the rule's bounds win.
     const fits = mode === "between" || (mode === "before" ? card.min === undefined : card.max === undefined);
     return fits ? { ...card, match: mode } : card;
+}
+
+/**
+ * A number card in By position when its step says so, with its end and its unit, kept before its
+ * count is typed: the step's mode is "top", "top low", "top percent" or "top low percent".
+ * @param card - the card its rule draws.
+ * @param mode - the step's mode.
+ * @returns the card.
+ */
+function topMode(card: Extract<Card, { type: "number" }>, mode: string | undefined): Card {
+    const words = mode?.split(" ") ?? [];
+    if (words[0] !== "top" || card.match !== "range" || card.min !== undefined || card.max !== undefined) {
+        return card;
+    }
+    return {
+        ...card,
+        match: "top",
+        ...(words.includes("low") ? { from: "low" as const } : {}),
+        ...(words.includes("percent") ? { percent: true } : {}),
+    };
 }
 
 /**

@@ -2097,7 +2097,7 @@ function groupCount(branch: UnionBranch, read: StepsReading["branches"][number] 
     if (read?.state === "pending") {
         return "Waits";
     }
-    const untested = read !== undefined && read.steps.every((step) => UNSET.has(step.reason?.code ?? ""));
+    const untested = read?.steps.every((step) => UNSET.has(step.reason?.code ?? "")) === true;
     return branch.start === "none" && untested ? "" : formatNumber(read?.count ?? 0);
 }
 

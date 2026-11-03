@@ -247,13 +247,12 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         const wanted = canonicalize([leaf.algorithm, params, leaf.scope]);
         return sources.runs
             .list()
-            .filter(
+            .findLast(
                 (run) =>
                     run.status === "succeeded" &&
                     run.result !== undefined &&
                     canonicalize([run.algorithm, run.params, run.scope.spec]) === wanted,
-            )
-            .at(-1);
+            );
     };
 
     /**

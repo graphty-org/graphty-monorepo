@@ -17,6 +17,17 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-11-03) ROUND 1 (rerun) SCREENSHOT AUDIT on the same frozen build 1e123d7d33:
+  `tier5/rounds/round-1/expert/engineer.md`, sessions `expert/engineer/{style,filter,thanks,big}-<size>`
+  from `tmp/engineer-audit-r1/all.sh` (one browser at a time, sequential: the round's sessions held
+  the other slots). Same findings as the void round's audit, now with mechanisms: the matches strip
+  clips because `.sel-ws-strip-table` lacks `min-width: 0` under `overflow: hidden`
+  (`selection.css` 297-313); Control+A's 5,000 is the element's `DEFAULT_SELECTION_CAP` and the
+  element reports `truncated`, which nothing in `graphty/src` reads (app's to say); the
+  "Person 1" order is the element's tie order (graph order, `query.ts` 685); a chosen reference's
+  bare id breaks decided.md 694. 900 x 700 collapse rated 2 this time (spec checks only 1440 and 1280).
+  New: "Edges: nothing set" vs "not styled" (`stylesWords` vs `OtherLine`); the reference list widens
+  past its field when typed; the thanks card is named "trained Yes" while it also keeps hours >= 10.
 - (2026-11-03) Study tool: `--prove`'s warm-takeover check no longer depends on a spare machine slot.
   `REAL_WARM_HOLD=1` (set only by the check) makes its warm browser queue for a slot and stay up
   while starts queue; the check waits until it is ready while it still warms. Test:
@@ -106,6 +117,10 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
 
 ## Decisions and reasons
 
+- 2026-11-03: Rated the 900 x 700 workspace collapse 2, not 3. Reason: the spec and decided.md set
+  check widths only at 1440 x 900 and 1280 x 800, no task runs smaller, and the step pane keeps its
+  width; both skeptics held my earlier 3 at 2. A width rule below 1280 needs a decided.md entry first.
+
 - 2026-11-03: The warm-pool self-test holds its slot (queue, no quit on a queue) instead of the
   pool's try mode. Reason: in try mode the verdict followed machine load (8 studio browsers for 152
   of 167 s, no warm browser ready in 120 s, the next start cold); the check is about the takeover,
@@ -178,6 +193,16 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-11-03) Worked: reusing the void round's walk scripts (`tmp/engineer-audit/walk.sh`,
+  `big.sh`) unchanged for the rerun; the build and the canvas points (1200x900: 620,790; 900x700:
+  480,575) were the same, and every step matched with no miss. Run them one after another from one
+  script (`tmp/engineer-audit-r1/all.sh`) while a round runs: one browser per agent, and the start
+  queues behind the round's sessions anyway. While waiting, arm a background `until` on the next
+  log line and read the finished sessions' screenshots; the hook refuses a waiting loop in the
+  foreground (and any command whose text looks like one).
+- (2026-11-03) Worked: tracing each finding to a line before writing it (a CSS rule, a constant, a
+  field nothing reads) turned three "to trace" owners into exact ones in minutes of grep.
 
 - (2026-11-03) Re-check of the warm-hold fix (90e826175a): it changes only design/ui/studio/tool
   (real.mjs, README, with-browser.test), no app source and no route, so no walk and no rebuild.

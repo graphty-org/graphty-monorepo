@@ -5,58 +5,43 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-03 (dry run pass 8, the second and last fix pass, on build 1e123d7d33).
+Last updated: 2026-11-03 (tier 5 round 1 closed, no valid sessions; studio stopped at its cap).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
 2026-10-30 (five times), 2026-11-02 (four times) and 2026-11-03; the full earlier text is in this
 file's git history.
 
 ## Top of mind
 
-- (2026-11-03) DRY RUN PASS 8 on 1e123d7d33 (`tier5/dry-run-r1-8.md`; written there because
-  `dry-run-r1-2.md` already holds pass 2): 26 pilot lines, 0 fix now, 4 decided, 20 backlog. Both
-  pass 7 units are carried and walked. The build is session-ready; round 1 starts on it. First in
-  the backlog: focus after Enter in the color box during a busy close, and the color box's Escape
-  (three faces of `fieldKeyDown`), both now settled in `decided.md` "Dry run pass 8".
-- (2026-11-02) DRY RUN PASS 7 on 0c163f54bf (`tier5/dry-run-r1-7.md`): 293 pilot lines, 8 fix now
-  in two units, both graphty app: fill-box-truth (a just-added color line shows no color and Enter
-  writes nothing; item 8's Fill box repro) and busy-close-focus (the close hands focus back only if
-  the reader has not moved on; a regression of pass 3's busy-Done fix). 247 backlog rows. This is
-  fix pass 1 of the 2 the cap allows; the second takes only what the bars' re-run on 0c163f54bf
-  still fails (50,000-node lists, axe) and new grade spoilers.
-- (2026-11-02) Item 8's two calm-first "two counts" candidates are two facts by the criteria's own
-  log (a second card or step separates them; `T77A/detour-1 03.png`); the skeptics still owe the
-  written refutation. Do not send them to fix.
-- (2026-11-02) TIER 5 CRITERIA FROZEN AGAIN for the rounds after the second three reviews. The next
-  build must carry 4fb3f45d59 (matches strip search, value picker scroller) and d801a0fddd (large
-  repaints); items 5, 8, 9 and T79's timings are re-read on it, never carried over from d3fda9f2b6.
-- (2026-11-02) Bar 9 now: calm-first (0 sev 3-4, at most 3 sev 2) where the sev 2 allowance also
-  counts an editor element named in the "least sure" answer by two sessions on different halves at
-  any rating, and each T79 wait > 10 s without progress. The median is a measure only (the rating
-  check failed: gap 1.5 of 2). Elements outside the editor (Fill box) go to the backlog.
-- (2026-11-02) Item 8 reads its candidates from files: `bars.json` / `bars-light` `ok:false`,
-  serious axe, sev 3 in `calm-first-frozen.md`, answer-key build notes, a Fill box repro. The gate
-  reads only some of them; a tool check for the rest is still owed (a rule the tool does not
-  enforce is a wish).
-- (2026-11-02) Calm-first check owes: every listed screen on the frozen build (reference picker at 11
-  and 50,000, the 50,000-node checklist, words at rest), a blind per-complaint calibration, every
-  "+" listed, and "two counts" only when no reachable state separates them.
-- (2026-11-02) Dry-run cap after this freeze: 2 fix passes limited to the gate's open items and new
-  grade spoilers, then round 1 starts; a blocked half is "blocked, not run", a failing bar "failing
-  before the round". Six passes produced zero sessions; only sessions measure the bars.
-- (2026-11-02) Prompts: T74 B "journeys ... go through" (not "routes": Shortest route's keyword),
-  T75 drops "at the middle"; follow-up asks for the least-sure moment, anchor "you knew what to do
-  next". `wording.mjs` grades prompts only: 0 shared words on d3fda9f2b6's vocabulary.
-- (2026-11-02) Owner items for tier 5, breaking or Figma only: 5 element and 5 compact-mantine (see
-  the tier 5 report); eight reversible "For the owner" entries are built, not his decision. Each
-  finding counts once, toward the smaller allowance (bar 9 before bar 7).
-- (2026-10-30) Tier 4 lessons that shaped tier 5: freezing with a known bar-failer backlogged fails the bar
-  by construction; each decided fix gets its own acceptance check; wrong turn = input before success;
-  preview must equal result.
-- (2026-10-30) Run `git diff <earlier> <frozen>` over source FIRST in any triage; an earlier walk stands when
-  the diff is code its route never reaches.
+- (2026-11-03) TIER 5 ROUND 1 CLOSED WITH ZERO VALID SESSIONS; the studio stops at its 1-round
+  cap without meeting the bars. All 60 sessions are void because the start gate never ran (plan.md
+  had no "Gate evidence" section; every start refused on the same line). Bars 1, 2, 3, 6, 8 and the
+  session parts of 5 and 9 are unmeasured. See `tier5/rounds/round-1/insights.md`.
+- (2026-11-03) Before any restart: the start gate runs and its evidence is in plan.md BEFORE launch,
+  and the runner stops the round at the first refused start whose cause every session shares. A
+  shared refusal burning 60 slots is a runner defect, not a round.
+- (2026-11-03) Fix the leak check before any restart: `leakCheck` in `tool/real.mjs` must test only
+  the paths a call opens, never written content (about 34 grades flagged the tool's own FAIL line).
+- (2026-11-03) Bar 4 fails on one finding: a workspace over a selected layer speaks twice into one
+  status region, so the reader may hear the hidden inspector's count (`WhichPicker.tsx:435`). Fix:
+  speak only from the surface that is showing (graphty app). First fix of the next pass.
+- (2026-11-03) Severity 2 fixes owed: one shared searchable combobox for the reference picker
+  (Tab escape, no result count); Clear keeps the card's name (decided 631-632); a chosen reference
+  shows its matched value (decided 694).
+- (2026-11-03) Rule gaps to settle in `decided.md`: which wins when Clear-then-Escape on a new card
+  meets "Escape never discards work"; the workspace layout below 1280 px wide.
+- (2026-11-03) Eight dry-run passes produced zero sessions, and the one round produced zero too.
+  The studio's bottleneck is the launch path, not the build. Next time, spend the first effort on a
+  one-session smoke start before the full roster.
+- (2026-11-02) Bar 9 = calm-first (0 sev 3-4, at most 3 sev 2); the words-at-rest count is
+  confirmed only by a hand count, never the scripted one.
+- (2026-11-02) Owner items for tier 5, breaking or Figma only: 5 element and 5 compact-mantine;
+  reversible entries are built, not his decision.
+- (2026-10-30) Freezing with a known bar-failer fails the bar by construction; each decided fix
+  gets its own acceptance check; preview must equal result.
+- (2026-10-30) Run `git diff <earlier> <frozen>` over source FIRST in any triage.
 - (2026-10-29) A fix that gives an answer a new input must move every count and cache derived from it.
-- (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak; two skeptics
-  weaken more than they confirm, so settle every score through them.
+- (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak; settle every
+  score through two skeptics.
 
 ## Priorities and values
 
@@ -172,6 +157,10 @@ file's git history.
   an element addition; the owner judges by interaction consistency; Figma is the paved path for chrome.
 
 ## Tried: worked / did not work
+
+- (2026-11-03) Did not work: launching the full 60-session roster without a recorded start gate.
+  One shared cause voided every session. Worked: two skeptic checks still turned four expert walks
+  into a short, cited fix list (1 sev 3, 4 sev 2) despite no sessions.
 
 - 2026-11-03 (dry run pass 8) -- Worked: `git diff --stat <previous> <frozen> -- . ':!design'`
   first (five files, so only the two fix routes needed new eyes); reading the fix diffs to tell

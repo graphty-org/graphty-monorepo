@@ -12,35 +12,33 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-11-03) Tier 5 round 1 put no participant in front of the app: all 60 sessions void
-  because the start gate never ran. A round that cannot launch must stop at the first shared
-  refusal, not burn every slot. Start gate first, then launch -- nothing else is evidence of use.
-- (2026-11-03) Expert walks say what is wrong on screen, never how often people are hurt.
-  Without sessions, bars 1, 2, 3, 8 and the follow-up part of 9 are unmeasured, not passed.
-- (2026-11-03) Top user risk now: speech from a hidden panel. A screen reader hears "4 of 24"
-  while the visible header says "15 of 24". Speak only from the surface that is showing.
-  This is my "count that looks right and answers wrong" rule, in audio.
-- (2026-11-03) Clear then Escape loses a new filter with its steps, no undo. Two decided rules
-  collide ("Escape on a new card takes it back" vs "Escape never discards work"); work the user
-  built wins. Write the rule in decided.md before the fix.
-- (2026-11-03) Names must keep saying what a thing is: Clear must not rename a card "a
-  selection"; a chosen reference shows the matched value ("James Carter"), not only "v02".
-- (2026-11-03) One picker, one behavior: the reference picker's own search (Tab escapes to the
-  page top, no result count) is a second build. Fix in the shared combobox, not per picker.
-- (2026-11-03) Below 1280 px the workspace has no layout (preview 44 px wide at 900 x 700).
-  Laptop users exist; the width rule belongs in decided.md.
-- (2026-11-03) The study tool's leak check must test paths a call opens, never written text;
-  it flagged participants for quoting the tool's own error line.
-- (2026-11-02) Check `git log <frozen>..HEAD` before reading any gate result.
-- (2026-11-02) Gate on a named workspace element at ANY overwhelm rating; the rating alone
-  does not discriminate (gap 1.5 of 2).
-- (2026-11-02) A "double count" is severity 3 only when the two counts agree on every project.
-- (2026-10-30) Show the result before the act, in counts the reader already trusts; one fact,
-  one drawing, one number format within one surface.
-- (2026-10-30) Severity 3 only with a scripted repro and an end-state check.
+- (2026-11-03) Tier 5 round 1 ran (30 sessions) and failed bars 1, 3, 4, 8 and 9; the studio
+  stopped at its one-round cap. Bars 6 and 7 were never fed (two expert walks did not run):
+  unmeasured is not passed. Next round needs those walks and a fresh calm-first check.
+- (2026-11-03) My "count that looks right and answers wrong" rule caught two sev 3s: speech from
+  a covered panel ("4 of 24" under a visible "15 of 24"), and a step picked from one run's
+  results that binds another run. A count, spoken or drawn, must name its own base and scope.
+- (2026-11-03) graphty-element must hand over a run's scope as a fact; the app words it. Two
+  runs named alike is the defect, not the matches strip's "(visible)" label.
+- (2026-11-03) An error must never contradict the screen: By position says "highest 10" while
+  24 of 24 match. A default the step does not apply must not be stated.
+- (2026-11-03) Empty boxes need a cue of what they take: the empty Fill color box was the
+  biggest single cost on T70 and the "least sure" moment of 8 of 28. Fix in the shared input if
+  the click behavior is compact-mantine's.
+- (2026-11-03) "Condition..." and "Or..." do not say "and" / "or else"; three sessions resolved
+  it only by watching the count. Words must carry the logic, not the count.
+- (2026-11-03) Work the user built wins: Clear then Escape deletes a saved card, Undo cannot
+  restore it. Fix even with no participant hit.
+- (2026-11-03) Study hygiene: a task and its key must ask the same thing (T73 measured the key,
+  not the build); no wish-inviting follow-up; do not pre-color fixtures in the task's color.
+- (2026-11-03) Start gate before launch; a void round wastes the cap.
+- (2026-11-02) Check `git log <frozen>..HEAD` before reading any result; fixes after the freeze
+  count against the frozen build only.
+- (2026-10-30) Show the result before the act, in counts the reader trusts; severity 3 only
+  with a scripted repro and an end-state check.
 - Same-model participants: a failure is strong evidence, a pass is weak; blind graders; rate
-  first, then ask neutral questions; task wording never reuses screen words.
-- No product concept built around one task's wording or one domain.
+  first, then neutral questions; task wording never reuses screen words.
+- No product concept built around one task's wording, one fixture or one domain.
 
 ## Priorities and values
 
@@ -99,35 +97,15 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
-- **2026-11-02 (me, second review of tier 5 criteria after the dry run; frozen d3fda9f2b6, no
-  round session run):** Eight changes: refreeze on a build with 4fb3f45d59 and d801a0fddd before
-  re-running the gate; replace the ignored 2-pass cap with one bounded pass on the gate blockers,
-  then round 1; `wording.mjs` reads prompts only (follow-ups are after the graded end state) and
-  the follow-up drops "clear"; the remaining lures (T74 B "routes" -> Shortest path keyword, T75
-  "middle", T78 "count"/"pair"/"shared", T76 "everything") kept on purpose and walked as detours;
-  bar 9 counts a workspace element named in two sessions on different halves at any rating as a
-  sev 2 finding, elements outside the editor (Fill color box, inspector) reported apart; a scripted
-  repro of the Fill box's default 6366F1 read as the layer's color; calm-first on the frozen build
-  must walk the reference picker (11 and 50k) and the 50k checklist and count words at rest; a
-  double count is sev 3 only when equal on every project; waits added to the owner's 50k
-  complaint row. No task echoes a fix it re-tests (Edges where, Edit, Drawing, name search, count
-  bases); every task has a people half and a river or genes half. Evidence: `git merge-base
---is-ancestor d801a0fddd d3fda9f2b6` false; `wording.mjs` output (40 prompts = 20 prompts + 20
-  follow-ups, regex `[AB]:`); `rounds/round-1/rating-check.md`; `calm-first-frozen.md` ("Not
-  walked"); `report.md` (six passes, cap of 2).
-- **2026-11-02 (me, review of tier 5 criteria and tasks; no frozen build named, no session
-  run):** Seven changes: `--gate` refuses gate items 3-7 and the answer key's "the dry run reads"
-  phrases (T73 A, T74 B), with `steps.mjs` CORE, a tier 5 walk and an `Overwhelm:` parser built
-  before the dry run; the dry run may fix every build-note sev 3 candidate (false "covered", the
-  two-base count, table plus strip, T75 A) or round 1 is headlined not passable; bar 9 gates on
-  named reasons (no screen named for a 4+ in two halves) with the median reported against the
-  placement study's 2-3; the rating asked first and the owner's questions made neutral; bar 5
-  counts keyboard blocks the accessibility walk confirms on screens Sam never reaches; a
-  severity rule for waits (T79's 17 s per tick); T78 B's "neighboring" walked as a detour
-  ("Neighbors of selection"). Prompts: no success-path echo found; two kinds of data in every
-  task. Evidence: `tool/steps.mjs:27`, `tool/bars.mjs:91-94`, `tool/real.mjs` gateCheck (~line
-  695, ~760), `tier5/answers.md` T73 A / T74 B / build notes / T79 timing,
-  `placement-study.md` table, `graphty/src/workspace/selection/values.ts:274`.
+- **2026-11-03 (me, tier 5 round 1 closed):** Fix order I back: the two sev 3 count defects
+  (speech base, run binding) first, then By position's contradicting error, Clear+Escape loss,
+  the Fill box, then the Or group's first state and its words. Reasons: trust over polish; each
+  is a screen that lies or loses work. Evidence: `tier5/rounds/round-1/insights.md` 1-7.
+- **2026-11-02 (me, two reviews of tier 5 criteria):** refreeze past the gate's fixes; one
+  bounded gate pass; wording check on prompts only; bar 9 counts a workspace element named in two
+  sessions on different halves at any rating; double count sev 3 only if equal on every project;
+  lures walked as detours. Evidence: `rounds/round-1/rating-check.md`, `tool/steps.mjs`.
+
 - **2026-10-30 (me, tier 4 round 1 closed at the one-round cap):** Lessons taken: (1) a study
   tool line that can contradict the screenshot is a severity-raising defect in the study, so it
   is fixed before any round; (2) severity 3 only with a scripted repro and an end-state check,
@@ -210,6 +188,10 @@ insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/
 
 ## Tried: worked / did not work
 
+- 2026-11-03 -- TIER 5 ROUND 1 RERUN (30 sessions). WORKED: repro folders for every sev 3 and
+  reading the frozen source to name the mechanism (`card.top ?? 10`, missing `openedNew`). DID
+  NOT: a "least sure" question as a bar 9 feed (it makes everyone name something); one session
+  carrying a task's success bar (T75 A); a task whose key wants a rule its words never ask for.
 - 2026-11-03 -- TIER 5 ROUND 1. DID NOT: launching with no start-gate evidence in plan.md (60 of
   60 starts refused, round void, one-round cap spent). WORKED: two skeptic checks on expert
   findings (dropped decided behaviors, weakened a words-budget count that included chrome and

@@ -16,11 +16,14 @@ made and evidence comes in. Summarized 2026-11-03 (older entries folded; full te
   `grep -c "Gate evidence" plan.md` is 1; a refusal every session shares stops the round at once.
 - (2026-11-03) The leak check voids clean sessions: `leaksIn` (tool/real.mjs ~518) matches
   facilitator file names in Write bodies and heredocs. Fix before round 1 restarts.
-- (2026-11-03) Round 1 on expert evidence alone: bar 4 has two severity 3s confirmed by expert plus
-  scripted repro (count spoken twice over another base; Clear then Escape loses a new card), one
-  disputed 2-or-3 (900 x 700 preview sliver); bar 9 has 4 confirmed severity 2 (Except column,
-  three outlines over the words budget) against 3. See rounds/round-1/scores.md.
-- (2026-11-03) Bar 7 sits on 8 unconfirmed Figma candidates; the audit must look at the typed
+- (2026-11-03) Round 1 after skeptics (`rounds/round-1/insights.md`): bar 4 fails on ONE severity
+  3 (speech from the covered inspector, `WhichPicker.tsx:435`); Clear then Escape and the 900 x 700
+  sliver fell to 2; bar 9 is "not measured", not failing (1 confirmed severity 2 of 3).
+- (2026-11-03) A scripted words-at-rest count confirms nothing: it counts chrome, allowed
+  statistics and the user's own names. Only the content designer's hand count decides.
+- (2026-11-03) Before scoring a finding as a defect, check decided.md: two of round 1's "defects"
+  were decided rules colliding (Escape drops a new card vs Clear has an undo), or decided behavior.
+- (2026-11-03) Bar 7 sits on 7 unconfirmed Figma candidates; the audit must look at the typed
   picker, a yes-or-no step and a two-step card at rest, or the bar cannot be called.
 - (2026-11-03) Key matched to 1e123d7d33: only the Fill line's description moved. When a fix
   changes a control's first state, grep the key for the old state ("6366F1", "text selected").
@@ -30,10 +33,8 @@ made and evidence comes in. Summarized 2026-11-03 (older entries folded; full te
   named "least sure" reason, scoped to the editor.
 - (2026-11-02) "Kept on purpose" can hide an echo: a catalog keyword must never be overridable by
   the kept list (T74 B "routes").
-- (2026-11-02) Add the listed steps when copying a "Path steps" count (steps.mjs pathSteps).
 - (2026-11-02) Grader rulings live in the key: equal routes through Analyze's own layer are S; a
   route that recolors everyone else is P when the prompt says to leave them.
-- (2026-11-02) Echo check: grep prompts against catalog search keywords and detour labels too.
 - (2026-11-02) A task whose success path never opens the feature measures nothing about it.
 - (2026-10-30) One round cannot both find and confirm fixes: plan a fix round and a re-test round.
 - (2026-10-30) Simulated participants trust the tool's text over the picture: check tool lines
@@ -72,6 +73,17 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- 2026-11-03 -- Applied the two skeptics to round 1 and wrote `rounds/round-1/insights.md`. Kept
+  at 3 only the count spoken from the covered panel (the filter-host case speaks a count nothing on
+  screen shows; the style-host case alone is a 2). Clear then Escape to 2 as a collision of decided
+  rules (436/740/773 against 599/601) that needs a decided.md entry. Promoted "Clear renames a card
+  'a selection'" to a confirmed bar 7 severity 2 although one skeptic weakened it: the other found
+  a scripted repro and I checked it in `k2/route.jsonl` step 7 and `k2/07.png`; said so beside it.
+  Bar 9 to "not measured" (words counts unconfirmed). Dropped "Edit after Done" and the
+  "many counts" pattern. Reason: a claim stands only where a screen or a log backs it and no
+  decided rule already settles it. Evidence: viewed k1/43, k1/88, k2/07, k2/08,
+  engineer/style-900x700/03 and style-1200x900/10; decided.md 436, 599-601, 631-632, 694, 729-740, 773.
 
 - 2026-11-03 -- Scored tier 5 round 1 (`rounds/round-1/scores.md`): every session-read bar "not
   measured", bar 4 "failing, pending skeptics", bar 9 "failing on confirmed findings; main check not
@@ -139,22 +151,11 @@ logged). Their reasons, in short:
   build's screen, and a grader without a ruling invents one. Worked: every edit cites a walk's
   screenshot. Did not work: subagents cannot write report.md, so reports arrive only as text.
 
-- **2026-11-02 (tier 5 criteria review, before any session):** Proposed eight changes, applied
-  none (the Director freezes): (1) calibrate bar 9's rating with 2 dry-run sessions on the
-  owner-rejected build 7dfd51c277 and ask the rating before the owner's preview/table question;
-  gate on it only if it separates the builds; (2) calm-first: cap open severity 2 clutter, add
-  blank columns, row breaks and misalignment (the owner's own words), run at 1280 x 800 too;
-  (3) the reference picker on 50,000 nodes in the scripted walk and calm-first (the owner's named
-  example); (4) close or confirm the known severity 3 candidates in the dry run; (5) "no task
-  blocked" as a start gate (T75 A); (6) move T76's 2 sessions to T78 and count fix 1 re-tested only
-  on the Edges where route; (7) reword T78 B "neighboring", T73 B / T78 B "either direction", T77 A
-  "instead of"; (8) wrong turns before success only, hovers not turns, and a table of which expert
-  feeds which bar (the accessibility walk's keyboard blocks into bar 5). Reason: each either lets a
-  bar pass or fail for a reason that is not the design, or leaves the owner's complaint ungated.
-  Evidence: criteria.md, tasks.md, answers.md build notes, placement-study.md, decided.md,
-  graphty-element/src/catalog/algorithms.ts (Degree keywords), graphty/src/workspace/selection/
-  StepPane.tsx ("Add instead"), graphty/src/workspace/analyze/words.ts ("Either direction").
-
+- **2026-11-02 (first tier 5 criteria review, folded):** Proposed eight changes, applied none (the
+  Director freezes): calibrate the bar 9 rating, cap calm-first clutter, walk the reference picker
+  at 50,000, close severity 3 candidates in the dry run, "no task blocked" as a start gate, move
+  T76's sessions to T78, reword three echoing prompts, count wrong turns before success only.
+  Reason: each let a bar pass or fail for a reason that is not the design.
 - **2026-10-30 (studio stopped after tier 4 round 1):** Record the round as findings, not a
   verdict on the design: two failing bars (2, 3) are partly study artifacts (key definition, tool
   hover line, inconsistent hover counting). Reason: a stop at the cap leaves no re-test, so the
@@ -210,6 +211,11 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-03 (round 1 insights) -- Worked: printing the cited route.jsonl steps (line N holds
+  shot N.png) and viewing each cited screenshot before keeping a claim; reading decided.md at the
+  lines the skeptics cited. Learned: when skeptics split on a finding, a repro I verify myself
+  can settle it, but say which skeptic disagreed.
+
 - 2026-11-03 (round 1 scoring) -- Worked: reading the tool's code for the leak check before
   calling the 60 leak lines false (the regex runs on written content); mapping each expert finding
   to the others' and the audit's by screen to apply "confirmed". Did not work: graders labeling a
@@ -263,6 +269,9 @@ logged). Their reasons, in short:
   every agent at once; editing a running script; counting one defect in several lists.
 
 ## Thinking
+
+- 2026-11-03 -- Expert-only rounds over-call severity: without a reader who drew a wrong
+  conclusion, most 3s fall to 2 under the skeptics. Plan for that before calling a bar failed.
 
 - 2026-11-02 -- A self-rating that does not move between designs the owner rates very
   differently cannot stand in for the owner. Prove a measure discriminates before it gates.

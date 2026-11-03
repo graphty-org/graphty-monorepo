@@ -936,3 +936,25 @@ or settles what one leaves open; none reverses one.
   card removes nothing (line 333); it is graded as no change (`answers.md` T77). Taking such a card
   away like a card with no step is a backlog question. Why: T77 A touched-7 84.png ("trained pick yes
   or no", 24 of 24); no count moves.
+
+## Dry run pass 5, 2026-11-02 (Design Director)
+
+From the triage of the re-walks on f0a9a014cb (`dry-run-r1-5.md`). Each entry narrows an entry above;
+none reverses one.
+
+- **A fix-now unit stays open until a build carries it.** A unit a triage sends to fix is not closed
+  by a later triage that found nothing new: when the next frozen build does not carry the unit's
+  fix, its rows are carried into that triage as fix now, origin repeat. Where the build's code is the
+  code those rows were walked on (`git diff --stat <earlier> <frozen>` touches nothing the route
+  reaches), their walks stand and need no re-walk before the fix. Why: f0a9a014cb's code is
+  c3100058ab's (only `design/` changed), so pass 4's two units (setup-history, table-after-history)
+  were never built, and this pass's targeted re-pilots walked only the routes of pass 1's units; T71 A
+  and T71 B still start with undo history (`r1d1/pilot/T71A/touched-31 04.png`,
+  `r1d1/pilot/T71B/keyboard 04.png`).
+- **A spoken count reads over the same base as the count on screen.** The live status that speaks
+  the Which nodes count (and every count the style host announces) names the same "of N" the
+  workspace header shows: the graph the filter leaves drawn. Narrows pass 1's "Every count in the
+  style host reads over the style selector's base" to the spoken count. Why: with a filter card on,
+  the screen read 7 of 7 and 2 of 7 while the status spoke "7 of 11 nodes" and "2 of 11 nodes"
+  (T70 B keyboard, `r1d1/pilot/T70B/keyboard 65.png`, `66.png`). Backlog, first for the accessibility
+  walk: no round session runs with a screen reader.

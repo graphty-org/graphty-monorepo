@@ -5,12 +5,20 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-02 (tier 5 dry run pass 4 triaged on c3100058ab: 37 defects, 2 fix units).
+Last updated: 2026-11-02 (tier 5 dry run pass 5 triaged on f0a9a014cb: 44 defects, 2 carried fix units).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
-2026-10-30 (five times) and 2026-11-02; the full earlier text is in this file's git history.
+2026-10-30 (five times) and 2026-11-02 (twice); the full earlier text is in this file's git history.
 
 ## Top of mind
 
+- (2026-11-02) DRY RUN PASS 5 TRIAGED (`tier5/dry-run-r1-5.md`; `dry-run-r1-2.md` already held pass 2,
+  so pass 5 took the next free name): 44 product defects on f0a9a014cb, none fix now by itself; 5
+  decided, 1 design question (T78 B's Which edges vs Degree), 38 backlog. But f0a9a014cb's code IS
+  c3100058ab's (only `design/` changed): pass 4's two units were never built (the workflow restarted
+  and re-walked pass 1's units instead). Carried them as fix now, repeat: setup-history (study tool,
+  `session.history.clear()` at a setup's end; T71 A/B still start with Undo on) and
+  table-after-history (graphty-element record pages after a history move). New rule in `decided.md`
+  pass 5: a unit stays open until a build carries it.
 - (2026-11-02) DRY RUN PASS 4 TRIAGED (`tier5/dry-run-r1-4.md`): 37 product defects on c3100058ab; 3
   fix now (all spoils) in 2 units: table-after-history (a regression of pass 3's take-back: after a
   history move the node table keeps the old filter's rows, T77 B reads 1 of 11 for 7; graphty-element's
@@ -26,9 +34,6 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
   those units' routes only; nothing else on a session task crashes, blocks or spoils.
 - (2026-11-02) DRY RUN PASS 2 TRIAGED (`tier5/dry-run-r1-2.md`): 93 defects on 797a4f6b47; 3 fix now
   in 2 units (cancel-new-card refix, open-busy-sign), all repeats; 81 backlog.
-- (2026-11-02) Item 8 status on 797a4f6b47: covered claim, count base and two tables closed (the blank
-  band under the preview is the hidden table's kept place, cosmetic, first in the backlog for bar 9);
-  the 50,000-node sign is open only on opening the workspace.
 - (2026-11-02) DRY RUN PASS 1 TRIAGED (`tier5/dry-run-r1-1.md`): 319 defects on baac78342b; 33 fix now
   in 7 units; 275 backlog (50 "decided, not built", which the decide-and-fix loop takes first).
 - (2026-11-02) Criteria item 8 makes every named severity 3 candidate a round blocker, so the dry run
@@ -100,6 +105,14 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Decisions and reasons
 
+- **2026-11-02, dry run pass 5 triage** (`tier5/dry-run-r1-5.md`, entries in `tier5/decided.md` "Dry
+  run pass 5"). Fix now: only pass 4's two units, carried because f0a9a014cb does not carry them
+  (`git diff --stat c3100058ab f0a9a014cb` is design files only, so pass 4's walks stand). Settled: a
+  fix-now unit stays open until a build carries it; a spoken count reads over the same base as the
+  screen's (T70 B's status spoke "of 11" over 7 of 7; backlog, no screen-reader sessions). Not taken:
+  a hidden layer's edges left drawn (not-success route), nodes under the toolbar (decided), the
+  50,000-node Done turning every node blue under "Drawing" (cosmetic), the Edit-for-count swap
+  (friction, standing since pass 2).
 - **2026-11-02, dry run pass 4 triage** (`tier5/dry-run-r1-4.md`, entries in `tier5/decided.md` "Dry
   run pass 4"). Fix now: the node table after a new card's take-back (T77 B touched-2: "Shown 1 of 11"
   while 7 are drawn; 47c95a09fc listed 7, 9610767e29's `restoreTo` does not move what the table's
@@ -112,39 +125,13 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
   (`answers.md` T77). Not taken: the wrong spoken counts (no screen-reader sessions), Redo restoring an
   inert card after Undo on an open new card (T76 only, filters nothing), the 50,000-node waits (busy
   with a sign).
-- **2026-11-02, dry run pass 3 triage** (`tier5/dry-run-r1-3.md`, entries in `tier5/decided.md` "Dry
-  run pass 3"). Fix now: Undo after Cancel on a new card (T79 A touched-32 restores a dept Grants card,
-  1,076 of 50,000, which T79 grades as not success) and Done on 50,000 nodes with no sign of work (item
-  8, "Large graphs"). Settled: taking a new card away leaves no undo step, nothing to redo and no
-  "Filter off"; Done, Cancel and Escape on a large graph keep the workspace and its "Drawing" until the
-  result is painted (one sign, in the place readers already saw it; no new chrome). Not taken: the
-  16-20 s waits (now busy with a sign, severity 2 unless someone gives up); the selection's "..." with
-  no Filter to (one detour; the Data place path works); overlays over a node (the canvas is the frame);
-  the same Undo defect on T70 B and T72 B, whose grades it does not move (backlog rows, fixed with the
-  unit).
-- **2026-11-02, dry run pass 2 triage** (`tier5/dry-run-r1-2.md`, entries in `tier5/decided.md`
-  "Dry run pass 2"). Fix now: Cancel on a new filter card (spoils the card count T71, T77, T79 grade;
-  its pass 1 fix was reverted for a focus regression) and opening Which nodes on 50,000 nodes with no
-  sign for 1.3 s (item 8, "Large graphs"). Settled: focus after a new card goes returns to its opener
-  only when that opener opens filters, else Add filter; opening the workspace counts as a blocking
-  edit, and the "Drawing" frame shows the input's own result; the band under the preview is the hidden
-  table's place, not item 8's two tables. Not taken: the T76 A hand-built hover edge layer that draws no
-  color (a real wrong drawing, but T76 has no sessions; first in the backlog); search selecting a
-  filtered-out node (T77 A; out-of-scope selection is decided, interaction-patterns.md line 342);
-  overlays covering a node (the canvas is the frame).
-- **2026-11-02, dry run pass 1 triage** (`tier5/dry-run-r1-1.md`, entries in `tier5/decided.md`). Fix
-  now: the false "covered" claim (8 pilots; a repeat of polish round 1's element fix), the data table
-  drawn under the workspace and keeping the last card's Matches only after Done (T75 A read 549 for
-  112; criteria item 8), the test mode lost (By position empties a Results step, T74 both halves; the
-  date mode stuck on Before, T72 B), the reference search missing a name column (T73 A; a repeat of
-  repolish 2), Cancel leaving a new filter card saved, one layer counted over two bases, and a busy
-  sign before a 50,000-node edit blocks input. Why these and no more: the dry run makes the build
-  session-ready, and criteria item 8 names four of them. Not taken: pickers flipping and the camera
-  moving (Escape and the panels' counts get past them), Visibility Hidden's "Show:" key (every route
-  through it is not-success), every T76 row (no sessions), every keyboard-only row (the a11y walk).
-  Settled: an item 8 candidate is fix now; a blocking 50k edit with no sign is a frozen app; the data
-  table never takes an editor's selection; a test's mode is the step's own; Cancel on a new card
-  removes it; style counts read the filtered graph; "covered" only when the canvas shows it.
+- **2026-11-02, dry run passes 1-3** (summarized 2026-11-02; full text in git history and
+  `tier5/dry-run-r1-{1,2,3}.md`, entries in `tier5/decided.md` "Dry run pass 1" to "pass 3"). Fixed:
+  the false "covered" claim, the data table under the workspace, a test's mode, the reference names,
+  one count base, Cancel on a new filter card (removes it, focus to a filters opener else Add filter,
+  no undo step), and "Drawing" on every blocking 50,000-node edit including open, Done, Cancel and
+  Escape. Not taken: pickers flipping and the camera moving, Visibility Hidden's key, every T76 row,
+  every keyboard-only row, overlays over a node (the canvas is the frame).
 - **2026-11-02, tier 5 criteria reviewed and frozen** (three reviews: researcher 81e993f52d, user advocate
   65a6f779a1, red team 6946dd5032; they agreed on most points). Taken: bar 9 split into calm-first (gating
   sev 2 at most 3, with counts of what is drawn, gaps, row breaks, alignment, words budget, at 1440 x 900 and
@@ -179,6 +166,11 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (dry run pass 5) -- Worked: `git diff --stat <previous build> <frozen build>` first,
+  as the 2026-10-30 note says; it showed at once that no code had changed, so the pilots' "unchanged"
+  rows were not new evidence and pass 4's units were simply unbuilt. Checking the engineer's commits
+  between the builds (all notes, re-walking pass 1's units) explained why. Did not work: trusting the
+  defect list alone; it had no T77 Undo rows only because no re-pilot walked those routes.
 - 2026-11-02 (dry run pass 4) -- Worked: reading the previous fix's mechanism (a take-back by
   `restoreTo` instead of `removeCondition`) next to the pilot's "the earlier build showed 7 rows"; it
   pointed straight at a cache keyed on something only commands move (`RevisionCache` on the input
@@ -222,6 +214,11 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Thinking
 
+- **2026-11-02, dry run pass 5:** a re-pilot only sees the routes it is told to walk. When a
+  workflow restarts, its "touched routes" list comes from the units it re-ran, not from the last
+  triage, so an unbuilt unit goes silent instead of failing. Before trusting "nothing spoils", check
+  that the frozen build carries every unit the last triage sent; a quiet pass on unchanged code is
+  not a pass.
 - **2026-11-02, dry run pass 4:** pass 3's "walk one step past the fix" held, and found the next step
   was not in the product at all: once Undo after Cancel did the decided thing, it reached history the
   study tool had made. An instrument that builds a start by clicking leaves traces a real start never
@@ -260,8 +257,8 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 ## Sources
 
 - Tier 5: `tier5/{criteria,tasks,answers,roster,decided,owner-feedback-2026-11-01,placement-study}.md`;
-  dry run triages `tier5/dry-run-r1-{1,2,3,4}.md` (pass 4 pilots: main checkout
-  `tmp/design-studio/tier5/r1d3/pilot/`), `tier5/backlog.md`, `tier5/rejected-fixes.md`; pass 2
+  dry run triages `tier5/dry-run-r1-{1,2,3,4,5}.md` (pass 4 pilots: main checkout
+  `tmp/design-studio/tier5/r1d3/pilot/`; pass 5 pilots: `r1d1/pilot/`), `tier5/backlog.md`, `tier5/rejected-fixes.md`; pass 2
   pilots under the main checkout's `tmp/design-studio/tier5/r1d1/pilot/`; pilots under the main checkout's
   `tmp/design-studio/tier5/r1/pilot/<task>/`;
   reviews in `notes/{researcher,user,redteam}.md` (81e993f52d, 65a6f779a1, 6946dd5032); frozen build

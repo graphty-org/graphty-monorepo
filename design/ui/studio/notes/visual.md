@@ -5,37 +5,44 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-11-03 (tier 5 round 1 rerun walkthrough). Summarized on 2026-10-21: the tier 2
+Last updated: 2026-11-03 (tier 5 round 1 closed). Summarized on 2026-10-21: the tier 2
 rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
 in git history of this file.
 
 ## Top of mind
 
-1. (2026-11-03, round 1 rerun) The void round's walk was on the SAME frozen build, so I replayed
-   its routes (`real.mjs --replay <old route.jsonl> <new folder>`) instead of re-walking: 3 walks
-   matched end to end in about 20 minutes, plus one new walk. Check the build hash before re-walking.
-2. Round 1 report: 23 findings, 8 at sev 2 (3 new: No match chit, Except column, Within hops center),
-   15 at 1, none at 3. Every rating cites a `decided.md` line or names the gap.
-3. Measure, then rate: the Except column is 1226 vs 1247 (inspector), the workspace keeps all steps
-   at 132; "Which nodes" 1225 vs headings 1218; the date box 20 px vs decided 24 px (`decided.md` 519).
-4. Hover fakes theme defects: a white "Shape" in dark mode was the pointer resting on it. Before
-   calling a state wrong, check where the last click left the pointer.
-5. A visual finding keeps sev 3 only with a paying reader or a scripted repro; with no sessions,
-   nothing of mine reaches 3. Name what would raise each 2.
-6. "One idea, one look" findings shrink under checks unless rated within ONE surface and tied to
-   the decided format (short counts are decided, `decided.md` 90).
-7. A gap in decided rules is not a sev 3: propose the rule (widths below 1280 x 800) instead.
-8. A two-group filter card keeps its first step's name ("role staff", 16 of 24): known T71B.3; the
-   title is the card's anchor, so I rate it 2 as hierarchy, not only wording.
-9. Cut columns and cut lists are sev 1 unless the cut hides the only copy of a fact.
-10. Read `decided.md` and the backlog before rating; grep each candidate.
-11. Known and still open: Table "on" and Done share green (compact-mantine, Figma lock), blank band
-    under the preview, picker flips over the header, key over a node, 1 px focus ring.
-12. compact-mantine is Figma-locked: button variants, focus ring, PageList hover go to the owner.
-13. Tool habits: `--click "role=option:<name>"`; `--click "Edit#1"`; 50k sessions take minutes per
-    step; a replay that diverges stays open: look, carry on with `--step`, then `--end`.
+1. (2026-11-03, round 1 close) Tier 5 stopped at the 1-round cap with bars 1, 3, 4, 8 and 9
+   failing. Every severity 3 was behavior (speech from a hidden panel, a picker entry bound to a
+   different run), never pure look. Visual weight alone did not move a bar.
+2. The visual findings that counted were legibility of meaning: an untouched range drawn full while
+   it reads "0 so far" (Or group first state), By position's box with no direction or unit and a
+   9 px "of all nodes", an empty Fill color box with no cue. Rule: an empty or default state must
+   look empty and say what it wants.
+3. A control's drawing must never contradict its count or its text (full range bar vs 0 so far; the
+   "highest 10" error vs 24 of 24). Check drawn state against the count on every first state.
+4. Small helper text carrying the unit is a defect source: if the unit decides the answer, it is
+   not 9 px caption text.
+5. Bar 9 counts elements named by two sessions on different halves; the editor's Or group, the
+   Condition.../Or... words and By position's box are my share. Re-walk each on the next frozen
+   build.
+6. Skeptic checks weaken findings the fixture or task wording causes (orange in an orange ramp,
+   "top N" sending everyone to one box). Before rating, ask whether the fixture made it.
+7. compact-mantine's swatches and color input are Figma-locked: "no orange" was dropped; an
+   empty-box click bug in the shared color input goes to compact-mantine, not a local fix.
+8. Bar 7 consistency still open at sev 2: value picker jumping over its field and Done
+   (`decided.md` 734), Clear renaming a card "a selection" (631-632), a two-step card resting as
+   one row with no caret.
+9. 900 x 700: the preview is a 44 px sliver and the title loses the rule name; propose the
+   small-width rule rather than rate a gap as 3.
+10. Measure, then rate; cite a `decided.md` line or name the gap. Hover fakes theme defects.
+11. A visual finding keeps sev 3 only with a paying reader or a scripted repro.
+12. Same frozen build: replay old routes (`real.mjs --replay`) instead of re-walking.
+13. Known and still open: Table "on" and Done share green (Figma lock), blank band under the
+    preview, key over a node, 1 px focus ring, Except column 1226 vs 1247.
 14. Open from tiers 3 and 4: `colorWord` hue names, the purple "Layer" token, the link glyph doing
     two jobs.
+15. Tool habits: `--click "role=option:<name>"`; `--click "Edit#1"`; a diverged replay stays open:
+    look, `--step`, then `--end`.
 
 ## Priorities and values
 
@@ -58,6 +65,16 @@ in git history of this file.
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- 2026-11-03 (tier 5 round 1 close): Empty and default states must look empty and name what they
+  want (a range not yet set is not drawn full; an empty color box shows a cue). Reason: the Or
+  group's first state and the Fill color box were the two most repeated sev 2 visual findings,
+  7 sessions on 6 halves for the color box alone.
+- 2026-11-03: A unit or direction that decides the answer is never caption-size text. Reason: By
+  position's "of all nodes" at about 9 px; three T74 sessions typed "top 5".
+- 2026-11-03: Tried: rating my findings without sessions. Worked for finding them (every sev 2
+  editor issue I had flagged was met by people); did not work for severity (none of mine reached 3;
+  behavior findings did).
 
 - **2026-11-03 (tier 5 round 1 rerun):** Moved the value picker's cut list from 2 to 1 and kept
   the Except column at 2, following the void round's skeptic check on the same build. Added the

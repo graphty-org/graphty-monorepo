@@ -1,7 +1,9 @@
 The study runs on build d3fda9f2b6 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d2-d3fda9f2b6
 
-Frozen on 2026-11-02 for the tier 5 rounds. This is the dry run's first build: each dry-run fix
-pass refreezes on a new build, names it on the first line and the build before it here.
+Frozen on 2026-11-02 for the tier 5 rounds. The bars below do not change after this line. Each
+refreeze of the build is written on the first line, with the build before it named in the change
+log; the first build after this freeze must carry the matches strip's search and the large-graph
+repaint fixes ("Before the first session", item 1).
 
 # Success criteria and round plan: choosing which nodes (tier 5)
 
@@ -51,23 +53,32 @@ participant saying it is finished while the screen or the end-state records show
 
 ## Bars that decide "done" (all must hold in the round)
 
-| #   | Bar                           | Target                                                                                                                                                                                                                                                                                                                                                                                               | Counted from                                                                                                                                        |
-| --- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Task success                  | At least 75% S or SD of each task's valid pointer sessions, and no dataset half with 0 successes. On a 2-session task (T72, T75, T77, T79) that means 2 of 2; on a 4-session task (T70, T71, T73, T74, T78), 3 of 4. Sam's sessions are not counted here                                                                                                                                             | The grades' first lines (`Grade:`)                                                                                                                  |
-| 2   | False "done"                  | 0 in the round                                                                                                                                                                                                                                                                                                                                                                                       | The grades (`False done:`)                                                                                                                          |
-| 3   | Wrong turns                   | Median at most 2 per task, counted as "Grades" defines a wrong turn                                                                                                                                                                                                                                                                                                                                  | The grades (`Wrong turns:`)                                                                                                                         |
-| 4   | Severity 3 and 4 open         | 0 confirmed severity 3 or 4 problems                                                                                                                                                                                                                                                                                                                                                                 | Grades, the end-state check, the expert walkthroughs and the screenshot audit (the table below), after both skeptics                                |
-| 5   | Keyboard                      | Sam's sessions S or SD, with no confirmed keyboard block; 0 keyboard blocks the accessibility specialist finds on any tier 5 screen that a `real.mjs --keys` script reproduces; and 0 serious or critical axe findings on every tier 5 screen, at 1440 x 900 and 900 x 700, in both themes                                                                                                           | Sam's grades; the accessibility walk with its `--keys` repros; the scripted walk of the tier 5 screens, once per theme                              |
-| 6   | The owner's data rules        | 0 confirmed violations: a sentence on screen where a control would do; a hotkey with no visible button showing its key; configuration reachable only from the table; "links" or "ties" on screen for edges; "Select", "Filter to" or "Filter out" on screen; an approved surface removed or restyled other than as `spec.md` section 13 allows                                                       | The content designer's word count, the Figma product designer's and the interaction designer's walkthroughs, confirmed as below                     |
-| 7   | Figma and graphty consistency | 0 confirmed consistency findings of severity 3 or 4, and at most 5 of severity 2 open, each listed in the report with its fix or its reason                                                                                                                                                                                                                                                          | The Figma product designer's and the interaction designer's walkthroughs, confirmed as below                                                        |
-| 8   | Cost on core tasks            | Median steps per core task half (T70, T71, T73, T74, T78) at most the answer key's path plus 3                                                                                                                                                                                                                                                                                                       | The step logs, against each half's "Path steps" in `answers.md` on the frozen build (`tool/steps.mjs`)                                              |
-| 9   | The owner's feedback          | The calm-first check with 0 confirmed findings of severity 3 or 4 and at most 3 of severity 2 open, each listed with its fix or its reason; no screen or control named as the reason for a rating of 4 or more in two sessions on different task halves; and, only if the rating check holds (below), a median rating of at most 2 over the round's valid pointer sessions with no task half above 3 | The calm-first check, confirmed as below; the follow-up answers (`Overwhelm:` in each grade, with the reason, coded by the screen element it names) |
+| #   | Bar                           | Target                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Counted from                                                                                                                                                                                       |
+| --- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Task success                  | At least 75% S or SD of each task's valid pointer sessions, and no dataset half with 0 successes. On a 2-session task (T72, T75, T77, T79) that means 2 of 2; on a 4-session task (T70, T71, T73, T74, T78), 3 of 4. Sam's sessions are not counted here                                                                                                                                                                                                                                                                                           | The grades' first lines (`Grade:`)                                                                                                                                                                 |
+| 2   | False "done"                  | 0 in the round                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | The grades (`False done:`)                                                                                                                                                                         |
+| 3   | Wrong turns                   | Median at most 2 per task, counted as "Grades" defines a wrong turn                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | The grades (`Wrong turns:`)                                                                                                                                                                        |
+| 4   | Severity 3 and 4 open         | 0 confirmed severity 3 or 4 problems                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Grades, the end-state check, the expert walkthroughs and the screenshot audit (the table below), after both skeptics                                                                               |
+| 5   | Keyboard                      | Sam's sessions S or SD, with no confirmed keyboard block; 0 keyboard blocks the accessibility specialist finds on any tier 5 screen that a `real.mjs --keys` script reproduces; and 0 serious or critical axe findings on every tier 5 screen, at 1440 x 900 and 900 x 700, in both themes                                                                                                                                                                                                                                                         | Sam's grades; the accessibility walk with its `--keys` repros; the scripted walk of the tier 5 screens, once per theme                                                                             |
+| 6   | The owner's data rules        | 0 confirmed violations: a sentence on screen where a control would do; a hotkey with no visible button showing its key; configuration reachable only from the table; "links" or "ties" on screen for edges; "Select", "Filter to" or "Filter out" on screen; an approved surface removed or restyled other than as `spec.md` section 13 allows                                                                                                                                                                                                     | The content designer's word count, the Figma product designer's and the interaction designer's walkthroughs, confirmed as below                                                                    |
+| 7   | Figma and graphty consistency | 0 confirmed consistency findings of severity 3 or 4, and at most 5 of severity 2 open, each listed in the report with its fix or its reason                                                                                                                                                                                                                                                                                                                                                                                                        | The Figma product designer's and the interaction designer's walkthroughs, confirmed as below                                                                                                       |
+| 8   | Cost on core tasks            | Median steps per core task half (T70, T71, T73, T74, T78) at most the answer key's path plus 3                                                                                                                                                                                                                                                                                                                                                                                                                                                     | The step logs, against each half's "Path steps" in `answers.md` on the frozen build (`tool/steps.mjs`)                                                                                             |
+| 9   | The owner's feedback          | The calm-first check with 0 confirmed findings of severity 3 or 4 and at most 3 of severity 2 open, each listed with its fix or its reason. Also counted in that allowance of 3: a screen element of the selection editor named in the follow-up's "least sure" answer by two sessions on different task halves, at any rating; and each wait on T79's path, in a session or the scripted 50,000-node walk, of more than 10 s with a sign of work but no progress. The median rating is reported as a measure only (the rating check did not hold) | The calm-first check, confirmed as below; the follow-up answers (`Overwhelm:` in each grade, coded by the screen element the "least sure" answer names); T79's `route.jsonl` and the scripted walk |
 
 **Severity** (bars 4, 7 and 9): 4 -- a result wrong with no sign (a layer or filter that holds more
 or fewer than its count says, a preview that changes what is saved, styling lost after picking); 3
 -- a task blocked for most people, or a result a reader would misread (a preview read as the saved
 result, a count over a base nobody can tell); 2 -- friction a person recovers from; 1 -- wording or
 cosmetic; 0 -- not a problem.
+
+A screen element named in the "least sure" answer that is not part of the selection editor (the
+Fill color box, the inspector) is listed in the report and goes to the backlog; it does not count
+toward bar 9, but a scripted repro can still make it a severity 3 for bar 4.
+
+**Each finding counts once.** A finding that fits two bars' lists (a control out of line is both
+a consistency and a calm-first finding) counts toward the one with the smaller allowance (bar 9's
+3 before bar 7's 5) and is listed there, with a pointer from the other. A severity 3 or 4 also
+fails bar 4, whose allowance is 0.
 
 **Large graphs** (the owner's "review all your interfaces for what happens with large graphs"),
 read from `route.jsonl` and the screenshot: a list at 50,000 nodes that is not bounded, or has no
@@ -147,26 +158,45 @@ budget; every blank column or pane, row break, and control out of line with its 
   outline at rest.
 - Severity 3: the eye lands first on something other than the graph, the rule's rows or the next
   step's control; two things doing one job (two tables, two counts of one result).
+- **Two counts of one result** means two counts that cannot differ in any state the tasks reach.
+  Before rating a pair of counts 3, the expert names a reachable state where they differ (a second
+  filter card, a second step, a hidden layer) or shows that none exists, and classes each count
+  against the count rules of `../../selection-groups/spec.md` sections 2 and 3.0. Counts that
+  differ in a reachable state are two facts, not a double. A count the spec rules but the screen
+  contradicts goes to `decided.md` for a decision, not straight to severity 3.
+- **Every "+"**: the check lists each "+" on each screen with its accessible name and what it adds.
+  Two "+" on one screen that add different kinds of thing, with no visible word telling them
+  apart, are a severity 2 finding; clicks on an off-path "+" in two sessions on different task
+  halves confirm it.
 - Severity 2: anything drawn at rest that nothing on the screen needs; a screen over the
   words-at-rest budget; a blank column or pane the step does not use; a row break or a control out
   of line with its row; a step pane that opens with Advanced open when the person did not open it.
 - Confirmed: the counts, words, gaps, row breaks and alignment by the screenshot audit, as any
   screenshot-visible finding; "where the eye lands first" when the screenshot auditor, reading the
   same screenshot without the expert's answer, names the same thing.
+- **Words at rest** are counted per screen by the scripted walk (`bars.mjs --tier 5`), against
+  this budget, fixed now from tier 4's rules (`../tier4/words-at-rest.md`, principle 5): the whole
+  screen with the sidebar outline at rest, 50 app words at most; the workspace open on a step,
+  counted apart from the screen behind it, about 30 and 40 at most; every row and section heading
+  3 words at most. Until the walk counts them, "Cramped" below is "not re-tested".
+- **Calibration, blind.** A second owner-lens expert runs the check on the rejected build and the
+  frozen build from neutral folder names and maps each finding to one of the owner's six
+  complaints. Where the rejected build does not come out worse on a complaint, the report says the
+  check could not be shown to stand in for the owner on that complaint; the check still gates.
 - It runs in the dry run and every round, before the sessions are read, so the reported overwhelm
   cannot steer it.
 
 **The owner's six complaints, and what checks each** (anything with no check is reported as "not
 re-tested", never as passed):
 
-| The owner's complaint (2026-11-01)                                    | What checks it                                                                                                  | Pass rule                                                      |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Cramped, hard to find and focus on what matters                       | The calm-first counts and where the eye lands first                                                             | Bar 9's calm-first limits                                      |
-| Disorganized: why buttons sit where they do, empty spaces, row breaks | The calm-first gaps, row breaks and alignment at 1440 x 900 and 1280 x 800; the audit at 900 x 700              | Bar 9's calm-first limits                                      |
-| No progressive disclosure                                             | The calm-first check: Advanced closed at rest on every step pane a task reaches (T78's is opened by the person) | Bar 9's calm-first limits                                      |
-| "Select", "Filter to" and "Filter out" not understood                 | The screenshot audit of every screen, including a filter card in a project saved by a tier 4 build              | None of the three words on screen; one is a bar 6 violation    |
-| Two "+" that look alike                                               | The step logs: every click on a "+" that is not on the answer key's path, per "+"                               | Reported as a measure                                          |
-| "While has nodes" unviable at 50,000                                  | The scripted 50,000-node walk (before the first session, item 5) and T79                                        | Every list bounded, with a count and a search ("Large graphs") |
+| The owner's complaint (2026-11-01)                                    | What checks it                                                                                                  | Pass rule                                                                                                                                 |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Cramped, hard to find and focus on what matters                       | The calm-first counts, where the eye lands first, and the scripted words-at-rest count                          | Bar 9's calm-first limits and the words budget                                                                                            |
+| Disorganized: why buttons sit where they do, empty spaces, row breaks | The calm-first gaps, row breaks and alignment at 1440 x 900 and 1280 x 800; the audit at 900 x 700              | Bar 9's calm-first limits                                                                                                                 |
+| No progressive disclosure                                             | The calm-first check: Advanced closed at rest on every step pane a task reaches (T78's is opened by the person) | Bar 9's calm-first limits                                                                                                                 |
+| "Select", "Filter to" and "Filter out" not understood                 | The screenshot audit of every screen, including a filter card in a project saved by a tier 4 build              | None of the three words on screen; one is a bar 6 violation                                                                               |
+| Two "+" that look alike                                               | The calm-first check's list of every "+"; the step logs' clicks on an off-path "+", per "+"                     | No two "+" on one screen adding different kinds of thing with no word telling them apart (severity 2, bar 9)                              |
+| "While has nodes" unviable at 50,000                                  | The scripted 50,000-node walk (item 5), the calm-first check's 50,000-node screens, and T79                     | Every list bounded, with a count and a search, and no wait finding of severity 2 or more on T79's path ("Large graphs"; counted in bar 9) |
 
 **The rating check** (bar 9's median). In the placement study every placement rated 2 or 3,
 including the cards the owner then called overwhelming, so the rating has not shown it can tell
@@ -179,7 +209,9 @@ build's two ratings average at least 2 points above the frozen build's; otherwis
 reported as a measure and bar 9 rests on the calm-first check and the named reasons. The dry run
 also runs the calm-first check on the rejected build's card screens: it must find there at least
 one severity 3 or more than three severity 2 before it gates, or its limits are changed (with the
-reason in this change log) until it does.
+reason in this change log) until it does. Both ran on 2026-11-02: the rating check did not hold
+(a mean gap of 1.5), so the median is a measure this tier; the calm-first check failed the
+rejected build, so it gates.
 
 ## Before the first session
 
@@ -187,10 +219,13 @@ The round may not start until all of these hold on the frozen build. `real.mjs -
 items 1 to 7 and 9 (each check is listed in `tool/README.md`, "Before a round's first session: the
 gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's core tasks,
 `bars.mjs --tier 5` is item 5's scripted walk, `endstate.mjs` checks each style layer, and
-`score.mjs` scores bars 1 to 3 and bar 9's ratings from each grade's line
-`Overwhelm: <1-7> -- <screen element> -- <the reason, in the participant's words>`.
+`score.mjs` scores bars 1 to 3 and bar 9's named elements from each grade's line
+`Overwhelm: <1-7> -- <screen element> -- <the "least sure" answer, in the participant's words>`.
 
-1. The first line of this file names the frozen build.
+1. The first line of this file names the frozen build, and that build carries 4fb3f45d59 (the
+   matches strip searched first; the value picker's list its own scroller) and d801a0fddd (one
+   node batch a frame for large repaints) (`git merge-base --is-ancestor`). Items 5, 8 and 9 and
+   T79's timings in `answers.md` are read on that build, never carried over from d3fda9f2b6.
 2. `answers.md` holds no "pilot to confirm" and no "the dry run reads": every value and path is
    read off the frozen build, and each "Build notes" line names the frozen build or is removed.
 3. Every setup in `roster.md` starts on the frozen build without `SETUP FAILED` (the two
@@ -204,21 +239,28 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
    picker (closed, typed, a result chosen), Selected (N), Hovered or selected, the matches strip,
    the outline of a step with many values, and every "N more" and "Check N". It passes
    `wording.mjs` against `tasks.md` with the frozen build's own strings, option labels and the
-   catalog's search keywords; runs axe for bar 5; and checks every 50,000-node list against
-   "Large graphs".
+   catalog's search keywords (prompts only: nothing after "Follow-up" is graded); runs axe for
+   bar 5; counts words at rest per screen against the calm-first budget; and checks every
+   50,000-node list against "Large graphs", with the rejected build's "While has nodes" list at
+   50,000 as a case the check must flag.
 6. Each core task half (T70, T71, T73, T74, T78) has one "Path steps" number in `answers.md`, read
    off the frozen build (bar 8), and `tool/steps.mjs` counts tier 5's core tasks.
 7. The approved surfaces' new reference screenshots are listed in `decided.md` (bar 6).
 8. **No half blocked and no bar failed before a session.** Every task half has a success walk that
-   reaches S on the frozen build, and every severity 3 or 4 candidate known before the round (the
-   answer key's build notes, the calm-first check, the scripted walk) is fixed and its fix
-   re-walked. On fc1d7ee4f6 these were: T75 A blocked (no So far on Largest component); the false
-   "Covered by Everything" warning (two halves); two count bases for one layer ("4 of 14" against
-   the key's "of 24"); the data table and the matches strip drawn together; the 3 s input delay on each
-   50,000-node edit, if nothing on screen says work is under way ("Large graphs"). If T75 A's step is not fixed after the two fix
-   passes, T75 A is rewritten on a network already in several pieces and "So far on a structure
-   step" is reported as not re-tested.
-9. The rating check and the calm-first check have run on the rejected build (bar 9).
+   reaches S on the frozen build, and every severity 3 or 4 candidate known before the round is
+   fixed and its fix re-walked, or refuted by both skeptics with the reason written down. The
+   candidates are read from these files on the frozen build: every `ok:false` in
+   `rounds/<round>/bars/bars.json` and `bars-light/bars.json` (a 50,000-node list with no search
+   is one); every serious or critical axe finding there; every severity 3 in the round's
+   `calm-first-frozen.md`; every severity 3 in the answer key's build notes; and a scripted repro
+   of a new layer's Fill box showing a color the layer does not paint (two rating-check sessions
+   named it). This is the studio's judgment, read from those files; the gate reads only some of
+   them.
+9. The rating check and the calm-first check have run on the rejected build (bar 9), and the
+   calm-first check has run on the frozen build over every screen it lists (the reference picker
+   on 11 nodes and on 50,000, the 50,000-node checklist, the words at rest) at 1440 x 900 and
+   1280 x 800, with each of its findings read by the screenshot audit and both skeptics. A bar 9
+   that holds because a listed screen was not walked does not hold.
 
 ## Measures reported every round (not gates)
 
@@ -229,9 +271,10 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
   readers read the group colors as a preview, and which default they want; from T71's follow-up
   and the step logs, how many used the matches strip under the drawing while picking, whether it
   helped or got in the way, and how many hid it.
-- **Overwhelm** per task half (bar 9's numbers), each with the one reason the participant gave,
-  coded by the screen element it names; beside them the placement study's 2 to 3 and the rating
-  check's two builds.
+- **Overwhelm** per task half (a measure), with each "least sure" answer coded by the screen
+  element it names; beside them the placement study's 2 to 3 and the rating check's two builds.
+  Wrong turns made inside the Fill color box are tagged as the box's, so a failed bar 3 or 8 can be
+  traced to it rather than to the selection editor.
 - **The weak-links task** (T78): the first door each session tried for "just the strong ties"
   (the step's Advanced, the Data place's filter, Analyze, the table), and how the participant told
   the scope was applied. The Edges where fix is reported as re-tested only if at least one session
@@ -244,7 +287,16 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
 - **Algorithms in the editor**: for T74 B and T75, whether the participant understood that picking
   a measure ran it, and whether a run they did not ask for surprised them.
 - **Fix coverage**: for each `decided.md` polish fix a task reaches, the sessions that reached it
-  on its route, or "not re-tested". An unreached fix is never reported as passed.
+  on its route, or "not re-tested". An unreached fix is never reported as passed. The placement
+  study's fixes are reported as a rate against its baseline (`decided.md`), with numerator and
+  denominator from the step logs: a wrong value ticked in a checklist (6/9), the wrong row deleted
+  (4/9), the place lost to Escape (5/9), a guessed word (3/9), the weak-links filter found (1/3).
+  A fix whose rate is not better than its baseline is "not confirmed".
+- **One-domain evidence**: a feature only one half reaches is reported as evidence from one
+  domain, and a wording fix it carries is not credited as general: a measure that runs when picked
+  (T74 B), a step that depends on the steps before it (T75 A), a reference found by name (T73 B
+  has names designated; A finds James by the reference search), Degree In or Out on a directed
+  network (T78 B). Round 2 plans a parallel half for each.
 - Problems by kind and severity, and by the package that owns them (graphty-element, graphty app,
   compact-mantine).
 - Sessions run on Sonnet after an API error, counted apart.
@@ -258,8 +310,11 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
   blocked task, a result that would spoil a grade on a success path or a listed detour, and every
   severity 3 or 4 candidate a scripted repro confirms (before the first session, item 8);
   everything else goes to the backlog. Each decided fix gets its own acceptance check in the dry
-  run, so an unbuilt fix is found before the round. At most 2 fix passes; still not ready after
-  two, the studio stops for the owner.
+  run, so an unbuilt fix is found before the round. After this freeze, at most 2 fix passes,
+  limited to the gate's open items (item 8's files) and anything new that spoils a grade. After
+  them round 1 starts: a half still blocked is not run and is reported "blocked, not run"; a bar
+  still failing by a known, named cause is reported "failing before the round", and its sessions
+  still run. The studio does not stop for the owner on this cap.
 - **T76 runs in the dry run only.** Its success path is the add menu's preset (two steps that never
   open the workspace), so its sessions moved to T78, the placement study's weakest task (1 of 3
   in the sidebar version). The round reports T76 as "piloted, no sessions".
@@ -272,9 +327,12 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
 - **Step notes** are one or two sentences, in character.
 - **Retry on an API error**: the same prompt from a clean folder, then once on Sonnet; the model is
   recorded in the session's grade, and Sonnet sessions are counted apart.
+- **Every start reflects the person's history** (`roster.md`): a saved project or a setup file
+  as they or a colleague left it; a start is empty only where the task is about starting fresh,
+  and no tier 5 task is.
 - **The follow-up** is asked by the tool after the participant's first `--end`, in every task: the
-  overwhelm rating first, then in T70 and T71 the owner's question, worded so it names no
-  behavior.
+  overwhelm rating first with the moment the person was least sure where to look or what to do
+  next, then in T70 and T71 the owner's question, worded so it names no behavior.
 - **Between rounds**: the adversarial reviews (both skeptics per finding), the decided fixes made,
   landed and re-piloted, then the next round on a new frozen build.
 
@@ -286,7 +344,8 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
 - A one-way-door decision (a breaking published API change, a compact-mantine change away from
   Figma, or a product question `decided.md` does not settle): the studio stops and asks the owner
   once, recorded in `../owner-decisions.md`.
-- The safety cap: 2 dry-run fix passes before round 1, and at most 3 rounds.
+- The safety cap: 2 dry-run fix passes after the freeze before each round (then the round starts,
+  as the round plan says), and at most 3 rounds.
 
 ## Change log
 
@@ -487,3 +546,48 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
   reasons. The calm-first check finds 2 severity 3 and 6 severity 2 on the rejected build, so it
   gates with its limits unchanged (`rounds/round-1/rating-check.md`,
   `rounds/round-1/calm-first-rejected.md`, `rounds/round-1/calm-first-frozen.md`).
+- 2026-11-02, after the second three reviews (researcher, user advocate, red team), then frozen
+  for the tier 5 rounds. Each change with its reason:
+    - Bar 9 counts a screen element named by two sessions on different halves at any rating, where
+      it counted only reasons for a 4 or more: every rating so far is 2 to 5 and only one reached
+      4, so the old rule could not fire, while the reasons people gave were specific and fixable.
+      The follow-up now asks for the moment the person was least sure where to look or what to do
+      next (the reasons, not the number, produced findings), and its anchor says "you knew what to
+      do next", since "clear" is the workspace's Clear button.
+    - Bar 9 also counts each wait of more than 10 s without progress on T79's path in its severity
+      2 allowance: waits of 15 to 22 s per edit on d3fda9f2b6 gated nothing, and the owner's
+      50,000-node complaint is about waiting as much as about lists.
+    - A finding that fits two bars counts once, toward the smaller allowance: a row out of line in
+      both bar 7 and bar 9 moved two bars for one cause.
+    - "Two counts of one result" needs a reachable state where they differ, or a showing that
+      none exists, checked against the spec's count rules: both severity 3 candidates on the frozen
+      build are equal only with one card or one step, and deleting one would remove a count people
+      with several cards need.
+    - The "two +" complaint gets a pass rule (it could never fail as a measure), and words at rest
+      get a tier 5 budget and a scripted count (the owner's first complaint had no counted measure).
+    - The calm-first check must walk every screen it lists on the frozen build, and be calibrated
+      blind per complaint: the frozen build's check skipped the reference picker and the
+      50,000-node checklist, the owner's own example, and the calibration was run by someone who
+      knew which build was rejected.
+    - Item 1 requires the refrozen build to carry the matches strip's search and the large-graph
+      repaint fixes, and items 5, 8, 9 and T79's timings to be read on it: on d3fda9f2b6 the gate
+      failed on problems the branch had already fixed.
+    - Item 8 names its candidates by file (the scripted bars, axe, the calm-first check, the answer
+      key, a Fill box repro), where it named fc1d7ee4f6's five, all since fixed or cleared: a
+      stale list let the current build's severity 3 candidates (the 50,000-node table's missing
+      search, 14 serious axe findings per theme) go unlisted.
+    - The placement study's fixes are reported as rates against its baselines, and a feature only
+      one half reaches as one-domain evidence: "reached" said nothing about whether a fix worked.
+    - The dry-run cap: 2 fix passes after this freeze, limited to the gate's open items and new
+      grade spoilers, then the round starts with any failing bar marked as failing before it. The
+      old cap was exceeded (fixes built in four passes, six triaged) with nobody stopping, and only
+      sessions measure the bars. A process rule, decided by the team.
+    - Prompts: T74 B says "journeys ... go through" where it said "routes ... pass through" ("route"
+      is Shortest route's search keyword, a wrong measure reached by the prompt's own word); T75
+      drops "at the middle" (every measure's result option Middle). The other shared words are kept
+      on purpose with reasons, and T76's "everything" and T78's "pair" and "count" are walked as
+      detours. The wording check grades prompts only: follow-ups are asked after the work and
+      cannot prime it, and they made up 30 of its 66 shared words.
+    - Not taken: replacing the 1-to-7 rating outright (it stays as a measure beside the placement
+      study and the rating check); showing the owner three frozen screens now (the tier report
+      shows them beside the rejected build's, as before-and-after evidence for his own review).

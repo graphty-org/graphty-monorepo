@@ -21,6 +21,10 @@ which task is `../../roster.md`, "Who takes which task", and where each task hal
   most 8 sessions at once.
 - A session that ends with no `01.png` or on a model API error is re-run from a clean folder as
   `<id>b`, which takes this row.
+- No step cap: a session ends when the participant is done, gives up, or repeats without
+  progress. Step notes are one or two sentences, in character. A session re-run after an API error
+  runs the same prompt from a clean folder, then once on Sonnet; the grade records the model, and
+  Sonnet sessions are counted apart.
 
 | Session | Task | Half: dataset | Persona | Start |
 | ------- | ---- | ------------- | ------- | ----- |

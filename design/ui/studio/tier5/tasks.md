@@ -74,7 +74,7 @@ column and one of its values), `sensors` -- each said as the person says them.
 | T71  | Either of two things, in the picture                | filter      | volunteers: board or 30+ hours    | gauges: no readings sent or the 1990s  |
 | T72  | All of one kind but not some of them, colored       | style layer | sources: companies and agencies   | gauges: readings sent, not the 1990s   |
 | T73  | Everyone close to one person or place, colored      | style layer | volunteers: 2 shifts from James   | gauges: 2 stretches from Cedar Bend    |
-| T74  | The few that a measure puts first, colored          | style layer | volunteers: the 5 who matter most | gauges: the 3 most routes pass through |
+| T74  | The few that a measure puts first, colored          | style layer | volunteers: the 5 who matter most | gauges: the 3 most journeys go through |
 | T75  | A big network cut down to something readable        | filter      | graph researchers (549)           | yeast genes (331)                      |
 | T76  | The start screen's pointing effect, in your network | style layer | sources                           | gauges                                 |
 | T77  | Changing what a colleague set up                    | both        | volunteers (thank-you event)      | gauges (the readings project)          |
@@ -107,13 +107,15 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
   phrase for when a gauge was installed; `readings` -- the river team's word for what telemetry
   sends (the screens say it in no control).
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way. Then: what did you notice the drawing do while you were choosing who goes in
+    - A: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen.
+      Then: what did you notice the drawing do while you were choosing who goes in
       orange, and what did you take it to mean? Would you rather it had shown something else?"
-    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way. Then: what did you notice the drawing do while you were choosing which gauges
+    - B: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen.
+      Then: what did you notice the drawing do while you were choosing which gauges
       go in orange, and what did you take it to mean? Would you rather it had shown something
       else?"
 
@@ -130,13 +132,13 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
 - **Kept on purpose:** `just` -- the everyday word where tier 4 avoided "only"; `kinds` -- what the
   person calls the two ways in; `longer` -- tier 4's "10 hours or longer".
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way. Then: while you were deciding who stays in the picture, what on the screen
+    - A: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen. Then: while you were deciding who stays in the picture, what on the screen
       besides the drawing did you look at, and did it help or get in the way?"
-    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way. Then: while you were deciding which gauges stay in the picture, what on the
+    - B: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen. Then: while you were deciding which gauges stay in the picture, what on the
       screen besides the drawing did you look at, and did it help or get in the way?"
 
 ### T72. All of one kind, but not some of them (two datasets)
@@ -151,12 +153,12 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
   `companies`, `agencies` -- the values of Ruth's `kind` column; `on the record` -- her column
   `on_record`, as she says it.
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
-    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
+    - A: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
+    - B: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
 
 ### T73. Close to one person or place (two datasets)
 
@@ -170,56 +172,62 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
   -- what a tie in Tom's file is; `upriver or down` -- says the river's flow does not matter, where
   the screens' Upstream of and Downstream of would (and where "either direction" would echo the
   Connected choice "Either direction"). `or with someone` -- "or" inside the person's
-  sentence, not a choice between two ways.
+  sentence, not a choice between two ways. `James` -- the person in the data whom the task is
+  about (finding him by name is what A tests); `more` -- inside the bound "no more than two";
+  `check` -- what the crew does (the 50,000-node "Check N" is not on any T73 screen).
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
-    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
+    - A: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
+    - B: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
 
 ### T74. The few a measure puts first (two datasets)
 
 - **Prompt A (volunteers):** "In an earlier session the program worked out who matters most in the volunteer
   network. Now put just the five people who matter most in orange, and leave everyone else as they
   are. Tell us who the five are."
-- **Prompt B (gauges):** "The river council wants to know which gauges the most routes along the
-  river pass through. Put the three gauges that the most routes pass through in orange, and tell us
+- **Prompt B (gauges):** "The river council wants to know which gauges the most journeys along the
+  river go through. Put the three gauges that the most journeys go through in orange, and tell us
   which three they are."
 - **Kept on purpose:** `worked out`, `matters most` -- the history's own words for the ranking the
-  person ran before; `routes ... pass through` -- the council's question, which the screens answer
-  as Betweenness ("Bridging") without these words.
+  person ran before; `journeys ... go through` -- the council's question, which the screens answer
+  as Betweenness ("Bridging") without these words ("routes" would find Shortest route by its search
+  keyword "route", a wrong measure reached by the prompt's own word); `volunteer` -- A's own noun.
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
-    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
+    - A: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
+    - B: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
 
 ### T75. A big network made readable (two datasets)
 
 - **Prompt A (graph researchers):** "The co-author network of the graph journal is too big to read.
   Take everyone with fewer than 10 co-authorship ties out of the picture. Then, of the people left,
-  you want to see just the ones in the big tangle at the middle: anyone left stranded on their own
+  you want to see just the ones in the one big tangle: anyone left stranded on their own
   or in a small separate bunch should go out of the picture too. Nothing should be deleted. Tell us
   how many people are still in the picture."
 - **Prompt B (yeast):** "The yeast network is too tangled to read. For now you want to see just the
-  genes in the big tangle at its middle, not the small separate bunches around it, and of those
+  genes in the one big tangle, not the small separate bunches around it, and of those
   just the genes with more than one interaction whose gal80Rexp reading is 0.5 or above. Every
   other gene should be out of the picture, with nothing deleted. Tell us how many genes are still in
   the picture."
 - **Kept on purpose:** `fewer than`, `more than one`, `0.5 or above` -- the person's thresholds,
   never the card's "or more"; `co-authorship ties` -- what a tie in the sample is; `gal80Rexp` --
-  Maren's own column name.
+  Maren's own column name; `graph` -- part of the sample's own name ("the graph journal"); `more`
+  -- inside the threshold "more than one"; `nothing` -- "nothing deleted", the person's
+  instruction, not a choice in the picker. "At the middle" is gone: it matched every measure's
+  result option Middle.
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
-    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
+    - A: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
+    - B: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
 
 ### T76. The start screen's pointing effect (two datasets)
 
@@ -235,14 +243,17 @@ Piloted in the dry run only; no round sessions (`criteria.md`, round plan).
   when the pointer is on no gauge, everything looks as usual. Tell us how you checked it."
 - **Kept on purpose:** `start screen` -- where the person has seen the effect; `pointer`, `rest` --
   the everyday words for hovering; `pale`, `stand out` -- what the effect does, where the screens
-  say Fade and Highlight.
+  say Fade and Highlight. `set`, `checked` -- everyday verbs (Settings is not on the path);
+  `tied`, `joined` -- what a tie in each file is (the screens' "Tied at the lowest value" is a
+  result option no path uses); `everything` -- "everything looks as usual", the person's words
+  for the rest state; the Everything layer is on screen, so editing it is walked as a detour.
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
-    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
+    - A: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
+    - B: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
 
 ### T77. Changing what a colleague set up (two datasets)
 
@@ -260,13 +271,15 @@ Piloted in the dry run only; no round sessions (`criteria.md`, round plan).
   picture and how many are in orange."
 - **Kept on purpose:** `not 10`, `along with`, `too` -- everyday words for changing what is
   there ("instead of" would echo the step menu's "Add instead"); `up to the end of 2004` -- the person's own bound, where the card says Before.
+  `set`, `project`, `changed`, `Change` -- the person's everyday words for the colleague's
+  work and the task (the Project menu is not on the path); `volunteers` -- A's own noun.
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
-    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
+    - A: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
+    - B: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
 
 ### T78. Counting just the strong ties (two datasets)
 
@@ -284,14 +297,18 @@ Piloted in the dry run only; no round sessions (`criteria.md`, round plan).
   -- the person's words for a count of ties, where the screens say Degree; `3 km long or longer`
   -- the crew's bound on `km`, where the screens say max; `next to it on the river` -- one stretch
   away ("neighboring" would find Degree by its search keyword "neighbors"); `upriver or down` --
-  the river's flow does not matter, as in T73.
+  the river's flow does not matter, as in T73. `pair`, `shared`, `count`/"counting" -- the
+  person's own model of working together; on screen they are only result names of other measures
+  (matching's "In the pairing", "Count", "Share of ..."), walked as a detour; `new`, `volunteers`
+  -- A's own nouns; `more` -- inside "more than one" and "more than two"; `checks` -- what the crew
+  does.
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
-    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
+    - A: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
+    - B: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
 
 ### T79. One kind, in a network of 50,000 (two datasets)
 
@@ -304,26 +321,28 @@ Piloted in the dry run only; no round sessions (`criteria.md`, round plan).
   how many sensors are in orange."
 - **Kept on purpose:** `Grants`, `department`, `Otter Creek`, `basin` -- the files' own column and
   value, as the person says them; `50,000` -- the size the person was told, which is the point of
-  the task; `sent` -- how the file reached the person (their history says they opened it).
+  the task; `sent` -- how the file reached the person (their history says they opened it);
+  `new`, `project` -- the person's everyday words (their history's own); `research` -- the
+  client's kind, also a department value in the file; `visit` -- the council's occasion.
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
-    - B: "On a scale from 1 (calm: it was clear what to do) to 7 (overwhelming: you wanted to
-      walk away), how did the program feel while you did this? Say the number, and the one thing
-      that most made it feel that way."
+    - A: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
+    - B: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
+      walk away), how did the program feel while you did this? Say the number. Then name the
+      moment you were least sure where to look or what to do next, and what was on the screen."
 
 ## Detours each pilot walks
 
-| Task | Commonest detours (a person who does not know the path tries these first)                                                                                                                                                                                                          |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T70  | Hiding with a style layer's Visibility; coloring from the Data place; the table's column header menu; clicking nodes on the canvas one by one; Cancel read as "close" (it undoes the edits)                                                                                        |
-| T71  | Two filter cards (both must hold, not either); the second value added by Condition... in the same group (both at once); a style layer instead of a filter                                                                                                                          |
-| T72  | Two layers (one coloring, one un-coloring); a second step with on the record No (an equal result); a filter card; looking for "not" in the value picker before the Except switch                                                                                                   |
-| T73  | Typing the name into the reference list (A has no label designated); 1 hop; Analyze's Steps away; selecting James on the canvas first, or Pick on canvas                                                                                                                           |
-| T74  | Analyze's ranking run again; a hand-typed lower bound By value; the table sorted by the measure and nodes selected by hand                                                                                                                                                         |
-| T75  | A second filter card for the big tangle (it reads the whole graph); the steps in the other order; a style layer that fades the rest                                                                                                                                                |
-| T76  | The add menu's Hover highlight; editing the Hovered row; four layers built by hand in the workspace                                                                                                                                                                                |
-| T77  | A new filter card or layer instead of reopening the old one; Clear and rebuild; Edit not found on the single-step card (its row, Enter); changing the wrong host                                                                                                                   |
-| T78  | The Data place's graph-wide filter on the ties (it takes the weak ties out of every reader's picture: an equal count, noted); the step's Edges left on All edges (A 24, B 9); Degree In or Out on the directed river (B); typing "neighbor" in the picker (Neighbors of selection) |
-| T79  | Scrolling the checklist for the value instead of its search; clicking a node of the department on the canvas; reading a count while the header still says Drawing; giving up while an edit is busy                                                                                 |
+| Task | Commonest detours (a person who does not know the path tries these first)                                                                                                                                                                                                                                                                                   |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T70  | Hiding with a style layer's Visibility; coloring from the Data place; the table's column header menu; clicking nodes on the canvas one by one; Cancel read as "close" (it undoes the edits)                                                                                                                                                                 |
+| T71  | Two filter cards (both must hold, not either); the second value added by Condition... in the same group (both at once); a style layer instead of a filter                                                                                                                                                                                                   |
+| T72  | Two layers (one coloring, one un-coloring); a second step with on the record No (an equal result); a filter card; looking for "not" in the value picker before the Except switch                                                                                                                                                                            |
+| T73  | Typing the name into the reference list (A has no label designated); 1 hop; Analyze's Steps away; selecting James on the canvas first, or Pick on canvas                                                                                                                                                                                                    |
+| T74  | Typing "route" in the picker (Shortest route, a wrong measure); Analyze's ranking run again; a hand-typed lower bound By value; the table sorted by the measure and nodes selected by hand                                                                                                                                                                  |
+| T75  | A second filter card for the big tangle (it reads the whole graph); the steps in the other order; a style layer that fades the rest                                                                                                                                                                                                                         |
+| T76  | The add menu's Hover highlight; editing the Hovered row; editing the Everything layer; four layers built by hand in the workspace                                                                                                                                                                                                                           |
+| T77  | A new filter card or layer instead of reopening the old one; Clear and rebuild; Edit not found on the single-step card (its row, Enter); changing the wrong host                                                                                                                                                                                            |
+| T78  | The Data place's graph-wide filter on the ties (it takes the weak ties out of every reader's picture: an equal count, noted); the step's Edges left on All edges (A 24, B 9); Degree In or Out on the directed river (B); typing "neighbor" in the picker (Neighbors of selection); typing "pair" or "count" in the picker (another measure's result names) |
+| T79  | Scrolling the checklist for the value instead of its search; clicking a node of the department on the canvas; reading a count while the header still says Drawing; giving up while an edit is busy                                                                                                                                                          |

@@ -5,55 +5,40 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-02 (tier 5 report written before round 1: 0 sessions run; the gate refuses the round).
+Last updated: 2026-11-02 (tier 5 criteria applied from the second reviews and frozen for the rounds).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
-2026-10-30 (five times) and 2026-11-02 (three times); the full earlier text is in this file's git history.
+2026-10-30 (five times) and 2026-11-02 (four times); the full earlier text is in this file's git history.
 
 ## Top of mind
 
-- (2026-11-02) TIER 5 REPORT WRITTEN WITH ROUND 1 NOT RUN: 0 sessions, 0 void, 0 Sonnet; all 30
-  briefings exist but `--start` refuses (no "Gate evidence" in `tier5/rounds/round-1/plan.md`). Every
-  bar is "not measured"; pre-round evidence is reported as previews only. The report file is refused
-  to a subagent: it went back as text for the caller to save at `tier5/report.md`.
-- (2026-11-02) Round 1 gate, open items on d3fda9f2b6: the workspace's node table at 50,000 nodes has
-  a count and no search (18 lists per theme, sev 3, item 8); 14 serious axe findings per theme
-  (value picker scroll region, reference picker contrast); 66 prompt words on screen (wording.mjs);
-  rating check and calm-first check never run (item 9); 10 detours to re-walk; two tool defects
-  (matcher refuses a short-lived duplicate name with no second look; `--prove` fails with
-  REAL_TIER=5).
-- (2026-11-02) The criteria's cap of 2 dry-run fix passes was exceeded (fixes built in 4 passes, 6
-  triaged) with no recorded decision. Said so plainly in the report; the extra passes only fixed
-  regressions and leftovers, no bar or task changed.
-- (2026-11-02) Owner items for tier 5, breaking or Figma only: 5 element (selection condition goes
-  stale, ordinal algorithm levels, GraphML node names, repeated text as category, saved Select
-  rewrite) and 5 compact-mantine (sub-24 px targets, Chip contrast + split button word, list height
-  cap + disabled items, histogram hairlines, InputBase themed). Eight "For the owner" entries are
-  reversible and built: not his decision.
-- (2026-11-02) DRY RUN PASS 6 TRIAGED (`tier5/dry-run-r1-6.md`; `dry-run-r1-3.md` holds pass 3, so
-  pass 6 took the next free name): 8 product defects on d3fda9f2b6, 0 fix now, 1 decided (nodes under
-  the toolbar), 7 backlog (5 keyboard/screen-reader, 1 friction, 1 cosmetic), all but three repeats.
-  Both pass 4 units are in the build and held on their acceptance routes (T77 A/B touched-1/2, T71 A
-  touched-8). The build is SESSION-READY by the dry run's rule: the r1 sessions can start on it.
-- (2026-11-02) Dry run passes 1-5 (`tier5/dry-run-r1-{1..5}.md`): 319, 93, 34, 37, 44 defects; fix
-  units in order: covered-claim, main-table, test mode, reference names, count base, busy sign (pass
-  1); Cancel on a new card refix, open busy sign (2); cancel-no-undo, done-busy-sign (3);
-  table-after-history, setup-history (4, carried unbuilt through 5, built in d3fda9f2b6). Rule from
-  pass 5: a fix-now unit stays open until a build carries it.
-- (2026-11-02) Criteria item 8 makes every named severity 3 candidate a round blocker, so the dry run
-  fixes them even where no single step is blocked (rule in `tier5/decided.md`, "Dry run pass 1").
-  T75 A is no longer blocked: the Piece size So far route reaches 105.
-- (2026-11-02) The study build is named on `criteria.md` line 1 (now c3100058ab); each dry-run fix pass
-  refreezes and names the build before it on line 3. Criteria were frozen on d13c2ff3da.
-- (2026-11-02) Criteria item 8's five severity 3 candidates: four sent to fix in pass 1 (covered-claim,
-  style-count-base, main-table, busy-sign); T75 A is unblocked by Piece size So far, so its rewrite is
-  off unless a re-walk fails. So far on Largest component stays backlog (spec 4.2).
-- (2026-11-02) Bar 9 is three parts: calm-first (0 sev 3-4, at most 3 sev 2), no screen named as the reason
-  for a 4+ in two sessions on different halves, and the median <= 2 ONLY if the rating check separates the
-  rejected build (7dfd51c277) from the frozen one by 2+ points. The calm-first check must fail the rejected
-  build before it gates.
+- (2026-11-02) TIER 5 CRITERIA FROZEN AGAIN for the rounds after the second three reviews. The next
+  build must carry 4fb3f45d59 (matches strip search, value picker scroller) and d801a0fddd (large
+  repaints); items 5, 8, 9 and T79's timings are re-read on it, never carried over from d3fda9f2b6.
+- (2026-11-02) Bar 9 now: calm-first (0 sev 3-4, at most 3 sev 2) where the sev 2 allowance also
+  counts an editor element named in the "least sure" answer by two sessions on different halves at
+  any rating, and each T79 wait > 10 s without progress. The median is a measure only (the rating
+  check failed: gap 1.5 of 2). Elements outside the editor (Fill box) go to the backlog.
+- (2026-11-02) Item 8 reads its candidates from files: `bars.json` / `bars-light` `ok:false`,
+  serious axe, sev 3 in `calm-first-frozen.md`, answer-key build notes, a Fill box repro. The gate
+  reads only some of them; a tool check for the rest is still owed (a rule the tool does not
+  enforce is a wish).
+- (2026-11-02) Calm-first check owes: every listed screen on the frozen build (reference picker at 11
+  and 50,000, the 50,000-node checklist, words at rest), a blind per-complaint calibration, every
+  "+" listed, and "two counts" only when no reachable state separates them.
+- (2026-11-02) Dry-run cap after this freeze: 2 fix passes limited to the gate's open items and new
+  grade spoilers, then round 1 starts; a blocked half is "blocked, not run", a failing bar "failing
+  before the round". Six passes produced zero sessions; only sessions measure the bars.
+- (2026-11-02) Prompts: T74 B "journeys ... go through" (not "routes": Shortest route's keyword),
+  T75 drops "at the middle"; follow-up asks for the least-sure moment, anchor "you knew what to do
+  next". `wording.mjs` grades prompts only: 0 shared words on d3fda9f2b6's vocabulary.
+- (2026-11-02) Each finding counts once, toward the smaller allowance (bar 9 before bar 7).
+- (2026-11-02) Owner items for tier 5, breaking or Figma only: 5 element and 5 compact-mantine (see
+  the tier 5 report); eight reversible "For the owner" entries are built, not his decision.
+- (2026-11-02) The tier 5 report was written before any session (0 run); a subagent cannot write
+  `tier5/report.md`, so it goes back as text.
 - (2026-10-30) Tier 4 lessons that shaped tier 5: freezing with a known bar-failer backlogged fails the bar
-  by construction; a dry run graded only on spoils lets decided fixes go unbuilt (each decided fix now gets
-  its own acceptance check); wrong turn = input before success; preview must equal result.
+  by construction; each decided fix gets its own acceptance check; wrong turn = input before success;
+  preview must equal result.
 - (2026-10-30) Run `git diff <earlier> <frozen>` over source FIRST in any triage; an earlier walk stands when
   the diff is code its route never reaches.
 - (2026-10-29) A fix that gives an answer a new input must move every count and cache derived from it.
@@ -104,30 +89,30 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Decisions and reasons
 
-- **2026-11-02, tier 5 report before round 1** (returned as text; the harness refuses the file).
-  Reported what was tested (builds, tasks, 7 personas, 0 sessions, every expert walk), each bar as
-  "not measured" with its pre-round preview (bars 4 and 5 preview fail; 9 not measurable), the gate
-  items, the 9 dry-run fixes and which re-walk held each, the 455-row backlog, and only breaking or
-  Figma-lock owner items. Why: a report that dressed previews as results would be the false "done"
-  bar 2 forbids; a stranger must see at once that no round ran. Decided the next steps without the
-  owner: tool fixes, node-table search (or a cited decision that the find box is its search), axe
-  fixes, rating and calm-first checks, prompt rewording, detour re-walks, gate, then round 1.
-- **2026-11-02, dry run passes 4-6** (summarized; full text in git history and
-  `tier5/dry-run-r1-{4,5,6}.md`, entries in `tier5/decided.md` "Dry run pass 4" to "pass 6"). Fixed:
-  the node table after a history move (graphty-element record pages follow it, a93110cfb5) and the
-  study start's undo history (c8581ff123); both held on pass 6. Settled for the backlog: focus after
-  Undo removes the focused control goes to its section's opener; a chord with nothing to undo speaks
-  what the disabled button speaks; one wording for spoken counts after Undo and Redo, over the
-  screen's base; Undo right after Cancel on an existing card undoes the Cancel. Rule: a fix-now unit
-  stays open until a build carries it. Not taken: nodes under the toolbar (the canvas is the frame),
-  Edit replacing a focused count (friction), the 50,000-node Done turning nodes blue (cosmetic).
-- **2026-11-02, dry run passes 1-3** (summarized 2026-11-02; full text in git history and
-  `tier5/dry-run-r1-{1,2,3}.md`, entries in `tier5/decided.md` "Dry run pass 1" to "pass 3"). Fixed:
-  the false "covered" claim, the data table under the workspace, a test's mode, the reference names,
-  one count base, Cancel on a new filter card (removes it, focus to a filters opener else Add filter,
-  no undo step), and "Drawing" on every blocking 50,000-node edit including open, Done, Cancel and
-  Escape. Not taken: pickers flipping and the camera moving, Visibility Hidden's key, every T76 row,
-  every keyboard-only row, overlays over a node (the canvas is the frame).
+- **2026-11-02, tier 5 criteria after the second reviews, frozen for the rounds** (researcher
+  7e4f4e71aa, red team 7881e4e012, user advocate ba5a319098; they agreed on almost every point).
+  Taken: bar 9 counts named elements at any rating and T79 waits; "two counts" needs a reachable
+  state separating them, checked against spec 2 and 3.0; every "+" listed with a pass rule; a
+  tier 5 words budget (whole screen 50; workspace about 30, 40 at most; headings 3) counted by
+  script; blind per-complaint calibration; the calm-first check walks every screen it lists; item
+  1 requires the fixes since d3fda9f2b6; item 8 by file; findings count once; placement-study
+  fixes as rates against baselines; one-domain features reported as such; the dry-run cap that
+  starts the round instead of stopping; T74 B and T75 reworded, other shared words kept with
+  reasons, T76 "everything" and T78 "pair"/"count" walked as detours; `wording.mjs` grades prompts
+  only. Not taken: dropping the 1-to-7 rating (a measure for comparison); showing the owner three
+  screens now (the report carries before-and-after). Why: the owner's complaint must be able to
+  fail the round, and a bar that holds because a screen was skipped or a rule cannot fire is a
+  false pass.
+- **2026-11-02, tier 5 report before round 1** (returned as text). Every bar "not measured" with its
+  preview; only breaking or Figma-lock owner items. Why: previews dressed as results would be the
+  false "done" bar 2 forbids.
+- **2026-11-02, dry run passes 1-6** (summarized; `tier5/dry-run-r1-{1..6}.md`, `tier5/decided.md`
+  "Dry run pass 1" to "pass 6"). Fixed: the false "covered" claim, the data table under the
+  workspace, a test's mode, reference names, one count base, Cancel on a new card, "Drawing" on
+  every blocking 50,000-node edit, record pages after a history move, an empty undo history at a
+  setup start. Rules: a fix-now unit stays open until a build carries it; item 8 makes every named
+  sev 3 candidate a blocker. Not taken: nodes under the toolbar (the canvas is the frame), keyboard
+  and screen-reader rows (backlog).
 - **2026-11-02, tier 5 criteria reviewed and frozen** (three reviews: researcher 81e993f52d, user advocate
   65a6f779a1, red team 6946dd5032; they agreed on most points). Taken: bar 9 split into calm-first (gating
   sev 2 at most 3, with counts of what is drawn, gaps, row breaks, alignment, words budget, at 1440 x 900 and
@@ -162,6 +147,12 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (criteria, second reviews) -- Worked: running `wording.mjs` and filtering out the rating
+  question's words, which showed the follow-ups made half the hits; reading the catalog's keyword
+  dump in `vocabulary.json` to tell a real lure (a search keyword: "route") from a deep result name
+  ("In the pairing"); reading the design-studio skill to learn the workflow refreezes after my
+  freeze, so the refreeze is a gate rule, not my build. Did not work: nothing yet; the next dry run
+  shows whether the new bar 9 rules fire.
 - 2026-11-02 (tier 5 report) -- Worked: listing the round's session folders before writing (30
   folders, each only `briefing.md`) instead of trusting the plan; reading the tool dry run's
   "Problems" as the gate's state; grepping `owner-decisions.md` for tier 5 "For the owner" entries
@@ -208,6 +199,11 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Thinking
 
+- **2026-11-02, second criteria review:** all three reviewers found the same shape of defect: a
+  rule that cannot fire (4+ ratings), a check that did not walk its own screens, a list naming an
+  old build's problems, a cap nobody enforced. Each passes by construction. The test for every bar
+  is now: name the state of the build in which it fails, and check the instrument actually looks
+  at that state.
 - **2026-11-02, tier 5 report:** the dry run converged on what crashes, blocks and spoils, but the
   gate failed on things no pilot grades: a list with no search, axe findings, words shared with the
   prompts, and two instrument checks never run. A dry run's triage should read the scripted gate's

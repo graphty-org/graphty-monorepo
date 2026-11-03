@@ -16,7 +16,11 @@ checkout's `tmp/design-studio/tier5/r1d1/pilot/<task>/`); where that build diffe
 so, and "Build notes (797a4f6b47)" lists what can still spoil a grade. Later dry-run builds were
 re-read the same way: 47c95a09fc (T72 B, T75 A; `r1d2`) and c3100058ab (T72 B, T75 A, T77 B, T79 A
 and B; `r1d3`), and d3fda9f2b6 (T72 B; `r1d2`, where the older build's walks of the same names
-moved to `_47c95a09fc/`), each with its own build notes. Each core
+moved to `_47c95a09fc/`), each with its own build notes. The round 1 pilots then re-read T70 A
+and B, T71 A and B, T72 B, T73 A and B, T74 B, T75 A, T76 A, T77 B, T78 A and B and T79 A on the
+round's frozen build 0c163f54bf (walks under the main checkout's
+`tmp/design-studio/tier5/r1/pilot/<task>/`; the older builds' walks of the same names were moved aside there); "Build notes
+(0c163f54bf)" lists what can spoil a grade on it. Each core
 task's path step count is written as "Path steps: N" (bar 8) in `tool/steps.mjs`'s units: every
 click, key, typed text and file chosen counts, looking does not.
 
@@ -41,7 +45,12 @@ click, key, typed text and file chosen counts, looking does not.
   graph the filter leaves, as `decided.md` rules: "Color: Layer 1, 2 of 7 nodes"; the key's title is
   the layer's name, "Color: Layer 1" for a new layer). On 797a4f6b47 the key draws no "N of M
   nodes" line under a filter that leaves the layer's whole set (T72 B touched-5) or when the layer
-  covers every drawn node (T77 B detour-1): grade from the inspector or the header then. A filter is graded by the top
+  covers every drawn node (T77 B detour-1; on 0c163f54bf also T78 A when all 24 match: "Color:
+  Layer 1" alone): grade from the inspector or the header then. Under a filter the start's PageRank
+  entry in the key reads "Color: PageRank, full graph" (0c163f54bf, T70 A); it is not the task's
+  layer. Right after Done, while focus or the pointer stays on it, the inspector's Which nodes row
+  (and a filter card) shows Edit where its count goes (0c163f54bf, T70 B, T73, T75 A, T77 B, T79
+  A): read the count once focus moves, or from the header or the key. A filter is graded by the top
   bar's "N of M nodes" and the card's "N of M". A color is "orange" when the layer's fill is any
   visibly orange or red-orange hue (the setups use E4572E); a different hue with the right members
   is SD for the color, never P. A screen reader speaks E4572E as "red" ("Node color now red, on 4
@@ -130,6 +139,14 @@ state. One example of each kind:
   11 nodes, 3 of 13 edges"); in orange **2** (G01 1998, G09 1999; G05 1995 sends no readings);
   Which nodes "2 of 7", key "Color: Layer 1, 2 of 7 nodes" on 797a4f6b47 ("2 of 11 nodes" on
   baac78342b, which keyed over the full graph).
+- **Read on 0c163f54bf** (both halves, 15 steps each by pointer, and by keyboard): A ends "15 of
+  24 nodes, 25 of 63 edges", Which nodes "4 of 15", key "Color: Layer 1, 4 of 15 nodes"; B ends "7
+  of 11 nodes, 3 of 13 edges", Which nodes "2 of 7", key "Color: Layer 1, 2 of 7 nodes". With the
+  node table open (B's start) one of the 7 gauges sits under the canvas toolbar and the camera does
+  not re-frame after the filter, so a count of the drawing finds 6: grade from the top bar. In B,
+  between `telemetry` and yes the top bar already reads "11 of 11 nodes" with the filter mark,
+  although the card removes nothing yet. In A, while the workspace is open `role` names both the
+  picker option and the matches strip's column header (a step script needs the option).
 - **Path (A)**: Style layers "+" (Add a layer or a folder) > Layer; Which nodes (the workspace
   opens, value picker open); `role`; tick staff; Done; Fill "+" (Add to node fill); type the hex
   (the color box is focused, its text selected); Enter. Then Data; Filters "+" (Add filter; the
@@ -166,6 +183,11 @@ state. One example of each kind:
   group's count (B: "A 4", "or B 3"); the card keeps its first step's name ("telemetry no") in the
   sidebar, the workspace title and the preview's name after the Or group is added; a new group's
   step reads "0 so far" until its bound is typed. Path steps read on baac78342b: 9 (A), 9 (B).
+  The same on 0c163f54bf (9 steps each by pointer): A's outline reads "A 3 / role board / or B 7 /
+  hours min 30" at 10 of 24; B's reads "telemetry no 6 of 11 / A 4 / telemetry no / or B 3 /
+  installed before 2000" at "6 of 11 nodes, 2 of 13 edges". The workspace outline also draws a grey
+  "No match N" row under the last step (B: 5 at the end). Two cards read A 0 ("Passes none", an
+  empty canvas) and B 1 (G05).
 - **Also success**: any other route that leaves exactly those in the picture with one card (the
   route noted). Two cards are not equal: both must hold.
 - **Not success**: two cards (A 0, B 1); the second value added by Condition... in the same group
@@ -186,13 +208,17 @@ state. One example of each kind:
   Final outline: "kind agency, company / Except on_record Yes", header "7 of 24".
 - **Path (B)**: + > Layer; Which nodes; `telemetry`; tick yes; Condition...; `installed`; type
   2000; Enter; the Except switch; Done; Fill; hex; Enter.
-  Path (B) walked on 797a4f6b47, 47c95a09fc, c3100058ab, f0a9a014cb and d3fda9f2b6: telemetry yes / Except installed before 2000, 5 of
+  Path (B) walked on 797a4f6b47, 47c95a09fc, c3100058ab, f0a9a014cb, d3fda9f2b6 and 0c163f54bf: telemetry yes / Except installed before 2000, 5 of
   11, the key "5 of 11". The date box applies as typed (the count changes while the digits are
   typed), so the Enter after 2000 changes nothing visible; it is still one step of the path.
 - **Also success**: a second step with on_record No (A; an equal result). B on 797a4f6b47 and f0a9a014cb (read):
   installed After 2000 instead of the Except switch (5 of 11), and Except installed Between 1990
   and 1999 (5 of 11); the date step keeps Before, After or Between whether picked before or after a
-  date is typed, and carries the typed date across a change of mode. (On baac78342b the mode select
+  date is typed, and carries the typed date across a change of mode: on 0c163f54bf, Before 2000
+  switched to Between puts 2000 in the To box and the outline reads "before 2001"; After 2000
+  switched to Between puts it in the From box and the outline reads "after 1999"; a Between with
+  only its From box typed (1990) reads "after 1989". Read on 0c163f54bf: After 2000 gives 5 of 11,
+  and Except Between 1990 and 1999 gives 5 of 11. (On baac78342b the mode select
   stayed on Before and the Except switch was B's only route.) The value picker's search finds
   nothing for "not" or "1990".
 - **Not success**: a filter card; a second layer painting the on-record ones back in the default
@@ -218,20 +244,30 @@ state. One example of each kind:
   row); Done; Fill; hex; Enter. Path steps: 12 (A). Typing v02 is the same route. The row reads
   "Within 2 hops of v02". (On baac78342b the reference search found no name, "Nodes 0", and the
   person had to read `v02` off the matches strip or the find box.)
+- **Read on 0c163f54bf**: both paths walked as written, 12 steps each by pointer, and by keyboard:
+  A "Within 2 hops of v02" (the reference shows and is spoken as the id only), 16 of 24, 1 hop 9,
+  key "Color: Layer 1, 16 of 24 nodes"; B "Within 2 hops of Cedar Bend", "11 of 11" before the
+  reference and 7 of 11 after, key "Color: Layer 1, 7 of 11 nodes". Right after Done the Which
+  nodes row shows Edit until focus moves. In A the start's PageRank colors run orange to brown, so
+  the 8 nodes outside the layer stay orange-brown: count from the key, not the picture.
 - **Also success (A)**: James selected first (Pick on canvas, or the find result's click and the
   reference "Selected (1)"): a live reference, equal while he stays selected; the grader checks the
   layer still counts 16 after the selection changes (P unless the participant pinned it to v02).
-  On baac78342b a node picked on the canvas becomes the selection, so after Done the inspector
-  shows that node, not the layer: the participant clicks the layer again for its fill.
+  On baac78342b and 0c163f54bf a node picked on the canvas becomes the selection, so after Done
+  the inspector shows that node, not the layer: the participant clicks the layer again for its
+  fill.
 - **Also success (A and B)**: Analyze's Steps away run on the center (it needs the center selected
   first), then that layer's Which nodes narrowed to 0, 1 and 2 (the step shows no test until its
   value is picked again: "Steps away: Steps away"), "Stop varying node color by data" and the hex:
   a style layer holding the right set (A 16, B 7) from a run's values rather than a live hops step.
   S, its route noted. The checklist orders the step counts 1, 3, 2, 0 (A) / 1, 2, 3, 0, 4 (B).
+  Analyze's Steps away is greyed ("Select a node first") until the center is selected (the find
+  box does it). Read on 0c163f54bf: A 16, B 7.
 - **Not success**: 1 hop (A 9, B 4; the picker's "Neighbors of selection" starts at 1 hop);
   Analyze's Steps away colored by its own suggested style (no layer selection; P if the colored
   set is right); a layer made from a canvas selection (New layer from selection: "Picked by hand:
-  7 nodes"; P if the set is right).
+  7 nodes"; P if the set is right). The node's right-click Neighborhood starts at 1 hop (B 4) and
+  reaches 7 at 2 hops; a layer made from that selection is the same P (read on 0c163f54bf).
 
 ## T74. The few a measure puts first
 
@@ -243,10 +279,12 @@ state. One example of each kind:
   fourth, Upper Falls G01, is 16: no tie at the cut.
 - **Path (A)**: + > Layer; Which nodes; type "page"; Enter (Results: PageRank, the run the start
   holds); the mode select ("By value"); By position; type 5; Enter; Done; Fill; hex; Enter. Path
-  steps: 12 (A).
+  steps: 13 (A) ("+ > Layer" is two steps, as in every other path; the count read 12 until
+  0c163f54bf, an addition slip: the steps listed always made 13).
 - **Path (B)**: the same with "between" (Analyze's Betweenness, not yet run: committing starts the
-  run, which finishes at once on 11 gauges) and 3. Path steps: 12 (B).
-- **Walked on 797a4f6b47, both halves, as written** (12 steps each, pointer and keyboard): By
+  run, which finishes at once on 11 gauges) and 3. Path steps: 13 (B) (walked on 0c163f54bf: 13, plus
+  one miss on the words "By value").
+- **Walked on 797a4f6b47, both halves, as written** (13 steps each by pointer; keyboard apart): By
   position shows a focused number box ("PageRank: how many" / "Betweenness: how many"); 5 gives 5
   of 24, 3 gives 3 of 11; reopening shows By position and the number; the saved selector is
   "pagerank top 5, ties all". Exactly 5 / 3 nodes are drawn orange and the others keep their
@@ -263,8 +301,17 @@ state. One example of each kind:
   same on the start's PageRank layer narrows it to the top 5, and the other 19 lose their PageRank
   colors: P, the prompt says to leave everyone else as they are (read on 797a4f6b47: the five
   orange, the other 19 indigo). Both read on 797a4f6b47.
+- **Read on 0c163f54bf** (B, pointer and keyboard): Mill Pond, Cedar Bend, Fox Creek, 3 of 11;
+  the outline adds a grey "No match 8" row; the matches strip's columns end before the measure's,
+  so its values are not in view there. With the node table open, Fox Creek sits half under the
+  canvas toolbar: a count of the drawing finds 2. On the Analyze route the layer's step reads
+  "Betweenness" (not "Betweenness: Bridging"), and after By position 3 the three draw the ramp's
+  dark brown until "Stop varying node color by data". By value From 20 also leaves exactly 3.
 - **Not success**: the table sorted and nodes selected by hand (no layer selection); Analyze's
-  suggested style (colors every node by value).
+  suggested style (colors every node by value). Shortest path's "On the route" = Yes, reached by
+  typing "route" in the picker, gives exactly 3 of 11 (B: Upper Falls, Mill Pond, Quarry Pool,
+  along a route between two gauges nothing on screen names): a wrong measure that looks right
+  (read on 0c163f54bf).
 
 ## T75. A big network made readable
 
@@ -293,7 +340,12 @@ state. One example of each kind:
   component reads "112 of 549" and stays P: Largest component has no Advanced, so it cannot be
   computed on So far (spec 4.2), and nothing says why it changes nothing. Added as a step inside
   the Degree card it also reads 112. After Done, a card the pointer is not on can show Edit in
-  place of its count (read on f0a9a014cb): read the count from the top bar.
+  place of its count (read on f0a9a014cb): read the count from the top bar. On 0c163f54bf (read,
+  14 steps, pointer and keyboard), after Done the data table gains a third tab "Connected
+  components" and a column of that name whose cells read "Group 1"; the count is unchanged. A
+  second card's workspace previews over the full graph while another card is on ("Largest component
+  -- Filters 549 of 549" under a top bar of 112), and a card that keeps every node drops the top
+  bar's edge count ("549 of 549 nodes").
 - **Not success**: a style layer that fades the rest (the network still holds them); deleting.
 
 ## T76. The start screen's pointing effect
@@ -308,6 +360,14 @@ state. One example of each kind:
   untouched, is P.
 - **Not success**: the built-in Hovered row's settings changed alone (it marks the hovered node
   only: P if the hovered node stands out and nothing fades).
+- **Read on 0c163f54bf** (A, pointer and keyboard): + > Hover highlight adds the folder (Halo, Its
+  edges, Fade edges, Fade nodes) between Pinned and Everything; pointing at a node fades its
+  untied nodes and draws its ties dark, and a key card opens over the canvas's top left. By
+  keyboard the canvas reaches no node, so the effect is checked through a selection (Find, Enter):
+  equal. The "four layers built in the workspace" route cannot reach S on this build: Fill's "+"
+  adds only Color (no node opacity by hand), and a hand-built edge layer on "Edges touching
+  Hovered or selected" counts its edges but draws no change; it ends at P (nodes faded by a pale
+  color, ties unchanged).
 
 ## T77. Changing what a colleague set up
 
@@ -331,7 +391,9 @@ state. One example of each kind:
   Edit opens it (one more step); by keyboard Enter on the card twice. On 797a4f6b47 the Graph step
   is needless (the inspector keeps the Oldest layer while Data is open): 14 steps by pointer
   (read). Counts read there: 9 of 11, Oldest 5 of 9. The same on c3100058ab and f0a9a014cb (16 steps replayed,
-  the Graph step needless, Enter after 2005 changes nothing visible).
+  the Graph step needless, Enter after 2005 changes nothing visible), and on 0c163f54bf (14 steps
+  by pointer with the extra Edit click; Edit still not drawn at rest or on hover; by keyboard
+  Enter on the card twice; key "Color: Oldest, 5 of 9 nodes").
 - **Also success**: a new card or layer that gives the same counts while the old one is removed
   (SD); Clear on the old one and rebuilt (SD); the participant's own color.
 - **Graded as no change**: a leftover new filter card with an attribute and no value picked
@@ -354,7 +416,16 @@ state. One example of each kind:
   Edges where ...; Edge value...; `shifts`; type 2 (its Min box takes focus); Enter; Done; Fill;
   hex; Enter. Path steps: 17 (A). The row reads "Degree min 3 Edges"; Advanced's right "Edges: shifts min 2".
 - **Path (B)** (walked): the same with Degree min 2, `km`, then the "km to" box, Ctrl+A, type 2.9
-  (or 3: no stretch is exactly 3 km), Enter. Path steps: 19 (B).
+  (or 3: no stretch is exactly 3 km), Enter. Path steps: 19 (B). The row reads "Degree min 2
+  Edges", Advanced's right "Edges: km max 2.9" (0c163f54bf).
+- **Read on 0c163f54bf** (both halves, pointer and keyboard): A 11 of 24, B 7 of 11, as written.
+  Degree is not in the open value picker until searched. The Min box takes focus only on a new
+  step: changing an existing step's value to Degree focuses its range slider. Typing "count" in a
+  node step's value picker finds nothing; "pair" finds All-pairs distance and Bipartite matching:
+  Paired. With the node table open, B's lowest orange gauge sits under the canvas toolbar: a count
+  of the drawing finds 6. When every node matches (A's near miss) the key reads "Color: Layer 1"
+  with no count line. A layer's own Which edges does not change its node step's Degree (B: Which
+  edges km max 2.9 plus Degree min 2 on all edges gives 9, the near miss).
 - **Also success**: a Data place filter card on the ties (`shifts` 2 or more / `km` under 3) and
   the layer's Degree on the filtered graph: an equal count, but every reader loses the weak ties;
   noted as its route (the placement study's T4 counted it).
@@ -381,10 +452,52 @@ state. One example of each kind:
   open until the result is painted, then closes it; opening Which nodes, the tick and Done each
   took 15 to 22 s (A) and about 20 to 21 s (B), with several 50,000-node browsers running at once.
   Graded never by time; the report lists each session's waits.
+- **Read on 0c163f54bf** (A, pointer and keyboard): 1,076 of 50,000 as written; opening Which
+  nodes about 7 s, the tick about 5 s, Done about 6.5 s. Typing at once after a busy Done can lose
+  keys to page shortcuts (the workspace closes and returns focus to its opener: E reopened it and 2
+  switched to 2D), so the fill can stay 6366F1: grade the layer's fill, not what was typed. A layer
+  made by New layer from selection keeps the name "Picked by hand: 1 node" after its rule becomes
+  dept Grants (1,076): grade its Which nodes, not its name.
 - **Read on baac78342b**: after Done, while focus stays on it, Which nodes' title row shows Edit in
   place of "1,076 of 50k"; the count shows once focus moves. Enter in the checklist search ticks
   nothing; "Check 1" beside the one match ticks it. "32 more" is plain text. The Values tab offers
   `station` as a time too (B).
+
+## Build notes (0c163f54bf)
+
+Seen in the round 1 pilots on the frozen build (walks under the main checkout's
+`tmp/design-studio/tier5/r1/pilot/<task>/`); each is a candidate, not a confirmed finding. No
+pilot found a value, a step count or a final outline that differs from this key, apart from T74's
+count (13, an addition slip) and T76's by-hand route (P on this build).
+
+- **Fixed since baac78342b**: every setup start has Undo and Redo off; one Escape from a
+  properties column reaches the outline (T71 A); the date mode keeps Before, After and Between; no
+  table drawn under the preview; a layer row under a filter shows its inspector's count (T72 B).
+- **Can spoil a count read off the screen**: with the node table open, one node sits under the
+  canvas toolbar (T70 B, T71 B, T72 B, T74 B, T77 B, T78 B): count from the top bar, the inspector
+  or the key. Right after Done, the Which nodes row or the card shows Edit in place of its count.
+  The start's PageRank colors run orange to brown (T73 A): a count of orange by eye is unreliable.
+  A style layer with Visibility hidden keys "Show: Layer 1, N of M nodes" for the hidden ones and
+  leaves their edges drawn, and no screen counts the ones left (T70, T71 A, T71 B, T75 A).
+  "With issues" counts every gauge row (11). A screen reader speaks each count twice, the second
+  sometimes another host's or over the full graph ("15 of 24", then "4 of 24" for a layer reading
+  4 of 15).
+- **Can spoil the fill**: typing at once after a busy Done on 50,000 nodes can send keys to page
+  shortcuts (T79 A). A new Fill shows 6366F1 before its color is committed. Escape in a color box
+  discarded a typed new color in T70 A and T73 A and did nothing in T70 B and T73 B; Enter and Tab
+  commit it: grade the fill the layer ends with.
+- **Can mislead a route**: a filter card has no remove control and no right-click menu; only Edit
+    > "..." > Delete removes it (T71 A, T71 B, T77 B). A click on a collapsed card's row shows Edit
+    > and opens nothing (T71 A, T75 A, T77 B); by keyboard Enter twice. Cancel on a new or reopened
+    > workspace drops the edits with no word on screen (decided); Control+Z restores them.
+    > Shortest path's "On the route" gives a plausible wrong 3 (T74 B). A plain click, a right-click
+    > or a find result moves the camera, and no node names itself on hover.
+- **Keyboard**: Tab from a workspace's last field leaves it for the status bar's "Local only"
+  (the page scrolls up 1 px and stays), and Escape there does nothing; the workspace header comes
+  after the preview and the inspector in Tab order (about 25 Tabs to Done, or Escape twice from
+  the outline); Tab in a picker's search goes to Main menu (T73, T77 B); one range takes three
+  slider Tab stops; ArrowDown does nothing in a value checklist; the reference search announces no
+  highlighted option (T73).
 
 ## Build notes (c3100058ab)
 

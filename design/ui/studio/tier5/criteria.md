@@ -594,3 +594,22 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
 - 2026-11-02: the first round's build, 0c163f54bf in `.study-builds/tier5-r1-0c163f54bf`,
   replaces d3fda9f2b6 (`.study-builds/tier5-r1d2-d3fda9f2b6`). It carries everything master
   held at the freeze, merged into this branch before the build.
+- 2026-11-02: the answer key and two task notes were made to match the round 1 pilots' screens on
+  0c163f54bf (T70 to T79, fourteen halves). No bar changed. Each change, with its reason:
+    - T74's path step count is 13 for each half, where it read 12: the steps the key lists ("+ >
+      Layer" as two, as in every other path) always summed to 13, and the walk on 0c163f54bf took
+      13 plus one miss. Bar 8's rule (median within the path count plus 3) is unchanged; its
+      reference count for T74 is now the true one.
+    - T76's "four layers built in the workspace" is noted as unreachable on 0c163f54bf (no node
+      opacity by hand; a hand-built edge layer draws nothing), so that route ends at P there. The
+      success definition is unchanged.
+    - T72 B: how a typed date moves across a change of mode, read exactly (Before to Between puts
+      it in To, "before 2001"; After to Between in From, "after 1999").
+    - T74 B: Shortest path's "On the route" (3 of 11, a wrong measure) added to Not success, so a
+      grader does not take the right count of the wrong gauges as S.
+    - T78: typing "count" in a node step's value picker finds nothing and "pair" finds All-pairs
+      distance and Bipartite matching, where tasks.md said both find other measures' result names
+      ("In the pairing", "Count").
+    - Graders' notes: Edit in place of a count right after Done; the key's "Color: PageRank, full
+      graph" under a filter; the node under the canvas toolbar; values read per task; and a "Build
+      notes (0c163f54bf)" section listing what can spoil a grade on the frozen build.

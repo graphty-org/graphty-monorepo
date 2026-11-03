@@ -22,11 +22,12 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 - (2026-11-02) Tier 5 round 1 plan: 30 sessions on d3fda9f2b6 exactly as roster.md (core tasks
   first, A and B alternating, Sam last with `--keys`); all 30 brief on the frozen build. The
   plan has no "Gate evidence" yet: `real.mjs --gate` must write it before any session starts.
-- (2026-11-02) On d3fda9f2b6 the empty undo history at a setup start holds (T72 B): Undo after
-  Cancel on a new card does nothing, so the setup-step spoiler is gone. The half-hidden orange
-  node with the table open is still there: grade counts from the inspector or key.
-- (2026-11-02) Grade spoiler seen on c3100058ab: the node table keeps a cancelled new card's rows
-  (T77 B "1 of 11" vs top bar 7). Watch it on each new build.
+- (2026-11-02) Key matched to the 0c163f54bf pilots (14 halves): no value or outline differs.
+  Grade spoilers there: a node under the canvas toolbar with the table open (count from top bar,
+  inspector or key), Edit in place of a count right after Done, T74 B's Shortest path "On the
+  route" giving a plausible wrong 3. T76's by-hand route only reaches P on this build.
+- (2026-11-02) Add the listed steps when copying a "Path steps" count: T74's said 12 for 13
+  listed steps since 797a4f6b47, and bar 8 reads that number. Check with steps.mjs pathSteps.
 - (2026-11-02) The canvas key now counts over the filtered graph (T70 B "2 of 7"); it drops its
   count line when the layer covers all drawn nodes: grade from the inspector or header then.
 - (2026-11-02) Severity 3 candidates still open on baac78342b: the false "Covered by" warning (now
@@ -78,6 +79,14 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-02 (answer key vs the 0c163f54bf pilots):** Corrected T74's path count 12 -> 13 (an
+  addition slip; the key's own listed steps and the walk give 13; the bar's rule unchanged, logged
+  in criteria.md). Added Shortest path "On the route" to T74's Not success (right count, wrong
+  gauges). Noted T76's by-hand route as P on this build rather than changing its success
+  definition (a build limit, not a grading rule). Fixed tasks.md T78: "count" finds nothing,
+  "pair" finds All-pairs distance and Bipartite matching. Reason: graders must not meet a screen
+  the key does not describe. Evidence: the pilots' walks under tmp/design-studio/tier5/r1/pilot/.
 
 - **2026-11-02 (second tier 5 criteria review, before any session):** Proposed eight changes,
   applied none (the Director freezes): (1) bar 9 cannot hold while a calm-first screen is unwalked
@@ -219,6 +228,10 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (key vs 0c163f54bf) -- Worked: recounting each path's listed actions against the
+  walk's route.jsonl and parsing the key with steps.mjs pathSteps after the edit. Did not work:
+  trusting the pilot's "matches the key's 12" (it counted "+ > Layer" as one).
+
 - 2026-11-02 (second criteria review) -- Worked: reading the dry run's own outputs
   (rating-check.md, calm-first-frozen.md "Not walked") against each bar to see which bars could
   hold by omission; mapping every catalog keyword to its plainName before reading prompts.
@@ -256,13 +269,9 @@ logged). Their reasons, in short:
   replacement; `git log -S` to find which commit wrote a stale key line; counting path steps from
   each walk's `route.jsonl`; `wc -l` on pilots' downloads. Did not work: pilot report.md files (the
   harness refuses subagent report writes); trusting the avoided-words list as the echo check.
-- 2026-10-21 (tier 3) -- Worked: two skeptics per insight; re-tallying every grade from plan.md and
-  each `^Grade:` line; a key-and-drawing script over last states; one screenshot per owner insight.
-  Did not work: bars requiring "no open severity 3" while no task reaches the backlog 3s; counting
-  one defect in three lists (count each once, at its highest list).
-- 2026-09-28 to 10-11 (tiers 1 and 2) -- Worked: `git status`, `git log` and round listings after
-  any stop; viewing every cited screenshot; a browser gate. Did not work: launching every agent at
-  once; editing a script while it runs.
+- 2026-09-28 to 10-21 (tiers 1 to 3, folded) -- Worked: two skeptics per insight; re-tallying
+  grades from the plan; viewing every cited screenshot; a browser gate. Did not work: launching
+  every agent at once; editing a running script; counting one defect in several lists.
 
 ## Thinking
 

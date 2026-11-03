@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: Betweenness 3 of 11 nodes",
+   "rows": [
+    {
+     "text": "Color: Betweenness",
+     "color": "#ff8000"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#6366f1": 8,
+   "#ff8000": 3
+  },
+  "edges": {
+   "#a9a9a9": 13
+  }
+ }
+}

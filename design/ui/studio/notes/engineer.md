@@ -40,6 +40,18 @@ notes-only commit cannot regress a route): `git show a93110cfb5:design/ui/studio
 Trimmed again 2026-11-02 (file at 27 KB): the cancel-new-card focus re-walk and the covered-claim
 fix in full: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) A setup start now ends with no undo history (study tool, `real.mjs` opStart:
+  `setupHistoryClear` waits up to 30 s for pending work, then calls graphty-element's public
+  `session.history.clear()`; history it cannot empty fails the start with SETUP FAILED). Why: every
+  start stands for a saved project the person reopens, and a reopen has no history; before, Undo
+  after Cancel took back the setup's PageRank colors, orange layer, label role or layout. Evidence
+  (`design/ui/studio/tmp/r1-dry2-setup-history/`, `walk.sh`, `graphty/dist` bd404856c8): a saved
+  volunteers project reopened with --reopen shows Undo off ("Nothing to undo", reopen/06.png); T71A
+  touched-31 Ctrl+Z keeps the PageRank colors with Undo off (04.png); T71B keyboard starts with
+  Undo disabled; T77A touched-1 Staff keeps E4572E, 4 of 14 (08.png). --prove gained the case
+  "after a setup start Undo is disabled, with the tooltip Nothing to undo". Seen: Control+s then
+  Save leaves Undo enabled on a project with no history (reopen/04.png), unexplained yet.
+
 - (2026-11-02) RE-CHECK of the record-pages-after-history fix (a93110cfb5) on `graphty/dist`
   (stamp bd404856c8 plus the uncommitted fix; the bundle's `load` calls `this.bump()`): holds, no
   regression. Fresh replays of the nine names-only routes

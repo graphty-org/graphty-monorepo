@@ -406,7 +406,11 @@ candidate, not a confirmed finding.
   6366F1 and the key disappears), the setup's layout (T79, the camera is left close up on a few
   large nodes; Undo is named "Undo changing the layout"). No count changes; Redo restores it. A
   participant who loses the colleague's orange this way and does not redo it has changed the
-  layer (T77 B's grade reads the layer as it ends).
+  layer (T77 B's grade reads the layer as it ends). **No longer reachable** (study tool,
+  2026-11-02, any build): a setup start now ends with an empty undo history, as a reopened saved
+  project does, so every task starts with Undo off ("Nothing to undo"); Undo or Control+Z after
+  that Cancel changes nothing, and the setup's PageRank colors, orange layers, label role and
+  layout stay. Undo still takes back the participant's own steps.
 - **Keyboard**: Enter on Largest component in a new card sends focus to Add filter with the
   workspace still open (T75 B's first step); one number box is named "Piece size from" before So
   far and "Connected components from" after it (T75 A); Control+Z with nothing to undo says

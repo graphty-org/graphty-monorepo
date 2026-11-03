@@ -48,7 +48,10 @@ person watching would have read it.
   setup ends, nothing has focus and the pointer is off the page, as when a saved project is
   reopened: the participant does not arrive to a focus ring or a hover on the control the setup
   used last, and the first Tab goes to the top of the page (Main menu), not to the control after
-  the setup's last click.
+  the setup's last click. Nor does it arrive to an undo history: once pending work has finished
+  (up to 30 seconds), the setup's end empties the history through graphty-element's
+  `session.history.clear()`, so Undo starts off ("Nothing to undo") and the setup's steps cannot
+  be undone; history that cannot be emptied fails the start with `SETUP FAILED`.
 - `--start <folder> empty --sr` (or `setup:<file> --sr`) starts a session in screen-reader mode;
   see below.
 - The folder gets `01.png`, `02.png`, ..., `session.json`, `session.log` (the session process's
@@ -630,7 +633,7 @@ card, not `null`), a client killed mid-step that must
 leave the session running, typing, an upload, a download, a name inside an open
 dialog and one behind it, a save, a reopened tab that reopens the save from Recent projects, a
 planted spin (a camera key held on the canvas) that must be reported, typing into an open popover
-whose box keeps repainting over a still drawing, which must not be, setup starts (one that works,
+whose box keeps repainting over a still drawing, which must not be, setup starts (one that works and leaves Undo off,
 one whose step names nothing, one whose click never becomes clickable), a screen-reader session (nothing focused after its setup, a focus line after every step, a live region's new
 text, the highlighted option of the find box, a planted region that arrives filled marked
 unconfirmed, `--read` in the Export dialog, the first Tab after a setup landing on Main menu), a

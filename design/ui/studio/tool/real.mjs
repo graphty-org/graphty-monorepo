@@ -1760,6 +1760,16 @@ async function opening(s, out) {
         )
         .catch(() => out.push("the app never drew its window"));
 }
+// In the page, at a setup's end: waits up to 30 s for pending work, then empties the element's
+// history through its public session.history.clear(); returns "" or why it could not
+async function setupHistoryClear() {
+    const h = document.querySelector("graphty-element")?.session?.history;
+    if (!h) return "no graphty-element session on the page";
+    for (let i = 0; i < 300 && h.pending.length; i++) await new Promise((r) => setTimeout(r, 100));
+    if (h.pending.length) return `${h.pending.length} step(s) still pending after 30 s`;
+    h.clear();
+    return h.steps.length ? `${h.steps.length} step(s) left after clear()` : "";
+}
 async function opStart(s, setup, route) {
     const out = [];
     // the route's first line: how this walk started, so --replay can start the same way
@@ -1798,6 +1808,11 @@ async function opStart(s, setup, route) {
         const said = [];
         // a failed request (the start page's remote pictures) is logged, but only a step that does not work fails it
         const r = await run(s, setup, said, SETUP_CLICK_MS, false);
+        // a reopened project has no undo history: the setup's own steps must not be the participant's
+        // to undo (a Ctrl+Z at the start took back the setup's PageRank colors). Pending work (a run
+        // still computing) finishes first, since clear() would cancel it.
+        const left = await s.page.evaluate(setupHistoryClear).catch((e) => e.message.split("\n")[0]);
+        if (left) said.push(`could not empty the undo history after the setup: ${left}`);
         // a reopened project has nothing focused: the last setup step's control must not wear a focus ring,
         // and Tab starts at the top of the page. A blur alone keeps Chromium's starting point for Tab
         // on the last control the setup clicked (round 2's keyboard sessions began in the inspector),
@@ -1814,7 +1829,7 @@ async function opStart(s, setup, route) {
         // nor a hover: the setup's last click left the pointer on a control (a row stays lit in 01.png)
         await s.page.mouse.move(-1, -1);
         await writeFile(join(s.dir, "setup.log"), said.join("\n") + "\n");
-        if (r.code || r.missed) {
+        if (r.code || r.missed || left) {
             out.push(`SETUP FAILED: a setup step did not work (setup.log):`, ...said.map((l) => "  " + l));
             code = 1;
         }
@@ -3601,6 +3616,14 @@ async function prove() {
     check("the setup's sample is open when the participant arrives", y.code === 0, y.out);
     const lit = (await ask(B, { op: "hovered" })).out[0];
     check("a setup leaves the pointer over nothing, so no control is lit by a hover", lit === "", lit);
+    // a setup start is a reopened project: no undo history, so the setup's steps cannot be undone
+    const undoOff = step(B, "--hover", "Undo");
+    check(
+        "after a setup start Undo is disabled, with the tooltip Nothing to undo",
+        /^tooltip: "Nothing to undo"$/m.test(undoOff.out),
+        undoOff.out,
+    );
+    step(B, "--key", "Escape");
     // bar 2: the open work at the start is listed, and a planted removal shows up as gone at the end
     const workStart = JSON.parse(readFileSync(join(B, "work-start.json"), "utf8"));
     check(

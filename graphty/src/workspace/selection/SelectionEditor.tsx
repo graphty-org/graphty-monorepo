@@ -1152,6 +1152,9 @@ export function SelectionEditor({
         // with no outline and no count: the workspace's header is the one place the count is drawn
         // (spec 3.0, the owner's review, ws-polish 2).
         const editing = !ws && open;
+        // A style layer's count is said at rest by its layer row and the canvas key; its Which
+        // outline does not say it a third time (tier 5 decided.md). A filter card has no other.
+        const restCount = !ws && !editing && host !== "selector";
         const levelOf = (branch: UnionBranch | null, stepId: string | undefined): number => {
             if (branch === null) {
                 return 1;
@@ -1204,7 +1207,8 @@ export function SelectionEditor({
                         TITLE,
                         [
                             name,
-                            editing ? "being edited" : countWords(reading.total.count, of, side),
+                            ...(editing ? ["being edited"] : []),
+                            ...(ws || restCount ? [countWords(reading.total.count, of, side)] : []),
                             ...(titleOff ? ["off"] : []),
                         ].join(", "),
                         null,
@@ -1229,7 +1233,7 @@ export function SelectionEditor({
                             Editing
                         </Text>
                     )}
-                    {!ws && !editing && (
+                    {restCount && (
                         <Tooltip
                             label={
                                 reading.pending.length > 0

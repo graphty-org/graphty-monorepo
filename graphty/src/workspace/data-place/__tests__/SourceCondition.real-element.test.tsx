@@ -140,9 +140,12 @@ describe("picking nodes by a condition card from the Data place", () => {
         await waitFor(() => {
             assert.equal(session.visibility.conditions[0].effect, "keep");
         });
-        const source = stepRule(session) as { kind?: string; sources?: unknown[] } | undefined;
-        assert.equal(source?.kind, "source");
-        assert.deepEqual(source?.sources, [people.key]);
+        // The card's step is written untested (no load ticked) as it opens; the tick writes its load.
+        await waitFor(() => {
+            const source = stepRule(session) as { kind?: string; sources?: unknown[] } | undefined;
+            assert.equal(source?.kind, "source");
+            assert.deepEqual(source?.sources, [people.key]);
+        });
         assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
         // The card is named for the load, not its key, and counts the nodes it keeps, at rest: while
         // its workspace is open the sidebar keeps only its title row (ws-polish 2).

@@ -67,9 +67,7 @@ async function noticeSays(words: RegExp): Promise<void> {
 }
 
 describe("the layer panel's behavior", () => {
-    // Skipped: one layer alone now edits its rule in the selection editor, and the selection editor has no notice, with Undo, when a single layer's last step goes, and does not rename a default-named layer after its rule.
-    // The cards keep this only for one row, which a single layer no longer opens.
-    it.skip("says so, with Undo, when an edge layer's only hand-picked card goes, and renames it", async () => {
+    it("says so, with Undo, when an edge layer's only hand-picked card goes, and renames it", async () => {
         const { session } = await openScene();
         const [edge] = session.data.edgePage({ limit: 1 }).records;
         const name = "Napoleon -> Myriel";
@@ -98,9 +96,7 @@ describe("the layer panel's behavior", () => {
         });
     });
 
-    // Skipped: one layer alone now edits its rule in the selection editor, and the selection editor does not rename a default-named layer after its rule.
-    // The cards keep this only for one row, which a single layer no longer opens.
-    it.skip("keeps a default name made from several cards short enough to read whole", async () => {
+    it("keeps a default name made from several cards short enough to read whole", async () => {
         const { session, idOf } = await openScene();
         // A layer made from a selection: picked by hand, named by default.
         const made = await session.styles.add({

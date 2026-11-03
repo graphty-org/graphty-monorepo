@@ -303,7 +303,7 @@ describe("the editor's verbs, groups and words", () => {
     it("Or... then Escape takes the new group back", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "One", { match: "rule", where: DEGREE_6_TO_10 });
-        await userEvent.click(screen.getByRole("treeitem", { name: /^Which nodes, / }));
+        await userEvent.click(screen.getByRole("treeitem", { name: "Which nodes" }));
         await userEvent.click(await screen.findByRole("button", { name: "Or..." }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("{Escape}");

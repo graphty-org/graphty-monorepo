@@ -1211,3 +1211,14 @@ Not changed, with the reason:
   leaves it, F6 and Escape too. Kept: it is what the accessibility walk asked for. The style host's
   preview has no Tab stop (F6 reaches it), as before.
 - **compact-mantine's brush track is lit across an untouched range**: Figma-locked, an owner item.
+
+## Decided by the design team, 2026-11-03
+
+- **The Which nodes / Which edges outline says no count at rest** (reverses "Three counts of one layer
+  at rest" above, as a team decision: a reversible change to a surface new in tier 5). A style layer's
+  count showed three times at rest: on its layer row, on the Which outline's title row and in the
+  canvas key. The layer row and the canvas key are owner-approved surfaces and keep it; the Which
+  outline row is new in tier 5, so it drops it, visibly and in its accessible name. The open workspace
+  still says the count in its header, and a Data place filter card keeps its count (it has no other).
+  Why: the calm-first walk's severity 3 candidate; one number said three times is noise, and the
+  outline is the recipe, not the result.

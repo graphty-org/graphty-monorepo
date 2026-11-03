@@ -135,12 +135,11 @@ describe("the layer panel", () => {
         });
     });
 
-    // Skipped: one layer alone now edits its rule in the selection editor, and the selection editor has no notice, with Undo, when a single layer's last step goes.
-    // The cards keep this only for one row, which a single layer no longer opens.
-    it.skip("says so, with Undo, when a layer's last condition goes, and keeps Done", async () => {
-        const { session } = await openScene();
-        const where = { kind: "text" as const, reads: "data.name", mode: "substring" as const, text: "Co" };
-        const layer = await openLayer(session, { name: "Group one", selector: { match: "rule", where } });
+    it("says so, with Undo, when a layer's last condition goes, and keeps Done", async () => {
+        const { session, idOf } = await openScene();
+        // Nodes picked by hand: one layer of them still edits its cards (a rule opens the selection editor).
+        const selector = { match: "ids" as const, nodes: [idOf("Cosette")], edges: [] };
+        const layer = await openLayer(session, { name: "Group one", selector });
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: /^Remove / }));
@@ -156,19 +155,18 @@ describe("the layer panel", () => {
         });
     });
 
-    // Skipped: one layer alone now edits its rule in the selection editor, and the selection editor's rows have no 0 badge for a step that matches no node.
-    // The cards keep this only for one row, which a single layer no longer opens.
-    it.skip("keeps a text condition that matches no node on Enter, and flags it with a 0 badge", async () => {
+    it("keeps a text condition that matches no node on Enter, and flags it with a 0 badge", async () => {
         const { session } = await openScene();
         const where = { kind: "text" as const, reads: "data.name", mode: "substring" as const, text: "Co" };
-        const layer = await openLayer(session, { name: "Group one", selector: { match: "rule", where } });
+        // The cards of a layer and its twin: one rule layer alone opens the selection editor.
+        const layer = await openCards(session, { name: "Group one", selector: { match: "rule", where } });
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const box = await within(region).findByRole("combobox", { name: "name: text to match" });
         await userEvent.clear(box);
         await userEvent.type(box, "missing{Enter}");
         // Kept as the reader wrote it, and flagged on the condition's chip: a 0 badge, no sentence.
-        const row = await screen.findByRole("button", { name: /^Which nodes, .*no node matches/ });
+        const row = await screen.findByRole("button", { name: /^Which nodes, / });
         const badge = await within(row).findByLabelText("No node matches");
         assert.equal(badge.textContent, "0");
         assert.isNotNull(badge.closest("[data-chip]"), "the badge sits on the condition");
@@ -215,9 +213,7 @@ describe("the layer panel", () => {
         assert.strictEqual(made.userData?.[DEFAULT_NAME_KEY], made.name, "its name is a default");
     });
 
-    // Skipped: one layer alone now edits its rule in the selection editor, and the selection editor does not rename a default-named layer after its rule.
-    // The cards keep this only for one row, which a single layer no longer opens.
-    it.skip("a layer named by default follows its rule until the reader renames it", async () => {
+    it("a layer named by default follows its rule until the reader renames it", async () => {
         const { session, idOf } = await openScene();
         // The layer a selection's first edit makes: picked by hand, named by default.
         const made = await openLayer(session, {

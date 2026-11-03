@@ -100,9 +100,10 @@ describe("the Style panel", () => {
         });
         await session.styles.settled();
         await clickRow("Plain");
-        const row = await screen.findByRole("treeitem", { name: /^Which nodes, / });
-        // The same count the layer's row and the outline read: what it paints.
-        assert.strictEqual(row.getAttribute("aria-label"), "Which nodes, 77 of 77 nodes");
+        const row = await screen.findByRole("treeitem", { name: "Which nodes" });
+        // At rest the layer's row and the canvas key say its count; the outline does not say it again.
+        assert.strictEqual(row.getAttribute("aria-label"), "Which nodes");
+        assert.isNull(row.querySelector(".sel-count"), "no count at rest");
         assert.notInclude(row.textContent ?? "", "add a condition");
         assert.isNull(document.querySelector("[data-warn]"), "no warning outline");
     });

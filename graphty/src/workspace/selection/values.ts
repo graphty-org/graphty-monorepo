@@ -437,7 +437,7 @@ export function stepCard(
  * @returns the card.
  */
 function withMode(card: Card, mode: string | undefined): Card {
-    if (card.type === "number") {
+    if (card.type === "number" && mode?.split(" ")[0] === "top" && card.match === "range") {
         return topMode(card, mode);
     }
     // A text test picked before any text is typed: the empty rule cannot hold it, the step does.

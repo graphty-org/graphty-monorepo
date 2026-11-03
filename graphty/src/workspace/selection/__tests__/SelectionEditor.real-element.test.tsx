@@ -189,7 +189,7 @@ describe("the selection editor in a style layer", () => {
         const session = await openSample();
         const layer = await openLayer(session, "Busy", { match: "everything" });
         // A layer of every node reads as what it paints: All nodes, and only the verbs that narrow.
-        assert.isNotNull(screen.queryByRole("treeitem", { name: "Which nodes, 77 of 77 nodes" }));
+        assert.isNotNull(screen.queryByRole("treeitem", { name: "Which nodes" }));
         assert.isNotNull(screen.queryByRole("treeitem", { name: "All nodes" }));
         await startCondition();
         const search = await screen.findByRole("combobox", { name: "Find attributes, results" });
@@ -753,7 +753,7 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
     it("Start with is in a group's Advanced, drawn with its caption, and never in the title pane", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
-        await userEvent.click(screen.getByRole("treeitem", { name: /^Which nodes, / }));
+        await userEvent.click(screen.getByRole("treeitem", { name: "Which nodes" }));
         await waitFor(() => {
             assert.isNotNull(document.querySelector(".sel-pane-box"));
         });

@@ -424,6 +424,14 @@ export function WhichPicker({
     const rows = held === undefined ? pickRows(session, ids, side) : [];
     const shown = held === undefined ? shownOf(rows) : heldShown(held.cards);
     const [open, setOpen] = useState((autoOpen && !base && shown.length === 0) || (adding !== undefined && !base));
+    // One layer's own selector is edited as a selection (design/ui/selection-groups/spec.md); a
+    // base layer, several layers at once and held cards keep the cards. Cards opened stay until
+    // they close, even when an edit there leaves a selector the selection editor reads (the last
+    // card removed): swapping editors mid-edit would drop the cards and their notice's Undo.
+    const editable =
+        held === undefined && rows.length === 1 && !base ? layerSelection(session, rows[0].layer.selector, side) : null;
+    const [onCards, setOnCards] = useState(() => open && editable === null);
+    const selection = open && onCards ? null : editable;
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
     // Node and Edge tabs with the arrow keys: focus stays on the tabs, which the arrows act on.
     const [focusKey, setFocusKey] = useState<string | null>(() =>
@@ -449,14 +457,11 @@ export function WhichPicker({
     if (base && shown.length === 0 && !open) {
         return <BaseRow session={session} rows={rows} side={side} />;
     }
-    // One layer's own selector is edited as a selection (design/ui/selection-groups/spec.md); a
-    // base layer, several layers at once and held cards keep the cards.
-    const selection =
-        held === undefined && rows.length === 1 && !base ? layerSelection(session, rows[0].layer.selector, side) : null;
     // Done, Enter or Escape: focus goes back to the Which row it opened from -- the one drawn now,
     // when the panel was drawn again for the row the cards changed (a new layer's first edit).
     const close = (): void => {
         setOpen(false);
+        setOnCards(false);
         requestAnimationFrame(() => {
             const row = rowButton.current?.isConnected
                 ? rowButton.current
@@ -485,6 +490,7 @@ export function WhichPicker({
                     onClose={close}
                     onLeave={() => {
                         setOpen(false);
+                        setOnCards(false);
                     }}
                 />
             )}
@@ -501,6 +507,7 @@ export function WhichPicker({
                         // With no card, focus lands on Add a condition, whose list opens on a
                         // press: open already, the press would close it.
                         setFocusKey(key ?? shown[0]?.key ?? "add");
+                        setOnCards(true);
                         setOpen(true);
                     }}
                 />

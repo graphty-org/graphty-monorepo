@@ -155,13 +155,14 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         await session.visibility.set({ kind: "member", of: { nodes: [2, 3, 4] } });
         await session.styles.settled();
         // Cover selects all 4 nodes and Key people 2 of them; the filter leaves 3, Key people's 1 among them.
-        const countOf = (name: string): string | null | undefined =>
-            within(tree())
-                .getByRole("treeitem", { name: new RegExp(`^${name}, `) })
-                .querySelector(".ws-row-count")?.textContent;
+        // Cover paints over Key people, whose row draws the painted-over mark in its count's place,
+        // so its count is read from the row's name, which says it either way.
+        const rowOf = (name: string): HTMLElement =>
+            within(tree()).getByRole("treeitem", { name: new RegExp(`^${name}, `) });
         await waitFor(() => {
-            assert.equal(countOf("Cover"), "3");
-            assert.equal(countOf("Key people"), "1");
+            assert.equal(rowOf("Cover").querySelector(".ws-row-count")?.textContent, "3");
+            assert.match(rowOf("Cover").getAttribute("aria-label") ?? "", /, 3 nodes(,|$)/);
+            assert.match(rowOf("Key people").getAttribute("aria-label") ?? "", /, 1 node(,|$)/);
         });
     });
 

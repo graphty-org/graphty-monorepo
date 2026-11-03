@@ -245,14 +245,19 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
      */
     const boundRun = (leaf: MeasureLeaf, params: Readonly<Record<string, unknown>>): Run | undefined => {
         const wanted = canonicalize([leaf.algorithm, params, leaf.scope]);
-        return sources.runs
-            .list()
-            .findLast(
-                (run) =>
-                    run.status === "succeeded" &&
-                    run.result !== undefined &&
-                    canonicalize([run.algorithm, run.params, run.scope.spec]) === wanted,
-            );
+        const runs = sources.runs.list();
+        // A backward walk: the library target (ES2022) has no Array.prototype.findLast.
+        for (let i = runs.length - 1; i >= 0; i--) {
+            const run = runs[i];
+            if (
+                run.status === "succeeded" &&
+                run.result !== undefined &&
+                canonicalize([run.algorithm, run.params, run.scope.spec]) === wanted
+            ) {
+                return run;
+            }
+        }
+        return undefined;
     };
 
     /**

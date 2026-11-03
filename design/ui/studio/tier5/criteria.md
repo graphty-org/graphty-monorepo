@@ -1,4 +1,4 @@
-The study runs on build 47c95a09fc served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d2-47c95a09fc
+The study runs on build c3100058ab served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d3-c3100058ab
 
 Frozen on 2026-11-02 for the tier 5 rounds. This is the dry run's first build: each dry-run fix
 pass refreezes on a new build, names it on the first line and the build before it here.
@@ -423,3 +423,6 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
       every opener tried, so that grade spoiler is gone; Control+Z right after that Cancel brings
       the card back switched on, which counts as a card where card counts are graded (T71, T77,
       T79).
+- 2026-11-02: the dry run's fourth build, c3100058ab in `.study-builds/tier5-r1d3-c3100058ab`,
+  replaces 47c95a09fc (`.study-builds/tier5-r1d2-47c95a09fc`). It carries the third dry-run
+  pass's fixes.

@@ -366,6 +366,10 @@ A session is void, and is re-run rather than graded, if any call opened:
   read) and the data files in `tool/files/`
 - a path with `..`, or a Grep or Glob with no folder (it searches wherever the agent runs)
 
+Only what a call opens is read: a Write's or Edit's target, never its content, and a shell command
+without its heredoc bodies (unless the shell would run a `$(...)` or a backtick in one). A
+participant who quotes a tool message naming `plan.md` into its own transcript opened nothing.
+
 It prints one `VOID: the participant opened <what>, <path> (<tool>, <transcript>)` line per call
 and exits 1; with none, one `leak check:` line with the counts and exit 0; with no transcript
 found, a `FAIL:` line and exit 2, which is no verdict: run it again with the transcript's path.

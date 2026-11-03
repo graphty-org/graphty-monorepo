@@ -512,6 +512,21 @@ function transcriptsFor(own) {
 }
 const stringsIn = (v) =>
     typeof v === "string" ? [v] : v && typeof v === "object" ? Object.values(v).flatMap(stringsIn) : [];
+// A heredoc's body is text being written, not a file being opened; it is dropped unless the shell
+// would run something inside it (an unquoted delimiter with $( or a backtick in the body).
+const withoutHeredocs = (cmd) =>
+    cmd.replace(/<<-?[ \t]*(['"]?)(\w+)\1([^\n]*)\n([\s\S]*?)^[ \t]*\2[ \t]*$/gm, (all, q, tag, rest, body) =>
+        !q && /\$\(|`/.test(body) ? all : `<<${tag}${rest}`,
+    );
+// The strings of a tool call that name what it opens: a writing tool's target, never its content (a
+// participant who quotes the tool's FAIL line into its transcript opened nothing; tier 5 round 1's
+// check voided every session for that), a shell command without its heredoc bodies, anything else whole.
+function openedBy(name, input) {
+    if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(name))
+        return [input?.file_path, input?.notebook_path].filter((s) => typeof s === "string");
+    if (name === "Bash" && typeof input?.command === "string") return [withoutHeredocs(input.command)];
+    return stringsIn(input);
+}
 // why one string a tool call was given opens something the participant may not
 function leaksIn(s, allowed) {
     const out = [];
@@ -544,7 +559,7 @@ function leakCheck(own, given = []) {
             for (const b of (l.type === "assistant" && l.message?.content) || []) {
                 if (b?.type !== "tool_use") continue;
                 calls++;
-                const found = stringsIn(b.input).flatMap((s) => leaksIn(s, allowed));
+                const found = openedBy(b.name, b.input).flatMap((s) => leaksIn(s, allowed));
                 // a search with no folder searches wherever the agent runs, the repository included
                 if (/^(Grep|Glob)$/.test(b.name) && !b.input?.path)
                     found.push(["a search outside its folder", b.input?.pattern ?? ""]);

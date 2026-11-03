@@ -9,7 +9,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -194,5 +195,39 @@ test("the score, step and end-state scripts each catch their planted tier 5 case
         const r = spawnSync(process.execPath, [join(here, script), "--self-test"], { encoding: "utf8" });
         assert.equal(r.status, 0, `${script} --self-test: ${r.stdout}${r.stderr}`);
         assert.match(r.stdout, /tier 5|layer/i, `${script} --self-test planted no tier 5 case`);
+    }
+});
+
+// Tier 5 round 1: every participant quoted the tool's FAIL line ("... plan.md holds no ...") into its
+// own transcript.md, and the leak check voided it for opening plan.md. Written text opens nothing.
+test("the leak check flags the files a call opens, never the text it writes", async () => {
+    const own = await mkdtemp(join(tmpdir(), "leak-check-"));
+    const fail = `FAIL: ${studio}/tier5/rounds/round-1/plan.md holds no "Gate evidence" section`;
+    const call = (name, input) => ({ type: "assistant", message: { content: [{ type: "tool_use", name, input }] } });
+    const leaks = async (...calls) => {
+        const t = join(own, "t.jsonl");
+        await writeFile(t, calls.map((c) => JSON.stringify(c)).join("\n"));
+        return spawnSync(process.execPath, [real, "--leaks", own, t], { encoding: "utf8" });
+    };
+    try {
+        let r = await leaks(
+            call("Write", { file_path: join(own, "transcript.md"), content: `${fail}\nsee answers.md` }),
+            call("Bash", { command: `cat >> ${own}/transcript.md <<'EOF'\n${fail}\nEOF\nls ${own}` }),
+            call("Bash", { command: `cat >> transcript.md <<EOF\nplain text naming tasks.md\nEOF` }),
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        for (const [c, re] of [
+            [call("Read", { file_path: `${studio}/tier5/rounds/round-1/plan.md` }), /a studio file/],
+            [call("Bash", { command: `cat ${studio}/tier5/answers.md` }), /a facilitator file, answers\.md/],
+            [call("Bash", { command: `cat answers.md <<'EOF'\nx\nEOF` }), /a facilitator file, answers\.md/],
+            [call("Bash", { command: `cat > x <<EOF\n$(cat ../tasks.md)\nEOF` }), /a facilitator file, tasks\.md/],
+            [call("Write", { file_path: `${studio}/tier5/notes.md`, content: "x" }), /a studio file/],
+        ]) {
+            r = await leaks(c);
+            assert.equal(r.status, 1, `${JSON.stringify(c.message.content[0].input)} was not flagged: ${r.stdout}`);
+            assert.match(r.stdout, re);
+        }
+    } finally {
+        await rm(own, { recursive: true, force: true });
     }
 });

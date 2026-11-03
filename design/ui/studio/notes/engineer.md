@@ -38,6 +38,17 @@ Trimmed again 2026-11-02 (file at 28 KB): the main-table and test-mode re-walk, 
   first (fresh walk in `design/ui/studio/tmp/r1-dry1-reference-names/`), and the element test
   `page-matching-file-names.test.ts` fails with the old line. No code change was needed.
 
+- (2026-11-02) RE-WALK of one count base (50d50e28ae) on `graphty/dist` c3100058ab: holds, no
+  regression. With a filter on, the layer row, Everything ("styles all 7 nodes"), the Which nodes
+  header and the key's "N of M" all count the drawn graph: T72A detour-2 Everything 7 (was 24);
+  T72B detour-3 row 5, Which nodes "5 of 5", no key line, then a condition "1 of 5" everywhere
+  (was row 11); T77A success/detour-1 "6 of 10"; T70A filter-first "4 of 15"; T70B "2 of 7".
+  Enter/Escape/Tab/Shift+Tab on the row and in Which nodes keep focus sane. The "no condition is
+  left" notice is unreachable on a single layer (by design, `LayerPanel` test skipped), so its
+  count was not seen. Tool facts: `--replay` refuses a folder an earlier session used (exit 2,
+  "already holds a session's screenshots"): pick fresh names. Sessions under
+  `design/ui/studio/tmp/r1-dry1-recheck-style-count-base/` (`rewalk.sh`, `rewalk2.sh`).
+
 - (2026-11-02) Cancel on a new filter card now leaves the history as it was before the card. Mechanism
   on 47c95a09fc: Cancel called `removeCondition`, a third step, so Undo read "Undo deleting a filter
   condition" and put the card back; the removal landed after the workspace closed, so the status
@@ -63,14 +74,8 @@ Trimmed again 2026-11-02 (file at 28 KB): the main-table and test-mode re-walk, 
   is null). Full entry with its tests, re-walks and the 15-minute hang-guard lesson:
   `git show 4d9a4d4643:design/ui/studio/notes/engineer.md`.
 
-- (2026-11-02) RE-CHECK of the open-busy-sign fix (e13e34f007, 64cd59e285): `graphty/dist` was built
-  at 14:15 from the uncommitted fix, before both commits; rebuilt from the committed tree (15:21).
-  Re-walk script `design/ui/studio/tmp/r1-dry2-recheck-open-busy-sign/rewalk.sh` (8 pilot replays,
-  4 at a time, incl. T79B keyboard for Enter/Escape/Tab/Shift+Tab) was started but stopped before
-  any route finished; sessions ended. Still to walk: all 8 routes, by running that script.
-  Acceptance to check (decided.md "Dry run pass 2"): firstFrame of "--click Which nodes" under 1 s
-  (pilot 1,187 to 1,273 ms), its glance shows the workspace or "Drawing", the Otter Creek tick glance
-  shows the box ticked beside "Drawing".
+- (2026-11-02) RE-CHECK of the open-busy-sign fix: script `design/ui/studio/tmp/r1-dry2-recheck-open-busy-sign/rewalk.sh`;
+  full entry: `git show bba6b7e9bb:design/ui/studio/notes/engineer.md`.
 
 - (2026-11-02) Opening Which nodes right after adding a layer on 50,000 nodes now shows the
   workspace with "Drawing" in its first frame, 345 to 374 ms after the click (was 1.3 to 2.3 s),

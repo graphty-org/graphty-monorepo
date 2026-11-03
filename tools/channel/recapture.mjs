@@ -181,6 +181,12 @@ const APPROVABLE = new Set(["changed", "moved", "new", "unseeded"]);
  * PNG is byte for byte the head's baseline (the accept commit copies the captured bytes) becomes unchanged, as a
  * capture of the head would find it, and a removed story whose baseline the head deleted is dropped. Anything else
  * keeps its status, so the gate still refuses it.
+ *
+ * This is a fresh comparison, not a decision carried by image hash (design/visual-testing/early-capture.md, rejected
+ * option b; issue #4986): the captures are the run that judged the candidate H itself (resume.mjs `source_run`, the
+ * newest verdict for H), so each PNG was rendered from H's own commit, and the head P is H plus accept-only commits,
+ * so a baseline equals that PNG only where the owner accepted this very render on this candidate. Keep it only while
+ * both hold: never feed it captures rendered from another commit, nor a head that is not H plus its accepts.
  * @param results a final capture's results.json
  * @param oidOf (file) => the SHA-256 of the head's baseline of that file, or null when it has none
  * @returns the number of stories now unchanged; results.items is rewritten in place

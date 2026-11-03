@@ -7,40 +7,32 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- (2026-10-31) Tier 5 selection cards (proposal tier5/panel/content.md): four term collisions to
-  settle first -- the mock's "group" vs the glossary group (proposed: "Rule A"), "Focus" vs the
-  focused node ("Hovered or selected"), "picked" as a second selection (use "Selected (N)"),
-  "whole graph" vs Full/Filtered graph. Live build has three different condition pickers for one act.
-- (2026-10-30) Tier 4 round 1 closed at the 1-round cap: task success held, 0 severity 4, no
-  severity 3 survived the skeptic check. Again words were not the main cost -- order of choices,
-  defaults and one fact drawn two ways were.
-- (2026-10-30) Most severe open problem is a preview that does not say what the act will do: the
-  join preview marks "1 not in graph", which 3 of 4 read as "will be left out", yet Join adds it.
-  A preview's tag must name the outcome of the act, not the row's current state.
-- (2026-10-30) "Leave out" does not say it deletes; a reader backed off it for that reason. A
-  destructive choice's label names the effect (remove/delete), never a soft verb.
-- (2026-10-30) One fact, one drawing: a time column still showing the text glyph while the
-  timeline draws dates made four sessions check a second menu. Header glyph, chip and caption must
-  agree with what the program does; mismatch costs steps, not answers.
-- (2026-10-30) Counts must state their basis: filter chips count the whole graph under Hide and the
-  picture under Select; "12 nodes" sits beside an 11-row table. Same number word, two bases = doubt.
-- (2026-10-30) "Hide" alone is ambiguous; its tooltip ("Hide nodes that do not match") is right.
-  The planned "Select | Filter to | Filter out" renames the effect but keeps the take-out default:
-  the default, not the word, is the bigger cost.
-- (2026-10-30) Owner-approved text clipped out of sight ("17/19 rows joined", source name cut)
-  breaks the approved-surface rule; a layout fix, not a rewording. "17 of 19 joined" beside 18
-  edges reads self-contradictory -- the ratio's noun must match what was counted.
-- (2026-10-30) The inspector's "Set in Data" is a trap only when the column's kind matters; a
-  shortcut label that does half the job should say which half.
-- (2026-10-30) Study-tool caveat: hovers that open a popover were reported "tooltip: null", so
-  hover findings this round are suspect until the tool is fixed. Do not reword on them.
+- (2026-11-03) Tier 5 round 1 closed at the 1-round cap with no participant data: every session was
+  void (start gate never ran). All findings are expert-walk findings -- they say what is wrong, not
+  how often it hurts. Do not reword on them as if they were session evidence.
+- (2026-11-03) Speech is content too. The one surviving severity 3: the status region speaks the
+  covered inspector's count after the workspace's ("15 of 24" then "4 of 24"), so a screen reader
+  hears a number nothing on screen shows. Rule: speak only from the surface that is showing.
+- (2026-11-03) A name must survive every act. Clear renamed a filter card "a selection" (decided:
+  Clear keeps the name); a chosen reference showed only its id "v02" (decided: show the value that
+  matched). Placeholder nouns must never replace the reader's own words.
+- (2026-11-03) "Filter not added" on Escape after Clear tells the truth but the work is lost with
+  no undo. Words cannot fix a rule collision; it needs a decided.md entry on which rule wins.
+- (2026-11-03) One surface, one number format: "37.5k of 50k" beside "35,960" in one outline.
+- (2026-11-03) Words-at-rest budget: a scripted count is not a measure (it counts chrome, graph
+  statistics and the user's own names). Only my hand count confirms; the style host screen still
+  needs one.
+- (2026-10-31) Tier 5 term collisions to settle: "group" vs the glossary group, "Focus" vs the
+  focused node, "picked" as a second selection, "whole graph" vs Full/Filtered graph.
+- (2026-10-30) A preview's tag names the outcome of the act, not the row's state; a destructive
+  choice names its effect, never a soft verb.
+- (2026-10-30) Counts state their basis; a ratio's noun matches what was counted.
 - (2026-10-21) Fix by pointing, not prose; never fix a no-op with explanatory text.
 - (2026-10-21) Do not rename on model opinion or a task's wording; avoidance is not understanding.
-- (2026-10-21) Spoken color names name the hue family first; fix in compact-mantine.
 - (2026-10-13) Unset vs cover stay two acts with two wordings. Two row nouns only: layer, folder.
 - (2026-10-06) Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated users: fail strong,
   pass weak. Element returns codes + params; the app writes every word.
-- (2026-10-30) Summarized: the tier 3 Top of mind (2026-10-21) is in git history of this file at 0c6bf1066b.
+- (2026-11-03) Summarized: the earlier Top of mind is in git history of this file at 5738a5b4b2.
 
 ## Priorities and values
 
@@ -333,3 +325,16 @@ I read this file at the start of every session and update it as I decide and lea
 - Decided: a count or glyph shown in two places must share one basis and one kind. Evidence: problems 2, 16, 3.
 - Tried: tier 3 watch on words -- worked as a check; again no surviving insight was word-first.
 - Did not work: trusting hover findings from the study tool (popovers logged as null).
+
+## Tier 5 round 1 lessons (2026-11-03)
+
+- Decided: announcements follow what is visible. A covered panel stays silent (the selection
+  editor already does; the value picker did not). Reason: two messages into one live region, the
+  second wins, and it was the hidden one.
+- Decided: Clear keeps a card's name; a reference row shows the matched value beside its id.
+  Both are existing decided.md rules (631-632, 694); the build departs from them.
+- Tried: scripted word counts as the at-rest budget check -- did not work; it inflated three
+  screens with chrome, statistics and user layer names. Hand count remains the measure.
+- Thinking: the reference picker's silent search (no result count until ArrowDown) is a spoken
+  content gap caused by a second-built control; fix by one shared searchable combobox, not by
+  adding announcement text.

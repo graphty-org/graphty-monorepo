@@ -12,33 +12,35 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-11-02, second review) The frozen build is behind the branch: 4fb3f45d59 (matches-strip
-  search, picker scroller) and d801a0fddd (50k repaint batching) fix two of the three gate
-  blockers after d3fda9f2b6. Check `git log <frozen>..HEAD` before reading any gate result.
-- (2026-11-02) The overwhelm rating failed its own check (gap 1.5 of 2). Reasons are specific and
-  useful at ratings of 2-3; gate on a named workspace element at ANY rating, not at 4+.
-- (2026-11-02) My own "placeholder shows what lies beneath" Fill field was named as the reason by
-  both frozen-build rating sessions (default 6366F1 read as the layer's color). Evidence against it.
-- (2026-11-02) A "double count" is severity 3 only when the two counts agree on every project, not
-  by coincidence of a one-card setup; else the fix deletes a count multi-card readers need.
-- (2026-11-02) The wording gate reads follow-ups as prompts: 30 of its 66 words are the shared
-  rating question ("clear", "away", "number"); "clear" is also an avoided word (the Clear button).
-- (2026-11-02) The dry run ran 6 passes against a cap of 2 "then stop for the owner"; a cap that
-  is ignored is worse than none. Replace with a bounded rule, never an owner ask.
-- (2026-11-02) Large graphs: waits now have severities, but a sev 2 wait gates nothing and the
-  owner's 50k complaint maps to lists only. Put waits in bar 9's complaint row.
-- (2026-10-30) Show the result before the act, in counts the reader already trusts; decide at the
-  act, not after with a default applied; one fact, one drawing.
-- (2026-10-30) Severity 3 only with a scripted repro and an end-state check; grade the user's
-  goal, not a route property; wrong turns count only before success.
-- Top risk, every tier: a picture (or a count) that looks right and answers wrong. Severity 3+.
-- Same-model participants: a failure is strong evidence, a pass is weak; blind graders to the key.
-- Follow-ups that describe what happened ("the drawing changed its colors") prime the rating that
-  follows; rate first, then ask neutral questions.
-- A new task brings its route's screens into the scripted walk; task wording never reuses the
-  target's screen words.
-- No product concept built around one task's wording or one domain; two kinds of data, not two
-  people-networks.
+- (2026-11-03) Tier 5 round 1 put no participant in front of the app: all 60 sessions void
+  because the start gate never ran. A round that cannot launch must stop at the first shared
+  refusal, not burn every slot. Start gate first, then launch -- nothing else is evidence of use.
+- (2026-11-03) Expert walks say what is wrong on screen, never how often people are hurt.
+  Without sessions, bars 1, 2, 3, 8 and the follow-up part of 9 are unmeasured, not passed.
+- (2026-11-03) Top user risk now: speech from a hidden panel. A screen reader hears "4 of 24"
+  while the visible header says "15 of 24". Speak only from the surface that is showing.
+  This is my "count that looks right and answers wrong" rule, in audio.
+- (2026-11-03) Clear then Escape loses a new filter with its steps, no undo. Two decided rules
+  collide ("Escape on a new card takes it back" vs "Escape never discards work"); work the user
+  built wins. Write the rule in decided.md before the fix.
+- (2026-11-03) Names must keep saying what a thing is: Clear must not rename a card "a
+  selection"; a chosen reference shows the matched value ("James Carter"), not only "v02".
+- (2026-11-03) One picker, one behavior: the reference picker's own search (Tab escapes to the
+  page top, no result count) is a second build. Fix in the shared combobox, not per picker.
+- (2026-11-03) Below 1280 px the workspace has no layout (preview 44 px wide at 900 x 700).
+  Laptop users exist; the width rule belongs in decided.md.
+- (2026-11-03) The study tool's leak check must test paths a call opens, never written text;
+  it flagged participants for quoting the tool's own error line.
+- (2026-11-02) Check `git log <frozen>..HEAD` before reading any gate result.
+- (2026-11-02) Gate on a named workspace element at ANY overwhelm rating; the rating alone
+  does not discriminate (gap 1.5 of 2).
+- (2026-11-02) A "double count" is severity 3 only when the two counts agree on every project.
+- (2026-10-30) Show the result before the act, in counts the reader already trusts; one fact,
+  one drawing, one number format within one surface.
+- (2026-10-30) Severity 3 only with a scripted repro and an end-state check.
+- Same-model participants: a failure is strong evidence, a pass is weak; blind graders; rate
+  first, then ask neutral questions; task wording never reuses screen words.
+- No product concept built around one task's wording or one domain.
 
 ## Priorities and values
 
@@ -208,6 +210,10 @@ insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/
 
 ## Tried: worked / did not work
 
+- 2026-11-03 -- TIER 5 ROUND 1. DID NOT: launching with no start-gate evidence in plan.md (60 of
+  60 starts refused, round void, one-round cap spent). WORKED: two skeptic checks on expert
+  findings (dropped decided behaviors, weakened a words-budget count that included chrome and
+  user layer names); expert walks found a sev 3 speech defect with log and screenshot evidence.
 - 2026-11-02 (second review) -- WORKED: `git log <frozen>..HEAD` on the product folders; it showed
   the gate's blockers already fixed past the frozen build. WORKED: running `wording.mjs` and
   reading which words repeat in every task (the follow-up). DID NOT: the overwhelm rating as an
@@ -255,19 +261,10 @@ insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/
   were blind to the very screen the task exists to test. Lesson: a new task brings its screens
   into WALKS3 in the same change.
 
-- 2026-10-10 to 2026-10-11, folded 2026-10-20 -- TIER 2 ROUNDS 3-4. WORKED: Shift-click adds (T24
-  7 of 7), toolbar Filters icon (7 of 7 first door), find box hint and example, Replace with its
-  marks, one path per problem so a round can credit each. DID NOT: the gate (not run, not
-  enforced) twice; briefing leaks; refusing a folder without a briefing (moving folders out plus
-  a transcript check is the fix); several variants per problem; 0 of 16 typed "=" unprompted.
-- 2026-10-09 -- DID NOT WORK: a dry run that walks only the answer key, by pointer only, with no
-  tool check. Every open fault sat on a detour or in the tool. Next: walk round 1's detours and
-  keyboard, and dry-run the tool itself.
-- 2026-10-09, folded 2026-10-11 -- TIER 2 ROUNDS 1-2. WORKED: dry runs widened to detours,
-  keyboard and the tool; load-time "Farther"; find box hint; Replace and its marks; selection ring
-  and Escape fixes. DID NOT: find box as condition entry before the hint; Replace only on
-  right-click; stale runs quiet; long names cut; briefing leaks (tasks.md read); click-by-name
-  landing on same-named rows; scripts claimed built but absent.
+- 2026-10-09 to 2026-10-11, folded 2026-11-03 -- TIER 2. WORKED: Shift-click adds, toolbar
+  Filters icon, find box hint and example, Replace with marks, dry runs widened to detours and the
+  tool, one path per problem. DID NOT: unenforced gates, briefing leaks, several variants per
+  problem, Replace only on right-click, long names cut, scripts claimed built but absent.
 - 2026-10-02 to 2026-10-07, folded 2026-10-09 -- TIER 1 (mocks, then the real app). WORKED and
   kept: sample one click from start, match report and broken-file refusal, save and reopen, every
   run repainting drawing and legend together, the G/Degree neighbor list, "No crossings" refusal,

@@ -5,41 +5,44 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-11-03 (tier 5 round 1 walk on build 1e123d7d33).
+Last updated: 2026-11-03 (tier 5 round 1 closed; insights after two skeptic checks).
 
 ## Top of mind
 
-1. (2026-11-03) Tier 5 round 1 walk on 1e123d7d33 (`tier5/rounds/round-1/expert/figma.md`): no
-   severity 3 or 4; 8 severity 2 count for bar 7 (allowance 5), so bar 7 fails on my list unless
-   about four are fixed. First fix: the value and reference pickers jump above their field once
-   a search is typed, covering the workspace header and Done, in both hosts.
-2. (2026-11-03) The two hosts' value pickers differ: the filter's has no Results, and offers an
-   existing run as an algorithm not yet run. Needs graphty-element's `checkStep` to name the run
-   a step reads (decided.md 104-107, 282, 362).
-3. (2026-11-03) Spec 5 controls not built: yes-or-no is a dropdown, not a counted Yes | No
-   segment; By position lacks "# / %" and top / bottom. "Decided, not built" again: grep the
+1. (2026-11-03) Tier 5 round 1 closed with no valid session: the start gate never ran, so every
+   start was refused. Only expert walks count. Next round: confirm the gate evidence exists before
+   trusting any session bar.
+2. (2026-11-03) After two skeptic checks, bar 7 has ONE confirmed severity 2 (Clear renames a
+   card "a selection", decided.md 631-632). My 8 severity 2s mostly fell to 1 or to candidates:
+   seven Figma candidates remain unconfirmed. Next walk: a scripted repro plus screenshot for each,
+   or it does not survive.
+3. (2026-11-03) The reference picker is a second build of the picker (own Combobox.Search in a
+   portal): Tab escapes to Main menu, no expanded state or count, different grouping. Figma has one
+   searchable dropdown; one shared searchable combobox closes all of it.
+4. (2026-11-03) Speak only from the surface that is showing: the covered inspector row announced
+   its count over the workspace's (the round's one severity 3). Figma's rule too -- the open
+   panel owns focus and feedback.
+5. (2026-11-03) The workspace has no layout below 1280 px (preview a 44 px sliver at 900 x 700).
+   Figma collapses side panels before the canvas; the width rule belongs in decided.md.
+6. (2026-11-03) Clear then Escape drops a new card unrecoverably: two decided rules collide.
+   Figma's answer: Escape never destroys work that undo cannot return. Needs a decided.md entry.
+7. (2026-11-03) A chosen reference shows only its id ("v02"); decided.md 694 says show the
+   matched value. Figma shows the layer's name, never its id.
+8. (2026-11-03) Pickers jumping above their field and covering Done, and the two hosts' value
+   pickers differing, are still mine and unconfirmed -- re-walk them first.
+9. (2026-11-03) Spec 5 controls not built (Yes | No segment, "# / %", top / bottom): grep the
    spec's control table before a walk.
-4. (2026-11-03) Drawing contradicts count: an untouched range draws a full brush while the step
-   counts 0. Figma draws unset as placeholder; same rule as the empty color line (2026-10-21).
-5. (2026-11-03) A two-step filter card rests as its first step's name, with no caret; Clear
-   renames a card "a selection"; a new card is named "trained pick yes or no".
-6. (2026-11-03) Works and is Figma's: the step "..." menu (Turn off Shift+Ctrl+H, Duplicate,
-   Ctrl+] / Ctrl+[, Del), the one color picker, selects opening over their trigger, the eye on
-   group rows, Condition... / Or... as words, Cancel, bounded 50,000-node lists.
-7. (2026-11-03) "Select 7" in a title "..." is decided (decided.md 402), not a bar 6 word.
-8. (2026-11-03) A finding that matches a calm-first one counts once, in bar 9 (smaller
-   allowance); list it as a pointer, not in my bar 7 count.
-9. (2026-10-30) Previews must show what the act will do before commit (tier 4 join preview).
-10. (2026-10-30) One fact drawn two ways sends people to a second menu: one component, one
-    resting drawing per pair (filter card vs Style card, sidebar outline vs workspace outline).
-11. (2026-10-30) Rate by the cost a reader paid; say "rule broken" separately. Skeptics cut
-    single-cause severity 3s; scripted repros survive.
-12. (2026-10-30) Look at the screenshot before trusting a `tooltip: null` line.
-13. (2026-10-21) An empty selection's Style tab should still point at what styles the content.
-14. (2026-10-20, owner) No UI sentences; tooltips that instruct are sentences too; a name that
-    instructs is a sentence at rest.
+10. (2026-11-03) Drawing contradicts count: an untouched range draws a full brush while counting 0.
+    Draw unset as placeholder.
+11. (2026-11-03) Words-at-rest counts from the script confirm nothing; chrome, graph statistics
+    and the user's own names are excluded. Hand count or no claim.
+12. (2026-10-30) One fact drawn two ways sends people to a second menu: one component, one
+    resting drawing, one number format per surface.
+13. (2026-10-30) Rate by the cost a reader paid; say "rule broken" separately. Skeptics cut
+    single-source findings and decided behavior; scripted repros survive.
+14. (2026-10-20, owner) No UI sentences; tooltips or names that instruct are sentences too.
 15. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
-    graphty's ontology. Never a task-word synonym.
+    graphty's ontology.
 
 ## Priorities and values
 
@@ -233,6 +236,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   cost a reader paid, and say "rule broken" separately when an approved surface is lost.
 - (2026-10-30) Worked: findings with a scripted repro survived the check (join preview, clipped
   ratio); findings resting on the tool's hover line did not.
+
+- (2026-11-03) Tier 5 round 1 insights: my walk's bar 7 list was mostly cut. Did not work:
+  rating eight items at 2 from one walk without scripted repros -- the skeptics kept only the one a
+  script reproduced. Worked: naming the decided.md line each finding departs from (both surviving
+  naming defects cite one). Next time: one repro, one screenshot, one decided.md line per finding.
 
 ## Thinking
 

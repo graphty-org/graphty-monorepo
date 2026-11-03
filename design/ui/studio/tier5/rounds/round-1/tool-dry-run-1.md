@@ -1,222 +1,303 @@
 # Tier 5 round 1: tool dry run 1
 
-Date: 2026-11-02. Build: d3fda9f2b6, served from the main checkout's
-`.study-builds/tier5-r1d2-d3fda9f2b6` (the first line of `../../criteria.md`). Tool: `../../../tool/real.mjs`
-at worktree commit 0910cffb53. Every session started for these checks is under the main checkout's
-`tmp/design-studio/tier5/r1/tool-check-1/` (`gate-pass1/`, `gate/`, `detours/`, `replay/`, `endstate/`,
-`steps-round/`, `wording/`, `prove/`); nothing was started in the studio's files, and no file of the studio, the
-tool or the build was changed. Briefing one session (check 5) wrote that session's `briefing.md` under the
-worktree's `tmp/studio-sessions/`.
+Date: 2026-11-03. Build: 1e123d7d33, served from the main checkout's
+`.study-builds/tier5-r1d1-1e123d7d33` (the first line of `../../criteria.md`). Tool: `../../../tool/` at
+worktree commit 17db260b87 (the tool's last change is fb61362abf). Every session started for these checks is
+under the main checkout's `tmp/design-studio/tier5/r1/tool-check-1/1e123d7d33/` (`gate/`, `match/`,
+`detours/`, `detours-any-screen/`, `replay/`, `repeat-T72A-d2/`, `repeat-T71B-d2/`, `repeat-T70A-d5/`, `prove/`,
+`prove-tier5/`, `bars-dark/`, `bars-light/`; the scoring checks in `selftests/`, `zero/`, `standin/` and
+`gatecopy/`). Nothing was started in the studio's files, and no file of the studio, the tool or the build was
+changed. Briefing the round's 30 sessions (check 5) wrote their `briefing.md` files under the worktree's
+`tmp/studio-sessions/`. An earlier version of this file covered build d3fda9f2b6; this one replaces it.
 
 ## Result
 
-Not ok. Checks 1, 2, 3, 5 and 7 pass. Check 6 fails: of the five things the criteria score by a script, none
-is built for tier 5 -- the step counter counts tier 4's core tasks, the grade scorer scores tier 3's bars, the
-end-state check reads no style layer, no script walks the tier 5 screens (bar 5's axe, the wording check, the
-50,000-node lists), and nothing reads the follow-up ratings. Check 4: 56 of the 67 commonest detours run to
-their end on the frozen build; 10 stop where the app or the setup now answers differently and need a walker, and
-one stops on a tool defect: a click on a control that is on screen fails on a stale element handle. The screen
-record that replays compare also counts controls hidden by `visibility: hidden`. The round gate accepts tier 1
-and 2 evidence for tier 5 (section 5).
+Not ok. Checks 2, 3, 5 and 7 pass (7 with `REAL_TIER` unset). Check 1 fails once, check 4 has two tool
+failures beside the app's own changes, and check 6 leaves three scored items with no script:
+
+- **Check 1.** The machine-wide count of studio browsers read 9 twice (00:32:30 and 00:32:32): `real.mjs
+  --prove`'s warm-pool check starts its browsers through a slot pool of its own (6 slots), outside the
+  machine's 8, while 8 other studio browsers were running (section 1).
+- **Check 4.** A name refused at one moment and taken at the next is still refused without a second look:
+  T72 A `detour-2`'s "Condition..." was refused in 1 of 12 replays of the same route on the same build,
+  with one "Condition..." on screen (section 4). And a route recorded by a replay that had found a refused
+  name resolved now replays that step instead of checking it, so T70 A `detour-5` diverges on the tool's own
+  note (section 4).
+- **Check 6.** Every script the criteria name exists, fails on its own planted failure and on zero items,
+  and runs on the frozen build; but no script counts words at rest per screen, runs the large-list check on
+  the rejected build's 50,000-node list, or reads T79's waits over 10 s, though the criteria hand all three
+  to a script (section 6).
+- **Beside check 7.** `real.mjs --prove` with `REAL_TIER=5` in its environment, as the tier 5
+  briefing's start command exports it, still fails five participant checks and stops on `ENOENT`; with
+  `REAL_TIER` unset it passes all 100 checks (section 7).
+
+What the scripts report about the build is clean: the scripted walk of the tier 5 screens finds no serious
+axe finding and no failing 50,000-node list in either theme, and the wording check finds no prompt word on the
+frozen build's screens (section 6). Separately from the tool, the round's gate still refuses the round
+(section 5).
 
 | #   | Check                                        | Result |
 | --- | -------------------------------------------- | ------ |
-| 1   | Browser gate                                 | pass |
+| 1   | Browser gate                                 | fail: 9 studio browsers for 2 seconds, from `--prove`'s own pool; the gate itself held 8 |
 | 2   | Matcher refuses an ambiguous name            | pass |
 | 3   | File drop on the start screen                | pass |
-| 4   | Detour walks replay without a tool error     | fail: 56 of 67 run to the end; 10 stop where the app changed; 1 tool error (stale handle) |
-| 5   | Participants cannot reach facilitator files  | pass (the gate's tier 5 checks are thin, section 5) |
-| 6   | Every script-scored bar has a working script | fail: no scoring script handles tier 5 |
-| 7   | Fast paths                                   | pass |
+| 4   | Detour walks replay without a tool error     | fail: 78 of 82 run to the end; 3 stop where the app changed; 1 stops on the tool's own note; one name refused in 1 of 12 replays |
+| 5   | Participants cannot reach facilitator files  | pass |
+| 6   | Every script-scored bar has a working script | fail: every named script works; 3 scored items have no script |
+| 7   | Fast paths                                   | pass (with `REAL_TIER` unset) |
 
 ## 1. Browser gate
 
-Ten `real.mjs --start ... empty` commands were launched at the same moment (`gate/s01` to `gate/s10`), twice.
-The first pass's count also matched the `with-browser.sh` shell wrappers (their command lines carry
-`real.mjs --serve`), so it is not used; its sessions ran the same way. In the second pass a one-second count of
-the node processes running `real.mjs --serve` or `real.mjs --warm` ran from before the starts through the
-ends, the detour replays, the single replay and the self-test (`poll.log`, 676 readings): its highest
-reading was 8, reached 99 times, never 9. Eight sessions started at once (two of them by taking a warm
-browser over); s03 and s04 printed `waiting for a free browser slot ...` and started once ends freed slots.
-All ten starts exited 0, and all ten were ended (`gate/exits.txt`). `BROWSER_SLOTS=17` and `BROWSER_SLOTS=99`
-each make `with-browser.sh` exit 2 with `BROWSER_SLOTS must be 1 to 16, not "17"` (and `"99"`);
-`BROWSER_SLOTS=16` runs its command, exit 0.
+Ten `real.mjs --start ... empty` commands were launched at the same moment (`gate/s01` to `gate/s10`), with
+`REAL_DIST` set to the frozen build. A count of the node processes running `real.mjs --serve` or `real.mjs
+--warm` (bash wrappers left out), about once a second, ran from before the starts to the end of every check
+in this file (`poll.log`, 1,143 readings from 00:26:41 to 00:52:10). s01, s04, s06 and s10 printed `waiting for a free browser slot ...`
+(s04 and s10 started while the other six ran, as slots came free). The script waits for every start before it ends any, so with all eight slots
+held two sessions (s02, s03) were ended by hand to let the queue move; then all ten starts had exited 0, and
+all ten ends exited 0 (`gate/exits.txt`). Every gate session records the NVIDIA renderer.
+`BROWSER_SLOTS=17` and `BROWSER_SLOTS=99` each make `with-browser.sh` exit 2 with `BROWSER_SLOTS must be 1
+to 16, not "17"` (and `"99"`); `BROWSER_SLOTS=16` runs its command, exit 0.
+
+The count's highest reading was 9, twice, at 00:32:30 and 00:32:32; every other reading was 8 or fewer. At
+that moment the detour replays, the tier 5 bars walk and a replay held the machine's 8 slots, and `real.mjs
+--prove` started `prove/warm-1` (00:32:29) and `prove/warm-2` (00:32:32). Its warm-pool check
+(`proveWarm` in `real.mjs`) runs those starts with `BROWSER_SLOT_DIR=<prove folder>/warm-slots` and
+`BROWSER_SLOTS=6`, a pool of its own, so its GPU browsers (two sessions and the warm browser between them)
+take no machine slot. A self-test run beside a round's eight sessions therefore puts up to three more GPU
+browsers on the card than the gate allows. The bounded-start check does the same: its planted one-slot pool
+(`BROWSER_SLOT_DIR=<prove folder>/slots`) ends by starting one real session outside the machine's slots. The
+gate's own cap works; the self-test goes around it.
 
 ## 2. Matcher
 
-- On the start screen, `--click Samples` did nothing and printed `ambiguous: "Samples" matches 2 controls,
-  so the step did nothing; name one: "role=button:Samples" button "Samples", "role=link:Samples" link
-  "Samples"`; `--click "Samples#1"` was refused too, as a pick by position among different kinds of control.
+- On the start screen (`match/`), `--click Samples` did nothing and printed `ambiguous: "Samples" matches 2
+  controls, so the step did nothing; name one: "role=button:Samples" button "Samples", "role=link:Samples"
+  link "Samples"`; `--click "Samples#1"` was refused too, as a pick by position among different kinds of
+  control.
 - With the volunteers network open, `--click Graph` did nothing and printed `ambiguous: "Graph" matches 2
   controls, so the step did nothing; name one: "Graph#1" button "Graph", "Graph#2" button "Graph
-  volunteers.graphml"` (the left rail's Graph and the sidebar's header, whose first word is Graph).
+  volunteers.graphml"`; `--click Graph#1` then took the left rail's Graph.
 
-Neither resolved to the first match.
+Neither name resolved to the first match. One refusal in check 4 is not stable between replays (section 4).
 
 ## 3. File drop
 
-`--drop volunteers.graphml` on the start screen (`gate/s02`) printed `dropped the file volunteers.graphml on the
-middle of the window (empty canvas); the page took it`, and the next screenshot (`gate/s02/02.png`) shows the
-volunteers network open (24 nodes, 63 edges). The drop goes through the browser's own input path. No screen of
-this build refuses a dropped file, so the "not delivered" message was not reached live; the self-test's planted
-page that takes no file reports it (section 7, "a drop the page does not take is reported as not delivered").
+`--drop volunteers.graphml` on the start screen printed `dropped the file volunteers.graphml on the middle of
+the window (empty canvas); the page took it`, and `match/04.png` shows the volunteers network open (24 nodes,
+63 edges). The drop is sent as Chromium input with the real file (`Input.dispatchDragEvent` through the
+DevTools protocol), not as events the page makes. No screen of this build refuses a dropped file, so the "not
+delivered" message was not reached live; the self-test's planted page that takes no file reports it ("a drop
+the page does not take is reported as not delivered", section 7).
 
 ## 4. Detours
 
-The commonest detours of every task half are the pilots' `detour-N` walks of the dry run's first pass
-(`tmp/design-studio/tier5/r1/pilot/<half>/detour-N/`, as the reports under `../../r1/pilot/` describe them, one
-walk per detour that `../../tasks.md`'s "Detours each pilot walks" lists): 67 walks over all 20 halves, recorded
-on baac78342b. No later pass re-walked them; its `touched-N` walks re-check what each fix changed. (`--only`
-takes walk names; the tool README's example `--only success,detours` names kinds of walk, and with it the rewalk
-finds nothing: `FAIL: no route.jsonl under ... for detours; nothing to replay`.) All 67 were
-replayed on the frozen build with `real.mjs --rewalk <r1/pilot> <tool-check-1/detours> --only
-detour-1,...,detour-6`, four at a time through the gate:
+The commonest detours of every task half (`../../tasks.md`, "Detours each pilot walks") are the pilots'
+`detour-N` walks, as the reports under `../r1/pilot/` and `../r1d1/pilot/` describe them: 82 walks over all
+20 halves. 72 are under `tmp/design-studio/tier5/r1/pilot/<half>/detour-N` (recorded on 0c163f54bf), 4 are
+T79 A's `detour-N-0c163f54bf` there (T79 A's plain `detour-N` are on the older baac78342b), and 6 are T71 B's
+and T74 B's `detour-1` to `detour-3` under `r1d1/pilot/`, recorded on the frozen build itself. All 82 were
+replayed with `real.mjs --rewalk ... --only detour-1,...` four at a time through the gate, twice: once with
+every check point (`detours/`), once with `REAL_REPLAY_TOLERANCE=100000`, the screen check point off and names
+and printed lines still checked (`detours-any-screen/`). (`--rewalk` also finds the older builds' copies kept
+in `r1d1/pilot/T71B/old-*` and `T74B/old-*`; they are left out of the counts.)
 
-- **36 matched** to the end (`all N steps matched`), among them every detour of T71 A, T72 A, T75 B, T76 A, T78 A
-  and T79 B, and 4 of T70 A's 6.
-- **31 diverged** (exit 5), each at a step where the frozen build, or the tool's setup, answers differently from
-  the recording, with the session ended and its folder renamed `-diverged`. 20 of them stop at step 1 or 2,
-  so those detours were not walked at all: most on the river gauges half and T75 A, where the recorded screen
-  held the data table and the matches strip drawn together and the frozen build draws the strip alone (the fix
-  of before-the-first-session item 8), and on T77 and T79 A, where a setup's start no longer leaves an Undo step
-  (the tool now empties the undo history after a setup: "Undo changing node color on Staff" gone, "Nothing to
-  undo" in place of "Undo changing the layout"). The rest stop later on a renamed control ("Node color:
-  PageRank" now "Node color: PageRank, 0.02796 to 0.05862, Orange to brown", T74 A), a changed count line (T73
-  A's step row) or a point that now lands on another thing (T70 A).
+- **78 of 82 matched** to the end in both passes, among them all 6 recorded on the frozen build and every
+  detour of T70 B, T71, T72, T73, T74, T75, T77, T78 and T79 B.
+- **3 stop where the app now answers differently**, each ended, its folder renamed `-diverged`, and a walker
+  has to carry on by hand from the screenshot:
+  - T76 A `detour-3` (step 27 of 37): a just-added color line now reads "Node color, not set" with no color
+    drawn (e85f37f53a); the recording read "Node color, not set, drawn #6366F1 indigo".
+  - T76 B `detour-2` (step 24 of 36): the same change; the color dialog and its Opacity slider the recording
+    had open are not there, and the walk's next typing finds no box.
+  - T79 A `detour-4-0c163f54bf` (step 3 of 15): Done, clicked while the 50,000-node edit says Drawing, now
+    closes the workspace; on 0c163f54bf the workspace stayed open (`r1/pilot/T79A/detour-4-0c163f54bf/04.png`).
+- **1 stops on the tool's own note** (T70 A `detour-5`, step 8 of 12, both passes and a third replay in
+  `repeat-T70A-d5/`): the route was recorded by a replay on 0c163f54bf in which `--hover "Covered by"`, refused
+  on baac78342b, was found to name one thing and was not done; the route keeps that as the step's printed line,
+  `"Covered by" was refused when recorded; it names p "5 nodes covered by Layer 1" now; not done`. This replay
+  does the hover (`tooltip: null`) instead of checking the name, and reports the difference as the app's.
+  `real.mjs` decides which names to check and not do from the recorded lines with `refusedName` (`match.mjs`),
+  which reads only an `ambiguous: ...` line, never its own `was refused when recorded` line. A walker reading
+  `-diverged` would take it for an app change; nothing in the app changed at that step.
 
-No replay printed a script error, a crash, a closed page or a failed tool step. To walk the 29 diverged routes
-outside T79 past the screens the fixes changed, they were replayed again with `REAL_REPLAY_TOLERANCE=100000`
-(the screen check point off; names and printed lines still checked) into `detours-any-screen/`: 20 of the 29 matched to the end. Together with the first replay, 56 of the
-67 detours ran to their last step on the frozen build. Of the other 11, ten stop where the app or the setup now
-answers differently and a walker has to carry on by hand from the screenshot:
+No replay of either pass printed a script error, a crash, a closed page, a failed click on a stale handle or a
+`SETUP FAILED` line, and every diverged session was ended.
 
-- a point that now lands on another thing (T70 A `detour-3`: the matches strip's "Shown" label moved);
-- a control's name that now carries its range or palette ("Node color: Betweenness, 0 to 25, Orange to brown",
-  T73 B `detour-1`, T74 A `detour-1`, T74 B `detour-1`) or a changed count line (T70 A `detour-5`, T73 A
-  `detour-1`);
-- an option list in another order (T72 B `detour-1`: "Has no value" where "Between" was);
-- the Undo step a setup used to leave (T77 A `detour-3`: "Staff" now names 2 controls, not 3; T79 A `detour-3`:
-  "Nothing to undo"), and a focus line naming the workspace's step row (T79 A `detour-2`).
-
-The eleventh, T71 B `detour-2`, is the tool's own failure below.
-
-**Defect: a click on a control that is on screen can fail on a stale handle.** In the second replay of T71 B
-`detour-2`, step 1 (`--click Data --click "Add filter" --click role=option:telemetry --click no --click
-Condition...`) printed `could not click "Condition...": elementHandle.click: Element is not attached to the DOM`,
-though "Condition..." is drawn in the properties pane of that step's screenshot
-(`detours-any-screen/T71B/detour-2-diverged/02.png`) and the same step clicked it in the first replay. The
-matcher (`match.mjs`, `find`) returns an element handle, and the click (`real.mjs`, `act` after `find`) acts on
-that handle; when the app re-renders the pane between the two (here, right after ticking "no" commits the
-step), the handle points at a node no longer in the page, and the click is reported as a miss instead of being
-found again by its name. A participant would read it as the app refusing the click, `steps.mjs` counts it as a
-step, and a replay reads it as the app having changed.
-
-**Defect: the screen check point counts controls hidden by `visibility: hidden`.** On the frozen build, while a
-selection workspace is open, the data table is kept in place but not drawn (`visibility: hidden`, the fix
-1c02b8a883). The replays' screen records on the river gauges half list 9 `button ` and 12 `row ` with empty
-names: the hidden table's header buttons and rows. `screenOf` in `real.mjs` keeps an element when
-`e.checkVisibility()` is true, and that call with no options does not test the `visibility` property, while
-`innerText` of a hidden element is empty. Every route recorded on this build with a workspace open therefore
-carries 21 phantom controls; they match on a replay of the same build, but they inflate every screen
-difference against a build that draws the table differently, and anyone reading `route.jsonl` for what was on
-screen counts controls a person cannot see. The matcher is not affected (it keeps only Playwright-visible
-handles).
+**A name refused in one replay and taken in the others.** T72 A `detour-2` matched in both passes. Replayed
+ten more times alone on the frozen build (`repeat-T72A-d2/run1` to `run10`), it stopped once (run 1) at step
+2 (`--click role=option:kind --click company --click agency --click Condition... ...`) with `ambiguous:
+"Condition..." matches 2 controls, so the step did nothing; name one: "Condition...#1" button "Condition...",
+"Condition...#2" button "Condition..."`, while the step's screenshot (`run1/03.png`) shows one "Condition..."
+(the pane's, beside "Or..."); the other nine matched all 6 steps. So for a moment after the "agency" click the
+page held two buttons of that name, and the matcher read it then: between batched steps the tool waits for two
+quiet frames, or gives up after 2 seconds (`__realIdle` in `real.mjs`), then resolves the next name once, with
+no second look before refusing. A participant whose step met that moment would read a refusal of a control
+they see once, and `steps.mjs` and the replays would count it as theirs. The same was seen in the previous
+tool dry run on d3fda9f2b6. T71 B `detour-2`, whose click once failed on a stale element handle, matched in
+both passes and in three more replays (`repeat-T71B-d2/`).
 
 ## 5. Participants and facilitator files
 
-- `real.mjs --brief .../tier5/rounds/round-1/sessions/r1-s05` (T71 A, Grace) exited 0 and wrote
-  `tmp/studio-sessions/tier5/rounds/round-1/sessions/r1-s05/briefing.md` in the worktree, outside the studio's
-  files; the folder holds only that file. It holds Grace's two persona files without the sections written for
-  the study team, her history from `roster.md` ("Your earlier sessions with this program"), the T71 A prompt word
-  for word, the start command (`REAL_DIST=<frozen build> REAL_TIER=5 ... --start <her folder>
-  setup:volunteers.txt`) and the tool's "A session", "Steps" and "Names, dialogs and lists". It holds no answer
-  key, path, avoided-words or kept-words list, follow-up (no "On a scale from 1", no question about what she
-  looked at besides the drawing), facilitator note, criteria, the B prompt or another participant's name.
-  "gauges" appears only in the tool's table of data files; "overwhelm" only in Grace's own persona evidence.
-- `real.mjs --start .../tier5/rounds/round-1/sessions/r1-s05 setup:volunteers.txt` was refused, exit 2, naming
-  the folder to brief and start instead; nothing started and no `sessions/` folder was created in the round.
-- `real.mjs --start` of the briefed folder under `tmp/studio-sessions/` was refused too, exit 1: the round's
-  `plan.md` has no "Gate evidence" section. `real.mjs --gate .../tier5/rounds/round-1` exits 1 with three
-  `FAIL:` lines: no keyboard walk of T70 A on the frozen build, no detours walk of T78 B on the frozen build,
-  and no bars run (`round-1/bars/bars.json`). So no session of the round can start yet, as intended. But the
-  gate checks tier 5 as it checks tier 2: it asks for one `bars.mjs` run with no `--tier` and in one theme (it
-  checks the tier, the theme and the walked screens only for tiers 3 and 4), refuses "pilot to confirm" but not
-  "the dry run reads", and of before-the-first-session items 3 to 9 checks only that each half has its walks
-  (`../../criteria.md` lists the rest as owed). A tier 1 and 2 bars run plus
-  the two missing walks would let the round start with none of tier 5's own evidence.
-- `real.mjs --prove` (section 7): "a participant transcript that opens tasks.md voids the session, by name" and
-  "an end copies the session into the round's folder with the leak check beside it" pass.
+- `real.mjs --brief .../tier5/rounds/round-1/sessions/<id>` was run for all 30 planned sessions; each exited
+  0 and wrote `tmp/studio-sessions/tier5/rounds/round-1/sessions/<id>/briefing.md` in the worktree, outside
+  the studio's files, each folder holding only that file. The one read in full (r1-s03, T70 A, Dana) holds
+  her persona file without the sections written for the study team, her history from `roster.md` ("Your
+  earlier sessions with this program"), the T70 A prompt word for word (checked against `../../tasks.md`), the
+  start command (`REAL_DIST=<frozen build> REAL_TIER=5 ... --start <her folder> setup:volunteers.txt`) and the
+  tool's "A session", "Steps" and "Names, dialogs and lists". Searched for in all 30 and absent: the
+  follow-up ("On a scale", "Overwhelm", "least sure"), "Kept on purpose", "Kept in every task", "Avoided",
+  "Path steps", "Grade:", "Prompt A", "Prompt B", `tasks.md`, `answers.md`, "criteria", "hypothes", "Why this
+  persona", "Evidence limits". The one hit, "facilitator" in Alex's five briefings, is his persona's own rule
+  for playing him ("does not propose UI solutions unless the facilitator asks"), not a facilitator note.
+  "gauges" appears only in the tool's table of data files. Sam's two briefings (r1-s29, r1-s30) carry
+  `--keys` on the start command; the other 28 do not.
+- `real.mjs --start .../tier5/rounds/round-1/sessions/r1-s03 setup:volunteers.txt` was refused, exit 2,
+  naming the folder to brief and start instead; nothing started and no `sessions/` folder was created in the
+  round.
+- `--start` of the briefed folder under `tmp/studio-sessions/` was refused too, exit 1: the round's `plan.md`
+  has no "Gate evidence" section, so no session of the round can start yet.
+- `real.mjs --prove`: "a participant transcript that opens tasks.md voids the session, by name" and "an end
+  copies the session into the round's folder with the leak check beside it" pass (section 7).
+
+The gate run on a copy of the round folder (`gatecopy/`, so the real `plan.md` is not written) names what
+still stands between the round and its first session, besides the walks it looks for beside the copy:
+`../../answers.md` keeps six "Build notes" headings for builds other than the frozen one (0c163f54bf,
+c3100058ab, 47c95a09fc, 797a4f6b47, baac78342b, fc1d7ee4f6); `../../decided.md` has no "Reference
+screenshots" section; and the round's `bars/` and `bars-light/` were measured on d3fda9f2b6, not the frozen
+build. These are the round's evidence, not tool failures; the bars runs of section 6 show the frozen build
+passes them.
 
 ## 6. Script-scored bars
 
-The criteria score five things by a script, a check or a count: bars 1 to 3 from the grades' first lines, bar
-4's end-state check, bar 5's scripted walk of the tier 5 screens (axe, and with it the wording check of
-before-the-first-session item 5 and the 50,000-node lists), bar 8's step count (`tool/steps.mjs`), and bar 9's
-median of the follow-up ratings (`Overwhelm:` in each grade). Each script that exists catches its own planted
-failures, but none of the five is built for tier 5:
+The criteria score bars 1 to 3 and bar 9's named elements from the grades' lines (`tool/score.mjs`), bar 4's
+end-state check (`tool/endstate.mjs`), bar 5's axe and item 5's scripted walk with the 50,000-node lists
+(`tool/bars.mjs --tier 5`) and its wording check (`tool/wording.mjs`), and bar 8's step count
+(`tool/steps.mjs`). `tool/keydraw.mjs` (key against drawing) was checked with them.
 
-| Bar | Script | Exists | Fails on its own planted failure | Fails on zero items | Runs on the frozen build for tier 5 |
-| --- | ------ | ------ | -------------------------------- | ------------------- | ----------------------------------- |
-| 1-3 | `tool/score.mjs` | yes | yes, `--self-test` exit 0 | yes | **no**: it scores tier 3's bars |
-| 4 | `tool/endstate.mjs` | yes | yes, `--self-test` exit 0 | yes | **partly**: filter cards and sources only |
-| 5 (and item 5) | `tool/bars.mjs` for the tier 5 screens; `tool/wording.mjs` | `bars.mjs` takes only `--tier 3` and `--tier 4`; `wording.mjs` yes | `wording.mjs --self-test` exit 0 | `wording.mjs` fails without `spoken.json` | **no**: no tier 5 walk exists |
-| 8 | `tool/steps.mjs` | yes | yes, `--self-test` exit 0 | yes | **no**: it counts tier 4's core tasks |
-| 9 | none | **no** | -- | -- | **no** |
+| Bar | Script | Exists | Fails on its own planted failure | Fails on zero items | Runs on the frozen build |
+| --- | ------ | ------ | -------------------------------- | ------------------- | ------------------------ |
+| 1-3, 9 | `score.mjs` | yes | yes, `--self-test` exit 0 | yes, exit 1 | yes |
+| 4 | `endstate.mjs` | yes | yes, `--self-test` exit 0 | yes, exit 1 | yes |
+| 5 (and item 5) | `bars.mjs --tier 5` | yes | yes, 36 planted cases caught per theme | yes (a run that reads no 50,000-node list or no keyword is not trusted) | yes |
+| item 5 | `wording.mjs` | yes | yes, `--self-test` exit 0 | yes, exit 1 | yes |
+| 8 | `steps.mjs` | yes | yes, `--self-test` exit 0 | yes, exit 1 | yes |
+| -- | `keydraw.mjs` | yes | yes, `--self-test` exit 0 | yes, exit 1 | yes |
 
-**Bars 1 to 3.** `score.mjs` run on a stand-in tier 5 round (`steps-round/`: the round's `plan.md`, two T70 A
-sessions each holding the frozen build's T70 A success route and `Grade: S`, `False done: no`, `Wrong turns: 0`)
-reads the grade lines, but judges bar 1 by tier 3's rule: "T70 success (not judged: fewer than 4 sessions, so it
-does not hold)". Tier 5's bar 1 needs 3 of 4 on a four-session task and 2 of 2 on a two-session task (T72, T75,
-T77, T79), and leaves Sam's sessions out; `score.mjs` has no two-session rule and no notion of the keyboard-only
-sessions. It also scores a tier 3 "bar 4" (`T39: steps to every node in one new color`) that tier 5 does not
-have, and so exits 1 on any tier 5 round.
+`node --test` of `with-browser.test.mjs` (5 of 5), `tier5.test.mjs` (3 of 3), `match.test.mjs` (2 of 2) and
+`measure.test.mjs` (2 of 2) pass.
 
-**Bar 4.** `endstate.mjs` over copies of seven frozen-build pilot success walks (`endstate/`: T70 A and B, T71 A
-and B, T73 A, T74 A, T78 A) exits 0 with 1 to 3 items each. Those items are filter cards and data sources only:
-tier 5's end-state check is also "each layer's selection count against the members the element paints" and
-"the styling after the session against the styling before it with every preview ended (a layer left suspended
-is a severity 4 candidate the script itself confirms)". `data.json` as `real.mjs --end` writes it holds no style
-layer at all (its keys: counts, sources, knownFields, weight, columns, filters, filter, window), the script reads
-no `styles.json` or `styles-start.json`, and its self-test plants no layer mismatch and no suspended preview.
-So the T70 A, T73 A and T74 A style-layer sessions are checked on nothing their task changed. Before-the-first-
-session item 4 ("`real.mjs --end` writes each layer's selection ... into the end-state records") does not hold.
+**Zero items** (`zero/`): on a tier 5 round folder with a plan and no session, `score.mjs --tier 5` prints
+`PROBLEM: no valid pointer session, so no bar was measured`; `steps.mjs --tier 5` fails every core task with
+`no counted session`; `endstate.mjs` prints `FAIL: read zero items in 0 session folders`; `keydraw.mjs`
+prints `FAIL: read no key row in 0 sessions`; `wording.mjs` on an empty `vocabulary.json` prints `FAIL: read
+20 prompts, 0 screens and 0 screens' spoken text; a check over nothing checks nothing`. All exit 1.
 
-**Bar 5 and the wording check.** `bars.mjs` reads `--tier 3` and `--tier 4` only (`const OWN = TIER === "3" ||
-TIER === "4"`); `--tier 5`, or no `--tier`, runs tier 1's and tier 2's bars. Nothing walks the tier 5 screens
-of item 5 (the outline, the workspace, its picker, a step pane, the Except switch, the reference picker, an Or
-group, Advanced with Edges where, No match, the matches strip, and the 50,000-node checklist and lists) or checks
-a list against "Large graphs", and no tier 5 `vocabulary.json` or `spoken.json` exists anywhere under
-`tmp/design-studio/tier5/`. `wording.mjs` itself reads tier 5's `tasks.md`: against a planted screen
-(`wording/`) it read all 40 prompts, reported "reception" (T71, on screen) and "evening" (T71, spoken) and
-kept "board" and "picture", exit 1. It has nothing from the frozen build to read, and it does not take the
-build's own strings, option labels or the catalog's search keywords that item 5 names.
+**A stand-in round on the frozen build** (`standin/`): the round's own `plan.md` (30 sessions), each session a
+copy of the frozen build's pilot success walk of its half (`tmp/design-studio/tier5/r1d1/pilot/<half>/success`,
+T79 A's `success-1e123d7d33`; all 20 halves) with a passing grade and an `Overwhelm: 2 -- none -- ...` line.
+`score.mjs` applies tier 5's rules: 3 of 4 on T70, T71, T73, T74 and T78, 2 of 2 on T72, T75, T77 and T79,
+Sam's two `--keys` sessions left out of bars 1 to 3 and reported as bar 5's "S or SD", bar 9's ratings per
+half; every scripted bar holds, exit 0. `endstate.mjs` reads 4 to 6 items from each of the 30 sessions, style
+layers included (4 layers in r1-s01), and finds no mismatch, exit 0. `keydraw.mjs` reads 35 key rows over the
+30 sessions with no disagreement, exit 0. `steps.mjs` counts T70, T71, T73, T74 and T78 against the answer
+key's "Path steps" and reports Sam's sessions apart; it holds T70 (median 1 over) and T71 (2 over) and fails
+T73, T74 and T78 (12.5, 4 and 8 over), exit 1: the pilot success walks of T73 A (36 inputs), T74 B (19) and
+T78 B (34) go on after success, so the failure is the walks', not the script's.
 
-**Bar 8.** `steps.mjs` holds `CORE = ["T61", "T62", "T65", "T67"]`, tier 4's core tasks. On the stand-in round
-with tier 5's `answers.md` it reports `FAILS T61 (path A null, B null): no path step count in answers.md for
-T61A` (and T62, T65, T67) and never counts T70, T71, T73, T74 or T78, exit 1. Item 6 ("`tool/steps.mjs` counts
-tier 5's core tasks") does not hold. `answers.md` does hold a "Path steps" number for each core half, though
-some say they were read on baac78342b or 797a4f6b47 rather than on the frozen build.
+**Bar 5 and item 5 on the frozen build** (`bars-dark/`, `bars-light/`, each `bars.mjs --tier 5 --scheme
+<theme> --dist <frozen build>`): each walked all 36 screens at 1440 x 900 and 900 x 700 with no `MISS` line,
+caught all 36 planted cases, is not marked untrusted, and exited 0. In both themes: 0 serious or critical axe
+findings on every screen; 88 lists read on the 50,000-node screens, 26 of them long or partial, and all 26 hold
+"Large graphs" (bounded, a count, a search). `wording.mjs` against `../../tasks.md` and each run's
+`vocabulary.json` (which holds the catalog's search keywords) reads 20 prompts against 36 screens and their
+spoken text: 0 shared words and 0 shared phrases not kept on purpose, exit 0. The runs list controls that share
+a name (the Data place filter card's "Use Except role staff" checkbox twice on its screens) and text cut off
+with no way to read it whole (the workspace header at 900 x 700); these are findings for the experts, which
+gate nothing in the run.
 
-**Bar 9.** No script reads `Overwhelm:`; `../../criteria.md` lists it as owed ("nothing parses
-`Overwhelm:`").
+**Not scored by any script.** Three things the criteria hand to the scripted walk or the step logs have no
+script that scores them:
+
+- **Words at rest per screen** (item 5, and bar 9's "Cramped" row: "counted per screen by the scripted walk
+  (`bars.mjs --tier 5`) against ... about 30 and 40 at most"). `bars.mjs --tier 5` counts no words at rest:
+  both runs print `bar 9 (a): 1 app words at rest ... (tier 1 not measured)`. The criteria say "Until the
+  walk counts them, 'Cramped' below is 'not re-tested'", so this gates nothing, but item 5 is not fully
+  scripted.
+- **The rejected build's "While has nodes" list at 50,000 as a case the large-list check must flag** (item
+  5). The check's planted case is a made-up list of 2,000 options (`measure.mjs`, `biglist`), not the
+  rejected build's list; nothing runs the check on that build.
+- **T79's waits** (bar 9: "each wait on T79's path ... of more than 10 s with a sign of work but no progress",
+  from `route.jsonl` and the scripted walk). No script reads them; `score.mjs` and `steps.mjs` read no
+  timing. Read by hand from the frozen build's two T79 success walks, no step took more than 7 s in all
+  (`ms.total`, longest 6.9 s, the Which nodes click on 50,000 nodes).
 
 ## 7. Fast paths
 
-- **GPU renderer.** Every session these checks started (20 gate sessions in two passes, the single replay, every
-  detour replay, and the self-test's 18 sessions) records `"renderer": "ANGLE (NVIDIA, Vulkan 1.4.312 (NVIDIA
-  NVIDIA GeForce RTX 4070 SUPER (0x00002783)), NVIDIA)"` in its `session.json`; none is SwiftShader.
-- **Warm takeover.** In the second gate pass, after the first pass's ends had topped the pool up, `gate/s02` and
-  `gate/s06` say `took over warm browser ... (warm for 18 s)` in their `session.log`, and so does the single
-  replay below.
-- **Replay.** `real.mjs --replay` of the frozen build's T70 A success walk
-  (`tmp/design-studio/tier5/r1d2/pilot/T70A/success`, 15 steps) into `replay/T70A-success` printed
-  `replayed all 15 steps; every check point matched; session ended`, exit 0.
-- **Self-test.** `REAL_PROVE_DIR=<tool-check-1>/prove real.mjs --prove` on the frozen build: 98 checks `ok`,
-  "every check passed", exit 0, among them "a batch stops at its first miss: the steps after it do not run", "a
-  replay of an unchanged route matches every check point and ends the session", "a replay stops at the first
-  step whose check points differ, and leaves the session open there", "a rewalk replays every route: the
-  unchanged one matches, a missing control and a changed screen diverge and keep their folder aside", "the next
-  start of the same build takes over the warm browser, with the app already open", "the session draws on the
-  GPU, not SwiftShader (session.json names the renderer)" and "a drop the page does not take is reported as not
-  delivered".
+- **GPU renderer.** All 317 sessions these checks started (`find ... -name session.json` under
+  `tool-check-1/1e123d7d33/`) record `"renderer": "ANGLE (NVIDIA, Vulkan 1.4.312 (NVIDIA NVIDIA GeForce RTX
+  4070 SUPER (0x00002783)), NVIDIA)"`; none is SwiftShader.
+- **Warm takeover.** `match/session.log` says `took over warm browser 3898761 (warm for 17 s)`, after the gate
+  sessions' ends had topped the pool up, and so do 16 of the 24 replays in `replay/` (for example
+  `replay/T70A-success`: `warm for 11 s`). No gate session took one over: the pool was empty when the ten
+  started together.
+- **Replay.** `real.mjs --replay` of the frozen build's pilot success walk of every one of the 20 halves
+  (`tmp/design-studio/tier5/r1d1/pilot/<half>/success`, T79 A's `success-1e123d7d33`, 7 to 20 steps) into
+  `replay/` printed `replayed all N steps; every check point matched; session ended`, exit 0, each, the two
+  50,000-node walks included. So did the frozen build's keyboard walks of T71 A, T71 B, T74 B and T75 A (39
+  to 82 steps), each replayed as a `--keys` session (`keyboardOnlyMode: true` in its `session.json`).
+- **Self-test.** `REAL_PROVE_DIR=<tool-check-1/1e123d7d33>/prove real.mjs --prove` on the frozen build, with
+  `REAL_TIER` unset: 100 checks `ok`, `every check passed`, exit 0, among them "a batch stops at its first
+  miss: the steps after it do not run", "a replay of an unchanged route matches every check point and ends the
+  session", "a replay stops at the first step whose check points differ, and leaves the session open there",
+  "a rewalk replays every route: the unchanged one matches, a missing control and a changed screen diverge
+  and keep their folder aside", "the next start of the same build takes over the warm browser, with the app
+  already open", "the session draws on the GPU, not SwiftShader", "a drop the page does not take is reported
+  as not delivered", "the gate refuses BROWSER_SLOTS above 16", "a participant transcript that opens tasks.md
+  voids the session, by name" and "an end copies the session into the round's folder with the leak check
+  beside it".
+- The same command with `REAL_TIER=5` (`prove-tier5/`), as the tier 5 briefing's start command exports it,
+  fails five participant checks ("a briefing holds the prompt word for word ...": `--brief: tasks.md has no
+  Prompt B for T18`; "a briefing for a studio session folder is written outside the studio's files": `no
+  Prompt A for T20`; "a start refuses a session of a round whose plan holds no gate evidence"; "a participant
+  transcript that opens tasks.md voids the session, by name": `no briefing; no participant log`) and stops on
+  `ENOENT ... r9-s01/01.png`, exit 1. Its planted round uses tier 2's tasks (T18, T20), and `REAL_TIER=5`
+  makes `--brief` read tier 5's `tasks.md`. Its participant folders are also written under the studio's
+  `design/ui/studio/tmp/prove-tier5/`, not under `REAL_PROVE_DIR` (git ignores that folder).
 - `node --test tool/with-browser.test.mjs`: 5 tests, 5 pass, 0 fail.
+
+## Problems
+
+Of the tool:
+
+1. `real.mjs --prove`'s warm-pool check (and its planted one-slot pool) starts GPU browsers through a slot
+   pool of its own, so the machine count of studio browsers reached 9 while it ran beside 8 others (section
+   1). The gate caps what goes through it; the self-test does not go through it.
+2. A click's name can be refused as shared at a moment the page holds a second, short-lived control of that
+   name: T72 A `detour-2`'s "Condition..." was refused in 1 of 12 replays of one route on the frozen build,
+   with one "Condition..." on screen (`repeat-T72A-d2/run1/03.png`). The matcher resolves a name once, after
+   an idle wait that can give up at 2 seconds, and does not look again before refusing (section 4). Found in
+   the previous tool dry run on d3fda9f2b6 too; the tool has not changed since.
+3. A replay does not recognize its own "was refused when recorded; it names ... now; not done" line in a
+   route it recorded: `real.mjs` builds the names to check-not-do from the recorded lines with `refusedName`
+   (`match.mjs`), which matches only an `ambiguous: ...` line. A route recorded by a replay that found a refused
+   name resolved (T70 A `detour-5` on 0c163f54bf) therefore does that step on its next replay and diverges on
+   the tool's own note: `recorded ["\"Covered by\" was refused when recorded; it names p \"5 nodes covered by
+   Layer 1\" now; not done"], now ["tooltip: null"]` (section 4).
+4. `real.mjs --prove` with `REAL_TIER=5` in its environment fails five participant checks and stops on
+   `ENOENT ... r9-s01/01.png` (section 7). It passes, 100 checks, with `REAL_TIER` unset.
+5. Three scored items have no script: words at rest per screen, the rejected build's 50,000-node list as the
+   large-list check's case, and T79's waits over 10 s (section 6).
+
+Of the round's evidence (not tool failures):
+
+6. Three detours stop where the app now answers differently (section 4): T76 A `detour-3` and T76 B
+   `detour-2` (a just-added color line shows no color, e85f37f53a) and T79 A `detour-4-0c163f54bf` (Done
+   during Drawing now closes the workspace). They need a walker on the frozen build before the gate's
+   detours evidence rests on them; T70 A `detour-5` needs one too until problem 3 is fixed. The frozen
+   build's pilot success walks of T73 A, T74 B and T78 B go on after success, so they cannot stand in for
+   the answer key's path counts (section 6).
+7. The round's gate still refuses it: six "Build notes" headings for other builds in `answers.md`, no
+   "Reference screenshots" section in `decided.md`, the round's `bars/` and `bars-light/` measured on
+   d3fda9f2b6, and no "Gate evidence" in `plan.md`; so `--start` refuses every session of the round (section
+   5). The bars runs of section 6 (`bars-dark/`, `bars-light/` under this check's folder) show the frozen
+   build passes the scripted walk, but they are not in the round's folder.

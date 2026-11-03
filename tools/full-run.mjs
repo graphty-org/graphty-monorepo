@@ -232,17 +232,19 @@ function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNig
     const on = { judged, firstParents, stray, sameBaselines, onNightly, hasNightly, hold };
     const preferred = rule?.sha && rolling.on ? slotOn(rule.sha, on) : undefined;
     // a preferred commit that would only inherit a verdict tests nothing: the slot keeps today's rule
-    let p = preferred?.run ? preferred : slotOn(today, on);
-    let why = p.sha === today ? p.why : `ordering: ${rule.why}: ${p.why}`;
-    // a promotion just before the slot (#5671): nightly's version merge is master's head, but its site is not recorded
-    // yet, so the newest built commit is older than nightly. The slot tests master's head instead; when the head has
-    // nothing past nightly to test either, nightly is current (output current) and the slot is no missed slot
-    if (!p.run && !hasNightly(p.sha)) {
-        const tip = head !== p.sha && hasNightly(head) ? slotOn(head, on) : p;
-        if (tip !== p) why = `${why}; master's head ${short(head)} holds it: ${tip.why}`;
-        p = { ...tip, current: !tip.run };
-    }
-    return { ...p, why, today, rolling: rule };
+    const p = preferred?.run ? preferred : slotOn(today, on);
+    const why = p.sha === today ? p.why : `ordering: ${rule.why}: ${p.why}`;
+    return { ...pastNightly({ ...p, why }, head, on), today, rolling: rule };
+}
+
+// A promotion just before the slot (#5671): nightly's version merge is master's head, but its site is not recorded
+// yet, so the newest built commit is older than nightly. The slot tests master's head instead; when the head has
+// nothing past nightly to test either, nightly is current (output current) and the slot is no missed slot.
+function pastNightly(p, head, on) {
+    if (p.run || on.hasNightly(p.sha)) return p;
+    if (head === p.sha || !on.hasNightly(head)) return { ...p, current: true };
+    const tip = slotOn(head, on);
+    return { ...tip, why: `${p.why}; master's head ${short(head)} holds it: ${tip.why}`, current: !tip.run };
 }
 
 function slotOn(sha, { judged, firstParents, stray, sameBaselines, onNightly, hasNightly, hold }) {

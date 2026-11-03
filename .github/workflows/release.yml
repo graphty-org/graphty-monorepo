@@ -363,6 +363,8 @@ jobs:
             good: ${{ steps.candidate.outputs.good }}
             # why the slot tests that commit, or nothing (the missed-slot alarm's "no new candidate")
             why: ${{ steps.candidate.outputs.why }}
+            # "true" when nightly already holds everything the slot could test (#5671): the slot job files nothing
+            current: ${{ steps.candidate.outputs.current }}
             # none when the handoff step tests this run's own commit instead (its master build may still be running)
             build_run: ${{ steps.handoff.outputs.sha == '' && steps.candidate.outputs.build_run || '' }}
             # the held candidate's head (tools/full-run.mjs pick): "" none, "unknown" when the store did not answer
@@ -2341,6 +2343,7 @@ jobs:
                   PICK_RESULT: ${{ needs.pick.result }}
                   RELEASE: ${{ needs.pick.outputs.release }}
                   PICK_WHY: ${{ needs.pick.outputs.why }}
+                  CURRENT: ${{ needs.pick.outputs.current }}
                   RESUME: ${{ needs.pick.outputs.resume }}
                   SHA: ${{ needs.pick.outputs.sha }}
                   STATE: ${{ needs.verdict.outputs.state }}

@@ -151,7 +151,8 @@ describe("pick", () => {
         const seen = [];
         const hasNightly = (sha) => (seen.push(sha), false);
         const p = pick({ mode: "full", head: "h", store: store([]), firstParents, stray: code, hasNightly });
-        assert.deepEqual([p.run, p.sha, seen], [false, "c3", ["c3"]]);
+        // master's head h is asked too (#5671): it predates nightly as well, so nightly holds everything
+        assert.deepEqual([p.run, p.sha, p.current, seen], [false, "c3", true, ["c3", "c3", "h"]]);
         assert.match(p.why, /c3 lacks channel\/nightly: it is older than nightly/);
         // even a green-clean one nightly lacks: its promotion would be refused at land
         const own = store([{ sha: "c3", state: "green-clean" }]);
@@ -160,6 +161,23 @@ describe("pick", () => {
             pick({ mode: "full", head: "h", store: own, firstParents, stray: code, onNightly: off, hasNightly }).run,
             false,
         );
+    });
+
+    it("tests master's head when nightly was promoted just before the slot (#5671)", () => {
+        // the promotion's version merge h is master's head; c3, the newest built commit, is older than nightly
+        const parents = (sha) => (sha === "h" ? ["h", ...CHAIN] : firstParents(sha));
+        const hasNightly = (sha) => sha === "h";
+        const base = { mode: "full", head: "h", firstParents: parents, hasNightly, stray: code };
+        const p = pick({ ...base, store: store([]) });
+        assert.deepEqual([p.run, p.sha, p.current], [true, "h", false]);
+        assert.match(p.why, /c3 lacks channel\/nightly.*master's head h holds it: h is not judged yet/);
+        // h only adds versions to c3, the promoted commit: nightly holds everything, so no missed slot
+        const promoted = store([{ sha: "c3", state: "green-clean" }]);
+        const q = pick({ ...base, store: promoted, stray: () => [] });
+        assert.deepEqual([q.run, q.sha, q.current, q.inherit?.sha], [false, "h", true, "c3"]);
+        // a head that predates the promotion too: nothing to test, and still no missed slot
+        const r = pick({ ...base, store: store([]), hasNightly: () => false });
+        assert.deepEqual([r.run, r.sha, r.current], [false, "c3", true]);
     });
 
     it("finds the last green commit for the bisect, past a red one", () => {

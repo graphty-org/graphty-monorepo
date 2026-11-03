@@ -5,7 +5,8 @@
 //   node tools/full-run.mjs pick      which commit to test, or why the slot does nothing
 //       env MODE (full | restart | candidate), HEAD_SHA (the commit the run started on); RESULTS_URL and the job's
 //       OIDC token; PICK_RULE "rolling" lets the ordering-only rule choose (early-capture.md 4e; otherwise it is only
-//       logged); writes run, sha, why, good, held, forward, today, rolling_sha and rolling_why to GITHUB_OUTPUT
+//       logged); writes run, sha, why, good, held, forward, current, today, rolling_sha and rolling_why to
+//       GITHUB_OUTPUT
 //   node tools/full-run.mjs verdict   the verdict on the tested commit: posted to the store, the red issue filed or
 //                                     closed, one bisect dispatched, the outcome announced
 //       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
@@ -116,7 +117,8 @@ export const LANES = {
  *     candidate older than nightly could never promote (the land job refuses it), so the slot does nothing
  * @param o.rolling the ordering-only rule's inputs for a full slot (`{ on, tree, captures }`, see rollingPick), or
  *     null; with `on` false the rule's choice is only returned, never tested
- * @returns `{ run, sha, why, good, inherit, held, forward, today, rolling }`; inherit is the verdict the commit takes
+ * @returns `{ run, sha, why, good, inherit, held, forward, current, today, rolling }`; current is true when nightly
+ *   already holds everything the slot could test; inherit is the verdict the commit takes
  *   over, when it does; held is the held candidate's head ("" when nothing is held, "unknown" when the store did not
  *   answer); forward is the held commit when the tested head is past it; today is what today's rule chose and
  *   rolling the ordering rule's `{ sha, why }`
@@ -230,8 +232,16 @@ function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNig
     const on = { judged, firstParents, stray, sameBaselines, onNightly, hasNightly, hold };
     const preferred = rule?.sha && rolling.on ? slotOn(rule.sha, on) : undefined;
     // a preferred commit that would only inherit a verdict tests nothing: the slot keeps today's rule
-    const p = preferred?.run ? preferred : slotOn(today, on);
-    const why = p.sha === today ? p.why : `ordering: ${rule.why}: ${p.why}`;
+    let p = preferred?.run ? preferred : slotOn(today, on);
+    let why = p.sha === today ? p.why : `ordering: ${rule.why}: ${p.why}`;
+    // a promotion just before the slot (#5671): nightly's version merge is master's head, but its site is not recorded
+    // yet, so the newest built commit is older than nightly. The slot tests master's head instead; when the head has
+    // nothing past nightly to test either, nightly is current (output current) and the slot is no missed slot
+    if (!p.run && !hasNightly(p.sha)) {
+        const tip = head !== p.sha && hasNightly(head) ? slotOn(head, on) : p;
+        if (tip !== p) why = `${why}; master's head ${short(head)} holds it: ${tip.why}`;
+        p = { ...tip, current: !tip.run };
+    }
     return { ...p, why, today, rolling: rule };
 }
 
@@ -762,6 +772,8 @@ async function pickMain(env) {
         why: p.why,
         held: p.held ?? "",
         forward: p.forward ?? "",
+        // nightly already holds everything the slot could test (#5671): no missed slot
+        current: String(p.current === true),
         // the trial's comparison (early-capture.md 4e): what today's rule and the ordering rule chose
         today: p.today ?? "",
         rolling_sha: p.rolling?.sha ?? "",

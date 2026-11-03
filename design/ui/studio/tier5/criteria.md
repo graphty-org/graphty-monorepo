@@ -1,4 +1,4 @@
-The study runs on build f0a9a014cb served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d1-f0a9a014cb
+The study runs on build d3fda9f2b6 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d2-d3fda9f2b6
 
 Frozen on 2026-11-02 for the tier 5 rounds. This is the dry run's first build: each dry-run fix
 pass refreezes on a new build, names it on the first line and the build before it here.
@@ -458,3 +458,7 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
     - T75 A's Largest component note adds that the step inside the Degree card also reads 112, and
       that after Done a card the pointer is not on can show Edit in place of its count, so the
       count is read from the top bar.
+- 2026-11-02: the dry run's sixth build, d3fda9f2b6 in `.study-builds/tier5-r1d2-d3fda9f2b6`,
+  replaces f0a9a014cb (`.study-builds/tier5-r1d1-f0a9a014cb`). It carries the fifth dry-run
+  pass's fixes, among them record pages following a history move that changes the filter and a
+  setup start ending with an empty undo history.

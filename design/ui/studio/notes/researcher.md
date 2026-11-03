@@ -10,31 +10,30 @@ made and evidence comes in. Summarized 2026-11-03 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-03) Tier 5 round 1 measured nothing from sessions: 60 of 60 VOID because `--gate` never
-  ran (plan.md has no "Gate evidence"), and the re-runs hit the same refusal. Bars 1, 2, 3, 8, Sam's
-  part of 5 and bar 9's follow-ups are "not measured", never "held". Before any launch, check
-  `grep -c "Gate evidence" plan.md` is 1; a refusal every session shares stops the round at once.
-- (2026-11-03) The leak check voids clean sessions: `leaksIn` (tool/real.mjs ~518) matches
-  facilitator file names in Write bodies and heredocs. Fix before round 1 restarts.
-- (2026-11-03) Round 1 after skeptics (`rounds/round-1/insights.md`): bar 4 fails on ONE severity
-  3 (speech from the covered inspector, `WhichPicker.tsx:435`); Clear then Escape and the 900 x 700
-  sliver fell to 2; bar 9 is "not measured", not failing (1 confirmed severity 2 of 3).
-- (2026-11-03) A scripted words-at-rest count confirms nothing: it counts chrome, allowed
-  statistics and the user's own names. Only the content designer's hand count decides.
-- (2026-11-03) Before scoring a finding as a defect, check decided.md: two of round 1's "defects"
-  were decided rules colliding (Escape drops a new card vs Clear has an undo), or decided behavior.
-- (2026-11-03) Bar 7 sits on 7 unconfirmed Figma candidates; the audit must look at the typed
-  picker, a yes-or-no step and a two-step card at rest, or the bar cannot be called.
-- (2026-11-03) Key matched to 1e123d7d33: only the Fill line's description moved. When a fix
-  changes a control's first state, grep the key for the old state ("6366F1", "text selected").
-- (2026-11-02) Bar 9 cannot hold while a calm-first screen is unwalked: the check has not run on
-  1e123d7d33 and skipped the reference picker and the 50,000-node screens on d3fda9f2b6.
-- (2026-11-02) The overwhelm rating is dead as an instrument this tier (1.5-point gap); use the
-  named "least sure" reason, scoped to the editor.
-- (2026-11-02) "Kept on purpose" can hide an echo: a catalog keyword must never be overridable by
-  the kept list (T74 B "routes").
-- (2026-11-02) Grader rulings live in the key: equal routes through Analyze's own layer are S; a
-  route that recolors everyone else is P when the prompt says to leave them.
+- (2026-11-03) Tier 5 stopped at the 1-round cap with no session data: 60 of 60 VOID because the
+  start gate never ran (plan.md has no "Gate evidence"). Bars 1, 2, 3, 8, the keyboard part of 5
+  and bar 9's follow-ups are "not measured", never "held". Next tier: run `--gate` and check
+  `grep -c "Gate evidence" plan.md` is 1 before launch; the runner must stop at the first refusal
+  every session shares, not burn 60 starts.
+- (2026-11-03) Fix the leak check before any restart: `leaksIn` (tool/real.mjs) must test only
+  paths a call opens, never written content (it flagged about 34 grades that quoted the FAIL line).
+- (2026-11-03) Expert walks find what is wrong, not how often it hurts: a round with only walks
+  can fail bar 4 but cannot pass any session bar. Never let expert-only results stand in for users.
+- (2026-11-03) Bar 4 fails on ONE severity 3: speech from the covered inspector
+  (`WhichPicker.tsx:435`; speak only from the surface showing). Everything else fell to 2 or 1.
+- (2026-11-03) Check decided.md before scoring a defect: Clear then Escape is two decided rules
+  colliding (Escape drops a new card vs Clear has an undo); it needs a ruling, not a bug fix.
+- (2026-11-03) Gaps in decided rules surface as findings: no layout below 1280 px; which rule wins
+  on collisions. Route them to decided.md, not to severity.
+- (2026-11-03) A second build of a shared control (ReferencePicker) breeds a11y defects; one shared
+  searchable combobox closes them. Look for duplicated controls early.
+- (2026-11-03) A scripted words-at-rest count confirms nothing; only the hand count decides. Bar 9
+  is "not measured" until the calm-first check and hand count run on the frozen build.
+- (2026-11-03) Bar 7 sits on 7 unconfirmed Figma candidates and an unrun interaction-designer walk.
+- (2026-11-03) Two independent skeptics earned their cost: they cut three severity claims and one
+  bar verdict ("failing" to "not measured"). Keep both on every insight.
+- (2026-11-02) The overwhelm rating is dead as an instrument this tier; use the named "least sure"
+  reason, scoped to the editor.
 - (2026-11-02) A task whose success path never opens the feature measures nothing about it.
 - (2026-10-30) One round cannot both find and confirm fixes: plan a fix round and a re-test round.
 - (2026-10-30) Simulated participants trust the tool's text over the picture: check tool lines
@@ -267,6 +266,11 @@ logged). Their reasons, in short:
 - 2026-09-28 to 10-21 (tiers 1 to 3, folded) -- Worked: two skeptics per insight; re-tallying
   grades from the plan; viewing every cited screenshot; a browser gate. Did not work: launching
   every agent at once; editing a running script; counting one defect in several lists.
+
+- (2026-11-03) Tier 5 round 1: did not work -- launching without the gate evidence voided every
+  session; re-runs repeated the same refusal. Worked -- two skeptics on expert findings (cut severity
+  inflation, caught decided-rule collisions); scripted repro confirming a single-walk finding
+  (Clear renames the card).
 
 ## Thinking
 

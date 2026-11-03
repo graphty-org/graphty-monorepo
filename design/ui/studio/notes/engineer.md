@@ -35,16 +35,22 @@ Trimmed again 2026-11-02 (file at 28 KB): the two units the round 1 pilot re-rai
 fixed (a test's mode is the step's own, a6257fe0c7; the data table never takes an editor's
 selection, 1c02b8a883), with their re-walk evidence, and the covered-claim and reference-search-by-name re-walk:
 `git show e464917d43:design/ui/studio/notes/engineer.md`.
+Trimmed again 2026-11-02: check a re-walk request for product changes before walking (a
+notes-only commit cannot regress a route): `git show a93110cfb5:design/ui/studio/notes/engineer.md`.
 
-- (2026-11-02) A re-walk asked for "fix group" commits that change only these notes
-  (431539355f, e464917d43) has nothing to walk: `git diff --stat c3100058ab HEAD` outside
-  `design/` is empty, so `graphty/dist` (built 16:56 from c3100058ab, the frozen build's commit)
-  is the product the earlier sweep in `design/ui/studio/tmp/r1-dry1-recheck-main-table/` already
-  walked. Check the diff for product files first; a notes-only commit cannot regress a route.
-  Two pilot units this round were defects already fixed on an older walk commit: compare the
-  walk's `session.json` commit with `git log` before building or re-walking.
-  Same again 2026-11-02 for a360788091 (cancel-new-card notes): no product diff since c3100058ab,
-  so the c310 walk in `design/ui/studio/tmp/r1-dry1-cancel-new-card/c310/` stands; not re-walked.
+- (2026-11-02) Record pages now follow a history move that changes the filter (a93110cfb5).
+  Mechanism: undo, redo, restore and restoreTo load the landing step's kept masks through
+  `ElementMask.load`, which moved the mask's own version but skipped `onVersion`, so the session's
+  input tick stood still and every cache keyed on it (`orders` behind `nodePage`/`edgePage`,
+  neighbor lists, scope resolutions) served the filter before the move. Fix: `load` bumps through
+  `bump()` like every other mutator. Test `test/session/history/filter-page.test.ts` (undo, redo,
+  restoreTo keep and drop) fails on the old line. Re-walks on a fresh `graphty/dist`:
+  `design/ui/studio/tmp/r1-dry2-table-after-history/` (`walk.sh`, hand routes with names only).
+  T77B touched-2 Cancel: table "7 of 11", 7 rows (was 1), same after Ctrl+Z; touched-1 the same;
+  T76B touched-6 Ctrl+Z: "0 of 11", No rows, Ctrl+Shift+Z back to 7 and 7 rows (`T76B-redo`);
+  T77B success ends 9 of 11 in both; T79A Cancel then Ctrl+Z and Ctrl+Shift+Z bring no card
+  (`T79A-undo`); T79B Cancel on the existing card restores "basin Otter Creek" (1,050 of 50,000);
+  T75A touched-5 Ctrl+Z: top bar, Overview and table all 549 of 549.
 
 - (2026-11-02) RE-WALK of one count base (50d50e28ae) on `graphty/dist` c3100058ab: holds, no
   regression. With a filter on, the layer row, Everything ("styles all 7 nodes"), the Which nodes
@@ -241,6 +247,13 @@ date)` lost its kind and column arguments: a text or number time field shows its
 
 ## Tried: worked / did not work
 
+- 2026-11-02 did not work: resolving the page's scope before reading the revision in `page()`
+  (as `neighbors` does). The scope resolution cache is itself keyed on the tick, so it served the
+  stale masks too. The defect was below every cache, in the mask that failed to move the tick.
+- 2026-11-02 did not work: a page assertion in the app's `FilterCardKinds` "leaves the history as
+  it was" test passed on the old element too (something else in the app moves the tick on that
+  path), so it proves nothing; the element test is the one that fails. The app test resolves
+  graphty-element through its dist: rebuild `graphty-element:build` to test an element change there.
 - 2026-11-02 worked: before fixing a walk's defect, read the walk's `session.json` `commit` and ask
   `git merge-base --is-ancestor <fix> <that commit>`. The round 1 pilot's "Nodes 0" for "James" on
   volunteers.graphml ran on baac78342b, which predates the fix 92a64cffe5 (a graph file's load names

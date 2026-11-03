@@ -43,6 +43,8 @@ selection, 1c02b8a883), with their re-walk evidence, and the covered-claim and r
   walked. Check the diff for product files first; a notes-only commit cannot regress a route.
   Two pilot units this round were defects already fixed on an older walk commit: compare the
   walk's `session.json` commit with `git log` before building or re-walking.
+  Same again 2026-11-02 for a360788091 (cancel-new-card notes): no product diff since c3100058ab,
+  so the c310 walk in `design/ui/studio/tmp/r1-dry1-cancel-new-card/c310/` stands; not re-walked.
 
 - (2026-11-02) RE-WALK of one count base (50d50e28ae) on `graphty/dist` c3100058ab: holds, no
   regression. With a filter on, the layer row, Everything ("styles all 7 nodes"), the Which nodes

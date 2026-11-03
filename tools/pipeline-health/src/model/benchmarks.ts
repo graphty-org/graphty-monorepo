@@ -89,15 +89,17 @@ export const sameMachine = (points: BenchPoint[]): BenchPoint[] =>
     points.filter((p) => p.machine === points.at(-1)?.machine);
 
 /**
- * The series' resolution: the smallest gap between two of its distinct values. A reading quantized to a timer tick
- * (the T4 lane's GPU profiler reads in 65.536 us ticks) takes only whole ticks, so this is the tick; on an unquantized
- * series it is tiny.
+ * The series' timer tick: the smallest gap between two of its distinct values, when every value is a whole number
+ * of that gap. A reading quantized to a timer tick (the T4 lane's GPU profiler reads in 65.536 us ticks) takes only
+ * whole ticks; a series that is not (an unquantized one, or a steady one with an outlier: 100 x9 and 300) has none.
  * @param vs - the values
- * @returns the smallest positive gap, or 0 with fewer than two distinct values (resolution unknown)
+ * @returns the tick, or 0 when the values show none
  */
 export function quantum(vs: number[]): number {
     const s = [...new Set(vs)].sort((a, b) => a - b);
-    return s.slice(1).reduce((q, v, i) => Math.min(q, v - s[i]), s.length > 1 ? Infinity : 0);
+    const q = s.slice(1).reduce((m, v, i) => Math.min(m, v - s[i]), Infinity);
+    const whole = (v: number): boolean => Math.abs(v / q - Math.round(v / q)) < 1e-6;
+    return Number.isFinite(q) && s.every(whole) ? q : 0;
 }
 
 /**

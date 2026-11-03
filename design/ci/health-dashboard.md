@@ -562,7 +562,8 @@ logic is unchanged, so a non-gating job still never fails a lane.
   its last 3 results on the newest result's machine is over 1.2 times the median of the 10 before
   them on that machine, so it is judged only with 13 such results and one slow run never counts.
   The two medians must also differ by more than one step of the resolution of the results before the
-  last 3 (the smallest gap between two of their values): a GPU profiler reading quantized to a
+  last 3 (the smallest gap between two of their values, when every value is a whole number of it,
+  else none): a GPU profiler reading quantized to a
   65.536 us timer tick reads 2 then 3 ticks as 1.5x, and a one-tick change never counts.
   The Benchmarks section lists every benchmark with its newest result, that ratio and that
   machine's results as a line, regressions first. A benchmark job that fails before it produces numbers

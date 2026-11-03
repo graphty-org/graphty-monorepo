@@ -30,6 +30,11 @@ describe("benchmark regressions", () => {
         const step = [...Array.from({ length: 10 }, () => 2), 6, 6, 6].map((n) => n * tick);
         expect(trend(pts(step))).toMatchObject({ ratio: 3, regressed: true });
         expect(trend(pts([...Array.from({ length: 10 }, () => 100), 300, 300, 300])).regressed).toBe(true);
+        // one earlier outlier is not a tick, so it never hides a later step to its level
+        expect(trend(pts([...Array.from({ length: 9 }, () => 100), 300, 300, 300, 300])).regressed).toBe(true);
+        expect(trend(pts([...Array.from({ length: 9 }, () => 2), 6, 6, 6, 6].map((n) => n * tick))).regressed).toBe(
+            true,
+        );
     });
 
     it("compares results only with results of the newest one's machine", () => {

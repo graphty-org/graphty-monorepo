@@ -17,91 +17,37 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-- (2026-11-03) TIER 5 ROUND 1 SCREENSHOT AUDIT (`tier5/rounds/round-1/expert/engineer.md`), frozen
-  build 1e123d7d33 at 1200x900 and 900x700, sessions `expert/engineer/{style,filter,thanks,big}-<size>`.
-  Worst: at 900x700 the workspace preview collapses to 44 px (style) or 84 px (filter) because the
-  outline, the 320 px step pane and the properties column keep fixed widths (severity 3; decided.md
-  settles only 1280x800). Severity 2: outline reference cut ("No re" hard clip in a filter, ellipsis
-  elsewhere), matches strip clips its last column with no scrollbar, header drops the layer name at
-  900, "37.5k of 50k" beside "37,512", Values panel run-on dept list and "972 nodes joined to no other
-  n...", picture cropped at the start of volunteers-thanks, Control+A at 50,000 selects 5,000 silently,
-  chosen reference shows "v02" not the name, a filter card keeps its first step's name after an Or.
-  Way of working that held: one walk script per host and size in the worktree's `tmp/engineer-audit/`
-  (own folder each, run in parallel), the 50,000-node walk started first by hand to pick an empty
-  canvas point per size (1200x900: 620,790; 900x700: 480,575). Before reporting a layout difference
-  between hosts, check decided.md "Workspace built": the host-dependent panel cover is settled.
-- (2026-11-03) STUDY TOOL, TIER 5 TOOL DRY RUN 1 FIXES. (1) Browser cap: `--prove`'s warm-pool and
-  bounded-start checks planted pools of their own (`BROWSER_SLOT_DIR`) and started real GPU
-  browsers outside the machine's 8 (9 seen beside 8 sessions). `with-browser.sh` now takes
-  `BROWSER_SLOT_ALSO=<pool>`: after its own slot it moves the lock to fd 7 and `exec`s itself on
-  that pool, so the pid real.mjs names tickets and warm markers by is unchanged; --prove passes the
-  machine pool. Test: `with-browser.test.mjs` "a planted pool with BROWSER_SLOT_ALSO" (hangs, i.e.
-  fails, without it; it holds slots 1 to 4 because a non-GPU command defaults to 4).
-  (2) Matcher: `find` refuses a shared name only if it stays shared for `SETTLE_MS` (1 s), looking
-  every 50 ms; a planted second "Condition..." removed after 300 ms is resolved (fails at 0).
-  (3) `refusedName` also reads a replay's own "was refused when recorded" note, so a route an
-  earlier replay recorded replays it as not done. (4) `--prove` pins `REAL_TIER=2` (its planted
-  rounds use T18 and T20); its planted round stays under the studio's ignored `tmp/` by design.
-  (5) New `waits.mjs` (T79 waits over 10 s from route.jsonl, `ms.act + ms.settleDom`, `--build`),
-  words at rest per screen in `bars.mjs --tier 5` (`wordsOnScreen(within)` counts `.sel-ws` apart;
-  headings; planted "wordy"), and the rejected build's real "While has nodes" list at 50,000 as a
-  case the large-list check must flag (walk "rejected", `--rejected`).
-- (2026-11-03) The rejected build 7ca4cae647 (main checkout `tmp/design-studio/tier5/prep/`) reaches
-  "While has nodes" by Add a layer, Layer, "Add a step: Keep", type "While has", the option; its
-  list renders 52 of 50,000 node ids with no search: `largeLists` flags it (ok false). Its "count"
-  read true only from "Selected (0)" in the same pane, a weak spot of the count regex.
-- (2026-11-03) Evidence on the frozen build (`design/ui/studio/tmp/r1-tool-r1-tool/`): 10 starts at
-  once plus `--prove` with REAL_TIER=5 beside 8 sessions: the one-second poll never above 8, all 10
-  GPU, prove 100 ok (`gate/`); T72 A detour-2 replayed 6 of 6 to the end; T70 A detour-5 (recorded
-  on 0c163f54bf) now matches all 12 steps; `bars.mjs --tier 5` exit 0, every plant caught, the
-  rejected "While has nodes" caught, read-only outlines at rest 57, 66 and 67 words (over 50).
-- (2026-11-03) waits.mjs on the frozen build's T79 pilot walks (r1d1, `--build 1e123d7d33`): 213
-  timed steps, one over 10 s (10.6 s, the sum of 5 actions in one batch, touched-9 02.png).
-
-Trimmed 2026-10-30 (the file passed 25 KB); the full earlier Top of mind (the Select-card count
-fix 71230abff1, the unknown-end mark, inspector node names, the weight re-run, Select within the
-picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360dd57f:design/ui/studio/notes/engineer.md`.
-Trimmed again 2026-11-02: the 2026-10-30 study tool facts (scripted bars, the gate's walk
-folders, the wording check, the matcher's role names, data panel selectors, `REAL_WARM_POOL=0`,
-one background script per re-walk): `git show 42601df9bf:design/ui/studio/notes/engineer.md`.
-Trimmed again 2026-11-02 (file at 31 KB): the tier 4 round 1 close, its cheapest bar fixes, two
-lessons, the round 1 screenshot audit and the open date-card and mixed-glyph defects:
-`git show 0ec56d2f3b:design/ui/studio/notes/engineer.md`.
-Trimmed again 2026-11-02 (file at 27 KB): the cancel-new-card focus regression and the reference
-search by name on a file with no label column: `git show 50626246ff:design/ui/studio/notes/engineer.md`.
-Trimmed again 2026-11-02 (file at 28 KB): the main-table and test-mode re-walk, "Drawing" before a
-50,000-node edit blocks, and the data table never taking an editor's selection:
-`git show 64cd59e285:design/ui/studio/notes/engineer.md`.
-Trimmed again 2026-11-02 (file at 28 KB): the two units the round 1 pilot re-raised though already
-fixed (a test's mode is the step's own, a6257fe0c7; the data table never takes an editor's
-selection, 1c02b8a883), with their re-walk evidence, and the covered-claim and reference-search-by-name re-walk:
-`git show e464917d43:design/ui/studio/notes/engineer.md`.
-Trimmed again 2026-11-03 (file at 25.7 KB): the color-line and tier 5 scoring entries, now pointers.
-Trimmed again 2026-11-02: check a re-walk request for product changes before walking (a
-notes-only commit cannot regress a route): `git show a93110cfb5:design/ui/studio/notes/engineer.md`.
-Trimmed again 2026-11-02 (file at 27 KB): the cancel-new-card focus re-walk and the covered-claim
-fix in full: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
-
-- (2026-11-02) A just-added color line shows no color until one is picked (`ValueField` `waiting`,
-  CompactColorInput `emptySwatch` plus `emptyText=""`; Enter keeps a waiting line): in full,
-  `git show cc99cf7ef6:design/ui/studio/notes/engineer.md`.
-- (2026-11-02) The study tool scores tier 5 (steps, score, endstate, bars --tier 5, the gate), each
-  script with a planted case: in full, `git show cc99cf7ef6:design/ui/studio/notes/engineer.md`.
-- (2026-11-02) Tool defects fixed then (a click on a re-rendered control found again by name;
-  `screenOf` with `visibilityProperty`; `warmKey` hashing measure.mjs and match.mjs too), in full:
-  `git show 265e85b63f:design/ui/studio/notes/engineer.md`.
-- (2026-11-02) The scripted walk's first real finding: at 50,000 nodes the matches strip (the data
-  table under the workspace's canvas, `aria-rowcount` 50,001) renders 16 rows with no search box,
-  on every 50,000-node workspace screen ("Large graphs": severity 3 by the criteria's own rule).
-  Count is taken from the workspace header ("35,960 of 50,000"). Not fixed here (app, not tool).
-
-- (2026-11-03) Older Top of mind entries (the empty-history setup start and its re-walk, c8581ff123),
-  in full: `git show 265e85b63f:design/ui/studio/notes/engineer.md`.
-
-- (2026-11-02) Older Top of mind entries (record pages after a history move a93110cfb5, one count
-  base 50d50e28ae, Cancel on a new filter card and `history.restoreTo(.., { redo: "drop" })`, the
-  open-busy sign, "Drawing" in the first frame at 50,000, counts over the filtered graph, the false
-  "Covered by"), in full: `git show 38b0351fa0:design/ui/studio/notes/engineer.md`.
+- (2026-11-03) TIER 5 ROUND 1 CLOSED, STUDIO STOPPED (1-round cap, bars not met;
+  `tier5/rounds/round-1/insights.md`). All 60 sessions void: the start gate never ran, so
+  `plan.md` had no "Gate evidence" and every start was refused. Lesson: run the gate before launch
+  and stop the round at the first refused start whose cause every session shares. Only bar 4 fails,
+  on one severity 3. My next units, in order:
+- (2026-11-03) SEVERITY 3, app: speech from a hidden panel. With a workspace open over a selected
+  layer, `WhichPicker.tsx:435` (`useAnnounceChange`) still speaks the covered inspector row's count
+  into the shared status region after the workspace's, replacing it ("15 of 24" then "4 of 24").
+  `SelectionEditor.tsx:368` already goes quiet then: do the same. Rule: speak only from the surface
+  that is showing.
+- (2026-11-03) Reference picker is a second build of the picker (`ReferencePicker.tsx`, own
+  Combobox.Search in a portal): Tab escapes to Main menu leaving the list open, Escape dead, no
+  expanded state or result count. Fix: one shared searchable combobox (compact-mantine if the
+  shared one lacks it), not a patch. Data path may stay separate (`decided.md` 440).
+- (2026-11-03) Clear on a filter card renames it "a selection" (breaks `decided.md` 631-632) and a
+  chosen reference shows only its id "v02" (breaks 694). Small app fixes.
+- (2026-11-03) Clear then Escape drops a new card unrecoverably: two decided rules collide
+  (436/740/773 vs 599/601). Needs a `decided.md` entry on which wins before code.
+- (2026-11-03) Workspace below 1280 px: fixed-width outline, 320 px step pane and properties column
+  leave a 44 px preview at 900x700. Needs a width rule in `decided.md` first (it stops at 1280x800).
+- (2026-11-03) Study tool: `leakCheck` in `tool/real.mjs` scans written content via `stringsIn`, so a
+  participant echoing the tool's FAIL line is flagged. Fix: test only paths a call opens. Must land
+  before any restart.
+- (2026-11-03) Severity 1 leftovers: one surface mixes "37.5k of 50k" with "35,960" (one format per
+  surface); matches strip cuts its last column; value picker list cut mid-row at 900x700.
+- (2026-11-03) Lesson on my own audit: I rated the 900x700 collapse 3; both skeptics held it at 2
+  (no task blocked, no session at that size, no decided rule). Rate against decided rules and task
+  blockage, not how bad it looks. The scripted words-at-rest count confirms nothing alone.
+- (2026-11-03) Way of working that held: one walk script per host and size in `tmp/engineer-audit/`
+  run in parallel; 50,000-node walk started first. Earlier Top of mind (round 1 audit detail, tier 5
+  tool dry run fixes, waits.mjs, rejected-build evidence): `git show b30bb782d5:design/ui/studio/notes/engineer.md`.
 
 ## Working facts and open defects
 

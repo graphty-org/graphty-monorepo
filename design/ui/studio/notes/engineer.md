@@ -179,6 +179,13 @@ date)` lost its kind and column arguments: a text or number time field shows its
 
 ## Tried: worked / did not work
 
+- (2026-11-03) Re-check of the warm-hold fix (90e826175a): it changes only design/ui/studio/tool
+  (real.mjs, README, with-browser.test), no app source and no route, so no walk and no rebuild.
+  Worked: with-browser.test 7 pass (incl. the new "waits in the queue for a slot"), match.test and
+  bar8-9.test 5 pass, `node --check real.mjs`, no leftover flock/sleep/warm processes. Did not
+  work once: the first `node --test with-browser.test.mjs | tail` ran past a 300 s timeout; two
+  reruns (to a file, and through a pipe) finished in 4 s. Mechanism not found; if it recurs, run
+  with `--test-reporter=spec` to a file to see which test it stops in.
 - (2026-11-03) Warm-hold fix, checked on the frozen build: 10 starts at once peaked at 8 studio
   browsers (count node processes only: `ps -eo comm,args | awk '$1=="node" && /real\.mjs --(serve|warm)/'`;
   `pgrep -f` also counts the bash gate wrappers and read 20); all 10 GPU, 2 took over warm browsers;

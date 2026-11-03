@@ -905,3 +905,34 @@ none reverses one.
   look for 13 to 15 s with no sign of work (T79 B touched-13 09-glance.png), which `criteria.md` "Large
   graphs" calls a hang and a reader can take for the result; keeping the sign where the reader already
   saw it on open and on the tick adds nothing new to the screen (calm first).
+
+## Dry run pass 4, 2026-11-02 (Design Director)
+
+From the triage of the re-walks on c3100058ab (`dry-run-r1-4.md`). Each entry narrows an entry above
+or settles what one leaves open; none reverses one.
+
+- **A history move reaches every reading of the filter.** After Undo, Redo, or a new card taken back
+  to the step before it, the data table's rows and its count, the matches strip, the top bar and the
+  canvas all show the filter as the history left it, from the same frame; graphty-element's record
+  pages follow a history move as they follow a command. Narrows pass 1's "The data table never takes
+  an editor's selection" ("after Done or Cancel the data table is as it was before the workspace
+  opened"). Why: after Cancel on a new card that matched one gauge, the table kept "Shown 1 of 11
+  nodes" and the row G09 while the top bar showed 7 of 11 (T77 B touched-2 03.png), and after Undo
+  of a Cancel the table listed 7 rows while 0 were drawn (T76 B touched-6 08.png); a reader counting
+  from the table reports a wrong answer.
+- **A study start has no undo history.** A setup's steps are the colleague's or the person's own
+  saved work: when the session begins, Undo is off ("Nothing to undo"), as when a saved project is
+  reopened. This is the study tool's, not the product's. Why: every start is a saved project
+  (`roster.md` line 200), and Undo right after Cancel on a new card, the decided behavior (pass 3),
+  undid the setup's last step: the colleague's orange on Staff (T77 A touched-1 09.png, orange count 0) and on Oldest (T77 B touched-1 04.png), which T77 grades.
+- **Undo right after Cancel on an existing card undoes the Cancel.** The placement entry "Cancel
+  restores the selection as it was at open, as one undo step" (line 586) makes the Cancel a step:
+  the first Undo brings the cancelled edit back, and the workspace's own edits stay as steps under
+  it. Not changed in the dry run; whether readers expect it is for the sessions (record every session
+  that presses Undo after Cancel). Why: T71 A touched-6 and T76 B touched-6 found it; the count and
+  the card agree with the history at every step, and the toast's words are a backlog item.
+- **A new card left with only an untested step stays, inert.** Done on a new card whose one step has
+  its attribute and no value keeps the card (it is written with its first step, line 332) and the
+  card removes nothing (line 333); it is graded as no change (`answers.md` T77). Taking such a card
+  away like a card with no step is a backlog question. Why: T77 A touched-7 84.png ("trained pick yes
+  or no", 24 of 24); no count moves.

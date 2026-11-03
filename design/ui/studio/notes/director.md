@@ -5,12 +5,19 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-02 (tier 5 dry run pass 3 triaged on 47c95a09fc: 34 defects, 2 fix units).
+Last updated: 2026-11-02 (tier 5 dry run pass 4 triaged on c3100058ab: 37 defects, 2 fix units).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
 2026-10-30 (five times) and 2026-11-02; the full earlier text is in this file's git history.
 
 ## Top of mind
 
+- (2026-11-02) DRY RUN PASS 4 TRIAGED (`tier5/dry-run-r1-4.md`): 37 product defects on c3100058ab; 3
+  fix now (all spoils) in 2 units: table-after-history (a regression of pass 3's take-back: after a
+  history move the node table keeps the old filter's rows, T77 B reads 1 of 11 for 7; graphty-element's
+  record pages, keyed on the input tick) and setup-history (the study tool leaves a setup's steps as
+  undo history, so Undo after a cancelled card took the colleague's orange off, T77 A and B; the tool
+  empties history at the setup's end). 7 decided, 0 design questions, 27 backlog. Both pass 3 units
+  held. Next pass re-walks T77 A/B, T76 B touched-6 and the Undo routes of T72 B and T79.
 - (2026-11-02) DRY RUN PASS 3 TRIAGED (`tier5/dry-run-r1-3.md`): 34 product defects on 47c95a09fc; 2 fix
   now in 2 units: cancel-no-undo (a regression of pass 2's Cancel fix: Cancel writes the card's removal
   as an undo step, so Undo reads "deleting a filter condition" and brings the cancelled card back on;
@@ -18,26 +25,17 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
   preview look 13-15 s with no "Drawing"). 5 decided, 0 design questions, 27 backlog. Next pass re-walks
   those units' routes only; nothing else on a session task crashes, blocks or spoils.
 - (2026-11-02) DRY RUN PASS 2 TRIAGED (`tier5/dry-run-r1-2.md`): 93 defects on 797a4f6b47; 3 fix now
-  in 2 units, all repeats: cancel-new-card (refix of the reverted 0ec56d2f3b with a focus record that
-  only keeps a control that opens filters, else Add filter) and open-busy-sign (opening Which nodes on
-  50,000 nodes blocks 1.3 s: graphty-element's uncached `styles.agreement`). 8 decided, 1 design
-  question, 81 backlog (14 "decided, not built"). The next pass re-walks those units' routes only.
+  in 2 units (cancel-new-card refix, open-busy-sign), all repeats; 81 backlog.
 - (2026-11-02) Item 8 status on 797a4f6b47: covered claim, count base and two tables closed (the blank
   band under the preview is the hidden table's kept place, cosmetic, first in the backlog for bar 9);
   the 50,000-node sign is open only on opening the workspace.
-- (2026-11-02) DRY RUN PASS 1 TRIAGED (`tier5/dry-run-r1-1.md`): 319 pilot defects on baac78342b; 33 fix
-  now in 7 units (covered-claim, main-table, test-mode, reference-names, cancel-new-card,
-  style-count-base, busy-sign), 7 decided, 4 design questions, 275 backlog (50 of them "decided, not
-  built"). The next pass re-walks exactly the units' routes and checks criteria item 8 again.
+- (2026-11-02) DRY RUN PASS 1 TRIAGED (`tier5/dry-run-r1-1.md`): 319 defects on baac78342b; 33 fix now
+  in 7 units; 275 backlog (50 "decided, not built", which the decide-and-fix loop takes first).
 - (2026-11-02) Criteria item 8 makes every named severity 3 candidate a round blocker, so the dry run
   fixes them even where no single step is blocked (rule in `tier5/decided.md`, "Dry run pass 1").
   T75 A is no longer blocked: the Piece size So far route reaches 105.
-- (2026-11-02) 50 backlog rows break behaviors decided.md already settles (pickers flipping over the
-  header, the camera moving on a click, a resting card not opening on a click, the older editor from
-  New layer from selection). The decide-and-fix loop takes those first, before any new decision.
-- (2026-11-02) The round 1 study build is baac78342b (`criteria.md` line 1, served from the main
-  checkout's `.study-builds/tier5-r1-baac78342b`); criteria were frozen on d13c2ff3da. Each dry-run
-  fix pass refreezes and names the build before it on line 3.
+- (2026-11-02) The study build is named on `criteria.md` line 1 (now c3100058ab); each dry-run fix pass
+  refreezes and names the build before it on line 3. Criteria were frozen on d13c2ff3da.
 - (2026-11-02) Criteria item 8's five severity 3 candidates: four sent to fix in pass 1 (covered-claim,
   style-count-base, main-table, busy-sign); T75 A is unblocked by Piece size So far, so its rewrite is
   off unless a re-walk fails. So far on Largest component stays backlog (spec 4.2).
@@ -102,6 +100,18 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Decisions and reasons
 
+- **2026-11-02, dry run pass 4 triage** (`tier5/dry-run-r1-4.md`, entries in `tier5/decided.md` "Dry
+  run pass 4"). Fix now: the node table after a new card's take-back (T77 B touched-2: "Shown 1 of 11"
+  while 7 are drawn; 47c95a09fc listed 7, 9610767e29's `restoreTo` does not move what the table's
+  cached pages are keyed on; T76 B's Undo shows the same) and the study start's undo history (T77 A
+  and B: Undo after Cancel undid the setup's orange, which T77 grades; every start is a saved project,
+  and a reopened project has no history). Settled: a history move reaches every reading of the filter;
+  a study start has no undo history (the tool's job, not the product's); Undo right after Cancel on an
+  existing card undoes the Cancel (line 586 read literally; the sessions say whether readers expect
+  it); a new card left with only an untested step stays inert and is graded as no change
+  (`answers.md` T77). Not taken: the wrong spoken counts (no screen-reader sessions), Redo restoring an
+  inert card after Undo on an open new card (T76 only, filters nothing), the 50,000-node waits (busy
+  with a sign).
 - **2026-11-02, dry run pass 3 triage** (`tier5/dry-run-r1-3.md`, entries in `tier5/decided.md` "Dry
   run pass 3"). Fix now: Undo after Cancel on a new card (T79 A touched-32 restores a dept Grants card,
   1,076 of 50,000, which T79 grades as not success) and Done on 50,000 nodes with no sign of work (item
@@ -169,6 +179,14 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (dry run pass 4) -- Worked: reading the previous fix's mechanism (a take-back by
+  `restoreTo` instead of `removeCondition`) next to the pilot's "the earlier build showed 7 rows"; it
+  pointed straight at a cache keyed on something only commands move (`RevisionCache` on the input
+  tick in graphty-element's `data.ts`), and T76 B's stale table after Undo confirmed it was a history
+  move, not the take-back. Reading `roster.md` for screen-reader sessions before classing a spoken
+  count (none, so backlog). Reading the answer key's build notes: they already said T77 B's grade
+  reads the layer as it ends, which made the setup-history rows spoils, not notes. Did not work:
+  nothing new.
 - 2026-11-02 (dry run pass 3) -- Worked: reading the previous fix's diff before classing (47c95a09fc's
   `removeCondition` on Cancel explained the Undo label at once); reading the walk's `route.jsonl` timing
   (Done: firstFrame 29 ms, settle 13 s) and its 1 s glance, which separated "busy with a sign" (open,
@@ -204,6 +222,12 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Thinking
 
+- **2026-11-02, dry run pass 4:** pass 3's "walk one step past the fix" held, and found the next step
+  was not in the product at all: once Undo after Cancel did the decided thing, it reached history the
+  study tool had made. An instrument that builds a start by clicking leaves traces a real start never
+  has (history, focus, hover); each trace is a way a correct participant can be graded wrong. Ask of
+  every setup: what would a reopened saved project NOT have? Also: a fix that swaps a command for a
+  history move must be checked against every cache keyed on what commands move.
 - **2026-11-02, dry run pass 3:** each pass's fix leaves one neighbor open: pass 1's busy sign covered
   edits but not the close, pass 2's Cancel removed the card but wrote history. The neighbor is always
   what happens just AFTER the fixed step (the next Undo, the frame after the close). A unit's acceptance
@@ -236,7 +260,8 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 ## Sources
 
 - Tier 5: `tier5/{criteria,tasks,answers,roster,decided,owner-feedback-2026-11-01,placement-study}.md`;
-  dry run triages `tier5/dry-run-r1-{1,2}.md`, `tier5/backlog.md`, `tier5/rejected-fixes.md`; pass 2
+  dry run triages `tier5/dry-run-r1-{1,2,3,4}.md` (pass 4 pilots: main checkout
+  `tmp/design-studio/tier5/r1d3/pilot/`), `tier5/backlog.md`, `tier5/rejected-fixes.md`; pass 2
   pilots under the main checkout's `tmp/design-studio/tier5/r1d1/pilot/`; pilots under the main checkout's
   `tmp/design-studio/tier5/r1/pilot/<task>/`;
   reviews in `notes/{researcher,user,redteam}.md` (81e993f52d, 65a6f779a1, 6946dd5032); frozen build

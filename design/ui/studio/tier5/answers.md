@@ -329,6 +329,9 @@ state. One example of each kind:
   the Graph step needless, Enter after 2005 changes nothing visible).
 - **Also success**: a new card or layer that gives the same counts while the old one is removed
   (SD); Clear on the old one and rebuilt (SD); the participant's own color.
+- **Graded as no change**: a leftover new filter card with an attribute and no value picked
+  ("trained pick yes or no", all nodes; it removes nothing) beside the edited card; the grade
+  reads the counts and the edited card and layer (`decided.md` pass 4).
 - **Not success**: a second filter card for the deep gauges (both must hold: 1 in the picture,
   G09, the only deep gauge that sends readings; read on baac78342b); the
   old layer left painting under a new one with a different rule (two rules for one color).

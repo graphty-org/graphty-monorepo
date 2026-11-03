@@ -879,3 +879,29 @@ none reverses one.
   cosmetic and goes to the backlog, first in line for bar 9's calm-first check. Why: pass 1's
   main-table fix hides the table and keeps its place so the canvas is not resized; the one table drawn
   under the preview is the matches strip (the engineer's re-walk of 1c02b8a883).
+
+## Dry run pass 3, 2026-11-02 (Design Director)
+
+From the triage of the re-walks on 47c95a09fc (`dry-run-r1-3.md`). Each entry narrows an entry above;
+none reverses one.
+
+- **Cancel on a new filter card leaves no undo step.** The history after it is the history before the
+  card was asked for: the card's first tick, its later edits and its removal leave no step, Undo
+  names and undoes what came before the card, and Redo never brings the card back. The same holds for
+  every way a new card goes (Escape on its empty value picker, Done with no step). The screen reader
+  hears "Filter not added" and nothing that suggests a card still exists ("Filter off"). Narrows pass 1's
+  "Cancel on a new filter card takes the card away" ("there was no card") and the placement entry
+  "Cancel restores ... as one undo step", which stays for an existing card. Why: on 47c95a09fc Cancel
+  writes the removal as a new step, so Undo reads "Undo deleting a filter condition", a deletion nobody
+  made, and brings the cancelled card back switched on (T79 A touched-32: dept Grants on, 1,076 of
+  50,000 drawn, a filter card T79 grades as not success; T70 B touched-2, T72 B touched-1).
+- **Done, Cancel and Escape on a large graph keep "Drawing" on screen until the result is painted.**
+  The workspace stays open with its header's "Drawing" through the blocking work and closes on the
+  painted result (`waitForPainted()`), so the canvas never shows the preview look (the picks marked,
+  every other node dimmed) without "Drawing" beside it. On a graph where the work does not block, the
+  workspace closes as today. Narrows pass 1's "An edit that blocks input shows that it is working
+  first" (which names Done); its fix (f6ab091f47) drew "Drawing" for one frame and then closed the
+  workspace before the work. Why: on 50,000 nodes the workspace closed in its first frame and the canvas kept the preview
+  look for 13 to 15 s with no sign of work (T79 B touched-13 09-glance.png), which `criteria.md` "Large
+  graphs" calls a hang and a reader can take for the result; keeping the sign where the reader already
+  saw it on open and on the tick adds nothing new to the screen (calm first).

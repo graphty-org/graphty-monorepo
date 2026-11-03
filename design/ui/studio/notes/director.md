@@ -5,12 +5,18 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-02 (tier 5 dry run pass 2 triaged on 797a4f6b47: 93 defects, 2 fix units).
+Last updated: 2026-11-02 (tier 5 dry run pass 3 triaged on 47c95a09fc: 34 defects, 2 fix units).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
 2026-10-30 (five times) and 2026-11-02; the full earlier text is in this file's git history.
 
 ## Top of mind
 
+- (2026-11-02) DRY RUN PASS 3 TRIAGED (`tier5/dry-run-r1-3.md`): 34 product defects on 47c95a09fc; 2 fix
+  now in 2 units: cancel-no-undo (a regression of pass 2's Cancel fix: Cancel writes the card's removal
+  as an undo step, so Undo reads "deleting a filter condition" and brings the cancelled card back on;
+  spoils T79) and done-busy-sign (a repeat: Done on 50,000 nodes closes at once and the canvas keeps the
+  preview look 13-15 s with no "Drawing"). 5 decided, 0 design questions, 27 backlog. Next pass re-walks
+  those units' routes only; nothing else on a session task crashes, blocks or spoils.
 - (2026-11-02) DRY RUN PASS 2 TRIAGED (`tier5/dry-run-r1-2.md`): 93 defects on 797a4f6b47; 3 fix now
   in 2 units, all repeats: cancel-new-card (refix of the reverted 0ec56d2f3b with a focus record that
   only keeps a control that opens filters, else Add filter) and open-busy-sign (opening Which nodes on
@@ -39,9 +45,6 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
   for a 4+ in two sessions on different halves, and the median <= 2 ONLY if the rating check separates the
   rejected build (7dfd51c277) from the frozen one by 2+ points. The calm-first check must fail the rejected
   build before it gates.
-- (2026-11-02) Owed tool work before the dry run's first pilot: `--gate` refusals for items 2 to 8,
-  `steps.mjs` CORE for tier 5 (T70, T71, T73, T74, T78), a tier 5 walk in `bars.mjs`, an `Overwhelm:`
-  parser, wording.mjs over option labels and catalog search keywords. A rule with no refusal is a wish.
 - (2026-11-02) T78 core (4 sessions), T76 dry run only (its path never opens the editor). Round: 30
   sessions, 8 alive at once, rating first in every follow-up.
 - (2026-10-30) Tier 4 lessons that shaped tier 5: freezing with a known bar-failer backlogged fails the bar
@@ -99,6 +102,16 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Decisions and reasons
 
+- **2026-11-02, dry run pass 3 triage** (`tier5/dry-run-r1-3.md`, entries in `tier5/decided.md` "Dry
+  run pass 3"). Fix now: Undo after Cancel on a new card (T79 A touched-32 restores a dept Grants card,
+  1,076 of 50,000, which T79 grades as not success) and Done on 50,000 nodes with no sign of work (item
+  8, "Large graphs"). Settled: taking a new card away leaves no undo step, nothing to redo and no
+  "Filter off"; Done, Cancel and Escape on a large graph keep the workspace and its "Drawing" until the
+  result is painted (one sign, in the place readers already saw it; no new chrome). Not taken: the
+  16-20 s waits (now busy with a sign, severity 2 unless someone gives up); the selection's "..." with
+  no Filter to (one detour; the Data place path works); overlays over a node (the canvas is the frame);
+  the same Undo defect on T70 B and T72 B, whose grades it does not move (backlog rows, fixed with the
+  unit).
 - **2026-11-02, dry run pass 2 triage** (`tier5/dry-run-r1-2.md`, entries in `tier5/decided.md`
   "Dry run pass 2"). Fix now: Cancel on a new filter card (spoils the card count T71, T77, T79 grade;
   its pass 1 fix was reverted for a focus regression) and opening Which nodes on 50,000 nodes with no
@@ -156,6 +169,11 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (dry run pass 3) -- Worked: reading the previous fix's diff before classing (47c95a09fc's
+  `removeCondition` on Cancel explained the Undo label at once); reading the walk's `route.jsonl` timing
+  (Done: firstFrame 29 ms, settle 13 s) and its 1 s glance, which separated "busy with a sign" (open,
+  tick) from "no sign" (Done); classing each row by its own task's grade, so one mechanism gave one
+  fix-now row and two backlog rows fixed with it. Did not work: nothing new.
 - 2026-11-02 (dry run pass 2) -- Worked: reading the previous pass's fix commits and the engineer's
   re-walk notes before classing (they explained the blank band as the hidden table's kept place, showed
   that T73 A's "data table still draws" was the matches strip, and had already found the open-workspace
@@ -186,6 +204,10 @@ Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-1
 
 ## Thinking
 
+- **2026-11-02, dry run pass 3:** each pass's fix leaves one neighbor open: pass 1's busy sign covered
+  edits but not the close, pass 2's Cancel removed the card but wrote history. The neighbor is always
+  what happens just AFTER the fixed step (the next Undo, the frame after the close). A unit's acceptance
+  should walk one step past its own action.
 - **2026-11-02, dry run pass 2:** both fix-now items were leftovers of pass 1, not new problems: one
   fix reverted, one fix that covered edits but not opening. A pass converges when each fix's acceptance
   names every entry route the decided behavior covers (Quick actions and the toolbar as openers;

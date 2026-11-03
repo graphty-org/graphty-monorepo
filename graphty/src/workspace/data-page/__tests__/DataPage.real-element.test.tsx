@@ -20,9 +20,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { openDataPage } from "../request";
 
-/** A hang guard for the element coming up and loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 const GML = `graph [
   directed 0
   node [ id 0 label "Myriel" ]
@@ -62,13 +59,10 @@ async function openFromEmptyApp(): Promise<{ store: WorkspaceStore; session: Gra
     });
     await screen.findByRole("heading", { name: "Open as a new graph" });
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -81,13 +75,10 @@ async function openFromEmptyApp(): Promise<{ store: WorkspaceStore; session: Gra
  */
 async function elementSession(): Promise<GraphSession> {
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -192,7 +183,7 @@ describe("the Data page on the real element", () => {
         const { store, session } = await openFromEmptyApp();
         await chooseFiles(new File([GML], "les-miserables.gml"));
 
-        const strip = await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+        const strip = await screen.findByTestId("model-strip", {});
         assert.equal(strip.textContent, "les-miserables: 3 nodes, 2 edges");
         const tables = screen.getByRole("region", { name: "Tables" });
         assert.lengthOf(
@@ -211,21 +202,15 @@ describe("the Data page on the real element", () => {
         assert.isNull(loadButton().getAttribute("aria-disabled"));
 
         await userEvent.keyboard("{Enter}");
-        await waitFor(
-            () => {
-                assert.equal(session.data.lastImport()?.counts.nodes, 3);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(session.data.lastImport()?.counts.nodes, 3);
+        });
         assert.equal(session.data.lastImport()?.counts.edges, 2);
         // The import is recorded before page.load() resolves, and the page turns to the panels
         // only after Load's handler resumes from that await: wait for the turn, not the import.
-        await waitFor(
-            () => {
-                assert.equal(store.get().page, "panels");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(store.get().page, "panels");
+        });
         assert.equal(store.get().place, "graph");
         assert.equal(store.get().project?.name, "les-miserables");
     });
@@ -233,7 +218,7 @@ describe("the Data page on the real element", () => {
     it("puts Load in a region named by what the load makes, so reading around Load says the counts", async () => {
         await openFromEmptyApp();
         await chooseFiles(new File([GML], "les-miserables.gml"));
-        await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("model-strip", {});
         const region = screen.getByRole("region", { name: "les-miserables: 3 nodes, 2 edges" });
         assert.isTrue(region.contains(loadButton()), "Load sits in the region the counts name");
     });
@@ -242,7 +227,7 @@ describe("the Data page on the real element", () => {
         const { session } = await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
 
-        const strip = await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+        const strip = await screen.findByTestId("model-strip", {});
         // Leave out is the default: the edge to z is dropped.
         assert.equal(strip.textContent, "people and ties: 3 nodes, 2 edges");
         const report = screen.getByRole("region", { name: "Match report" });
@@ -263,12 +248,9 @@ describe("the Data page on the real element", () => {
         });
 
         await userEvent.click(loadButton());
-        await waitFor(
-            () => {
-                assert.equal(session.data.lastImport()?.counts.edges, 3);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(session.data.lastImport()?.counts.edges, 3);
+        });
         assert.equal(session.data.lastImport()?.counts.nodes, 4);
         assert.deepEqual(session.data.lastImport()?.unmatched, { rows: 1, values: 1 });
         assert.equal(session.data.node("a")?.name, "Ann");
@@ -278,7 +260,7 @@ describe("the Data page on the real element", () => {
     it("a table with a row the load leaves out wears a warning with the count, and only the way back shows", async () => {
         await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
-        await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("model-strip", {});
         const tables = screen.getByRole("region", { name: "Tables" });
         const report = screen.getByRole("region", { name: "Match report" });
 
@@ -315,7 +297,7 @@ describe("the Data page on the real element", () => {
     it("Add and Leave out read at the body size and each says what it does on hover", async () => {
         await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
-        await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("model-strip", {});
         const report = screen.getByRole("region", { name: "Match report" });
 
         for (const [option, hint] of [
@@ -326,7 +308,7 @@ describe("the Data page on the real element", () => {
             assert.equal(getComputedStyle(words).fontSize, "11px", `${option} at the body size`);
             await userEvent.hover(words);
             // The theme opens a tooltip after a one-second rest.
-            const tip = await screen.findByText(hint, {}, { timeout: TIMEOUT_MS });
+            const tip = await screen.findByText(hint, {});
             assert.isNotNull(tip.closest('[role="tooltip"]'));
             await userEvent.unhover(words);
             await waitFor(() => {
@@ -339,7 +321,7 @@ describe("the Data page on the real element", () => {
         await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES_SEVERAL_UNMATCHED], "ties.csv"));
 
-        await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("model-strip", {});
         const report = screen.getByRole("region", { name: "Match report" });
         assert.include(report.textContent, "3 edge rows name 2 nodes missing from the node rows.");
     });
@@ -347,7 +329,7 @@ describe("the Data page on the real element", () => {
     it("File settings keeps its place when the table pane grows a scrollbar", async () => {
         await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"));
-        await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("model-strip", {});
 
         // The pane keeps the scrollbar's room whether or not the preview overflows. Checked as
         // the style: the test browser runs headless, which hides scrollbars, so a position
@@ -360,7 +342,7 @@ describe("the Data page on the real element", () => {
         const { session } = await openFromEmptyApp();
         await chooseFiles(new File([""], "empty.csv"));
 
-        const alert = await screen.findByRole("alert", {}, { timeout: TIMEOUT_MS });
+        const alert = await screen.findByRole("alert", {});
         assert.include(alert.textContent, "empty.csv holds no nodes or edges.");
         assert.equal(loadButton().getAttribute("aria-disabled"), "true");
         // force: a reader can still press a disabled control, and it must do nothing
@@ -369,28 +351,22 @@ describe("the Data page on the real element", () => {
         assert.isNotNull(within(alert).getByRole("button", { name: "Choose another file..." }));
 
         await chooseFiles(new File([GML], "les-miserables.gml"));
-        await screen.findByText("les-miserables: 3 nodes, 2 edges", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("les-miserables: 3 nodes, 2 edges", {});
         assert.isNull(screen.queryByRole("alert"));
         await userEvent.click(loadButton());
-        await waitFor(
-            () => {
-                assert.equal(session.data.lastImport()?.counts.nodes, 3);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(session.data.lastImport()?.counts.nodes, 3);
+        });
     });
 
     it("opens a saved project chosen on the page as a project, not as data with no rows", async () => {
         const { store } = await openFromEmptyApp();
         await chooseFiles(new File([POSTER], "lesmis-poster.graphty.json"));
 
-        await waitFor(
-            () => {
-                assert.strictEqual(store.get().page, "panels");
-                assert.match(store.get().notice?.message ?? "", /^Opened /);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(store.get().page, "panels");
+            assert.match(store.get().notice?.message ?? "", /^Opened /);
+        });
         // The notice is written once the project has opened, so its graph is all in.
         assert.strictEqual(document.querySelector("graphty-element")?.session.data.statistics().nodeCount, 77);
         assert.isNull(screen.queryByText(/holds no nodes or edges/));
@@ -400,7 +376,7 @@ describe("the Data page on the real element", () => {
         await openFromEmptyApp();
         await chooseFiles(new File(["graph ["], "ring.gml"));
 
-        const alert = await screen.findByRole("alert", {}, { timeout: TIMEOUT_MS });
+        const alert = await screen.findByRole("alert", {});
         assert.include(alert.textContent, "ring.gml could not be read as GML.");
         assert.equal(loadButton().getAttribute("aria-disabled"), "true");
     });
@@ -409,7 +385,7 @@ describe("the Data page on the real element", () => {
         const { session } = await openFromEmptyApp();
         await chooseFiles(new File([TRIPS], "trips.csv"));
 
-        const alert = await screen.findByRole("alert", {}, { timeout: TIMEOUT_MS });
+        const alert = await screen.findByRole("alert", {});
         assert.include(alert.textContent, "The file has: from_station, to_station, trips.");
         assert.equal(loadButton().getAttribute("aria-disabled"), "true");
 
@@ -437,12 +413,9 @@ describe("the Data page on the real element", () => {
         );
         await pick("Direction", "Directed");
         await userEvent.click(loadButton());
-        await waitFor(
-            () => {
-                assert.equal(session.data.lastImport()?.counts.edges, 3);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(session.data.lastImport()?.counts.edges, 3);
+        });
         assert.equal(session.data.lastImport()?.weights.attribute, "trips");
         assert.isTrue(session.config.data.directed);
     });
@@ -450,35 +423,29 @@ describe("the Data page on the real element", () => {
     it("reads the file again when File settings change", async () => {
         await openFromEmptyApp();
         await chooseFiles(new File(["source;target\na;b\nb;c\n"], "ties.csv"));
-        await waitFor(
-            () => {
-                assert.equal(screen.getByTestId("model-strip").textContent, "ties: 3 nodes, 2 edges");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(screen.getByTestId("model-strip").textContent, "ties: 3 nodes, 2 edges");
+        });
 
         await userEvent.click(screen.getByRole("button", { name: /^File settings/ }));
         await pick("Separator", "Tab");
         // Read again with tabs, the file is one column.
-        await screen.findByRole("combobox", { name: "Role of source;target" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("combobox", { name: "Role of source;target" });
     });
 
     it("Edit source... reopens the one source on its own roles, and its Load replaces the source rather than adding a copy", async () => {
         await page.viewport(1366, 768);
         const { store, session } = await openFromEmptyApp();
         await chooseFiles(new File([TIES], "ties.csv"));
-        const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
+        const report = await screen.findByRole("region", { name: "Match report" });
         // An edge list has no node rows, and the sentence does not count them.
         assert.include(report.textContent, "3 edge rows read; the load makes");
         assert.notInclude(report.textContent, "node row");
         await pick("Role of weight", "Attribute");
         await userEvent.click(loadButton());
-        await waitFor(
-            () => {
-                assert.equal(store.get().page, "panels");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(store.get().page, "panels");
+        });
         assert.equal(session.data.statistics().edgeCount, 3);
 
         act(() => {
@@ -490,24 +457,18 @@ describe("the Data page on the real element", () => {
         await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Edit source..." }));
         await screen.findByRole("heading", { name: "Replace: ties.csv" });
-        await waitFor(
-            () => {
-                assert.equal(
-                    screen.getByRole<HTMLInputElement>("combobox", { name: "Role of weight" }).value,
-                    "Attribute",
-                    "the role the reader chose comes back",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(
+                screen.getByRole<HTMLInputElement>("combobox", { name: "Role of weight" }).value,
+                "Attribute",
+                "the role the reader chose comes back",
+            );
+        });
         // A replace says so on its button, as its title does.
         await userEvent.click(screen.getByRole("button", { name: "Replace" }));
-        await waitFor(
-            () => {
-                assert.equal(store.get().page, "panels");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(store.get().page, "panels");
+        });
         assert.equal(session.data.statistics().edgeCount, 3, "the source is replaced, not loaded twice");
         assert.lengthOf(session.data.sources(), 1);
     });
@@ -516,7 +477,7 @@ describe("the Data page on the real element", () => {
         await page.viewport(1366, 768);
         const { store } = await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "passes.csv"));
-        await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("model-strip", {});
         // Every sentence the status line is given from Load on.
         const said: string[] = [];
         const stop = store.subscribe(() => {
@@ -527,12 +488,9 @@ describe("the Data page on the real element", () => {
         });
         // Leave out is the default: the row naming z is left out.
         await userEvent.click(loadButton());
-        await waitFor(
-            () => {
-                assert.equal(store.get().page, "panels");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(store.get().page, "panels");
+        });
         stop();
         // The line is said once, under the header's name, with the row the load left out; its
         // region is in the page already, outside what the Data page hid, so it is spoken.
@@ -570,15 +528,12 @@ describe("the Data page on the real element", () => {
     it("Sources says nothing was left out when a load kept every row", async () => {
         const { store } = await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "passes.csv"));
-        const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(await within(report).findByText("Add", {}, { timeout: TIMEOUT_MS }));
+        const report = await screen.findByRole("region", { name: "Match report" });
+        await userEvent.click(await within(report).findByText("Add", {}));
         await userEvent.click(loadButton());
-        await waitFor(
-            () => {
-                assert.equal(store.get().page, "panels");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(store.get().page, "panels");
+        });
 
         act(() => {
             store.set({ place: "data" });
@@ -602,10 +557,8 @@ describe("the Data page on the real element", () => {
         await screen.findByRole("heading", { name: "Add to Ring" });
         await chooseFiles(new File([TIES], "ties.csv"));
 
-        const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(
-            await within(report).findByRole("button", { name: "Show the 1 unmatched row" }, { timeout: TIMEOUT_MS }),
-        );
+        const report = await screen.findByRole("region", { name: "Match report" });
+        await userEvent.click(await within(report).findByRole("button", { name: "Show the 1 unmatched row" }));
         await screen.findByText("1 unmatched row: z has no node row");
         const grid = screen.getByRole("grid", { name: "Rows of ties.csv" });
         assert.deepEqual(
@@ -626,8 +579,8 @@ describe("the Data page on the real element", () => {
 
         await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
         // z is in no node row and not in the graph: Add makes it.
-        const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(await within(report).findByText("Add", {}, { timeout: TIMEOUT_MS }));
+        const report = await screen.findByRole("region", { name: "Match report" });
+        await userEvent.click(await within(report).findByText("Add", {}));
         await waitFor(() => {
             // The graph and the file each under their own name, never the total under the file's.
             assert.equal(
@@ -636,12 +589,9 @@ describe("the Data page on the real element", () => {
             );
         });
         await userEvent.click(loadButton());
-        await waitFor(
-            () => {
-                assert.equal(store.get().page, "panels");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(store.get().page, "panels");
+        });
         assert.equal(session.data.statistics().nodeCount, 4, "a, b and c kept or added, and z added");
         assert.equal(store.get().project?.name, "Ring");
         assert.equal(store.get().announcement, "Ring: 4 nodes, 3 edges");
@@ -677,7 +627,7 @@ describe("the Data page on the real element", () => {
     it("Esc keeps a chosen file on the page: Cancel is the way out", async () => {
         const { store } = await openFromEmptyApp();
         await chooseFiles(new File(["from,to,km\na,b,3\nb,c,6\n"], "trails.csv"));
-        await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("region", { name: "Match report" });
         await userEvent.click(screen.getByRole("heading", { name: "Open as a new graph" }));
         await userEvent.keyboard("{Escape}");
         assert.equal(store.get().page, "data-page");
@@ -690,10 +640,10 @@ describe("the Data page on the real element", () => {
     it("says what a CSV's weight means under Higher means, and the graph inspector reads it back", async () => {
         const { session } = await openFromEmptyApp();
         await chooseFiles(new File(["from,to,emails\np01,p02,14\np02,p03,9\n"], "messages.csv"));
-        await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Weight: none (each edge counts 1)", {});
         await pick("Role of emails", "Weight");
 
-        const higher = await screen.findByRole("radiogroup", { name: "Higher means" }, { timeout: TIMEOUT_MS });
+        const higher = await screen.findByRole("radiogroup", { name: "Higher means" });
         // Unset until the reader chooses, and drawn so: "Not set" is the checked choice.
         const checked = (): string[] =>
             within(higher)
@@ -710,22 +660,19 @@ describe("the Data page on the real element", () => {
         await userEvent.click(within(higher).getByText("Closer"));
 
         await userEvent.click(loadButton());
-        await waitFor(
-            () => {
-                assert.deepEqual(session.data.loadedWeight(), { attribute: "emails", meaning: "strength" });
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        await screen.findByText("Loaded weight", {}, { timeout: TIMEOUT_MS });
+        await waitFor(() => {
+            assert.deepEqual(session.data.loadedWeight(), { attribute: "emails", meaning: "strength" });
+        });
+        await screen.findByText("Loaded weight", {});
         assert.isNotNull(screen.getByText("emails (closer)"));
     });
 
     it("draws the unset weight's hint at the fields' 11px and at 4.5:1 contrast (WCAG 1.4.3)", async () => {
         await openFromEmptyApp();
         await chooseFiles(new File(["from,to,emails\np01,p02,14\np02,p03,9\n"], "messages.csv"));
-        await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Weight: none (each edge counts 1)", {});
         await pick("Role of emails", "Weight");
-        const hint = await screen.findByText(UNSET_HINT, {}, { timeout: TIMEOUT_MS });
+        const hint = await screen.findByText(UNSET_HINT, {});
         const ratio = contrastOnPage(hint);
         assert.isAtLeast(ratio, 4.5, `the hint measures ${ratio.toFixed(2)}:1`);
         // Mantine sizes a bare wrapper's description as its size minus 2px: 7px at xs.
@@ -735,12 +682,12 @@ describe("the Data page on the real element", () => {
     it("keeps the file's format apart from 'Each row is', and Load in place when Higher means appears", async () => {
         await openFromEmptyApp();
         await chooseFiles(new File(["from,to,minutes\nA,B,4\nB,C,6\n"], "bus-stops.csv"));
-        await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Weight: none (each edge counts 1)", {});
 
         // The format is the file's: on the heading's line, under its own label, above the row kind.
         const format = screen.getByRole("button", { name: /^File settings/ });
         const rowKind = screen.getByText("Each row is");
-        const strip = (await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS })).getBoundingClientRect();
+        const strip = (await screen.findByTestId("model-strip", {})).getBoundingClientRect();
         const box = format.getBoundingClientRect();
         assert.isAtMost(box.bottom, rowKind.getBoundingClientRect().top, "the format sits above 'Each row is'");
         assert.isAtLeast(strip.top + strip.height / 2, box.top, "on the heading's line");
@@ -750,14 +697,14 @@ describe("the Data page on the real element", () => {
         const footer = (): number => loadButton().getBoundingClientRect().top;
         const before = footer();
         await pick("Role of minutes", "Weight");
-        await screen.findByRole("radiogroup", { name: "Higher means" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("radiogroup", { name: "Higher means" });
         assert.equal(footer(), before, "Load stays where the reader aimed");
     });
 
     it("words the summary line, and its direction follows the Direction choice", async () => {
         await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
-        const strip = await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+        const strip = await screen.findByTestId("model-strip", {});
         assert.equal(strip.textContent, "people and ties: 3 nodes, 2 edges");
         await pick("Direction", "Undirected");
         await waitFor(() => {
@@ -773,10 +720,10 @@ describe("the Data page on the real element", () => {
     it("shows the table the reader just added, not the first one", async () => {
         await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"));
-        await screen.findByRole("grid", { name: "Rows of people.csv" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("grid", { name: "Rows of people.csv" });
         // A drop on the page joins the table on it, as Tables "+" File... does.
         await chooseFiles(new File([TIES], "ties.csv"));
-        await screen.findByRole("grid", { name: "Rows of ties.csv" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("grid", { name: "Rows of ties.csv" });
         assert.include(screen.getByRole("button", { current: true }).textContent, "Edges: ties.csv");
     });
 
@@ -784,7 +731,7 @@ describe("the Data page on the real element", () => {
         await page.viewport(1440, 900);
         await openFromEmptyApp();
         await chooseFiles(new File([STAFF], "staff.csv"));
-        const grid = await screen.findByRole("grid", { name: "Rows of staff.csv" }, { timeout: TIMEOUT_MS });
+        const grid = await screen.findByRole("grid", { name: "Rows of staff.csv" });
         // The count drawn above the table, not the status line that says it out loud.
         await screen.findByText("All 12 rows", { selector: "p" });
         await waitFor(() => {
@@ -800,13 +747,13 @@ describe("the Data page on the real element", () => {
     it("names each role box after its column, says what a weight's meaning is in a sentence, and shows it in the summary", async () => {
         await openFromEmptyApp();
         await chooseFiles(new File(["from,to,km\na,b,3\nb,c,6\n"], "trails.csv"));
-        await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Weight: none (each edge counts 1)", {});
         // The column's name above its role box opens that box's list.
         await userEvent.click(screen.getByText("km", { selector: "label" }));
         await screen.findByRole("option", { name: "Weight" });
         await userEvent.keyboard("{Escape}");
         await pick("Role of km", "Weight");
-        await screen.findByText(UNSET_HINT, {}, { timeout: TIMEOUT_MS });
+        await screen.findByText(UNSET_HINT, {});
         const higher = screen.getByRole("radiogroup", { name: "Higher means" });
         await userEvent.click(within(higher).getByText("Farther"));
         await screen.findByText(
@@ -816,14 +763,14 @@ describe("the Data page on the real element", () => {
 
         // The reset beside a chosen role says what it does on hover, in compact-mantine's tooltip.
         await userEvent.hover(screen.getByRole("button", { name: "Reset km to default" }));
-        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
+        const tip = await screen.findByRole("tooltip", {});
         assert.equal(tip.textContent, "Reset km to default");
     });
 
     it("says an edge table with no weight counts each edge 1", async () => {
         await openFromEmptyApp();
         await chooseFiles(new File(["source,target\na,b\nb,c\n"], "plain.csv"));
-        await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Weight: none (each edge counts 1)", {});
         assert.isNull(screen.queryByRole("radiogroup", { name: "Higher means" }));
     });
 });

@@ -86,15 +86,32 @@ describe("Pajek label fonts", () => {
 });
 
 describe("Pajek's empty vertex label", () => {
-    it("is drawn white at size 1 on the vertex's center, whatever the line sets", async () => {
-        // pajek-synth-vertices `empty 14` (lr 12 lphi 225), pajek-lin-rel4 v226
+    it("is drawn white at size 1 where the line sets neither, in the place lr and lphi give any label", async () => {
+        // pajek-synth-vertices: `empty 6` (nothing set) starts 5.18 right of its center, its middle 18.97 below;
+        // `empty 14` (lr 12 lphi 225) starts at (-8.49, +8.49); `empty 22` (lc Yellow) is yellow, v71 (fos 18) 18
         const { get } = await load(
-            "*Vertices 2\n1 a 0.1 0.1 0.5 empty lr 12 lphi 225 lc Red\n2 b 0.2 0.2 0.5 ellipse\n",
+            "*Vertices 4\n1 a 0.1 0.1 0.5 empty\n2 b 0.2 0.2 0.5 empty lr 12 lphi 225\n" +
+                "3 c 0.3 0.3 0.5 empty lc Yellow fos 18\n4 d 0.4 0.4 0.5 ellipse\n",
         );
-        expect(get("node", "labelSize")).toEqual([1, 15]);
-        expect(get("node", "labelColor")).toEqual(["#ffffff", "#ad0000"]);
-        expect(get("node", "labelOffsetX")[0]).toBe(0);
-        expect(get("node", "labelOffsetY")[0]).toBe(0);
+        expect(get("node", "labelSize")).toEqual([1, 1, 18, 15]);
+        expect(get("node", "labelColor")).toEqual(["#ffffff", "#ffffff", "#ffff00", "#ad0000"]);
+        expect(get("node", "labelShiftX").slice(0, 3)).toEqual([0.5, 0.5, 0.5]);
+        const [x, y] = [get("node", "labelOffsetX"), get("node", "labelOffsetY")];
+        expect(x[0]).toBeCloseTo(5.18, 2);
+        expect(y[0]).toBeCloseTo(18.97, 1);
+        expect(x[1]).toBeCloseTo(-8.49, 2);
+        expect(y[1]).toBeCloseTo(8.14, 1);
+    });
+
+    it("has no size, so its lines run to its center, whatever x_fact and y_fact say", async () => {
+        // pajek-lin-rel4 v228 -> v23, pajek-synth-vertices 6 -> 7 (`empty s_size 3`): Pajek draws the line from the
+        // empty vertex's center; a sized box stopped graphty's line half that box short of it
+        const { get } = await load(
+            "*Vertices 3\n1 a 0.1 0.1 0.5 empty\n2 b 0.2 0.2 0.5 empty x_fact 2 y_fact 1.5\n3 c 0.3 0.3 0.5 ellipse\n",
+        );
+        expect(get("node", "width").slice(0, 2)).toEqual([0, 0]);
+        expect(get("node", "height").slice(0, 2)).toEqual([0, 0]);
+        expect(get("node", "width")[2]).not.toBe(0);
     });
 });
 

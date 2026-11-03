@@ -5,7 +5,7 @@
  * decodes beside a load is never refused.
  */
 
-import { Tools } from "@babylonjs/core/Misc/tools";
+import { Tools } from "@babylonjs/core/Misc/tools.js";
 import { assert, describe, it } from "vitest";
 
 import { guardRequests, REFUSED } from "../../src/models/requestGuard";

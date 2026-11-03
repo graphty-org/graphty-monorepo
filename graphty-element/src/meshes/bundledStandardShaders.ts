@@ -14,10 +14,10 @@
  * the scene as already loaded from the moment it is constructed, so Babylon skips the `import()`.
  */
 
-import "@babylonjs/core/Shaders/default.vertex";
-import "@babylonjs/core/Shaders/default.fragment";
-import "@babylonjs/core/ShadersWGSL/default.vertex";
-import "@babylonjs/core/ShadersWGSL/default.fragment";
+import "@babylonjs/core/Shaders/default.vertex.js";
+import "@babylonjs/core/Shaders/default.fragment.js";
+import "@babylonjs/core/ShadersWGSL/default.vertex.js";
+import "@babylonjs/core/ShadersWGSL/default.fragment.js";
 
 import { type Scene, ShaderStore, StandardMaterial } from "@babylonjs/core";
 

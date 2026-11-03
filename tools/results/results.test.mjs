@@ -47,6 +47,8 @@ import {
     refreshPlan,
     runGroup,
     runShape,
+    shotsInputs,
+    shotsPlan,
     storeList,
 } from "./run-group.mjs";
 
@@ -407,6 +409,9 @@ describe("postRecords", () => {
 });
 
 describe("runGroup", () => {
+    // the store below never answers: each record POST costs its deadline, not RECORD_MS and RETRY_MS (19 s)
+    const NEVER_ANSWERS = { record: 300, retry: [10, 10] };
+
     it("keeps the verdict and spools the record when the store never answers", async () => {
         const s = await serve(false);
         const root = join(TMP, "checkout");
@@ -422,7 +427,7 @@ describe("runGroup", () => {
             cwd: root,
         });
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "5" };
-        const code = await runGroup("fake", undefined, { root, env });
+        const code = await runGroup("fake", undefined, { root, env, storeMs: NEVER_ANSWERS });
         assert.equal(code, 3);
         const spooled = readdirSync(join(root, "test-results/results-spool"));
         assert.deepEqual(spooled, ["5.1.job.fake.1.json"]);
@@ -446,8 +451,8 @@ describe("runGroup", () => {
         execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "7" };
         const spool = join(root, "test-results/results-spool");
-        await runGroup("plain", undefined, { root, env });
-        await runGroup("pkg-features-on-1", undefined, { root, env });
+        await runGroup("plain", undefined, { root, env, storeMs: NEVER_ANSWERS });
+        await runGroup("pkg-features-on-1", undefined, { root, env, storeMs: NEVER_ANSWERS });
         const read = (f) => JSON.parse(readFileSync(join(spool, f), "utf8"));
         assert.equal(read("7.1.job.plain.1.json").variant, "plain|flags=off|whole");
         assert.equal(read("7.1.job.pkg-features-on-1.1.json").variant, "pkg-features-on|flags=on|whole");
@@ -476,7 +481,7 @@ describe("runGroup", () => {
         mkdirSync(join(root, "test-results"), { recursive: true });
         writeFileSync(join(root, "test-results/results-spool"), "");
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "6" };
-        assert.equal(await runGroup("fake", undefined, { root, env }), 0);
+        assert.equal(await runGroup("fake", undefined, { root, env, storeMs: NEVER_ANSWERS }), 0);
     });
 });
 
@@ -565,6 +570,100 @@ describe("groupFamily", () => {
             quarantine.map((q) => [q.name, q.family]),
             [["Shots", "layout-shots"]],
         );
+    });
+});
+
+describe("a screenshot run's own plan and inputs (#3648)", () => {
+    it("asks the store for the `-shots` family the plan file does not cover and judges by its quarantine", async () => {
+        // the store answers by the families asked about: the shard's own one and its `-shots` one
+        const s = await serve((req) => {
+            const variants = new URL(req.url, "http://x").searchParams.get("variants").split(",");
+            const families = new Set(variants.map((v) => v.split("|")[0]));
+            const all = [
+                { family: "layout-shots", file: "l/A.stories.ts", name: "Shots", issue: 9 },
+                { family: "layout", file: "l/A.stories.ts", name: "Plain", issue: 8 },
+            ];
+            return { quarantine: all.filter((q) => families.has(q.family)) };
+        });
+        const root = join(TMP, "checkout-shots-own-plan");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout", "test-command": "exit 0" }];\n`,
+        );
+        writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine: [] }));
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        // the light check asked about other packages only: its plan has no `layout-shots`
+        writeFileSync(join(root, "plan.json"), JSON.stringify({ families: ["graphty"], quarantine: [] }));
+        const out = join(root, "quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            RESULTS_URL: s.url,
+            GRAPHTY_RESULTS_TOKEN: "t",
+            GITHUB_EVENT_NAME: "workflow_call",
+            VISUAL_REVIEW_STORY_OUT: join(root, "stories"),
+            RESULTS_PLAN: join(root, "plan.json"),
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        assert.equal(await runGroup("layout", undefined, { root, env }), 0);
+        const { quarantine } = JSON.parse(readFileSync(out, "utf8"));
+        assert.deepEqual(quarantine.map((q) => [q.name, q.family]).sort(), [
+            ["Plain", "layout-shots"],
+            ["Shots", "layout-shots"],
+        ]);
+        assert.ok(s.seen.some((r) => r.url.startsWith("/v1/plan") && r.url.includes("layout-shots")));
+    });
+
+    it("fails open to no plan when the store is not configured or does not answer", async () => {
+        const facts = { sha: "a", base: null, family: "f-shots", variant: "f-shots|flags=off|shots" };
+        assert.equal(await shotsPlan({ ...facts, cfg: null }), null);
+        const s = await serve(() => ({ unavailable: "down" }));
+        assert.equal(await shotsPlan({ ...facts, cfg: { url: s.url, token: "t" } }), null);
+        const t = await serve(() => ({ quarantine: [] }));
+        // no `affected`: the selector never looked at this family, so every test counts as touched
+        assert.deepEqual(await shotsPlan({ ...facts, base: "b", cfg: { url: t.url, token: "t" } }), {
+            quarantine: [],
+            base: "b",
+            families: ["f-shots"],
+        });
+        const judge = prJudge({ base: "b", quarantine: [] }, { shard: "f-1", ...facts, base: "b" });
+        const failed = { file: "g/A.stories.tsx", name: "A", text: "boom" };
+        const d = { pass: false, flaky: [], excused: [], failing: [failed] };
+        assert.equal(judge(d, { firstOutcome: "failed" }).pass, false);
+    });
+
+    it("keys a screenshot run by the Chromium revision and its project's baseline tree", () => {
+        const root = join(TMP, "checkout-shots-inputs");
+        mkdirSync(join(root, "node_modules/playwright-core"), { recursive: true });
+        mkdirSync(join(root, "visual-baselines/p"), { recursive: true });
+        writeFileSync(join(root, "package.json"), "{}");
+        const browsers = (revision) =>
+            writeFileSync(
+                join(root, "node_modules/playwright-core/browsers.json"),
+                JSON.stringify({ browsers: [{ name: "chromium", revision }] }),
+            );
+        writeFileSync(join(root, "node_modules/playwright-core/package.json"), '{"name":"playwright-core"}');
+        browsers("1200");
+        writeFileSync(join(root, "visual-baselines/p/a.png"), "one");
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["add", "visual-baselines"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "-m", "x"], { cwd: root });
+        const first = shotsInputs(root, "p");
+        assert.match(first, /^chromium-1200\|baselines-[0-9a-f]{40}$/);
+        writeFileSync(join(root, "visual-baselines/p/a.png"), "two");
+        execFileSync("git", ["commit", "-q", "-am", "y"], { cwd: root });
+        const rebaselined = shotsInputs(root, "p");
+        assert.notEqual(rebaselined, first);
+        browsers("1201");
+        assert.notEqual(shotsInputs(root, "p"), rebaselined);
+        assert.equal(shotsInputs(root, "none"), "chromium-1201|baselines-");
+
+        const env = { PATH: "x", VISUAL_REVIEW_STORY_OUT: "/tmp/s" };
+        const keys = (shots) =>
+            groupKeys({ shardName: "f-1", shard: { "test-command": "c" }, cmd: "c", env, shardKey: "k", shots });
+        assert.notEqual(keys(first).inputs, keys(rebaselined).inputs);
+        assert.equal(keys(first).inputs, keys(first).inputs);
     });
 });
 
@@ -747,6 +846,22 @@ describe("the pull request rules", () => {
         // a plan with no `affected` (the everything plan) counts every test as touched
         const everything = { quarantine: [], failingOnBase: [] };
         assert.deepEqual(tags(judge(everything, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
+    });
+
+    // #5128: a failure with no retry failed once; it must not read "failed every time"
+    it("says a failing test was not retried when no retry ran", () => {
+        const plan = { quarantine: [], failingOnBase: [], affected: ["a.test.ts"] };
+        const d = decide({
+            family: FAMILY,
+            first: report(fail("once")),
+            firstOutcome: "failed",
+            list: storeList(plan),
+        });
+        const why = "not retried: its command cannot be narrowed to the failed files";
+        const once = prJudge(plan, o)(d, { firstOutcome: "failed", unretried: why });
+        assert.equal(once.lines[0].text, `[FAIL] ${o.shard}: a.test.ts > once failed (${why})`);
+        const again = judge(plan, report(fail("once")), report(fail("once")));
+        assert.equal(again.lines[0].text, `[FAIL] ${o.shard}: a.test.ts > once failed every time`);
     });
 
     it("writes the base checks it names for ci.yml's base-checks job, which dispatches only valid ones", async () => {
@@ -999,6 +1114,37 @@ describe("fileIssues", () => {
             calls.filter((c) => c[1] === "reopen").map((c) => c[2]),
             ["41", "12"],
         );
+        // #3311: a repeat quarantine raises the earlier issue to priority:critical, dropping any lower priority
+        const edits = calls.filter((c) => c[1] === "edit");
+        assert.deepEqual(
+            edits.map((c) => c[2]),
+            ["41", "12"],
+        );
+        for (const e of edits) {
+            assert.equal(e[e.indexOf("--add-label") + 1], "priority:critical");
+            const removed = e.flatMap((a, i) => (e[i - 1] === "--remove-label" ? [a] : []));
+            assert.deepEqual(removed, ["priority:high", "priority:medium", "priority:low"]);
+        }
+    });
+
+    it("keeps the comment when raising the earlier issue's priority fails", async () => {
+        const { gh: base, calls } = ghFake();
+        const gh = (args) => {
+            if (args[1] === "edit") throw new Error("HTTP 422");
+            return base(args);
+        };
+        const out = await fileIssues(
+            null,
+            [rec("passed", [])],
+            [{ ok: true, data: { flaky: [{ ...flaky, had: 12 }] } }],
+            [],
+            gh,
+        );
+        assert.deepEqual(
+            out.map((i) => i.number),
+            [12],
+        );
+        assert.equal(calls.filter((c) => c[1] === "comment").length, 1);
     });
 
     it("looks for an earlier issue by its own kind's marker", async () => {
@@ -1212,6 +1358,84 @@ describe("cli", () => {
         ])
             await baseCheck({ root, variant, file, env: {}, build: true, run, exec });
         assert.deepEqual(built, ["@graphty/remote-logger:build", "layout:build"]);
+    });
+
+    it("runs a `-shots` variant's story with its screenshots, as the story-tests job runs its shard (#5428)", async () => {
+        const root = join(import.meta.dirname, "../..");
+        const cases = [
+            [
+                "graphty-element-storybook-shots",
+                "graphty-element/stories/AiControl.stories.ts",
+                "graphty-element-storybook-1",
+                "graphty-element",
+            ],
+            ["layout-shots", "layout/stories/2d/ARF.stories.ts", "layout", "layout"],
+            [
+                "graph-io-browser-shots",
+                "graph-io/fidelity-stories/stories/cx/Samples.stories.ts",
+                "graph-io-browser",
+                "graph-io-fidelity",
+            ],
+        ];
+        for (const [family, file, shard, project] of cases) {
+            const runs = [];
+            const execs = [];
+            const run = async (s, cmd, o) => {
+                runs.push({ s, cmd, env: o.env });
+                return 0;
+            };
+            const exec = (cmd, args) => execs.push([cmd, ...args].join(" "));
+            const variant = `${family}|flags=off|shots`;
+            assert.equal(
+                await baseCheck({ root, variant, file, repeat: 2, env: {}, build: true, run, exec }),
+                0,
+                family,
+            );
+            assert.equal(runs.length, 2);
+            for (const r of runs) {
+                // the shard's own name, so run-group.mjs records under `<family>-shots` with the project's baselines
+                assert.equal(r.s, shard);
+                assert.equal(r.env.RESULTS_VARIANT, variant);
+                assert.ok(r.env.VISUAL_REVIEW_STORY_OUT, "the screenshots are taken");
+                assert.equal(groupFamily(r.s, r.env), family);
+                assert.match(r.cmd, /vitest run (--project=storybook|--config=vitest\.storybook\.config\.ts) /);
+                assert.ok(r.cmd.endsWith(`'${file.slice(file.indexOf("/") + 1)}'`), r.cmd);
+                assert.doesNotMatch(r.cmd, /--shard|--coverage/);
+            }
+            assert.notEqual(runs[0].env.VISUAL_REVIEW_STORY_OUT, runs[1].env.VISUAL_REVIEW_STORY_OUT);
+            assert.match(
+                execs[0],
+                new RegExp(`^git lfs pull --include visual-baselines/${project}/\\*\\*,visual-fonts/`),
+            );
+            assert.equal(execs[0].includes("fidelity/oracles"), project === "graph-io-fidelity");
+            assert.match(execs[1], /^pnpm exec nx run \S+:build$/);
+            // graph-io's fidelity stories import graphty-element's source, which needs the other packages built
+            assert.equal(execs.includes("pnpm exec nx run graphty-element:build"), project !== "layout", project);
+        }
+        // a story file of another package is not the shard's
+        const run = async () => 0;
+        const other = {
+            root,
+            variant: "layout-shots|flags=off|shots",
+            file: "graphty/src/stories/App.stories.tsx",
+            env: {},
+            run,
+        };
+        assert.equal(await baseCheck(other), 2);
+    });
+
+    it("still runs a plain family on a base whose matrix predates the story runs", async () => {
+        const root = mkdtempSync(join(tmpdir(), "base-check-old-"));
+        mkdirSync(join(root, "tools"));
+        const shard = { shard: "layout", package: "layout", "test-command": "cd layout && pnpm exec vitest run" };
+        writeFileSync(join(root, "tools/ci-test-matrix.mjs"), `export const SHARDS = [${JSON.stringify(shard)}];\n`);
+        const cmds = [];
+        const run = async (s, cmd) => cmds.push(cmd) && 0;
+        const file = "layout/test/a.test.ts";
+        assert.equal(await baseCheck({ root, variant: "layout|flags=off|selected", file, env: {}, run }), 0);
+        assert.deepEqual(cmds, ["cd layout && pnpm exec vitest run 'test/a.test.ts'"]);
+        assert.equal(await baseCheck({ root, variant: "layout-shots|flags=off|shots", file, env: {}, run }), 2);
+        rmSync(root, { recursive: true, force: true });
     });
 
     it("lets only the last repeat file Failing on master, and only when every repeat failed", async () => {

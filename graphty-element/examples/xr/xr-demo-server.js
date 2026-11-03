@@ -94,144 +94,148 @@ const options = {
     cert: fs.readFileSync(CERT_PATH),
 };
 
-// Create HTTPS server
-const server = https.createServer(options, (req, res) => {
-    // Handle CORS
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+/**
+ * Store and display a batch of logs a headset POSTed.
+ * @param req - The request
+ * @param res - The response
+ */
+function handlePostLog(req, res) {
+    let body = "";
+    req.on("data", (chunk) => {
+        body += chunk.toString();
+    });
+    req.on("end", () => {
+        try {
+            const data = JSON.parse(body);
+            const sessionId = data.sessionId || "unknown";
+            const logs = data.logs || [];
 
-    if (req.method === "OPTIONS") {
-        res.writeHead(204);
-        res.end();
-        return;
-    }
-
-    // Handle log endpoint
-    if (req.url === "/log" && req.method === "POST") {
-        let body = "";
-        req.on("data", (chunk) => {
-            body += chunk.toString();
-        });
-        req.on("end", () => {
-            try {
-                const data = JSON.parse(body);
-                const sessionId = data.sessionId || "unknown";
-                const logs = data.logs || [];
-
-                // Store logs
-                if (!remoteLogs.has(sessionId)) {
-                    remoteLogs.set(sessionId, []);
-                    console.log(
-                        `\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`,
-                    );
-                    console.log(`${colors.bright}${colors.magenta}  NEW SESSION: ${sessionId}${colors.reset}`);
-                    console.log(
-                        `${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`,
-                    );
-                }
-
-                const sessionLogs = remoteLogs.get(sessionId);
-
-                // Display and store each log
-                for (const log of logs) {
-                    sessionLogs.push(log);
-                    displayLog(sessionId, log);
-                }
-
-                res.writeHead(200, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ success: true }));
-            } catch (error) {
-                console.error("Error parsing log data:", error);
-                res.writeHead(400, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "Invalid JSON" }));
+            // Store logs
+            if (!remoteLogs.has(sessionId)) {
+                remoteLogs.set(sessionId, []);
+                console.log(
+                    `\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`,
+                );
+                console.log(`${colors.bright}${colors.magenta}  NEW SESSION: ${sessionId}${colors.reset}`);
+                console.log(
+                    `${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`,
+                );
             }
-        });
-        return;
-    }
 
-    // Handle logs viewer endpoint
-    if (req.url === "/logs" && req.method === "GET") {
-        const allLogs = {};
-        for (const [sessionId, logs] of remoteLogs) {
-            allLogs[sessionId] = logs;
-        }
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(allLogs, null, 2));
-        return;
-    }
+            const sessionLogs = remoteLogs.get(sessionId);
 
-    // Handle recent logs endpoint - returns last N logs across all sessions
-    if (req.url.startsWith("/logs/recent") && req.method === "GET") {
-        const urlParams = new URL(req.url, `https://${HOST}:${PORT}`);
-        const count = Number.parseInt(urlParams.searchParams.get("n") || "50", 10);
-        const errorsOnly = urlParams.searchParams.get("errors") === "true";
-
-        // Collect all logs with session info
-        const allLogs = [];
-        for (const [sessionId, logs] of remoteLogs) {
+            // Display and store each log
             for (const log of logs) {
-                if (!errorsOnly || log.level === "ERROR") {
-                    allLogs.push({ sessionId, ...log });
-                }
+                sessionLogs.push(log);
+                displayLog(sessionId, log);
+            }
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: true }));
+        } catch (error) {
+            console.error("Error parsing log data:", error);
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid JSON" }));
+        }
+    });
+}
+
+/**
+ * Answer every stored log, by session.
+ * @param res - The response
+ */
+function handleAllLogs(res) {
+    const allLogs = {};
+    for (const [sessionId, logs] of remoteLogs) {
+        allLogs[sessionId] = logs;
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(allLogs, null, 2));
+}
+
+/**
+ * Answer the last N logs across all sessions (`?n=`, `?errors=true`).
+ * @param req - The request
+ * @param res - The response
+ */
+function handleRecentLogs(req, res) {
+    const urlParams = new URL(req.url, `https://${HOST}:${PORT}`);
+    const count = Number.parseInt(urlParams.searchParams.get("n") || "50", 10);
+    const errorsOnly = urlParams.searchParams.get("errors") === "true";
+
+    // Collect all logs with session info
+    const allLogs = [];
+    for (const [sessionId, logs] of remoteLogs) {
+        for (const log of logs) {
+            if (!errorsOnly || log.level === "ERROR") {
+                allLogs.push({ sessionId, ...log });
             }
         }
-
-        // Sort by time descending and take last N
-        allLogs.sort((a, b) => new Date(b.time) - new Date(a.time));
-        const recentLogs = allLogs.slice(0, count).reverse(); // Reverse to show oldest first
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-            JSON.stringify(
-                {
-                    total: allLogs.length,
-                    showing: recentLogs.length,
-                    logs: recentLogs,
-                },
-                null,
-                2,
-            ),
-        );
-        return;
     }
 
-    // Handle errors-only endpoint
-    if (req.url === "/logs/errors" && req.method === "GET") {
-        const errorLogs = [];
-        for (const [sessionId, logs] of remoteLogs) {
-            for (const log of logs) {
-                if (log.level === "ERROR") {
-                    errorLogs.push({ sessionId, ...log });
-                }
+    // Sort by time descending and take last N
+    allLogs.sort((a, b) => new Date(b.time) - new Date(a.time));
+    const recentLogs = allLogs.slice(0, count).reverse(); // Reverse to show oldest first
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+        JSON.stringify(
+            {
+                total: allLogs.length,
+                showing: recentLogs.length,
+                logs: recentLogs,
+            },
+            null,
+            2,
+        ),
+    );
+}
+
+/**
+ * Answer only the error logs, oldest first.
+ * @param res - The response
+ */
+function handleErrorLogs(res) {
+    const errorLogs = [];
+    for (const [sessionId, logs] of remoteLogs) {
+        for (const log of logs) {
+            if (log.level === "ERROR") {
+                errorLogs.push({ sessionId, ...log });
             }
         }
-        errorLogs.sort((a, b) => new Date(a.time) - new Date(b.time));
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-            JSON.stringify(
-                {
-                    total: errorLogs.length,
-                    logs: errorLogs,
-                },
-                null,
-                2,
-            ),
-        );
-        return;
     }
+    errorLogs.sort((a, b) => new Date(a.time) - new Date(b.time));
 
-    // Handle clear logs endpoint
-    if (req.url === "/logs/clear" && req.method === "POST") {
-        remoteLogs.clear();
-        console.log(`\n${colors.yellow}Logs cleared${colors.reset}\n`);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true }));
-        return;
-    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+        JSON.stringify(
+            {
+                total: errorLogs.length,
+                logs: errorLogs,
+            },
+            null,
+            2,
+        ),
+    );
+}
 
-    // Static file serving
+/**
+ * Forget every stored log.
+ * @param res - The response
+ */
+function handleClearLogs(res) {
+    remoteLogs.clear();
+    console.log(`\n${colors.yellow}Logs cleared${colors.reset}\n`);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: true }));
+}
+
+/**
+ * Serve a file next to this script, the pivot camera demo for `/`.
+ * @param req - The request
+ * @param res - The response
+ */
+function serveStatic(req, res) {
     let filePath = req.url.split("?")[0]; // Remove query string
 
     // Default to pivot camera demo (with drag and drop)
@@ -270,6 +274,53 @@ const server = https.createServer(options, (req, res) => {
             res.end(content);
         });
     });
+}
+
+// Create HTTPS server
+const server = https.createServer(options, (req, res) => {
+    // Handle CORS
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+        res.writeHead(204);
+        res.end();
+        return;
+    }
+
+    // Handle log endpoint
+    if (req.url === "/log" && req.method === "POST") {
+        handlePostLog(req, res);
+        return;
+    }
+
+    // Handle logs viewer endpoint
+    if (req.url === "/logs" && req.method === "GET") {
+        handleAllLogs(res);
+        return;
+    }
+
+    // Handle recent logs endpoint - returns last N logs across all sessions
+    if (req.url.startsWith("/logs/recent") && req.method === "GET") {
+        handleRecentLogs(req, res);
+        return;
+    }
+
+    // Handle errors-only endpoint
+    if (req.url === "/logs/errors" && req.method === "GET") {
+        handleErrorLogs(res);
+        return;
+    }
+
+    // Handle clear logs endpoint
+    if (req.url === "/logs/clear" && req.method === "POST") {
+        handleClearLogs(res);
+        return;
+    }
+
+    // Static file serving
+    serveStatic(req, res);
 });
 
 server.listen(PORT, () => {

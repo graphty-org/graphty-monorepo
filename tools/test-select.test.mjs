@@ -5,11 +5,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { plan as matrixPlan, SHARDS } from "./ci-test-matrix.mjs";
+import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
     advisoryMisses,
     buildInput,
@@ -18,14 +20,17 @@ import {
     failingFiles,
     globToRe,
     graphCacheKey,
+    nearestBase,
     lightPlan,
     planSummary,
+    reusableEdges,
     lockMoves,
     literalPaths,
     loadRules,
     measuredOf,
     outsideOf,
     packBins,
+    binCost,
     BIN_LIMIT_MS,
     FILE_OVERHEAD_MS,
     rootImportGraph,
@@ -50,13 +55,13 @@ import {
     sourceOf,
     startAdvisory,
     testRefs,
+    useNamesRoot,
     wholePackageRule,
     withLockfile,
 } from "./test-select.mjs";
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
 import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } from "./light-check-replay.mjs";
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
-import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
 import {
     mutant,
@@ -167,6 +172,11 @@ describe("selectPackages", () => {
         const sel = select(["pa/test/b.test.ts"]).packages;
         assert.equal(sel.get("pb").mode, "none");
         assert.equal(sel.get("pc").mode, "all", "but a package that reads its files still runs");
+        // a holder whose path names nothing of pa stands for pa's build parts, never its test specs (PR #5212)
+        const held = new Map([["pc", [{ target: "pa", prefix: "pa/", holder: "pc/test/c.test.ts", build: false }]]]);
+        const run = (f) => selectPackages({ changed: [f], packages, deps, refs: held, graphs, rules }).packages;
+        assert.equal(run("pa/test/b.test.ts").get("pc").mode, "none", "a test spec is no part of it");
+        assert.notEqual(run("pa/test/fixtures/k.json").get("pc").mode, "none", "a fixture still is");
     });
 
     it("runs the whole package for a data folder, and for a code file no graph or rule explains", () => {
@@ -257,18 +267,14 @@ describe("deferring downstream packages' tests (landing checks)", () => {
         const shared = run(["vitest.shared.config.ts"], true);
         assert.deepEqual([...new Set(shared)].sort(), ["graph-format", "graph-io", "graphty", "graphty-element"]);
     });
-
-    it("is on unless PREPUSH_DEFER_DOWNSTREAM=0", () => {
-        assert.equal(deferDownstreamOn({}), true);
-        assert.equal(deferDownstreamOn({ PREPUSH_DEFER_DOWNSTREAM: "1" }), true);
-        assert.equal(deferDownstreamOn({ PREPUSH_DEFER_DOWNSTREAM: "0" }), false);
-    });
 });
 
 describe("shards", () => {
     it("reads each vitest run of a shard command", () => {
         const runs = shardRuns(SHARDS.find((s) => s.shard === "graphty-element-browser-2"));
-        assert.deepEqual(runs, [{ config: null, projects: ["browser", "interactions", "xr"], slice: "2/5" }]);
+        assert.deepEqual(runs, [
+            { config: null, projects: ["browser", "interactions", "xr", "minimum-work"], slice: "2/5" },
+        ]);
         assert.deepEqual(
             shardRuns(SHARDS.find((s) => s.shard === "graph-io-browser"))[0].config,
             "vitest.browser.config.ts",
@@ -607,6 +613,78 @@ describe("building a package's import graph when its projects transform a file d
     });
 });
 
+describe("building a package's import graph from an earlier commit's graph", () => {
+    it("selects exactly what a full walk does after an edit, an added file and a deleted file", () => {
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        const git = (...a) => execFileSync("git", a, { cwd: fixture, encoding: "utf8", env: isolatedGitEnv() }).trim();
+        const commit = () => {
+            git("add", "-A");
+            git("commit", "-qm", "c");
+        };
+        const walk = (...extra) =>
+            JSON.parse(
+                execFileSync(
+                    process.execPath,
+                    [join(ROOT, "tools/test-select.mjs"), "--root", fixture, "--graph", "pi", ...extra],
+                    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+                )
+                    .trim()
+                    .split("\n")
+                    .at(-1),
+            );
+        const test = (name, from) =>
+            `import { it } from "vitest";\nimport { v } from "../src/${from}";\nit("${name}", () => v);\n`;
+        try {
+            git("init", "-q");
+            put(".gitignore", "node_modules\n");
+            put("pi/package.json", JSON.stringify({ name: "pi", type: "module" }));
+            put("pi/helper.mjs", "export const include = ['test/**/*.test.ts'];\n");
+            put(
+                "pi/vitest.config.mjs",
+                'import { include } from "./helper.mjs";\nexport default { test: { include } };\n',
+            );
+            put("pi/src/top.ts", 'export { v } from "./middle";\n');
+            put("pi/src/middle.ts", "export const v = 1;\n");
+            put("pi/src/legacy.ts", 'export { v } from "./doomed";\n');
+            put("pi/src/doomed.ts", "export const v = 2;\n");
+            put("pi/src/steady.ts", "export const v = 3;\n");
+            put("pi/test/top.test.ts", test("top", "top"));
+            put("pi/test/legacy.test.ts", test("legacy", "legacy"));
+            put("pi/test/steady.test.ts", test("steady", "steady"));
+            commit();
+            const base = join(fixture, ".git", "base-graph.json");
+            writeFileSync(base, JSON.stringify({ commit: git("rev-parse", "HEAD"), ...walk() }));
+            put("pi/src/middle.ts", 'export { v } from "./fresh";\n'); // edited, imports an added file
+            put("pi/src/fresh.ts", "export const v = 4;\n");
+            put("pi/src/legacy.ts", "export const v = 2;\n");
+            rmSync(join(fixture, "pi/src/doomed.ts"));
+            commit();
+            const full = walk();
+            const inc = walk("--reuse", base);
+            assert.ok(inc.reused > 0, "the unchanged files keep their edges");
+            assert.deepEqual(inc.imports, full.imports);
+            assert.deepEqual(inc.projects, full.projects);
+            assert.deepEqual(inc.raw, full.raw);
+            for (const f of ["pi/src/fresh.ts", "pi/src/middle.ts", "pi/src/legacy.ts", "pi/src/steady.ts"]) {
+                assert.deepEqual([...selectInGraph(inc, [f]).specs], [...selectInGraph(full, [f]).specs], f);
+            }
+            assert.deepEqual([...selectInGraph(inc, ["pi/src/fresh.ts"]).specs.keys()], ["pi/test/top.test.ts"]);
+            // a file the config loads (graphty's vite.aliases.ts) can move every edge: no reuse
+            assert.ok(full.configDeps.includes("pi/helper.mjs"), full.configDeps.join());
+            const graph2 = { commit: git("rev-parse", "HEAD"), ...full };
+            assert.ok(reusableEdges(fixture, graph2).size > 0);
+            put("pi/helper.mjs", "export const include = ['test/**/*.test.ts', 'more/**/*.test.ts'];\n");
+            assert.equal(reusableEdges(fixture, graph2), null);
+        } finally {
+            rmSync(fixture, { recursive: true, force: true });
+        }
+    });
+});
+
 describe("building a package's import graph when its tests load its own build", () => {
     it("walks the package's own dist/ as the source it was built from", () => {
         const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
@@ -769,7 +847,7 @@ describe("running a selection", () => {
         const element = selectedCommand(ROOT, byName("graphty-element-browser-2"), ["graphty-element/test/a.test.ts"]);
         assert.equal(
             element,
-            "cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr 'test/a.test.ts'",
+            "cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --project=minimum-work 'test/a.test.ts'",
         );
     });
 
@@ -834,31 +912,6 @@ describe("running a selection", () => {
         assert.match(text, /graphty\/src\/a\.test\.tsx {2}<- imports it/u);
         assert.match(text, /githerd: WHOLE SHARD/u);
         assert.match(text, /nothing to run: layout/u);
-
-        const notes = [];
-        const run = selectedShards(plan, (l) => notes.push(l));
-        assert.deepEqual(
-            run.map((s) => s.shard),
-            ["graphty-1", "githerd", "webgpu-graph-algorithms-node"],
-        );
-        assert.deepEqual(run[0].selected, ["graphty/src/a.test.tsx"]);
-        assert.deepEqual(run[0].covers, ["graphty-1", "graphty-2", "graphty-3"]);
-        assert.equal(run[1], byName("githerd"), "a whole shard keeps its own entry and command");
-        assert.match(notes.join("\n"), /\[NONE\] layout/u);
-    });
-
-    it("selects by default with a base, never under PREPUSH_ALL=1, PREPUSH_SELECT=0 or for the cut", () => {
-        assert.equal(selectionOn({}, "origin/golden"), true, "on by default for landing checks");
-        assert.equal(
-            selectionOn({ PREPUSH_SELECT_BASE: "origin/golden-cut" }, "origin/master"),
-            false,
-            "never on the cut",
-        );
-        assert.equal(selectionOn({ PREPUSH_SELECT_BASE: "origin/golden" }, "origin/master"), true);
-        assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, "origin/golden"), true);
-        assert.equal(selectionOn({ PREPUSH_SELECT: "1", PREPUSH_ALL: "1" }, "origin/golden"), false);
-        assert.equal(selectionOn({ PREPUSH_SELECT: "1" }, ""), false);
-        assert.equal(selectionOn({ PREPUSH_SELECT: "0" }, "origin/golden"), false);
     });
 
     it("keeps a selected pass apart from a whole-shard pass, and a selecting gate apart from a full one", () => {
@@ -1127,9 +1180,28 @@ describe("misses found by mutation testing", () => {
     });
 
     it("a rule ESLint loads at run time runs the package whose eslint.config imports it", () => {
-        const sel = run(["tools/eslint-rules/story-wait-options.mjs"], ["graphty", "layout"]).packages;
-        assert.equal(sel.get("graphty").mode, "all");
-        assert.equal(sel.get("layout").mode, "none");
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-lint-rule-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("tools/eslint-rules/a-rule.mjs", "export default {};\n");
+            put(
+                "pa/eslint.config.js",
+                'import rule from "../tools/eslint-rules/a-rule.mjs";\nexport default [rule];\n',
+            );
+            put("pb/eslint.config.js", "export default [];\n");
+            execFileSync("git", ["init", "-q"], { cwd: fixture });
+            execFileSync("git", ["add", "-A"], { cwd: fixture });
+            useNamesRoot(fixture);
+            const sel = run(["tools/eslint-rules/a-rule.mjs"], ["pa", "pb"]).packages;
+            assert.equal(sel.get("pa").mode, "all");
+            assert.equal(sel.get("pb").mode, "none");
+        } finally {
+            useNamesRoot(ROOT);
+            rmSync(fixture, { recursive: true, force: true });
+        }
     });
 
     it("a root file no rule, import or test accounts for runs everything; unread tools code runs nothing", () => {
@@ -1137,6 +1209,46 @@ describe("misses found by mutation testing", () => {
         const tool = run(["tools/nobody-reads-this-xyz.mjs"], ["layout"]);
         assert.equal(tool.everything, null);
         assert.deepEqual(tool.unexplainedRoot, ["tools/nobody-reads-this-xyz.mjs"]);
+    });
+
+    it("a file of a standalone tool runs no shard, and its file name alone names nothing (#4506)", () => {
+        for (const f of [
+            "tools/pipeline-health/web/fixtures/ci.1h.json",
+            "tools/pipeline-health/web/src/text.ts",
+            "tools/results-service/migrations/0001_init.sql",
+            "tools/release-scheduler/wrangler.toml",
+            "tools/nx-cache-worker/src/index.mjs",
+        ]) {
+            const sel = run([f], ["layout"]);
+            assert.equal(sel.everything, null, f);
+            assert.deepEqual(sel.unexplainedRoot, [], f);
+            assert.equal(sel.packages.get("layout").mode, "none", f);
+        }
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-standalone-"));
+        try {
+            mkdirSync(join(fixture, "pa/test"), { recursive: true });
+            writeFileSync(
+                join(fixture, "pa/test/a.test.ts"),
+                'const names = ["text.ts", "../../tools/pipeline-health/web/src/read.ts"];\n',
+            );
+            const g = {
+                ...empty("pa")[0],
+                projects: { unit: { specs: ["pa/test/a.test.ts"], setup: [] } },
+                imports: { "pa/test/a.test.ts": [] },
+            };
+            useNamesRoot(fixture);
+            const specs = (f) => [
+                ...run([f], ["pa"], { graphs: new Map([["pa", [g]]]) })
+                    .packages.get("pa")
+                    .specs.keys(),
+            ];
+            assert.deepEqual(specs("tools/pipeline-health/web/src/text.ts"), [], "a file name alone");
+            assert.deepEqual(specs("tools/pipeline-health/web/src/read.ts"), ["pa/test/a.test.ts"], "its path");
+            assert.deepEqual(specs("tools/text.ts"), ["pa/test/a.test.ts"], "any other tools/ file, by name");
+        } finally {
+            useNamesRoot(ROOT);
+            rmSync(fixture, { recursive: true, force: true });
+        }
     });
 
     it("a file Vite serves from public/ runs its whole package", () => {
@@ -1734,8 +1846,8 @@ describe("packBins", () => {
         ["p/d.test.ts", 1 * MIN],
     ]);
 
-    it("packs the longest files first into bins of at most 8 minutes", () => {
-        const bins = packBins(["p/d.test.ts", "p/c.test.ts", "p/b.test.ts", "p/a.test.ts"], ms, BIN_LIMIT_MS, 0);
+    it("packs the longest files first into bins of at most the limit given", () => {
+        const bins = packBins(["p/d.test.ts", "p/c.test.ts", "p/b.test.ts", "p/a.test.ts"], ms, 8 * MIN, 0);
         assert.deepEqual(bins, [
             { files: ["p/a.test.ts", "p/c.test.ts"], ms: 8 * MIN },
             { files: ["p/b.test.ts", "p/d.test.ts"], ms: 5 * MIN },
@@ -1743,19 +1855,16 @@ describe("packBins", () => {
     });
 
     it("counts a file with no recorded time as the family's longest", () => {
-        const bins = packBins(["p/new.test.ts", "p/d.test.ts"], ms, BIN_LIMIT_MS, 0);
+        const bins = packBins(["p/new.test.ts", "p/d.test.ts"], ms, 8 * MIN, 0);
         assert.deepEqual(bins, [{ files: ["p/d.test.ts", "p/new.test.ts"], ms: 6 * MIN }]);
     });
 
     it("gives a file over the limit a bin of its own, and a family with no history 30 s a file", () => {
-        assert.deepEqual(
-            packBins(["p/x.test.ts", "p/y.test.ts"], new Map([["p/x.test.ts", 9 * MIN]]), BIN_LIMIT_MS, 0),
-            [
-                { files: ["p/x.test.ts"], ms: 9 * MIN },
-                { files: ["p/y.test.ts"], ms: 9 * MIN },
-            ],
-        );
-        assert.deepEqual(packBins(["p/x.test.ts", "p/x.test.ts"], new Map(), BIN_LIMIT_MS, 0), [
+        assert.deepEqual(packBins(["p/x.test.ts", "p/y.test.ts"], new Map([["p/x.test.ts", 9 * MIN]]), 8 * MIN, 0), [
+            { files: ["p/x.test.ts"], ms: 9 * MIN },
+            { files: ["p/y.test.ts"], ms: 9 * MIN },
+        ]);
+        assert.deepEqual(packBins(["p/x.test.ts", "p/x.test.ts"], new Map(), 8 * MIN, 0), [
             { files: ["p/x.test.ts"], ms: 30_000 },
         ]);
         assert.deepEqual(packBins([], ms), []);
@@ -1771,6 +1880,52 @@ describe("packBins", () => {
             assert.equal(b.ms, b.files.length * (300 + FILE_OVERHEAD_MS));
         }
         assert.equal(bins.flatMap((b) => b.files).length, 300);
+    });
+
+    it("plans a family's bins at what they ran, so a bin that ran over 8 minutes is planned over (#5048)", () => {
+        // [family, files, recorded ms, run-group wall ms]: every bin over 8 minutes in pull request runs
+        // 41040420195, 41058628979 and 41061566840, each planned at 8 minutes or less with 5 s a file
+        const ran = [
+            ["graphty", 15, 404956, 502000],
+            ["graphty", 10, 429763, 537000],
+            ["graphty-element-browser", 52, 219997, 533000],
+            ["graphty-element-browser", 31, 324812, 533000],
+            ["graphty-element-browser", 93, 14386, 555000],
+            ["graphty-element-browser", 88, 37527, 571000],
+            ["graphty-element-browser", 80, 76658, 560000],
+            ["graphty", 15, 404917, 536000],
+            ["graphty", 10, 428700, 506000],
+            ["graphty-element-browser", 88, 40000, 578000],
+            ["graphty-element-browser", 51, 224963, 504000],
+            ["graphty-element-browser", 93, 14218, 554000],
+            ["graphty-element-browser", 30, 327984, 523000],
+            ["graphty-element-storybook", 34, 309521, 544000],
+            ["graphty", 14, 409993, 503000],
+            ["graphty", 21, 374911, 485000],
+            ["graphty", 10, 429847, 499000],
+            ["graphty-element-browser", 71, 124990, 489000],
+            ["graphty-element-browser", 88, 39978, 594000],
+            ["graphty-element-browser", 51, 224972, 517000],
+            ["graphty-element-browser", 30, 329835, 545000],
+            ["graphty-element-browser", 93, 13825, 559000],
+            ["graphty-element-browser", 80, 76558, 529000],
+            ["graphty-element-storybook", 34, 309752, 556000],
+        ];
+        for (const [family, n, recorded, wall] of ran) {
+            const files = Array.from({ length: n }, (_, i) => `p/f${i}.test.ts`);
+            const ms = new Map(files.map((f) => [f, recorded / n]));
+            const { overheadMs, scale } = binCost(family);
+            const planned = packBins(files, ms, Infinity, overheadMs, scale)[0].ms;
+            assert.ok(planned >= wall, `${family}, ${n} files: planned ${planned} ms, ran ${wall} ms`);
+        }
+    });
+
+    it("packs a family that runs its files in parallel workers by its small per-file cost (#5048)", () => {
+        // graphty-element-default: 95 files, 52 s recorded, ran 38 s; 5 s a file made 190 such files twenty bins
+        const files = Array.from({ length: 190 }, (_, i) => `p/f${i}.test.ts`);
+        const ms = new Map(files.map((f) => [f, 550]));
+        const { overheadMs, scale } = binCost("graphty-element-default");
+        assert.equal(packBins(files, ms, BIN_LIMIT_MS, overheadMs, scale).length, 1);
     });
 });
 
@@ -1789,7 +1944,7 @@ describe("light-check-replay", () => {
         [
             "graphty",
             new Map([
-                ["graphty/a.test.ts", 6 * MIN],
+                ["graphty/a.test.ts", 5 * MIN],
                 ["graphty/b.test.ts", 3 * MIN],
             ]),
         ],
@@ -1805,20 +1960,20 @@ describe("light-check-replay", () => {
                 sel("graph-format", "graph-format", "none"),
             ],
         };
-        const r = replayRecord(record, durations, fileLevel);
+        const r = replayRecord(record, durations, fileLevel, 8 * MIN);
         assert.deepEqual(r, {
             key: "run:ci.yml:pr",
             at: record.at,
             bins: 2,
-            testMs: 6 * MIN + FILE_OVERHEAD_MS,
-            runMs: SETUP_MS + 6 * MIN + FILE_OVERHEAD_MS,
+            testMs: 5 * MIN * binCost("graphty").scale + binCost("graphty").overheadMs,
+            runMs: SETUP_MS + 5 * MIN * binCost("graphty").scale + binCost("graphty").overheadMs,
             overLimit: false,
         });
     });
 
     it("runs a whole family with its unrecorded files at the family's longest", () => {
         const record = { selection: [sel("graph-io", "graph-io", "all", [], { total: 5 })] };
-        const r = replayRecord(record, durations, fileLevel);
+        const r = replayRecord(record, durations, fileLevel, 8 * MIN);
         assert.equal(r.key, "run:ci.yml:pr-graph-io", "a package off fileLevel has its own key");
         assert.equal(r.bins, 2, "five 2-minute files plus their overhead make bins of three and two files");
         assert.equal(r.testMs, 6 * MIN + 3 * FILE_OVERHEAD_MS);
@@ -1885,7 +2040,7 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
     const sel = (shard, mode, files = []) => ({ shard, mode, files: files.map((file) => ({ file })), reasons: [] });
     const many = (n) => Array.from({ length: n }, (_, i) => `graphty/src/t${i}.test.tsx`);
 
-    it("packs a one-package change into bins of at most 8 minutes, one vitest run of its files each", () => {
+    it("packs a one-package change into bins of at most BIN_LIMIT_MS, one vitest run of its files each", () => {
         const app = many(10);
         const shards = ["graphty-1", "graphty-2", "layout", "githerd"].map(byName);
         const selection = [
@@ -1894,7 +2049,8 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             sel("layout", "none"),
             sel("githerd", "all"),
         ];
-        const durations = { graphty: Object.fromEntries(app.map((f) => [f, 3 * MIN])) };
+        // 1 min recorded is 1.4 min planned with graphty's cost (binCost()): two files a bin
+        const durations = { graphty: Object.fromEntries(app.map((f) => [f, 1 * MIN])) };
         const out = lightPlan(ROOT, shards, selection, durations);
         assert.deepEqual(out.whole, ["githerd"]);
         assert.deepEqual(out.none, ["layout"]);
@@ -1903,8 +2059,8 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             ["graphty-1", "graphty-2", "graphty-3", "graphty-4", "graphty-5"],
         );
         assert.ok(
-            out.bins.every((b) => b.ms <= 8 * MIN),
-            "every bin is under 8 minutes",
+            out.bins.every((b) => b.ms <= BIN_LIMIT_MS),
+            "every bin is under the limit",
         );
         assert.deepEqual(out.bins.flatMap((b) => b.files).sort(), [...app].sort(), "every file runs once");
         for (const b of out.bins) {
@@ -2104,6 +2260,18 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
         assert.deepEqual(out["graphty-element"].files, [story]);
         assert.equal(out.graphty.mode, "none");
         assert.equal(out.layout.mode, "none");
+    });
+
+    it("runs no drawnBy story for a change only to a package's test specs (#3448, PR #5212)", () => {
+        const selection = none.map((s) =>
+            s.shard === "graphty-element-storybook-1" ? sel(s.shard, "files", ["graphty-element/test/x.test.ts"]) : s,
+        );
+        const spec = pick(selection, ["graphty-element/test/lifecycle/ios-simulator.test.ts"]);
+        assert.equal(spec["graph-io-fidelity"].mode, "none", "a test spec draws nothing");
+        const src = pick(selection, ["graphty-element/src/Graph.ts"]);
+        assert.equal(src["graph-io-fidelity"].mode, "all", "a source file still runs every fidelity story");
+        const helper = pick(selection, ["graphty-element/test/fidelity/load-sample.ts"]);
+        assert.equal(helper["graph-io-fidelity"].mode, "all", "a test helper the fidelity stories import");
     });
 
     it("runs every story of a project with no story graph when a package that draws it is selected", () => {
@@ -2380,6 +2548,15 @@ describe("the import graphs' cache key", () => {
     });
 });
 
+describe("nearestBase", () => {
+    it("finds no base in a cold cache whose folder does not exist yet, instead of throwing", () => {
+        assert.equal(
+            nearestBase(join(tmpdir(), "test-select-no-such-cache"), "pkg-x-", () => ""),
+            null,
+        );
+    });
+});
+
 describe("the light check's story bins (merging.md section 4.1, #3443 part b)", () => {
     const projects = {
         "graphty-element": { storybook: "graphty-element/storybook-static" },
@@ -2432,15 +2609,15 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
 
     it("counts a file with no longer recorded time at its stories times its project's capture rate", () => {
         const files = Array.from({ length: 5 }, (_, i) => `graph-io/fidelity-stories/F${i}.stories.ts`);
-        const perFile = 30 * STORY_MS["graph-io-fidelity"];
+        const perFile = 13 * STORY_MS["graph-io-fidelity"];
         const bins = storyBins(
             [entry("graph-io-fidelity", "files", files)],
             projects,
             list,
             { "graph-io-storybook": { [files[0]]: 1_000 } },
-            () => 30,
+            () => 13,
         );
-        // 30 stories a file: two files fit in a bin, a third starts the next one
+        // 13 stories a file: two files fit in a bin, a third starts the next one
         assert.ok(2 * perFile <= STORY_BIN_LIMIT_MS && 3 * perFile > STORY_BIN_LIMIT_MS);
         assert.deepEqual(
             bins.map((b) => [b.name, b.files.length, b.ms]),
@@ -2489,7 +2666,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
     });
 
     it("packs a change's stories into at most the job budget, growing every bin's limit only as needed (#3448)", () => {
-        const ids = Array.from({ length: 1200 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 2000 }, (_, i) => `gexf-specimens--s${i}`);
         const bins = storyBins(
             [
                 entry("graph-io-fidelity", "all", [], ids),
@@ -2499,7 +2676,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             projects,
             list,
         );
-        assert.ok(1200 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * STORY_BIN_LIMIT_MS, "over budget at 3 min");
+        assert.ok(2000 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * STORY_BIN_LIMIT_MS, "over budget at 3 min");
         assert.ok(bins.length <= STORY_JOB_BUDGET, `${bins.length} bins`);
         for (const b of bins) assert.ok(b.ms <= STORY_BIN_MAX_MS, `${b.name} planned at ${b.ms} ms`);
         assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids, "a--one"].sort());
@@ -2510,18 +2687,18 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
     });
 
     it("never stretches a bin past 3 minutes with jobBudget Infinity (the rolling slices, early-capture.md 4a)", () => {
-        const ids = Array.from({ length: 1200 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 2000 }, (_, i) => `gexf-specimens--s${i}`);
         const stories = [entry("graph-io-fidelity", "all", [], ids), entry("layout", "all")];
         const bins = storyBins(stories, projects, list, {}, () => 1, { jobBudget: Infinity });
         assert.ok(bins.length > STORY_JOB_BUDGET, `${bins.length} bins`);
         for (const b of bins) assert.ok(b.ms <= STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);
         assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids].sort());
-        // the default budget still stretches the same stories into 9 jobs
+        // the default budget still stretches the same stories into STORY_JOB_BUDGET jobs
         assert.ok(storyBins(stories, projects, list).length <= STORY_JOB_BUDGET);
     });
 
     it("spreads many changed baselines over bins within the limit, each id once (#4401)", () => {
-        const ids = Array.from({ length: 300 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 200 }, (_, i) => `gexf-specimens--s${i}`);
         const bins = storyBins([entry("graph-io-fidelity", "all", [], ids)], projects, list);
         assert.ok(bins.length > 1);
         for (const b of bins) assert.ok(b.ms <= STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);

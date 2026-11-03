@@ -15,21 +15,18 @@
 
 import "../../../src/graphty-element";
 
-import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
-import { Engine } from "@babylonjs/core/Engines/engine";
-import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
-import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
-import { SceneLoaderFlags } from "@babylonjs/core/Loading/sceneLoaderFlags";
-import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { Scene } from "@babylonjs/core/scene";
+import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera.js";
+import { Engine } from "@babylonjs/core/Engines/engine.js";
+import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight.js";
+import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader.js";
+import { SceneLoaderFlags } from "@babylonjs/core/Loading/sceneLoaderFlags.js";
+import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Scene } from "@babylonjs/core/scene.js";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { operationQueueOf } from "../../../src/Graph";
 import { useBundledStandardShaders } from "../../../src/meshes/bundledStandardShaders";
-
-/** How long the element and a load may take. */
-const TIMEOUT_MS = 20000;
 
 const cleanups: (() => void)[] = [];
 
@@ -247,7 +244,7 @@ describe("the model chunk", () => {
         await element.addNodes([{ id: "a" }, { id: "b" }]);
         await element.addEdges([{ src: "a", dst: "b" }]);
         await operationQueueOf(element.graph).waitForCompletion();
-        await element.waitForStableFrame({ timeoutMs: TIMEOUT_MS });
+        await element.waitForStableFrame();
         const drawn = recording.stop();
 
         const chunkUrls = (urls: string[]): string[] =>
@@ -276,12 +273,9 @@ describe("the model chunk", () => {
         const materials = scene.materials.filter((material) => material instanceof PBRMaterial);
         assert.lengthOf(materials, 1, "the glTF material loads as PBR");
         materials[0].reflectionTexture = neutralEnvironment(scene);
-        await vi.waitFor(
-            () => {
-                assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its textures");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await vi.waitFor(() => {
+            assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its textures");
+        });
         scene.render();
         const urls = recording.stop();
 
@@ -311,12 +305,9 @@ describe("the model chunk", () => {
         const recording = recordRequests();
         const container = await loadModelContainer(scene, new TextEncoder().encode(obj), ".obj");
         container.addAllToScene();
-        await vi.waitFor(
-            () => {
-                assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its texture");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await vi.waitFor(() => {
+            assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its texture");
+        });
         scene.render();
         const urls = recording.stop();
 
@@ -334,12 +325,9 @@ describe("the model chunk", () => {
         const recording = recordRequests();
         const container = await loadModelContainer(scene, stlBytes(), ".stl");
         container.addAllToScene();
-        await vi.waitFor(
-            () => {
-                assert.isTrue(scene.isReady(), "the scene compiled its shaders");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await vi.waitFor(() => {
+            assert.isTrue(scene.isReady(), "the scene compiled its shaders");
+        });
         scene.render();
         const urls = recording.stop();
 
@@ -371,7 +359,7 @@ describe("the model chunk", () => {
 
     it("refuses Babylon's CDN while a model loads, and only then", async () => {
         const { loadModelContainer } = await import("../../../src/models/chunk");
-        const { Tools } = await import("@babylonjs/core/Misc/tools");
+        const { Tools } = await import("@babylonjs/core/Misc/tools.js");
         const scene = makeScene();
         const cdn = "https://assets.babylonjs.com/environments/backgroundGround.png";
         const mtlUrl = blobUrl(`newmtl paint\nmap_Kd ${cdn}\n`, "text/plain");

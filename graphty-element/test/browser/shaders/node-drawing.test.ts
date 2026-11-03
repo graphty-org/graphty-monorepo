@@ -131,6 +131,25 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
 }
 
 /**
+ * Make the page's clock (`performance.now()`) advance one 60 Hz frame per frame the element draws,
+ * and a microsecond per read so a loop that works until a time still ends. Put back after the test.
+ * @param element - The element whose frames drive it.
+ */
+function frameClock(element: Graphty): void {
+    const realNow = performance.now.bind(performance);
+    let now = realNow();
+    const scene = element.graph.getScene();
+    const tick = scene.onBeforeRenderObservable.add(() => {
+        now += 1000 / 60;
+    });
+    performance.now = () => (now += 0.001);
+    cleanups.unshift(() => {
+        scene.onBeforeRenderObservable.remove(tick);
+        performance.now = realNow;
+    });
+}
+
+/**
  * A node of the graph.
  * @param element - The element.
  * @param id - The node id.
@@ -402,11 +421,20 @@ describe("node effects", () => {
             () => ![...drawingOf(element).stats().slots.values()].some((n) => n > 0),
         );
 
+        // An entrance lasts 0.55 s of the page's clock. Under a loaded CPU, drawing 500 reticles can
+        // take longer than that by the wall clock, and every entrance had ended before the count
+        // was read (issue #4434). The page's clock follows the frames drawn instead, a 60 Hz frame
+        // each, so what is counted is the entrances the frames played, not the machine's speed.
+        frameClock(element);
         await element.session.selection.apply({ nodes: nodes.map((node) => node.id) });
         await until(element, "every selected node carries the reticle", () => batchHolds(element, 500));
-        const playing = drawingOf(element).stats().entrances.get("e3/reticle") ?? 0;
-        assert.isAtMost(playing, 64, "at most 64 entrances play at once");
-        assert.isAbove(playing, 0, "the selection's entrances play");
+        // Counted by the slots given an entrance, not by those still playing it: an entrance lasts
+        // 0.55 s by the clock, and on a slow machine the frame that fills the batch comes later than
+        // that (issue #5439). One selection is one cause, so every entrance it gives overlaps the
+        // others, and the slots given one are the entrances that played at once.
+        const played = drawingOf(element).stats().entered.get("e3/reticle") ?? 0;
+        assert.isAtMost(played, 64, "at most 64 entrances play at once");
+        assert.isAbove(played, 0, "the selection's entrances play");
     });
 
     it("adding a reticle layer over selected nodes shows them at rest", async () => {
@@ -431,7 +459,7 @@ describe("node effects", () => {
         });
         await until(element, "both reticles are drawn", () => batchHolds(element, 2));
         assert.strictEqual(
-            drawingOf(element).stats().entrances.get("e3/reticle") ?? 0,
+            drawingOf(element).stats().entered.get("e3/reticle") ?? 0,
             0,
             "a layer's own add plays no entrance",
         );

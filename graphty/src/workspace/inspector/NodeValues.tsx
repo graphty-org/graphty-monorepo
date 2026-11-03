@@ -207,6 +207,14 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                             stat
                             name={run.label}
                             value={`${formatNumber(value)}, #${String(rank)} of ${formatNumber(run.result.measured.nodes)}`}
+                            // A reading a keyboard reader reaches by Tab, as every other row here:
+                            // it opens the run it comes from, as a Memberships row opens its group.
+                            onClick={() => {
+                                store.set({ inspected: { kind: "measure-row", id: run.id } });
+                                requestAnimationFrame(() => {
+                                    focusInspectorTitle();
+                                });
+                            }}
                         />
                     ))}
                 </ControlSection>
@@ -260,7 +268,7 @@ async function showNeighborhood(
     hops: 1 | 2 | 3,
     direction: SelectionDirection,
 ): Promise<void> {
-    await session.selection.apply({ neighborsOf: [center], depth: hops, direction });
+    await session.selection.apply({ neighborsOf: [center], depth: hops, direction }, "replace", { cause: "user" });
     const around = session.selection.nodes.filter((node) => node !== center).length;
     // The selection change closes the open row, so it is opened again on the new reach.
     store.set({

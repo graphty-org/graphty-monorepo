@@ -68,7 +68,7 @@ describe("JsonlWriter", () => {
         expect(lines.length).toBe(3);
 
         for (let i = 0; i < lines.length; i++) {
-            const parsed = JSON.parse(lines[i]);
+            const parsed = JSON.parse(lines[i]) as JsonlEntry;
             expect(parsed.time).toBe(entries[i].time);
             expect(parsed.level).toBe(entries[i].level);
             expect(parsed.message).toBe(entries[i].message);
@@ -206,7 +206,7 @@ describe("JsonlWriter", () => {
 
         const filePath = writer.getFilePath(marker);
         const content = fs.readFileSync(filePath, "utf-8");
-        const parsed = JSON.parse(content.trim());
+        const parsed = JSON.parse(content.trim()) as JsonlEntry;
 
         expect(parsed.data).toEqual({ userId: 123, action: "click" });
     });

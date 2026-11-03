@@ -10,7 +10,6 @@ import { userEvent } from "vitest/browser";
 
 import { compactTheme, ControlSection, PANEL_GRID } from "../../src";
 import { renderThemed, resetHarness } from "../harness/measure";
-import { TOOLTIP_WAIT } from "../waits";
 
 describe("ControlSection summary layout", () => {
     it("draws the summary after the name and cuts the summary before the name", () => {
@@ -61,7 +60,7 @@ describe("ControlSection title cut short", () => {
         expect(name.textContent).toBe(`${LONG} (Neighborhood)`);
         expect(screen.getByTestId("control-section")).toHaveAttribute("aria-labelledby", name.id);
         await userEvent.hover(name);
-        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(`${LONG} (Neighborhood)`);
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe(`${LONG} (Neighborhood)`);
     });
 
     it("shows no tooltip for a title drawn whole", async () => {
@@ -73,7 +72,11 @@ describe("ControlSection title cut short", () => {
             </div>,
         );
         await userEvent.hover(screen.getByTestId("control-section-name"));
-        await expect(screen.findByRole("tooltip", {}, { timeout: 2000 })).rejects.toThrow();
+        // A title drawn whole mounts no tooltip at all (EllipsizedName), so whole-ness is the condition:
+        // a wait for a tooltip that never opens would only end at the hang guard.
+        const whole = screen.getByTestId("control-section-name");
+        expect(whole.scrollWidth).toBeLessThanOrEqual(whole.clientWidth);
+        expect(screen.queryByRole("tooltip")).toBeNull();
     });
 
     it("wraps a wrapLabel title onto a second line, whole, with no tooltip", async () => {
@@ -92,7 +95,11 @@ describe("ControlSection title cut short", () => {
             PANEL_GRID.SECTION_HEADER,
         );
         await userEvent.hover(name);
-        await expect(screen.findByRole("tooltip", {}, { timeout: 2000 })).rejects.toThrow();
+        // A title drawn whole mounts no tooltip at all (EllipsizedName), so whole-ness is the condition:
+        // a wait for a tooltip that never opens would only end at the hang guard.
+        const whole = screen.getByTestId("control-section-name");
+        expect(whole.scrollWidth).toBeLessThanOrEqual(whole.clientWidth);
+        expect(screen.queryByRole("tooltip")).toBeNull();
     });
 
     it("draws a short wrapLabel title at the one-line header height", async () => {

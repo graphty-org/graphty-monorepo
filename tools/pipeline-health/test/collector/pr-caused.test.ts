@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { GitHub } from "../../src/collector/github.js";
 import { markPrCaused, touched } from "../../src/collector/pr-caused.js";
 import { floorTo, rollKey, type RunItem, type TestItem } from "../../src/model/items.js";
@@ -47,15 +48,15 @@ const failed = (runId: number, file: string, name: string, attempt = 1): TestIte
 /** A GitHub whose GraphQL answers each pull request's files, recording the queries. */
 function filesGitHub(files: Record<number, string[]>) {
     const asked: string[] = [];
-    const fetch = async (_url: string | URL | Request, init?: RequestInit) => {
-        const { query } = JSON.parse(String(init?.body)) as { query: string };
+    const fetch = (_url: string | URL | Request, init?: RequestInit) => {
+        const { query } = JSON.parse(init?.body as string) as { query: string };
         asked.push(query);
         const repository = Object.fromEntries(
             Object.entries(files).map(([n, f]) => [`p${n}`, { files: { nodes: f.map((path) => ({ path })) } }]),
         );
-        return new Response(JSON.stringify({ data: { repository } }), { status: 200 });
+        return Promise.resolve(new Response(JSON.stringify({ data: { repository } }), { status: 200 }));
     };
-    return { gh: new GitHub(async () => "ghs_test", fetch as typeof globalThis.fetch), asked };
+    return { gh: new GitHub(() => Promise.resolve("ghs_test"), fetch), asked };
 }
 
 describe("touched", () => {
@@ -121,7 +122,10 @@ describe("markPrCaused", () => {
     it("leaves runs unjudged when GitHub fails", async () => {
         const store = new MemoryStore();
         await putRaw(store, [failed(401, "graph-io/test/gml.test.ts", "parses")], NOW);
-        const gh = new GitHub(async () => "ghs_test", (async () => new Response("", { status: 502 })) as typeof fetch);
+        const gh = new GitHub(
+            () => Promise.resolve("ghs_test"),
+            () => Promise.resolve(new Response("", { status: 502 })),
+        );
         const runs = [run(401, 8)];
         await markPrCaused(store, gh, REPO, runs, NOW);
         expect(runs[0].prCaused).toBeUndefined();

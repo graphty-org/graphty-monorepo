@@ -235,13 +235,32 @@ function newestNightly(wanted) {
     return tag;
 }
 
-async function storeRecord(sha) {
-    const { RESULTS_URL, ACTIONS_ID_TOKEN_REQUEST_URL: idUrl, ACTIONS_ID_TOKEN_REQUEST_TOKEN: idToken } = process.env;
-    if (!RESULTS_URL || !idUrl) return null;
-    const oidc = await fetch(`${idUrl}&audience=graphty-results`, { headers: { Authorization: `bearer ${idToken}` } });
+/**
+ * The results store's record of a nightly (GET /v1/site): the sha256 of its site.tar.zst and channel.json, and
+ * its verdict. Null when the store has none, which decide refuses ("cannot be trusted"); the store's reason goes
+ * to stderr, so a store that does not serve the route yet is told apart from a nightly it never recorded.
+ * @param sha - the nightly's tested commit
+ * @param [deps] - what tests inject
+ * @param [deps.env] - RESULTS_URL and the Actions OIDC request variables
+ * @param [deps.fetch] - the fetch to use
+ * @returns the record (siteSha256, channelSha256, verdict, ...), or null
+ */
+export async function storeRecord(sha, { env = process.env, fetch: doFetch = fetch } = {}) {
+    const { RESULTS_URL, ACTIONS_ID_TOKEN_REQUEST_URL: idUrl, ACTIONS_ID_TOKEN_REQUEST_TOKEN: idToken } = env;
+    if (!RESULTS_URL || !idUrl) {
+        console.error("no RESULTS_URL or Actions OIDC token, so the results store was not asked");
+        return null;
+    }
+    const oidc = await doFetch(`${idUrl}&audience=graphty-results`, {
+        headers: { Authorization: `bearer ${idToken}` },
+    });
     const token = (await oidc.json()).value;
-    const res = await fetch(`${RESULTS_URL}/v1/site?sha=${sha}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.status === 404) return null;
+    const res = await doFetch(`${RESULTS_URL}/v1/site?sha=${sha}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 404) {
+        const { error } = await res.json().catch(() => ({}));
+        console.error(`the results store has no record of site ${sha}: ${error ?? "404"}`);
+        return null;
+    }
     if (!res.ok) throw new Error(`the results store answered ${res.status} for site ${sha}`);
     return res.json();
 }

@@ -276,7 +276,7 @@ export class LogStorage {
                 this.cleanupExpiredLogs();
             }, cleanupInterval);
             // Don't prevent process exit
-            this.cleanupTimer.unref?.();
+            this.cleanupTimer.unref();
         }
     }
 

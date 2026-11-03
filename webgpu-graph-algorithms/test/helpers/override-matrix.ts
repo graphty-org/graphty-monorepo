@@ -118,7 +118,7 @@ const DEVICE_DERIVED: ReadonlySet<string> = new Set(["WG", "SUBGROUP_MIN", "SUBG
  * @returns the entry
  */
 export function entryOf(id: KernelId): KernelEntry {
-    const entry: KernelEntry | undefined = KERNELS[id];
+    const entry = id in KERNELS ? KERNELS[id] : undefined;
     if (entry === undefined) {
         throw new Error(`override-matrix: no KERNELS entry for ${id}`);
     }

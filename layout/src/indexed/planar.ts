@@ -211,49 +211,86 @@ class LeftRight {
         const index = new Int32Array(this.n);
         const resumed = new Set<number>();
         while (stack.length > 0) {
-            const v = stack.pop() ?? 0;
-            const e = this.parentEdge[v];
-            while (index[v] < this.adj[v].length) {
-                const w = this.adj[v][index[v]];
-                const vw = this.key(v, w);
-                const wv = this.key(w, v); // NOSONAR(S2234): the reversed edge, w to v
-                if (!resumed.has(vw)) {
-                    if (this.oriented.has(vw) || this.oriented.has(wv)) {
-                        index[v]++;
-                        continue;
-                    }
-                    this.oriented.add(vw);
-                    this.out[v].push(w);
-                    this.lowpt.set(vw, this.height[v]);
-                    this.lowpt2.set(vw, this.height[v]);
-                    if (this.height[w] < 0) {
-                        // a tree edge: visit w, then come back to v
-                        this.parentEdge[w] = vw;
-                        this.height[w] = this.height[v] + 1;
-                        stack.push(v, w);
-                        resumed.add(vw);
-                        break;
-                    }
-                    // a back edge
-                    this.lowpt.set(vw, this.height[w]);
+            this.orientFrom(stack.pop() ?? 0, stack, index, resumed);
+        }
+    }
+
+    /**
+     * Walks v's edges from where its walk stopped, until it descends into a child (pushing v and the child) or ends.
+     * @param v - the node
+     * @param stack - the search stack
+     * @param index - the next edge to walk at every node
+     * @param resumed - the tree edges already descended
+     */
+    private orientFrom(v: number, stack: number[], index: Int32Array, resumed: Set<number>): void {
+        const e = this.parentEdge[v];
+        while (index[v] < this.adj[v].length) {
+            const w = this.adj[v][index[v]];
+            const vw = this.key(v, w);
+            if (!resumed.has(vw)) {
+                const step = this.orientEdge(v, w, vw);
+                if (step === "skip") {
+                    index[v]++;
+                    continue;
                 }
-                this.nesting.set(vw, 2 * this.low(vw) + ((this.lowpt2.get(vw) ?? 0) < this.height[v] ? 1 : 0));
-                if (e >= 0) {
-                    const le = this.low(e);
-                    const l2e = this.lowpt2.get(e) ?? 0;
-                    const lvw = this.low(vw);
-                    const l2vw = this.lowpt2.get(vw) ?? 0;
-                    if (lvw < le) {
-                        this.lowpt2.set(e, Math.min(le, l2vw));
-                        this.lowpt.set(e, lvw);
-                    } else if (lvw > le) {
-                        this.lowpt2.set(e, Math.min(l2e, lvw));
-                    } else {
-                        this.lowpt2.set(e, Math.min(l2e, l2vw));
-                    }
+                if (step === "descend") {
+                    stack.push(v, w);
+                    resumed.add(vw);
+                    return;
                 }
-                index[v]++;
             }
+            this.nesting.set(vw, 2 * this.low(vw) + ((this.lowpt2.get(vw) ?? 0) < this.height[v] ? 1 : 0));
+            if (e >= 0) {
+                this.updateLowpoints(e, vw);
+            }
+            index[v]++;
+        }
+    }
+
+    /**
+     * Orients v -> w on its first visit: skipped when already oriented, a tree edge to descend, or a back edge.
+     * @param v - the node the edge leaves
+     * @param w - the node it reaches
+     * @param vw - its key
+     * @returns what the walk does next
+     */
+    private orientEdge(v: number, w: number, vw: number): "skip" | "descend" | "back" {
+        const wv = this.key(w, v); // NOSONAR(S2234): the reversed edge, w to v
+        if (this.oriented.has(vw) || this.oriented.has(wv)) {
+            return "skip";
+        }
+        this.oriented.add(vw);
+        this.out[v].push(w);
+        this.lowpt.set(vw, this.height[v]);
+        this.lowpt2.set(vw, this.height[v]);
+        if (this.height[w] < 0) {
+            // a tree edge: visit w, then come back to v
+            this.parentEdge[w] = vw;
+            this.height[w] = this.height[v] + 1;
+            return "descend";
+        }
+        // a back edge
+        this.lowpt.set(vw, this.height[w]);
+        return "back";
+    }
+
+    /**
+     * Folds the lowpoints of child edge vw into its parent edge e.
+     * @param e - the parent edge
+     * @param vw - the child edge
+     */
+    private updateLowpoints(e: number, vw: number): void {
+        const le = this.low(e);
+        const l2e = this.lowpt2.get(e) ?? 0;
+        const lvw = this.low(vw);
+        const l2vw = this.lowpt2.get(vw) ?? 0;
+        if (lvw < le) {
+            this.lowpt2.set(e, Math.min(le, l2vw));
+            this.lowpt.set(e, lvw);
+        } else if (lvw > le) {
+            this.lowpt2.set(e, Math.min(l2e, lvw));
+        } else {
+            this.lowpt2.set(e, Math.min(l2e, l2vw));
         }
     }
 
@@ -286,41 +323,73 @@ class LeftRight {
         const resumed = new Set<number>();
         while (stack.length > 0) {
             const v = stack.pop() ?? 0;
-            const e = this.parentEdge[v];
-            let descended = false;
-            const list = this.ordered[v];
-            while (index[v] < list.length) {
-                const w = list[index[v]];
-                const ei = this.key(v, w);
-                if (!resumed.has(ei)) {
-                    this.stackBottom.set(ei, this.top());
-                    if (ei === this.parentEdge[w]) {
-                        stack.push(v, w);
-                        resumed.add(ei);
-                        descended = true;
-                        break;
-                    }
-                    this.lowptEdge.set(ei, ei);
-                    this.stack.push({ left: interval(), right: interval(ei, ei) });
-                }
-                if (this.low(ei) < this.height[v]) {
-                    if (w === list[0]) {
-                        this.lowptEdge.set(e, this.lowptEdge.get(ei) ?? -1);
-                    } else if (!this.addConstraints(ei, e)) {
-                        return false;
-                    }
-                }
-                index[v]++;
+            const walk = this.testFrom(v, stack, index, resumed);
+            if (walk === "nonplanar") {
+                return false;
             }
-            if (!descended && e >= 0) {
+            const e = this.parentEdge[v];
+            if (walk === "done" && e >= 0) {
                 this.removeBackEdges(e);
             }
         }
         return true;
     }
 
+    /**
+     * Walks v's ordered edges from where its walk stopped, until it descends into a child (pushing v and the child),
+     * ends, or finds the graph not planar.
+     * @param v - the node
+     * @param stack - the search stack
+     * @param index - the next edge to walk at every node
+     * @param resumed - the tree edges already descended
+     * @returns how the walk stopped
+     */
+    private testFrom(
+        v: number,
+        stack: number[],
+        index: Int32Array,
+        resumed: Set<number>,
+    ): "descended" | "done" | "nonplanar" {
+        const e = this.parentEdge[v];
+        const list = this.ordered[v];
+        while (index[v] < list.length) {
+            const w = list[index[v]];
+            const ei = this.key(v, w);
+            if (!resumed.has(ei)) {
+                this.stackBottom.set(ei, this.top());
+                if (ei === this.parentEdge[w]) {
+                    stack.push(v, w);
+                    resumed.add(ei);
+                    return "descended";
+                }
+                this.lowptEdge.set(ei, ei);
+                this.stack.push({ left: interval(), right: interval(ei, ei) });
+            }
+            if (this.low(ei) < this.height[v]) {
+                if (w === list[0]) {
+                    this.lowptEdge.set(e, this.lowptEdge.get(ei) ?? -1);
+                } else if (!this.addConstraints(ei, e)) {
+                    return "nonplanar";
+                }
+            }
+            index[v]++;
+        }
+        return "done";
+    }
+
     private addConstraints(ei: number, e: number): boolean {
         const p: ConflictPair = { left: interval(), right: interval() };
+        return this.mergeReturnEdges(ei, e, p) && this.mergeConflicting(ei, p);
+    }
+
+    /**
+     * Merges the return edges of ei into the right interval of p.
+     * @param ei - the edge
+     * @param e - its parent edge
+     * @param p - the conflict pair being built
+     * @returns false when the graph is not planar
+     */
+    private mergeReturnEdges(ei: number, e: number, p: ConflictPair): boolean {
         for (;;) {
             const q = this.stack.pop() as ConflictPair;
             if (!empty(q.left)) {
@@ -340,9 +409,18 @@ class LeftRight {
                 this.ref.set(q.right.low, this.lowptEdge.get(e) ?? -1);
             }
             if (this.top() === (this.stackBottom.get(ei) ?? null)) {
-                break;
+                return true;
             }
         }
+    }
+
+    /**
+     * Merges the conflicting pairs on top of the stack into p, then pushes p unless it is empty.
+     * @param ei - the edge
+     * @param p - the conflict pair being built
+     * @returns false when the graph is not planar
+     */
+    private mergeConflicting(ei: number, p: ConflictPair): boolean {
         for (
             let t = this.top();
             t !== null && (this.conflicting(t.left, ei) || this.conflicting(t.right, ei));
@@ -374,7 +452,6 @@ class LeftRight {
 
     private removeBackEdges(e: number): void {
         const u = Math.floor(e / this.n);
-        const refOf = (x: number): number => this.ref.get(x) ?? -1;
         while (this.stack.length > 0 && this.lowest(this.top() as ConflictPair) === this.height[u]) {
             const p = this.stack.pop() as ConflictPair;
             if (p.left.low >= 0) {
@@ -383,22 +460,8 @@ class LeftRight {
         }
         if (this.stack.length > 0) {
             const p = this.stack.pop() as ConflictPair;
-            while (p.left.high >= 0 && this.target(p.left.high) === u) {
-                p.left.high = refOf(p.left.high);
-            }
-            if (p.left.high < 0 && p.left.low >= 0) {
-                this.ref.set(p.left.low, p.right.low);
-                this.side.set(p.left.low, -1);
-                p.left.low = -1;
-            }
-            while (p.right.high >= 0 && this.target(p.right.high) === u) {
-                p.right.high = refOf(p.right.high);
-            }
-            if (p.right.high < 0 && p.right.low >= 0) {
-                this.ref.set(p.right.low, p.left.low);
-                this.side.set(p.right.low, -1);
-                p.right.low = -1;
-            }
+            this.trimBackEdges(p.left, p.right, u);
+            this.trimBackEdges(p.right, p.left, u);
             this.stack.push(p);
         }
         if (this.low(e) < this.height[u]) {
@@ -406,6 +469,23 @@ class LeftRight {
             const hl = t.left.high;
             const hr = t.right.high;
             this.ref.set(e, hl >= 0 && (hr < 0 || this.low(hl) > this.low(hr)) ? hl : hr);
+        }
+    }
+
+    /**
+     * Drops the return edges into u from the top of interval i; when none is left, i is emptied and refers to other.
+     * @param i - the interval
+     * @param other - the opposite interval of its pair
+     * @param u - the node the back edges return to
+     */
+    private trimBackEdges(i: Interval, other: Interval, u: number): void {
+        while (i.high >= 0 && this.target(i.high) === u) {
+            i.high = this.ref.get(i.high) ?? -1;
+        }
+        if (i.high < 0 && i.low >= 0) {
+            this.ref.set(i.low, other.low);
+            this.side.set(i.low, -1);
+            i.low = -1;
         }
     }
 
@@ -533,8 +613,34 @@ function triangulateFace(embedding: Embedding, v1: number, v2: number): void {
  * @returns the outer face
  */
 function triangulate(embedding: Embedding): number[] {
-    const { n } = embedding;
     // the smallest node of each component, joined one to the next
+    const firsts = componentFirsts(embedding);
+    for (let i = 0; i + 1 < firsts.length; i++) {
+        embedding.addFirst(firsts[i], firsts[i + 1]);
+        embedding.addFirst(firsts[i + 1], firsts[i]);
+    }
+    const faces = biconnectedFaces(embedding);
+    let outer: number[] = [];
+    for (const face of faces) {
+        if (face.length > outer.length) {
+            outer = face;
+        }
+    }
+    for (const face of faces) {
+        if (face !== outer) {
+            triangulateFace(embedding, face[0], face[1]);
+        }
+    }
+    return outer;
+}
+
+/**
+ * The smallest node of each connected component, in order.
+ * @param embedding - the embedding
+ * @returns one node per component
+ */
+function componentFirsts(embedding: Embedding): number[] {
+    const { n } = embedding;
     const seen = new Uint8Array(n);
     const firsts: number[] = [];
     for (let r = 0; r < n; r++) {
@@ -552,14 +658,18 @@ function triangulate(embedding: Embedding): number[] {
             }
         }
     }
-    for (let i = 0; i + 1 < firsts.length; i++) {
-        embedding.addFirst(firsts[i], firsts[i + 1]);
-        embedding.addFirst(firsts[i + 1], firsts[i]);
-    }
-    let outer: number[] = [];
+    return firsts;
+}
+
+/**
+ * Walks every face once, making it biconnected (see makeBiconnected), in NetworkX's order.
+ * @param embedding - the embedding
+ * @returns the faces' nodes, in the order they were walked
+ */
+function biconnectedFaces(embedding: Embedding): number[][] {
     const faces: number[][] = [];
     const counted = new Set<number>();
-    for (let v = 0; v < n; v++) {
+    for (let v = 0; v < embedding.n; v++) {
         const start = embedding.first[v];
         if (start < 0) {
             continue;
@@ -570,19 +680,11 @@ function triangulate(embedding: Embedding): number[] {
             const face = makeBiconnected(embedding, v, w, counted);
             if (face.length > 0) {
                 faces.push(face);
-                if (face.length > outer.length) {
-                    outer = face;
-                }
             }
             w = embedding.cw[v].get(w) ?? start;
         } while (w !== start);
     }
-    for (const face of faces) {
-        if (face !== outer) {
-            triangulateFace(embedding, face[0], face[1]);
-        }
-    }
-    return outer;
+    return faces;
 }
 
 /**

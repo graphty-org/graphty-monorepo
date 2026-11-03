@@ -6,8 +6,12 @@
  * property that the known failures do not list for it, whether it passed before or is new. Everything else is a
  * report, written per run:
  *
- * - pass rates beside the recorded ones (the floors, informational: the best each property has measured), each change
- *   said to come from the drawing or from the comparator when the run judged a baseline drawing too;
+ * - pass rates beside the recorded ones (the floors: the best each property has measured), each change said to come
+ *   from the drawing or from the comparator when the run judged a baseline drawing too. The oracle scorecard
+ *   (`gateFloors`) also fails a key for an element-judged rate below its floor, unless that drop was accepted with a
+ *   reason at that rate or lower (`AcceptedDrop`, `ratchetDrops`): a known failure added with a reason lowers a rate
+ *   as surely as a new one, and the floors alone never said so (#5319). The raster regions are never gated, since
+ *   their floors are SwiftShader's and another GPU path draws them up to 0.046 apart;
  * - a whole-picture (raster) region that measures more than `RASTER_REPORT_DROP` under its recorded value;
  * - a known failure that passes now (the ratchet takes it off the list), and one that is not measurable any more (no
  *   element on the other side to compare it with), which is never a failure.
@@ -16,7 +20,8 @@
  * to come from the drawing (the baseline drawing passes it under this comparator), from the comparator (the baseline
  * drawing fails it too under this comparator, though its own run passed it), or to have failed on the baseline already.
  *
- * `scripts/fidelity-ratchet.ts` applies a run's report to the committed files (`ratchetKnown`, `raiseFloors`).
+ * `scripts/fidelity-ratchet.ts` applies a run's report to the committed files (`ratchetKnown`, `raiseFloors`,
+ * `ratchetDrops`).
  */
 
 /** One judged property's elements and rates, as a run measured them. */
@@ -77,6 +82,22 @@ export type FloorSection = "floors" | "standInFloors" | "specificationFloors";
 /** Every floors section, in the order the floors file keeps them. */
 export const FLOOR_SECTIONS: readonly FloorSection[] = ["floors", "standInFloors", "specificationFloors"];
 
+/**
+ * A drop of a key's rate below its recorded floor, accepted with a reason (`npm run fidelity:ratchet -- --add`). The floor
+ * itself is never lowered: the rate may sit at `to` or above until it is back at its floor, which takes the record off.
+ */
+export interface AcceptedDrop {
+    /** The floor when the drop was accepted. */
+    floor: number;
+    /** The rate accepted. */
+    to: number;
+    reason: string;
+    date: string;
+}
+
+/** Per key, per property: the accepted drops below a floor. */
+export type AcceptedDrops = Record<string, Record<string, AcceptedDrop>>;
+
 /** One sample's (or one sample@matched's, or one reference's of a sheet judged per setting) verdict and report. */
 export interface KeyGate {
     key: string;
@@ -84,6 +105,11 @@ export interface KeyGate {
     section: FloorSection;
     /** The gate: elements failing a property the known failures do not list. Any one fails the sample. */
     newlyFailing: NewFailure[];
+    /**
+     * The gate too, where the floors gate (`gateFloors`): element-judged rates below their floor and below any accepted
+     * drop of theirs. Any one fails the sample.
+     */
+    belowFloor: (ScoreChange & { accepted?: AcceptedDrop })[];
     /** Known failures that pass now, by property: the ratchet takes them off. */
     nowPassing: Record<string, string[]>;
     /** Known failures not judged at all now, by property: not measurable, never a failure; the list keeps them. */
@@ -199,6 +225,8 @@ function measured(run: Judgement, property: string, ids: readonly string[]): str
  * @param options.baseline - the baseline drawing's judgements, when the run judged one
  * @param options.section - where the key's recorded pass rates are kept (default: with the real programs)
  * @param options.gpu - the GPU path it was drawn on (`GRAPHTY_BROWSER_GPU`, "none" when unset)
+ * @param options.gateFloors - fail an element-judged rate below its floor (the oracle scorecard)
+ * @param options.accepted - this key's accepted drops below a floor, by property
  * @returns the verdict and the report
  */
 export function judgeKey(
@@ -206,7 +234,13 @@ export function judgeKey(
     run: Judgement,
     known: Readonly<Record<string, readonly string[]>> | undefined,
     recorded: Readonly<Record<string, number>> | undefined,
-    options: { baseline?: Baseline; section?: FloorSection; gpu?: string } = {},
+    options: {
+        baseline?: Baseline;
+        section?: FloorSection;
+        gpu?: string;
+        gateFloors?: boolean;
+        accepted?: Readonly<Record<string, AcceptedDrop>>;
+    } = {},
 ): KeyGate {
     const { baseline } = options;
     const newlyFailing = Object.entries(run.failures).flatMap(([p, ids]) => {
@@ -257,10 +291,18 @@ export function judgeKey(
             changes.push({ ...entry, kind: "rise" });
         }
     }
+    const belowFloor =
+        options.gateFloors === true
+            ? changes
+                  .filter((c) => c.kind === "drop" && !c.property.startsWith("raster."))
+                  .map((c) => ({ ...c, accepted: options.accepted?.[c.property] }))
+                  .filter((c) => c.accepted === undefined || (c.now ?? 0) < c.accepted.to - EPSILON)
+            : [];
     return {
         key,
         section: options.section ?? "floors",
         newlyFailing,
+        belowFloor,
         nowPassing,
         notMeasurable,
         changes,
@@ -271,7 +313,7 @@ export function judgeKey(
 
 /**
  * The gate's messages for one key: one line per property with elements failing that the known failures do not list,
- * each element with where it comes from.
+ * each element with where it comes from, and one per rate below its floor (and below its accepted drop).
  * @param gate - the key's verdict
  * @returns the lines; empty when the key passes
  */
@@ -280,10 +322,75 @@ export function gateMessages(gate: KeyGate): string[] {
     for (const f of gate.newlyFailing) {
         byProperty.set(f.property, [...(byProperty.get(f.property) ?? []), f]);
     }
-    return [...byProperty].map(([p, list]) => {
+    const failing = [...byProperty].map(([p, list]) => {
         const shown = list.slice(0, 12).map((f) => `${f.id} (${f.source})`);
         return `${gate.key} ${p}: ${String(list.length)} newly failing: ${shown.join(", ")}${list.length > 12 ? ", ..." : ""}`;
     });
+    const low = (gate.belowFloor ?? []).map(
+        (c) =>
+            `${gate.key} ${c.property}: ${num(c.now)} is below its recorded floor ${num(c.recorded)}${
+                c.accepted === undefined ? "" : ` and its accepted drop to ${num(c.accepted.to)}`
+            }`,
+    );
+    return [...failing, ...low];
+}
+
+/**
+ * Whether a ratchet's `--add` covers a property: every one, unless it names some.
+ * @param add - what is added
+ * @param add.properties - only these properties (all when omitted)
+ * @param property - the property
+ * @returns whether it is added
+ */
+const named = (add: { properties?: readonly string[] } | undefined, property: string): boolean =>
+    add?.properties === undefined || add.properties.includes(property);
+
+/**
+ * The accepted drops after a run: a drop whose rate is back at its floor is taken off, and, with a reason, every rate
+ * below its floor and its accepted drop is accepted at this run's rate, with the reason. Never accepts without a reason,
+ * and never lowers a floor.
+ * @param drops - the accepted drops as committed
+ * @param gates - the run's verdicts by key
+ * @param add - the reason and date to accept the drops with; omitted to accept none
+ * @param add.reason - why the rates are lower
+ * @param add.date - `YYYY-MM-DD`
+ * @param add.keys - only these keys (all when omitted)
+ * @param add.properties - only these properties (all when omitted)
+ * @returns the new accepted drops and what changed
+ */
+export function ratchetDrops(
+    drops: AcceptedDrops,
+    gates: readonly KeyGate[],
+    add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
+): { drops: AcceptedDrops; removed: number; added: number; unaccepted: number } {
+    if (add !== undefined && add.reason.trim().length < 10) {
+        throw new Error("accepting a drop below a floor needs a reason of 10 or more characters");
+    }
+    const out: AcceptedDrops = structuredClone(drops);
+    let removed = 0;
+    let added = 0;
+    let unaccepted = 0;
+    for (const gate of gates) {
+        const dropped = new Set(gate.changes.filter((c) => c.kind === "drop").map((c) => c.property));
+        // a drop whose rate is measured and no longer under its floor is over
+        const kept = Object.entries(out[gate.key] ?? {}).filter(
+            ([p]) => gate.scores[p] === undefined || dropped.has(p),
+        );
+        removed += Object.keys(out[gate.key] ?? {}).length - kept.length;
+        const row: Record<string, AcceptedDrop> = Object.fromEntries(kept);
+        const adding = add !== undefined && (add.keys === undefined || add.keys.includes(gate.key));
+        for (const c of gate.belowFloor) {
+            if (!adding || !named(add, c.property) || c.now === undefined || c.recorded === undefined) {
+                unaccepted += 1;
+                continue;
+            }
+            row[c.property] = { floor: c.recorded, to: c.now, reason: add.reason, date: add.date };
+            added += 1;
+        }
+        out[gate.key] = row;
+    }
+    const left = Object.fromEntries(Object.entries(out).filter(([, row]) => Object.keys(row).length > 0));
+    return { drops: sortedKeys(left), removed, added, unaccepted };
 }
 
 /**
@@ -296,12 +403,13 @@ export function gateMessages(gate: KeyGate): string[] {
  * @param add.reason - why they are added
  * @param add.date - `YYYY-MM-DD`
  * @param add.keys - only these keys (all when omitted)
+ * @param add.properties - only these properties (all when omitted)
  * @returns the new known failures and what changed
  */
 export function ratchetKnown(
     records: KnownRecords,
     gates: readonly KeyGate[],
-    add?: { reason: string; date: string; keys?: readonly string[] },
+    add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
 ): { records: KnownRecords; removed: number; added: number; unlisted: number } {
     if (add !== undefined && add.reason.trim().length < 10) {
         throw new Error("adding to the known failures needs a reason of 10 or more characters");
@@ -321,7 +429,7 @@ export function ratchetKnown(
         }
         const adding = add !== undefined && (add.keys === undefined || add.keys.includes(gate.key));
         for (const f of gate.newlyFailing) {
-            if (!adding) {
+            if (!adding || !named(add, f.property)) {
                 unlisted += 1;
                 continue;
             }
@@ -421,7 +529,7 @@ function changeLine(key: string, c: ScoreChange): string {
  * @returns the text
  */
 export function gateReportText(gates: readonly KeyGate[], gpu: string, baseline: string | null): string {
-    const failing = gates.filter((g) => g.newlyFailing.length > 0);
+    const failing = gates.filter((g) => g.newlyFailing.length > 0 || (g.belowFloor ?? []).length > 0);
     const count = (pick: (g: KeyGate) => Record<string, string[]>): number =>
         gates.reduce((n, g) => n + Object.values(pick(g)).reduce((m, ids) => m + ids.length, 0), 0);
     const sources = new Map<ChangeSource, number>();
@@ -436,7 +544,7 @@ export function gateReportText(gates: readonly KeyGate[], gpu: string, baseline:
         gates.flatMap((g) => g.changes.filter((c) => c.kind === kind).map((c) => changeLine(g.key, c)));
     return [
         `Style fidelity gate: ${String(gates.length)} keys, GPU path ${gpu}, baseline ${baseline ?? "none"}.`,
-        `A key fails when an element fails a property the known failures do not list; scores are reported, never gated.`,
+        `A key fails when an element fails a property the known failures do not list, or (the oracle scorecard) an element-judged rate is below its recorded floor and any accepted drop; the raster regions are reported, never gated.`,
         `Failing keys: ${String(failing.length)}; elements newly failing: ${String(
             failing.reduce((n, g) => n + g.newlyFailing.length, 0),
         )} (${[...sources].map(([s, n]) => `${s} ${String(n)}`).join(", ") || "none"}).`,

@@ -148,6 +148,8 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     inverted: "inverted",
     vee: "vee",
     crow: "crow",
+    // a vee read at its line's other end (drawn-scene.ts, POINTS_BACK)
+    "inverted-vee": "inverted-vee",
     diamond: "diamond",
     "open-diamond": "diamond",
     dot: "circle",
@@ -156,6 +158,8 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     box: "box",
     tee: "tee",
     "half-open": "half",
+    // half-open's arm as one thin stroke (Cytoscape's HALF_TOP and HALF_BOTTOM)
+    "half-barb": "half",
     "half-circle": "half-circle",
     "open-half-circle": "half-circle",
     // the round side of a half circle alone, bulging toward the node (vis-network's curve), drawn as a stroke
@@ -202,7 +206,9 @@ const SIDED_KEEP_CLASS: ReadonlySet<ArrowShape> = new Set(["box", "tee", "invert
 const POINTING_BACK: Partial<Record<ArrowShape, ArrowShape>> = {
     triangle: "inverted",
     inverted: "triangle",
-    vee: "crow",
+    // a vee turned round has no tine along its line: no crow's foot
+    vee: "inverted-vee",
+    "inverted-vee": "vee",
     crow: "vee",
 };
 
@@ -218,9 +224,10 @@ const CAP_PLACE_PX = 2;
  * off its line, 30 px back along it or 12 px to its side, as a head in its place (extendToTip bridged a gap to it).
  * @param c - the cap
  * @param line - the line as drawn, source end first, before any cap carries it on
+ * @param lineEnds - where the line itself ends, source end first, short of its caps' tips; undefined where not read
  * @returns the arrow
  */
-function drawnArrow(c: DrawnCap, line: readonly Pt[]): PArrow {
+function drawnArrow(c: DrawnCap, line: readonly Pt[], lineEnds?: readonly [Pt, Pt]): PArrow {
     const end = CAP_END[c.end];
     const open =
         (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
@@ -236,7 +243,14 @@ function drawnArrow(c: DrawnCap, line: readonly Pt[]): PArrow {
     }
     const read = measureArrow(c.outline, line, end, { filled: look.filled, color: look.color });
     const backward = end !== "middle" && POINTING_BACK[shape] !== undefined && read.shape === POINTING_BACK[shape];
-    const arrow = measureArrow(c.outline, line, end, backward ? { ...look, shape: read.shape } : look);
+    const measured = measureArrow(c.outline, line, end, backward ? { ...look, shape: read.shape } : look);
+    // the line stops short of the tip `line` runs on to: the break between it and the cap is read where it stops
+    let lineGap: number | undefined;
+    if (end !== "middle" && lineEnds !== undefined) {
+        const ownLine = end === "target" ? [...line.slice(0, -1), lineEnds[1]] : [lineEnds[0], ...line.slice(1)];
+        ({ lineGap } = measureArrow(c.outline, ownLine, end, look));
+    }
+    const arrow = lineGap === undefined ? measured : { ...measured, lineGap };
     // an end's head its style draws part-way along the line is no head at the line's end: where along the line it sits
     // is judged against the program's (pajek-graphstream-b: Pajek's and graphty's both at the middle, failed for
     // standing 260 px off the line's end)
@@ -285,8 +299,8 @@ export function capPlaceMiss(
 /** The caps whose name says "open" though they are drawn filled: graphty's half-open is one filled barb (a half vee). */
 const FILLED_OPEN_NAMES: readonly string[] = ["half-open"];
 
-/** Cap names drawn as a stroke, hollow whatever their name says (vis-network's curve, an arc). */
-const STROKED_NAMES: readonly string[] = ["curve"];
+/** Cap names drawn as a stroke, hollow whatever their name says (vis-network's curve, an arc; the half barb). */
+const STROKED_NAMES: readonly string[] = ["curve", "half-barb"];
 
 /**
  * A path whose end at an open half circle is moved back to the arc's back, where the line meets the stroke.
@@ -555,10 +569,14 @@ export function drawnPrimitives(
         // that border, as the oracle reads a ring clear of the outline; a ring with no border is the node's outline
         const outer = d?.outer ?? null;
         const split = outer !== null && (d?.innerBorder ?? null) !== null;
-        const own = split ? (d?.innerBorder ?? null) : (d?.border ?? null);
-        const gap = split ? 2 * outer.gapPx : 0;
-        const borderColor = split ? (own?.color ?? null) : n.border.color;
-        const borderWidth = split ? (own?.widthPx ?? 0) : n.border.width;
+        // a table's background drawn as the node's body has its cells' outline as its own, as an SVG draws it
+        const table = split || n.border.width > 0 ? null : (d?.tableOutline ?? null);
+        const own = split ? (d?.innerBorder ?? null) : (d?.border ?? table);
+        // the rings inside the outermost are the node's own outlines, as the program's further peripheries are
+        const rings = outer?.ringsPx ?? 0;
+        const gap = split ? 2 * (outer.gapPx - rings) : 0;
+        const borderColor = split ? (own?.color ?? null) : (table?.color ?? n.border.color);
+        const borderWidth = split ? (own?.widthPx ?? 0) : (table?.widthPx ?? n.border.width);
         // a line waving round the node is as thick as it is drawn, in a ring as wide as the border
         const waved = split ? null : (d?.border?.lineWidthPx ?? null);
         nodes.push({
@@ -598,7 +616,7 @@ export function drawnPrimitives(
                           width: outer.border.widthPx,
                           dash: null,
                           dashClass: LINE_CLASS[outer.border.style] ?? "other",
-                          reach: outer.gapPx + outer.border.widthPx,
+                          reach: outer.gapPx - rings + outer.border.widthPx,
                       }
                     : null,
             label,
@@ -617,7 +635,7 @@ export function drawnPrimitives(
         // a cap drawn at no opacity or no size draws nothing
         const arrows: PArrow[] = d.caps
             .filter((c) => c.opacity > 0 && c.sizePx > 0)
-            .map((c) => drawnArrow(c, d.points));
+            .map((c) => drawnArrow(c, d.points, d.lineEnds));
         // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
         // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip) -- except
         // an open half circle standing off its node (a gap, Cytoscape's OPEN_HALF_CIRCLE): the line stops at the arc's

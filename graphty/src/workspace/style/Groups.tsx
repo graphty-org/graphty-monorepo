@@ -4,6 +4,7 @@ import {
     MenuShortcut,
     PanelField,
     PanelLabelsProvider,
+    TargetTooltip,
     ToggleIconButton,
     ToggleRow,
 } from "@graphty/compact-mantine";
@@ -196,7 +197,9 @@ function selectGroups(session: GraphSession, target: Layer["target"], path: stri
         values: [...keys],
         ...(target === "edge" ? { nodes: "ends" as const } : {}),
     };
-    void session.selection.apply({ scope: { define: { kind: "rule", where, reading: "clipped" } } });
+    void session.selection.apply({ scope: { define: { kind: "rule", where, reading: "clipped" } } }, "replace", {
+        cause: "user",
+    });
 }
 
 /**
@@ -584,7 +587,10 @@ export function LayerGroupList({
         },
         select: (keys) => {
             void keys.reduce<Promise<unknown>>(
-                (done, layer, at) => done.then(() => session.selection.apply({ layer }, at === 0 ? "replace" : "add")),
+                (done, layer, at) =>
+                    done.then(() =>
+                        session.selection.apply({ layer }, at === 0 ? "replace" : "add", { cause: "user" }),
+                    ),
                 Promise.resolve(),
             );
         },
@@ -822,9 +828,12 @@ function GroupActionsCell({
             {/* Drawn in the list's own box, not in the row, whose cell would clip it. */}
             <Menu withinPortal portalProps={{ target: menuHost ?? undefined }} position="bottom-end">
                 <Menu.Target>
-                    <ActionIcon variant="subtle" size="sm" aria-label={`${source} ${row.name} actions`}>
-                        <GLYPHS.more size={14} aria-hidden />
-                    </ActionIcon>
+                    {/* An icon alone, so it says its name on hover. */}
+                    <TargetTooltip label={`${source} ${row.name} actions`}>
+                        <ActionIcon variant="subtle" size="sm" aria-label={`${source} ${row.name} actions`}>
+                            <GLYPHS.more size={14} aria-hidden />
+                        </ActionIcon>
+                    </TargetTooltip>
                 </Menu.Target>
                 <Menu.Dropdown>
                     {from.detail === undefined ? null : (
@@ -1303,7 +1312,7 @@ function openNewLayer(
             });
             const [first] = channelsBy(layer, path);
             if (first !== undefined) {
-                focusLineNext(first);
+                focusLineNext(session, first);
             }
         })
         .catch((error: unknown) => {
@@ -1503,7 +1512,7 @@ export function GroupDetail({
                         </Box>
                         <Box w={24} style={{ flex: "none" }}>
                             {anySet ? (
-                                <Tooltip label="Clear: back to the layer's value">
+                                <Tooltip label={`Clear ${title} ${name.toLowerCase()}`}>
                                     <ActionIcon
                                         variant="subtle"
                                         size="sm"

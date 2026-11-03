@@ -18,9 +18,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Les Miserables in the workspace, with a node layer "Picked".
  * @returns The session.
@@ -29,14 +26,11 @@ async function openGraph(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -112,12 +106,9 @@ describe("Keyboard stops and Escape (real element)", () => {
         // until no tooltip is open, so the Escape below meets the page alone. The theme's tooltips
         // are inaccessible to a role query by default, hence hidden: true.
         await userEvent.hover(heading);
-        await waitFor(
-            () => {
-                assert.isNull(screen.queryByRole("tooltip", { hidden: true }), "a tooltip is still open");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("tooltip", { hidden: true }), "a tooltip is still open");
+        });
         heading.focus();
         assert.strictEqual(document.activeElement, heading);
         await userEvent.keyboard("{Escape}");
@@ -132,11 +123,11 @@ describe("Keyboard stops and Escape (real element)", () => {
                 .slice(0, 2)
                 .map((node) => node.id),
         });
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Picked, / }));
         // The Fill line's Color box, a field holding the layer's color.
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-        const box = await within(inspector).findByDisplayValue(/D55E00/i, {}, { timeout: TIMEOUT_MS });
+        const box = await within(inspector).findByDisplayValue(/D55E00/i, {});
         box.focus();
         await userEvent.keyboard("{Escape}");
         assert.strictEqual(session.selection.size, 2, "Escape in a field cleared the selection");
@@ -158,18 +149,18 @@ describe("Keyboard stops and Escape (real element)", () => {
 
     it("a style switch that cannot change says why on hover", async () => {
         await openGraph();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Picked, / }));
-        const box = await screen.findByRole("checkbox", { name: "Style nodes" }, { timeout: TIMEOUT_MS });
+        const box = await screen.findByRole("checkbox", { name: "Style nodes" });
         assert.isTrue(box.hasAttribute("disabled") || box.getAttribute("aria-disabled") === "true");
         const label = box.closest(".ws-kind-switch")?.querySelector("label");
         assert.exists(label);
         // The box itself, where a pointer aims first, and then its words.
         await userEvent.hover(box);
-        await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
+        await screen.findByRole("tooltip", {});
         await userEvent.unhover(box);
         await userEvent.hover(label);
-        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
+        const tip = await screen.findByRole("tooltip", {});
         assert.match(tip.textContent ?? "", /^Stays on: style edges first/);
     });
 });

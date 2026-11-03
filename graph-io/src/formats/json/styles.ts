@@ -20,6 +20,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { itemAt } from "../../common/text.js";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonBoolean, canonNumber, canonOpacity } from "../../styles/canon/number.js";
@@ -102,7 +103,7 @@ export const SIGMA_DEFAULT_SETTINGS: SigmaSettings = { renderEdgeLabels: false, 
 /** The writable values of one row. */
 type Row = Record<string, StyleValue | null>;
 /** Per-property values of one target, by element index. */
-type Values = Record<string, (StyleValue | null)[]>;
+type Values = Partial<Record<string, (StyleValue | null)[]>>;
 
 const TARGETS: readonly StyleTarget[] = ["node", "edge"];
 
@@ -566,7 +567,6 @@ function exactFromBlock(
             // a native value the writer made from the block's other values (vis.js's one size for a width) is the
             // block's own value, none included
             readBack: (i, want) => (property) => writes[property](want, i, snapshot),
-            take: (_property, _wanted, native) => native !== null,
         };
     });
 }
@@ -1365,7 +1365,9 @@ function visMarkup(
  * vis-network's own options of each font modifier (vis-network 9.1.9 `NodesHandler` defaults, `font.mono`); an option
  * a modifier does not set is the label's own (Label.propagateFonts).
  */
-const VIS_MOD_DEFAULTS: Readonly<Record<string, { mod: string; face?: string; size?: number; vadjust?: number }>> = {
+const VIS_MOD_DEFAULTS: Readonly<
+    Partial<Record<string, { mod: string; face?: string; size?: number; vadjust?: number }>>
+> = {
     bold: { mod: "bold" },
     ital: { mod: "italic" },
     boldital: { mod: "bold italic" },
@@ -1391,7 +1393,8 @@ function visRuns(runs: readonly { text: string; mod: string }[], layer: VisLayer
         vadjust: typeof layer.fontVadjust === "number" && Number.isFinite(layer.fontVadjust) ? layer.fontVadjust : 0,
     };
     const mods = isJsonObject(layer.fontMods) ? layer.fontMods : {};
-    let differs = false;
+    // set inside the map callback, which TypeScript does not see change it
+    let differs = false as boolean;
     const out = runs.map((r) => {
         const run: Record<string, unknown> = { text: r.text };
         const base = VIS_MOD_DEFAULTS[r.mod];
@@ -1410,7 +1413,7 @@ function visRuns(runs: readonly { text: string; mod: string }[], layer: VisLayer
         if (modText.includes("italic")) {
             run.italic = true;
         }
-        if (face !== null && face !== own.face) {
+        if (face !== own.face) {
             run.font = face;
         }
         if (size !== own.size) {
@@ -1507,7 +1510,8 @@ function visModOptions(raw: unknown): Record<string, unknown> {
     if (typeof raw === "string") {
         const m = /^\s*(\d+(?:\.\d+)?)(?:px)?\s+(\S+)(?:\s+(\S+))?/.exec(raw.slice(0, 256));
         if (m !== null) {
-            return { size: Number(m[1]), face: m[2], ...(m[3] === undefined ? {} : { color: m[3] }) };
+            const color = itemAt(m, 3);
+            return { size: Number(m[1]), face: m[2], ...(color === undefined ? {} : { color }) };
         }
     }
     return {};
@@ -1812,7 +1816,7 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
     const borderOf = (i: number): StyleValue =>
         node.values.borderColor?.[i] ?? (toolNode?.borderColor?.value as StyleValue | undefined) ?? "#2b7ce9";
     const geometry = visGeometry(snapshot, node.values, shapes);
-    const support = visSupport(options.physics, options.layout);
+    const support = visSupport(options.physics, options.layout, visPlacesAll(snapshot));
     const edges = visLayer(options.edges, "edge");
     const edge = visEdges(snapshot, edges, borderOf, { ...geometry, support }, notes, context);
     const values = { node: node.values, edge: edge.values };
@@ -2397,7 +2401,8 @@ function visEdgeInherit(
         vals.gradientColors = `${String(borderOf(s))} ${String(borderOf(t))}`;
     }
     if (!inherits) {
-        if (vals.color === undefined) {
+        const given: Partial<Row> = vals;
+        if (given.color === undefined) {
             vals.color = VIS_EDGE_COLOR;
         }
         return null;
@@ -2746,11 +2751,14 @@ const VIS_SOLVERS: Readonly<Record<string, { model: string; g: number; cg: numbe
  * ForceAtlas2BasedRepulsionSolver, their central gravity solvers and SpringSolver). None where physics is off, where
  * a hierarchical layout turns every dynamic curve static (`_forceDisableDynamicCurves`), or under the repulsion and
  * hierarchicalRepulsion solvers (ponytail: drawn straight; their force laws when a file uses them).
+ * vis-network lays out a file that does not place every node under the same forces, so their unit is then the
+ * drawing's (`supportScale: "drawing"`), whatever layout draws it; a file that places every node keeps its px.
  * @param physics - `options.physics`
  * @param layout - `options.layout`
+ * @param placed - whether the file places every node
  * @returns the neutral support values, or null
  */
-function visSupport(physics: unknown, layout: unknown): Row | null {
+function visSupport(physics: unknown, layout: unknown, placed: boolean): Row | null {
     const hierarchical = isJsonObject(layout) ? layout.hierarchical : undefined;
     if (hierarchical === true || (isJsonObject(hierarchical) && hierarchical.enabled !== false)) {
         return null;
@@ -2772,7 +2780,30 @@ function visSupport(physics: unknown, layout: unknown): Row | null {
         supportSpringConstant: Math.max(0, num(given.springConstant, base.k)),
         supportRepulsion: Math.max(0, -num(given.gravitationalConstant, base.g)),
         supportCentralGravity: Math.max(0, num(given.centralGravity, base.cg)),
+        ...(placed ? {} : { supportScale: "drawing" }),
     };
+}
+
+/**
+ * vis.js: whether every node has a position in the file (`x` and `y`), so vis-network starts from the file's places.
+ * @param snapshot - the graph
+ * @returns true when every node is placed
+ */
+function visPlacesAll(snapshot: GraphSnapshot): boolean {
+    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    // as visGeometry reads a place: a number, or a string vis-network parses as one
+    const at = (cell: ((i: number) => unknown) | null, i: number): boolean => {
+        const v = cell?.(i);
+        return typeof v === "string"
+            ? !Number.isNaN(Number.parseInt(v, 10))
+            : typeof v === "number" && Number.isFinite(v);
+    };
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        if (!at(xs, i) || !at(ys, i)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
@@ -3159,7 +3190,7 @@ function visWritten(snapshot: GraphSnapshot, edgeValues: Values): Written {
             isLoop(i) ? (edgeValues[property]?.[i] ?? null) : want(property);
     // the writer writes no `smooth` and no `options.physics`, so every other edge reads back as vis-network's default,
     // a dynamic curve under the default barnesHut physics
-    const dynamic = visSupport(undefined, undefined) ?? {};
+    const dynamic = visSupport(undefined, undefined, visPlacesAll(snapshot)) ?? {};
     const support = (property: string) => (_want: unknown, i: number) =>
         isLoop(i) ? (edgeValues[property]?.[i] ?? null) : (dynamic[property] ?? null);
     const supports = Object.fromEntries(Object.keys(dynamic).map((property) => [property, support(property)]));
@@ -3525,7 +3556,7 @@ function addUntrimmedText(input: ExporterStyleInput, approximated: StyleApproxim
  */
 function visGroups(snapshot: GraphSnapshot): Record<string, Record<string, never>> | null {
     const column = snapshot.nodes.get("group");
-    if (column === null || column === undefined) {
+    if (column === null) {
         return null;
     }
     const groups = new Map<string, Record<string, never>>();

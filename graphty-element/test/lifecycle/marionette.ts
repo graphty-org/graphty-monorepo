@@ -22,6 +22,8 @@ import net from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
 
+import { WAIT_GUARD_MS } from "../../../tools/test-wait-guard.mjs";
+
 /** The Firefox release the harness downloads. Raise it with each Firefox release worth checking. */
 export const FIREFOX_VERSION = "158.0";
 
@@ -201,7 +203,8 @@ export async function launchMarionette(userDataDir: string, executable: string):
         },
         async contentAsync<T>(script: string, args: unknown[] = []) {
             await inContext("content");
-            return send<T>("WebDriver:ExecuteAsyncScript", { script, args, scriptTimeout: 60_000 });
+            // Marionette's own script limit is 30 s; the one hang guard instead.
+            return send<T>("WebDriver:ExecuteAsyncScript", { script, args, scriptTimeout: WAIT_GUARD_MS });
         },
         async close() {
             socket.destroy();

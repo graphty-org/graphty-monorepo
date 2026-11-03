@@ -17,7 +17,7 @@
  * EVERY LINE STYLE, IN BOTH MODES (issue #444). A curve, an animated line, each of the eight
  * patterns and every 2D line is held to the same bound as the default straight 3D line.
  */
-import "@babylonjs/core/Meshes/thinInstanceMesh";
+import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { Mesh, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";

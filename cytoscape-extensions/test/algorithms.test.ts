@@ -514,9 +514,9 @@ describe("communities and clustering", () => {
 
     it("teraHAC and hierarchicalClustering refuse more than maxNodes nodes with E_TOO_LARGE", () => {
         const e = graph(BARBELL).elements();
-        const refusal = expect.objectContaining({
+        const refusal: unknown = expect.objectContaining({
             code: "E_TOO_LARGE",
-            params: expect.objectContaining({ maxNodes: 5 }),
+            params: expect.objectContaining({ maxNodes: 5 }) as unknown,
         });
         expect(() => e.graphtyTeraHAC({ maxNodes: 5 })).toThrow(refusal);
         expect(() => e.graphtyHierarchicalClustering({ maxNodes: 5 })).toThrow(refusal);
@@ -684,6 +684,25 @@ describe("link prediction", () => {
         expect(e.graphtyEvaluateCommonNeighbors(held).auc).toBe(1);
         expect(e.graphtyEvaluateAdamicAdar(held).auc).toBe(1);
         expect(e.graphtyCompareAdamicAdarWithCommonNeighbors(held).commonNeighbors.auc).toBe(1);
+    });
+
+    it("predicts every ordered pair of a directed graph, whatever the node order (#961)", () => {
+        // Nodes a, b, c added in that order, arcs c -> b and b -> a: c reaches a through b.
+        const cy = cytoscape({
+            headless: true,
+            elements: [
+                ...["a", "b", "c"].map((id) => ({ data: { id } })),
+                { data: { id: "cb", source: "c", target: "b" } },
+                { data: { id: "ba", source: "b", target: "a" } },
+            ],
+        });
+        const e = cy.elements();
+        const pairs = (r: { source: { id(): string }; target: { id(): string } }[]): string[] =>
+            r.map((p) => `${p.source.id()}->${p.target.id()}`);
+        expect(pairs(e.graphtyCommonNeighborsPrediction({ directed: true }))).toEqual(["c->a"]);
+        expect(pairs(e.graphtyAdamicAdarPrediction({ directed: true }))).toEqual(["c->a"]);
+        expect(e.graphtyCommonNeighborsScore({ directed: true, source: "#c", target: "#a" })).toBe(1);
+        expect(pairs(e.graphtyTopCandidatesForNode({ directed: true, root: "#c" }))).toEqual(["c->a"]);
     });
 });
 
@@ -873,6 +892,13 @@ describe("library fixes found by the docs review", () => {
         expect(() => cy.graphtyKruskalMST((() => 1) as never)).toThrow(
             "graphtyKruskalMST: takes one options object; pass a weight function as { weight: fn }",
         );
+    });
+
+    it("refuses null options with its own message, synchronously and asynchronously", async () => {
+        const cy = graph(BARBELL);
+        const message = "graphtyPageRank: takes one options object; pass a weight function as { weight: fn }";
+        expect(() => cy.graphtyPageRank(null as never)).toThrow(message);
+        await expect(cy.graphtyPageRankAsync(null as never)).rejects.toThrow(message);
     });
 
     it("throws on a negative weight in Dijkstra and A*, which would otherwise hang or be wrong", async () => {

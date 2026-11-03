@@ -90,6 +90,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.width": "mesh",
     "node.height": "mesh",
     "node.depth": "mesh",
+    "node.relativeExtents": "mesh",
     "node.planar": "mesh",
     // Baked into the source mesh's vertices in 2D, like its depth (NodeMesh.placeByZIndex).
     "node.zIndex": "mesh",
@@ -105,6 +106,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.outerBorderOpacity": "mesh",
     "node.outerBorderStyle": "mesh",
     "node.outerBorderOffset": "mesh",
+    "node.outerBorderCount": "mesh",
     "node.underlayColor": "mesh",
     "node.underlayOpacity": "mesh",
     "node.underlayPadding": "mesh",
@@ -179,12 +181,17 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.borderWavePeriod": "mesh",
     "node.cornerRadius": "mesh",
     "node.exactCornerRadius": "mesh",
+    "node.cornerFraction": "mesh",
     "node.shapePoints": "mesh",
     "node.shapeStretchPoints": "mesh",
+    "node.shapeRotation": "mesh",
     "node.shapeParts": "mesh",
     "node.shapeLines": "mesh",
     // words, like a label: per node, drawn by `Node.syncLabel`
     "node.shapeTexts": "content",
+    // a table label sizes the node it is drawn on, as `node.labelFit` does: the fitted extents and the cells'
+    // outlines are baked into the source mesh
+    "node.labelTable": "mesh",
     "node.shapeLineWidth": "mesh",
     // How a node grows to hold its label: the fitted extents are baked into the source mesh, and
     // Node keys the mesh by them as well, since nodes of one style differ by their label's box.
@@ -192,6 +199,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelPaddingX": "mesh",
     "node.labelPaddingY": "mesh",
     "node.labelFitSquare": "mesh",
+    "node.labelFitQuantum": "mesh",
+    "node.labelFitImage": "mesh",
+    "node.labelFitImagePadding": "mesh",
     // A gradient fill is a ramp texture in the source mesh's material, not per-instance state:
     // each distinct gradient is its own source mesh (NodeMesh interns the ramps).
     "node.gradientColor": "mesh",
@@ -354,6 +364,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelOffsetY": "content",
     "node.labelShiftX": "content",
     "node.labelShiftY": "content",
+    "node.labelShiftOf": "content",
     "edge.labelColor": "content",
     "edge.labelSize": "content",
     "edge.labelLetterSize": "content",
@@ -387,6 +398,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelOffsetY": "content",
     "edge.labelShiftX": "content",
     "edge.labelShiftY": "content",
+    "edge.labelShiftOf": "content",
     // A route is per edge by nature, like a label: keyed into the mesh it would mint one line batch
     // per edge. `Edge.syncContent` reads it on every paint instead.
     "edge.bends": "content",
@@ -401,6 +413,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.supportRepulsion": "content",
     "edge.supportCentralGravity": "content",
     "edge.supportUnit": "content",
+    "edge.supportScale": "content",
     "edge.route": "content",
     "edge.arcHeight": "content",
     "edge.nodeGap": "content",
@@ -463,6 +476,17 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // attributes and a lift is the route, so neither keys a line batch (Edge.syncShading).
     "edge.taper": "content",
     "edge.lift": "content",
+    // A second label, drawn beside the node by the label renderer like the first.
+    "node.xlabel": "content",
+    "node.xlabelStyle": "content",
+    "node.xlabelLocation": "content",
+    "node.xlabelOffsetX": "content",
+    "node.xlabelOffsetY": "content",
+    "edge.xlabel": "content",
+    "edge.xlabelStyle": "content",
+    "edge.xlabelLocation": "content",
+    "edge.xlabelOffsetX": "content",
+    "edge.xlabelOffsetY": "content",
 });
 
 /**

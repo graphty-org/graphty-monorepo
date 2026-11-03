@@ -13,9 +13,6 @@ import { page, userEvent } from "vitest/browser";
 import { openSampleFromStart } from "../../../test/open";
 import { screen, waitFor, within } from "../../../test/test-utils";
 
-/** A hang guard for the element coming up and the sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Whether the Hovered row's name, which carries its count, says it counts one node.
  * @returns true while it counts one.
@@ -40,15 +37,12 @@ describe("the Hovered row", () => {
         }
         await element.waitForSettled();
         await element.waitForStableFrame();
-        const at = await waitFor(
-            () => {
-                assert.isFalse(countsOne(), "nothing is hovered yet");
-                const drawn = element.nodeScreenPosition("Valjean");
-                assert.isDefined(drawn, "the node is drawn");
-                return drawn;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const at = await waitFor(() => {
+            assert.isFalse(countsOne(), "nothing is hovered yet");
+            const drawn = element.nodeScreenPosition("Valjean");
+            assert.isDefined(drawn, "the node is drawn");
+            return drawn;
+        });
 
         await userEvent.hover(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
         await waitFor(() => {

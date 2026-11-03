@@ -160,6 +160,8 @@
             "{workspaceRoot}/vitest.base.mjs",
             "{workspaceRoot}/vitest.ci-junit.mjs",
             "{workspaceRoot}/vitest.browser-coverage-setup.ts",
+            "{workspaceRoot}/vitest.wait-guard-setup.ts",
+            "{workspaceRoot}/tools/test-wait-guard.mjs",
             "{workspaceRoot}/vitest.map-tiles.mjs",
             "{workspaceRoot}/vitest.map-tiles-setup.ts",
             "{workspaceRoot}/pnpm-workspace.yaml",

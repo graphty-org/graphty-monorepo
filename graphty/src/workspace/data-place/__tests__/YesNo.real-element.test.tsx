@@ -9,18 +9,14 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /** Five people, three of them trained: a GraphML file whose `trained` column is typed boolean. */
 const TRAINED_GRAPHML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -48,13 +44,10 @@ async function openWithGraph(place: "data" | "graph"): Promise<{ session: GraphS
     const store = createWorkspaceStore({ project: { name: "Volunteers", id: 1 }, place });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -73,8 +66,10 @@ describe("A yes-or-no column", () => {
 
         // Filter to... from the column's header in the table (the Data place lists no attributes).
         await columnVerb("node", "trained", "Filter to...");
+        // Named for the values it holds (Yes, No), not "how to match".
         // A new yes-or-no card shows no choice and no count, and writes nothing, until one is picked.
-        const is = await screen.findByRole<HTMLInputElement>("combobox", { name: "trained: how to match" });
+        const is = await screen.findByRole<HTMLInputElement>("combobox", { name: /^trained[: ]/ });
+        assert.equal(is.getAttribute("aria-label"), "trained is");
         assert.equal(is.value, "");
         assert.lengthOf(session.visibility.conditions, 0);
         await userEvent.click(is);

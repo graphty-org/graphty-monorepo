@@ -9,7 +9,6 @@ import { CompactColorInput, LabelsProvider, PopoutManager } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { ForceState, StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
-import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * A color and its opacity in one 24px panel field: a color chit that opens a picker, the hex
@@ -225,7 +224,7 @@ export const PickerOpen: Story = {
         const canvas = within(canvasElement);
         await userEvent.click(canvas.getByRole("button", { name: "Pick fill color" }));
         // The row and the picker both have an Opacity box: this story drives the picker's.
-        const opacity = within(await canvas.findByRole("dialog", {}, storyWaitOptions(1000))).getByRole("textbox", {
+        const opacity = within(await canvas.findByRole("dialog", {})).getByRole("textbox", {
             name: /opacity/i,
         });
         await userEvent.click(opacity);
@@ -252,7 +251,7 @@ export const SwatchesAndChangeEnd: Story = {
     play: async ({ args, canvasElement }) => {
         const canvas = within(canvasElement);
         await userEvent.click(canvas.getByRole("button", { name: "Pick fill color" }));
-        const dialog = within(await canvas.findByRole("dialog", {}, storyWaitOptions(1000)));
+        const dialog = within(await canvas.findByRole("dialog", {}));
         await userEvent.click(dialog.getByRole("button", { name: / 2F9E44$/ }));
         await expect(args.onChangeEnd).toHaveBeenCalledTimes(1);
         await expect(args.onChangeEnd).toHaveBeenCalledWith("#2F9E44", 100);

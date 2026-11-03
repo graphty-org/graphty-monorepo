@@ -46,11 +46,11 @@ function useNotesVersion(session: GraphSession | null): number {
 function openTarget(session: GraphSession, note: Note, index: number, openRun: (run: string) => void): void {
     const target = note.targets[index];
     if ("graph" in target) {
-        session.selection.clear();
+        session.selection.clear({ cause: "user" });
     } else if ("result" in target) {
         openRun(target.result);
     } else {
-        void session.selection.apply({ note: note.id, target: index });
+        void session.selection.apply({ note: note.id, target: index }, "replace", { cause: "user" });
     }
 }
 

@@ -18,7 +18,7 @@ import type {
     AutosaveRestored,
     AutosaveStatus,
 } from "./autosave/types";
-import type { ViewInsets } from "./camera/types";
+import type { CameraViewExtent, ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type {
     AlgorithmKey,
@@ -114,24 +114,6 @@ const ELEMENT_SOURCE = "element-source";
 const ELEMENT_LAYOUT = "element-layout";
 
 /**
- * The properties that take an object or an array, and so cannot survive being written as an
- * attribute. React 19 writes a prop as an attribute when the element is not yet defined at commit
- * time, which turns `nodeData={[...]}` into `nodedata="[object Object]"`.
- */
-const RICH_PROPERTIES = [
-    "nodeData",
-    "edgeData",
-    "dataSourceConfig",
-    "layoutConfig",
-    "layoutScope",
-    "layoutBehavior",
-    "selectionStyle",
-    "algorithmsOnLoad",
-    "background",
-    "xr",
-] as const;
-
-/**
  * A file name for an export in a format other than a project file: the project's name, or
  * "project" when it has none, and the format's extension.
  * @param name - the project's name.
@@ -150,7 +132,10 @@ export class Graphty extends LitElement {
      * The host is a block that fills its parent's width. Its height is the parent's when the
      * parent has a definite height, the element's own when the page sets one, and otherwise half
      * its width: `aspect-ratio` only applies while the used height is `auto`, so a bare tag keeps
-     * the 2:1 canvas it always had. Every rule here can be overridden from the page.
+     * the 2:1 canvas it always had. `min-width: 0` keeps the ratio a preferred size and never a
+     * minimum: without it, the automatic minimum width of an aspect-ratio box is twice its height,
+     * so an auto grid column holding the element grew wider than the page (issue #3597). Every
+     * rule here can be overridden from the page.
      */
     static styles = css`
         :host {
@@ -159,6 +144,7 @@ export class Graphty extends LitElement {
             width: 100%;
             height: 100%;
             aspect-ratio: 2 / 1;
+            min-width: 0;
         }
 
         /* The browser's own focus ring, drawn just inside the canvas: outside it, the ring is cut
@@ -212,6 +198,11 @@ export class Graphty extends LitElement {
     readonly #progressAt = new Map<string, number>();
     readonly #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
+    /**
+     * Whether the connect path's wiring stands: set by `connectedCallback`, cleared when the
+     * element is shut down. A move reconnects while it still stands, so nothing is wired twice.
+     */
+    #wired = false;
 
     /**
      * Creates a new Graphty element instance.
@@ -245,7 +236,11 @@ export class Graphty extends LitElement {
         if (this.#builtGraph === undefined) {
             const graph = new Graph(this.#element);
             this.#builtGraph = graph;
-            waitFirstFor(graph, () => this.#pageLoadsQueued());
+            waitFirstFor(
+                graph,
+                () => this.#pageLoadsHeld(),
+                () => this.#pageLoadsQueued(),
+            );
             featuresFrom(graph, () => this.#featuresValue);
             // The graph is never rebuilt, so this subscription lives as long as the element.
             graph.onNodeLabelCounts.add((counts) => {
@@ -674,7 +669,12 @@ export class Graphty extends LitElement {
         }
 
         this.#reportedStrayAttributes = true;
-        for (const name of RICH_PROPERTIES) {
+        // Every reactive property: whichever one took an object, its attribute now reads this.
+        for (const name of (this.constructor as typeof Graphty).elementProperties.keys()) {
+            if (typeof name !== "string") {
+                continue;
+            }
+
             // HTML attribute names are case-insensitive, so this also finds `nodedata`.
             if (this.getAttribute(name) === "[object Object]") {
                 console.error(
@@ -713,6 +713,13 @@ export class Graphty extends LitElement {
      */
     connectedCallback(): void {
         super.connectedCallback();
+        // Moved: removed and inserted again before the shutdown its removal scheduled (see
+        // `disconnectedCallback`). The graph, its observers and its mirrors are all still live.
+        if (this.#wired) {
+            return;
+        }
+
+        this.#wired = true;
         this.renderRoot.appendChild(this.#element);
         this.#reportStrayObjectAttributes();
 
@@ -745,8 +752,8 @@ export class Graphty extends LitElement {
         // "@graphty/graphty-element/webgpu", in which case this probes, attaches and reports.
         //
         // A Graph is built once, in this element's constructor, and never rebuilt, so an element
-        // that has been disconnected is a shut-down element: its controller was disposed with the
-        // rest of the graph and re-attaching probes nothing.
+        // that stayed disconnected is a shut-down element: its controller was disposed with the
+        // rest of the graph and re-attaching probes nothing. (A move does not get here.)
         const controller = this.#ensureAcceleration();
 
         if (!controller.disposed) {
@@ -1028,9 +1035,28 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Called when the element is removed from the DOM. Cleans up resources and shuts down the graph.
+     * Called when the element is removed from the DOM. Shuts the graph down unless the element is
+     * back in a document by the next microtask.
+     *
+     * A portal or a layout change moves an element by removing it and inserting it again in the
+     * same task, and a web component must survive that: the reader keeps the graph, its undo
+     * history and the camera (#3599). So the shutdown waits one microtask -- long enough for any
+     * move made in one go, short enough that an element really removed still frees its engine
+     * and GPU resources before the page's next task, and deterministic in a hidden tab, where an
+     * animation frame would never come.
      */
     disconnectedCallback(): void {
+        super.disconnectedCallback();
+        queueMicrotask(() => {
+            if (!this.isConnected && this.#wired) {
+                this.#shutDown();
+            }
+        });
+    }
+
+    /** Releases everything the connect path wired and shuts the graph down for good. */
+    #shutDown(): void {
+        this.#wired = false;
         // Disconnect the resize observer
         if (this.#resizeObserver) {
             this.#resizeObserver.disconnect();
@@ -1064,7 +1090,6 @@ export class Graphty extends LitElement {
         this.#autosaveControl.depart();
 
         this.#graph.shutdown();
-        super.disconnectedCallback();
     }
 
     /** Autosave for this element: off until the `autosave` attribute or property turns it on. */
@@ -1118,6 +1143,8 @@ export class Graphty extends LitElement {
     #autosaveOptionsValue: Partial<AutosaveOptions> = {};
     /** Page-supplied loads, one after another, after the restore. */
     #pageGate: Promise<unknown> = Promise.resolve();
+    /** How many steps on the page gate have not run yet; see `#gateStep`. */
+    #gateSteps = 0;
     /** A data-source pair is waiting its turn on the gate. */
     #pairQueued = false;
     /** The last page-supplied load of each kind, run again by `autosaver.discard()`. */
@@ -1251,7 +1278,8 @@ export class Graphty extends LitElement {
         this.#pageGate = this.#pageGate
             .then(() => this.#autosaveControl.ready)
             .then(() => this.#autosaveControl.admit(source, load))
-            .catch(() => undefined);
+            .catch(() => undefined)
+            .finally(this.#gateStep());
     }
 
     /**
@@ -1265,6 +1293,27 @@ export class Graphty extends LitElement {
         }
 
         return this.#autosaveControl.ready.then(() => this.#pageGate).then(() => undefined);
+    }
+
+    /**
+     * Count one more step on the page gate until it has run, so the graph's record of pending work
+     * can ask `#pageLoadsHeld` without waiting.
+     * @returns Called once the step has run.
+     */
+    #gateStep(): () => void {
+        this.#gateSteps++;
+        return () => {
+            this.#gateSteps--;
+        };
+    }
+
+    /**
+     * Whether page loads are held: autosave has not decided its restore, or a load held behind it
+     * has not run its turn yet. What `#pageLoadsQueued` waits for, asked now.
+     * @returns True while the settle waits wait for page loads to reach the queue.
+     */
+    #pageLoadsHeld(): boolean {
+        return this.#autosaveOn() && this.isConnected && (this.#autosaveControl.holding || this.#gateSteps > 0);
     }
 
     /**
@@ -1756,7 +1805,8 @@ export class Graphty extends LitElement {
                         this.#pageLoads.delete("edges");
                         return this.#autosaveControl.admit(page, load);
                     })
-                    .catch(() => undefined);
+                    .catch(() => undefined)
+                    .finally(this.#gateStep());
             }
 
             return;
@@ -3441,7 +3491,8 @@ export class Graphty extends LitElement {
      * Every fit keeps the graph out of them: the framing after a load or a layout change,
      * `zoomToFit()`, and the `fitToGraph` camera view. In 3D the camera also centers what it looks
      * at on the part left free. Changing them moves nothing: what is drawn stays where it is, and
-     * the next fit keeps clear of the new margins. To frame the graph at once only when the
+     * the next fit keeps clear of the new margins. A fit whose picture is not final yet is not
+     * done: margins set then are framed before `waitForStableFrame()` resolves. To frame the graph at once only when the
      * overlay now hides a node, ask {@link nodesInRect} for its rectangle and call `zoomToFit()`,
      * unless {@link cameraPlaced} says the reader has placed the camera since the last framing.
      * A preference of this view, not part of the project: not saved in a project file. A side
@@ -3968,17 +4019,20 @@ export class Graphty extends LitElement {
      * Works the same in 2D and 3D. Ids that name no node are skipped; when none of them names a
      * node the camera does not move. The camera is view state, so this is not an undoable step.
      * @param nodeIds - One node id, or several.
-     * @param options - Optional animation configuration.
+     * @param options - Optional animation configuration, and the `extent` each node is measured by.
+     * @param options.extent - `"centers"` (the default) measures each node by its centre;
+     *   `"drawn"` by the box it is drawn in, so a big node is framed whole.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
      * @example
      * ```typescript
      * await element.zoomToNodes(["n1", "n2"], { animate: true });
+     * await element.zoomToNodes("hub", { extent: "drawn" });
      * ```
      */
     async zoomToNodes(
         nodeIds: (string | number) | readonly (string | number)[],
-        options?: import("./screenshot/types.js").CameraAnimationOptions,
+        options?: { extent?: CameraViewExtent } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         return this.#graph.zoomToNodes(nodeIds, options);
     }
@@ -4786,7 +4840,9 @@ export class Graphty extends LitElement {
      * the element is removed from the page during the wait, or already had been when the wait
      * started, it rejects at once with `E_DISPOSED`: a removed element never draws again.
      * @param options - How the wait is bounded.
-     * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
+     * @param options.timeoutMs - Deprecated: how long to wait before giving up; 30 seconds by default.
+     *   Leave it out. To ask whether the picture is final now, without waiting, read
+     *   {@link Graphty.isFrameStable}.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      * @throws Error when the picture is still changing when the timeout expires.
      * @throws A `GraphtyError` with `E_DISPOSED` when the element leaves the page before or during
@@ -4798,7 +4854,15 @@ export class Graphty extends LitElement {
      * const shot = await element.captureScreenshot();
      * ```
      */
-    async waitForStableFrame(options?: { timeoutMs?: number }): Promise<void> {
+    async waitForStableFrame(options?: {
+        /**
+         * How long to wait before the wait rejects; 30 seconds by default.
+         * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
+         * machine while the picture is still on its way. To ask whether the picture is final
+         * now, without waiting, read {@link Graphty.isFrameStable}. Still honored.
+         */
+        timeoutMs?: number;
+    }): Promise<void> {
         return this.#graph.waitForStableFrame(options);
     }
 
@@ -4956,6 +5020,8 @@ export class Graphty extends LitElement {
      * @param options - What to frame and how to configure the view.
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
+     * @param options.extent - What each node counts as in the box: `"centers"` (the default) its
+     *   centre, `"drawn"` the box it is drawn in.
      * @returns The resolved camera state.
      * @since 1.5.0
      * @example
@@ -4966,7 +5032,11 @@ export class Graphty extends LitElement {
      */
     resolveCameraPreset(
         preset: string,
-        options?: { nodes?: Iterable<string | number>; params?: Readonly<Record<string, unknown>> },
+        options?: {
+            nodes?: Iterable<string | number>;
+            params?: Readonly<Record<string, unknown>>;
+            extent?: CameraViewExtent;
+        },
     ): import("./screenshot/types.js").CameraState {
         return this.#graph.resolveCameraPreset(preset, options);
     }
@@ -4981,6 +5051,8 @@ export class Graphty extends LitElement {
      * @param options.scope - What to frame. Absent frames the whole graph. `"selection"` frames the
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
+     * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
+     *   (the default) its centre, `"drawn"` the box it is drawn in.
      * @returns A promise that resolves once the camera has arrived.
      * @since 1.5.0
      * @example
@@ -4993,6 +5065,7 @@ export class Graphty extends LitElement {
         options?: {
             scope?: ScopeInput;
             params?: Readonly<Record<string, unknown>>;
+            extent?: CameraViewExtent;
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         return this.#graph.applyCameraView(id, options);

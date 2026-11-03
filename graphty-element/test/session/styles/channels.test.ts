@@ -65,6 +65,7 @@ const DECLARED = [
     "node.labelOffsetY",
     "node.labelShiftX",
     "node.labelShiftY",
+    "node.labelShiftOf",
     "node.labelDeclutter",
     "node.labelMinNodeScreenSize",
     "node.labelTextAlign",
@@ -87,6 +88,7 @@ const DECLARED = [
     "node.width",
     "node.height",
     "node.depth",
+    "node.relativeExtents",
     "node.planar",
     "node.zIndex",
     "node.drawOrder",
@@ -103,6 +105,7 @@ const DECLARED = [
     "node.outerBorderOpacity",
     "node.outerBorderStyle",
     "node.outerBorderOffset",
+    "node.outerBorderCount",
     "node.underlayColor",
     "node.underlayOpacity",
     "node.underlayPadding",
@@ -173,16 +176,22 @@ const DECLARED = [
     "node.groupIncludeLabels",
     "node.cornerRadius",
     "node.exactCornerRadius",
+    "node.cornerFraction",
     "node.shapePoints",
     "node.shapeStretchPoints",
+    "node.shapeRotation",
     "node.shapeParts",
     "node.shapeLines",
     "node.shapeTexts",
+    "node.labelTable",
     "node.shapeLineWidth",
     "node.labelFit",
     "node.labelPaddingX",
     "node.labelPaddingY",
     "node.labelFitSquare",
+    "node.labelFitQuantum",
+    "node.labelFitImage",
+    "node.labelFitImagePadding",
     "node.gradientColor",
     "node.gradientDirection",
     "node.gradientColors",
@@ -231,6 +240,7 @@ const DECLARED = [
     "edge.supportRepulsion",
     "edge.supportCentralGravity",
     "edge.supportUnit",
+    "edge.supportScale",
     "edge.route",
     "edge.arcHeight",
     "edge.nodeGap",
@@ -341,10 +351,21 @@ const DECLARED = [
     "edge.labelOffsetY",
     "edge.labelShiftX",
     "edge.labelShiftY",
+    "edge.labelShiftOf",
     "node.shaders",
     "edge.shaders",
     "edge.taper",
     "edge.lift",
+    "node.xlabel",
+    "node.xlabelStyle",
+    "node.xlabelLocation",
+    "node.xlabelOffsetX",
+    "node.xlabelOffsetY",
+    "edge.xlabel",
+    "edge.xlabelStyle",
+    "edge.xlabelLocation",
+    "edge.xlabelOffsetX",
+    "edge.xlabelOffsetY",
 ];
 
 describe("the channel set", () => {
@@ -371,9 +392,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and seventy-two node channels and one hundred and forty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 172);
-        assert.strictEqual(channelsFor("edge").length, 145);
+    it("splits into one hundred and eighty-six node channels and one hundred and fifty-two edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 186);
+        assert.strictEqual(channelsFor("edge").length, 152);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -600,12 +621,25 @@ describe("what a style editor needs to draw a row", () => {
         "node.shapeParts",
         "node.shapeLines",
         "node.shapeTexts",
+        "node.labelTable",
         "node.shapeLineWidth",
         "node.gradientColors",
         "node.gradientStops",
         "node.label",
         "node.labelStyle",
         "node.tooltip",
+        // Unset, a node has no external label, and one that has sits at its corner or where the layout put it.
+        "node.xlabel",
+        "node.xlabelStyle",
+        "node.xlabelLocation",
+        "node.xlabelOffsetX",
+        "node.xlabelOffsetY",
+        // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
+        "edge.xlabel",
+        "edge.xlabelStyle",
+        "edge.xlabelLocation",
+        "edge.xlabelOffsetX",
+        "edge.xlabelOffsetY",
         "node.tooltipStyle",
         // Unset, a node is highlighted when it is selected and not otherwise.
         "node.halo",
@@ -695,6 +729,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.supportRepulsion",
         "edge.supportCentralGravity",
         "edge.supportUnit",
+        "edge.supportScale",
         // Unset, the layout decides the route: straight but on a geographic map.
         "edge.route",
         "edge.sourcePort",
@@ -769,6 +804,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOffsetY",
         "node.labelShiftX",
         "node.labelShiftY",
+        "node.labelShiftOf",
         "edge.labelLetterSize",
         "edge.labelTextAlign",
         "edge.labelLocation",
@@ -796,6 +832,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelOffsetY",
         "edge.labelShiftX",
         "edge.labelShiftY",
+        "edge.labelShiftOf",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */

@@ -17,9 +17,6 @@ import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * A fixture as a file, read from where the app serves it.
  * @param name - its file name.
@@ -57,26 +54,20 @@ async function projectWith(first: string, nodes: number): Promise<{ store: Works
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            )?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        )?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
     const live = session;
     drop(await fixture(first));
-    await waitFor(
-        () => {
-            assert.strictEqual(live.data.nodes().length, nodes);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.strictEqual(live.data.nodes().length, nodes);
+    });
     store.set({ dockOpen: false, dockMaximized: false });
     return { store, session: live };
 }
@@ -88,7 +79,7 @@ async function projectWith(first: string, nodes: number): Promise<{ store: Works
  */
 async function joinScreenFor(name: string): Promise<HTMLElement> {
     drop(await fixture(name));
-    return screen.findByRole("region", { name: "Join" }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("region", { name: "Join" });
 }
 
 /**
@@ -278,12 +269,9 @@ describe("the join screen on the real element", () => {
         await userEvent.keyboard("{Escape}");
         assert.isNotNull(screen.queryByRole("region", { name: "Join" }), "Esc in the menu closes only the menu");
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(session.data.edges().length, 150);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(session.data.edges().length, 150);
+        });
         assert.strictEqual(session.data.nodes().length, 40);
         assert.strictEqual(session.data.sources()[1]?.kind, "join");
     });

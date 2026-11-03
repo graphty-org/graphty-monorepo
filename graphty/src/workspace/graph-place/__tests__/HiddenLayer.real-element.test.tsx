@@ -15,9 +15,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 const RED = "#ff0000";
 
 describe("a hidden layer under a later run", () => {
@@ -27,14 +24,11 @@ describe("a hidden layer under a later run", () => {
 
     it("stays unpainted after Louvain runs: every node's drawn color is not the hidden layer's", async () => {
         render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
-        const element = await waitFor(
-            () => {
-                const found = document.querySelector("graphty-element");
-                assert.isDefined(found?.session);
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const element = await waitFor(() => {
+            const found = document.querySelector("graphty-element");
+            assert.isDefined(found?.session);
+            return found;
+        });
         if (element === null) {
             throw new Error("the element never came up");
         }
@@ -67,7 +61,7 @@ describe("a hidden layer under a later run", () => {
             );
         });
 
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.hover(await within(tree).findByRole("treeitem", { name: /^Red, / }));
         await userEvent.click(within(tree).getByRole("button", { name: "Hide Red" }));
         await waitFor(() => {
@@ -79,14 +73,11 @@ describe("a hidden layer under a later run", () => {
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
         await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
         await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
-        await waitFor(
-            () => {
-                const run = session.runs.list().find((r) => r.algorithm === "louvain");
-                assert.equal(run?.status, "succeeded");
-                assert.isAbove(session.runs.bindings(run?.id ?? "").length, 0);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const run = session.runs.list().find((r) => r.algorithm === "louvain");
+            assert.equal(run?.status, "succeeded");
+            assert.isAbove(session.runs.bindings(run?.id ?? "").length, 0);
+        });
         await session.styles.settled();
         assert.notInclude(drawn(), RED, "the run repainted no hidden layer");
         assert.isTrue(session.styles.tree().find((row) => row.name === "Red")?.hidden, "the row still says hidden");

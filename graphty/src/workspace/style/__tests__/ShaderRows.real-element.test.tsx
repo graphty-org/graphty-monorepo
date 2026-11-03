@@ -24,7 +24,6 @@ import {
     renderPanel,
     section,
     shaderRows,
-    TIMEOUT_MS,
     usesOn,
 } from "./shaderHarness";
 
@@ -49,12 +48,9 @@ describe("the Shaders section", () => {
         renderPanel(mounted, [layer]);
 
         await addByName("glass");
-        await waitFor(
-            () => {
-                assert.deepEqual(usesOn(mounted.session, layer), [{ shader: "glass" }]);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepEqual(usesOn(mounted.session, layer), [{ shader: "glass" }]);
+        });
         const [row] = shaderRows();
         assert.isDefined(row, "a Glass row");
         assert.include(row.textContent, "Glass");
@@ -77,12 +73,9 @@ describe("the Shaders section", () => {
             assert.isNull(within(gallery).queryByRole("radio", { name: words }), `no ${words} choice`);
         }
         await userEvent.click(within(gallery).getByRole("button", { name: "Sticker" }));
-        await waitFor(
-            () => {
-                assert.deepEqual(usesOn(mounted.session, layer), [{ shader: sticker }]);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepEqual(usesOn(mounted.session, layer), [{ shader: sticker }]);
+        });
         const [row] = shaderRows();
         assert.isDefined(row, "a Sticker row");
         assert.include(row.textContent, "Instead of the node", "its own place, as words");
@@ -92,13 +85,10 @@ describe("the Shaders section", () => {
             assert.isTrue(row.contains(document.activeElement), "focus is on the new row");
         });
         // The shader draws instead of the node: the Shape row says so, and the shape is kept.
-        await waitFor(
-            () => {
-                const shapeRow = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.shape"]');
-                assert.include(shapeRow?.textContent, hiddenByWords("Sticker"));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const shapeRow = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.shape"]');
+            assert.include(shapeRow?.textContent, hiddenByWords("Sticker"));
+        });
         assert.equal(mounted.session.styles.get(layer)?.set?.["node.shape"], "box", "the shape is unchanged");
     });
 

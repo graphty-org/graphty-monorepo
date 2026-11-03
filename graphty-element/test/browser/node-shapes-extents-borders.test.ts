@@ -15,7 +15,8 @@ import { FLAT_NODE_SHAPES, NodeShapes } from "../../src/config/NodeStyle";
 import type { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { NODE_EXTENT_PER_SIZE } from "../../src/meshes/NodeMesh";
-import { flatShapeOutline, type Point2 } from "../../src/meshes/shapeOutlines";
+import { convexHull, flatShapeOutline, type Point2 } from "../../src/meshes/shapeOutlines";
+import { wheel } from "../helpers/real-input";
 
 const WIDTH = 480;
 const HEIGHT = 360;
@@ -351,6 +352,52 @@ describe("node borders (#2316)", () => {
         assert.isNotNull(srcPoint);
         assert.approximately(srcPoint.x, NODE_EXTENT_PER_SIZE / 2 + 0.5 * NODE_EXTENT_PER_SIZE, 0.02);
     });
+
+    // Issue #3104: a polygon's ring reaches its width past every side, measured square to the side in the world,
+    // not along the corner's direction or scaled from the node's middle.
+    for (const shape of ["triangle", "hexagon"] as const) {
+        it(`draws a ${shape}'s border its width wide on every side`, async () => {
+            const element = await mounted(
+                "2d",
+                [{ id: "n", position: { x: 0, y: 0, z: 0 } }],
+                [],
+                [layerFor(["n"], { "node.shape": shape, "node.size": 6, "node.borderWidth": 0.5 })],
+            );
+            const node = element.graph.getDataManager().nodes.get("n");
+            assert.isDefined(node);
+            const ring = (node as unknown as { border: AbstractMesh | null }).border;
+            assert.isNotNull(ring);
+            const worldPoints = (mesh: AbstractMesh): Point2[] => {
+                mesh.computeWorldMatrix(true);
+                const source = (mesh as InstancedMesh).sourceMesh ?? mesh;
+                const positions = source.getVerticesData("position") ?? [];
+                const world = mesh.getWorldMatrix();
+                const points: Point2[] = [];
+                for (let i = 0; i < positions.length; i += 3) {
+                    const p = Vector3.TransformCoordinates(
+                        new Vector3(positions[i], positions[i + 1], positions[i + 2]),
+                        world,
+                    );
+                    points.push([p.x, p.y]);
+                }
+
+                return points;
+            };
+            const hull = convexHull(worldPoints(node.mesh));
+            const outer = worldPoints(ring);
+            const asked = 0.5 * NODE_EXTENT_PER_SIZE;
+
+            assert.strictEqual(hull.length, shape === "triangle" ? 3 : 6, "the fill is the polygon");
+            hull.forEach(([x0, y0], i) => {
+                const [x1, y1] = hull[(i + 1) % hull.length];
+                const length = Math.hypot(x1 - x0, y1 - y0);
+                // the hull runs counter-clockwise, so the side's outward normal is it turned clockwise
+                const [nx, ny] = [(y1 - y0) / length, -(x1 - x0) / length];
+                const reach = Math.max(...outer.map(([x, y]) => (x - x0) * nx + (y - y0) * ny));
+                assert.approximately(reach, asked, asked * 0.02, `side ${String(i)} of the ${shape}`);
+            });
+        });
+    }
 });
 
 describe("a border in screen pixels", () => {
@@ -417,7 +464,10 @@ describe("a border in screen pixels", () => {
             [],
             [layerFor(["n"], { "node.shape": "ellipse", "node.size": 10, "node.borderScreenWidth": 3 })],
         );
-        const half = (el: Graphty): number => el.graph.getDataManager().nodes.get("n")?.framingHalf("x") ?? NaN;
+        const half = (el: Graphty): number => {
+            const box = el.graph.getDataManager().nodes.get("n")?.framingBounds();
+            return box === undefined ? NaN : (box.max.x - box.min.x) / 2;
+        };
         const unbordered = half(plain);
         const before = element.graph.getDataManager().nodes.get("n")?.borderReach ?? 0;
         assert.isAbove(before, 0, "the border is drawn");
@@ -430,6 +480,39 @@ describe("a border in screen pixels", () => {
             assert.isBelow(reach, before * 0.8, "the ring was rebuilt for the new zoom");
         });
         assert.approximately(half(element), unbordered, 1e-9, "the framed extent did not move with the zoom");
+    });
+
+    it("re-trims its edges when a wheel zoom rebuilds the ring, and keeps the layout's radius (#3532)", async () => {
+        const element = await mounted(
+            "2d",
+            [
+                { id: "a", position: { x: -20, y: 0, z: 0 } },
+                { id: "b", position: { x: 20, y: 0, z: 0 } },
+            ],
+            [{ src: "a", dst: "b" }],
+            [layerFor(["a", "b"], { "node.shape": "ellipse", "node.size": 10, "node.borderScreenWidth": 3 })],
+        );
+        const { nodes } = element.graph.getDataManager();
+        const a = nodes.get("a");
+        assert.isDefined(a);
+        const line = (): number => edgeOf(element, "a", "b").drawnLine?.length ?? NaN;
+        const reach0 = a.borderReach;
+        const length0 = line();
+        const layout0 = a.layoutRadius;
+        assert.isAbove(reach0, 0, "the border is drawn");
+
+        // A reader's wheel zoom, through the browser's own input pipeline.
+        await wheel(element, { x: WIDTH / 2, y: HEIGHT / 2 }, -400);
+
+        // The ring is rebuilt thinner in the scene, so each end of the line moves out by as much.
+        await vi.waitFor(() => {
+            assert.isBelow(a.borderReach, reach0, "the ring was rebuilt for the new zoom");
+        });
+        await element.waitForStableFrame();
+        const reach = a.borderReach;
+        assert.approximately(line(), length0 + 2 * (reach0 - reach), 1e-3, "the edge ends at the new border");
+        // A nodeGap layout keeps the spacing it was laid out with: its radius is not the zoom's.
+        assert.approximately(a.layoutRadius, layout0, 1e-9);
     });
 });
 
@@ -460,6 +543,46 @@ describe("node width and height (#2317)", () => {
         assert.isNotNull(top);
         assert.approximately(side.x, 2 * NODE_EXTENT_PER_SIZE, 0.02, "the edge leaves the long side's end");
         assert.approximately(top.y, NODE_EXTENT_PER_SIZE / 2, 0.02, "the edge leaves the short side's top");
+    });
+});
+
+describe("width, height and depth relative to size (#2690)", () => {
+    it("keeps a node's stretch along x, y and z when its size changes, in a box and a flat shape", async () => {
+        const stretch = { "node.width": 2, "node.height": 1, "node.depth": 3, "node.relativeExtents": true };
+        const element = await mounted(
+            "3d",
+            [
+                { id: "box", position: { x: 0, y: 0, z: 0 } },
+                { id: "card", position: { x: 12, y: 0, z: 0 } },
+            ],
+            [],
+            [
+                layerFor(["box"], { ...stretch, "node.shape": "box", "node.size": 1 }),
+                layerFor(["card"], { ...stretch, "node.shape": "rectangle", "node.size": 1 }),
+            ],
+        );
+        const at = (n: number): { x: number; y: number; z: number } => ({
+            x: 2 * n * NODE_EXTENT_PER_SIZE,
+            y: n * NODE_EXTENT_PER_SIZE,
+            z: 3 * n * NODE_EXTENT_PER_SIZE,
+        });
+        const expectBox = (n: number): void => {
+            const drawn = sizeOf(meshOf(element, "box"));
+            assert.approximately(drawn.x, at(n).x, 1e-6, `box width at size ${String(n)}`);
+            assert.approximately(drawn.y, at(n).y, 1e-6, `box height at size ${String(n)}`);
+            assert.approximately(drawn.z, at(n).z, 1e-6, `box depth at size ${String(n)}`);
+        };
+        expectBox(1);
+
+        await element.session.styles.add(layerFor(["box", "card"], { "node.size": 2 }));
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        expectBox(2);
+        const card = sizeOf(meshOf(element, "card"));
+        assert.approximately(card.x, at(2).x, 1e-6, "the flat shape's width follows its size");
+        assert.approximately(card.y, at(2).y, 1e-6, "the flat shape's height follows its size");
+        assert.approximately(card.z, at(2).z, 1e-6, "the flat shape's depth follows its size");
     });
 });
 

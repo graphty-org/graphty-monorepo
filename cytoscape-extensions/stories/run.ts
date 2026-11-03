@@ -180,15 +180,28 @@ export async function placeForAlgorithm(cy: Core, seed: number): Promise<void> {
     });
 }
 
+/** Above this many nodes, placeSettled approximates the repulsion with a Barnes-Hut tree. */
+const BARNES_HUT_NODES = 1_000;
+
 /**
- * ForceAtlas2 on the CPU, seeded, run until it settles: the picture the generator and dataset stories draw.
+ * ForceAtlas2 on the CPU, seeded, run until it settles: the picture the generator and dataset stories draw. Above
+ * BARNES_HUT_NODES the repulsion goes through a Barnes-Hut tree (barnesHutOptimize): every pair costs O(n^2) per
+ * iteration, and stelzl-interactome's 1,598 nodes took 6 s to settle here and 15 s in a CI browser, one synchronous
+ * task that ran past the story test's limit (#5001, #3849).
  * @param cy - the core
  * @param seed - the seed
  * @param extra - more ForceAtlas2 options (linlog, strongGravity, weight, ...)
  * @returns when the nodes are placed
  */
 export async function placeSettled(cy: Core, seed: number, extra: Record<string, unknown> = {}): Promise<void> {
-    await runLayout(cy, "forceatlas2", { gpuMode: "off", seed, iterations: 0, animate: false, extra });
+    const barnesHutOptimize = cy.nodes().length > BARNES_HUT_NODES;
+    await runLayout(cy, "forceatlas2", {
+        gpuMode: "off",
+        seed,
+        iterations: 0,
+        animate: false,
+        extra: { barnesHutOptimize, ...extra },
+    });
 }
 
 /**

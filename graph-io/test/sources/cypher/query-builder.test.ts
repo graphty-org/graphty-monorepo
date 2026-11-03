@@ -45,7 +45,7 @@ describe("cypherIdentifier", () => {
                     issue: expect.objectContaining({
                         code: "E_SOURCE_PARAM",
                         params: { name: "identifier", reason: "identifier" },
-                    }),
+                    }) as unknown,
                 }),
             );
         }

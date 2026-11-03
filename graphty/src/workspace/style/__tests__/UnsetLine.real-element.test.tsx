@@ -20,9 +20,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Les Miserables in the workspace with the starting rows.
  * @returns the session.
@@ -31,14 +28,11 @@ async function openScene(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -53,7 +47,7 @@ async function openScene(): Promise<GraphSession> {
  * @param name - the row's visible name.
  */
 async function openStyle(name: string): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
@@ -72,9 +66,7 @@ async function openStyle(name: string): Promise<void> {
  * @returns the line.
  */
 async function addLine(section: string, channel: Channel, item?: string): Promise<HTMLElement> {
-    await userEvent.click(
-        await screen.findByRole("button", { name: `Add to node ${section}` }, { timeout: TIMEOUT_MS }),
-    );
+    await userEvent.click(await screen.findByRole("button", { name: `Add to node ${section}` }));
     // A section of one property adds it at once; a section of several opens a menu.
     const menu = await waitFor(() => {
         const found = item === undefined ? null : screen.queryByRole("menuitem", { name: item });
@@ -85,17 +77,12 @@ async function addLine(section: string, channel: Channel, item?: string): Promis
     if (menu !== null) {
         await userEvent.click(menu);
     }
-    return waitFor(
-        () => {
-            const line = document.querySelector<HTMLElement>(
-                `[data-testid="style-tab"] .ws-row[data-line="${channel}"]`,
-            );
-            assert.isNotNull(line, `${channel} drawn`);
-            assert.isTrue(line.contains(document.activeElement), "focus in the new line");
-            return line;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    return waitFor(() => {
+        const line = document.querySelector<HTMLElement>(`[data-testid="style-tab"] .ws-row[data-line="${channel}"]`);
+        assert.isNotNull(line, `${channel} drawn`);
+        assert.isTrue(line.contains(document.activeElement), "focus in the new line");
+        return line;
+    });
 }
 
 /**
@@ -166,8 +153,8 @@ describe("an unset line takes the value it shows", () => {
         await act(async () => {
             await session.selection.apply({ nodes: [node] });
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+        await screen.findByTestId("style-tab", {});
         const line = await addLine("fill", "node.color");
         const box = within(line).getByRole<HTMLInputElement>("textbox", { name: /^Node color(,|$)/ });
         assert.equal(box.value, "FF0000", "the line shows the red the node draws");

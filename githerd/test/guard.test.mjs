@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { TEST_GUARD_MS } from "../../tools/test-wait-guard.mjs";
+
 import { countBrowserTrees, launchesBrowser, withoutVersion } from "../bin/githerd-guard.mjs";
 import { splitCommands } from "../lib/shellwords.mjs";
 import { tempDir } from "./helpers/temp-dir.mjs";
@@ -50,7 +52,8 @@ function guard(target, input) {
         input: stdin,
         env: { PATH: process.env.PATH, HOME: process.env.HOME },
         encoding: "utf8",
-        timeout: 20000,
+        // Synchronous, so no test timeout can end it: the one hang guard, passed by hand.
+        timeout: TEST_GUARD_MS,
     });
     return { status: r.status, stderr: r.stderr };
 }
@@ -393,7 +396,7 @@ describe("guard: started through the installed copy", () => {
             }),
             env: { PATH: process.env.PATH, HOME: process.env.HOME },
             encoding: "utf8",
-            timeout: 20000,
+            timeout: TEST_GUARD_MS,
         });
         expect(r.status, r.stderr).toBe(2);
         expect(r.stderr).toMatch(/Mergify merges/);

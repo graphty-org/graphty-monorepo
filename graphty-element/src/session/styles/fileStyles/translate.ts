@@ -27,6 +27,7 @@ import {
     matchPredicate,
     planStyles,
     type Predicate,
+    resolveRule,
     resolveStyles,
     type StyleArrowShape,
     type StyleNote,
@@ -40,6 +41,7 @@ import {
 } from "@graphty/graph-io/styles";
 
 import type { Binding, BindingStop, Channel, LayerKind, LayerSpec, Path, Selector } from "../../../catalog/types";
+import { NGRAPH_SETTLED_SPACING } from "../../../constants/layoutConstants";
 import { EDGE_CONSTANTS } from "../../../constants/meshConstants";
 import type { CodedFactParam } from "../../shared";
 import { channelDescriptor, labelFieldOf, labelPatchOf, mergeLabelStyle, toColorValue } from "../channels";
@@ -51,6 +53,7 @@ import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from
 import {
     ARROW_SHAPES,
     ARROW_SHAPES_NEAREST,
+    arrowShapesOf,
     BORDER_STYLES,
     BORDER_STYLES_NEAREST,
     FILE_STYLE_SHAPES,
@@ -66,6 +69,9 @@ const MAX_TERMS = 8;
 
 /** The key of the copy graph-io writes of a data column a format cannot keep, and the column it copies. */
 const CARRIED_INPUT = /^input\.(?:[^.]+\.)?data\.(.+)$/;
+
+/** A length added to a shape point's fraction (`-1+24`): the digit before it, and the signed length. */
+const SHAPE_POINT_LENGTH = /([\d.])([+-](?:\d+\.?\d*|\.\d+))/g;
 /** A mapping table with more keys present than this is kept as values per element. */
 const MAX_TABLE_KEYS = 256;
 /** The key `ext` carries graphty-element's own layer under, in a file graphty wrote. */
@@ -77,9 +83,25 @@ export interface FileStyleOptions {
      * How lengths are scaled: `"median"` (the default) scales every length by one factor, so the
      * file's median node size (by its larger side) is the element's default node size and node sizes, borders, edge
      * widths, label sizes and the stored positions a recommended layout keeps all keep the file's
-     * proportions; `"file"` keeps the file's numbers as they are.
+     * proportions; `"file"` keeps the file's numbers as they are; `"spacing"` scales every length by one factor too,
+     * chosen so the spacing the writing program's own layout leaves between nodes once it settles (graph-io's
+     * `layoutSpacing`) is drawn at the spacing the element's force layout settles at, so a file that stores no
+     * positions is laid out with its nodes as large beside the gaps as the program draws them. A program with no stated spacing is scaled
+     * as `"median"` is.
      */
-    readonly lengths?: "median" | "file";
+    readonly lengths?: "median" | "file" | "spacing";
+    /**
+     * Whether label sizes take the factor `lengths` scales every other length by: `"proportional"` (the default)
+     * keeps each label's size against its node as the file draws it; `"file"` keeps the file's label sizes as they
+     * are, whatever the other lengths are scaled by.
+     */
+    readonly labelSizes?: "proportional" | "file";
+    /**
+     * How a load that replaces the graph frames it: `"element"` (the default) leaves the project setting `framing`
+     * as it is; `"file"` sets it to how the program that draws the file frames it, when graph-io states that (sigma.js
+     * fits node centers 30 px in from the canvas's shorter side), and back to the element's own framing when not.
+     */
+    readonly framing?: "element" | "file";
     /**
      * The element shape each 2D node shape of the file is drawn as; `FILE_STYLE_SHAPES` by default.
      * A shape the table leaves out is not drawn from the file, and the load notes it.
@@ -97,6 +119,30 @@ export interface FileStyleOptions {
      * looks as it does there. True by default.
      */
     readonly toolDefaults?: boolean;
+    /**
+     * The URL a picture the file names by a relative path (a node's `image`, a table cell's `<IMG>`) is
+     * resolved against, usually the URL the file itself was loaded from. Absent, a picture is loaded as the
+     * file wrote it, which the browser resolves against the page. A file read from a `Blob` or from text has
+     * no location of its own, so only this can give one.
+     */
+    readonly imageBaseUrl?: string;
+}
+
+/**
+ * A picture's path resolved against a base URL; as written without a base, or when the two do not make a URL.
+ * @param src - The path as the file wrote it.
+ * @param base - The base URL, or undefined.
+ * @returns The URL to load.
+ */
+export function pictureUrl(src: string, base: string | undefined): string {
+    if (base === undefined || src === "") {
+        return src;
+    }
+    try {
+        return new URL(src, base).href;
+    } catch {
+        return src;
+    }
 }
 
 /** One note of a translation: a code and the facts it is about. */
@@ -159,6 +205,8 @@ export interface Translation {
     readonly hidden: Readonly<Record<StyleTarget, { readonly key: string; readonly count: number } | null>>;
     /** The graph's background color, or null. */
     readonly background: string | null;
+    /** How far the file turns the whole drawing counterclockwise, in degrees, or null when it is upright. */
+    readonly rotation: number | null;
     /** What the file's reading and its translation met. */
     readonly notes: readonly FileStyleNote[];
     /**
@@ -192,6 +240,12 @@ const GLYPH_WEIGHTS: ReadonlyMap<string, number> = new Map([
  * the corners stay capped at a quarter of the shorter side, where a radius the file gives is drawn as given.
  */
 const CORNER_CAP = "graphty-internal:cornerRadiusCap";
+
+/**
+ * The rule property `withCornerCap` writes the program's share of the shorter side under (graph-io's
+ * `roundedCornerFraction`), drawn on `node.cornerFraction`: Cytoscape desktop's eighth, Graphviz's third.
+ */
+const CORNER_FRACTION = "graphty-internal:cornerFraction";
 
 interface ChannelPlan {
     readonly channel: Channel;
@@ -488,20 +542,31 @@ function closingQuote(where: string, from: number, quote: string): number {
  * @param kind - Nodes or edges.
  * @param factors - What the file's lengths are multiplied by.
  * @param shapes - The 2D-to-3D shape table.
- * @param graphty - Whether graphty wrote the file.
+ * @param tool - The program that wrote the file, or null.
  * @param arrowsSized - Whether arrow sizes are drawn in a pass of their own (`#arrowSizes`).
- * @param borderOnScreen - Whether the writing program draws a node's border width in screen pixels.
+ * @param onScreen - Whether the writing program draws a node's border width, and its label sizes, in screen pixels.
+ * @param onScreen.border - A node's border width.
+ * @param onScreen.label - Every label size, node and edge.
+ * @param imageBase - The URL a picture's relative path is resolved against, or undefined.
  * @returns The plans per property.
  */
 function channelPlans(
     kind: StyleTarget,
     factors: LengthFactors,
     shapes: FileStyleShapeTable,
-    graphty: boolean,
+    tool: StyleTool | null,
     arrowsSized: boolean,
-    borderOnScreen = false,
+    onScreen: { readonly border: boolean; readonly label: boolean },
+    imageBase?: string,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
+    const graphty = tool === "graphty";
+    const arrows = arrowShapesOf(tool);
     const id = (channel: Channel): ChannelPlan => ({ channel, convert: (value) => value, identity: true });
+    const picture = (channel: Channel): ChannelPlan => ({
+        channel,
+        convert: (value) => (typeof value === "string" ? pictureUrl(value, imageBase) : value),
+        identity: imageBase === undefined,
+    });
     const table = (
         channel: Channel,
         entries: ReadonlyMap<string, string>,
@@ -513,6 +578,19 @@ function channelPlans(
         ...(nearest === undefined
             ? {}
             : { nearest: (value: StyleValue) => typeof value === "string" && nearest.has(value) }),
+    });
+    // a shape's points in fractions, their lengths (`-1+24`) in the file's lengths, converted as every length is
+    const points = (channel: Channel, factor = factors[kind]): ChannelPlan => ({
+        channel,
+        convert: (value) =>
+            typeof value === "string"
+                ? value.replaceAll(
+                      SHAPE_POINT_LENGTH,
+                      (_all, before: string, length: string) =>
+                          `${before}${length.startsWith("-") ? "" : "+"}${String(round(Number(length) * factor))}`,
+                  )
+                : null,
+        identity: factor === 1,
     });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
     const stack = (channel: Channel): ChannelPlan => ({
@@ -538,7 +616,20 @@ function channelPlans(
     // Each size converted on its own: a label's letters are not in proportion to its `sizePx` (see LABEL).
     // The letters' height in the scene, besides the canvas size: `sizePx / 48` scene units is a line of the font's own
     // line height, which differs from one font to the next.
+    // Where the program draws them in screen pixels (sigma), as the screen size they are, with its label style's
+    // `sizeMode: "screen"` beside them, never scaled by the lengths.
     const labelSize = (channel: Channel, letters: Channel): ChannelPlan[] => {
+        if (onScreen.label) {
+            return [
+                id(channel),
+                {
+                    channel: channel.replace(/Size$/, "Style") as Channel,
+                    convert: (value) => (typeof value === "number" ? { sizeMode: "screen" } : null),
+                    identity: false,
+                },
+            ];
+        }
+
         const px = factors.label;
         const { letter } = factors;
         return px === null || letter === null
@@ -561,7 +652,7 @@ function channelPlans(
     // sizes need it
     // A label box's border width is a whole stroke's width, so it is not halved.
     const labelLength = (channel: Channel, half = true): ChannelPlan => {
-        const px = factors.label;
+        const px = onScreen.label ? null : factors.label;
         const ratio = (px === null ? 1 : px(14) / 14) / (half ? 2 : 1);
         return {
             channel,
@@ -587,7 +678,7 @@ function channelPlans(
             // scaled by the lengths, which is drawn in place of the length.
             [
                 "borderWidth",
-                borderOnScreen
+                onScreen.border
                     ? [length("node.borderWidth"), id("node.borderScreenWidth")]
                     : [length("node.borderWidth")],
             ],
@@ -605,22 +696,34 @@ function channelPlans(
                 ],
             ],
             [CORNER_CAP, [length("node.cornerRadius")]],
-            ["shapePoints", [id("node.shapePoints")]],
+            [CORNER_FRACTION, [id("node.cornerFraction")]],
+            ["shapePoints", [points("node.shapePoints")]],
             ["shapePointsStretch", [id("node.shapeStretchPoints")]],
-            ["shapeParts", [id("node.shapeParts")]],
-            ["shapeLines", [id("node.shapeLines")]],
+            ["shapeRotation", [id("node.shapeRotation")]],
+            ["shapeParts", [points("node.shapeParts")]],
+            ["shapeLines", [points("node.shapeLines")]],
             ["shapeTexts", [id("node.shapeTexts")]],
+            [
+                "labelTable",
+                [
+                    {
+                        channel: "node.labelTable",
+                        convert: (value) => labelTableForElement(value, factors.node, imageBase),
+                        identity: false,
+                    },
+                ],
+            ],
             ["shapeLineWidth", [length("node.shapeLineWidth")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
             [
                 "image",
                 [
-                    id("node.image"),
+                    picture("node.image"),
                     { channel: "node.imagePixelSize", convert: () => round(factors.node), identity: false },
                 ],
             ],
             ["imageFit", [id("node.imageFit")]],
-            ["imageFallback", [id("node.imageFallback")]],
+            ["imageFallback", [picture("node.imageFallback")]],
             ["imageWidth", [length("node.imageWidth")]],
             ["imageHeight", [length("node.imageHeight")]],
             ["imagePositionX", [id("node.imagePositionX")]],
@@ -696,6 +799,7 @@ function channelPlans(
             ["outerBorderOpacity", [id("node.outerBorderOpacity")]],
             ["outerBorderStyle", [table("node.outerBorderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["outerBorderOffset", [length("node.outerBorderOffset")]],
+            ["outerBorderCount", [id("node.outerBorderCount")]],
             ["underlayColor", [id("node.underlayColor")]],
             ["underlayOpacity", [id("node.underlayOpacity")]],
             ["underlayPadding", [length("node.underlayPadding")]],
@@ -708,6 +812,21 @@ function channelPlans(
             ["overlayCornerRadius", [length("node.overlayCornerRadius")]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
+            ["xlabel", [id("node.xlabel")]],
+            // where the file stored its external label: its center, from the node's, in the scene's units as a label
+            // offset is; a stored place centers the label there instead of against the node's corner
+            [
+                "xlabelOffsetX",
+                [
+                    length("node.xlabelOffsetX", factors.node * SCENE_PER_UNIT.node),
+                    {
+                        channel: "node.xlabelLocation",
+                        convert: (value) => (typeof value === "number" ? "center" : null),
+                        identity: false,
+                    },
+                ],
+            ],
+            ["xlabelOffsetY", [length("node.xlabelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
             ["shape", [table("node.shape", shapeTable, nearShapes)]],
             ["labelColor", [label("labelColor")]],
             ["labelSize", labelSize("node.labelSize", "node.labelLetterSize")],
@@ -745,6 +864,9 @@ function channelPlans(
             ["labelPaddingX", [length("node.labelPaddingX")]],
             ["labelPaddingY", [length("node.labelPaddingY")]],
             ["labelFitSquare", [id("node.labelFitSquare")]],
+            ["labelFitQuantum", [length("node.labelFitQuantum")]],
+            ["labelFitImage", [length("node.labelFitImage")]],
+            ["labelFitImagePadding", [length("node.labelFitImagePadding")]],
             // Screen pixels, so never scaled by the file's lengths.
             ["labelMinScreenSize", [id("node.labelMinScreenSize")]],
             ["labelMinNodeScreenSize", [id("node.labelMinNodeScreenSize")]],
@@ -788,12 +910,12 @@ function channelPlans(
         // in the line's own width units, as its width is
         ["waveAmplitude", [length("edge.waveAmplitude")]],
         ["wavePeriod", [length("edge.wavePeriod")]],
-        ["targetArrow", [table("edge.arrowHead", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
-        ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
+        ["targetArrow", [table("edge.arrowHead", arrows, ARROW_SHAPES_NEAREST)]],
+        ["sourceArrow", [table("edge.arrowTail", arrows, ARROW_SHAPES_NEAREST)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
-        ["midTargetArrow", [table("edge.arrowMiddleHead", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
-        ["midSourceArrow", [table("edge.arrowMiddleTail", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
+        ["midTargetArrow", [table("edge.arrowMiddleHead", arrows, ARROW_SHAPES_NEAREST)]],
+        ["midSourceArrow", [table("edge.arrowMiddleTail", arrows, ARROW_SHAPES_NEAREST)]],
         ["midTargetArrowColor", [id("edge.arrowMiddleHeadColor")]],
         ["midSourceArrowColor", [id("edge.arrowMiddleTailColor")]],
         ["targetArrowImage", [id("edge.arrowHeadImage")]],
@@ -854,6 +976,7 @@ function channelPlans(
         ["supportSpringConstant", [id("edge.supportSpringConstant")]],
         ["supportRepulsion", [id("edge.supportRepulsion")]],
         ["supportCentralGravity", [id("edge.supportCentralGravity")]],
+        ["supportScale", [table("edge.supportScale", SUPPORT_SCALES)]],
         ["nodeGap", [length("edge.nodeGap", factors.node * SCENE_PER_UNIT.node)]],
         ["sourceNodeGap", [length("edge.sourceNodeGap", factors.node * SCENE_PER_UNIT.node)]],
         ["targetNodeGap", [length("edge.targetNodeGap", factors.node * SCENE_PER_UNIT.node)]],
@@ -862,6 +985,7 @@ function channelPlans(
         ["label", [id("edge.label")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
+        ["xlabel", [id("edge.xlabel")]],
         // Along the line, in the scene's units, as a node's lengths are.
         ["targetLabelOffset", [length("edge.arrowHeadTextDistance", factors.node * SCENE_PER_UNIT.node)]],
         ["sourceLabelOffset", [length("edge.arrowTailTextDistance", factors.node * SCENE_PER_UNIT.node)]],
@@ -929,21 +1053,36 @@ function channelPlans(
 }
 
 /**
- * A node rule of the writing program's defaults with the corner radius it draws on a rounded
- * rectangle when the file gives none (graph-io's `roundedCornerRadius`, in the file's units), so a
- * 513 x 453 group keeps small corners instead of a quarter of its side. Every other rule, and a
- * file whose program has no such default, is unchanged.
+ * A node rule of the writing program's defaults with how it rounds a rounded rectangle when the
+ * file gives no radius: the share of the shorter side (graph-io's `roundedCornerFraction`) and the
+ * largest radius (`roundedCornerRadius`, in the file's units), so a 513 x 453 Graphviz cluster
+ * keeps small corners and a Cytoscape desktop group an eighth of its side. Every other rule, and a
+ * file whose program states neither, is unchanged.
  * @param rule - The rule.
  * @param tool - The program that wrote the file.
  * @returns The rule.
  */
 function withCornerCap(rule: StyleRule, tool: StyleTool | null): StyleRule {
-    const cap = tool === null ? undefined : toolDefaults(tool)?.roundedCornerRadius?.value;
-    if (rule.origin !== "tool" || rule.target !== "node" || cap === undefined || rule.set?.cornerRadius !== undefined) {
+    const defaults = tool === null ? undefined : toolDefaults(tool);
+    const cap = defaults?.roundedCornerRadius?.value;
+    const fraction = defaults?.roundedCornerFraction?.value;
+    if (
+        rule.origin !== "tool" ||
+        rule.target !== "node" ||
+        (cap === undefined && fraction === undefined) ||
+        rule.set?.cornerRadius !== undefined
+    ) {
         return rule;
     }
-    // the key is the translation's own, not a neutral property: no other reader of the rule sees it
-    return { ...rule, set: { ...rule.set, [CORNER_CAP]: cap } as StyleRule["set"] };
+    // the keys are the translation's own, not neutral properties: no other reader of the rule sees them
+    const set: Record<string, unknown> = { ...rule.set };
+    if (cap !== undefined) {
+        set[CORNER_CAP] = cap;
+    }
+    if (fraction !== undefined) {
+        set[CORNER_FRACTION] = fraction;
+    }
+    return { ...rule, set: set as StyleRule["set"] };
 }
 
 /** The element's curve through bends for each neutral one. */
@@ -959,6 +1098,9 @@ const SUPPORT_MODELS: ReadonlyMap<string, string> = new Map([
     ["barnesHut", "barnesHut"],
     ["forceAtlas2", "forceAtlas2"],
 ]);
+
+/** The element's support scale for each neutral one: a file's own units, or the drawing's. */
+const SUPPORT_SCALES: ReadonlyMap<string, string> = new Map([["drawing", "drawing"]]);
 
 /** The element's node gradient kind for each neutral one. */
 const NODE_GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([
@@ -1250,6 +1392,89 @@ export function labelRunsMarkup(runs: unknown, size: unknown = null): string | n
         .join("");
 }
 
+/** The lengths of a table and of its cells, scaled as the file's other lengths are. */
+const TABLE_LENGTHS = [
+    "border",
+    "cellBorder",
+    "cellSpacing",
+    "cellPadding",
+    "width",
+    "height",
+    "padding",
+    "imagePixel",
+    "textPixel",
+] as const;
+
+/**
+ * A table label (the neutral `labelTable`, JSON with lengths in the file's units and each line's text as runs) as
+ * the element draws one (`node.labelTable`): its lengths scaled, each line's runs as label markup, each picture's pixel
+ * one file length across.
+ * ponytail: a run's own point size is not carried (its markup is a share of the label's size, which this value does
+ * not know); carry the table's label size when a file sizes the text of its cells.
+ * @param value - the table, as JSON
+ * @param factor - the scene's lengths per file length
+ * @param imageBase - the URL a picture's relative path is resolved against, or undefined
+ * @returns the element's table, as JSON, or null when the value is not a table
+ */
+export function labelTableForElement(value: unknown, factor: number, imageBase?: string): string | null {
+    if (typeof value !== "string") {
+        return null;
+    }
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(value);
+    } catch {
+        return null;
+    }
+    const table = (t: unknown, depth: number): unknown => {
+        if (typeof t !== "object" || t === null || depth > 8) {
+            return null;
+        }
+        const out: Record<string, unknown> = { ...(t as Record<string, unknown>) };
+        for (const key of TABLE_LENGTHS) {
+            if (typeof out[key] === "number") {
+                out[key] = round(out[key] * factor);
+            }
+        }
+        if (Array.isArray(out.rows)) {
+            out.rows = out.rows.map((row: unknown) => {
+                const r = typeof row === "object" && row !== null ? (row as Record<string, unknown>) : {};
+                const cells = Array.isArray(r.cells) ? r.cells : [];
+                return { ...r, cells: cells.map((c: unknown) => cellFor(c, depth)) };
+            });
+        }
+        return out;
+    };
+    const cellFor = (c: unknown, depth: number): unknown => {
+        const out = table(c, depth) as Record<string, unknown> | null;
+        if (out === null) {
+            return {};
+        }
+        delete out.rows;
+        if (out.table !== undefined) {
+            out.table = table(out.table, depth + 1);
+        }
+        // a picture drawn at its own size draws each of its pixels one of the file's lengths across, as `image` does
+        const image = out.image as { src?: unknown } | undefined;
+        if (image !== undefined) {
+            out.image =
+                typeof image === "object" && image !== null && typeof image.src === "string"
+                    ? { ...image, src: pictureUrl(image.src, imageBase), pixelSize: round(factor) }
+                    : undefined;
+        }
+        if (Array.isArray(out.lines)) {
+            out.lines = out.lines.map((line: unknown) => {
+                const l = typeof line === "object" && line !== null ? (line as Record<string, unknown>) : {};
+                const text = labelRunsMarkup(JSON.stringify(l.runs ?? [])) ?? "";
+                return typeof l.align === "string" ? { text, align: l.align } : { text };
+            });
+        }
+        return out;
+    };
+    const out = table(parsed, 0) as Record<string, unknown> | null;
+    return out !== null && Array.isArray(out.rows) ? JSON.stringify(out) : null;
+}
+
 /**
  * A number at 12 significant digits, so a length scaled by a factor compares as the same value
  * however it was computed.
@@ -1303,12 +1528,13 @@ export function translateFileStyles(input: TranslateInput): Translation {
 
     const layers = inRuleOrder(byKind, extracted.styles.rules);
 
-    const { background } = extracted.styles.graph;
+    const { background, rotation } = extracted.styles.graph;
     return {
         layers,
         columns,
         hidden,
         background: typeof background === "string" ? background : null,
+        rotation: typeof rotation === "number" && rotation % 360 !== 0 ? ((rotation % 360) + 360) % 360 : null,
         notes: notes.list(),
         predicted,
         sceneScale: factors.scene,
@@ -1437,6 +1663,40 @@ function sizeUniformly(layer: Building, scope: Path | null): void {
     }
 }
 
+/**
+ * Make a layer of another program's file that shifts its labels shift their words (`labelShiftOf: "words"`): a
+ * program that pins a label's text by one of its points (Pajek's `text-anchor: start`) pins the text's own box, where
+ * the element's own shift moves the label's whole box, margins round its words and all, a margin further. Graphviz is
+ * left on the whole box: it pins an xlabel by the corner of the label's box, padding (and an HTML table's cells and
+ * borders) included. Set where the layer's shifts paint, so it adds no layer.
+ * @param layer - A layer the translation built.
+ * @param kind - Its elements' kind.
+ */
+function shiftWords(layer: Building, kind: StyleTarget): void {
+    const shifts: Channel[] = [`${kind}.labelShiftX`, `${kind}.labelShiftY`];
+    const { set, encode } = layer.spec;
+    if (!shifts.some((channel) => channel in set || channel in encode)) {
+        return;
+    }
+
+    const words: Channel = `${kind}.labelShiftOf`;
+    set[words] = "words";
+    // `set` paints every element the layer paints anything on, shifted or not (a file's bypass that shifts only
+    // some of them, xgmml-syn-bypass): that is where the words shift is drawn, and where it is predicted
+    for (const map of [layer.paint, layer.drawn]) {
+        const columns = map === null || map === undefined ? [] : [...map.values()];
+        const length = columns[0]?.length;
+        if (map !== null && map !== undefined && length !== undefined) {
+            map.set(
+                words,
+                Array.from({ length }, (_unused, i) =>
+                    columns.some((column) => column[i] !== null && column[i] !== undefined) ? "words" : null,
+                ),
+            );
+        }
+    }
+}
+
 /** What the file's lengths are multiplied by, per kind of channel, and the scene units one file unit is. */
 interface LengthFactors {
     /** Node sizes, widths, heights and border widths. */
@@ -1475,6 +1735,32 @@ function lengthFactors(input: TranslateInput): LengthFactors {
         return KEPT;
     }
 
+    const scene = sceneScaleOf(input);
+    // No length to scale by, or a degenerate median (1e-320, 1e308): the file's units are kept.
+    if (!(Number.isFinite(scene) && scene > 0)) {
+        return KEPT;
+    }
+
+    // Labels in canvas px over fitted positions are that many px per unit of the positions.
+    const perLabelUnit = scene / (input.labelPxPerUnit ?? 1);
+    const keptLabels = input.options.labelSizes === "file";
+    return {
+        node: scene / SCENE_PER_UNIT.node,
+        edge: scene / SCENE_PER_UNIT.edge,
+        label: keptLabels ? null : (size) => labelSizePx(perLabelUnit * size),
+        letter: keptLabels ? null : perLabelUnit,
+        scene,
+    };
+}
+
+/**
+ * The scene units one file unit is drawn as, before it is checked: the file's median node at the element's node size,
+ * else its median label at the element's label size, else its median edge at the element's edge width (or, with
+ * `lengths: "spacing"`, the writing program's settled spacing at the force layout's).
+ * @param input - The translation's input.
+ * @returns The scale, NaN when the file gives no length to scale by.
+ */
+function sceneScaleOf(input: TranslateInput): number {
     const { extracted, snapshot, base } = input;
     const resolved = (kind: StyleTarget, property: StyleProperty): readonly unknown[] =>
         extracted.styles.rules.some(
@@ -1499,28 +1785,27 @@ function lengthFactors(input: TranslateInput): LengthFactors {
     // size of the element's own node with its label, as a file that sizes its nodes does.
     const labelMedian = nodeMedian === null ? median(resolved("node", "labelSize")) : null;
     const labelBase = typeof base.node["node.labelSize"] === "number" ? base.node["node.labelSize"] : DEFAULT_LABEL_PX;
-    let scene: number;
+    const spacing = input.options.lengths === "spacing" ? programSpacing(extracted.styles.source.tool) : null;
+    if (spacing !== null) {
+        return NGRAPH_SETTLED_SPACING / spacing;
+    }
     if (nodeMedian !== null) {
-        scene = (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
-    } else if (labelMedian !== null && sides.includes(0)) {
-        scene = labelLetterHeight(labelBase) / labelMedian;
-    } else {
-        scene = (edgeBase * SCENE_PER_UNIT.edge) / (median(resolved("edge", "width")) ?? Number.NaN);
+        return (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
     }
-    // No length to scale by, or a degenerate median (1e-320, 1e308): the file's units are kept.
-    if (!(Number.isFinite(scene) && scene > 0)) {
-        return KEPT;
+    if (labelMedian !== null && sides.includes(0)) {
+        return labelLetterHeight(labelBase) / labelMedian;
     }
+    return (edgeBase * SCENE_PER_UNIT.edge) / (median(resolved("edge", "width")) ?? Number.NaN);
+}
 
-    // Labels in canvas px over fitted positions are that many px per unit of the positions.
-    const perLabelUnit = scene / (input.labelPxPerUnit ?? 1);
-    return {
-        node: scene / SCENE_PER_UNIT.node,
-        edge: scene / SCENE_PER_UNIT.edge,
-        label: (size) => labelSizePx(perLabelUnit * size),
-        letter: perLabelUnit,
-        scene,
-    };
+/**
+ * How far apart the program that wrote a file leaves the nodes of its layout once it settles, in the file's units.
+ * @param tool - The program.
+ * @returns The spacing, or null when the program states none.
+ */
+function programSpacing(tool: StyleTool | null): number | null {
+    const spacing = tool === null ? undefined : toolDefaults(tool)?.layoutSpacing?.value;
+    return spacing !== undefined && spacing > 0 ? spacing : null;
 }
 
 /** The translation of one kind's rules. */
@@ -1584,9 +1869,13 @@ class KindTranslation {
             kind,
             factors,
             input.options.shapes ?? FILE_STYLE_SHAPES,
-            tool === "graphty",
+            tool,
             this.#arrowhead !== null,
-            tool !== null && toolDefaults(tool)?.nodeBorderOnScreen?.value === true,
+            {
+                border: tool !== null && toolDefaults(tool)?.nodeBorderOnScreen?.value === true,
+                label: tool !== null && toolDefaults(tool)?.labelSizeOnScreen?.value === true,
+            },
+            input.options.imageBaseUrl,
         );
         this.#keys = new Set(input.extracted.columns[kind].keys());
         this.#rules = input.extracted.styles.rules
@@ -1615,6 +1904,12 @@ class KindTranslation {
         if (this.#kind === "node" && this.#input.extracted.styles.source.tool !== "graphty") {
             ordered.forEach((layer) => {
                 sizeUniformly(layer, this.#scopePath);
+            });
+        }
+        const { tool } = this.#input.extracted.styles.source;
+        if (tool !== "graphty" && tool !== "graphviz") {
+            ordered.forEach((layer) => {
+                shiftWords(layer, this.#kind);
             });
         }
 
@@ -2414,25 +2709,7 @@ class KindTranslation {
      * @returns The values by element index.
      */
     #evaluate(rule: StyleRule, property: string, source: ExtractedStyles): readonly (StyleValue | null)[] {
-        const one: StyleRule = {
-            id: rule.id,
-            target: this.#kind,
-            role: rule.role,
-            origin: rule.origin,
-            where: rule.where,
-            ...(rule.set?.[property as StyleProperty] === undefined
-                ? {}
-                : { set: { [property]: rule.set[property as StyleProperty] } }),
-            ...(rule.map?.[property as StyleProperty] === undefined
-                ? {}
-                : { map: { [property]: rule.map[property as StyleProperty] } }),
-        };
-        return resolveStyles(
-            { ...source, styles: { ...source.styles, rules: [one] } },
-            this.#kind,
-            property as StyleProperty,
-            this.#input.snapshot,
-        );
+        return resolveRule(source, { ...rule, target: this.#kind }, property as StyleProperty, this.#input.snapshot);
     }
 
     /**

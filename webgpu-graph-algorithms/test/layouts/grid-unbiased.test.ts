@@ -29,8 +29,6 @@ import {
 import { assertCheckPasses, ratioOf } from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 600_000;
-
 describe("exact vs grid: unbiasedness (spec 11.4 item 3)", () => {
     let ctx: GpuContext;
 
@@ -39,42 +37,37 @@ describe("exact vs grid: unbiasedness (spec 11.4 item 3)", () => {
     });
 
     for (const name of ["hubcell", "onecell1025"]) {
-        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 172 s on the dev box's RTX 4070 SUPER under load, 88 s on the macOS Metal host lane, 59 s on the T4 lane, more than a third of the 30 s budget; tracked in #1636
-        it(
-            `(3) ${name} at nearMax ${NEAR_MAX_SAMPLING}: the mean of G7's force over the seed ladder is within grid-unbiased of the exact tier's over the whole force field (the ladder from ${UNBIASED_LADDER_FIRST} seeds printed; ${UNBIASED_SEEDS} seeds asserted on hardware, ${UNBIASED_SEEDS_SOFTWARE} printed on a software rasteriser)`,
-            async (t) => {
-                requireGpu(t);
-                const { snapshot: s, start } = gridFixture(name, gpuScale(), GRID_BASE_OPTIONS);
-                try {
-                    const t0 = performance.now();
-                    const { software } = ctx.caps;
-                    const seeds = software ? UNBIASED_SEEDS_SOFTWARE : UNBIASED_SEEDS;
-                    const u = await unbiasedLadder(ctx, s, start, GRID_BASE_OPTIONS, seeds);
-                    const tolerance = gridTolerance("grid-unbiased").value;
-                    const top = u.rungs[u.rungs.length - 1];
-                    console.warn(
-                        `[grid-unbiased] unbiased/${name}/n=${s.nodeCount}: |mean - exact| / |exact| over the whole force field at ${top.seeds} seeds ${top.field.toExponential(3)} (tolerance ${tolerance.toExponential(3)}); rms of the floored per-node error of the same mean ${top.rms.toExponential(3)}, of one seed ${u.rmsOneSeed.toExponential(3)}; ${seeds} grid iterations ${(performance.now() - t0).toFixed(0)} ms`,
-                    );
-                    console.warn(
-                        `[grid-unbiased] unbiased/${name}/n=${s.nodeCount} ladder (seeds: whole-field ratio / per-node rms): ${u.rungs.map((r) => `${r.seeds}: ${r.field.toExponential(3)} / ${r.rms.toExponential(3)}`).join("; ")}`,
-                    );
-                    if (software) {
-                        // PRINTED, not asserted (G4-F18): five doublings short of the recorded floor, a mean of
-                        // 128 seeds sits about 5.7x above it by the estimator's own 1 / sqrt(seeds) descent, so
-                        // asserting the hardware tolerance here would fail on arithmetic rather than on a defect.
-                        // The full ladder runs and asserts on the GPU lane, which is where the floor was measured.
-                        return;
-                    }
-                    assertCheckPasses({
-                        worst: ratioOf(top.field, tolerance),
-                        worstLabel: `unbiased/${name}`,
-                        samples: s.nodeCount,
-                    });
-                } finally {
-                    ctx.release(s);
+        it(`(3) ${name} at nearMax ${NEAR_MAX_SAMPLING}: the mean of G7's force over the seed ladder is within grid-unbiased of the exact tier's over the whole force field (the ladder from ${UNBIASED_LADDER_FIRST} seeds printed; ${UNBIASED_SEEDS} seeds asserted on hardware, ${UNBIASED_SEEDS_SOFTWARE} printed on a software rasteriser)`, async (t) => {
+            requireGpu(t);
+            const { snapshot: s, start } = gridFixture(name, gpuScale(), GRID_BASE_OPTIONS);
+            try {
+                const t0 = performance.now();
+                const { software } = ctx.caps;
+                const seeds = software ? UNBIASED_SEEDS_SOFTWARE : UNBIASED_SEEDS;
+                const u = await unbiasedLadder(ctx, s, start, GRID_BASE_OPTIONS, seeds);
+                const tolerance = gridTolerance("grid-unbiased").value;
+                const top = u.rungs[u.rungs.length - 1];
+                console.warn(
+                    `[grid-unbiased] unbiased/${name}/n=${s.nodeCount}: |mean - exact| / |exact| over the whole force field at ${top.seeds} seeds ${top.field.toExponential(3)} (tolerance ${tolerance.toExponential(3)}); rms of the floored per-node error of the same mean ${top.rms.toExponential(3)}, of one seed ${u.rmsOneSeed.toExponential(3)}; ${seeds} grid iterations ${(performance.now() - t0).toFixed(0)} ms`,
+                );
+                console.warn(
+                    `[grid-unbiased] unbiased/${name}/n=${s.nodeCount} ladder (seeds: whole-field ratio / per-node rms): ${u.rungs.map((r) => `${r.seeds}: ${r.field.toExponential(3)} / ${r.rms.toExponential(3)}`).join("; ")}`,
+                );
+                if (software) {
+                    // PRINTED, not asserted (G4-F18): five doublings short of the recorded floor, a mean of
+                    // 128 seeds sits about 5.7x above it by the estimator's own 1 / sqrt(seeds) descent, so
+                    // asserting the hardware tolerance here would fail on arithmetic rather than on a defect.
+                    // The full ladder runs and asserts on the GPU lane, which is where the floor was measured.
+                    return;
                 }
-            },
-            CASE_TIMEOUT,
-        );
+                assertCheckPasses({
+                    worst: ratioOf(top.field, tolerance),
+                    worstLabel: `unbiased/${name}`,
+                    samples: s.nodeCount,
+                });
+            } finally {
+                ctx.release(s);
+            }
+        });
     }
 });

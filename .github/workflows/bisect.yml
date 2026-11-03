@@ -1,6 +1,6 @@
 # .github/workflows/bisect.yml -- finds the merge that turned a full run red (design/ci/channels-pipeline/channels.md
 # section 6). release.yml dispatches it once per red full run with the last green full-run commit (`good`), the red
-# one (`bad`), the lane that failed and its failing tests. The rules are tools/bisect-core.mjs's (verify.mjs's); the
+# one (`bad`), the lane that failed and its failing tests. The rules are tools/bisect-core.mjs's; the
 # state between rounds is tools/bisect-ci.mjs's.
 #
 # One run is one round. The first confirms: only the failing test files, 5 runs on the red commit (2 for the LLM
@@ -56,6 +56,8 @@ concurrency:
     cancel-in-progress: false
 
 env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
 
@@ -95,6 +97,7 @@ jobs:
         runs-on: ubuntu-24.04 # the full run's test runner class
         # GOOGLE_API_KEY is a secret of environment full-run, as for release.yml's llm job
         environment: ${{ inputs.lane == 'llm' && 'full-run' || '' }}
+        # the build and every run; each run of a shard stops at its lane's own limit (bisect-ci.mjs LANES.minutes)
         timeout-minutes: 120
         strategy:
             fail-fast: false
@@ -113,7 +116,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: actions/checkout@v7
@@ -148,13 +150,25 @@ jobs:
             - name: Run the failing files
               env:
                   BISECT_ROOT: ${{ github.workspace }}
-                  VITE_LLM_REGRESSION_PROVIDER: ${{ inputs.lane == 'llm' && 'google' || '' }}
-                  VITE_GOOGLE_API_KEY: ${{ inputs.lane == 'llm' && secrets.GOOGLE_API_KEY || '' }}
+                  LLM_REGRESSION_PROVIDER: ${{ inputs.lane == 'llm' && 'google' || '' }}
+                  GOOGLE_API_KEY: ${{ inputs.lane == 'llm' && secrets.GOOGLE_API_KEY || '' }}
+                  # each priced Gemini cost as it is spent, so a point cut off mid-file still logs it (the cost steps below)
+                  LLM_REGRESSION_USAGE_FILE: ${{ inputs.lane == 'llm' && format('{0}/llm-usage.jsonl', runner.temp) || '' }}
                   SHA: ${{ matrix.sha }}
               run: |
                   mkdir -p "$RUNNER_TEMP/result"
+                  # the log too: a point whose harness writes no usage file is priced from its per-file cost lines
                   node "$RUNNER_TEMP/bisect-tools/tools/bisect-ci.mjs" run --state "$RUNNER_TEMP/state/state.json" \
-                      --sha "$SHA" --out "$RUNNER_TEMP/result/$SHA.json"
+                      --sha "$SHA" --out "$RUNNER_TEMP/result/$SHA.json" 2>&1 | tee "$RUNNER_TEMP/point.log"
+            # An llm-lane point's cost, as release.yml's LLM job logs it: in the cost step's NAME, where
+            # tools/llm-spend.mjs and the health dashboard read it, instead of pricing the point at the flat rate (#5062).
+            - name: Price the point's LLM calls
+              id: cost
+              if: ${{ always() && inputs.lane == 'llm' }}
+              run: echo "usd=$(node "$RUNNER_TEMP/bisect-tools/tools/llm-spend.mjs" cost "$RUNNER_TEMP/llm-usage.jsonl" "$RUNNER_TEMP/point.log")" >> "$GITHUB_OUTPUT"
+            - name: "LLM regression cost: ${{ steps.cost.outputs.usd }} USD"
+              if: ${{ always() && steps.cost.outputs.usd != '' }}
+              run: echo "::notice::the point's LLM regression tests cost ${{ steps.cost.outputs.usd }} USD"
             # a point whose build failed ran no test: it is a bad point, not a lost one to test again. Only the build
             # step's own failure: an install, apt or download that failed (the network) leaves the point lost, so
             # it runs again rather than being blamed

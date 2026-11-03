@@ -50,6 +50,10 @@ concurrency:
     group: release-rehearsal-${{ github.ref }}
     cancel-in-progress: true
 
+env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+
 jobs:
     rehearse:
         name: Rehearse the nightly path

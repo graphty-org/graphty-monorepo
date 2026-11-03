@@ -15,7 +15,7 @@ import {
 import { expectStatesApply } from "../../helpers/assert-states";
 import { realInput } from "../../helpers/real-input";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
-import { storyWaitOptions, untilPasses } from "../../helpers/settled";
+import { untilPasses } from "../../helpers/settled";
 import { LAYERS, Panel, STYLE_LAYERS } from "./fixtures";
 
 /**
@@ -230,7 +230,7 @@ export const Checkboxes: Story = {
         const rows = canvas.getAllByRole("treeitem");
         await userEvent.click(rows[1]);
         await userEvent.click(rows[2]);
-        await waitFor(() => expect(args.onSelect).toHaveBeenCalledTimes(2), storyWaitOptions(1000));
+        await waitFor(() => expect(args.onSelect).toHaveBeenCalledTimes(2));
         await expect(canvas.getAllByRole("treeitem", { selected: true })).toHaveLength(2);
     },
 };
@@ -525,15 +525,13 @@ export const FlatReorderableList: Story = {
         const degree = tree.getByRole("treeitem", { name: "Degree color" });
         degree.focus();
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
-        await waitFor(
-            () => expect(names()).toEqual(["Selection highlight", "Node labels", "Degree color", "Base style"]),
-            storyWaitOptions(1000),
+        await waitFor(() =>
+            expect(names()).toEqual(["Selection highlight", "Node labels", "Degree color", "Base style"]),
         );
         await expect(tree.getByRole("treeitem", { name: "Degree color" })).toHaveFocus();
         await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
-        await waitFor(
-            () => expect(names()).toEqual(["Selection highlight", "Degree color", "Node labels", "Base style"]),
-            storyWaitOptions(1000),
+        await waitFor(() =>
+            expect(names()).toEqual(["Selection highlight", "Degree color", "Node labels", "Base style"]),
         );
         // Rename, then try to empty the name: the empty name is refused.
         await userEvent.keyboard("{F2}");
@@ -621,9 +619,8 @@ export const Keyboard: Story = {
         // Alt+ArrowDown onto a folder moves the row into it, as its first child (159bba0f53): Button
         // goes into Card, one level deeper, and focus follows it.
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
-        await waitFor(
-            () => expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-level", "3"),
-            storyWaitOptions(1000),
+        await waitFor(() =>
+            expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-level", "3"),
         );
         await expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveAttribute("aria-posinset", "1");
         await expect(canvas.getByRole("treeitem", { name: "Button" })).toHaveFocus();
@@ -743,7 +740,7 @@ export const Dragging: Story = {
                 const y = box.height * fraction;
                 await real.userEvent.hover(to, { position: { x: box.width / 2 - 8, y } });
                 await real.userEvent.hover(to, { position: { x: box.width / 2, y } });
-                await expect(await scope.findByTestId(mark, {}, storyWaitOptions(1000))).toBeVisible();
+                await expect(await scope.findByTestId(mark, {})).toBeVisible();
                 await real.commands.mouseUp();
             };
             await drag("Into", "Sticky note", "Card", 0.5, "tree-drop-box");
@@ -771,18 +768,10 @@ export const Dragging: Story = {
         hover("Into", "Sticky note", "Card", 0.5, 11);
         hover("Between", "Sticky note", "Background", 0.1, 12);
         await expect(
-            await within(canvas.getByRole("tree", { name: "Into" })).findByTestId(
-                "tree-drop-box",
-                {},
-                storyWaitOptions(1000),
-            ),
+            await within(canvas.getByRole("tree", { name: "Into" })).findByTestId("tree-drop-box", {}),
         ).toBeVisible();
         await expect(
-            await within(canvas.getByRole("tree", { name: "Between" })).findByTestId(
-                "tree-drop-line",
-                {},
-                storyWaitOptions(1000),
-            ),
+            await within(canvas.getByRole("tree", { name: "Between" })).findByTestId("tree-drop-line", {}),
         ).toBeVisible();
     },
 };
@@ -852,9 +841,7 @@ export const TouchAndRowMenu: Story = {
         const tree = within(within(canvasElement).getByRole("tree", { name: "Style layers" }));
         tree.getByRole("treeitem", { name: "Node labels" }).focus();
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-        await expect(
-            await within(document.body).findByRole("menuitem", { name: "Delete" }, storyWaitOptions(1000)),
-        ).toBeVisible();
+        await expect(await within(document.body).findByRole("menuitem", { name: "Delete" })).toBeVisible();
         await userEvent.keyboard("{Escape}");
     },
 };

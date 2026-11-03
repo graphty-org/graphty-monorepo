@@ -11,7 +11,7 @@
 import "@graphty/graphty-element";
 
 import { defineSource, type GraphSession, registerSource } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -20,9 +20,6 @@ import { Workspace } from "../../Workspace";
 
 /** The element, as the tag map names it. */
 type ElementTag = HTMLElementTagNameMap["graphty-element"];
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /** The test server: 50 people in pages of 10, each knowing the next; three more neighbors each. */
 const SERVER = "test-people-server";
@@ -139,12 +136,27 @@ registerSource(
     }),
 );
 
+/** A server that is out of quota: it answers 429 to every request it gets. */
+const BUSY = "test-busy-server";
+const BUSY_ENDPOINT = "https://busy.example";
+
+registerSource(
+    defineSource({
+        id: BUSY,
+        descriptor: { plainName: "Busy server", defaultEndpoint: BUSY_ENDPOINT, params: [] },
+        records: async (_params, ctx) => {
+            await ctx.fetchJson("/graph");
+            return { nodes: [], edges: [] };
+        },
+    }),
+);
+
 /**
  * Opens the server form from the Sources "+".
  * @returns the form.
  */
 async function openForm(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Server..." }));
     return screen.findByRole("form", { name: "Server" });
 }
@@ -157,13 +169,10 @@ async function openDataPlace(): Promise<{ element: ElementTag; session: GraphSes
     const store = createWorkspaceStore({ project: { name: "Server", id: 1 }, place: "data" });
     render(<Workspace store={store} />);
     let element: ElementTag | null = null;
-    await waitFor(
-        () => {
-            element = document.querySelector("graphty-element");
-            assert.isDefined(element?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        element = document.querySelector("graphty-element");
+        assert.isDefined(element?.session);
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -205,7 +214,7 @@ describe("server sources on the real element", () => {
     it("tests, loads with a limit, loads more, expands, collapses and refreshes", async () => {
         const { element, session } = await openDataPlace();
 
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Server..." }));
         const form = await screen.findByRole("form", { name: "Server" });
         await pick(form, "Kind", "People server");
@@ -281,7 +290,7 @@ describe("server sources on the real element", () => {
             { source: WHOLE, config: {}, name: "Whole" },
             { limits: { maxNodes: 1, onLimit: "stop" } },
         );
-        const row = await screen.findByRole("listitem", { name: "Whole" }, { timeout: TIMEOUT_MS });
+        const row = await screen.findByRole("listitem", { name: "Whole" });
         await userEvent.hover(row);
         assert.isNotNull(within(row).getByRole("button", { name: "Refresh" }));
         assert.isNull(within(row).queryByRole("button", { name: "Load more" }));
@@ -309,7 +318,7 @@ describe("server sources on the real element", () => {
     it("shows a counted server load as 10 of 171 on its row's node chip", async () => {
         const { session } = await openDataPlace();
         await session.data.import({ source: COUNTED, config: {}, name: "Counted" });
-        const row = await screen.findByRole("listitem", { name: "Counted" }, { timeout: TIMEOUT_MS });
+        const row = await screen.findByRole("listitem", { name: "Counted" });
         await waitFor(() => {
             assert.strictEqual(row.querySelector('.dp-source-chips [data-kind="node"]')?.textContent, "Node 10 of 171");
         });
@@ -317,7 +326,7 @@ describe("server sources on the real element", () => {
 
     it("offers no Sign in, Start or Expand rows a source cannot use", async () => {
         await openDataPlace();
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Server..." }));
         const form = await screen.findByRole("form", { name: "Server" });
         await pick(form, "Kind", "OpenAlex");
@@ -367,6 +376,32 @@ describe("server sources on the real element", () => {
             "",
             "Hetionet's Bolt does not carry over",
         );
+    });
+
+    it("names the server that answered on the failure chip", async () => {
+        const realFetch = globalThis.fetch;
+        // Only the busy server's requests are answered here; nothing reaches the network.
+        const busy = vi
+            .spyOn(globalThis, "fetch")
+            .mockImplementation((input, init) =>
+                String(input instanceof Request ? input.url : input).startsWith(BUSY_ENDPOINT)
+                    ? Promise.resolve(new Response("", { status: 429, headers: { "retry-after": "0" } }))
+                    : realFetch(input, init),
+            );
+        try {
+            await openDataPlace();
+            const form = await openForm();
+            await pick(form, "Kind", "Busy server");
+            await userEvent.click(within(form).getByRole("button", { name: "Test" }));
+            const chip = await waitFor(() => {
+                const found = form.querySelector('.sv-actions [data-code="E_SOURCE_QUOTA"]');
+                assert.isNotNull(found);
+                return found;
+            });
+            assert.strictEqual(chip?.textContent, "too many requests: busy.example");
+        } finally {
+            busy.mockRestore();
+        }
     });
 
     it("keeps focus on Test while it reads", async () => {

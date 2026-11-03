@@ -37,7 +37,6 @@ import { SE_BASE_OPTIONS } from "../helpers/se-parity.js";
 import { storyGraph } from "../helpers/story-graph.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 600_000;
 const MODELS: readonly LawModel[] = ["fr", "se"];
 /** The FR story-graph run: 200 iterations in batches of 10. */
 const STORY_ITERATIONS = 200;
@@ -249,42 +248,37 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 18 s on lavapipe on the dev box under load, 14 s on CI's lavapipe, more than a third of the 30 s budget; tracked in #1636
-    it(
-        `(2, 3) the spring grid run on the story graph settles within ${MAX_STEPS} iterations cooler than its first batch, finite, twice bitwise; its pipeline keys carry LAW 2 on grid-far-field and grid-near-field`,
-        async (t) => {
-            requireGpu(t);
-            const s = storyGraph();
-            try {
-                const a = await seStoryRun(ctx, s, LAW_GRID_TUNING);
-                const b = await seStoryRun(ctx, s, LAW_GRID_TUNING);
-                expectBitwiseEqual(a.positions, b.positions, "se/story: run 1 vs run 2");
-                expectFinite(a.positions, "se/story");
-                console.warn(
-                    `[grid-law] se/story: settled ${a.settled} at ${a.iterationsDone} iterations; kineticEnergy first batch ${a.firstBatchEnergy.toExponential(3)}, stop ${a.lastEnergy.toExponential(3)}`,
-                );
-                expect(a.settled, "settled by the shared rule").toBe(true);
-                expect(a.iterationsDone).toBeLessThan(MAX_STEPS);
-                expect(a.firstBatchEnergy).toBeGreaterThan(0);
-                expect(Number.isFinite(a.lastEnergy)).toBe(true);
-                // Not capped at a 100x fall (finding G5-F12, docs/decisions/G5.md): the 7.17 rule stops the run on mean
-                // DISPLACEMENT while the kinetic energy still swings over one to two orders of magnitude, so the fall at
-                // the stop depends on where in the swing the rule fires. Dawn on D3D12 WARP settles this run at 376
-                // iterations at 1.947 from 158.3 (81x); NVIDIA T4 at 640 (226x), Metal at 664 (308x).
-                expect(a.lastEnergy, "the run cooled rather than diverged").toBeLessThan(a.firstBatchEnergy);
-                const keys = ctx.pipelines.keys();
-                for (const id of ["grid-far-field", "grid-near-field"]) {
-                    expect(
-                        keys.some((k) => k.startsWith(`${id}|`) && k.includes('"LAW":2')),
-                        `${id} compiled with LAW 2`,
-                    ).toBe(true);
-                }
-            } finally {
-                ctx.release(s);
+    it(`(2, 3) the spring grid run on the story graph settles within ${MAX_STEPS} iterations cooler than its first batch, finite, twice bitwise; its pipeline keys carry LAW 2 on grid-far-field and grid-near-field`, async (t) => {
+        requireGpu(t);
+        const s = storyGraph();
+        try {
+            const a = await seStoryRun(ctx, s, LAW_GRID_TUNING);
+            const b = await seStoryRun(ctx, s, LAW_GRID_TUNING);
+            expectBitwiseEqual(a.positions, b.positions, "se/story: run 1 vs run 2");
+            expectFinite(a.positions, "se/story");
+            console.warn(
+                `[grid-law] se/story: settled ${a.settled} at ${a.iterationsDone} iterations; kineticEnergy first batch ${a.firstBatchEnergy.toExponential(3)}, stop ${a.lastEnergy.toExponential(3)}`,
+            );
+            expect(a.settled, "settled by the shared rule").toBe(true);
+            expect(a.iterationsDone).toBeLessThan(MAX_STEPS);
+            expect(a.firstBatchEnergy).toBeGreaterThan(0);
+            expect(Number.isFinite(a.lastEnergy)).toBe(true);
+            // Not capped at a 100x fall (finding G5-F12, docs/decisions/G5.md): the 7.17 rule stops the run on mean
+            // DISPLACEMENT while the kinetic energy still swings over one to two orders of magnitude, so the fall at
+            // the stop depends on where in the swing the rule fires. Dawn on D3D12 WARP settles this run at 376
+            // iterations at 1.947 from 158.3 (81x); NVIDIA T4 at 640 (226x), Metal at 664 (308x).
+            expect(a.lastEnergy, "the run cooled rather than diverged").toBeLessThan(a.firstBatchEnergy);
+            const keys = ctx.pipelines.keys();
+            for (const id of ["grid-far-field", "grid-near-field"]) {
+                expect(
+                    keys.some((k) => k.startsWith(`${id}|`) && k.includes('"LAW":2')),
+                    `${id} compiled with LAW 2`,
+                ).toBe(true);
             }
-        },
-        CASE_TIMEOUT,
-    );
+        } finally {
+            ctx.release(s);
+        }
+    });
 
     it('(4) "auto" with exactMaxNodes 8 sends both models to the grid on karate (spec 7.8: by n alone)', async (t) => {
         requireGpu(t);

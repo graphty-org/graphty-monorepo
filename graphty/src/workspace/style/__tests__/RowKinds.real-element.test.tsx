@@ -19,9 +19,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** The three layers every test starts from, by name. */
 interface Rows {
     readonly session: GraphSession;
@@ -38,14 +35,11 @@ interface Rows {
 async function openProject(): Promise<Rows> {
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -88,11 +82,9 @@ function tree(): HTMLElement {
  * @returns the row.
  */
 async function row(name: string): Promise<HTMLElement> {
-    return within(await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS })).findByRole(
-        "treeitem",
-        { name: new RegExp(`^${name}, `) },
-        { timeout: TIMEOUT_MS },
-    );
+    return within(await screen.findByRole("tree", { name: "Style layers" })).findByRole("treeitem", {
+        name: new RegExp(`^${name}, `),
+    });
 }
 
 /**
@@ -220,7 +212,7 @@ describe("folders, several rows and the draft on the real element", () => {
 
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        const size = await screen.findByRole("spinbutton", { name: /^Node size/ }, { timeout: TIMEOUT_MS });
+        const size = await screen.findByRole("spinbutton", { name: /^Node size/ });
         await userEvent.tripleClick(size);
         await userEvent.keyboard("4{Enter}");
         await waitFor(() => {

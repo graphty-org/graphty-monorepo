@@ -51,7 +51,6 @@ import {
 import { type SeOracleTraceRecord, SpringElectricalOracle } from "../oracle/spring-electrical.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 const GRAPHS: readonly ParityGraph[] = ["path10", "karate", "grid10", "random1k"];
 const HORIZONS: readonly number[] = [1, 5, 10];
 const PRINTED = 50;
@@ -120,44 +119,39 @@ function at<T>(map: ReadonlyMap<number, T>, k: number): T {
 }
 
 describe("spring-electrical trace: the admission rule (the f64 and f32 oracles alone, no GPU)", () => {
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 42 s on the T4 lane, 26 s on the dev box's RTX 4070 SUPER under load, 17 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "every graph's trajectory sensitivity at 1, 5 and 10 is printed; the admitted horizons are under a third of the cap on both counts; the traj10 graph is admitted at 10",
-        async () => {
-            const third = SE_TOLERANCE_CAPS["se-trajectory"].cap / 3;
-            // the ensemble runs at gpuScale() and its numbers are printed only on a software adapter (the P3 precedent of fa2-distributional.test.ts: a 4-core CI runner under coverage cannot finish the full-size random1k ensemble inside the case timeout, ci.yml run 35548431040)
-            const scale = gpuScale();
-            const full = scale === 1;
-            for (const graph of GRAPHS) {
-                const s = paritySnapshot(graph, scale, false);
-                const sensitivity = await seTrajectorySensitivity(
-                    s,
-                    startPositions(s, SE_BASE_OPTIONS, false),
-                    SE_BASE_OPTIONS,
-                    null,
-                    HORIZONS,
-                );
-                const admitted = ADMITTED[graph];
-                console.warn(
-                    `[se-trace] admission ${graph}${full ? "" : ` (scaled x${scale}, printed only)`} (a third of the cap ${third.toExponential(3)}): ${HORIZONS.map(
-                        (k) =>
-                            `k=${k} spread ${at(sensitivity, k).spread.toExponential(3)} f32 ${at(sensitivity, k).f32.toExponential(3)} ${admitted.includes(k) ? "admitted" : "left out"}`,
-                    ).join("; ")}`,
-                );
-                for (const k of full ? admitted : []) {
-                    expect(at(sensitivity, k).spread, `${graph} k=${k}: the oracle's own spread`).toBeLessThanOrEqual(
-                        third,
-                    );
-                    expect(at(sensitivity, k).f32, `${graph} k=${k}: the f32 oracle`).toBeLessThanOrEqual(third);
-                }
-            }
-            expect(ADMITTED[TRAJ10_GRAPH], "the traj10 member's graph is admitted at its horizon").toContain(
-                TRAJ10_HORIZON,
+    it("every graph's trajectory sensitivity at 1, 5 and 10 is printed; the admitted horizons are under a third of the cap on both counts; the traj10 graph is admitted at 10", async () => {
+        const third = SE_TOLERANCE_CAPS["se-trajectory"].cap / 3;
+        // the ensemble runs at gpuScale() and its numbers are printed only on a software adapter (the P3 precedent of fa2-distributional.test.ts: a 4-core CI runner under coverage cannot finish the full-size random1k ensemble inside the case timeout, ci.yml run 35548431040)
+        const scale = gpuScale();
+        const full = scale === 1;
+        for (const graph of GRAPHS) {
+            const s = paritySnapshot(graph, scale, false);
+            const sensitivity = await seTrajectorySensitivity(
+                s,
+                startPositions(s, SE_BASE_OPTIONS, false),
+                SE_BASE_OPTIONS,
+                null,
+                HORIZONS,
             );
-            expect(SE_NOISE_FIXTURES.traj10.fixture).toBe(`se-${TRAJ10_GRAPH}-traj${TRAJ10_HORIZON}`);
-        },
-        CASE_TIMEOUT,
-    );
+            const admitted = ADMITTED[graph];
+            console.warn(
+                `[se-trace] admission ${graph}${full ? "" : ` (scaled x${scale}, printed only)`} (a third of the cap ${third.toExponential(3)}): ${HORIZONS.map(
+                    (k) =>
+                        `k=${k} spread ${at(sensitivity, k).spread.toExponential(3)} f32 ${at(sensitivity, k).f32.toExponential(3)} ${admitted.includes(k) ? "admitted" : "left out"}`,
+                ).join("; ")}`,
+            );
+            for (const k of full ? admitted : []) {
+                expect(at(sensitivity, k).spread, `${graph} k=${k}: the oracle's own spread`).toBeLessThanOrEqual(
+                    third,
+                );
+                expect(at(sensitivity, k).f32, `${graph} k=${k}: the f32 oracle`).toBeLessThanOrEqual(third);
+            }
+        }
+        expect(ADMITTED[TRAJ10_GRAPH], "the traj10 member's graph is admitted at its horizon").toContain(
+            TRAJ10_HORIZON,
+        );
+        expect(SE_NOISE_FIXTURES.traj10.fixture).toBe(`se-${TRAJ10_GRAPH}-traj${TRAJ10_HORIZON}`);
+    });
 });
 
 describe("spring-electrical trace: the kinetic energy, the free-running trajectory and the K1 fold (spec 11.4, 7.20)", () => {
@@ -170,102 +164,97 @@ describe("spring-electrical trace: the kinetic energy, the free-running trajecto
     for (const graph of GRAPHS) {
         const asserted = ADMITTED[graph];
         const printed = [...HORIZONS.filter((k) => !asserted.includes(k)), PRINTED];
-        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 20 s on the T4 lane, 12 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
-        it(
-            `${graph}: twice bitwise; positions after ${asserted.join(", ")} iterations within se-trajectory (${printed.join(", ")} printed); the lagged kinetic energy and the fold through record ${Math.max(...asserted)} within it`,
-            async (t) => {
-                requireGpu(t);
-                const s = paritySnapshot(graph, gpuScale(), false);
-                try {
-                    const start = startPositions(s, SE_BASE_OPTIONS, false);
-                    const checkpoints = [...HORIZONS, PRINTED];
-                    const a = await gpuTrajectory(ctx, s, start, SE_BASE_OPTIONS, checkpoints);
-                    const b = await gpuTrajectory(ctx, s, start, SE_BASE_OPTIONS, checkpoints);
-                    for (const k of checkpoints) {
-                        expectBitwiseEqual(
-                            at(a.positions, k),
-                            at(b.positions, k),
-                            `${graph}: iteration ${k}, run 1 vs run 2`,
-                        );
-                    }
+        it(`${graph}: twice bitwise; positions after ${asserted.join(", ")} iterations within se-trajectory (${printed.join(", ")} printed); the lagged kinetic energy and the fold through record ${Math.max(...asserted)} within it`, async (t) => {
+            requireGpu(t);
+            const s = paritySnapshot(graph, gpuScale(), false);
+            try {
+                const start = startPositions(s, SE_BASE_OPTIONS, false);
+                const checkpoints = [...HORIZONS, PRINTED];
+                const a = await gpuTrajectory(ctx, s, start, SE_BASE_OPTIONS, checkpoints);
+                const b = await gpuTrajectory(ctx, s, start, SE_BASE_OPTIONS, checkpoints);
+                for (const k of checkpoints) {
                     expectBitwiseEqual(
-                        Float32Array.from(a.trace.map((r) => r.kineticEnergy)),
-                        Float32Array.from(b.trace.map((r) => r.kineticEnergy)),
-                        `${graph}: kinetic energy run 1 vs run 2`,
+                        at(a.positions, k),
+                        at(b.positions, k),
+                        `${graph}: iteration ${k}, run 1 vs run 2`,
                     );
-                    const oracle = oracleTrajectory(s, start, SE_BASE_OPTIONS, checkpoints);
-                    const tolerance = seTolerance("se-trajectory").value;
-                    const measured = checkpoints.map((k) => {
-                        const err = stageError(true, at(a.positions, k), at(oracle.positions, k));
-                        return { k, rel: err.rel, abs: err.abs };
-                    });
-                    console.warn(
-                        `[se-trace] ${graph} (se-trajectory ${tolerance.toExponential(3)}): ${measured
-                            .map(
-                                (m) =>
-                                    `k=${m.k} rel ${m.rel.toExponential(3)} (ratio ${ratioOf(m.rel, tolerance).toExponential(3)}, max abs ${m.abs.toExponential(3)})${asserted.includes(m.k) ? "" : " informational"}`,
-                            )
-                            .join("; ")}`,
-                    );
-                    for (const k of asserted) {
-                        const err = stageError(true, at(a.positions, k), at(oracle.positions, k));
-                        assertCheckPasses({
-                            worst: ratioOf(err.rel, tolerance),
-                            worstLabel: `${graph}: positions after ${k} iterations vs the f64 oracle`,
-                            samples: s.nodeCount,
-                        });
-                    }
-                    for (const k of checkpoints) {
-                        expect(
-                            Array.from(at(a.positions, k)).every((v) => Number.isFinite(v)),
-                            `${graph}: finite after ${k} iterations`,
-                        ).toBe(true);
-                    }
-                    // (1) the kinetic energy, lagged by one iteration (PD-4), and the K1 fold, index-aligned
-                    expect(a.trace).toHaveLength(PRINTED);
-                    expect(oracle.trace).toHaveLength(PRINTED);
-                    expect(a.trace[0].kineticEnergy, `${graph}: the first record folds nothing`).toBe(0);
-                    const folds: CheckReport[] = a.trace.map((g, k) => {
-                        const o = oracle.trace[k];
-                        const fold = stageError(
-                            false,
-                            [g.meanDisplacement, g.settledCount],
-                            [o.meanDisplacement, o.settledCount],
-                        );
-                        const lagged = k === 0 ? 0 : oracle.trace[k - 1].kineticEnergy;
-                        const energy = k === 0 ? 0 : stageError(false, [g.kineticEnergy], [lagged]).rel;
-                        return {
-                            worst: ratioOf(Math.max(fold.rel, energy), tolerance),
-                            worstLabel: `${graph}: record ${k} (meanDisplacement ${g.meanDisplacement} vs ${o.meanDisplacement}; kineticEnergy ${g.kineticEnergy} vs ${lagged})`,
-                            samples: 3,
-                        };
-                    });
-                    const horizon = Math.max(...asserted);
-                    const worstAsserted = mergeReports(folds.slice(0, horizon + 1));
-                    const worstAll = mergeReports(folds);
-                    console.warn(
-                        `[se-trace] ${graph}: lagged kinetic energy and K1 fold through record ${horizon}: worst ratio ${worstAsserted.worst.toExponential(3)} at ${worstAsserted.worstLabel}; through ${PRINTED} (informational): ${worstAll.worst.toExponential(3)} at ${worstAll.worstLabel}`,
-                    );
-                    assertCheckPasses(worstAsserted);
-                    expect(a.trace[0].meanDisplacement).toBe(0);
-                    expect(
-                        a.trace.slice(1).every((r) => r.meanDisplacement > 0),
-                        `${graph}: moving`,
-                    ).toBe(true);
-                    expect(
-                        a.trace.slice(1).every((r) => r.kineticEnergy > 0),
-                        `${graph}: kinetic`,
-                    ).toBe(true);
-                    expect(
-                        a.trace.every((r) => r.settledCount === 0),
-                        `${graph}: never settles`,
-                    ).toBe(true);
-                } finally {
-                    ctx.release(s);
                 }
-            },
-            CASE_TIMEOUT,
-        );
+                expectBitwiseEqual(
+                    Float32Array.from(a.trace.map((r) => r.kineticEnergy)),
+                    Float32Array.from(b.trace.map((r) => r.kineticEnergy)),
+                    `${graph}: kinetic energy run 1 vs run 2`,
+                );
+                const oracle = oracleTrajectory(s, start, SE_BASE_OPTIONS, checkpoints);
+                const tolerance = seTolerance("se-trajectory").value;
+                const measured = checkpoints.map((k) => {
+                    const err = stageError(true, at(a.positions, k), at(oracle.positions, k));
+                    return { k, rel: err.rel, abs: err.abs };
+                });
+                console.warn(
+                    `[se-trace] ${graph} (se-trajectory ${tolerance.toExponential(3)}): ${measured
+                        .map(
+                            (m) =>
+                                `k=${m.k} rel ${m.rel.toExponential(3)} (ratio ${ratioOf(m.rel, tolerance).toExponential(3)}, max abs ${m.abs.toExponential(3)})${asserted.includes(m.k) ? "" : " informational"}`,
+                        )
+                        .join("; ")}`,
+                );
+                for (const k of asserted) {
+                    const err = stageError(true, at(a.positions, k), at(oracle.positions, k));
+                    assertCheckPasses({
+                        worst: ratioOf(err.rel, tolerance),
+                        worstLabel: `${graph}: positions after ${k} iterations vs the f64 oracle`,
+                        samples: s.nodeCount,
+                    });
+                }
+                for (const k of checkpoints) {
+                    expect(
+                        Array.from(at(a.positions, k)).every((v) => Number.isFinite(v)),
+                        `${graph}: finite after ${k} iterations`,
+                    ).toBe(true);
+                }
+                // (1) the kinetic energy, lagged by one iteration (PD-4), and the K1 fold, index-aligned
+                expect(a.trace).toHaveLength(PRINTED);
+                expect(oracle.trace).toHaveLength(PRINTED);
+                expect(a.trace[0].kineticEnergy, `${graph}: the first record folds nothing`).toBe(0);
+                const folds: CheckReport[] = a.trace.map((g, k) => {
+                    const o = oracle.trace[k];
+                    const fold = stageError(
+                        false,
+                        [g.meanDisplacement, g.settledCount],
+                        [o.meanDisplacement, o.settledCount],
+                    );
+                    const lagged = k === 0 ? 0 : oracle.trace[k - 1].kineticEnergy;
+                    const energy = k === 0 ? 0 : stageError(false, [g.kineticEnergy], [lagged]).rel;
+                    return {
+                        worst: ratioOf(Math.max(fold.rel, energy), tolerance),
+                        worstLabel: `${graph}: record ${k} (meanDisplacement ${g.meanDisplacement} vs ${o.meanDisplacement}; kineticEnergy ${g.kineticEnergy} vs ${lagged})`,
+                        samples: 3,
+                    };
+                });
+                const horizon = Math.max(...asserted);
+                const worstAsserted = mergeReports(folds.slice(0, horizon + 1));
+                const worstAll = mergeReports(folds);
+                console.warn(
+                    `[se-trace] ${graph}: lagged kinetic energy and K1 fold through record ${horizon}: worst ratio ${worstAsserted.worst.toExponential(3)} at ${worstAsserted.worstLabel}; through ${PRINTED} (informational): ${worstAll.worst.toExponential(3)} at ${worstAll.worstLabel}`,
+                );
+                assertCheckPasses(worstAsserted);
+                expect(a.trace[0].meanDisplacement).toBe(0);
+                expect(
+                    a.trace.slice(1).every((r) => r.meanDisplacement > 0),
+                    `${graph}: moving`,
+                ).toBe(true);
+                expect(
+                    a.trace.slice(1).every((r) => r.kineticEnergy > 0),
+                    `${graph}: kinetic`,
+                ).toBe(true);
+                expect(
+                    a.trace.every((r) => r.settledCount === 0),
+                    `${graph}: never settles`,
+                ).toBe(true);
+            } finally {
+                ctx.release(s);
+            }
+        });
     }
 
     it(`writes the ${TRAJ10_HORIZON}-iteration positions of ${TRAJ10_GRAPH} and the f64 reference's as the traj10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`, async (t) => {

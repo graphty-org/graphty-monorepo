@@ -18,6 +18,7 @@ import { RecoveredWork } from "../autosave/RecoveredWork";
 import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
+import { count } from "../inspector/words";
 import { UsageDataCard } from "../privacy/UsageDataCard";
 import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
@@ -25,6 +26,7 @@ import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
 import { openServerForm } from "../server/commands";
 import type { WorkspaceStore } from "../state/store";
+import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
 import lockupOnLight from "./brand/graphty-lockup-color-on-light.svg";
@@ -33,7 +35,18 @@ import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import { NetworkDataDialog } from "./NetworkDataDialog";
-import { openDataset, openFiles, openGenerated, openModel, openSample, openUrl, pictureOf } from "./open";
+import {
+    copyOf,
+    openDataset,
+    openFiles,
+    openGenerated,
+    openModel,
+    openSample,
+    openUrl,
+    OWN_COPIES,
+    pictureOf,
+    samplePicture,
+} from "./open";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -52,14 +65,6 @@ const HERO: HeroSample = (() => {
     const sample = START_SAMPLES.find((each) => each.id === "les-miserables") ?? START_SAMPLES[0];
     return { url: sample.url, name: sample.name, path: ["Napoleon", "Brujon"] };
 })();
-
-/** The graph-samples dataset each of the app's own four sample files is a copy of, by sample id. */
-const OWN_COPIES: Readonly<Record<string, string>> = {
-    "les-miserables": "les-miserables",
-    karate: "karate",
-    "college-football": "football",
-    florentine: "florentine-families",
-};
 
 /**
  * The field each dataset comes from, for the tag on its tile and the library's field filter: this
@@ -214,7 +219,7 @@ function sampleTiles(
 ): SampleTile[] {
     return [
         ...samples.map((sample) => {
-            const dataset = datasets.find((each) => each.name === OWN_COPIES[sample.id]);
+            const dataset = copyOf(sample);
             const field = FIELDS[sample.id] ?? "Other";
             const hook = HOOKS[sample.id] ?? sample.name;
             return {
@@ -224,7 +229,7 @@ function sampleTiles(
                 field,
                 size: dataset === undefined ? sample.size : sizeWords(dataset),
                 sentence: sample.sentence,
-                picture: () => (dataset === undefined ? sample.picture : pictureOf(dataset)),
+                picture: () => samplePicture(sample),
                 note: undefined,
                 words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
                 open: ({ store }: LibraryActions) => {
@@ -507,9 +512,13 @@ function SampleLibrary(): React.JSX.Element {
     );
     const samples = tiles.filter((tile) => tile.field !== GENERATED);
     const generators = tiles.filter((tile) => tile.field === GENERATED);
+    // How many the box and the field filter leave, said as they change; never on arrival.
+    useAnnounceChange(`${count(tiles.length, "sample")} shown`);
     return (
         <section className="ws-land-band" id="ws-land-samples" aria-label="Sample library">
-            <h2 className="ws-land-h2">Sample library</h2>
+            <h2 className="ws-land-h2 cm-focus-inside" id="ws-land-samples-title" tabIndex={-1}>
+                Sample library
+            </h2>
             <p className="ws-land-intro">
                 {DATASET_COUNT} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
                 routes, and {GENERATOR_DESCRIPTORS.length} ways to generate one.
@@ -567,7 +576,7 @@ function SampleLibrary(): React.JSX.Element {
                         <LibraryTile
                             key={tile.id}
                             tile={tile}
-                            label={`Open the ${tile.name} sample`}
+                            label={`Open the ${tile.name} sample: ${tile.hook}`}
                             onClick={() => {
                                 tile.open(actions);
                             }}
@@ -649,7 +658,8 @@ function PageFoot(): React.JSX.Element {
                     Docs
                 </a>{" "}
                 &middot; Put it on your own site: <code>npm i @graphty/graphty-element</code>{" "}
-                <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer">
+                {/* The footer's other "Docs" is the app's; this one names what it documents. */}
+                <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer" aria-label="Docs for graphty-element">
                     Docs
                 </a>
             </span>
@@ -735,7 +745,10 @@ export function StartScreen(): React.JSX.Element {
 
     const returning = recent.length > 0;
     const [latest] = recent;
+    // Focus goes with the scroll, to the library's heading: not editable, so Home, End and the Page
+    // keys still scroll the page, and the next Tab reaches the search.
     const showSamples = (): void => {
+        document.getElementById("ws-land-samples-title")?.focus({ preventScroll: true });
         document.getElementById("ws-land-samples")?.scrollIntoView({ behavior: "smooth" });
     };
     const privacy = (
@@ -815,7 +828,6 @@ export function StartScreen(): React.JSX.Element {
             </header>
 
             <section className="ws-land-hero" aria-label="Start a project, over a live graph you can turn and explore">
-                <HeroGraph sample={HERO} background={CANVAS[scheme]} scheme={scheme} onSession={onSession} />
                 <div className="ws-land-over">
                     <Lockup className="ws-land-lockup" boxRef={lockup} />
                     <RecoveredWork />
@@ -902,6 +914,9 @@ export function StartScreen(): React.JSX.Element {
                         </>
                     )}
                 </div>
+                {/* After the words in the markup, so Tab reaches "Open a file" before the demo graph and
+                    its buttons; the CSS places each part, so the look is unchanged. */}
+                <HeroGraph sample={HERO} background={CANVAS[scheme]} scheme={scheme} onSession={onSession} />
                 <FactBar session={session} />
             </section>
 
@@ -938,6 +953,11 @@ export function StartScreen(): React.JSX.Element {
                     setNetwork(false);
                     openServerForm(workspace.store);
                 }}
+                onOpenFile={() => {
+                    setNetwork(false);
+                    openDoor?.run();
+                }}
+                openFileKey={openDoor?.command.keys?.[0]}
             />
 
             {dragging ? (

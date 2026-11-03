@@ -255,7 +255,8 @@ export interface AutosaveAvailable {
     /** The entry. */
     readonly entry: AutosaveEntry;
     /**
-     * `"page-data-changed"`: the page loaded different data, which replaced the restored work.
+     * `"page-data-changed"`: the page loaded different data, which replaced the restored work, or
+     * which it asked for before the restore could open, so the work was not reopened over it.
      * `"held-by-other-tab"`: another tab is writing it. `"restore-failed"`: it could not be read,
      * was written by newer code, or its restore did not finish twice (`problem` says which).
      * `"manual"`: automatic restore is off.

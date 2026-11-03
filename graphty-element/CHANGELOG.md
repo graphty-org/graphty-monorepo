@@ -1,3 +1,329 @@
+## 3.35.0 (2026-11-02)
+
+### 🚀 Features
+
+- **graphty-element:** frame a sigma.js file as sigma.js does, on request ([#5367](https://github.com/graphty-org/graphty-monorepo/issues/5367))
+- **graphty-element:** selection.clear takes a cause; a reader's clear turns select conditions off ([#5498](https://github.com/graphty-org/graphty-monorepo/issues/5498))
+- **graphty-element:** a reader's selection.apply switches select conditions off ([#4598](https://github.com/graphty-org/graphty-monorepo/issues/4598))
+- **graphty-element:** space a computed layout of a styled file as its program does ([#3168](https://github.com/graphty-org/graphty-monorepo/issues/3168), [#3103](https://github.com/graphty-org/graphty-monorepo/issues/3103))
+
+### 🩹 Fixes
+
+- **graphty-element:** step the particle transition test on a frame clock, not the wall clock ([#5498](https://github.com/graphty-org/graphty-monorepo/issues/5498))
+- **graphty-element:** keep an expanded line batch when its edges are torn down ([#3095](https://github.com/graphty-org/graphty-monorepo/issues/3095))
+- **graphty-element:** style comparator reads arrowhead tips, box outlines and hidden shapes ([#5533](https://github.com/graphty-org/graphty-monorepo/issues/5533), [#5383](https://github.com/graphty-org/graphty-monorepo/issues/5383), [#5387](https://github.com/graphty-org/graphty-monorepo/issues/5387), [#5196](https://github.com/graphty-org/graphty-monorepo/issues/5196))
+- **graph-io:** read session group state, check tool rule-defaults, unify the block repair ([#3111](https://github.com/graphty-org/graphty-monorepo/issues/3111), [#5544](https://github.com/graphty-org/graphty-monorepo/issues/5544))
+- **graphty-element:** give an expanded line batch's part a bounding box ([#3095](https://github.com/graphty-org/graphty-monorepo/issues/3095))
+- **graphty-element:** draw joined edge lines as one plain mesh on a software renderer ([#3095](https://github.com/graphty-org/graphty-monorepo/issues/3095))
+- **graphty-element:** frame the points an edge's bends and curves are drawn through ([#3097](https://github.com/graphty-org/graphty-monorepo/issues/3097))
+- **graphty-element:** deliver lifecycle-disposed to graph.on and DOM listeners ([#1645](https://github.com/graphty-org/graphty-monorepo/issues/1645))
+- **graph-io:** draw Pajek Bezier lines and turned labels as Pajek does ([#4524](https://github.com/graphty-org/graphty-monorepo/issues/4524), [#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531), [#5226](https://github.com/graphty-org/graphty-monorepo/issues/5226))
+- **graph-io:** draw Pajek Bezier lines and turned labels as Pajek does ([#4524](https://github.com/graphty-org/graphty-monorepo/issues/4524), [#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531), [#5226](https://github.com/graphty-org/graphty-monorepo/issues/5226))
+- **graphty-element:** fidelity comparator pairs nodes drawn on one spot one to one ([#4264](https://github.com/graphty-org/graphty-monorepo/issues/4264), [#5506](https://github.com/graphty-org/graphty-monorepo/issues/5506), [#4451](https://github.com/graphty-org/graphty-monorepo/issues/4451))
+- **graphty-element:** calibrate lengths "spacing" on the spacing layouts settle at ([#5514](https://github.com/graphty-org/graphty-monorepo/issues/5514))
+- **graphty-element:** keep lint type checks inside the worktree ([#5296](https://github.com/graphty-org/graphty-monorepo/issues/5296))
+- **graphty-element:** leave out the edge labels Graphviz drops under forcelabels=false ([#5499](https://github.com/graphty-org/graphty-monorepo/issues/5499))
+- **graphty-element:** half arrows without a break, Cytoscape's barb, vis-network's crow ([#5490](https://github.com/graphty-org/graphty-monorepo/issues/5490), [#5491](https://github.com/graphty-org/graphty-monorepo/issues/5491))
+- **graphty-element:** half arrows without a break, Cytoscape's barb, vis-network's crow A half arrow's line now runs on to where its arm meets the line (half-open and half-open- flipped 0.4 of the cap back from the tip), so no break shows before the barb. Graphviz's halfopen and Cytoscape's half arrows both meet their line; graphty-element stopped it at the head's back and left a gap of 0.6 of the head. ([#5490](https://github.com/graphty-org/graphty-monorepo/issues/5490), [#5491](https://github.com/graphty-org/graphty-monorepo/issues/5491))
+- **graphty-element:** redraw node glyphs and text annotations when their web font loads ([#5140](https://github.com/graphty-org/graphty-monorepo/issues/5140))
+- **graphty-element:** refuse malformed data door arguments with E_BAD_COMMAND ([#5504](https://github.com/graphty-org/graphty-monorepo/issues/5504))
+- **graph-io:** place a Pajek part-way arrowhead's tip 5 s past the point ap names ([#4514](https://github.com/graphty-org/graphty-monorepo/issues/4514))
+- **graphty-element:** report a seed on a seedless layout as W_UNKNOWN_OPTION ([#5124](https://github.com/graphty-org/graphty-monorepo/issues/5124))
+- **graphty-element:** measure minDelta on landed batches of an accelerated simulation ([#3379](https://github.com/graphty-org/graphty-monorepo/issues/3379), [#4437](https://github.com/graphty-org/graphty-monorepo/issues/4437))
+- **graphty-element:** keep column descriptors across view mask changes ([#4386](https://github.com/graphty-org/graphty-monorepo/issues/4386))
+- **graphty-element:** leave out a DOT xlabel that forcelabels=false has no room for ([#5279](https://github.com/graphty-org/graphty-monorepo/issues/5279))
+- **graph-io:** name the server that answered on every source failure ([#5200](https://github.com/graphty-org/graphty-monorepo/issues/5200))
+- **graphty-element:** see half-arrow line breaks, open half arrows and vis-network's crow ([#5490](https://github.com/graphty-org/graphty-monorepo/issues/5490), [#5491](https://github.com/graphty-org/graphty-monorepo/issues/5491), [#4252](https://github.com/graphty-org/graphty-monorepo/issues/4252))
+- **graphty-element:** route the renderer's data edits through the load line ([#3604](https://github.com/graphty-org/graphty-monorepo/issues/3604), [#5416](https://github.com/graphty-org/graphty-monorepo/issues/5416))
+- **graphty-element:** styles.settled() waits for a live set's repaint after a graph change ([#3667](https://github.com/graphty-org/graphty-monorepo/issues/3667))
+- **graphty-element:** frame center labels before their sight-line slide, and fit textures by step ([#3239](https://github.com/graphty-org/graphty-monorepo/issues/3239))
+- **graphty-element:** shrink label copies on the CPU, and owe no texture walk without a camera ([#3239](https://github.com/graphty-org/graphty-monorepo/issues/3239))
+- **graphty-element:** keep labels sharp in a capture larger than the canvas with the screen fit ([#3239](https://github.com/graphty-org/graphty-monorepo/issues/3239))
+- **graphty-element:** draw labels sharp, and center labels on their node's line of sight ([#3239](https://github.com/graphty-org/graphty-monorepo/issues/3239))
+- **graphty-element:** layouts read the edge weight by its meaning ([#3329](https://github.com/graphty-org/graphty-monorepo/issues/3329))
+- **graphty-element:** keep a merged CSV draft joined to a graph's number ids ([#3243](https://github.com/graphty-org/graphty-monorepo/issues/3243))
+- **graphty-element,graphty:** load a project.open draft as data.import loads the same file ([#3243](https://github.com/graphty-org/graphty-monorepo/issues/3243))
+- **graphty-element:** keep Run's public style read-only; test compares public state ([#3231](https://github.com/graphty-org/graphty-monorepo/issues/3231))
+- **graphty-element:** a removed run started again takes the new start's styling ([#3231](https://github.com/graphty-org/graphty-monorepo/issues/3231))
+- **layout:** make a group held at its members' box inert in the simulation layouts ([#3075](https://github.com/graphty-org/graphty-monorepo/issues/3075))
+- **graphty-element:** announce time:ready on a microtask, never inside a read ([#4450](https://github.com/graphty-org/graphty-monorepo/issues/4450))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.66
+- Updated @graphty/remote-logger to 2.0.28
+- Updated babylonjs-map to 0.0.5
+- Updated graph-samples to 0.1.44
+- Updated visual-review to 0.2.40
+- Updated graph-format to 1.4.12
+- Updated algorithms to 3.4.19
+- Updated graph-io to 0.3.53
+- Updated layout to 2.5.15
+
+## 3.34.0 (2026-11-01)
+
+### 🚀 Features
+
+- **graphty-element:** opt-in extent "drawn" for camera views ([#5346](https://github.com/graphty-org/graphty-monorepo/issues/5346), [#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668))
+- **graphty-element:** draw a table label cell by cell and size the node round it ([#5258](https://github.com/graphty-org/graphty-monorepo/issues/5258))
+- **graphty-element:** lay out a table label cell by cell as Graphviz does ([#5258](https://github.com/graphty-org/graphty-monorepo/issues/5258))
+- **graphty-element:** waitForStableFrame's default wait follows a test harness's hang guard ([#3284](https://github.com/graphty-org/graphty-monorepo/issues/3284))
+
+### 🩹 Fixes
+
+- **graphty-element:** make an autosave commit wait for fewer IndexedDB answers ([#2957](https://github.com/graphty-org/graphty-monorepo/issues/2957))
+- **graphty-element:** name the map, not the catch-all, while a map tile loads ([#5344](https://github.com/graphty-org/graphty-monorepo/issues/5344))
+- **graphty-element:** run one import at a time in the session without a renderer ([#3535](https://github.com/graphty-org/graphty-monorepo/issues/3535), [#4439](https://github.com/graphty-org/graphty-monorepo/issues/4439))
+- **graphty-element:** never let the host's 2:1 aspect-ratio force its container wider than the page ([#3597](https://github.com/graphty-org/graphty-monorepo/issues/3597))
+- **graphty-element:** read a line that runs through one node to the next as that node's edge ([#5383](https://github.com/graphty-org/graphty-monorepo/issues/5383), [#4258](https://github.com/graphty-org/graphty-monorepo/issues/4258), [#1](https://github.com/graphty-org/graphty-monorepo/issues/1), [#5386](https://github.com/graphty-org/graphty-monorepo/issues/5386), [#5387](https://github.com/graphty-org/graphty-monorepo/issues/5387), [#5384](https://github.com/graphty-org/graphty-monorepo/issues/5384), [#5385](https://github.com/graphty-org/graphty-monorepo/issues/5385), [#5119](https://github.com/graphty-org/graphty-monorepo/issues/5119), [#5375](https://github.com/graphty-org/graphty-monorepo/issues/5375), [#5365](https://github.com/graphty-org/graphty-monorepo/issues/5365))
+- **graphty-element:** frame screen-size labels at the size drawn for the framing camera ([#3106](https://github.com/graphty-org/graphty-monorepo/issues/3106))
+- **workspace:** shrink CLAUDE.md files and move area rules to where they apply ([#3304](https://github.com/graphty-org/graphty-monorepo/issues/3304), [#1607](https://github.com/graphty-org/graphty-monorepo/issues/1607), [#1591](https://github.com/graphty-org/graphty-monorepo/issues/1591), [#1595](https://github.com/graphty-org/graphty-monorepo/issues/1595), [#1741](https://github.com/graphty-org/graphty-monorepo/issues/1741))
+- **graph-io:** serve the DOT and GML specimen pictures so images-charts draws them ([#5344](https://github.com/graphty-org/graphty-monorepo/issues/5344), [#5345](https://github.com/graphty-org/graphty-monorepo/issues/5345), [#4970](https://github.com/graphty-org/graphty-monorepo/issues/4970), [#4863](https://github.com/graphty-org/graphty-monorepo/issues/4863), [#4712](https://github.com/graphty-org/graphty-monorepo/issues/4712), [#4662](https://github.com/graphty-org/graphty-monorepo/issues/4662), [#4781](https://github.com/graphty-org/graphty-monorepo/issues/4781), [#4754](https://github.com/graphty-org/graphty-monorepo/issues/4754))
+- **graphty-element:** draw sigma and graphology labels at their screen size ([#3106](https://github.com/graphty-org/graphty-monorepo/issues/3106), [#5367](https://github.com/graphty-org/graphty-monorepo/issues/5367))
+- **graphty-element:** place patterned elements along bent and curved routes in one sweep ([#3102](https://github.com/graphty-org/graphty-monorepo/issues/3102), [#3094](https://github.com/graphty-org/graphty-monorepo/issues/3094))
+- **graphty-element:** fit every corner of the box in the 3D fitToGraph view ([#5349](https://github.com/graphty-org/graphty-monorepo/issues/5349))
+- **graph-io:** read yEd's inside label places as inside and write GML anchors ([#3101](https://github.com/graphty-org/graphty-monorepo/issues/3101))
+- **graphty-element:** read two stacked flat boxes as two nodes in the style comparator ([#4265](https://github.com/graphty-org/graphty-monorepo/issues/4265), [#5347](https://github.com/graphty-org/graphty-monorepo/issues/5347), [#5332](https://github.com/graphty-org/graphty-monorepo/issues/5332))
+- **graphty-element:** frame every node out to the box it is drawn in ([#2668](https://github.com/graphty-org/graphty-monorepo/issues/2668), [#3087](https://github.com/graphty-org/graphty-monorepo/issues/3087))
+- **graphty-element:** read a drawn label's box as its font box, without the line's leading ([#5322](https://github.com/graphty-org/graphty-monorepo/issues/5322))
+- **graphty-element:** list Node.surfaceIsBox as a read in the door list ([#5270](https://github.com/graphty-org/graphty-monorepo/issues/5270))
+- **graphty-element:** end edges at a DOT glyph's box, not at its pieces ([#5322](https://github.com/graphty-org/graphty-monorepo/issues/5322), [#5270](https://github.com/graphty-org/graphty-monorepo/issues/5270))
+- **graphty-element:** set a DOT table's text line by its font's ascent, descent and baseline ([#5313](https://github.com/graphty-org/graphty-monorepo/issues/5313))
+- **graphty-element:** settle curved edges' support points from a fixed start once the nodes stop ([#5299](https://github.com/graphty-org/graphty-monorepo/issues/5299))
+- **graphty-element:** size a DOT node and a table cell by their picture, and resolve picture paths ([#5313](https://github.com/graphty-org/graphty-monorepo/issues/5313), [#26](https://github.com/graphty-org/graphty-monorepo/issues/26), [#62](https://github.com/graphty-org/graphty-monorepo/issues/62), [#5307](https://github.com/graphty-org/graphty-monorepo/issues/5307))
+- **graphty-element:** lay an unstyled DOT file out at the drawn node size ([#5293](https://github.com/graphty-org/graphty-monorepo/issues/5293))
+- **graphty-element:** read a table background's cell outline only in the SVG comparison ([#5281](https://github.com/graphty-org/graphty-monorepo/issues/5281))
+- **graphty-element:** draw DOT table backgrounds and cell pictures, read DOT node images ([#5281](https://github.com/graphty-org/graphty-monorepo/issues/5281))
+- **graphty-element:** owe a fit again when an input it read changes before the picture is final ([#3372](https://github.com/graphty-org/graphty-monorepo/issues/3372), [#5299](https://github.com/graphty-org/graphty-monorepo/issues/5299), [#4218](https://github.com/graphty-org/graphty-monorepo/issues/4218))
+- **graphty-element:** lint with two eslint workers, not one per two cores ([#5181](https://github.com/graphty-org/graphty-monorepo/issues/5181))
+- **graphty-element:** draw a DOT edge's xlabel beside its label ([#5288](https://github.com/graphty-org/graphty-monorepo/issues/5288))
+- **graphty-element:** place a DOT edge's xlabel, headlabel and taillabel where Graphviz puts them ([#5278](https://github.com/graphty-org/graphty-monorepo/issues/5278), [#5273](https://github.com/graphty-org/graphty-monorepo/issues/5273))
+- **graphty-element:** register the xlabel channels everywhere and restart a woken layout ([#5263](https://github.com/graphty-org/graphty-monorepo/issues/5263))
+- **graphty-element:** draw a DOT node's xlabel beside the node ([#5273](https://github.com/graphty-org/graphty-monorepo/issues/5273), [#5263](https://github.com/graphty-org/graphty-monorepo/issues/5263))
+- **graphty-element:** turn the 2D view for DOT rotate and landscape ([#5260](https://github.com/graphty-org/graphty-monorepo/issues/5260))
+- **graphty-element:** keep DOT synthetic-biology glyph pieces at their sizes in points ([#5262](https://github.com/graphty-org/graphty-monorepo/issues/5262), [#5259](https://github.com/graphty-org/graphty-monorepo/issues/5259))
+- **graphty-element:** let outerBorder.count take any number from 1, as its channel declares ([#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224))
+- **graphty-element:** round a fitted label box up to the DOT quantum ([#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224))
+- **graphty-element:** grow a star around its label as Graphviz does ([#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224))
+- **graph-io:** stretch a laid-out DOT drawing to its numeric ratio ([#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224))
+- **graphty-element:** draw every DOT periphery as its own ring ([#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224))
+- **graphty-element:** keep the annotation-fit hook out of the public API ([#5231](https://github.com/graphty-org/graphty-monorepo/issues/5231))
+- **graphty-element:** read a filled path's subpaths again, which the oracle keeps ([#5242](https://github.com/graphty-org/graphty-monorepo/issues/5242))
+- **graphty-element:** end Cytoscape annotation arrows at a note's text box and a node's outline ([#3](https://github.com/graphty-org/graphty-monorepo/issues/3), [#5231](https://github.com/graphty-org/graphty-monorepo/issues/5231))
+- **graphty-element:** size Graphviz labels in the face the element draws them in ([#5243](https://github.com/graphty-org/graphty-monorepo/issues/5243), [#5241](https://github.com/graphty-org/graphty-monorepo/issues/5241), [#5116](https://github.com/graphty-org/graphty-monorepo/issues/5116))
+- **graph-io:** measure DOT oracle labels in the face the browser draws them in ([#5116](https://github.com/graphty-org/graphty-monorepo/issues/5116), [#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224), [#5223](https://github.com/graphty-org/graphty-monorepo/issues/5223))
+- **graphty-element:** bundle browser test dependencies afresh every run ([#885](https://github.com/graphty-org/graphty-monorepo/issues/885), [#5134](https://github.com/graphty-org/graphty-monorepo/issues/5134))
+- **graphty-element:** deprecate waitForStableFrame's timeoutMs and lint it through a const ([#5108](https://github.com/graphty-org/graphty-monorepo/issues/5108))
+- **graphty-element:** fold zero-width spaces in the style fidelity comparator's words ([#3108](https://github.com/graphty-org/graphty-monorepo/issues/3108), [#5118](https://github.com/graphty-org/graphty-monorepo/issues/5118))
+- **graph-io:** start a Cytoscape annotation arrow past its source X, as Cytoscape draws it ([#60](https://github.com/graphty-org/graphty-monorepo/issues/60), [#153](https://github.com/graphty-org/graphty-monorepo/issues/153), [#5231](https://github.com/graphty-org/graphty-monorepo/issues/5231), [#90](https://github.com/graphty-org/graphty-monorepo/issues/90), [#0](https://github.com/graphty-org/graphty-monorepo/issues/0), [#4](https://github.com/graphty-org/graphty-monorepo/issues/4), [#5117](https://github.com/graphty-org/graphty-monorepo/issues/5117))
+- **graph-io:** run Pajek lines to an empty vertex's center and place its label as Pajek does ([#4524](https://github.com/graphty-org/graphty-monorepo/issues/4524), [#5226](https://github.com/graphty-org/graphty-monorepo/issues/5226), [#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224), [#5223](https://github.com/graphty-org/graphty-monorepo/issues/5223))
+- **ci:** log every paid LLM run's real cost, a cut-off one's too, and cap lost bisect points ([#5062](https://github.com/graphty-org/graphty-monorepo/issues/5062))
+- **graphty-element:** drop deepmerge from the dependency tree (GHSA-gcqx-w48m-w2h4) ([#5205](https://github.com/graphty-org/graphty-monorepo/issues/5205))
+- **graphty-element:** read the iOS test's saved entry from the auto-saved report ([#5150](https://github.com/graphty-org/graphty-monorepo/issues/5150))
+- **graphty-element:** keep the guide's plugin examples in the built Storybook ([#5201](https://github.com/graphty-org/graphty-monorepo/issues/5201))
+- **graphty-element:** draw no frame after a pass that writes only graph values nothing draws ([#3973](https://github.com/graphty-org/graphty-monorepo/issues/3973))
+- **graphty-element:** settle waits ask only the pending-work record; split paint holds a token ([#3528](https://github.com/graphty-org/graphty-monorepo/issues/3528), [#4218](https://github.com/graphty-org/graphty-monorepo/issues/4218), [#3372](https://github.com/graphty-org/graphty-monorepo/issues/3372), [#3361](https://github.com/graphty-org/graphty-monorepo/issues/3361), [#3527](https://github.com/graphty-org/graphty-monorepo/issues/3527), [#3531](https://github.com/graphty-org/graphty-monorepo/issues/3531), [#3533](https://github.com/graphty-org/graphty-monorepo/issues/3533), [#4219](https://github.com/graphty-org/graphty-monorepo/issues/4219))
+- **graphty-element:** cap the number of pieces a patterned line draws ([#4257](https://github.com/graphty-org/graphty-monorepo/issues/4257))
+- **graphty-element:** keep changes made right after a clear cancels a waiting restore ([#3313](https://github.com/graphty-org/graphty-monorepo/issues/3313), [#3674](https://github.com/graphty-org/graphty-monorepo/issues/3674))
+- **graphty-element:** keep the session when the element is moved in the page ([#3599](https://github.com/graphty-org/graphty-monorepo/issues/3599))
+- **graphty-element:** a stable-frame wait sees a mesh built just before it ([#5139](https://github.com/graphty-org/graphty-monorepo/issues/5139))
+- **graphty-element:** stop linking drawnRadius docs to the internal layoutRadius ([#5138](https://github.com/graphty-org/graphty-monorepo/issues/5138), [#5151](https://github.com/graphty-org/graphty-monorepo/issues/5151))
+- **graphty-element:** never ask again for a label font that failed to load ([#3531](https://github.com/graphty-org/graphty-monorepo/issues/3531))
+- **graphty-element:** release the entry's lock when the page leaves during the startup restore ([#3313](https://github.com/graphty-org/graphty-monorepo/issues/3313))
+- **graphty-element:** classify refreshFonts as a render door and group the quote regex ([#3531](https://github.com/graphty-org/graphty-monorepo/issues/3531))
+- **graphty-element:** keep the reader's own restore unconditional and adapt autosave tests ([#3313](https://github.com/graphty-org/graphty-monorepo/issues/3313))
+- **graphty-element:** rebuild labels when their web font finishes loading ([#5140](https://github.com/graphty-org/graphty-monorepo/issues/5140), [#3531](https://github.com/graphty-org/graphty-monorepo/issues/3531))
+- **graphty-element:** never restore autosaved work over a graph the page asked for ([#3313](https://github.com/graphty-org/graphty-monorepo/issues/3313), [#3375](https://github.com/graphty-org/graphty-monorepo/issues/3375))
+- **graphty-element:** re-trim edges when a zoom rebuilds a screen-width border ([#3532](https://github.com/graphty-org/graphty-monorepo/issues/3532))
+- **graphty-element:** forget a rolled-back push's made endpoints ([#3192](https://github.com/graphty-org/graphty-monorepo/issues/3192))
+- **graphty-element:** ship one lodash omit in ./ai and raise its size budget ([#3278](https://github.com/graphty-org/graphty-monorepo/issues/3278), [#3219](https://github.com/graphty-org/graphty-monorepo/issues/3219))
+- **graphty-element:** let the graph pass draw the nodes a pushed edge made ([#582](https://github.com/graphty-org/graphty-monorepo/issues/582), [#3192](https://github.com/graphty-org/graphty-monorepo/issues/3192))
+- **graphty-element:** hold the stable frame for a requested frame and a mesh built outside a pass ([#3377](https://github.com/graphty-org/graphty-monorepo/issues/3377), [#3287](https://github.com/graphty-org/graphty-monorepo/issues/3287))
+- **graphty-element:** draw the nodes an edge names when no node record gives them ([#3192](https://github.com/graphty-org/graphty-monorepo/issues/3192))
+- **graphty-element:** load encrypt-storage without a top-level await ([#3278](https://github.com/graphty-org/graphty-monorepo/issues/3278))
+- **graphty-element:** build with webpack 5, Vite 8 and esbuild with no optional peers ([#3219](https://github.com/graphty-org/graphty-monorepo/issues/3219), [#3278](https://github.com/graphty-org/graphty-monorepo/issues/3278))
+- **graphty-element:** a remount finds an edit made while the page's load ran ([#5038](https://github.com/graphty-org/graphty-monorepo/issues/5038), [#5039](https://github.com/graphty-org/graphty-monorepo/issues/5039))
+- **graphty-element:** pick a patterned edge along the route it is drawn on ([#3102](https://github.com/graphty-org/graphty-monorepo/issues/3102))
+- **graphty-element:** lay patterned edges along their route ([#3102](https://github.com/graphty-org/graphty-monorepo/issues/3102))
+- **graphty-element:** a patterned line's element count follows only its current length ([84fedd8ebc](https://github.com/graphty-org/graphty-monorepo/commit/84fedd8ebc))
+
+### 🔥 Performance
+
+- **graphty-element:** cut the vis-siblings matched story's CPU time by a third ([#5242](https://github.com/graphty-org/graphty-monorepo/issues/5242))
+- **graphty-element:** measure each line once when pairing arrowheads in the oracle comparator ([#4583](https://github.com/graphty-org/graphty-monorepo/issues/4583))
+- **graphty-element:** read the key's node pictures back without blocking the main thread ([#3285](https://github.com/graphty-org/graphty-monorepo/issues/3285))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.65
+- Updated @graphty/remote-logger to 2.0.27
+- Updated babylonjs-map to 0.0.4
+- Updated graph-samples to 0.1.43
+- Updated visual-review to 0.2.39
+- Updated graph-format to 1.4.11
+- Updated algorithms to 3.4.18
+- Updated graph-io to 0.3.52
+- Updated layout to 2.5.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.33.0 (2026-10-31)
+
+### 🚀 Features
+
+- **graphty-element:** cache the prompt prefix and use the Flex tier in the paid Gemini LLM tests ([#4486](https://github.com/graphty-org/graphty-monorepo/issues/4486))
+- **graphty-element:** filter conditions with keep, exclude and select effects ([#4405](https://github.com/graphty-org/graphty-monorepo/issues/4405))
+- **graphty-element:** mapScale draws the flat map larger too, as it does the globe ([cf5ebc59db](https://github.com/graphty-org/graphty-monorepo/commit/cf5ebc59db))
+- **graphty-element:** live preview of shader text in the code dialog ([#3320](https://github.com/graphty-org/graphty-monorepo/issues/3320))
+- **graphty-element:** a globeScale option draws the globe larger under nodes that keep their size ([ffd5dcaaac](https://github.com/graphty-org/graphty-monorepo/commit/ffd5dcaaac))
+- **graphty-element:** the map follows the 2D and 3D view; globe sizing, arcs, look and camera ([04fccd1912](https://github.com/graphty-org/graphty-monorepo/commit/04fccd1912))
+- **graphty-element:** shader presets per the second redesign, and an animates fact ([9d1e732769](https://github.com/graphty-org/graphty-monorepo/commit/9d1e732769))
+- **graphty-element:** node.shaders and edge.shaders lists with a place per use ([b0fef19232](https://github.com/graphty-org/graphty-monorepo/commit/b0fef19232))
+- **graphty-element:** place-based shader descriptor, registration and GLSL contract ([8eb1c9340d](https://github.com/graphty-org/graphty-monorepo/commit/8eb1c9340d))
+- **graphty-element:** node.meshDetail channel for low-detail round node meshes ([b141e52844](https://github.com/graphty-org/graphty-monorepo/commit/b141e52844))
+- **graphty-element:** background color, image and shader stack ([bc6f0166ca](https://github.com/graphty-org/graphty-monorepo/commit/bc6f0166ca))
+- **graphty:** a reload of this tab reopens its own work in the workspace ([ae83981e43](https://github.com/graphty-org/graphty-monorepo/commit/ae83981e43))
+- **graphty-element:** thumbnails, saving and safety the same for every shader origin ([148550eebf](https://github.com/graphty-org/graphty-monorepo/commit/148550eebf))
+- **graphty-element:** shaders by target and role, one registration path, and the shader guide ([36757b7fe1](https://github.com/graphty-org/graphty-monorepo/commit/36757b7fe1))
+- **graphty-element:** listAutosaves marks this tab's own entry, decided by its Web Lock ([104f2e3f14](https://github.com/graphty-org/graphty-monorepo/commit/104f2e3f14))
+- **graphty-element:** glyphs for the node shapes, arrow kinds and line patterns golden added ([0beed2f467](https://github.com/graphty-org/graphty-monorepo/commit/0beed2f467))
+- **graphty-element:** element.drawnShaders() reports the node shaders and boundaries drawn ([53c508858f](https://github.com/graphty-org/graphty-monorepo/commit/53c508858f))
+- **graphty-element:** models and pictures on nodes by file or URL, kept in project files ([5ddd7cf485](https://github.com/graphty-org/graphty-monorepo/commit/5ddd7cf485))
+- **graphty-element:** add session.assets, the Babylon-free intake of 3D model files ([3dd2428210](https://github.com/graphty-org/graphty-monorepo/commit/3dd2428210))
+- **graphty-element:** add the lazily loaded model chunk for drawing nodes as 3D models ([89a09d83e8](https://github.com/graphty-org/graphty-monorepo/commit/89a09d83e8))
+- **graphty-element:** propose a binding for a shader parameter by its address ([0d7f616ae3](https://github.com/graphty-org/graphty-monorepo/commit/0d7f616ae3))
+- **graphty-element:** list every shader and transition preset in the catalog ([227fac261b](https://github.com/graphty-org/graphty-monorepo/commit/227fac261b))
+- **graphty-element:** scene presets: nebula, soap bubble and metaball hull ([15c071d414](https://github.com/graphty-org/graphty-monorepo/commit/15c071d414))
+- **graphty-element:** edge shader presets: fiber, light packets, comets, edge glow, edge change ([d4b2f428d8](https://github.com/graphty-org/graphty-monorepo/commit/d4b2f428d8))
+- **graphty-element:** node-effect presets: aura, reticle, satellites, shockwave, change flash ([736b40c86e](https://github.com/graphty-org/graphty-monorepo/commit/736b40c86e))
+- **graphty-element:** seven layout transition presets ([d0abddfd6f](https://github.com/graphty-org/graphty-monorepo/commit/d0abddfd6f))
+- **graphty-element:** pattern, state and sprite shader presets ([c176e2519c](https://github.com/graphty-org/graphty-monorepo/commit/c176e2519c))
+- **graphty-element:** lit-surface shader presets ([35c3082e7a](https://github.com/graphty-org/graphty-monorepo/commit/35c3082e7a))
+- **graphty-element:** heavy and glowing surface presets with small-size programs ([c7ddd4b50b](https://github.com/graphty-org/graphty-monorepo/commit/c7ddd4b50b))
+- **graphty-element:** layout transitions, registerTransition and the particle drawable ([b86775758f](https://github.com/graphty-org/graphty-monorepo/commit/b86775758f))
+- **graphty-element:** background shaders, group boundaries and the shared bloom ([52457d0ce8](https://github.com/graphty-org/graphty-monorepo/commit/52457d0ce8))
+- **graphty-element:** draw edge shaders, taper and lift ([cde7cb7049](https://github.com/graphty-org/graphty-monorepo/commit/cde7cb7049))
+- **graphty-element:** shader quality levels and the GPU-bound frame guard ([858427a450](https://github.com/graphty-org/graphty-monorepo/commit/858427a450))
+- **graphty-element:** draw node shaders: impostor and sprite batch, mesh path, effect batch ([19ee04502b](https://github.com/graphty-org/graphty-monorepo/commit/19ee04502b))
+- **graphty-element:** shader runtime, session.shaders and the trust gate ([4167779f6e](https://github.com/graphty-org/graphty-monorepo/commit/4167779f6e))
+- **graphty-element:** shader catalog, shader text checker and shader style channels ([81a115e065](https://github.com/graphty-org/graphty-monorepo/commit/81a115e065))
+
+### 🩹 Fixes
+
+- **graphty-element:** let curves rest beside an edge whose two ends are at one place ([#4587](https://github.com/graphty-org/graphty-monorepo/issues/4587), [#4271](https://github.com/graphty-org/graphty-monorepo/issues/4271))
+- **graphty-element:** launch Safari once before the first safaridriver session ([#4580](https://github.com/graphty-org/graphty-monorepo/issues/4580))
+- **graphty-element:** run the paid Gemini tests on Standard and give each request a deadline ([#4579](https://github.com/graphty-org/graphty-monorepo/issues/4579), [#4512](https://github.com/graphty-org/graphty-monorepo/issues/4512))
+- **graphty-element:** select conditions follow the picture and a hand selection ([#4585](https://github.com/graphty-org/graphty-monorepo/issues/4585))
+- **graphty-element:** bow vis-network's dynamic curves as deep as it does on files it lays out ([#4455](https://github.com/graphty-org/graphty-monorepo/issues/4455), [#4271](https://github.com/graphty-org/graphty-monorepo/issues/4271))
+- **graph-io:** read at most four shapes of a Graphviz arrow name, as Graphviz does ([#4267](https://github.com/graphty-org/graphty-monorepo/issues/4267))
+- **graphty-element:** classify RenderManager.canvasInView as a read door ([#4426](https://github.com/graphty-org/graphty-monorepo/issues/4426))
+- **graphty-element:** read a short edge's open line, not the open dot of its head, as its line ([#4267](https://github.com/graphty-org/graphty-monorepo/issues/4267))
+- **graphty-element:** rest a turning graph drawn on demand while its canvas is out of view ([#1831](https://github.com/graphty-org/graphty-monorepo/issues/1831), [#4170](https://github.com/graphty-org/graphty-monorepo/issues/4170), [#4426](https://github.com/graphty-org/graphty-monorepo/issues/4426))
+- **graphty-element:** draw each part of a stacked arrowhead in a row along the line ([#4267](https://github.com/graphty-org/graphty-monorepo/issues/4267))
+- **graph-io:** draw Cytoscape chart axes' words and shrink the plot for them as JFreeChart does ([#404040](https://github.com/graphty-org/graphty-monorepo/issues/404040), [#4249](https://github.com/graphty-org/graphty-monorepo/issues/4249))
+- **graphty-element:** classify LayoutManager.preStepsInFlight in the door list ([#3533](https://github.com/graphty-org/graphty-monorepo/issues/3533))
+- **graphty-element:** count a queued data import as reading from the moment it is queued ([#4439](https://github.com/graphty-org/graphty-monorepo/issues/4439), [#3535](https://github.com/graphty-org/graphty-monorepo/issues/3535))
+- **graphty-element:** count pre-step chunks in flight; owed pre-steps test no longer hangs ([#4437](https://github.com/graphty-org/graphty-monorepo/issues/4437), [#3533](https://github.com/graphty-org/graphty-monorepo/issues/3533))
+- **graphty-element:** hold the stable frame until the background layer is drawn ([#3536](https://github.com/graphty-org/graphty-monorepo/issues/3536))
+- **graphty-element:** judge a node's picture after every other stray, so stray ids stay stable ([#4272](https://github.com/graphty-org/graphty-monorepo/issues/4272))
+- **graphty-element:** publish project:derived when the lane is idle and no repaint is owed ([e815b6c8d8](https://github.com/graphty-org/graphty-monorepo/commit/e815b6c8d8))
+- **graphty-element:** style comparator round 6: close the blind spots round 5 left ([#4272](https://github.com/graphty-org/graphty-monorepo/issues/4272))
+- **graphty-element:** run one data import at a time so each keeps its load id ([#3535](https://github.com/graphty-org/graphty-monorepo/issues/3535))
+- **graphty-element:** draw an edge effect over its edge surface, whatever order they were made in ([#4424](https://github.com/graphty-org/graphty-monorepo/issues/4424))
+- **graphty-element:** filter condition events, rollback selection and condition history facts ([#4405](https://github.com/graphty-org/graphty-monorepo/issues/4405))
+- **graphty-element:** publish project:derived once the picture catches up with a change ([#3543](https://github.com/graphty-org/graphty-monorepo/issues/3543), [#3529](https://github.com/graphty-org/graphty-monorepo/issues/3529))
+- **graphty-element:** no frame steps a GPU layout while its pre-step chunk is in flight ([#3533](https://github.com/graphty-org/graphty-monorepo/issues/3533))
+- **graphty-element:** a re-added layer never reads the departed layer's last paint ([#3530](https://github.com/graphty-org/graphty-monorepo/issues/3530))
+- **graphty-element:** keep the flat map's reach out of the lazily loaded placement code ([#4412](https://github.com/graphty-org/graphty-monorepo/issues/4412))
+- **graphty-element:** clip planes that follow the location map, not only the graph ([#4403](https://github.com/graphty-org/graphty-monorepo/issues/4403))
+- **graphty-element,graphty:** a whole-window timeline drag is its own undo step ([#4387](https://github.com/graphty-org/graphty-monorepo/issues/4387), [#4400](https://github.com/graphty-org/graphty-monorepo/issues/4400))
+- **graphty-element:** classify GraphContext.getUpdateManager in the door and cost lists ([#4392](https://github.com/graphty-org/graphty-monorepo/issues/4392))
+- **graphty-element:** re-trim a node's edges when its model lands ([#4392](https://github.com/graphty-org/graphty-monorepo/issues/4392))
+- **graphty-element,graphty:** stop drawing and re-reading what a play does not change ([#4386](https://github.com/graphty-org/graphty-monorepo/issues/4386), [#4196](https://github.com/graphty-org/graphty-monorepo/issues/4196))
+- **graphty-element:** serve the STL story fixture as a file in the built Storybook ([#4369](https://github.com/graphty-org/graphty-monorepo/issues/4369), [#4365](https://github.com/graphty-org/graphty-monorepo/issues/4365))
+- **graphty-element:** keep the Babylon.js barrel out of the models chunk ([#4241](https://github.com/graphty-org/graphty-monorepo/issues/4241))
+- **graphty-element:** name the material class type for the JSDoc lint ([#4241](https://github.com/graphty-org/graphty-monorepo/issues/4241))
+- **graphty-element:** pin bundled shaders before a material's first compile ([#4241](https://github.com/graphty-org/graphty-monorepo/issues/4241))
+- **graphty-element:** a vee's line runs on to its notch only while the vee covers its end ([#4254](https://github.com/graphty-org/graphty-monorepo/issues/4254), [#4307](https://github.com/graphty-org/graphty-monorepo/issues/4307))
+- **graphty-element:** keep timing benchmarks out of the WebKit models project ([#4302](https://github.com/graphty-org/graphty-monorepo/issues/4302))
+- **graphty-element:** judge a final frame by the shaders it drew with ([#4237](https://github.com/graphty-org/graphty-monorepo/issues/4237))
+- **graphty-element:** count same-name nodes as near twins within two node sizes ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247))
+- **graphty-element:** use graphty's label offset only for same-name nodes within a node size ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247))
+- **graphty-element:** hold a layout transition still, so a held pose is a final picture ([#4256](https://github.com/graphty-org/graphty-monorepo/issues/4256))
+- **graphty-element:** refuse a twin only when it is another node's best body ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247))
+- **graphty-element:** never hand Graphviz a quoted label it cannot read ([#4203](https://github.com/graphty-org/graphty-monorepo/issues/4203))
+- **graphty-element:** draw the vee as broad as Graphviz, Cytoscape.js and vis-network do ([#4202](https://github.com/graphty-org/graphty-monorepo/issues/4202))
+- **graphty-element:** classify shaderPicturePending and update the API report ([#4243](https://github.com/graphty-org/graphty-monorepo/issues/4243))
+- **graph-io:** size file arrowheads as Cytoscape, vis-network and Graphviz draw them ([#4202](https://github.com/graphty-org/graphty-monorepo/issues/4202))
+- **graphty-element:** lay a DOT file out with Graphviz's own node sizes and edge label places ([#4203](https://github.com/graphty-org/graphty-monorepo/issues/4203))
+- **graphty-element:** fidelity comparator keeps close same-name nodes and their labels apart ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247))
+- **graphty-element:** hold the stable frame until scene shaders have drawn ([#4243](https://github.com/graphty-org/graphty-monorepo/issues/4243))
+- **graphty-element:** draw a group-tinted background once the outlines are laid out ([#4243](https://github.com/graphty-org/graphty-monorepo/issues/4243))
+- **graphty-element:** fidelity comparator review fixes for per-edge targets, mirrored heads, Calibri ([#4222](https://github.com/graphty-org/graphty-monorepo/issues/4222))
+- **graphty-element:** style comparator round 5: own-layout and zigzag blind spots, false failures ([#4222](https://github.com/graphty-org/graphty-monorepo/issues/4222))
+- **graphty-element:** report a planar refusal a frame meets, and test it in any frame order ([#4197](https://github.com/graphty-org/graphty-monorepo/issues/4197), [#4208](https://github.com/graphty-org/graphty-monorepo/issues/4208))
+- **graphty-element:** drop two TypeDoc links to undocumented symbols ([#4233](https://github.com/graphty-org/graphty-monorepo/issues/4233))
+- **graphty-element:** list PendingWork and BasemapManager.loading in the door list ([#3546](https://github.com/graphty-org/graphty-monorepo/issues/3546))
+- **graphty-element:** resend an LLM regression first request that Gemini refuses with 400 once ([#4220](https://github.com/graphty-org/graphty-monorepo/issues/4220))
+- **graphty-element:** decide "the picture is final" from one record of pending work ([#4176](https://github.com/graphty-org/graphty-monorepo/issues/4176), [#3546](https://github.com/graphty-org/graphty-monorepo/issues/3546))
+- **graphty-element:** tell the page that loses an autosave claim race which tab holds the work ([#4148](https://github.com/graphty-org/graphty-monorepo/issues/4148))
+- **graphty-element:** the map type picks the map in the 3D view, whatever the layout's shape ([#3274](https://github.com/graphty-org/graphty-monorepo/issues/3274))
+- **graphty-element:** make the shader studio's tests, stories and checks pass in CI ([#4159](https://github.com/graphty-org/graphty-monorepo/issues/4159))
+- **graphty-element:** drop the node model stories' capture delay and format Frame ([fe71e3a459](https://github.com/graphty-org/graphty-monorepo/commit/fe71e3a459))
+- **graphty-element:** draw a resize or a camera move in one frame, not two ([#3537](https://github.com/graphty-org/graphty-monorepo/issues/3537))
+- **graphty-element:** node pictures and models retry, finish and wireframe review fixes ([#3396](https://github.com/graphty-org/graphty-monorepo/issues/3396))
+- **graphty-element:** node model zip, host and load-retry review fixes ([#3396](https://github.com/graphty-org/graphty-monorepo/issues/3396))
+- **graphty-element:** keep drawing until an unused model template is freed ([#3396](https://github.com/graphty-org/graphty-monorepo/issues/3396))
+- **graphty:** drop the legend room master removed; refresh API reports and size budgets ([3338e9afb6](https://github.com/graphty-org/graphty-monorepo/commit/3338e9afb6))
+- **graphty-element:** name the location column source by its new CoordinateSource type ([#3274](https://github.com/graphty-org/graphty-monorepo/issues/3274))
+- **babylonjs-map:** draw a flat map past its box as one world centered on the data ([#3274](https://github.com/graphty-org/graphty-monorepo/issues/3274))
+- **graphty-element:** shader nodes write depth so nodes and edges occlude correctly ([#3320](https://github.com/graphty-org/graphty-monorepo/issues/3320))
+- **babylonjs-map:** keep a globe's lower layers under the tiles drawn over them ([#3274](https://github.com/graphty-org/graphty-monorepo/issues/3274))
+- **graphty-element:** raise arcs over a flat map in the 3D view when the layout is 2D ([#3274](https://github.com/graphty-org/graphty-monorepo/issues/3274))
+- **graphty-element:** the sticker's foil is on by default, and its kind is named Foil ([#3320](https://github.com/graphty-org/graphty-monorepo/issues/3320))
+- **babylonjs-map:** draw a flat map's world once, never repeated east or west ([#3274](https://github.com/graphty-org/graphty-monorepo/issues/3274))
+- **graphty-element:** judge flashing only on frames shaders alone changed ([#3320](https://github.com/graphty-org/graphty-monorepo/issues/3320))
+- **graphty-element:** draw the Halftone gallery picture with dots a reader can see ([#3320](https://github.com/graphty-org/graphty-monorepo/issues/3320))
+- **graphty-element:** a globe fills the view, its nodes and arrowheads small on it ([721ca382d1](https://github.com/graphty-org/graphty-monorepo/commit/721ca382d1))
+- **graphty-element:** draw pasted shaders on nodes again ([bd0cb5f820](https://github.com/graphty-org/graphty-monorepo/commit/bd0cb5f820))
+- **graphty-element:** draw clock-bound shader parameters, and time the built-in plays by them ([34480e7020](https://github.com/graphty-org/graphty-monorepo/commit/34480e7020))
+- **graphty-element:** group outlines enclose every member, in one shape ([6b1cfbef80](https://github.com/graphty-org/graphty-monorepo/commit/6b1cfbef80))
+- **graphty-element:** ship shader preset thumbnails as files, not base64 in every entry point ([184a274173](https://github.com/graphty-org/graphty-monorepo/commit/184a274173))
+- **graphty-element:** drop duplicate channel names and an unused import left by the golden merge ([de4663d922](https://github.com/graphty-org/graphty-monorepo/commit/de4663d922))
+- shader rows say why a shader draws nothing; lint and test fixes ([534792b1e0](https://github.com/graphty-org/graphty-monorepo/commit/534792b1e0))
+- **graphty-element:** preset looks agree with the fill on the light canvas ([5e541f3329](https://github.com/graphty-org/graphty-monorepo/commit/5e541f3329))
+- **graphty-element:** shader preset stories keep room at the canvas edge ([ee07ce615c](https://github.com/graphty-org/graphty-monorepo/commit/ee07ce615c))
+- **graphty-element:** particle morph holds the camera and bursts like the lab ([2ed39854fc](https://github.com/graphty-org/graphty-monorepo/commit/2ed39854fc))
+- **graphty-element:** shader check matches add, copies keep values and ids ([14288c92be](https://github.com/graphty-org/graphty-monorepo/commit/14288c92be))
+- **graphty-element:** cheaper shader passes, steady effect claims, uncropped node effects ([1f60fbad35](https://github.com/graphty-org/graphty-monorepo/commit/1f60fbad35))
+- **graphty-element:** the frame guard sees a slow GPU, and the flashing check samples every frame ([e84354419f](https://github.com/graphty-org/graphty-monorepo/commit/e84354419f))
+- **graphty-element:** keep edge surfaces drawing after a line change, an undo or a reload ([91e58f4574](https://github.com/graphty-org/graphty-monorepo/commit/91e58f4574))
+- **graphty-element:** refuse a lone carriage return and any backslash in a shader body ([b1b95a38e3](https://github.com/graphty-org/graphty-monorepo/commit/b1b95a38e3))
+- **graphty-element:** sameAs finds a preset whose body pasted text repeats ([e99acba77f](https://github.com/graphty-org/graphty-monorepo/commit/e99acba77f))
+
+### 🔥 Performance
+
+- **graphty-element:** cut edges back to screen-sized nodes only as the zoom drifts ([#3274](https://github.com/graphty-org/graphty-monorepo/issues/3274))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.64
+- Updated @graphty/remote-logger to 2.0.26
+- Updated babylonjs-map to 0.0.3
+- Updated graph-samples to 0.1.42
+- Updated visual-review to 0.2.38
+- Updated graph-format to 1.4.10
+- Updated algorithms to 3.4.17
+- Updated graph-io to 0.3.51
+- Updated layout to 2.5.13
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
 ## 3.32.0 (2026-10-29)
 
 ### 🚀 Features

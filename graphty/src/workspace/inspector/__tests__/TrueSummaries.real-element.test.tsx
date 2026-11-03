@@ -14,14 +14,10 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { storyWaitOptions } from "../../../stories/wait";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { DEFAULT_NAME_KEY } from "../../style/cards";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
 
 /** Six volunteers: hours 30 to 52, a kind that groups them, an email only some have. */
 const VOLUNTEERS = `<?xml version="1.0" encoding="UTF-8"?>
@@ -51,14 +47,11 @@ async function open(load: (session: GraphSession) => Promise<unknown>): Promise<
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -155,9 +148,9 @@ describe("summaries and cards that say true, complete things", () => {
             userData: { [DEFAULT_NAME_KEY]: "Layer 1" },
         });
         await session.styles.settled();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Layer 1, / }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         await userEvent.keyboard("chapters");
@@ -176,7 +169,7 @@ describe("summaries and cards that say true, complete things", () => {
         await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
         await userEvent.hover(await screen.findByRole("button", { name: /^Degree/ }));
         // It opens after the theme's one-second hover delay, so the wait has no deadline to race it.
-        const tip = await screen.findByRole("tooltip", {}, storyWaitOptions(5000));
+        const tip = await screen.findByRole("tooltip", {});
         assert.include(tip.textContent ?? "", "Select this node and its neighbors");
     });
 

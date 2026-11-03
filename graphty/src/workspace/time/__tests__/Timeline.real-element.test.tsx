@@ -10,18 +10,15 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession, TimeStepEvent } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { dragAcross } from "../../../test/real-pointer";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { tooltipOf } from "../../../test/tooltip";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /** Enough simulation steps for the samples' force layout to settle before it is drawn. */
 const PRE_STEPS = 1000;
@@ -44,13 +41,10 @@ async function open(
     const store = createWorkspaceStore({ project: { name: "Timeline", id: 1 }, place });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -199,13 +193,10 @@ describe("the timeline on the real element", () => {
         const { position } = session.history;
 
         await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
-        await waitFor(
-            () => {
-                assert.isTrue(session.time.playing);
-                assert.isAbove(Number(session.time.current?.from), Date.UTC(2024, 11, 30));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isTrue(session.time.playing);
+            assert.isAbove(Number(session.time.current?.from), Date.UTC(2024, 11, 30));
+        });
         await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
         assert.isFalse(session.time.playing);
         await waitFor(() => {
@@ -322,7 +313,12 @@ describe("the timeline on the real element", () => {
         const chip = await screen.findByRole("button", { name: /^Time: / });
         await userEvent.click(chip);
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Window start");
-        await userEvent.click(screen.getByRole("button", { name: "Clear the time window" }));
+        // The window's two icon controls say their names on hover, whatever the window's state.
+        const apply = dataPlace().getByRole("checkbox", { name: "Apply the time window" });
+        assert.equal(await tooltipOf(apply), "Apply the time window");
+        const clear = screen.getByRole("button", { name: "Clear the time window" });
+        assert.equal(await tooltipOf(clear), "Clear the time window");
+        await userEvent.click(clear);
         await waitFor(() => {
             assert.isNull(session.time.current);
         });
@@ -575,13 +571,10 @@ describe("the Overview and the import of time", () => {
         const store = createWorkspaceStore({ project: { name: "Blanks", id: 1 }, place: "data" });
         render(<Workspace store={store} registrations={REGISTRATIONS} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         const live = session as GraphSession;
         await live.data.import({
             type: "csv",
@@ -681,12 +674,9 @@ describe("the Overview and the import of time", () => {
         });
 
         await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
-        await waitFor(
-            () => {
-                assert.isAtLeast(frames.length, 12, "frames played");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isAtLeast(frames.length, 12, "frames played");
+        });
         await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
         off();
 
@@ -725,12 +715,9 @@ describe("the Overview and the import of time", () => {
         });
 
         await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
-        await waitFor(
-            () => {
-                assert.isAtLeast(frames, 12, "frames played");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isAtLeast(frames, 12, "frames played");
+        });
         await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
         off();
         attributes.mockRestore();

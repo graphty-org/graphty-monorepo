@@ -29,11 +29,14 @@
 // workflow's GITHUB_TOKEN (GITHUB_ACTOR github-actions[bot]: release-due's restart and candidate runs) is never seen by
 // release-rerun.yml, so its attempt 1 decides at once like any later attempt. A lane red on attempt 1 and
 // green on attempt 2, and a story the re-capture found flaky (flaky.json in the final captures), each get one
-// "Flaky in full run: <name>" issue (bug, priority:critical, effort:medium) and block nothing.
+// "Flaky in full run: <name>" issue (bug, priority:critical, effort:medium) and block nothing; more than FLAKY_GROUP
+// stories of one project at once get one issue for the project (flakyFilings).
 //
 // Held candidate (section 3): the deciding verdict of a run that is not green-clean holds its commit when nothing is
 // held yet (output hold=start, tools/channel/hold.mjs); a verdict on the held head updates the hold (hold=update);
-// any other commit's verdict leaves the hold alone and never promotes (tools/channel/nightly.mjs). The verdict reads
+// a newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item or rejected
+// (hold=replace, #5052: a red hold never outlives a green run behind it); any other commit's verdict leaves the hold
+// alone and never promotes (tools/channel/nightly.mjs). The verdict reads
 // the hold from the store when it decides (output held), never from the pick: a re-run attempt keeps attempt 1's pick
 // outputs, and another run may have held its commit since. An attempt-1 red that waits for its re-run is recorded as
 // `deferred`, which the pick does not count as judged, so a re-run that never runs leaves the commit to be tested.
@@ -52,6 +55,7 @@ import { diffCommits } from "./release-diff.mjs";
 import { call, config } from "./results/client.mjs";
 
 export const RED_TITLE = "Full run red:";
+export const UNSIGNED_TITLE = "Master baselines tree unsigned";
 export const FLAKY_TITLE = "Flaky in full run:";
 /** The modes whose attempt 1 is re-run once by release-rerun.yml instead of filing at once. */
 export const RERUN_MODES = new Set(["full", "restart", "candidate"]);
@@ -347,17 +351,28 @@ export function deferred({ attempt, mode, state, red, lanes, actor }) {
 export const flakyLanes = (before, red) => before.filter((l) => l !== "pick" && !red.includes(l));
 
 /**
+ * The held head's verdicts a newer green run replaces (#5052): nothing waits on the owner's review of them. Never
+ * green-images (his pending review), approved (its promotion is due) or a head no run judged yet (being tested).
+ */
+export const REPLACEABLE = new Set(["red", "owner-item", "rejected"]);
+
+/**
  * What the deciding verdict does to the held candidate (channels-pipeline.md section 3).
  * @param o the facts
  * @param o.held the held head ("" none, "unknown" when the store did not answer)
  * @param o.sha the judged commit
  * @param o.state the verdict
- * @returns "start" (hold this commit), "update" (a verdict on the held head) or "none"
+ * @param [o.heldState] the held head's own latest verdict ("" when no run judged it)
+ * @param [o.newer] whether the judged commit is newer on master than the held one (its history holds it)
+ * @returns "start" (hold this commit), "update" (a verdict on the held head), "replace" (end a red hold: a newer
+ *   green-clean commit then promotes, a green-images one is held in its place) or "none"
  */
-export function holdAction({ held, sha, state }) {
+export function holdAction({ held, sha, state, heldState = "", newer = false }) {
     if (held === "unknown") return "none";
     if (!held) return state === "green-clean" ? "none" : "start";
-    return held === sha ? "update" : "none";
+    if (held === sha) return "update";
+    const green = state === "green-clean" || state === "green-images";
+    return green && newer && REPLACEABLE.has(heldState) ? "replace" : "none";
 }
 
 /**
@@ -534,15 +549,20 @@ const read = async (cfg, path) => {
     return r.ok ? r.data : null;
 };
 /**
- * The held candidate's head as the store has it now: "" none, "unknown" when the store does not answer.
+ * The held candidate as the store has it now.
  * @param cfg the store's config, or null
- * @param fallback what to use with no store configured (the pick's output)
- * @returns the head
+ * @param fallback the head to use with no store configured (the pick's output)
+ * @returns `{ head, base, state }`: head "" none, "unknown" when the store does not answer; state the held head's
+ *   latest verdict that is not deferred ("" when none)
  */
 export async function heldNow(cfg, fallback) {
-    if (!cfg) return fallback ?? "unknown";
+    if (!cfg) return { head: fallback ?? "unknown", base: "", state: "" };
     const store = await read(cfg, "/v1/candidate");
-    return store ? (store.hold?.head ?? "") : "unknown";
+    if (!store) return { head: "unknown", base: "", state: "" };
+    const hold = store.hold;
+    if (!hold?.head) return { head: "", base: "", state: "" };
+    const v = (store.recent ?? []).find((r) => r.sha === hold.head && r.state !== DEFERRED);
+    return { head: hold.head, base: hold.base ?? hold.head, state: v?.state ?? "" };
 }
 const record = async (cfg, verdict) => {
     const r = await call(cfg, "POST", "/v1/verdicts", verdict);
@@ -602,6 +622,87 @@ function publishHold() {
     }
 }
 
+/**
+ * Whether a picked commit's visual-baselines/ tree could never promote: it is not nightly's, and no approval statement
+ * of the owner's names it (`visual-review-approvals/<tree>.json`), so the screenshot gate would refuse it and every
+ * commit after it. The one-approval-in-flight rules (design/visual-testing/early-capture.md, 4d) prevent it; this
+ * makes a gap visible instead of leaving nightly stalled. The gate itself checks the signature; this only looks for
+ * the statement.
+ * @param o the facts
+ * @param o.tree the commit's baselines tree
+ * @param o.nightlyTree channel/nightly's, or null before it exists
+ * @param o.hasStatement whether the commit holds an approval statement of that tree
+ * @returns boolean
+ */
+export const unsignedTree = ({ tree, nightlyTree, hasStatement }) =>
+    nightlyTree !== null && tree !== nightlyTree && !hasStatement;
+
+/**
+ * The alarm issue for an unsigned master baselines tree.
+ * @param sha the picked commit
+ * @param tree its baselines tree
+ * @returns `{ title, body }`
+ */
+export function unsignedIssue(sha, tree) {
+    return {
+        title: `${UNSIGNED_TITLE} on ${short(sha)}`,
+        body: [
+            `The full run picked ${sha}, whose \`visual-baselines/\` tree ${tree} is neither channel/nightly's nor named`,
+            "by an approval statement of the owner's (`visual-review-approvals/<tree>.json`). The screenshot gate refuses",
+            "it and every later commit until a signed tree reaches master, so nightly cannot promote.",
+            "",
+            "One approval in flight (design/visual-testing/early-capture.md, 4d) should prevent this: find the merge that",
+            "changed `visual-baselines/` without its signed tree (two approval pull requests merged together, or one",
+            "merged while a full run judged a commit), then have the owner review and Finish the next candidate.",
+        ].join("\n"),
+    };
+}
+
+function alarmUnsigned(sha, baselines, nightly) {
+    const tree = baselines(sha);
+    let nightlyTree = null;
+    try {
+        nightlyTree = baselines(nightly);
+    } catch {
+        // no channel/nightly yet
+    }
+    let hasStatement = true;
+    try {
+        execFileSync("git", ["cat-file", "-e", `${sha}:visual-review-approvals/${tree}.json`], { stdio: "ignore" });
+    } catch {
+        hasStatement = false;
+    }
+    if (!unsignedTree({ tree, nightlyTree, hasStatement })) return;
+    const issue = unsignedIssue(sha, tree);
+    console.log(`::error::${issue.title}`);
+    const open = sh("gh", [
+        "api",
+        "repos/{owner}/{repo}/issues?state=open&labels=priority:critical&per_page=100",
+        "--jq",
+        String.raw`.[] | select(.title | startswith("${UNSIGNED_TITLE}")) | .number`,
+    ]).split("\n")[0];
+    const file = join(tmpdir(), `full-run-unsigned-${process.pid}.md`);
+    writeFileSync(file, issue.body);
+    if (open) {
+        sh("gh", ["issue", "comment", open, "--body-file", file]);
+        return;
+    }
+    sh("gh", [
+        "issue",
+        "create",
+        "--title",
+        issue.title,
+        "--label",
+        "bug",
+        "--label",
+        "priority:critical",
+        "--label",
+        "effort:medium",
+        "--body-file",
+        file,
+    ]);
+}
+
 async function pickMain(env) {
     const cfg = config(env);
     const store = cfg ? await read(cfg, "/v1/candidate") : null;
@@ -637,6 +738,13 @@ async function pickMain(env) {
         rolling: env.MODE === "full" && store ? await rollingInputs(cfg, env) : null,
     });
     console.log(`::notice::${p.why}`);
+    if (p.run && p.sha) {
+        bestEffort(
+            () => alarmUnsigned(p.sha, baselines, NIGHTLY),
+            "the unsigned baselines tree check",
+            () => null,
+        );
+    }
     if (p.rolling) {
         const on = env.PICK_RULE === "rolling" ? "on" : "off (shadow)";
         const chose = p.rolling.sha ? short(p.rolling.sha) : "no preference";
@@ -669,6 +777,9 @@ async function rollingInputs(cfg, env) {
     return { on: env.PICK_RULE === "rolling", tree, captures: answer?.captures ?? null };
 }
 
+// The listing's `since` query parameter, or nothing.
+const sinceParam = (since) => (since ? `&since=${since}` : "");
+
 /**
  * The "Full run red" issues, newest first, as `{ number, title, state, closedAt }` (state OPEN or CLOSED). A plain
  * listing, not GitHub search, which indexes a new issue a while later: the verdict that follows a lane's early red
@@ -680,7 +791,7 @@ async function rollingInputs(cfg, env) {
 export const listRedIssues = (state = "open", since = "") =>
     sh("gh", [
         "api",
-        `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100${since ? `&since=${since}` : ""}`,
+        `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100${sinceParam(since)}`,
         "--jq",
         String.raw`.[] | select(.title | startswith("${RED_TITLE}")) | {number, title, state: (.state // "open" | ascii_upcase), createdAt: .created_at, closedAt: .closed_at, stateReason: .state_reason} | tojson`,
         // every page: an issue left open for weeks must not drop out of the listing
@@ -694,7 +805,6 @@ const openRedIssue = () => {
     const i = listRedIssues().at(-1);
     return i ? `${i.number} ${i.title}` : "";
 };
-const openRed = () => openRedIssue().split(" ")[0];
 
 /**
  * Whether a green verdict on `green` closes the open red issue: only when the red commit its title names
@@ -729,12 +839,67 @@ export function duplicateOf(created, open) {
     return first < created ? first : null;
 }
 
-function fileRed(issue) {
+/**
+ * The title a lane's early red gives the open red issue: on the same commit it keeps the lanes the title already
+ * names (another lane of the run filed them), in LANES order; on another commit it is the new title.
+ * @param openTitle the open red issue's title
+ * @param title the lane's title, as laneRedIssue makes it
+ * @returns the title
+ */
+export function laneRedTitle(openTitle, title) {
+    const parse = (t) => /^Full run red: (.+) on ([0-9a-f]{7,40})$/.exec(t ?? "");
+    const was = parse(openTitle);
+    const now = parse(title);
+    if (!was || !now || was[2] !== now[2]) return title;
+    const names = new Set([...was[1].split(", "), ...now[1].split(", ")]);
+    const ordered = Object.values(LANES)
+        .map((l) => l.name)
+        .filter((n) => names.has(n));
+    return `${RED_TITLE} ${ordered.join(", ")} on ${now[2]}`;
+}
+
+/**
+ * The runs a red issue names that tested the commit its title is on: every filing says "The full run failed on <sha>
+ * (<lanes>): <run url>" (redIssue). release-due cancels only these on a fixing merge (toCancel), and a lane of one of
+ * them files nothing once that merge closed the issue (fixedRecently), so the two always agree.
+ * @param title the red issue's title
+ * @param text its body and comments, joined
+ * @returns the run ids
+ */
+export function runsOnTitleCommit(title, text) {
+    const red = / on ([0-9a-f]{7,40})$/.exec(title ?? "")?.[1];
+    if (!red) return new Set();
+    return new Set(
+        [...(text ?? "").matchAll(/failed on ([0-9a-f]{7,40}) \([^\n]*?\): \S*\/actions\/runs\/(\d+)/g)]
+            .filter((m) => m[1].startsWith(red))
+            .map((m) => Number(m[2])),
+    );
+}
+
+// a red issue's body and comments, joined
+const issueText = (n) =>
+    sh("gh", [
+        "issue",
+        "view",
+        String(n),
+        "--json",
+        "body,comments",
+        "-q",
+        String.raw`[.body, .comments[].body] | join("\n")`,
+    ]);
+
+/**
+ * Files or updates the red issue.
+ * @param issue `{ title, body }`
+ * @param [merge] a lane's early red: keep the lanes the issue's title already names on this commit (laneRedTitle)
+ * @returns its number
+ */
+function fileRed(issue, merge = false) {
     const file = join(tmpdir(), `full-run-red-${process.pid}.md`);
     writeFileSync(file, issue.body);
-    const open = openRed();
+    const [open, ...was] = openRedIssue().split(" ");
     if (open) {
-        sh("gh", ["issue", "edit", open, "--title", issue.title]);
+        sh("gh", ["issue", "edit", open, "--title", merge ? laneRedTitle(was.join(" "), issue.title) : issue.title]);
         sh("gh", ["issue", "comment", open, "--body-file", file]);
         return Number(open);
     }
@@ -753,11 +918,15 @@ function fileRed(issue) {
         file,
     ]);
     const created = Number(url.split("/").pop());
+    const reds = listRedIssues();
     const first = duplicateOf(
         created,
-        listRedIssues().map((i) => i.number),
+        reds.map((i) => i.number),
     );
     if (!first) return created;
+    const firstTitle = reds.find((i) => i.number === first)?.title;
+    if (merge && firstTitle)
+        sh("gh", ["issue", "edit", String(first), "--title", laneRedTitle(firstTitle, issue.title)]);
     sh("gh", ["issue", "comment", String(first), "--body-file", file]);
     sh("gh", ["issue", "close", String(created), "--reason", "not planned", "--comment", `Duplicate of #${first}.`]);
     return first;
@@ -840,64 +1009,90 @@ export function flakyStoryBody(s, at, tail) {
     return `${named}The story ${s.name} ${s.why} ${at}.\n\n${tail}`;
 }
 
-// One open "Flaky in full run: <name>" issue per name: a comment when it recurs
-function fileFlaky(name, body) {
-    const title = `${FLAKY_TITLE} ${name}`;
-    const open = sh("gh", [
-        "api",
-        "repos/{owner}/{repo}/issues?state=open&labels=priority:critical&per_page=100",
-        "--jq",
-        `.[] | select(.title == ${JSON.stringify(title)}) | .number`,
-        "--paginate",
-    ]).split("\n")[0];
-    const file = join(tmpdir(), `full-run-flaky-${process.pid}.md`);
-    writeFileSync(file, body);
-    if (open) return sh("gh", ["issue", "comment", open, "--body-file", file]);
-    const labels = ["bug", "priority:critical", "effort:medium"].flatMap((l) => ["--label", l]);
-    return sh("gh", ["issue", "create", "--title", title, ...labels, "--body-file", file]);
-}
+/** More flaky stories than this in one project at once is one cause (#4940), filed as one issue. */
+export const FLAKY_GROUP = 5;
+// GitHub refuses an issue body over 65,536 characters
+const MAX_BODY = 60_000;
 
 /**
- * Above this many flaky stories in one run, they share a cause (a re-capture on a different runner image, a
- * changed capture tool): one issue lists them all. One issue each filed 337 issues in 14 silent minutes and the
- * job was cancelled before it recorded its verdict (#4983).
- */
-export const MAX_FLAKY_STORIES = 5;
-const MAX_LISTED = 100;
-
-/**
- * The flaky issues a verdict files: one per lane and one per story, or one for every story when there are
- * more than MAX_FLAKY_STORIES.
- * @param o the facts
- * @param o.lanes the flaky lanes' names
- * @param o.stories the flaky stories, as flakyStories returns them
- * @param o.at where and when they were found
- * @param o.tail the closing paragraph
+ * What to file for the flaky stories: one issue per story, or one per project when more than FLAKY_GROUP of its
+ * stories flipped at once. A grouped body still names each story test, so the dashboard matches it to them.
+ * @param stories the flaky stories, as flakyStories returns them
+ * @param at where and when they were found
+ * @param tail the closing paragraph
  * @returns `{ name, body }` per issue
  */
-export function flakyFilings({ lanes, stories, at, tail }) {
-    const out = lanes.map((name) => ({
-        name,
-        body: `${name} failed on the full run's first attempt and passed when re-run ${at}.\n\n${tail}`,
-    }));
-    if (stories.length <= MAX_FLAKY_STORIES)
-        return [...out, ...stories.map((s) => ({ name: s.name, body: flakyStoryBody(s, at, tail) }))];
-    // the first MAX_LISTED, without the run on each line: GitHub refuses a body over 65,536 characters
-    const line = (s) => `- ${s.test ? `Flaky test: ${s.test.file} > ${s.test.name}: ` : ""}${s.name} ${s.why}`;
-    const more = stories.length > MAX_LISTED ? `\n- and ${stories.length - MAX_LISTED} more` : "";
-    const list = stories.slice(0, MAX_LISTED).map(line).join("\n") + more;
-    const body = `${stories.length} stories were flaky at once ${at}. So many at once share a cause: find it.\n\n${list}\n\n${tail}`;
-    return [...out, { name: "many stories at once", body }];
+export function flakyFilings(stories, at, tail) {
+    const byProject = Map.groupBy(stories, (s) => s.name.split("/")[0]);
+    return [...byProject].flatMap(([project, all]) => {
+        if (all.length <= FLAKY_GROUP) return all.map((s) => ({ name: s.name, body: flakyStoryBody(s, at, tail) }));
+        let list = "";
+        for (const s of all) {
+            const story = s.test ? "Flaky test: " + s.test.file + " > " + s.test.name + " (" + s.name + ")" : s.name;
+            const line = `- ${story}: ${s.why}\n`;
+            if (list.length + line.length > MAX_BODY) {
+                list += "- ... and more (the run's visual-final captures list them all)\n";
+                break;
+            }
+            list += line;
+        }
+        const head = `${all.length} stories of ${project} were found flaky at once ${at}. So many at once is one cause (the renderer, the capture code, the runner), not ${all.length} unstable stories.`;
+        return [{ name: `${project} (${FLAKY_GROUP}+ stories at once)`, body: `${head}\n\n${list}\n${tail}` }];
+    });
 }
 
-function fileFlakies(env, lanes, stories) {
+// One open "Flaky in full run: <name>" issue per name: a comment when it recurs
+function fileFlaky(name, body, open, run) {
+    const file = join(tmpdir(), `full-run-flaky-${process.pid}.md`);
+    writeFileSync(file, body);
+    if (open) return run("gh", ["issue", "comment", open, "--body-file", file]);
+    const labels = ["bug", "priority:critical", "effort:medium"].flatMap((l) => ["--label", l]);
+    return run("gh", ["issue", "create", "--title", `${FLAKY_TITLE} ${name}`, ...labels, "--body-file", file]);
+}
+
+/**
+ * Files the flaky lanes and stories, each as a new issue or a comment on its open one. The open critical issues
+ * are read once, not once per filing: paging through them for each of 337 stories took 14 silent minutes (#4983).
+ * @param env the environment
+ * @param lanes the flaky lanes
+ * @param stories the flaky stories, as flakyStories returns them
+ * @param run runs a command and returns its output
+ */
+export function fileFlakies(env, lanes, stories, run = sh) {
     const at = `on ${env.SHA} (${env.RUN_URL}, attempt ${env.RUN_ATTEMPT ?? 1})`;
     const tail = "It does not block nightly: this is a confirmation, not a quarantine. Find the mechanism and fix it.";
-    const names = lanes.map((l) => LANES[l].name);
-    for (const { name, body } of flakyFilings({ lanes: names, stories, at, tail })) {
-        console.log(`filing flaky: ${name}`);
+    const filings = [
+        ...lanes.map((l) => ({
+            name: LANES[l].name,
+            body: `${LANES[l].name} failed on the full run's first attempt and passed when re-run ${at}.\n\n${tail}`,
+        })),
+        ...flakyFilings(stories, at, tail),
+    ];
+    if (!filings.length) return;
+    const listed = bestEffort(
+        () =>
+            run("gh", [
+                "api",
+                "repos/{owner}/{repo}/issues?state=open&labels=priority:critical&per_page=100",
+                "--jq",
+                ".[] | [.number, .title] | @tsv",
+                "--paginate",
+            ]),
+        "reading the open critical issues",
+        () => null,
+    );
+    // without them a recurring flaky would be filed again as a duplicate: file nothing
+    if (listed === null) return;
+    const open = new Map();
+    for (const row of listed.split("\n").filter(Boolean)) {
+        const [n, title] = row.split("\t");
+        if (!open.has(title)) open.set(title, n);
+    }
+    for (const { name, body } of filings) {
+        const issue = open.get(`${FLAKY_TITLE} ${name}`);
+        console.log(issue ? `flaky: commenting on #${issue} (${name})` : `flaky: filing ${name}`);
         bestEffort(
-            () => fileFlaky(name, body),
+            () => fileFlaky(name, body, issue, run),
             `filing the flaky ${name}`,
             () => null,
         );
@@ -1004,11 +1199,25 @@ async function verdictMain(env) {
     if (env.RECORD) writeFileSync(env.RECORD, `${JSON.stringify({ ...facts, state, deferred: wait, attempt })}\n`);
     // the hold as the store has it now, not as the pick saw it: a re-run attempt keeps attempt 1's pick outputs, and
     // another run may have held its commit since
-    const held = await heldNow(cfg, env.HELD);
-    const hold = wait || red[0] === "pick" ? "none" : holdAction({ held, sha: env.SHA, state });
+    const now = await heldNow(cfg, env.HELD);
+    const held = now.head;
+    // newer: the held commit is in the judged one's history, so an older commit's late verdict never replaces it
+    const newer = !!now.base && now.base !== env.SHA && ancestor(now.base, env.SHA);
+    const hold =
+        wait || red[0] === "pick" ? "none" : holdAction({ held, sha: env.SHA, state, heldState: now.state, newer });
     const owner = heldLine(env.VERSION_HELD);
     console.log("::endgroup::");
-    output({ state, issue: issue ? String(issue) : "", what, bisect, deferred: String(wait), hold, owner, held });
+    output({
+        state,
+        issue: issue ? String(issue) : "",
+        what,
+        bisect,
+        deferred: String(wait),
+        hold,
+        owner,
+        held,
+        held_state: now.state,
+    });
 }
 
 /**
@@ -1026,7 +1235,7 @@ async function fileDeferredMain(file, env) {
     // on the fix, so its deferred red is that fix's, not a red to file again (or a commit to hold)
     const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const fixed = bestEffort(
-        () => fixedRecently(listRedIssues("closed", since), facts.sha),
+        () => fixedRecently(listRedIssues("closed", since), facts.sha, facts.runUrl, issueText),
         "reading the red issues a fix closed",
         () => null,
     );
@@ -1040,20 +1249,25 @@ async function fileDeferredMain(file, env) {
 }
 
 /**
- * A red issue on this commit that a fixing merge closed in the last hour: release-due is about to cancel this run, so
- * a lane ending red now files nothing (the verdict still files, if the run is not cancelled after all).
+ * A red issue on this commit that a fixing merge closed in the last hour and that names this run: release-due is
+ * about to cancel this run, so a lane ending red now files nothing (the verdict still files, if the run is not
+ * cancelled after all). A run the issue does not name is one release-due leaves running (toCancel), so it files.
  * @param closed the closed red issues, as listRedIssues returns them
  * @param sha the run's commit
+ * @param runUrl the run's URL
+ * @param textOf (number) => the issue's body and comments, joined; read only for an issue that matches otherwise
  * @param [now] milliseconds
  * @returns its number, or null
  */
-export function fixedRecently(closed, sha, now = Date.now()) {
+export function fixedRecently(closed, sha, runUrl, textOf, now = Date.now()) {
+    const run = Number(/\/actions\/runs\/(\d+)/.exec(runUrl ?? "")?.[1]);
     const hit = closed.find(
         (i) =>
             i.title.endsWith(` on ${short(sha)}`) &&
             i.stateReason === "completed" && // a duplicate fileRed closed is "not_planned"
             i.closedAt &&
-            now - Date.parse(i.closedAt) <= 60 * 60 * 1000,
+            now - Date.parse(i.closedAt) <= 60 * 60 * 1000 &&
+            runsOnTitleCommit(i.title, textOf(i.number)).has(run),
     );
     return hit ? hit.number : null;
 }
@@ -1068,12 +1282,13 @@ function laneRedMain(env) {
         console.log(`::notice::${LANES[env.LANE].name} is red with an owner item: the verdict decides it`);
         return;
     }
-    const fixed = fixedRecently(listRedIssues("closed", new Date(Date.now() - 60 * 60 * 1000).toISOString()), env.SHA);
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const fixed = fixedRecently(listRedIssues("closed", since), env.SHA, env.RUN_URL, issueText);
     if (fixed) {
         console.log(`::notice::#${fixed} was fixed by a merge that cancels this run: filing nothing`);
         return;
     }
-    const issue = fileRed(laneRedIssue({ lane: env.LANE, result: env.RESULT, sha: env.SHA, run: env.RUN_URL }));
+    const issue = fileRed(laneRedIssue({ lane: env.LANE, result: env.RESULT, sha: env.SHA, run: env.RUN_URL }), true);
     output({ issue: String(issue) });
 }
 

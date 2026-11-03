@@ -197,6 +197,40 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([null, null, 4, null, null, -2, null]);
     });
 
+    it("reads yEd's inside places (t, b, l, r, tl, ...) as inside and n, s, e, w, nw, ... as outside, with no model named", async () => {
+        // a NodeLabel with no modelName is in yEd's internal model, whose places are inside the node; the exterior
+        // places are the compass names (yFiles InteriorLabelModel and ExteriorLabelModel)
+        const places = ["t", "b", "l", "r", "tl", "tr", "bl", "br", "n", "s", "e", "w", "nw", "ne", "sw", "se"];
+        const doc = [
+            YED_HEAD,
+            ...places.map(
+                (p) =>
+                    `<node id="${p}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
+                    `<y:NodeLabel modelPosition="${p}">${p}</y:NodeLabel></y:ShapeNode></data></node>`,
+            ),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual([
+            "inside-top",
+            "inside-bottom",
+            "inside-left",
+            "inside-right",
+            "inside-top-left",
+            "inside-top-right",
+            "inside-bottom-left",
+            "inside-bottom-right",
+            "top",
+            "bottom",
+            "right",
+            "left",
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+        ]);
+    });
+
     it("keeps an outside label's distance from its node and a free label's offset, from the stored box", async () => {
         // a 40 x 26 node and a 22.6 x 17 label, as yEd writes them on the labels-p2 specimen sheet
         const node = (id: string, label: string): string =>

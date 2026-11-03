@@ -21,9 +21,6 @@ import { renderQualityWords } from "../../style/words";
 import { Workspace } from "../../Workspace";
 import { SHADER_MOTION, SHADER_QUALITY, TRUSTED_SHADERS_KEY } from "../shaderPreferences";
 
-/** A hang guard for the element coming up, compiling and drawing, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** The element's crash marker: a shader being compiled or first drawn. */
 const CRASH_MARKER_KEY = "graphty-shader-crash-marker";
 
@@ -65,13 +62,10 @@ afterEach(() => {
  */
 async function projectElement(): Promise<Element> {
     let found: Element | null = null;
-    await waitFor(
-        () => {
-            found = document.querySelector<Element>("graphty-element:not([data-start-page])");
-            assert.isDefined(found?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        found = document.querySelector<Element>("graphty-element:not([data-start-page])");
+        assert.isDefined(found?.session);
+    });
     if (found === null) {
         throw new Error("the element never came up");
     }
@@ -88,8 +82,8 @@ async function openGraphSettings(): Promise<Element> {
     const element = await projectElement();
     await element.session.data.addNodes([{ id: "a" }, { id: "b" }]);
     await element.session.data.addEdges([{ source: "a", target: "b" }]);
-    await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
-    await screen.findByRole("combobox", { name: "Quality" }, { timeout: TIMEOUT_MS });
+    await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+    await screen.findByRole("combobox", { name: "Quality" });
     return element;
 }
 
@@ -109,7 +103,7 @@ async function choose(name: string, option: string): Promise<void> {
 async function pickNebula(): Promise<void> {
     await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
-    const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+    const gallery = await screen.findByTestId("shader-gallery", {});
     await userEvent.click(within(gallery).getByRole("button", { name: "Nebula" }));
 }
 
@@ -158,12 +152,9 @@ async function openFromStart(file: File): Promise<{ store: WorkspaceStore; eleme
     ({ unmount } = render(<Workspace store={store} />));
     dropOn(globalThis, file);
     const element = await projectElement();
-    await waitFor(
-        () => {
-            assert.match(store.get().notice?.message ?? "", /^Opened plates/);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.match(store.get().notice?.message ?? "", /^Opened plates/);
+    });
     return { store, element };
 }
 
@@ -187,7 +178,7 @@ describe("the graph's shader settings", () => {
         });
 
         // The pick opens its settings, as a style row's pick does: each parameter by its own name.
-        const drift = await screen.findByRole("spinbutton", { name: "Drift" }, { timeout: TIMEOUT_MS });
+        const drift = await screen.findByRole("spinbutton", { name: "Drift" });
         await userEvent.clear(drift);
         await userEvent.type(drift, "0{Enter}");
         await waitFor(() => {
@@ -200,7 +191,7 @@ describe("the graph's shader settings", () => {
         const element = await openGraphSettings();
         await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
-        const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+        const gallery = await screen.findByTestId("shader-gallery", {});
         assert.strictEqual(gallery.dataset.tab, "background", "the one gallery, opened for the background");
         assert.isNull(within(gallery).queryByRole("radiogroup", { name: "Place" }), "the background has no place");
         const background = element.session.catalog
@@ -227,27 +218,21 @@ describe("the graph's shader settings", () => {
         );
         await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
-        const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+        const gallery = await screen.findByTestId("shader-gallery", {});
         await userEvent.click(within(gallery).getByRole("button", { name: "New shader..." }));
         const dialog = await screen.findByRole("dialog", { name: "New shader" });
         const box = within(dialog).getByRole<HTMLTextAreaElement>("textbox", { name: "Shader code" });
         await userEvent.fill(box, text);
         const steps = element.session.history.position;
         const add = within(dialog).getByRole("button", { name: "Add" });
-        await waitFor(
-            () => {
-                assert.isNull(add.getAttribute("aria-disabled"), "Add is enabled");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNull(add.getAttribute("aria-disabled"), "Add is enabled");
+        });
         await userEvent.click(add);
-        await waitFor(
-            () => {
-                const { background } = element.session.config;
-                assert.strictEqual(background.shader?.id, "user/pasted-background");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const { background } = element.session.config;
+            assert.strictEqual(background.shader?.id, "user/pasted-background");
+        });
         assert.strictEqual(element.session.history.position, steps + 1, "one step");
     });
 
@@ -291,16 +276,13 @@ describe("the graph's shader settings", () => {
         try {
             const element = await openGraphSettings();
             await pickNebula();
-            await waitFor(
-                () => {
-                    assert.strictEqual(
-                        element.renderQuality.motion,
-                        "still",
-                        "the system's preference holds shaders still",
-                    );
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.strictEqual(
+                    element.renderQuality.motion,
+                    "still",
+                    "the system's preference holds shaders still",
+                );
+            });
             const surface = document.querySelector<HTMLElement>(".ws-canvas-surface");
             assert.isNotNull(surface);
             await userEvent.click(surface, { button: "right", position: { x: 4, y: 4 } });
@@ -319,7 +301,7 @@ describe("the graph's shader settings", () => {
         await waitFor(() => {
             assert.strictEqual(historyTip(element.session, true), "Undo changing the background");
         });
-        const settings = await screen.findByRole("dialog", { name: "Nebula settings" }, { timeout: TIMEOUT_MS });
+        const settings = await screen.findByRole("dialog", { name: "Nebula settings" });
         const stars = within(settings).getByRole("spinbutton", { name: "Stars" });
         await userEvent.clear(stars);
         await userEvent.type(stars, "0.2{Enter}");
@@ -335,21 +317,15 @@ describe("the graph's shader settings", () => {
         assert.strictEqual(stateOf(first.element, "user/plate"), "held");
 
         await userEvent.click(await screen.findByRole("button", { name: "Run" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(stateOf(first.element, "user/plate"), "ready");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(stateOf(first.element, "user/plate"), "ready");
+        });
         assert.lengthOf(JSON.parse(localStorage.getItem(TRUSTED_SHADERS_KEY) ?? "[]") as string[], 1);
         // A reload follows a page hide, which lets the crash marker go; here it goes once the
         // shader has drawn calmly.
-        await waitFor(
-            () => {
-                assert.isNull(localStorage.getItem(CRASH_MARKER_KEY));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNull(localStorage.getItem(CRASH_MARKER_KEY));
+        });
 
         unmount?.();
         const second = await openFromStart(file);
@@ -362,18 +338,15 @@ describe("the graph's shader settings", () => {
         act(() => {
             store.set({ notice: null, inspected: { kind: "graph" } });
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
         const row = await screen.findByTestId("held-shaders");
         await userEvent.click(within(row).getByRole("button", { name: "Held shaders, 1" }));
         const list = await screen.findByRole("list", { name: "Held shaders" });
         assert.include(list.textContent ?? "", "Instead of the node, Used by 1");
         await userEvent.click(within(list).getByRole("button", { name: "Run Plate" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(stateOf(element, "user/plate"), "ready");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(stateOf(element, "user/plate"), "ready");
+        });
         await waitFor(() => {
             assert.isNull(screen.queryByTestId("held-shaders"));
         });
@@ -382,12 +355,9 @@ describe("the graph's shader settings", () => {
     it("shows the quality the frame guard stepped down to under Quality, not among the graph's statistics", async () => {
         const element = await openGraphSettings();
         await choose("Quality", "High");
-        await waitFor(
-            () => {
-                assert.strictEqual(element.renderQuality.level, "high");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.renderQuality.level, "high");
+        });
         assert.isNull(screen.queryByText(/^Now /));
         await pickNebula();
 
@@ -419,7 +389,7 @@ describe("the graph's shader settings", () => {
             // Over the slow-frame line the guard steps to Medium; a software rasterizer slow enough
             // to cross the long-frame line on the nebula alone steps heavy shaders off first.
             // Either way the line says what it stepped to.
-            const line = await screen.findByText(/^Now /, {}, { timeout: TIMEOUT_MS });
+            const line = await screen.findByText(/^Now /, {});
             assert.isTrue(
                 screen.getByRole("combobox", { name: "Quality" }).getAttribute("aria-describedby")?.includes(line.id),
             );

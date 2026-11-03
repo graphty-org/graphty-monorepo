@@ -9,9 +9,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent as realInput } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -19,9 +18,6 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML } from "../fixtures";
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /**
  * Renders the workspace on the Data place, waits for the session and loads the small graph file
@@ -32,13 +28,10 @@ async function openWithGraph(): Promise<{ session: GraphSession; store: Workspac
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, place: "data" });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -79,6 +72,17 @@ async function addValueCard(session: GraphSession): Promise<void> {
     await waitFor(() => {
         assert.lengthOf(session.visibility.conditions, 1);
     });
+}
+
+/**
+ * A segmented control's visible label, which a reader presses: the radio itself is drawn invisible.
+ * @param radio - the segment's radio.
+ * @returns its label.
+ */
+function segment(radio: HTMLElement): HTMLElement {
+    const label = (radio as HTMLInputElement).labels?.[0];
+    assert.isDefined(label);
+    return label;
 }
 
 describe("Filter cards on the real element", () => {
@@ -123,14 +127,14 @@ describe("Filter cards on the real element", () => {
         assert.deepEqual(count.edges, { matched: 4, total: 9 });
         const valueCard = await card(VALUE);
         await valueCard.findByText("4 of 9");
-        await screen.findByRole("button", { name: "Filter: 5 of 8 nodes, 4 of 9 edges" });
+        await screen.findByRole("button", { name: /^Filter: 5 of 8 nodes, 4 of 9 edges, showing only "/ });
     });
 
     it("Select selects the matches and hides nothing; Hide again empties that selection, and Undo restores it", async () => {
         const { session } = await openWithGraph();
         await addValueCard(session);
         const valueCard = await card(VALUE);
-        await userEvent.click(valueCard.getByRole("radio", { name: "Select" }));
+        await userEvent.click(segment(valueCard.getByRole("radio", { name: "Select" })));
         await waitFor(() => {
             assert.equal(session.visibility.conditions[0]?.effect, "select");
         });
@@ -140,7 +144,7 @@ describe("Filter cards on the real element", () => {
         // The card's name says what it does.
         await within(filters()).findByRole("listitem", { name: `${VALUE}, Select` });
 
-        await userEvent.click((await card(VALUE)).getByRole("radio", { name: "Hide" }));
+        await userEvent.click(segment((await card(VALUE)).getByRole("radio", { name: "Hide" })));
         await waitFor(() => {
             assert.equal(session.visibility.conditions[0]?.effect, "keep");
         });
@@ -266,7 +270,7 @@ describe("Filter cards on the real element", () => {
             });
         });
         const neighbors = await card("within 1 hop of 4");
-        await userEvent.click(neighbors.getByRole("radio", { name: "3" }));
+        await userEvent.click(segment(neighbors.getByRole("radio", { name: "3" })));
         await waitFor(() => {
             const rule = session.visibility.conditions[0]?.rule;
             assert.equal(rule?.kind === "neighborhood" ? rule.depth : 0, 3);
@@ -301,10 +305,10 @@ describe("Filter cards on the real element", () => {
             rule: { kind: "text", reads: "data.label", mode: "substring", text: "Ma" },
         });
         const box = (await card("label contains Ma")).getByRole("combobox", { name: "label: text to match" });
-        await realInput.click(box);
-        await realInput.keyboard("{End}r");
+        await userEvent.click(box);
+        await userEvent.keyboard("{End}r");
         // The bare corner of the list cannot take focus: focus falls to the page.
-        await realInput.click(filters(), { position: { x: 2, y: 2 } });
+        await userEvent.click(filters(), { position: { x: 2, y: 2 } });
         await waitFor(() => {
             const rule = session.visibility.conditions[0]?.rule;
             assert.equal(rule?.kind === "text" ? rule.text : "", "Mar");
@@ -312,14 +316,14 @@ describe("Filter cards on the real element", () => {
         await within(filters()).findByRole("listitem", { name: "label contains Mar, Hide" });
 
         // A new card left empty the same way is dropped, unwritten.
-        await realInput.click(screen.getByRole("button", { name: "Add filter" }));
-        await realInput.click(await screen.findByRole("menuitem", { name: "label" }));
+        await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "label" }));
         const drafts = (): number => within(filters()).getAllByRole("listitem").length;
         await waitFor(() => {
             assert.equal(drafts(), 2);
         });
-        await realInput.click(within(filters()).getAllByRole("combobox", { name: "label: text to match" })[1]);
-        await realInput.click(filters(), { position: { x: 2, y: 2 } });
+        await userEvent.click(within(filters()).getAllByRole("combobox", { name: "label: text to match" })[1]);
+        await userEvent.click(filters(), { position: { x: 2, y: 2 } });
         await waitFor(() => {
             assert.equal(drafts(), 1);
         });

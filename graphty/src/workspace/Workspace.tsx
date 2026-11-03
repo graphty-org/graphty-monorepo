@@ -12,8 +12,9 @@ import { NoticeSlot } from "./frame/NoticeSlot";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
-import { notReadSentence, openingFile } from "./project/actions";
+import { openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
+import { notReadWords } from "./project/words";
 import { REGISTRATIONS } from "./registrations";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { useDropToOpen } from "./start/open";
@@ -112,25 +113,21 @@ export function Workspace({
         }
         store.set({ opening: null });
         loading.current = true;
-        // Focus goes to the graph's heading once it is read, so its size is heard, unless the
-        // reader went somewhere else meanwhile.
-        const focusLater = focusOpenedGraphLater();
+        // Focus goes to the graph's heading (or where the opening says) once it is read, so its
+        // size is heard, unless the reader went somewhere else meanwhile.
+        const focusLater = focusOpenedGraphLater(opening.focus);
         defaults
             .then(() => opening.load(session, host))
             // Each load starts the project's history itself (open.ts passes the element's
             // `history: "start"`; a project file or kept work does so on opening).
             .then(() => {
-                const focus = store.get().page === "panels";
-                focusLater(focus && opening.focus === undefined);
-                if (focus) {
-                    opening.focus?.();
-                }
+                focusLater(store.get().page === "panels");
                 opening.settle();
             })
             .catch((error: unknown) => {
                 focusLater(false);
                 opening.settle({ error });
-                const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
+                const notice = { message: notReadWords(opening.name, error, "opened"), error: true };
                 store.set((state) =>
                     state.project?.id === project?.id
                         ? { project: null, page: "panels", inspected: null, dialog: null, renaming: false, notice }

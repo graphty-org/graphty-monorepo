@@ -1,10 +1,10 @@
 # Early screenshot capture: rolling slices and idle-time capture
 
-Date: 2026-10-29. Issue #4540. Status (2026-10-29 evening): plan steps 1, 2, 3, 5, 6 and 7 are on master
-(the pick rule switched off); step 4, the review page's rolling target, is in review (#4559) and already
-runs in the owner's review server. The dispatcher runs as a dry run until the owner's AWS parameters exist
-(section 7), so the only slice so far was dispatched by hand. Trial results so far: "Trial status" at the
-end of section 5.
+Date: 2026-10-29. Issue #4540. Status (2026-10-29 evening): plan steps 1 to 7 are built and on master (the
+pick rule switched off; step 4, the review page's rolling target and the one-approval-in-flight rules, is
+described in "Step 4 as built" under section 5). The dispatcher runs as a dry run until the owner's AWS
+parameters exist (section 7), so the only slice so far was dispatched by hand. Trial results so far: "Trial
+status" at the end of section 5.
 
 Every story's picture is rendered fresh from master many times a day, in small slices: a fixed small
 slice after green master builds while runners are free, and more slices while GitHub's runners are
@@ -403,11 +403,17 @@ later green-clean candidate, and `pick()` would mark each "a newer commit promot
    its pick and its verdict. The merging session uses `tools/channel/rolling-merge.mjs`, which checks the
    store and merges or says when to retry (these pull requests change `visual-baselines/`, so `pr-open.sh`
    leaves auto-merge off and a session merges them once green).
-4. **A required check backs this up in code**: ci.yml's Checks job runs `tools/channel/baselines-tree.mjs`,
+4. **A required check backs this up in code**: ci.yml's Build job runs `tools/channel/baselines-tree.mjs`
+   (not the Checks job: an approval head that only adds screenshot records reuses an earlier run's results and
+   skips Checks, which is exactly the case to check),
    which fails a pull request that changes `visual-baselines/` unless the merge result's baselines tree
    equals its head's tree. A stale approval pull request therefore fails its own CI and never reaches
    master. Recovery: `node visual-review/trusted/cli.mjs update <pr>` merges master, and the owner reviews
-   and signs again.
+   and signs again. One case needs no new review: a held candidate approved, fixed forward and approved again,
+   whose first approval master already holds. The second review compared every story of the new head with its
+   own baselines, so it supersedes the first; `node tools/channel/approval-update.mjs <branch>` merges master
+   into the approval and keeps exactly the signed tree under `visual-baselines/` (#5410). It refuses when
+   master's baselines moved for any other reason.
 5. **An alarm.** `tools/full-run.mjs pick` checks the picked commit's baselines tree: if it is neither
    nightly's nor signed, it files one "Master baselines tree unsigned" issue (`bug`, `priority:critical`)
    instead of silently marking the commit. Never expected with rules 1 to 4; it makes a gap visible.
@@ -561,13 +567,30 @@ gate step and story-test jobs.
    render-bound decisions and no hash carry, `accept.mjs`'s rolling branch rule (accept parented on the
    render commit X, accept-only against X, branch `visual/approve-rolling-<sha12>`, the distinct subject),
    `config.mjs` accepting the `rolling` key; the one-approval-in-flight rules 1 and 2. Tools:
-   `tools/channel/baselines-tree.mjs` in ci.yml's Checks job (rule 4), `tools/channel/rolling-merge.mjs`
+   `tools/channel/baselines-tree.mjs` in ci.yml's Build job (rule 4), `tools/channel/rolling-merge.mjs`
    (rule 3), the unsigned-tree alarm in `tools/full-run.mjs pick` (rule 5), and tests that `acceptsIn`
    and `approvalsIn` ignore the rolling subject. Notifications: the bin job's Pushover messages, rate
    limited by the store. Docs: CLAUDE.md's Visual review section and `visual-review/README.md` for the new
    rule. visual-review's own tests (a fake store and fake artifacts); put into the live review server with
    `tools/live.sh visual-review` once committed. `pr-open.sh` leaves auto-merge off for the visual-review
    files; a session merges it once green.
+
+    **Step 4 as built** (issue #4540):
+    - The rolling target is offered by `serve --candidate next` whenever the config has `rolling`, so the
+      owner's running server needs no new flag. One target, id `rolling`, for the newest render commit with
+      an item to decide; older commits are counted, not shown. Its decisions are kept per render commit
+      (`state/rolling-<sha>.json`) and each records the render (run and attempt) it was taken on.
+    - A Finish that rejects anything posts only the rejects, as on a candidate (a signed tree must reject
+      nothing). The accepts stay bound to that render; a newer render brings the story back undecided.
+    - Reach holds an item back by project, not by story file: capture rows do not name a story's file, and
+      today every reach row is `<project>:*` anyway (selectProjects is empty). A merge whose reach row is
+      missing counts as reaching nothing, as in the slice order.
+    - Not built: filing a rolling `unstable` render as flaky (they are never offered; the slice summary lists
+      them), and marking a later render "rejected in #N". The Pushover link is the repository variable
+      `VISUAL_REVIEW_URL` when set, else the slice run.
+    - The unsigned-tree alarm checks that an approval statement for the tree exists at the commit; the gate
+      itself checks the signature.
+
 5. **Dispatcher.** tools/pipeline-health: `decideSlice()` at the end of the collector cycle, the quiet
    rule, the separate base and idle budgets, the in-flight check, the slice runner-minutes from GitHub's
    job durations; unit tests for the decision table. Needs the release-scheduler App key in AWS (#3608,
@@ -578,17 +601,17 @@ gate step and story-test jobs.
    alert, so a trial week of busy runners does not page the owner. After the 7-day trial, the set's age
    may become a judged state.
 
-    | Page     | Member                                 | Value                                                                                                    | Target, red      | Source       |
-    | -------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------- | ------------ |
-    | CI       | Screenshot set age                     | newest value: the oldest of every rotation unit's newest capture                                         | <= 6 h, > 12 h   | story-slices |
-    | CI       | Base / idle slices, share of daily cap | today's (UTC) runner-minutes of the share / its cap in `config/slices.json`                              | <= 100%, > 125%  | collector    |
-    | CI       | Idle slices, share of hourly cap       | idle runner-minutes in the last hour / the hourly cap                                                    | <= 100%, > 125%  | collector    |
-    | CI       | Slice minutes held while contended     | 7-day sum of slice jobs running x cycle minutes, in cycles that were saturated or had another job queued | <= 35 min, > 105 | collector    |
-    | CI       | Queue wait during slices               | 7-day sum of other jobs queued x cycle minutes, in cycles where a slice job ran                          | <= 35 min, > 105 | collector    |
-    | Releases | Screenshot review lag                  | 7-day median, first rolling capture of a changed or new picture to the approval merge that took it in    | <= 6 h, > 24 h   | story-slices |
-    | Releases | Slots meeting an unapproved picture    | green-images / (green-clean + green-images) full-run verdicts, 7 days                                    | <= 25%, > 75%    | release      |
-    | Releases | Green-clean full runs                  | green-clean / every full-run verdict, 7 days (a same-commit re-run replaces)                             | >= 50%, < 25%    | release      |
-    | Releases | Nightly promotions per day             | channel/nightly moving to a new commit, 7-day count / 7                                                  | >= 2, < 1        | collector    |
+    | Page     | Member                                 | Value                                                                                                 | Target, red      | Source       |
+    | -------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------- | ------------ |
+    | CI       | Screenshot set age                     | newest value: the oldest of every rotation unit's newest capture                                      | <= 6 h, > 12 h   | story-slices |
+    | CI       | Base / idle slices, share of daily cap | today's (UTC) runner-minutes of the share / its cap in `config/slices.json`                           | <= 100%, > 125%  | collector    |
+    | CI       | Idle slices, share of hourly cap       | idle runner-minutes in the last hour / the hourly cap                                                 | <= 100%, > 125%  | collector    |
+    | CI       | Slice minutes held while contended     | 7-day sum of slice jobs running x cycle minutes, in cycles that were saturated                        | <= 35 min, > 105 | collector    |
+    | CI       | Queue wait during slices               | 7-day sum of other jobs' minutes waiting for a runner, in saturated cycles where a slice job ran      | <= 35 min, > 105 | collector    |
+    | Releases | Screenshot review lag                  | 7-day median, first rolling capture of a changed or new picture to the approval merge that took it in | <= 6 h, > 24 h   | story-slices |
+    | Releases | Slots meeting an unapproved picture    | green-images / (green-clean + green-images) full-run verdicts, 7 days                                 | <= 25%, > 75%    | release      |
+    | Releases | Green-clean full runs                  | green-clean / every full-run verdict, 7 days (a same-commit re-run replaces)                          | >= 50%, < 25%    | release      |
+    | Releases | Nightly promotions per day             | channel/nightly moving to a new commit, 7-day count / 7                                               | >= 2, < 1        | collector    |
 
     How each is measured, and why:
 
@@ -650,8 +673,10 @@ A replay of the quiet rule over the health API's 15-minute runner series (2026-1
 allows an idle slice in 13.3% of buckets, about 3.2 hours a day, and a base slice in 16.7%. Found: since
 the move to the Enterprise plan the health stack's runner limit is 500, and on the evening of 2026-10-29
 only 15 to 30 jobs ran while 150 to 700 waited, so `ci.saturated` read 0 throughout. The quiet rule still
-yields, because it also needs nothing queued, but "slice minutes held while contended" must be read from
-its queued half while jobs wait without the pool being full.
+yields, because it also needs nothing queued. A hosted slice runner holds back another job only through
+the concurrency limit, so both cost members count only saturated cycles (#5398): from 2026-10-30 to
+2026-11-02 every wait they had charged to slices came with at most 180 of 500 runners busy, which
+is GitHub's assignment delay (`ci.unassigned_ms`), not the slices.
 
 ## 6. Review answers
 

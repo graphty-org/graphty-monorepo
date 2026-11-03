@@ -9,6 +9,7 @@
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
+import type { FileLayout } from "@graphty/graph-io";
 import { type ExtractedStyles, readAnnotations, readImageAnnotations } from "@graphty/graph-io/styles";
 
 import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../../../catalog/types";
@@ -77,6 +78,8 @@ export const HELD_READERS = new WeakMap<
     Partial<FileStyleSource> & {
         /** The file's graph-level attributes, as the source read them. */
         readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
+        /** The layout the file asks for, as the source read it. */
+        readonly declaredFileLayout?: FileLayout | null;
     }
 >();
 
@@ -102,6 +105,13 @@ export interface LoadStyleReport {
     readonly layers: readonly LayerId[];
     /** What reading and translating the file's styles met, as codes and facts. */
     readonly notes: readonly FileStyleNote[];
+    /**
+     * The scene units one unit of the file's lengths was drawn as: the ONE factor node sizes, borders, edge widths,
+     * label sizes (unless `labelSizes: "file"`) and the file's stored positions took, so the drawing keeps the file's
+     * proportions. 1 when the load kept the file's numbers (`lengths: "file"`, or a file graphty wrote). Absent when no
+     * file styles were read.
+     */
+    readonly lengthScale?: number;
 }
 
 /**
@@ -188,16 +198,32 @@ export async function applyFileStyles(
     const notes: FileStyleNote[] = [];
     const layers: LayerId[] = [];
     let sceneScale: number | null = null;
+    let lengthScale: number | undefined;
     if (read !== null) {
         const applied = await applyRead(outcome, read, options, ctx, replacing);
         layers.push(...applied.layers);
         notes.push(...applied.notes);
         sceneScale = replacing ? applied.sceneScale : null;
+        ({ lengthScale } = applied);
+    }
+
+    // The program fits the stored positions' centers into its canvas (sigma.js): framed the same, the drawing fills
+    // the canvas as the program's does. A file whose program states no fit returns to the element's own framing.
+    if (options.framing === "file" && replacing) {
+        const fit = read?.positionFit;
+        await ctx.inline({
+            op: "config.set",
+            values: { framing: fit === undefined ? undefined : { extent: "centers", padding: fit.padding } },
+        });
     }
 
     const report: LoadReport = Object.freeze({
         ...outcome.report,
-        styles: Object.freeze({ layers: Object.freeze(layers), notes: Object.freeze(notes) }),
+        styles: Object.freeze({
+            layers: Object.freeze(layers),
+            notes: Object.freeze(notes),
+            ...(lengthScale === undefined ? {} : { lengthScale }),
+        }),
     });
     ctx.services.data?.values?.({ importReport: report }, ctx.draft);
     return sceneScale;
@@ -325,6 +351,11 @@ async function applyRead(
             });
     }
 
+    // The file turns the whole drawing (Graphviz's rotate=90 and landscape): the 2D view turns, labels and all.
+    if (translation.rotation !== null) {
+        await ctx.inline({ op: "config.set", values: { viewRotation: translation.rotation } });
+    }
+
     // The stored positions take the styles' unit, so they are drawn at the file's proportions. Where
     // the lengths are kept as the file has them (it sizes nothing, or the load keeps file lengths),
     // they are drawn in that unit too; a file graphty wrote holds positions in graphty's own units.
@@ -343,7 +374,7 @@ async function applyRead(
         ctx.services.data?.values?.({ [ANNOTATIONS_VALUE]: value }, ctx.draft);
     }
 
-    return { layers, notes, sceneScale };
+    return { layers, notes, sceneScale, lengthScale: translation.sceneScale ?? 1 };
 }
 
 /**

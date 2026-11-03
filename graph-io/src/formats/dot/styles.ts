@@ -29,7 +29,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { isWritableDotText } from "../../common/escape.js";
-import { inferTextDtype } from "../../common/text.js";
+import { inferTextDtype, itemAt } from "../../common/text.js";
 import { type BendPoint, canonBends, canonNodeOffsets, flattenCubic } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
@@ -64,16 +64,18 @@ import type {
 import type { LossNote } from "../../types.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
 import {
-    GRAPHVIZ_DECORATED_BOXES,
+    type GlyphPoint,
     GRAPHVIZ_GLYPH_SHAPES,
     GRAPHVIZ_POLYGON_SHAPES,
     graphvizFont,
     graphvizFontName,
+    type GraphvizGlyph,
     graphvizGlyph,
     graphvizPolygonCorners,
     isGraphvizBox,
 } from "./drawing.js";
-import { type LabelPlaceContext, readLabelPlaces } from "./label-places.js";
+import { type LabelTable, readLabelTable } from "./html-table.js";
+import { type LabelPlaceContext, leftOutEdgeLabels, leftOutXlabels, readLabelPlaces } from "./label-places.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
 import { layoutRecord } from "./record.js";
 
@@ -112,6 +114,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "shapeLines",
         "shapeLineWidth",
         "tooltip",
+        "xlabel",
         "visible",
     ] as const),
     edge: Object.freeze([
@@ -127,6 +130,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "label",
         "sourceLabel",
         "targetLabel",
+        "xlabel",
         "labelColor",
         "labelSize",
         "labelFont",
@@ -135,7 +139,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "tooltip",
         "visible",
     ] as const),
-    graph: Object.freeze(["background"] as const),
+    graph: Object.freeze(["background", "rotation"] as const),
     block: "native",
 });
 
@@ -171,6 +175,7 @@ const NODE_ATTRIBUTES: readonly string[] = [
     "fontsize",
     "fontcolor",
     "tooltip",
+    "xlabel",
 ];
 
 /** Every edge attribute the reader reads; the writer replaces them all. */
@@ -198,7 +203,7 @@ const EDGE_ATTRIBUTES: readonly string[] = [
 ];
 
 /** Attributes the reader notes as not carried. */
-const NOTED_ATTRIBUTES: readonly string[] = ["peripheries", "xlabel"];
+const NOTED_ATTRIBUTES: readonly string[] = ["peripheries"];
 
 const CIRCLE_LIKE: ReadonlySet<string> = new Set(["circle", "doublecircle", "mcircle", "square", "msquare"]);
 const BOX_LIKE: ReadonlySet<string> = new Set(["box", "rect", "rectangle", "square"]);
@@ -756,8 +761,8 @@ interface NodeRead {
 interface HtmlTableFrame {
     /** `BORDER`: the width of the table's outline, 1 when not given. */
     readonly border: number;
-    /** From the outline to the cells' text on each side: the border, `CELLSPACING`, `CELLBORDER`, `CELLPADDING`. */
-    readonly inset: number;
+    /** The table's rows and cells, as the neutral `labelTable` value. */
+    readonly cells: LabelTable;
     /** `COLOR`, or null for the node's pen color. */
     readonly color: string | null;
     /** `STYLE`, lowercase. */
@@ -769,12 +774,19 @@ interface HtmlTableFrame {
 
 /**
  * The frame of a label that is an HTML-like table, perhaps inside font tags (Graphviz's `fonttable`); null for any
- * other label. Cells, rows and their own borders are not read: graphty draws the table as the node's box.
+ * other label, with its rows and cells.
  * @param label - the `label` attribute, or null
  * @param html - the file's HTML strings
+ * @param scheme - the node's color scheme, for its cells' font colors
+ * @param site - where a bad font color is noted
  * @returns the frame, or null
  */
-function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTableFrame | null {
+function htmlTableFrame(
+    label: string | null,
+    html: ReadonlySet<string>,
+    scheme: string | null,
+    site: CanonSite,
+): HtmlTableFrame | null {
     if (label === null || (!isHtmlString(label) && !html.has(`<${label}>`))) {
         return null;
     }
@@ -793,13 +805,24 @@ function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTa
         const v = length(name, 0, 0, 65535);
         return v > 0 ? v : null;
     };
-    const inset =
-        border + length("cellspacing", 2, -128, 127) + length("cellborder", border, 0, 127) + length("cellpadding", 2);
+    const tagAttrs = (tag: string): Map<string, string> =>
+        new Map(tagAttributes(tag).map(([k, v]) => [k.toLowerCase(), v]));
+    const markup = isHtmlString(label) ? label.slice(1, -1) : label;
+    const cells = readLabelTable(
+        markup,
+        tagAttrs,
+        (tags) => htmlRunFont(tags, scheme, site),
+        (value) => {
+            const c = canonColor(value, "graphviz", site, { scheme, use: "fill" });
+            return c === null || c.alpha <= 0 ? null : c.color;
+        },
+    );
+    if (cells === null) {
+        return null;
+    }
     return {
         border,
-        // a cell's border is the table's unless CELLBORDER is given; a negative CELLSPACING overlaps the cells, but
-        // the text never sits outside the table
-        inset: Math.max(0, inset),
+        cells,
         color: nonEmpty(attrs.get("color") ?? null),
         style: (attrs.get("style") ?? "").toLowerCase(),
         width: size("width"),
@@ -925,6 +948,10 @@ function readNodeLabel(n: NodeRead, label: string | null, shown: string, names: 
         put("label", shown);
         readLabelAlign(label, names, cx.html, RECORD.has(shape), put);
         readHtmlRuns(label, cx.html, n.scheme, put, at);
+        if (n.table !== null) {
+            // a text line set as Graphviz sets it; a cell sized by its picture counts each of its pixels as Graphviz does
+            put("labelTable", JSON.stringify({ ...n.table.cells, ...HTML_LINE, imagePixel: IMAGE_POINTS_PER_PIXEL }));
+        }
         if (cx.cluster) {
             put("labelPosition", clusterLabelPosition(get));
             readClusterLabelPlace(get, put);
@@ -1046,7 +1073,7 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
         point: !cx.cluster && shape === "point",
         scheme: get("colorscheme"),
         color: nonEmpty(get("color")),
-        table: cx.cluster ? null : htmlTableFrame(get(LABEL_ATTRIBUTE), cx.html),
+        table: cx.cluster ? null : htmlTableFrame(get(LABEL_ATTRIBUTE), cx.html, get("colorscheme"), at("labelTable")),
     };
     // in a node's label \E stands for nothing (measured with dot 2.43); \T and \H stand for their letters
     const names: DotEscapeNames = cx.cluster ? { graph: cx.name } : { node: cx.name, graph: cx.graph, edge: "" };
@@ -1060,8 +1087,103 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     readNodeOutline(n);
     readNodeShape(n);
     readNodeLabelAndSize(n, names);
-    if (nonEmpty(get("xlabel")) !== null) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
+    readNodeImage(n);
+}
+
+/** Where `imagepos` puts a node's image, 0 to 1 across and down, by its first and second letter. */
+const IMAGE_POS: Readonly<Record<string, number>> = { t: 0, m: 0.5, b: 1, l: 0, c: 0.5, r: 1 };
+
+/**
+ * Reads a node's picture (`image`, its file as written): how it is scaled (`imagescale`: false draws it at its own
+ * size, true keeps its proportions inside the node, both stretches it, width or height stretches that side only) and
+ * where it sits (`imagepos`, `tl` to `br`; unset, the middle). https://graphviz.org/docs/attrs/image/
+ * @param n - the node
+ */
+function readNodeImage(n: NodeRead): void {
+    const { get, put } = n;
+    const src = nonEmpty(get("image"));
+    if (src === null || n.point || n.cx.cluster) {
+        return;
+    }
+    put("image", src);
+    const scale = (get("imagescale") ?? "").trim().toLowerCase();
+    const least = nodeLeastSize(get, n.shape);
+    if (scale === "true" || scale === "yes") {
+        put("imageFit", "contain");
+    } else if (scale === "both") {
+        put("imageFit", "fill");
+    } else {
+        put("imageFit", "none");
+        // the stretched side reaches across the node; the other keeps the picture's own size
+        if (scale === "width" || scale === "height") {
+            put(scale === "width" ? "imageWidth" : "imageHeight", num6(scale === "width" ? least.w : least.h));
+            put("imageAutoSize", "natural");
+        }
+    }
+    const pos = (get("imagepos") ?? "").trim().toLowerCase();
+    const [y, x] = [IMAGE_POS[pos[0]], IMAGE_POS[pos[1]]];
+    if (pos.length === 2 && "tmb".includes(pos[0]) && "lcr".includes(pos[1])) {
+        put("imagePositionX", x);
+        put("imagePositionY", y);
+    }
+    readNodeImageFit(n);
+}
+
+/** How long one of a picture's pixels is when Graphviz sizes something by it, in points: 96 pixels an inch. */
+const IMAGE_POINTS_PER_PIXEL = 0.75;
+
+/**
+ * A node that is not `fixedsize` grows round its picture as round its label (Graphviz's `poly_init`): the picture's
+ * own size, 2 points more each way ("some fixed padding"), and the larger of that and the padded label decides. A
+ * node with no words pads nothing but its picture.
+ * @param n - the node
+ */
+function readNodeImageFit(n: NodeRead): void {
+    const { get, put, shape } = n;
+    if (isTrue(get("fixedsize")) || RECORD.has(shape)) {
+        return;
+    }
+    put("labelFitImage", IMAGE_POINTS_PER_PIXEL);
+    put("labelFitImagePadding", 1);
+    if (get(LABEL_ATTRIBUTE) === "") {
+        put("labelFit", GRAPHVIZ_GLYPH_SHAPES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
+        put("labelPaddingX", 0);
+        put("labelPaddingY", 0);
+        if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {
+            put("labelFitSquare", true);
+        }
+    }
+}
+
+/**
+ * Reads a node's external label (`xlabel`), drawn outside it in its label's face, and where a laid-out file stored it
+ * (`xlp`, its center, kept only beside the node's stored `pos`) as an offset from the node's center, y down.
+ * @param get - the node's attributes
+ * @param cx - its name and the file's HTML strings
+ * @param center - its stored center, in points, y up; null when the file stores none
+ * @param put - receives the values
+ * @param at - the sites
+ * @param leftOut - whether Graphviz leaves the label out (`forcelabels=false` and no room; leftOutXlabels())
+ */
+function readNodeXlabel(
+    get: Attr,
+    cx: NodeContext,
+    center: readonly number[] | null,
+    put: Put,
+    at: At,
+    leftOut: boolean,
+): void {
+    const raw = nonEmpty(get("xlabel"));
+    if (cx.cluster || raw === null || leftOut) {
+        return;
+    }
+    const names: DotEscapeNames = { node: cx.name, graph: cx.graph, edge: "" };
+    put("xlabel", labelText(raw, names, cx.html, false, at("xlabel")));
+    const [px, py] = center ?? [];
+    const [lx, ly] = (get("xlp") ?? "").split(",").map(Number);
+    if ([px, py, lx, ly].every(Number.isFinite)) {
+        put("xlabelOffsetX", num6(lx - px));
+        put("xlabelOffsetY", num6(py - ly));
     }
 }
 
@@ -1252,8 +1374,9 @@ function colorBands(
     site: CanonSite,
 ): { color: string; size: number }[] {
     const parts = list.split(":").map((part) => {
-        const [color, fraction] = part.split(";");
-        const c = canonColor(color.trim(), "graphviz", site, { scheme, use });
+        const pieces = part.split(";");
+        const fraction = itemAt(pieces, 1);
+        const c = canonColor(pieces[0].trim(), "graphviz", site, { scheme, use });
         const f = fraction === undefined ? Number.NaN : Number(fraction);
         return { color: c?.color ?? null, fraction: Number.isFinite(f) && f >= 0 ? f : null };
     });
@@ -1358,9 +1481,8 @@ export const SHAPE_PERIPHERIES: ReadonlyMap<string, number> = new Map([
 export const PERIPHERY_GAP = 4;
 
 /**
- * Reads a node's second outline (`peripheries=2`, `doublecircle`): Graphviz draws it `PERIPHERY_GAP` points outside
- * the first, in the same color, width and dashes. graphty draws one outer ring, so a third and later outline is
- * noted as not carried.
+ * Reads a node's further outlines (`peripheries=2` and up, `doublecircle`, `tripleoctagon`): Graphviz draws each
+ * `PERIPHERY_GAP` points outside the one before, in the same color, width and dashes.
  * @param n - the node
  */
 function readNodeRings(n: NodeRead): void {
@@ -1392,7 +1514,7 @@ function readNodeRings(n: NodeRead): void {
         n.put("outerBorderStyle", n.tokens.includes("dashed") ? "dashed" : "dotted");
     }
     if (count > 2) {
-        noteAt(n.at("outerBorderWidth"), STYLE_ISSUE.NOT_CARRIED, `peripheries=${String(count)}`);
+        n.put("outerBorderCount", count - 1);
     }
 }
 
@@ -1541,8 +1663,9 @@ const NAMED_OUTLINES: ReadonlyMap<string, string> = new Map(
 
 /**
  * A Graphviz shape drawn as pieces of its own (`graphvizGlyph`) at a node's size, as the neutral values that draw it:
- * a polygon of its outline drawn where it says, its further pieces (`shapeParts`) and lines (`shapeLines`), each as
- * fractions of the node's half width and half height. An `underline` is filled with no line round it, its line alone
+ * a polygon of its outline drawn where it says, its further pieces (`shapeParts`) and lines (`shapeLines`), each
+ * coordinate a fraction of the node's half width or half height plus a length in points (`-1+24`), so the pieces keep
+ * their sizes when the node grows to hold its label. An `underline` is filled with no line round it, its line alone
  * drawn in the pen's width.
  * @param shape - the shape name, lowercase
  * @param width - the node's width in points, or null for Graphviz's default
@@ -1597,17 +1720,34 @@ function glyphTexts(
     if (glyph === null) {
         return null;
     }
-    // fractions of the half width and half height the glyph was laid out at
+    // each coordinate is a * W + b: a fraction of the half width (or height) plus a length in points, read off the
+    // glyph laid out again at twice the width and at twice the height
     const half = (v: number | null, fallback: number): number => (v !== null && v > 0 ? v : fallback) / 2;
     const [W, H] = [half(width, 54), half(height, 36)];
-    const list = (points: readonly (readonly [number, number])[]): string =>
-        cornersText(points.map(([x, y]) => [x / W, y / H] as const));
-    const lists = (all: readonly (readonly (readonly [number, number])[])[]): string | null =>
-        all.length === 0 ? null : all.map(list).join("; ");
+    const wide = graphvizGlyph(shape, 4 * W, 2 * H);
+    const tall = graphvizGlyph(shape, 2 * W, 4 * H);
+    if (wide === null || tall === null) {
+        return null;
+    }
+    const term = (v: number, grown: number, by: number): string => {
+        const a = num6((grown - v) / by);
+        const b = num6(v - a * by);
+        if (b === 0) {
+            return String(a);
+        }
+        return `${String(a)}${b > 0 ? "+" : ""}${String(b)}`;
+    };
+    const pieces = (pick: (g: GraphvizGlyph) => readonly (readonly GlyphPoint[])[]): string | null => {
+        const [at, x2, y2] = [pick(glyph), pick(wide), pick(tall)];
+        const text = at.map((points, i) =>
+            points.map(([x, y], j) => `${term(x, x2[i][j][0], W)},${term(y, y2[i][j][1], H)}`).join(" "),
+        );
+        return text.length === 0 ? null : text.join("; ");
+    };
     return {
-        outline: list(glyph.outline),
-        parts: lists(glyph.parts),
-        lines: lists(glyph.lines),
+        outline: pieces((g) => [g.outline]) ?? "",
+        parts: pieces((g) => g.parts),
+        lines: pieces((g) => g.lines),
         unstroked: glyph.unstroked === true,
         ring: glyph.ring ?? null,
     };
@@ -1727,27 +1867,15 @@ function readSize(get: Attr, shape: string, point: boolean, put: Put, at: At): v
 
 /**
  * Reads the graph's `quantum` for a node that grows to hold its label: Graphviz rounds the padded label box up to a
- * multiple of it before fitting the outline round it (`poly_init`), so the node is at least one quantum across, an
- * ellipse's box times the square root of 2.
+ * multiple of it each way before fitting the outline round it (`poly_init`).
  * @param n - the node
  * @param label - its `label` attribute, or null
  */
 function readQuantum(n: NodeRead, label: string | null): void {
-    const { get, put, shape } = n;
-    let scale: number | null = BOX_LIKE.has(shape) ? 1 : null;
-    if (ELLIPSE_LIKE.has(shape)) {
-        scale = Math.SQRT2;
-    }
-    const w = Number(get("width") ?? Number.NaN);
-    const h = Number(get("height") ?? Number.NaN);
-    // ponytail: one quantum is the least size; a label box over one quantum is not rounded up to the next, and only
-    // boxes and ellipses with their size given are read (other polygons fit their box by factors of their own)
-    if (n.cx.quantum === 0 || scale === null || label === "" || isTrue(get("fixedsize")) || !(w >= 0 && h >= 0)) {
+    if (n.cx.quantum === 0 || label === "" || isTrue(n.get("fixedsize"))) {
         return;
     }
-    const least = n.cx.quantum * scale;
-    put("width", num6(Math.max(w * DOT_POINTS_PER_INCH, least)));
-    put("height", num6(Math.max(h * DOT_POINTS_PER_INCH, least)));
+    n.put("labelFitQuantum", num6(n.cx.quantum));
 }
 
 /** Graphviz's padding around a node's label when it has no `margin`: 8 points left and right, 4 above and below. */
@@ -1755,6 +1883,16 @@ const LABEL_PAD = { x: 8, y: 4 } as const;
 
 /** Graphviz's line height, as a multiple of the font size (`LINESPACING`, lib/common/const.h). */
 const LINE_SPACING = 1.2;
+
+/**
+ * How Graphviz 14 sets a line of an HTML-like label's text (lib/common/htmltable.c `size_html_txt`, `emit_htextspans`;
+ * plugin/pango/gvtextlayout_pango.c): the line is as tall as its pango layout, the font's ascent and descent each
+ * rounded up to whole pixels at 96 dpi (0.75 points; DejaVu Sans at 10 points: 13 and 4 pixels, 12.75 points), and its
+ * baseline one font size below the line's top, drawn 0.05 font sizes higher (`yoffset_centerline`): 9.5 points at 10.
+ * ponytail: a line of several runs or fonts (Graphviz's not `simple` text) is set 1 point higher still; carry it per
+ * cell when a file mixes runs in a table's cell
+ */
+const HTML_LINE = { lineHeight: "font", textPixel: IMAGE_POINTS_PER_PIXEL, baseline: 0.95 } as const;
 
 /**
  * Reads how a node that is not drawn at a fixed size grows to hold its label (`poly_init`, lib/common/shapes.c):
@@ -1793,8 +1931,9 @@ function readLabelFit(
     const given = shape === "plain" ? [] : margin;
     const marginX = given.length > 0 ? given[0] * DOT_POINTS_PER_INCH : pad.x;
     const marginY = given.length > 0 ? (given[1] ?? given[0]) * DOT_POINTS_PER_INCH : pad.y;
-    const padX = marginX + (table?.inset ?? 0);
-    const padY = marginY + (table?.inset ?? 0);
+    // a table's cells are laid out by whoever draws them (`labelTable`): the label's box is the table's
+    const padX = marginX;
+    const padY = marginY + (table === null ? ((LINE_SPACING - 1) * fontSize * lines) / 2 : 0);
     // a table's WIDTH and HEIGHT are its least size, the margin round it; the node's own size is another
     const least = nodeLeastSize(get, shape);
     if (typeof table?.width === "number") {
@@ -1803,10 +1942,13 @@ function readLabelFit(
     if (typeof table?.height === "number") {
         put("height", num6(Math.max(table.height + 2 * marginY, least.h)));
     }
-    // a decorated box holds its label as a box does, exactly
-    put("labelFit", GRAPHVIZ_DECORATED_BOXES.has(shape) ? "bounds" : "inside");
+    // a decorated box and a synthetic-biology glyph (four-sided, Graphviz's `isBox`) hold their label as a box does,
+    // exactly; so does a cylinder, its width (`cylinder_size`).
+    // ponytail: Graphviz grows a cylinder's padded height 1.375 times too, which only a label over about 26 points
+    // tall reaches past the default height; carry it when a sample needs it
+    put("labelFit", GRAPHVIZ_GLYPH_SHAPES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
     put("labelPaddingX", num6(padX));
-    put("labelPaddingY", num6(padY + ((LINE_SPACING - 1) * fontSize * lines) / 2));
+    put("labelPaddingY", num6(padY));
     if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {
         put("labelFitSquare", true);
     }
@@ -1851,8 +1993,10 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
             }
         }
     }
-    if (get(LABEL_ATTRIBUTE) !== null && nonEmpty(get("xlabel")) !== null) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
+    // beside a label, the xlabel is a second label of its own
+    const xlabel = nonEmpty(get("xlabel"));
+    if (get(LABEL_ATTRIBUTE) !== null && xlabel !== null) {
+        put("xlabel", labelText(xlabel, cx.names, cx.html, false, at("xlabel")));
     }
     readEndLabelFace(get, scheme, put, at);
 }
@@ -2209,7 +2353,9 @@ function graphvizArrowValue(
     const valueOf = (name: string | undefined): string | null =>
         (name === undefined ? undefined : GRAPHVIZ_OTHER_ARROWS.get(name)) ??
         canonEnum("arrow", name ?? raw, "graphviz", site);
-    const [first, ...rest] = shapes ?? [];
+    const all = shapes ?? [];
+    const first = itemAt(all, 0);
+    const rest = all.slice(1);
     const parts = rest.flatMap((part) => {
         const value = valueOf(part.name);
         return value === null ? [] : [part.side === null ? value : `${value}:${part.side}`];
@@ -2418,6 +2564,48 @@ function graphBackground(snapshot: GraphSnapshot, notes: StyleNotes): Record<str
 }
 
 /**
+ * The quarter turn Graphviz gives the whole drawing, counterclockwise, as the graph's `rotation`: `rotate` when the
+ * graph sets it (only 90 turns), else `orientation` (a value starting with L), else `landscape` (true). The first of
+ * them the graph sets decides, even set empty (lib/common/input.c, graph_init).
+ * @param snapshot - the graph
+ * @param graph - the graph's values, which take the turn
+ */
+function readGraphRotation(snapshot: GraphSnapshot, graph: Record<string, StyleValue>): void {
+    const text = (name: string): string => (cellText(snapshot.graph, name, 0) ?? "").trim();
+    let turned = false;
+    if (snapshot.graph.has("rotate")) {
+        turned = Number.parseInt(text("rotate"), 10) === 90;
+    } else if (snapshot.graph.has("orientation")) {
+        turned = /^l/i.test(text("orientation"));
+    } else if (snapshot.graph.has("landscape")) {
+        turned = isTrue(text("landscape"));
+    }
+    if (turned) {
+        graph.rotation = 90;
+    }
+}
+
+/**
+ * Writes the drawing's turn as Graphviz's `rotate=90`, in place of whichever of `rotate`, `landscape` and a landscape
+ * `orientation` the graph had: Graphviz turns a drawing only by a quarter turn, so any other turn is written as none.
+ * @param graph - the graph table written
+ * @param rotation - the graph's `rotation`, in degrees counterclockwise
+ */
+function writeGraphRotation(graph: GraphSnapshot["graph"], rotation: StyleValue | undefined): void {
+    for (const name of ["rotate", "landscape"]) {
+        if (graph.has(name)) {
+            graph.remove(name);
+        }
+    }
+    if (graph.has("orientation") && /^l/i.test((cellText(graph, "orientation", 0) ?? "").trim())) {
+        graph.remove("orientation");
+    }
+    if (typeof rotation === "number" && ((rotation % 360) + 360) % 360 === 90) {
+        graph.set("rotate", ["90"], { dtype: "string" });
+    }
+}
+
+/**
  * The styles of a DOT file, read the way Graphviz draws it, with Graphviz's defaults beneath: an unfilled black
  * ellipse 54 x 36 labeled with its name, black edges with a target arrow in a directed graph. A file graphty wrote
  * gives back its `graphty.styles` block.
@@ -2428,6 +2616,10 @@ function graphBackground(snapshot: GraphSnapshot, notes: StyleNotes): Record<str
 export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles {
     const notes = new StyleNotes();
     const cx = contexts(snapshot);
+    const places = labelPlaceContext(snapshot);
+    const leftOut = leftOutXlabels(cellText(snapshot.graph, "forcelabels", 0), snapshot.nodeCount, places, (i) =>
+        isCluster(snapshot, i),
+    );
     const node = valueColumns(snapshot.nodeCount);
     const nameColumn = new Array<StyleValue | null>(snapshot.nodeCount).fill(null);
     const clusterColumn = new Array<StyleValue | null>(snapshot.nodeCount).fill(null);
@@ -2438,14 +2630,11 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         const get: Attr = (name) => cellText(snapshot.nodes, name, i);
         const ncx = cx.node(i);
         const at: At = (property) => ({ notes, target: "node", property, element: i, budget: context.budget });
-        readNode(
-            get,
-            ncx,
-            (p, v) => {
-                node.put(i, p, v);
-            },
-            at,
-        );
+        const put: Put = (p, v) => {
+            node.put(i, p, v);
+        };
+        readNode(get, ncx, put, at);
+        readNodeXlabel(get, ncx, places.center(i), put, at, leftOut.has(i));
         const shown = defaultLabel(ncx, (get("shape") ?? "").toLowerCase(), notes);
         if (shown !== null) {
             nameColumn[i] = shown;
@@ -2457,14 +2646,21 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         }
     }
     const edge = valueColumns(snapshot.edgeCount);
+    const leftOutOfEdges = leftOutEdgeLabels(
+        cellText(snapshot.graph, "forcelabels", 0),
+        snapshot.edgeCount,
+        (e, name) => cellText(snapshot.edges, name, e),
+        [snapshot.nodes, snapshot.edges].some((t) => t.has("xlp")),
+    );
     const loops = graphvizLoops(snapshot);
     // `splines=none` and `splines=""` draw no edges at all (https://graphviz.org/docs/attrs/splines/)
     const splines = cellText(snapshot.graph, "splines", 0)?.trim().toLowerCase();
     const noEdges = splines === "" || splines === "none";
-    const places = labelPlaceContext(snapshot);
     for (let e = 0; e < snapshot.edgeCount; e++) {
         context.budget.spend("edge", EDGE_ATTRIBUTES.length);
-        const get: Attr = (name) => cellText(snapshot.edges, name, e);
+        // a label Graphviz left out reads as unset: drawn nowhere, and its stored place read for nothing
+        const gone = leftOutOfEdges.get(e);
+        const get: Attr = (name) => (gone?.has(name) ? null : cellText(snapshot.edges, name, e));
         const at: At = (property) => ({ notes, target: "edge", property, element: e, budget: context.budget });
         readEdge(
             get,
@@ -2486,6 +2682,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         });
     }
     const graph = graphBackground(snapshot, notes);
+    readGraphRotation(snapshot, graph);
     const blockText = cellText(snapshot.graph, STYLE_BLOCK_NAME, 0);
     if (blockText !== null) {
         exactFromBlock(snapshot, blockText, { node: node.values, edge: edge.values }, cx);
@@ -2778,6 +2975,10 @@ function nodeAttributes(
     } else if (label === null && shown !== null) {
         out.set(LABEL_ATTRIBUTE, "");
     }
+    const xlabel = get("xlabel");
+    if (!cx.cluster && typeof xlabel === "string") {
+        out.set("xlabel", escapeLabel(xlabel));
+    }
     noteLabelPosition(get("labelPosition"), cx, raw, approximate);
     if (tokens.length > 0) {
         out.set("style", tokens.join(","));
@@ -2914,7 +3115,7 @@ function writeGlyph(get: Get, glyph: NonNullable<ReturnType<typeof glyphOf>>, ou
 function approximateShapeLines(get: Get, approximate: Approximate): void {
     for (const property of ["shapeParts", "shapeLines", "shapeLineWidth"]) {
         const v = get(property);
-        if (v !== null && v !== undefined) {
+        if (v !== null) {
             approximate(property, v);
         }
     }
@@ -3008,6 +3209,7 @@ function edgeAttributes(get: Get, directed: boolean, approximate: Approximate): 
         ["label", LABEL_ATTRIBUTE],
         ["targetLabel", "headlabel"],
         ["sourceLabel", "taillabel"],
+        ["xlabel", "xlabel"],
     ] as const) {
         const v = get(property);
         if (typeof v === "string") {
@@ -3251,6 +3453,7 @@ function styledExport(snapshot: GraphSnapshot, input: ExporterStyleInput, onMixe
     if (typeof background === "string" && background !== toolDefaults("graphviz")?.graph.background?.value) {
         out.graph.set("bgcolor", [background], { dtype: "string" });
     }
+    writeGraphRotation(out.graph, input.rules.styles.graph.rotation);
     const inline = [...input.tags.node.values(), ...input.tags.edge.values()].some((col) => !readsBack(col));
     if (!inline) {
         setTagColumns(out, input);

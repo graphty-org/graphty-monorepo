@@ -18,13 +18,17 @@
 //                                      a file's failed and flaky tests by time, for GET /v1/test-history
 //   RUNTESTS#<run id>   <run attempt>#<test id>
 //                                      a CI run's failed and flaky tests, for "Blocked by a flake" (collector/flaky.ts)
+//   ISSUES              <repo>#<number, 7 digits>
+//                                      every issue, so the Issues page reads them all from one partition
 
 import type { Histogram } from "./histogram.js";
-import type { Item } from "./store.js";
+import type { Item, Key } from "./store.js";
 
 export const MIN = 60_000;
 export const HOUR = 60 * MIN;
 export const DAY = 24 * HOUR;
+/** How far back a fold change or a backfill rebuilds rollups from raw items (recompute.ts). */
+export const REFOLD_MS = 28 * DAY;
 
 export type Step = "5m" | "15m" | "1h" | "1d";
 export const STEP_MS: Record<Step, number> = { "5m": 5 * MIN, "15m": 15 * MIN, "1h": HOUR, "1d": DAY };
@@ -36,7 +40,8 @@ export const CHILD: Partial<Record<Step, Step>> = { "15m": "5m", "1h": "15m", "1
 export const floorTo = (ms: number, step: Step): number => Math.floor(ms / STEP_MS[step]) * STEP_MS[step];
 /**
  * Sort keys are zero-padded epoch ms, so string order is time order.
- * @param ms
+ * @param ms - epoch ms
+ * @returns the 13-digit sort key
  */
 export const skTime = (ms: number): string => String(ms).padStart(13, "0");
 export const ttlAt = (ms: number): number => Math.ceil(ms / 1000);
@@ -84,6 +89,46 @@ export interface RunItem extends RawBase {
  */
 export type LoadKind = "pr" | "master" | "full" | "other";
 
+/**
+ * A run's kind of load from its workflow file, event and head branch (collector/parse.ts loadKind): full for
+ * release.yml (whose called workflows run inside it), pr for a pull request's (including CodeQL's default setup
+ * scanning one: event `dynamic` on `refs/pull/<n>/head`), master for a push to master, else other.
+ * @param workflow - workflow file name
+ * @param event - the run's trigger event
+ * @param branch - the run's head branch
+ * @returns the run's load kind
+ */
+export function loadOf(workflow: string, event: string, branch: string | null | undefined): LoadKind {
+    if (workflow === "release.yml") {
+        return "full";
+    }
+    if (event === "pull_request" || event === "pull_request_target") {
+        return "pr";
+    }
+    if (event === "dynamic" && branch?.startsWith("refs/pull/")) {
+        return "pr";
+    }
+    if (event === "push" && branch === "master") {
+        return "master";
+    }
+    return "other";
+}
+
+/**
+ * Whether a run's head branch is not master: a dispatch on a work branch, a probe, a bisect point, a pull request's
+ * CodeQL scan, whose failures may be the branch's own.
+ * ponytail: takes master or main as the default branch; read the repository's default_branch if one ever differs.
+ * @param branch - the run's head branch
+ * @returns true when the branch is neither master nor main
+ */
+export function isOffMaster(branch: string | null | undefined): boolean {
+    const b = branch?.replace(/^refs\/heads\//, "");
+    return b !== "master" && b !== "main";
+}
+
+/** A dependency-bump pull request's head branch (Dependabot's, or tools/dependency-refresh.mjs's grouped refresh). */
+export const BUMP_BRANCH = /^(dependabot\/|chore\/deps-refresh-)/;
+
 /** A job of a run attempt (the jobs API, filter=latest). */
 export interface JobItem extends RawBase {
     kind: "job";
@@ -95,7 +140,7 @@ export interface JobItem extends RawBase {
     pool: "linux_windows" | "macos" | "other"; // which runner limit it counts against (4.3)
     /** A GitHub-hosted runner's OS, for the list-price value of its minutes (section 7); absent elsewhere. */
     os?: "linux" | "windows" | "macos";
-    /** Its run's kind; absent on jobs stored before it was recorded (a backfill adds it). */
+    /** Its run's kind; absent on jobs stored before it was recorded (the fold reads it from the stored run). */
     load?: LoadKind;
     /**
      * Its run is on a branch other than master (a dispatch on a work branch, a probe, a bisect point): its failures
@@ -192,10 +237,12 @@ export interface IssueItem extends RawBase {
     kind: "issue";
     repo: string;
     number: number;
+    /** Absent on issues stored before titles were. */
+    title?: string;
     labels: string[];
     createdAt: number;
     closedAt?: number;
-    stateReason?: string; // completed | not_planned
+    stateReason?: string; // completed | not_planned | duplicate
 }
 
 export interface NpmItem extends RawBase {
@@ -279,25 +326,41 @@ export const KEEP_DAYS: Record<RawKind, number | undefined> = {
     obs: 30,
 };
 
-export const homeKey = (r: Pick<RawItem, "kind" | "id" | "attempt">) => ({
+export const homeKey = (r: Pick<RawItem, "kind" | "id" | "attempt">): Key => ({
     pk: `R#${r.kind}#${r.id}`,
     sk: `A#${r.attempt}`,
 });
-export const copyKey = (r: Pick<RawItem, "kind" | "id" | "attempt">, field: string, at: number) => ({
+export const copyKey = (r: Pick<RawItem, "kind" | "id" | "attempt">, field: string, at: number): Key => ({
     pk: `T#${skTime(floorTo(at, "5m"))}`,
     sk: `${r.kind}#${field}#${r.id}#${r.attempt}`,
 });
 
-/** The index copies of a raw item (drill-downs read them), or none for kinds no drill-down indexes. */
+/** The partition holding a copy of every issue (indexKeys), which the Issues page reads whole. */
+export const ISSUES_PK = "ISSUES";
+
+/**
+ * The index copies of a raw item (drill-downs read them), or none for kinds no drill-down indexes.
+ * @param r - the raw record
+ * @returns the keys of its index copies
+ */
 export function indexKeys(r: RawItem): Item[] {
-    if (r.kind === "run") return [{ pk: `RUN#${r.runId}`, sk: `run#${r.attempt}` }];
-    if (r.kind === "job") return [{ pk: `RUN#${r.runId}`, sk: `job#${r.id.split("/").pop()}#${r.attempt}` }];
+    if (r.kind === "run") {
+        return [{ pk: `RUN#${r.runId}`, sk: `run#${r.attempt}` }];
+    }
+    if (r.kind === "job") {
+        return [{ pk: `RUN#${r.runId}`, sk: `job#${r.id.slice(r.id.lastIndexOf("/") + 1)}#${r.attempt}` }];
+    }
     if (r.kind === "test") {
         const keys = [{ pk: `TESTH#${r.file}`, sk: `${skTime(r.seenAt)}#${r.id}#${r.attempt}` }];
         // A CI invocation id starts with its run id and run attempt (ingest.ts ownId).
         const run = r.source === "ci" ? /^(\d+)\.(\d+)\./.exec(r.invocation) : null;
-        if (run) keys.push({ pk: `RUNTESTS#${run[1]}`, sk: `${run[2]}#${r.id}` });
+        if (run) {
+            keys.push({ pk: `RUNTESTS#${run[1]}`, sk: `${run[2]}#${r.id}` });
+        }
         return keys;
+    }
+    if (r.kind === "issue") {
+        return [{ pk: ISSUES_PK, sk: `${r.repo}#${String(r.number).padStart(7, "0")}` }];
     }
     return [];
 }
@@ -332,32 +395,32 @@ export interface RollupItem extends Item, Bucket {
     start: number;
 }
 
-export const rollKey = (metric: string, step: Step, start: number) => ({
+export const rollKey = (metric: string, step: Step, start: number): Key => ({
     pk: `ROLL#${metric}#${step}`,
     sk: skTime(start),
 });
-export const idxKey = (step: Step, start: number) => ({ pk: `IDX#${step}`, sk: skTime(start) });
+export const idxKey = (step: Step, start: number): Key => ({ pk: `IDX#${step}`, sk: skTime(start) });
 export const DIRTY_PK = "DIRTY";
-export const dirtyKey = (start5m: number) => ({ pk: DIRTY_PK, sk: skTime(start5m) });
+export const dirtyKey = (start5m: number): Key => ({ pk: DIRTY_PK, sk: skTime(start5m) });
 
 // ---------------------------------------------------------------------------------------------------------------
 // Bookkeeping.
 
 // Raised from 300_000 for the 28-day history backfill; set it back on 2026-11-02 (#3746).
 export const DAILY_ROW_LIMIT = 1_000_000;
-export const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-export const quotaKey = (ms: number) => ({ pk: `QUOTA#${utcDay(ms)}`, sk: "-" });
+export const utcDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+export const quotaKey = (ms: number): Key => ({ pk: `QUOTA#${utcDay(ms)}`, sk: "-" });
 export interface QuotaItem extends Item {
     rows: number;
 }
 
-export const cursorKey = (name: string) => ({ pk: `CURSOR#${name}`, sk: "-" });
+export const cursorKey = (name: string): Key => ({ pk: `CURSOR#${name}`, sk: "-" });
 export interface CursorItem extends Item {
     value: string;
     at: number;
 }
 
-export const sourceKey = (id: string) => ({ pk: `META#source#${id}`, sk: "-" });
+export const sourceKey = (id: string): Key => ({ pk: `META#source#${id}`, sk: "-" });
 /** What the dashboard knows about one source's health (section 9). */
 export interface SourceItem extends Item {
     source: string;

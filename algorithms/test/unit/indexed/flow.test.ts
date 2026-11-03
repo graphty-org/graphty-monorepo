@@ -1,11 +1,11 @@
-import { expandEdges, GraphBuilder, type GraphSnapshot, maskTest } from "@graphty/graph-format";
+import { expandEdges, type F64, GraphBuilder, type GraphSnapshot, maskTest } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { bipartiteFlowNetwork, maxFlow, type MaxFlowResult, minSTCut } from "../../../src/indexed/flow.js";
 import { resolveNode } from "../../helpers/facade.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
-import type { LegacyMaxFlowResult } from "../../helpers/legacy-types.js";
+import type { LegacyMaxFlowResult, LegacyMinCutResult } from "../../helpers/legacy-types.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { gnm } from "./port-fixtures.js";
 
@@ -145,7 +145,7 @@ function fixtures(): FlowFixture[] {
 }
 
 /** The per-arc f64 capacity override the facade will pass, or undefined when f32 is exact. */
-function exactWeights(s: GraphSnapshot): Float64Array | undefined {
+function exactWeights(s: GraphSnapshot): F64 | undefined {
     const shadow = s.edges.byRole("weight");
     return shadow?.dtype === "f64" ? expandEdges(s, shadow.data) : undefined;
 }
@@ -342,7 +342,7 @@ describe("indexed.minSTCut against legacy", () => {
             const s = toSnapshot(fixture.graph, { checksum: true });
             const weights = exactWeights(s);
             for (const [sourceId, sinkId] of fixture.pairs) {
-                const expected = legacyResult() as MinCutResult;
+                const expected = legacyResult() as LegacyMinCutResult;
                 const r = minSTCut(s, resolveNode(s.ids, sourceId), resolveNode(s.ids, sinkId), { weights });
                 const at = `${sourceId} -> ${sinkId}`;
                 expect(r.cutValue, at).toBe(expected.cutValue);
@@ -403,7 +403,7 @@ describe("indexed.minSTCut against legacy", () => {
             const source = String(id(0));
             const sink = String(id(n - 1));
             const r = minSTCut(s, resolveNode(s.ids, source), resolveNode(s.ids, sink), { weights });
-            expect(r.cutValue, `trial ${trial}`).toBe((legacyResult() as MinCutResult).cutValue);
+            expect(r.cutValue, `trial ${trial}`).toBe((legacyResult() as LegacyMinCutResult).cutValue);
             compared++;
         }
         expect(compared).toBe(60);

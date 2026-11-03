@@ -219,8 +219,8 @@ function realizerOf(tree: unknown, names: ReadonlySet<string>): Realizer | null 
         if (key.startsWith("@_") || !names.has(type)) {
             continue;
         }
-        const value = tree[key];
-        const r = Array.isArray(value) ? value[0] : value;
+        const value: unknown = tree[key];
+        const r: unknown = Array.isArray(value) ? value[0] : value;
         return type === "ProxyAutoBoundsNode" ? activeRealizer(r) : { type, r };
     }
     return null;
@@ -436,20 +436,21 @@ const GENERIC_SHAPES: readonly (readonly [string, string])[] = [
 ];
 
 /**
- * yEd's label positions (`modelPosition` of the internal, sides, sandwich, corners and eight-position models). The
- * internal model's `t` (inside the top of the box: a group's title) is `inside-top`; its other inside positions have
- * no neutral value and read as the nearest side or corner.
+ * yEd's label positions (`modelPosition` of the internal, sides, sandwich, corners and eight-position models), as in
+ * yFiles' InteriorLabelModel and ExteriorLabelModel: `c` and the places `t`, `b`, `l`, `r`, `tl`, `tr`, `bl`, `br`
+ * are inside the node (the internal model, yEd's default when a label names no model); the compass places `n`, `s`,
+ * `e`, `w`, `nw`, `ne`, `sw`, `se` are outside it.
  */
 const YED_POSITIONS: ReadonlyMap<string, string> = new Map([
     ["c", "center"],
-    ["t", "top"],
-    ["b", "bottom"],
-    ["l", "left"],
-    ["r", "right"],
-    ["tl", "top-left"],
-    ["tr", "top-right"],
-    ["bl", "bottom-left"],
-    ["br", "bottom-right"],
+    ["t", "inside-top"],
+    ["b", "inside-bottom"],
+    ["l", "inside-left"],
+    ["r", "inside-right"],
+    ["tl", "inside-top-left"],
+    ["tr", "inside-top-right"],
+    ["bl", "inside-bottom-left"],
+    ["br", "inside-bottom-right"],
     ["n", "top"],
     ["s", "bottom"],
     ["e", "right"],
@@ -1150,7 +1151,7 @@ function readEdgeRoute(real: Realizer, nodes: Float64Array, source: number, targ
 const YED_STRAIGHTNESS = 0.1;
 
 /** Canonical values per property, by element index. */
-export type ValueColumns = Record<string, (StyleValue | null)[]>;
+export type ValueColumns = Partial<Record<string, (StyleValue | null)[]>>;
 
 /**
  * A collector of canonical values for one target.
@@ -1189,7 +1190,8 @@ export interface YedRead {
  * @returns the values, or null when no element has a yEd realizer
  */
 export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget: StyleWorkBudget): YedRead | null {
-    let found = false;
+    // set by read(), which TypeScript does not see change it
+    let found = false as boolean;
     const resources = yedResources(snapshot);
     // each node's center, width and height, read with the node, for its edges' routes; NaN without yEd graphics
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
@@ -1718,7 +1720,7 @@ function columnPosition(snapshot: GraphSnapshot, i: number, get: GetValue): [str
     const height = get("height");
     const size: [number, number] = [typeof width === "number" ? width : 0, typeof height === "number" ? height : 0];
     const p: [number, number, number] = [v[0], v[1], 0];
-    toNeutral(p, column.meta.extra ?? {}, size, false);
+    toNeutral(p, column.meta.extra, size, false);
     const [x, y] = toFilePositions(Float64Array.from(p), YED_SPELLING, {
         width: Float64Array.of(size[0]),
         height: Float64Array.of(size[1]),

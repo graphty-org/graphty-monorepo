@@ -5,7 +5,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
-import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
 import { type DataPageRequest, openDataPage } from "./request";
 
@@ -62,7 +61,7 @@ async function read(canvasElement: HTMLElement): Promise<void> {
         if (canvasElement.querySelector('[role="grid"] [role="gridcell"], [role="alert"]') === null) {
             throw new Error("still reading");
         }
-    }, storyWaitOptions(10_000));
+    });
 }
 
 /**
@@ -96,12 +95,10 @@ function pageStory(request: DataPageRequest, after?: (canvas: ReturnType<typeof 
  * @param submit - whether to press Enter.
  */
 async function enterUrl(canvas: ReturnType<typeof within>, address: string, submit: boolean): Promise<void> {
-    await userEvent.click(await canvas.findByRole("button", { name: "Add a table" }, storyWaitOptions(1000)));
-    await userEvent.click(
-        await within(document.body).findByRole("menuitem", { name: "From a URL..." }, storyWaitOptions(1000)),
-    );
+    await userEvent.click(await canvas.findByRole("button", { name: "Add a table" }));
+    await userEvent.click(await within(document.body).findByRole("menuitem", { name: "From a URL..." }));
     await userEvent.type(
-        await within(document.body).findByRole("textbox", { name: "Address" }, storyWaitOptions(1000)),
+        await within(document.body).findByRole("textbox", { name: "Address" }),
         submit ? `${address}{Enter}` : address,
     );
 }
@@ -128,8 +125,8 @@ export const Transfers: Story = pageStory({
 export const RoleMenu: Story = pageStory(
     { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
-        await userEvent.click(await canvas.findByRole("combobox", { name: "Role of owner" }, storyWaitOptions(1000)));
-        await within(document.body).findByRole("option", { name: "Name" }, storyWaitOptions(1000));
+        await userEvent.click(await canvas.findByRole("combobox", { name: "Role of owner" }));
+        await within(document.body).findByRole("option", { name: "Name" });
     },
 );
 
@@ -137,10 +134,8 @@ export const RoleMenu: Story = pageStory(
 export const UnmatchedRows: Story = pageStory(
     { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
-        await userEvent.click(
-            await canvas.findByRole("button", { name: "Show the 1 unmatched row" }, storyWaitOptions(1000)),
-        );
-        await canvas.findByText(/^1 unmatched row/, {}, storyWaitOptions(1000));
+        await userEvent.click(await canvas.findByRole("button", { name: "Show the 1 unmatched row" }));
+        await canvas.findByText(/^1 unmatched row/, {});
     },
 );
 
@@ -148,8 +143,8 @@ export const UnmatchedRows: Story = pageStory(
 export const FileSettings: Story = pageStory(
     { intent: "new", files: [new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
-        await userEvent.click(await canvas.findByRole("button", { name: /^File settings/ }, storyWaitOptions(1000)));
-        await within(document.body).findByRole("combobox", { name: "Format" }, storyWaitOptions(1000));
+        await userEvent.click(await canvas.findByRole("button", { name: /^File settings/ }));
+        await within(document.body).findByRole("combobox", { name: "Format" });
     },
 );
 
@@ -173,7 +168,7 @@ export const RefusedParse: Story = pageStory({ intent: "new", files: [new File([
 /** An address that cannot be fetched (`#/data-page/refused-fetch`). */
 export const RefusedFetch: Story = pageStory({ intent: "new" }, async (canvas) => {
     await enterUrl(canvas, "https://example.invalid/no-such-file.csv", true);
-    await canvas.findByRole("alert", {}, storyWaitOptions(10_000));
+    await canvas.findByRole("alert", {});
 });
 
 /** Adding to the open project: the title names it (`Add to <project>`). */

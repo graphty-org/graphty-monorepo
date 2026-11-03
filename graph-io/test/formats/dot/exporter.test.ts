@@ -92,7 +92,10 @@ describe("dot exporter: capabilities and shape", () => {
         for (const options of [{ indent: "x" }, { name: 7 }, { strict: "yes" }] as unknown as ExportOptions[]) {
             const option = Object.keys(options ?? {})[0];
             expect(() => dotExporter.check(snapshot, options)).toThrow(
-                expect.objectContaining({ code: "E_UNSUPPORTED", details: expect.objectContaining({ option }) }),
+                expect.objectContaining({
+                    code: "E_UNSUPPORTED",
+                    details: expect.objectContaining({ option }) as unknown,
+                }),
             );
             await expect(dotExporter.exportToString(snapshot, options)).rejects.toMatchObject({
                 code: "E_UNSUPPORTED",

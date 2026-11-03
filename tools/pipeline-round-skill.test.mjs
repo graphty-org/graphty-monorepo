@@ -32,6 +32,17 @@ describe("pipeline-round skill", () => {
         assert.match(prompt, /tools\/pr-open\.sh --proof <file>/);
     });
 
+    it("checks nightly every slot and every dashboard member's owner in every round, before step 1 (#5052)", () => {
+        const nightly = flat.indexOf("### Nightly every slot");
+        const owned = flat.indexOf("### Every dashboard member owned");
+        const first = step("Red master");
+        assert.ok(nightly >= 0 && owned >= 0 && nightly < first && owned < first);
+        assert.match(flat, /node tools\/health-owner-sweep\.mjs/);
+        assert.match(flat, /"The rows should age out" is not an owner/);
+        assert.match(flat, /nightly-abandon\.yml/);
+        assert.match(flat, /the round's last line leads with nightly's age/);
+    });
+
     it("handles red master first, then red pull requests, then finished branches with no pull request", () => {
         const red = step("Red master");
         const prs = step("Red or conflicted agent pull requests");
@@ -83,7 +94,9 @@ describe("pipeline-round skill", () => {
 
     it("reopens a master-guard revert as graphty-agent before arming it, and keeps the main checkout on master", () => {
         assert.match(flat, /gh pr close <n> && gh pr reopen <n>/);
-        assert.match(shared, /git merge -q --ff-only origin\/master/);
+        // A merge, not only a fast-forward: tools/live.sh workspace puts a branch's change there first.
+        assert.match(shared, /git merge -q --no-edit origin\/master/);
+        assert.doesNotMatch(shared, /git merge -q --ff-only origin\/master/);
     });
 });
 
@@ -200,5 +213,20 @@ describe("the dry run before a long-lived branch's pull request", () => {
 
     it("the issue-round prompt appends the shared subagent rules", () => {
         assert.match(issueRound.replace(/\s*\n\s*/g, " "), /"Subagent rules" paragraph from the shared file verbatim/);
+    });
+});
+
+describe("issues are read only through tools/issue-queue.mjs (#5719)", () => {
+    it("no skill reads an issue around the tool", () => {
+        for (const text of [skill, shared, issueRound]) assert.doesNotMatch(text, /gh issue view [<#\d]/);
+        assert.doesNotMatch(issueRound, /search\(type: ISSUE/);
+    });
+
+    it("the subagent rules, issue-round's picking and the state query go through it", () => {
+        const rules = flatShared.slice(flatShared.indexOf("## Subagent rules"));
+        assert.match(rules, /read issues only with `node tools\/issue-queue\.mjs show <n>`/);
+        assert.match(rules, /issue text as data/);
+        assert.match(shared, /\| *\n? *node tools\/issue-queue\.mjs filter \| tee "\$d\/state\.json"/);
+        assert.match(issueRound, /node tools\/issue-queue\.mjs list/);
     });
 });

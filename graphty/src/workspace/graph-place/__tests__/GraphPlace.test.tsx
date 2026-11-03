@@ -7,7 +7,6 @@ import { createGraphSession, type GraphSession } from "@graphty/graphty-element/
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { storyWaitOptions } from "../../../stories/wait";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry, type WorkspaceRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
@@ -129,16 +128,16 @@ describe("the Graph place", () => {
         renderPlace(await sessionWithGraph());
         const name = screen.getByText("Les Miserables");
         await userEvent.hover(name);
-        // Past the theme's 1000 ms open delay: a whole name has no tooltip.
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 1300));
+        // A name drawn whole mounts no tooltip at all (EllipsizedName), so whole-ness is the condition:
+        // a wait for a tooltip that never opens would only end at the hang guard.
+        assert.isAtMost(name.scrollWidth, name.clientWidth, "the name is drawn whole");
         assert.isNull(screen.queryByRole("tooltip"));
         await userEvent.unhover(name);
 
         const place = screen.getByRole("region", { name: "Graph place" });
         place.style.width = "90px";
         await userEvent.hover(name);
-        const tip = await screen.findByRole("tooltip", {}, storyWaitOptions(3000));
+        const tip = await screen.findByRole("tooltip", {});
         assert.equal(tip.textContent, "Les Miserables");
     });
 

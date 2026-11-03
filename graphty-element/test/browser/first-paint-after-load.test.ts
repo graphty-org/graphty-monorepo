@@ -68,9 +68,6 @@ const LAYER: LayerSpec = {
     set: { "node.color": "crimson" },
 };
 
-/** How long an element may take to build its renderer. */
-const MOUNT_TIMEOUT_MS = 10000;
-
 /** The ways a graph can arrive in the element. */
 const LOAD_PATHS = ["the nodeData property", "addNodes and addEdges", "addDataFromSource"] as const;
 
@@ -107,12 +104,9 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
-        },
-        { timeout: MOUNT_TIMEOUT_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+    });
 
     return mounted;
 }

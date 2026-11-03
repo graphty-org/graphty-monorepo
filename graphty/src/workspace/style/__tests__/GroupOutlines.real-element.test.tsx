@@ -23,9 +23,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up, a run finishing and a shader compiling, not a timing. */
-const TIMEOUT_MS = 90_000;
-
 type Element = HTMLElementTagNameMap["graphty-element"];
 
 /** What a scene holds. */
@@ -43,14 +40,11 @@ async function openScene(): Promise<Scene> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const element = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const element = await waitFor(() => {
+        const found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+        return found;
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -79,7 +73,7 @@ function idOf(session: GraphSession, name: string): string {
  * @returns the Style tab.
  */
 async function openStyle(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
@@ -110,7 +104,7 @@ function section(id: string): HTMLElement {
  */
 async function openGallery(): Promise<HTMLElement> {
     await userEvent.click(within(section("shaders")).getByRole("button", { name: "Add to node shaders" }));
-    return screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+    return screen.findByTestId("shader-gallery", {});
 }
 
 /**
@@ -142,14 +136,11 @@ function shadersOf(layer: Layer | undefined): string[] {
  * @returns its center and radius, in CSS pixels from the element's corner.
  */
 async function nodeAt(element: Element, id: string): Promise<{ x: number; y: number; radius: number }> {
-    return waitFor(
-        () => {
-            const at = element.nodeScreenPosition(id);
-            assert.isTrue(at?.visible, `${id} is drawn on screen`);
-            return { x: at?.x ?? 0, y: at?.y ?? 0, radius: at?.radius ?? 0 };
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    return waitFor(() => {
+        const at = element.nodeScreenPosition(id);
+        assert.isTrue(at?.visible, `${id} is drawn on screen`);
+        return { x: at?.x ?? 0, y: at?.y ?? 0, radius: at?.radius ?? 0 };
+    });
 }
 
 /**
@@ -228,14 +219,11 @@ describe("shaders on the Selected and Hovered rows", () => {
         await waitFor(() => {
             assert.deepEqual(session.selection.nodes.map(String), [valjean], "the click selects the node");
         });
-        await waitFor(
-            () => {
-                const drawn = element.drawnShaders().nodes.get("shockwave");
-                assert.strictEqual(drawn?.drawn, 1, "the selected node carries the shockwave");
-                assert.strictEqual(drawn?.entering, 0, "its ring has run out");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const drawn = element.drawnShaders().nodes.get("shockwave");
+            assert.strictEqual(drawn?.drawn, 1, "the selected node carries the shockwave");
+            assert.strictEqual(drawn?.entering, 0, "its ring has run out");
+        });
         // A further hundred frames at rest, still selected: the ring does not play again.
         await new Promise<void>((resolve) => {
             let left = 100;
@@ -260,24 +248,18 @@ describe("shaders on the Selected and Hovered rows", () => {
 
         const at = await nodeAt(element, idOf(session, "Valjean"));
         await userEvent.hover(element, { position: { x: at.x, y: at.y } });
-        await waitFor(
-            () => {
-                assert.strictEqual(
-                    element.drawnShaders().nodes.get("orbiting-satellites")?.drawn,
-                    1,
-                    "on the hovered node",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(
+                element.drawnShaders().nodes.get("orbiting-satellites")?.drawn,
+                1,
+                "on the hovered node",
+            );
+        });
 
         await userEvent.hover(screen.getByRole("tree", { name: "Style layers" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(element.drawnShaders().nodes.get("orbiting-satellites")?.drawn ?? 0, 0, "gone");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.drawnShaders().nodes.get("orbiting-satellites")?.drawn ?? 0, 0, "gone");
+        });
     });
 });
 
@@ -286,7 +268,7 @@ describe("group outlines, Around the group in the gallery", () => {
         const { session, store, element } = await openScene();
         const { layer, path } = await runLouvain(session);
         store.set({ inspected: { kind: "layer-row", id: layer.row ?? layer.id } });
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await showKind("node");
 
         const gallery = await openGallery();
@@ -307,7 +289,7 @@ describe("group outlines, Around the group in the gallery", () => {
         assert.include(row?.textContent, "Around the group", "one allowed place: a static label");
 
         await userEvent.click(within(section("shaders")).getByRole("button", { name: "Group by None" }));
-        const picker = await findValuePicker({ timeout: TIMEOUT_MS });
+        const picker = await findValuePicker();
         await userEvent.click(within(picker).getByRole("option", { name: /^Louvain(,|$)/ }));
         await waitFor(() => {
             assert.deepEqual(session.styles.get(layer.id)?.set?.["node.shaders"], [
@@ -317,18 +299,15 @@ describe("group outlines, Around the group in the gallery", () => {
 
         const communities = groupsOf(session, path);
         assert.isAbove(communities.size, 1);
-        await waitFor(
-            () => {
-                const drawn = element.drawnShaders().groupOutlines.find((each) => each.layer === layer.id);
-                assert.strictEqual(drawn?.groups.length, communities.size, "one outline per community");
-                assert.sameMembers(
-                    drawn?.groups.map(String) ?? [],
-                    [...communities],
-                    "an outline for each community, by its value",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const drawn = element.drawnShaders().groupOutlines.find((each) => each.layer === layer.id);
+            assert.strictEqual(drawn?.groups.length, communities.size, "one outline per community");
+            assert.sameMembers(
+                drawn?.groups.map(String) ?? [],
+                [...communities],
+                "an outline for each community, by its value",
+            );
+        });
         within(section("shaders")).getByRole("button", { name: "Group by Louvain" });
 
         await session.undo();
@@ -351,31 +330,25 @@ describe("group outlines, Around the group in the gallery", () => {
             set: { "node.shaders": [{ shader: "metaball-hull" }] },
         });
         store.set({ inspected: { kind: "graph" } });
-        await waitFor(
-            () => {
-                assert.isDefined(element.drawnShaders().groupOutlines.find((each) => each.layer === outlined.id));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isDefined(element.drawnShaders().groupOutlines.find((each) => each.layer === outlined.id));
+        });
         const at = await nodeAt(element, idOf(session, "Napoleon"));
         // A point on the outline and off every node and edge, as the element would pick it.
-        const point = await waitFor(
-            () => {
-                for (let step = 1.3; step < 6; step += 0.3) {
-                    for (let turn = 0; turn < 32; turn++) {
-                        const angle = (turn / 32) * 2 * Math.PI;
-                        const x = at.x + Math.cos(angle) * at.radius * step;
-                        const y = at.y + Math.sin(angle) * at.radius * step;
-                        if (element.groupOutlineAt({ x, y })?.layer === outlined.id) {
-                            return { x, y };
-                        }
+        const point = await waitFor(() => {
+            for (let step = 1.3; step < 6; step += 0.3) {
+                for (let turn = 0; turn < 32; turn++) {
+                    const angle = (turn / 32) * 2 * Math.PI;
+                    const x = at.x + Math.cos(angle) * at.radius * step;
+                    const y = at.y + Math.sin(angle) * at.radius * step;
+                    if (element.groupOutlineAt({ x, y })?.layer === outlined.id) {
+                        return { x, y };
                     }
                 }
+            }
 
-                throw new Error("no point of the outline is clear of nodes and edges");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+            throw new Error("no point of the outline is clear of nodes and edges");
+        });
 
         await userEvent.click(element, { position: point });
         await waitFor(() => {
@@ -403,13 +376,10 @@ describe("group outlines, Around the group in the gallery", () => {
             }
         });
         assert.strictEqual(session.history.position, steps + 1, "one undo step");
-        await waitFor(
-            () => {
-                const drawn = element.drawnShaders().groupOutlines.filter((each) => layers.includes(each.layer));
-                assert.strictEqual(drawn.length, layers.length, "an outline per layer");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const drawn = element.drawnShaders().groupOutlines.filter((each) => layers.includes(each.layer));
+            assert.strictEqual(drawn.length, layers.length, "an outline per layer");
+        });
 
         await session.undo();
         await waitFor(() => {

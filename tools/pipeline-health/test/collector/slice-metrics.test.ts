@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import rates from "../../config/rates.json" with { type: "json" };
 import sliceConfig from "../../config/slices.json" with { type: "json" };
 import { collect } from "../../src/collector/collect.js";
@@ -56,26 +57,50 @@ describe("slice runner-minutes against each cap", () => {
 
 const run = (id: number, path: string): GhRun =>
     ({ id, path: `.github/workflows/${path}`, status: "in_progress", created_at: new Date(T).toISOString() }) as GhRun;
-const job = (status: string, labels = ["ubuntu-latest"]): GhJob =>
-    ({ status, labels, created_at: new Date(T - MIN).toISOString() }) as GhJob;
+const job = (status: string, labels = ["ubuntu-latest"], ageMin = 10): GhJob =>
+    ({ status, labels, created_at: new Date(T - ageMin * MIN).toISOString() }) as GhJob;
 
 describe("what slices cost other work (design section 6)", () => {
     const slice = { run: run(1, "story-slices.yml"), jobs: [job("in_progress"), job("in_progress"), job("queued")] };
-    const ci = { run: run(2, "ci.yml"), jobs: [job("in_progress"), job("queued"), job("queued")] };
+    const ci = { run: run(2, "ci.yml"), jobs: [job("in_progress"), job("queued"), job("queued", undefined, 3)] };
     const gpu = { run: run(3, "gpu.yml"), jobs: [job("queued", ["machine.dev"])] };
 
-    it("counts slice runner-minutes held while other jobs queued, and their queue minutes", () => {
-        expect(contention([slice, ci, gpu], "story-slices.yml", false, 5)).toEqual({
+    it("counts slice runner-minutes held while saturated, and other jobs' minutes queued in the cycle", () => {
+        expect(contention([slice, ci, gpu], "story-slices.yml", true, 5, T)).toEqual({
             contendedMin: 10,
-            queueWaitMin: 10,
+            queueWaitMin: 5 + 3,
+        });
+    });
+
+    it("counts nothing for jobs waiting while the pool is below its limit: the slices held no one back (#5398)", () => {
+        expect(contention([slice, ci, gpu], "story-slices.yml", false, 5, T)).toEqual({
+            contendedMin: 0,
+            queueWaitMin: 0,
+        });
+    });
+
+    it("counts no queue wait for jobs not waiting for a runner: created under 2 minutes ago, concurrency or approval", () => {
+        const notWaiting = {
+            run: run(2, "ci.yml"),
+            jobs: [job("queued", undefined, 1), job("pending"), job("waiting"), job("queued", ["macos-latest"])],
+        };
+        expect(contention([slice, notWaiting], "story-slices.yml", true, 5, T)).toEqual({
+            contendedMin: 10,
+            queueWaitMin: 0,
         });
     });
 
     it("counts held minutes while saturated even with nothing else queued, and nothing with no slice running", () => {
         const quiet = { ...ci, jobs: [job("in_progress")] };
-        expect(contention([slice, quiet], "story-slices.yml", true, 5)).toEqual({ contendedMin: 10, queueWaitMin: 0 });
-        expect(contention([ci], "story-slices.yml", true, 5)).toEqual({ contendedMin: 0, queueWaitMin: 0 });
-        expect(contention([slice, quiet], "story-slices.yml", false, 5)).toEqual({ contendedMin: 0, queueWaitMin: 0 });
+        expect(contention([slice, quiet], "story-slices.yml", true, 5, T)).toEqual({
+            contendedMin: 10,
+            queueWaitMin: 0,
+        });
+        expect(contention([ci], "story-slices.yml", true, 5, T)).toEqual({ contendedMin: 0, queueWaitMin: 0 });
+        expect(contention([slice, quiet], "story-slices.yml", false, 5, T)).toEqual({
+            contendedMin: 0,
+            queueWaitMin: 0,
+        });
     });
 });
 
@@ -133,8 +158,10 @@ async function cycleWithApproval(store: MemoryStore, readStore: () => Promise<St
     const base = fake.fetch;
     fake.fetch = async (url, init) => {
         const res = await base(url, init);
-        const body = init?.body ? String(init.body) : "";
-        if (!url.endsWith("/graphql") || !body.includes("pullRequests")) return res;
+        const body = init?.body ? (init.body as string) : "";
+        if (!url.endsWith("/graphql") || !body.includes("pullRequests")) {
+            return res;
+        }
         const data = (await res.json()) as {
             data: { repository: { recent: { nodes: Record<string, unknown>[] } } };
         };
@@ -152,9 +179,9 @@ async function cycleWithApproval(store: MemoryStore, readStore: () => Promise<St
     return collect({
         store,
         now: NOW,
-        gh: new GitHub(async () => "ghs_test", fake.fetch),
+        gh: new GitHub(() => Promise.resolve("ghs_test"), fake.fetch),
         fetch: fake.fetch,
-        awsCosts: async () => [],
+        awsCosts: () => Promise.resolve([]),
         rates: rates as unknown as Rates,
         limits: { linux_windows: SLAS.runnerLimits.linux_windows, macos: SLAS.runnerLimits.macos },
         org: "graphty-org",
@@ -168,15 +195,15 @@ describe("the collector cycle's dashboard observations", () => {
         const store = new MemoryStore();
         await setCursor(store, "capture-read", String(NOW - 5 * MIN), NOW - 5 * MIN);
         let reads = 0;
-        await cycleWithApproval(store, async () => {
+        await cycleWithApproval(store, () => {
             reads++;
-            return {};
+            return Promise.resolve({});
         });
         expect(reads).toBe(0);
         expect(JSON.parse((await getCursor(store, "review-lag")) ?? "{}").approvals).toEqual([NOW - 2 * HOUR]);
     });
 
-    it("writes the set's age, cap shares, slice costs, review lags and a nightly promotion, and marks story-slices", async () => {
+    it("writes the set's age, cap shares, slice costs and review lags, and marks story-slices", async () => {
         const store = new MemoryStore();
         const tree = "b".repeat(40);
         await setCursor(
@@ -191,20 +218,24 @@ describe("the collector cycle's dashboard observations", () => {
             JSON.stringify({ canary: [], promotions: {}, refs: { nightly: "c".repeat(40) } }),
             NOW - 5 * MIN,
         );
-        const report = await cycleWithApproval(store, async () => ({
-            units: [{ at: NOW - 4 * HOUR }, { at: NOW - 30 * MIN }],
-            captures: [cap("s", "unchanged", "d".repeat(40), NOW - 10 * MIN)],
-        }));
+        const report = await cycleWithApproval(store, () =>
+            Promise.resolve({
+                units: [{ at: NOW - 4 * HOUR }, { at: NOW - 30 * MIN }],
+                captures: [cap("s", "unchanged", "d".repeat(40), NOW - 10 * MIN)],
+            }),
+        );
         expect(report.errors).toEqual({});
         // One entry per observation (the store keeps an index copy beside each item).
         const byId = new Map([...store.items.values()].filter((i) => i.kind === "obs").map((i) => [String(i.id), i]));
         const obs = new Map<string, number[]>();
-        for (const i of byId.values())
+        for (const i of byId.values()) {
             obs.set(String(i.metric), [...(obs.get(String(i.metric)) ?? []), Number(i.value)]);
+        }
         expect(obs.get("slices.set_age_ms")).toEqual([4 * HOUR]);
         expect(obs.get("slices.units_dropped")).toEqual([0]);
         expect(obs.get("release.review_lag_ms")).toEqual([3 * HOUR]);
-        expect(obs.get("release.nightly_promotions")).toEqual([1]);
+        // a channel/nightly move is no observation: promotions are counted from the stored release.yml jobs (#5125)
+        expect(obs.get("release.nightly_promotions")).toBeUndefined();
         expect(obs.get("slices.base_cap_share")).toEqual([0]);
         expect(obs.get("slices.idle_cap_share")).toEqual([0]);
         expect(obs.get("slices.idle_hour_cap_share")).toEqual([0]);

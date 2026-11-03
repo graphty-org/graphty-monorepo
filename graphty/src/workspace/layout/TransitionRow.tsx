@@ -84,6 +84,7 @@ export function TransitionRow({ session }: Readonly<{ session: GraphSession }>):
                                 variant: "title",
                                 title: WORDS.settings(descriptor?.plainName ?? now.transition),
                             }}
+                            closeLabel={`Close ${WORDS.settings(descriptor?.plainName ?? now.transition)}`}
                         >
                             <Popout.Content>
                                 <Stack gap={8}>

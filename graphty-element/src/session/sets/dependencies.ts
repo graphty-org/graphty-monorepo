@@ -320,6 +320,46 @@ export function refuseNotePaths(
 }
 
 /**
+ * Whether a reference can be a step of a chain: a set, or one of the live keywords.
+ * @param dependency - The reference.
+ * @returns True for `set`, `visible`, `selection` and `search`.
+ */
+function isChainLink(
+    dependency: Dependency,
+): dependency is Extract<Dependency, { kind: "set" | "visible" | "selection" | "search" }> {
+    return (
+        dependency.kind === "set" ||
+        dependency.kind === "visible" ||
+        dependency.kind === "selection" ||
+        dependency.kind === "search"
+    );
+}
+
+/**
+ * What a chain walk enters next from one reference: a set's referent, or the visibility filter
+ * when `"visible"` is followed.
+ * @param dependency - The reference.
+ * @param sources - Where references are looked up.
+ * @param throughVisible - Whether `"visible"` leads into the visibility filter.
+ * @returns The value to walk, or null or undefined when the reference leads nowhere.
+ */
+function chainReferent(
+    dependency: Dependency,
+    sources: DependencySources,
+    throughVisible: boolean,
+): SetDefinition | Scope | RuleTree | null | undefined {
+    if (dependency.kind === "set") {
+        return sources.referent(dependency.id);
+    }
+
+    if (dependency.kind === "visible" && throughVisible) {
+        return sources.visibility?.();
+    }
+
+    return undefined;
+}
+
+/**
  * The first chain of references from a value to a dependency the target accepts, depth first.
  * `{ set }` references are followed into what they name; `"visible"` is followed into the
  * visibility filter only when `throughVisible` is set. Each set is entered once, so a ring the walk
@@ -340,12 +380,7 @@ function findChain(
 
     const walk = (value: SetDefinition | Scope | RuleTree, chain: readonly ChainStep[]): ChainStep[] | null => {
         for (const dependency of dependenciesOf(value, sources.pathsOf)) {
-            if (
-                dependency.kind !== "set" &&
-                dependency.kind !== "visible" &&
-                dependency.kind !== "selection" &&
-                dependency.kind !== "search"
-            ) {
+            if (!isChainLink(dependency)) {
                 continue;
             }
 
@@ -360,13 +395,7 @@ function findChain(
             }
 
             entered.add(key);
-            let next: SetDefinition | Scope | RuleTree | null | undefined;
-            if (dependency.kind === "set") {
-                next = sources.referent(dependency.id);
-            } else if (dependency.kind === "visible" && throughVisible) {
-                next = sources.visibility?.();
-            }
-
+            const next = chainReferent(dependency, sources, throughVisible);
             const found = next === undefined || next === null ? null : walk(next, [...chain, step]);
             if (found !== null) {
                 return found;
@@ -445,6 +474,28 @@ export function referentReading(sources: DependencySources): (id: SetId) => stri
 }
 
 /**
+ * The nodes a partition-group search descends into from one node of a definition, scope or rule tree.
+ * @param node - The node.
+ * @returns Its children, in order.
+ */
+function groupWalkChildren(node: Loose): unknown[] {
+    const children: unknown[] = [];
+    if (node.kind === "rule") {
+        children.push(node.where);
+    } else if (node.kind === "all" || node.kind === "any") {
+        children.push(...(Array.isArray(node.of) ? node.of : []));
+    } else if (node.kind === "not") {
+        children.push(node.of);
+    } else if (node.kind === "member") {
+        children.push(node.of);
+    } else if (node.define !== undefined) {
+        children.push(node.define);
+    }
+
+    return children;
+}
+
+/**
  * The first `item` leaf that follows a partition group across re-runs (the `group` field of a
  * `community` result), in the value itself and the definitions it carries inline. A group number
  * means nothing across re-runs, so such an item must hold its execution.
@@ -470,20 +521,7 @@ export function followedGroup(value: SetDefinition | Scope | RuleTree, sources: 
             return isGroup ? (node.item as unknown as ResultItem) : null;
         }
 
-        const children: unknown[] = [];
-        if (node.kind === "rule") {
-            children.push(node.where);
-        } else if (node.kind === "all" || node.kind === "any") {
-            children.push(...(Array.isArray(node.of) ? node.of : []));
-        } else if (node.kind === "not") {
-            children.push(node.of);
-        } else if (node.kind === "member") {
-            children.push(node.of);
-        } else if (node.define !== undefined) {
-            children.push(node.define);
-        }
-
-        for (const child of children) {
+        for (const child of groupWalkChildren(node)) {
             const found = walk(child);
             if (found !== null) {
                 return found;

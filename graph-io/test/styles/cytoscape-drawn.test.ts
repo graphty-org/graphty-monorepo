@@ -153,6 +153,27 @@ describe("reading Cytoscape files as Cytoscape draws them", () => {
         expect(styles.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_MAPPING_COLUMN_MISSING");
     });
 
+    it("sizes a CX2 node under the size lock by its own width bypass both ways, by a height bypass one way", async () => {
+        // Cytoscape 3.10.5 opening this file draws width-80-locked 80 x 80 and height-80-locked 36 x 80
+        const bytes = new Uint8Array(
+            readFileSync(resolve(import.meta.dirname, "../fidelity/specimens/cx2/specimen-node-sizes-opacity-p2.cx2")),
+        );
+        const { snapshot, styles } = await importGraph(bytes, { format: "cx2", styles: true });
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const width = resolveStyles(styles, "node", "width", snapshot);
+        const height = resolveStyles(styles, "node", "height", snapshot);
+        const size = (name: string): unknown[] => {
+            const i = Array.from({ length: snapshot.nodeCount }, (_, k) => k).find(
+                (k) => snapshot.nodes.value("name", k) === name,
+            );
+            return [width[i ?? -1], height[i ?? -1]];
+        };
+        expect(size("width-80-locked")).toEqual([80, 80]);
+        expect(size("height-80-locked")).toEqual([36, 80]);
+    });
+
     it("draws a session behind the background its view sets for itself", async () => {
         const { styles } = await importGraph(corpus("cys/fidelity/syn-bypass.cys"), { format: "cys", styles: true });
         expect(styles?.styles.graph.background).toBe("#fafaf0");

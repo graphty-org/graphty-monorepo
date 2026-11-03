@@ -330,7 +330,6 @@ describe("compile matrix on Dawn (real device and backend=null)", () => {
     }
 
     for (const id of Object.keys(KERNELS) as KernelId[]) {
-        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 84 s on the Windows WARP host lane, 22 s on the T4 lane, 20 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
         it(`compiles every case of ${id} on the real device and on backend=null (both twins where the entry has one)`, async (t) => {
             const { real: r, realTwin: rt, nul: n, nulTwin: nt } = await contexts(t);
             const cases = OVERRIDE_MATRIX.filter((c) => c.id === id);
@@ -343,7 +342,7 @@ describe("compile matrix on Dawn (real device and backend=null)", () => {
                 await compileAll(rt, twins);
                 await compileAll(nt, twins);
             }
-        }, 120_000);
+        });
     }
 
     it("the keys these compiles created are all covered by the matrix (self-consistency of the coverage rule)", async (t) => {

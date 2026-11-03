@@ -191,6 +191,133 @@ export function keyExpression(name: string): string {
 }
 
 /**
+ * A table cell that names a node, as text: a CSV file's ids are text, as `session.data.import`
+ * reads them, though the draft types each cell for the mapping (`1`, `true`). A merge joins a node
+ * the graph already holds under the cell's own value (a GML or JSON file's number ids).
+ * @param value - The cell.
+ * @param graph - The ids of the graph a merge loads onto; none for a new graph.
+ * @returns The cell, a number or a truth value written as text unless the graph holds it.
+ */
+function idText(value: unknown, graph?: ReadonlySet<unknown>): unknown {
+    if (typeof value !== "number" && typeof value !== "boolean") {
+        return value;
+    }
+
+    return graph?.has(value) === true ? value : String(value);
+}
+
+/**
+ * Rows with the cells that name nodes as text (see {@link idText}) and last, where the CSV reader
+ * puts a node's id.
+ * @param rows - The rows.
+ * @param columns - The columns that name nodes.
+ * @param graph - The ids of the graph a merge loads onto; none for a new graph.
+ * @returns The rows.
+ */
+function withIdText(
+    rows: readonly Record<string, unknown>[],
+    columns: readonly (string | null | undefined)[],
+    graph?: ReadonlySet<unknown>,
+): readonly Record<string, unknown>[] {
+    const named = new Set(columns.filter((column): column is string => typeof column === "string"));
+    return rows.map((row) => {
+        const entries = Object.entries(row);
+        return Object.fromEntries([
+            ...entries.filter(([column]) => !named.has(column)),
+            ...entries.filter(([column]) => named.has(column)).map(([column, value]) => [column, idText(value, graph)]),
+        ]);
+    });
+}
+
+/**
+ * Refuse a table the reader maps that lacks an end, naming it: read with one end, every row would
+ * be rejected, and read with none, the probe has already failed.
+ * @param read - The rows.
+ * @param mapping - The mapping the load reads them with.
+ * @param only - The one table that must be ready; every table must be when absent.
+ * @throws `E_EDGE_ENDPOINTS_UNRESOLVED` for the first table that is not ready.
+ */
+function refuseUnready(read: ReadSource, mapping: LoadMappingRead, only: string | undefined): void {
+    const missing = missingRoles(mapping);
+    const unready = read.tables.find(
+        (held) =>
+            (only === undefined || held.table.id === only) &&
+            !held.table.fixed &&
+            held.rows.length > 0 &&
+            missing[held.table.id].length > 0,
+    );
+    if (unready !== undefined) {
+        const { id } = unready.table;
+        throw new GraphtyError({
+            code: "E_EDGE_ENDPOINTS_UNRESOLVED",
+            source: "data",
+            message: `Table ${JSON.stringify(id)} has no ${missing[id].join(" or ")} column; name it in the mapping.`,
+            details: { table: id, missing: missing[id], columns: unready.order },
+        });
+    }
+}
+
+/**
+ * The settings a load writes: the roles its mapping names, its label path, and a weight meaning --
+ * none for a new graph unless named, and `"strength"` for a confidence, score or strength column.
+ * @param read - The rows.
+ * @param mapping - The mapping the load reads them with.
+ * @param choices - The load's choices.
+ * @param configured - `data.knownFields` as configured now.
+ * @returns The settings.
+ */
+function loadFields(
+    read: ReadSource,
+    mapping: LoadMappingRead,
+    choices: LoadChoices,
+    configured: SessionDataConfig["knownFields"],
+): Plan["knownFields"] {
+    const named: Plan["knownFields"] = knownFieldsOf(mapping, choices.mapping, read);
+    const merge = choices.mode === "merge";
+    if (!merge && !("edgeWeightMeaning" in named) && configured.edgeWeightMeaning !== null) {
+        // A new graph does not inherit the last one's weight meaning.
+        Object.assign(named, { edgeWeightMeaning: null });
+    }
+
+    const label = loadLabel(read, mapping, choices, configured.nodeLabelPath);
+    const labelled = label === null ? named : { ...named, nodeLabelPath: label };
+    // A confidence, score or strength weighs how alike the ends are, unless a meaning is set.
+    const meaning = named.edgeWeightMeaning ?? (merge ? configured.edgeWeightMeaning : null);
+    const similar =
+        typeof named.edgeWeightPath === "string" &&
+        SIMILARITY_COLUMNS.has(named.edgeWeightPath.toLowerCase()) &&
+        meaning === null;
+    return similar ? { ...labelled, edgeWeightMeaning: "strength" as const } : labelled;
+}
+
+/**
+ * The label path a load sets: a graph file's `label` field, as `data.import` names a graph file's
+ * nodes (whether or not this file has one), or the label column a table's mapping names -- unless
+ * a label path is configured already or a merge keeps how the graph names its nodes.
+ * @param read - The rows.
+ * @param mapping - The mapping the load reads them with.
+ * @param choices - The load's choices.
+ * @param configured - `data.knownFields.nodeLabelPath`.
+ * @returns The path, or null to leave it as it is.
+ */
+function loadLabel(
+    read: ReadSource,
+    mapping: LoadMappingRead,
+    choices: LoadChoices,
+    configured: string | null,
+): string | null {
+    if (choices.mode === "merge" || configured !== null) {
+        return null;
+    }
+
+    if (read.tables[0].table.fixed) {
+        return FORMAT_LABEL;
+    }
+
+    return Object.values(mapping.tables).find((table) => table.rowsAre === "nodes")?.label ?? null;
+}
+
+/**
  * The name of one file of a pair: the `File`'s name, or the URL's last part.
  * @param value - A `nodeFile`, `edgeFile`, `nodeURL` or `edgeURL` option.
  * @returns The name, or undefined.
@@ -538,7 +665,6 @@ function guessTable(
     config: SessionDataConfig,
     guess: DraftGuess = "names",
 ): TableMappingRead {
-    const { knownFields } = config;
     const has = (name: unknown): name is string => typeof name === "string" && held.order.includes(name);
     const present = (name: string | null): string | null => (has(name) ? name : null);
 
@@ -546,15 +672,66 @@ function guessTable(
         return guessFixed(held, config);
     }
 
+    const { pair, idColumn } = readTableColumns(held, source, guess, has);
+    const readsAsNodes = source.variant === "node-list" || (pair === undefined && idColumn !== undefined);
+    const ownKind: "nodes" | "edges" = readsAsNodes ? "nodes" : "edges";
+    // One file of a pair says what it holds by its columns, whichever half it was handed over as;
+    // only a file whose columns say nothing is read as the half it was handed over as.
+    const decided = held.table.id === "rows" || pair !== undefined || idColumn !== undefined;
+    const kind = rowsAre ?? (decided ? ownKind : (held.table.id as "nodes" | "edges"));
+
+    if (kind === "nodes") {
+        return guessNodeRoles(held, idColumn, config, guess, { has, present });
+    }
+
+    return guessEdgeRoles(held, pair, config, guess, present);
+}
+
+/** A table's column tests, shared by {@link guessTable}'s helpers. */
+interface ColumnTests {
+    /** Whether a name is one of the table's columns. */
+    readonly has: (name: unknown) => name is string;
+    /** The name when it is one of the table's columns, else null. */
+    readonly present: (name: string | null) => string | null;
+}
+
+/**
+ * The two columns a table's header, or the deprecated CSV options, name as an edge's ends.
+ * @param source - The source's options, for the deprecated CSV column aliases.
+ * @param has - Whether a name is one of the table's columns.
+ * @returns The pair, or undefined.
+ */
+function namedEnds(
+    source: Readonly<Record<string, unknown>>,
+    has: (name: unknown) => name is string,
+): readonly [string, string] | undefined {
     // The deprecated CSV options name columns; they translate into the mapping.
     const aliasSource = typeof source.edgeSource === "string" ? source.edgeSource : undefined;
     const aliasTarget = typeof source.edgeTarget === "string" ? source.edgeTarget : undefined;
-    const named: readonly [string, string] | undefined =
-        aliasSource !== undefined && aliasTarget !== undefined
-            ? [aliasSource, aliasTarget]
-            : [...(source.variant === "gephi" ? [["Source", "Target"] as const] : []), ...ENDPOINT_PAIRS].find(
-                  ([from, to]) => has(from) && has(to),
-              );
+    if (aliasSource !== undefined && aliasTarget !== undefined) {
+        return [aliasSource, aliasTarget];
+    }
+
+    return [...(source.variant === "gephi" ? [["Source", "Target"] as const] : []), ...ENDPOINT_PAIRS].find(
+        ([from, to]) => has(from) && has(to),
+    );
+}
+
+/**
+ * A table's edge ends and node key, by its header or, with `guess: "values"`, by its values.
+ * @param held - The table.
+ * @param source - The source's options, for the deprecated CSV column aliases.
+ * @param guess - `"values"` also reads the values when no header names the roles.
+ * @param has - Whether a name is one of the table's columns.
+ * @returns The ends and the key, each undefined when nothing names it.
+ */
+function readTableColumns(
+    held: HeldTable,
+    source: Readonly<Record<string, unknown>>,
+    guess: DraftGuess,
+    has: (name: unknown) => name is string,
+): { pair: readonly [string, string] | undefined; idColumn: string | undefined } {
+    const named = namedEnds(source, has);
     const namedId = has(source.idColumn) ? source.idColumn : NODE_ID_COLUMNS.find(has);
     // No header says what the rows are: read the values. Two columns naming the same things are an
     // edge's ends; else a single file's nearly unique text column is its nodes' key.
@@ -567,26 +744,56 @@ function guessTable(
         values !== null && shared === undefined && held.table.id === "rows" ? nearlyUniqueKey(held, values) : undefined;
     const pair = shared ?? (values === null || uniqueKey !== undefined ? undefined : repeatingEnds(held, values));
     const idColumn = namedId ?? (pair === undefined ? uniqueKey : undefined);
-    const readsAsNodes = source.variant === "node-list" || (pair === undefined && idColumn !== undefined);
-    const ownKind: "nodes" | "edges" = readsAsNodes ? "nodes" : "edges";
-    // One file of a pair says what it holds by its columns, whichever half it was handed over as;
-    // only a file whose columns say nothing is read as the half it was handed over as.
-    const decided = held.table.id === "rows" || pair !== undefined || idColumn !== undefined;
-    const kind = rowsAre ?? (decided ? ownKind : (held.table.id as "nodes" | "edges"));
+    return { pair, idColumn };
+}
 
-    if (kind === "nodes") {
-        // A pair's node file falls back to its first column, as the CSV reader does.
-        const key = idColumn ?? (held.table.id === "rows" ? undefined : held.order[0]) ?? null;
-        return {
-            rowsAre: "nodes",
-            key,
-            label:
-                present(knownFields.nodeLabelPath) ??
-                (guess === "values" ? (LABEL_COLUMNS.find((name) => has(name) && name !== key) ?? null) : null),
-            time: present(knownFields.nodeTimePath),
-        };
-    }
+/**
+ * The roles of a table read as nodes.
+ * @param held - The table.
+ * @param idColumn - The column read as the nodes' key, if any.
+ * @param config - The data configuration.
+ * @param guess - `"values"` also guesses a label column.
+ * @param tests - The table's column tests.
+ * @returns The table's roles.
+ */
+function guessNodeRoles(
+    held: HeldTable,
+    idColumn: string | undefined,
+    config: SessionDataConfig,
+    guess: DraftGuess,
+    tests: ColumnTests,
+): TableMappingRead {
+    const { knownFields } = config;
+    const { has, present } = tests;
+    // A pair's node file falls back to its first column, as the CSV reader does.
+    const key = idColumn ?? (held.table.id === "rows" ? undefined : held.order[0]) ?? null;
+    return {
+        rowsAre: "nodes",
+        key,
+        label:
+            present(knownFields.nodeLabelPath) ??
+            (guess === "values" ? (LABEL_COLUMNS.find((name) => has(name) && name !== key) ?? null) : null),
+        time: present(knownFields.nodeTimePath),
+    };
+}
 
+/**
+ * The roles of a table read as edges.
+ * @param held - The table.
+ * @param pair - The columns read as an edge's ends, if any.
+ * @param config - The data configuration.
+ * @param guess - `"values"` also guesses a weight column.
+ * @param present - The name when it is one of the table's columns, else null.
+ * @returns The table's roles.
+ */
+function guessEdgeRoles(
+    held: HeldTable,
+    pair: readonly [string, string] | undefined,
+    config: SessionDataConfig,
+    guess: DraftGuess,
+    present: (name: string | null) => string | null,
+): TableMappingRead {
+    const { knownFields } = config;
     const weight =
         present(knownFields.edgeWeightPath) ??
         present("value") ??
@@ -1024,54 +1231,9 @@ export class Draft implements LoadDraft {
      */
     private plan(read: ReadSource, choices: LoadChoices, only?: string): Plan {
         const mapping = this.effective(read, choices.mapping);
-        const missing = missingRoles(mapping);
-        // A table the reader maps that lacks an end is refused here, naming it: read with one end,
-        // every row would be rejected, and read with none, the probe has already failed.
-        const unready = read.tables.find(
-            (held) =>
-                (only === undefined || held.table.id === only) &&
-                !held.table.fixed &&
-                held.rows.length > 0 &&
-                missing[held.table.id].length > 0,
-        );
-        if (unready !== undefined) {
-            const { id } = unready.table;
-            throw new GraphtyError({
-                code: "E_EDGE_ENDPOINTS_UNRESOLVED",
-                source: "data",
-                message: `Table ${JSON.stringify(id)} has no ${missing[id].join(" or ")} column; name it in the mapping.`,
-                details: { table: id, missing: missing[id], columns: unready.order },
-            });
-        }
+        refuseUnready(read, mapping, only);
 
-        const named: Plan["knownFields"] = knownFieldsOf(mapping, choices.mapping, read);
-        if (
-            choices.mode !== "merge" &&
-            !("edgeWeightMeaning" in named) &&
-            this.host.config().knownFields.edgeWeightMeaning !== null
-        ) {
-            // A new graph does not inherit the last one's weight meaning.
-            Object.assign(named, { edgeWeightMeaning: null });
-        }
-
-        // A graph file's label column, which the element reads by itself, or the label column a
-        // table's columns name, labels the nodes as the draft's mapping says it will, unless a
-        // label path is configured already or a merge keeps how the graph names its nodes.
-        const nodeMapping = Object.values(mapping.tables).find((table) => table.rowsAre === "nodes");
-        const label = read.tables[0].table.fixed || choices.mode !== "merge" ? (nodeMapping?.label ?? null) : null;
-        const labelled =
-            label === null || this.host.config().knownFields.nodeLabelPath !== null
-                ? named
-                : { ...named, nodeLabelPath: label };
-        // A confidence, score or strength weighs how alike the ends are, unless a meaning is set.
-        const meaning =
-            named.edgeWeightMeaning ??
-            (choices.mode === "merge" ? this.host.config().knownFields.edgeWeightMeaning : null);
-        const similar =
-            typeof named.edgeWeightPath === "string" &&
-            SIMILARITY_COLUMNS.has(named.edgeWeightPath.toLowerCase()) &&
-            meaning === null;
-        const knownFields = similar ? { ...labelled, edgeWeightMeaning: "strength" as const } : labelled;
+        const knownFields = loadFields(read, mapping, choices, this.host.config().knownFields);
         if (read.tables.every((held) => held.table.fixed)) {
             const [nodes, edges] = read.tables;
             const held: HeldRows = {
@@ -1104,9 +1266,12 @@ export class Draft implements LoadDraft {
         const edgeRoles = edgeTable === undefined ? undefined : mapping.tables[edgeTable.table.id];
         const key = nodeRoles?.key ?? null;
         const nodeRows = nodeTable?.rows ?? [];
+        const onto = choices.mode === "merge" ? this.host.graph().nodes : undefined;
         const kinds = withKinds(
-            key === null ? nodeRows.map((row, index) => ({ ...row, [ROW_ID]: String(index) })) : nodeRows,
-            edgeTable?.rows ?? [],
+            key === null
+                ? nodeRows.map((row, index) => ({ ...row, [ROW_ID]: String(index) }))
+                : withIdText(nodeRows, [key], onto),
+            withIdText(edgeTable?.rows ?? [], [edgeRoles?.source?.column, edgeRoles?.target?.column], onto),
             {
                 key: key ?? ROW_ID,
                 nodeKind: nodeRoles?.kind ?? null,
@@ -1159,8 +1324,10 @@ export class Draft implements LoadDraft {
         // Only this table need be ready: another table's missing role does not stop reading this one.
         const { mapping, held: rows } = this.plan(read, choices, held.table.id);
         const roles = mapping.tables[held.table.id];
+        const graph = choices.mode === "merge" ? this.host.graph().nodes : new Set<NodeId>();
+        // A CSV table's ids are read as text, as the plan loads them.
         const value = (row: Readonly<Record<string, unknown>>, expression: string): unknown =>
-            readEndpoint(row, expression);
+            held.table.fixed ? readEndpoint(row, expression) : idText(readEndpoint(row, expression), graph);
         const picked: number[] = [];
         if (roles.rowsAre === "nodes") {
             if (only !== "unmatched") {
@@ -1190,7 +1357,6 @@ export class Draft implements LoadDraft {
         const known = new Set<unknown>(
             rows.nodes.map((row) => value(row, rows.idPath ?? this.host.config().knownFields.nodeIdPath)),
         );
-        const graph = choices.mode === "merge" ? this.host.graph().nodes : new Set<NodeId>();
         // With no node rows and no graph to name, every node comes from the edges: none is missing.
         const matching = known.size > 0 || graph.size > 0;
         held.rows.forEach((row, index) => {

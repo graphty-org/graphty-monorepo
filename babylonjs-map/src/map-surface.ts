@@ -100,7 +100,16 @@ interface Pick {
     readonly entry: Entry;
     /** The nearest loaded ancestor drawn in the tile's place while it is not loaded. */
     readonly fallback: Entry | null;
+    /**
+     * Loaded finer tiles drawn in the tile's place while it is not loaded: what was on screen before
+     * the view zoomed out, kept until the coarser tile arrives instead of dropping to a blurrier
+     * layer under it.
+     */
+    readonly finer: readonly Entry[];
 }
+
+/** How many levels below a wanted tile loaded tiles are looked for to draw in its place. */
+const FINER_LEVELS = 3;
 
 /** The camera as tile picking sees it, in the map root's own space. */
 interface TileView {
@@ -706,17 +715,22 @@ export abstract class MapSurface {
 
     /**
      * A wanted tile: requested if it is not loaded (again, once a failed one's backoff is over),
-     * with its nearest loaded ancestor to draw meanwhile.
+     * with what to draw meanwhile: the loaded finer tiles that cover it whole (zooming out), else its
+     * nearest loaded ancestor (zooming in), else whatever finer tiles of it are loaded.
      * @param layer - The source's layer.
      * @param tile - The tile.
      * @param copy - The world copy.
      * @param now - The time, for retries.
-     * @returns The tile's entry and its stand-in.
+     * @returns The tile's entry and its stand-ins.
      */
     private want(layer: Layer, tile: TileId, copy: number, now: number): Pick {
         const entry = this.request(layer, tile, copy, now);
         if (entry.state === "ready") {
-            return { entry, fallback: null };
+            return { entry, fallback: null, finer: [] };
+        }
+        const finer: Entry[] = [];
+        if (this.finerCover(layer, tile, copy, FINER_LEVELS, finer)) {
+            return { entry, fallback: null, finer };
         }
         let { z, x, y } = tile;
         while (z > layer.resolved.minZoom) {
@@ -725,10 +739,35 @@ export abstract class MapSurface {
             y >>= 1;
             const ancestor = this.entries.get(tileKey(layer, { z, x, y }, copy));
             if (ancestor?.state === "ready") {
-                return { entry, fallback: ancestor };
+                return { entry, fallback: ancestor, finer: [] };
             }
         }
-        return { entry, fallback: null };
+        return { entry, fallback: null, finer };
+    }
+
+    /**
+     * Collects the loaded tiles under a tile, down to `levels` levels below it, nearest level first.
+     * @param layer - The source's layer.
+     * @param tile - The tile.
+     * @param copy - The world copy.
+     * @param levels - How many levels further down to look.
+     * @param out - Where the loaded tiles are added.
+     * @returns Whether they cover the tile whole.
+     */
+    private finerCover(layer: Layer, tile: TileId, copy: number, levels: number, out: Entry[]): boolean {
+        if (levels === 0 || tile.z >= layer.resolved.maxZoom) {
+            return false;
+        }
+        let whole = true;
+        for (const child of layer.resolved.children(tile)) {
+            const loaded = this.entries.get(tileKey(layer, child, copy));
+            if (loaded?.state === "ready") {
+                out.push(loaded);
+            } else if (!this.finerCover(layer, child, copy, levels - 1, out)) {
+                whole = false;
+            }
+        }
+        return whole;
     }
 
     /**
@@ -765,7 +804,7 @@ export abstract class MapSurface {
     private settledPicks(picks: readonly Pick[]): Entry[] {
         const covers = new Set(picks.filter((p) => p.entry.state === "failed" && p.fallback).map((p) => p.fallback));
         const out = new Set<Entry>();
-        for (const { entry, fallback } of picks) {
+        for (const { entry, fallback, finer } of picks) {
             const cover = covers.size > 0 ? this.coveringAncestor(entry, covers) : null;
             if (cover) {
                 out.add(cover);
@@ -773,6 +812,10 @@ export abstract class MapSurface {
                 out.add(entry);
             } else if (fallback) {
                 out.add(fallback);
+            } else {
+                for (const tile of finer) {
+                    out.add(tile);
+                }
             }
         }
         return [...out];
@@ -949,13 +992,26 @@ export abstract class MapSurface {
             material.emissiveFresnelParameters = rimShade();
         }
         material.backFaceCulling = false;
-        // Higher layers and finer tiles win where they overlap a coarser tile still shown.
-        material.zOffsetUnits = 2 * (255 - Math.min(255, layer.index * 32 + z));
+        // Higher layers and finer tiles win where they overlap a coarser tile still shown: the rest
+        // are pushed back, each only as far as the order needs. A far map's depth is already near the
+        // end of the depth range, and a push past it is clamped there: every tile so pushed (a
+        // globe's far side too) then ties, and draws over what is in front of it in bands.
+        material.zOffsetUnits = 2 * Math.max(0, this.topRank() - (layer.index * 32 + z));
         mesh.material = material;
         mesh.parent = this.root;
         mesh.isPickable = false;
         mesh.renderingGroupId = this.options.renderingGroupId;
         return mesh;
+    }
+
+    /**
+     * The stacking rank of the finest tile of the top layer: a tile of rank r is pushed back by
+     * twice the difference, so the top layer's finest tiles, and a lone layer's only level, are not
+     * pushed at all.
+     * @returns The rank.
+     */
+    private topRank(): number {
+        return Math.max(0, ...this.layers.map((l) => l.index * 32 + l.resolved.maxZoom));
     }
 
     /**

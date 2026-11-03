@@ -374,3 +374,9 @@ Each rule below exists because breaking it cost a run.
   all nine tier 4 data management questions raised for the owner turned out to be settled by those
   sources (the glossary already named the filter effects, the owner had already said where a
   column's type is set), and the study waited on questions that had answers.
+- **A fix is taken back only for a regression its re-walk shows, never for a re-walk that did not
+  finish.** On 2026-10-29 and 30 the tier 4 dry run reverted a correct, decided fix (a Select
+  card's count counting what it marks) twice, only because its targeted re-walk ran out of time or
+  found no free browser slot; no walk showed a regression. The re-walk now lists a route it could
+  not finish as `unwalked: <route>` and still returns ok, and the workflow reverts a fix group only
+  when a finished walk showed a regression or a failed acceptance.

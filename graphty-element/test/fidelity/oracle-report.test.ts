@@ -12,8 +12,9 @@
  *
  * Each sample is judged twice: as graphty draws it, and with graphty's nodes moved to where the program drew them
  * (`<sample>@matched`), so style is judged apart from layout. A sample fails only when an element fails a property that
- * `test/fidelity/oracle-known-failures.json` does not list for it (`oracle/floors.ts`). The pass rates are a report
- * (`tmp/oracle-report/gate.txt`, against `test/fidelity/oracle-floors.json`), never a gate. With
+ * `test/fidelity/oracle-known-failures.json` does not list for it, or when a rate judged element by element measures
+ * below its floor in `test/fidelity/oracle-floors.json` and below any drop accepted there (`oracle/floors.ts`); the
+ * raster regions are a report (`tmp/oracle-report/gate.txt`), never a gate. With
  * `GRAPHTY_ORACLE_BASELINE=<an earlier run's report directory>` each sample's earlier drawing is judged again by this
  * comparator, and every change is said to come from the drawing or from the comparator. The CI subset is
  * `test/browser/oracle-scorecard.test.ts`.
@@ -57,7 +58,7 @@ describe("style fidelity against the programs' own SVG drawings (every oracle)",
         assert.deepEqual(
             verdicts.flatMap(gateMessages),
             [],
-            `${id}: an element fails that oracle-known-failures.json does not list`,
+            `${id}: an element fails that oracle-known-failures.json does not list, or a rate is below its floor`,
         );
     });
 

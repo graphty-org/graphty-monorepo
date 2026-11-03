@@ -1,10 +1,10 @@
 // Babylon installs scene.createPickingRay only when this loads.
-import "@babylonjs/core/Culling/ray";
+import "@babylonjs/core/Culling/ray.js";
 
 import { Camera, Color4, Matrix, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
 import { raySphere } from "babylonjs-map/projection";
 
-import { type FreeArea, freeArea, fullInsets } from "../camera/insets";
+import { type FreeArea, freeArea, fullInsets, paddedArea } from "../camera/insets";
 import type { ViewInsets } from "../camera/types";
 import type { FitBounds, FitInsets } from "../config/GraphBehavior";
 import { glideTowards } from "./CameraManager";
@@ -115,6 +115,8 @@ export class OrbitCameraController {
     public fitInsets: FitInsets = NO_INSETS;
     /** What a fit fits into view; see `camera.fitBounds`. */
     public fitBounds: FitBounds = "box";
+    /** CSS pixels a fit keeps clear at each end of the free area's shorter side, in place of its margin. */
+    public fitPadding: number | undefined = undefined;
 
     private readonly pivotController: PivotController;
 
@@ -290,6 +292,12 @@ export class OrbitCameraController {
     public grabSphere: { readonly radius: number } | null = null;
 
     /**
+     * A sphere at the origin the far clip plane reaches past wherever the camera is (a flat map
+     * under a map layout, which can be far larger than the graph), as its radius; null for none.
+     */
+    public farReach: { readonly radius: number } | null = null;
+
+    /**
      * Turn the view so the point of the {@link grabSphere} under one spot of the canvas moves to
      * another, as a hand turns a globe.
      * @param from - The pointer's last spot, CSS pixels from the canvas's top-left corner.
@@ -403,13 +411,23 @@ export class OrbitCameraController {
         // Every writer of cameraDistance passes through here, so this is the one place the
         // far plane has to follow the graph. A layout that settles tens of thousands of units
         // across would otherwise be clipped away by Babylon's default 10000.
-        this.camera.maxZ = Math.max(DEFAULT_FAR_PLANE, this.cameraDistance + this.#sceneRadius * 2);
+        // A map under the graph reaches past it: the far plane reaches the map's farthest point
+        // from wherever the camera stands, or a tilted view cuts the map off along a line.
+        const reach =
+            this.farReach === null
+                ? 0
+                : this.camera.position.length() + this.pivot.position.length() + this.farReach.radius;
+        this.camera.maxZ = Math.max(DEFAULT_FAR_PLANE, this.cameraDistance + this.#sceneRadius * 2, reach);
         this.camera.minZ = this.#nearPlane();
     }
 
     /**
      * The near clip plane: Babylon's 1 unit, or, over a globe, a quarter of the camera's height
-     * above its surface when that is less, so zooming down to the surface never cuts it away.
+     * above its surface when that is less, so zooming down to the surface never cuts it away, and a
+     * sixteenth of that height when that is more. A globe seen from far away is hundreds of
+     * thousands of units off, and with the near plane at 1 almost all of the depth range lies in
+     * front of it: what is left cannot hold the map's stacking offsets, which are clamped at the
+     * range's end, so the globe's far side ties with its near side and shows through in bands.
      * @returns The distance.
      */
     #nearPlane(): number {
@@ -420,7 +438,7 @@ export class OrbitCameraController {
 
         const eye = Vector3.TransformCoordinates(this.camera.position, this.pivot.computeWorldMatrix(true));
         const height = eye.length() - sphere.radius;
-        return Scalar.Clamp(height / 4, MIN_NEAR_PLANE, DEFAULT_NEAR_PLANE);
+        return Math.max(Scalar.Clamp(height / 4, MIN_NEAR_PLANE, DEFAULT_NEAR_PLANE), height / 16);
     }
 
     /**
@@ -457,6 +475,15 @@ export class OrbitCameraController {
     }
 
     /**
+     * The part of the canvas a fit fills: the free area less the fit padding.
+     * @returns The area in normalized device coordinates.
+     */
+    #fitArea(): FreeArea {
+        const { clientWidth, clientHeight } = this.#canvas;
+        return paddedArea(this.#freeArea(), this.fitPadding, clientWidth, clientHeight);
+    }
+
+    /**
      * The tangents of half the horizontal and the vertical field of view.
      * @returns Both tangents.
      */
@@ -490,7 +517,7 @@ export class OrbitCameraController {
         this.pivot.computeWorldMatrix(true);
         this.scene.getEngine().resize();
         const { tanX, tanY } = this.#halfFovTangents();
-        const free = this.#freeArea();
+        const free = this.#fitArea();
         const tan = Math.min(tanX * free.width, tanY * free.height);
         this.cameraDistance = this.clampDistance(sphereFitDistance(radius, tan));
         this.updateCameraPosition();
@@ -517,7 +544,7 @@ export class OrbitCameraController {
         const engine = this.scene.getEngine();
         engine.resize(); // Ensure we have current dimensions
         const { tanX, tanY } = this.#halfFovTangents();
-        const free = this.#freeArea();
+        const free = this.#fitArea();
 
         // For 3D scenes, we need to account for perspective projection.
         // Objects at different Z depths will project differently on screen.
@@ -568,7 +595,7 @@ export class OrbitCameraController {
         // Since we already include labels in the bounding box, we only need
         // a small padding for visual comfort and edge arrows
         // The turning fit is already met only at the worst angle, so it gets no more room.
-        const PADDING_PERCENT = turning ? 0 : 5;
+        const PADDING_PERCENT = turning || this.fitPadding !== undefined ? 0 : 5;
         const targetDistance = maxRequiredDistance * (1 + PADDING_PERCENT / 100);
 
         // Only the floor applies: a fit that the configured ceiling cut short would put the

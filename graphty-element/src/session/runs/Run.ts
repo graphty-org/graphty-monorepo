@@ -473,9 +473,10 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     /**
      * Whether the element may apply the derived encoding layer when this run first completes.
      *
-     * Read by the auto-apply policy, which is not this module's to enforce.
+     * Read by the auto-apply policy, which is not this module's to enforce. Set again only when
+     * a removed run is started anew under its id ({@link ManagedRun.restyle}).
      */
-    readonly style: RunStyle;
+    style: RunStyle;
 
     /** The journal entry this run's latest command wrote; set by the session as the entry lands. */
     journalId: JournalId | null = null;
@@ -1000,6 +1001,17 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                 next.reject(error);
             },
         );
+    }
+
+    /**
+     * Take the styling choice of a new start of this run after it was removed: a removed run has
+     * no first completion behind it, so what it paints when it next completes is what the new
+     * start asked for, never what the start before the removal did.
+     * @param style - The new start's `style`.
+     * @internal
+     */
+    restyle(style: RunStyle): void {
+        this.style = style;
     }
 
     /**

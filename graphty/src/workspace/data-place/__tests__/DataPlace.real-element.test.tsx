@@ -17,9 +17,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { AUTH_LOG_CSV, HOSTS_CSV } from "../fixtures";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * Renders the workspace on the Data place with a project open and waits for the session.
  * @returns the session.
@@ -28,13 +25,10 @@ async function openDataPlace(): Promise<GraphSession> {
     const store = createWorkspaceStore({ project: { name: "Auth", id: 1 }, place: "data" });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -107,21 +101,15 @@ async function addField(side: "node" | "edge", kind: string, column: string): Pr
  */
 async function loadLog(session: GraphSession): Promise<void> {
     drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
-    await waitFor(
-        () => {
-            assert.equal(shown("Rows are"), "edges");
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.equal(shown("Rows are"), "edges");
+    });
     await pick("Source", "user");
     await pick("Target", "host");
-    await waitFor(
-        () => {
-            assert.lengthOf(session.data.edges(), 4);
-            assert.equal(shown("Source"), "user");
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.lengthOf(session.data.edges(), 4);
+        assert.equal(shown("Source"), "user");
+    });
 }
 
 describe("the Data place's sidebar on the real element", () => {
@@ -133,7 +121,7 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
 
-        const row = await place().findByRole("listitem", { name: "auth-log.csv" }, { timeout: TIMEOUT_MS });
+        const row = await place().findByRole("listitem", { name: "auth-log.csv" });
         const [source] = session.data.sources();
         assert.include(row.textContent, `Node ${String(source.counts.nodes)}`);
         assert.include(row.textContent, `Edge ${String(source.counts.edges)}`);
@@ -156,13 +144,10 @@ describe("the Data place's sidebar on the real element", () => {
     it("reads an event table as nodes until the reader says its rows are edges, one undo step", async () => {
         const session = await openDataPlace();
         drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
-        await waitFor(
-            () => {
-                assert.equal(shown("Rows are"), "edges");
-                assert.lengthOf(session.data.edges(), 0);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(shown("Rows are"), "edges");
+            assert.lengthOf(session.data.edges(), 0);
+        });
         // Back to nodes: the node rows, with no ends to pick.
         await pick("Rows are", "nodes");
         await waitFor(() => {
@@ -193,7 +178,7 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
         const header = async (name: string): Promise<HTMLElement> => {
-            const label = (await screen.findAllByTestId("data-table-header-label", {}, { timeout: TIMEOUT_MS })).find(
+            const label = (await screen.findAllByTestId("data-table-header-label", {})).find(
                 (each) => each.textContent === name,
             );
             const cell = label?.closest<HTMLElement>('[data-testid="data-table-header"]');
@@ -210,12 +195,9 @@ describe("the Data place's sidebar on the real element", () => {
             await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
             await userEvent.click(await screen.findByRole("menuitemradio", { name: role }));
         }
-        await waitFor(
-            () => {
-                assert.lengthOf(session.data.edges(), 4);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.lengthOf(session.data.edges(), 4);
+        });
     });
 
     it("offers only number columns as the weight", async () => {
@@ -236,13 +218,10 @@ describe("the Data place's sidebar on the real element", () => {
             new File(["source,target\nweb1,db1\n"], "logins.csv"),
             new File(["x"], "extra.csv"),
         );
-        await screen.findByText("Not added: extra.csv", {}, { timeout: TIMEOUT_MS });
-        await waitFor(
-            () => {
-                assert.equal(session.data.sources()[0]?.name, "hosts.csv + logins.csv");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await screen.findByText("Not added: extra.csv", {});
+        await waitFor(() => {
+            assert.equal(session.data.sources()[0]?.name, "hosts.csv + logins.csv");
+        });
     });
 
     it('adds a column as the weight from "+" and says a higher weight means farther, each one undo step', async () => {
@@ -329,7 +308,7 @@ describe("the Data place's sidebar on the real element", () => {
     it("removes a source from its row menu, and renames one in place", async () => {
         const session = await openDataPlace();
         await loadLog(session);
-        const row = await place().findByRole("listitem", { name: "auth-log.csv" }, { timeout: TIMEOUT_MS });
+        const row = await place().findByRole("listitem", { name: "auth-log.csv" });
 
         await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "auth-log.csv menu" }));
@@ -358,7 +337,7 @@ describe("the Data place's sidebar on the real element", () => {
         await openDataPlace();
         const name = "a-node-table-with-a-rather-long-file-name-for-a-narrow-sidebar.csv";
         drop(new File([HOSTS_CSV], name));
-        const row: HTMLElement = await place().findByRole("listitem", { name }, { timeout: TIMEOUT_MS });
+        const row: HTMLElement = await place().findByRole("listitem", { name });
         // A drop takes focus to the new row.
         await waitFor(() => {
             assert.strictEqual(document.activeElement, row.querySelector(".dp-source-main"));
@@ -381,7 +360,7 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
-        const row: HTMLElement = await place().findByRole("listitem", { name: "hosts.csv" }, { timeout: TIMEOUT_MS });
+        const row: HTMLElement = await place().findByRole("listitem", { name: "hosts.csv" });
         const [, hosts] = session.data.sources();
 
         const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });
@@ -402,7 +381,7 @@ describe("the Data place's sidebar on the real element", () => {
 
     it("hands focus to the dialog a + menu item opens, by keyboard", async () => {
         await openDataPlace();
-        const add = await place().findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS });
+        const add = await place().findByRole("button", { name: "Add source" });
         add.focus();
         await userEvent.keyboard("{Enter}");
         const item = await screen.findByRole("menuitem", { name: "Samples..." });

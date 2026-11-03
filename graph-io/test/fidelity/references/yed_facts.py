@@ -11,6 +11,7 @@ each port through the bends, clipped where they leave the source outline and mee
 or quad curve edge's bends are control points, so its path is the curve they pull (`curve_points`).
 """
 
+import gzip
 import sys
 import xml.etree.ElementTree as ET
 
@@ -124,7 +125,7 @@ def label_of(r, w, h):
 
 
 def scene(path):
-    root = ET.parse(path).getroot()
+    root = ET.parse(gzip.open(path) if path.endswith(".gz") else path).getroot()
     nodes, groups, geo = [], [], {}
 
     def walk(graph, ancestors):

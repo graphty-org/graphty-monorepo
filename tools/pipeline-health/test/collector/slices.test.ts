@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import rates from "../../config/rates.json" with { type: "json" };
 import sliceConfig from "../../config/slices.json" with { type: "json" };
 import { collect } from "../../src/collector/collect.js";
@@ -11,11 +12,11 @@ import {
     newestGreen,
     nextState,
     type RunnerSample,
+    SLICE_STORE_PARAMS,
     type SliceConfig,
+    sliceDeps,
     type SliceInput,
     type SliceSpend,
-    SLICE_STORE_PARAMS,
-    sliceDeps,
     spentMinutes,
     storeSummary,
 } from "../../src/collector/slices.js";
@@ -173,7 +174,9 @@ describe("decideSlice: the decision table (design 4b)", () => {
         ["store not read yet: ask for it", input({ store: null }), none("store-unavailable")],
         ["store did not answer: never", input({ store: undefined }), none("store-unavailable")],
     ];
-    for (const [name, i, want] of rows) it(name, () => expect(decideSlice(i)).toEqual(want));
+    for (const [name, i, want] of rows) {
+        it(name, () => expect(decideSlice(i)).toEqual(want));
+    }
 
     it("checks the store last, so a busy or noisy pool never costs a store read", () => {
         expect(decideSlice(input({ store: null, running: true }))).toEqual(none("in-flight"));
@@ -230,6 +233,14 @@ describe("the slice runner-minutes", () => {
         expect(isQuiet(samples({}, 6), T, cfg)).toBe(false); // only back to 07:35: the collector just started
         expect(isQuiet(samples({}, 7), T + 9 * MIN, cfg)).toBe(false); // no sample in the last cycle
     });
+
+    it("counts only jobs waiting over 2 minutes for a runner, not fresh or concurrency-pending ones", () => {
+        // 15:18Z on 2026-10-31: 96 jobs seconds old (longest wait 0 s) kept slices from starting for 30 minutes.
+        const at = (over: Partial<RunnerSample>) => samples().map((s, k) => (k === 8 ? { ...s, ...over } : s));
+        expect(isQuiet(at({ queued: 96, queuedOver2: 0 }), T, cfg)).toBe(true);
+        expect(isQuiet(at({ queued: 5, queuedOver2: 1, longestQueuedMs: 3 * MIN }), T, cfg)).toBe(false);
+        expect(isQuiet(at({ queued: 1 }), T, cfg)).toBe(false); // a sample stored before queuedOver2 existed
+    });
 });
 
 describe("the store summary", () => {
@@ -269,13 +280,15 @@ describe("sliceDeps", () => {
 
     it("reads the store with its token and dispatches story-slices.yml on master as the App", async () => {
         const calls: { url: string; init?: RequestInit }[] = [];
-        const f = async (url: string, init?: RequestInit) => {
+        const f = (url: string, init?: RequestInit) => {
             calls.push({ url, init });
-            if (url.endsWith("/access_tokens"))
-                return Response.json({ token: "ghs_dispatch", expires_at: "2099-01-01T00:00:00Z" });
-            if (url.endsWith("/v1/story-captures"))
-                return Response.json({ summary: { lastSliced: { sha: "s1" } }, units: [{ at: 9 }] });
-            return new Response(null, { status: 204 });
+            if (url.endsWith("/access_tokens")) {
+                return Promise.resolve(Response.json({ token: "ghs_dispatch", expires_at: "2099-01-01T00:00:00Z" }));
+            }
+            if (url.endsWith("/v1/story-captures")) {
+                return Promise.resolve(Response.json({ summary: { lastSliced: { sha: "s1" } }, units: [{ at: 9 }] }));
+            }
+            return Promise.resolve(new Response(null, { status: 204 }));
         };
         const { generateKeyPairSync } = await import("node:crypto");
         const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -296,7 +309,7 @@ describe("sliceDeps", () => {
         const post = calls.at(-1);
         expect(post?.url).toBe("https://api.github.com/repos/o/r/actions/workflows/story-slices.yml/dispatches");
         expect(new Headers(post?.init?.headers).get("authorization")).toBe("Bearer ghs_dispatch");
-        expect(JSON.parse(String(post?.init?.body))).toEqual({
+        expect(JSON.parse(post?.init?.body as string)).toEqual({
             ref: "master",
             inputs: { sha: "abc", mode: "idle", post: "true" },
         });
@@ -312,21 +325,22 @@ describe("the collector cycle", () => {
         const report = await collect({
             store,
             now: NOW,
-            gh: new GitHub(async () => "ghs_test", fake.fetch),
+            gh: new GitHub(() => Promise.resolve("ghs_test"), fake.fetch),
             fetch: fake.fetch,
-            awsCosts: async () => [],
+            awsCosts: () => Promise.resolve([]),
             rates: rates as unknown as Rates,
             limits: { linux_windows: SLAS.runnerLimits.linux_windows, macos: SLAS.runnerLimits.macos },
             org: "graphty-org",
             repo: "graphty-org/graphty-monorepo",
             slices: {
                 cfg,
-                readStore: async () => {
+                readStore: () => {
                     reads++;
-                    return {};
+                    return Promise.resolve({});
                 },
-                dispatch: async (sha, mode) => {
+                dispatch: (sha, mode) => {
                     dispatched.push(`${mode} ${sha}`);
+                    return Promise.resolve();
                 },
             },
         });
@@ -358,29 +372,34 @@ describe("the collector cycle", () => {
             if (
                 /\/repos\/graphty-org\/graphty-monorepo\/actions\/runs$/.test(u.pathname) &&
                 u.searchParams.get("status") === "queued"
-            )
+            ) {
                 return new Response(JSON.stringify({ total_count: 1, workflow_runs: [slice] }), { status: 200 });
+            }
             return base(url, init);
         };
         const report = await collect({
             store: new MemoryStore(),
             now: NOW,
-            gh: new GitHub(async () => "ghs_test", fake.fetch),
+            gh: new GitHub(() => Promise.resolve("ghs_test"), fake.fetch),
             fetch: fake.fetch,
-            awsCosts: async () => [],
+            awsCosts: () => Promise.resolve([]),
             rates: rates as unknown as Rates,
             limits: { linux_windows: SLAS.runnerLimits.linux_windows, macos: SLAS.runnerLimits.macos },
             org: "graphty-org",
             repo: "graphty-org/graphty-monorepo",
-            slices: { cfg, readStore: async () => ({}) },
+            slices: { cfg, readStore: () => Promise.resolve({}) },
         });
         expect(report.slice).toEqual({ action: "none", reason: "in-flight", dispatched: false });
     });
 });
 
 describe("master's newest green build", () => {
-    const run = (head_sha: string, status: string, conclusion: string | null) =>
-        ({ ...masterRuns()[1], head_sha, status, conclusion }) as GhRun;
+    const run = (headSha: string, status: string, conclusion: string | null) => ({
+        ...masterRuns()[1],
+        head_sha: headSha,
+        status,
+        conclusion,
+    });
     it("skips a newer red, cancelled or running build", () => {
         expect(
             newestGreen([

@@ -77,6 +77,8 @@ export function trackOnScene<T>(scene: object, kind: string, reason: string, wor
 /** A watch: state kept elsewhere, asked live. */
 interface Watch extends PendingItem {
     readonly pending: () => boolean;
+    /** How to wait for it without a frame, when it can be; see {@link PendingWork.settled}. */
+    readonly settled?: () => Promise<unknown>;
 }
 
 /** The record of pending picture work; see the file comment. */
@@ -127,10 +129,11 @@ export class PendingWork {
      * @param kind - The kind of work.
      * @param reason - What is unfinished while it runs.
      * @param work - The work.
+     * @param scope - What it holds back; the picture by default.
      * @returns The same promise's result.
      */
-    async track<T>(kind: string, reason: string, work: Promise<T>): Promise<T> {
-        const release = this.begin(kind, reason);
+    async track<T>(kind: string, reason: string, work: Promise<T>, scope: PendingScope = "picture"): Promise<T> {
+        const release = this.begin(kind, reason, scope);
         try {
             return await work;
         } finally {
@@ -144,10 +147,19 @@ export class PendingWork {
      * @param reason - What is unfinished while it says so.
      * @param pending - Asked live, every time completion is asked; must be cheap and must not throw.
      * @param scope - What it holds back; the picture by default.
+     * @param settled - For `wait` work that ends without a frame (a queue draining, a style pass):
+     *     settles once the work pending when it was called has ended, so {@link PendingWork.settled}
+     *     can wait for it. Absent, only a pass or a drawn frame asks again.
      * @returns Removes the watch.
      */
-    watch(kind: string, reason: string, pending: () => boolean, scope: PendingScope = "picture"): () => void {
-        const entry: Watch = { kind, reason, pending, scope };
+    watch(
+        kind: string,
+        reason: string,
+        pending: () => boolean,
+        scope: PendingScope = "picture",
+        settled?: () => Promise<unknown>,
+    ): () => void {
+        const entry: Watch = { kind, reason, pending, scope, settled };
         this.#watches.add(entry);
         return () => {
             if (this.#watches.delete(entry)) {
@@ -177,6 +189,38 @@ export class PendingWork {
         }
 
         return null;
+    }
+
+    /**
+     * Wait until no `wait` work that ends without a frame is pending: an open `wait` token until it
+     * is released, and a `wait` entry given a `settled` promise until it says nothing is pending.
+     * Asked again after each, so work one of them starts is waited for too. Work only a drawn frame
+     * ends (the picture, the label counts) is the frame's: `waitForSettled()` waits for this alone,
+     * `waitForStableFrame()` for this and then for the frame.
+     * @returns Settles once nothing of the kind is pending.
+     */
+    async settled(): Promise<void> {
+        for (;;) {
+            if ([...this.#open.values()].some((item) => item.scope === "wait")) {
+                // A release moves the counter and tells the listeners: ask again then.
+                await new Promise<void>((resolve) => {
+                    const stop = this.onChange(() => {
+                        stop();
+                        resolve();
+                    });
+                });
+                continue;
+            }
+
+            const entry = [...this.#watches].find(
+                (each) => each.scope === "wait" && each.settled !== undefined && each.pending(),
+            );
+            if (entry?.settled === undefined) {
+                return;
+            }
+
+            await entry.settled();
+        }
     }
 
     /**

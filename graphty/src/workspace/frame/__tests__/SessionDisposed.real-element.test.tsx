@@ -20,9 +20,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceContext";
 import { ElementHost } from "../ElementHost";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** Records a render error instead of letting it unmount the tree. */
 class Catch extends React.Component<{ readonly children: React.ReactNode }, { message: string | null }> {
     override state: { message: string | null } = { message: null };
@@ -80,15 +77,14 @@ describe("a disposed session", () => {
         const place = document.createElement("div");
         document.body.append(place);
         render(<Host place={place} />);
-        await waitFor(() => assert.match(screen.getByTestId("reader").textContent ?? "", /values$/), {
-            timeout: TIMEOUT_MS,
-        });
+        await waitFor(() => assert.match(screen.getByTestId("reader").textContent ?? "", /values$/));
 
-        // The page loses the element without React unmounting it: its session is disposed.
+        // The page loses the element without React unmounting it: its session is disposed, once
+        // the element has stayed out of the page past the microtask a move would have used.
         const element = place.querySelector("graphty-element");
         assert.isNotNull(element);
         place.remove();
-        assert.isFalse(element.session.status.ready);
+        await waitFor(() => assert.isFalse(element.session.status.ready));
 
         await userEvent.click(screen.getByRole("button", { name: /Render again/ }));
         await waitFor(() => assert.include(screen.getByRole("button", { name: /Render again/ }).textContent, "1"));

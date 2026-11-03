@@ -191,6 +191,33 @@ function rightSectionWidthOf(
     return `calc(${String(suffix.length)}ch + ${String(chevronWidth + 4)}px)`;
 }
 
+/**
+ * The field wrapper's look: the "Mixed" ink and the divided chevron.
+ * @param mixed - whether the field reads "Mixed"
+ * @param divided - whether a rule divides the chevron from the value
+ * @returns the wrapper's styles and class names
+ */
+function wrapperLookOf(
+    mixed: boolean,
+    divided: boolean,
+): { styles: { wrapper: Record<string, string> } | undefined; classNames: { wrapper: string } } {
+    return {
+        styles: mixed ? { wrapper: { "--input-placeholder-color": PANEL_INK.VALUE } } : undefined,
+        classNames: { wrapper: divided ? "cm-combo cm-combo-divided" : "cm-combo" },
+    };
+}
+
+/**
+ * Whether an empty field shows its placeholder as the not-set look.
+ * @param placeholder - the placeholder, if any
+ * @param text - the committed value's text
+ * @param draft - the typed text not yet committed
+ * @returns "true" for the data attribute, or undefined
+ */
+function isDefaultOf(placeholder: string | undefined, text: string, draft: string | null): "true" | undefined {
+    return placeholder !== undefined && text === "" && draft === null ? "true" : undefined;
+}
+
 function isSeparator(item: ComboInputItem): item is ComboInputSeparator {
     return "separator" in item;
 }
@@ -469,13 +496,10 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                     placeholder={placeholder}
                     disabled={disabled}
                     variant={variant}
-                    data-is-default={
-                        placeholder !== undefined && currentText === "" && textDraft === null ? "true" : undefined
-                    }
+                    data-is-default={isDefaultOf(placeholder, currentText, textDraft)}
                     className={className}
                     style={{ width, ...style }}
-                    styles={mixed ? { wrapper: { "--input-placeholder-color": PANEL_INK.VALUE } } : undefined}
-                    classNames={{ wrapper: ["cm-combo", divided ? "cm-combo-divided" : ""].filter(Boolean).join(" ") }}
+                    {...wrapperLookOf(mixed, divided)}
                     leftSection={glyph === undefined ? undefined : <ScrubSlot glyph={glyph} scrub={scrub} />}
                     leftSectionPointerEvents={scrub ? "all" : "none"}
                     rightSection={hasList || suffix !== undefined ? rightSection : undefined}

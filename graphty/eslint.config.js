@@ -12,7 +12,6 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacements.js";
-import storyWaitOptions from "../tools/eslint-rules/story-wait-options.mjs";
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
@@ -46,6 +45,11 @@ const RESTRICTED_IMPORT_PATTERNS = [
         regex: String.raw`^\.{1,2}/(.*/)?graphty-element(/|$)`,
         message: `${RULE} Import @graphty/graphty-element by package name, never by a relative path.`,
     },
+    {
+        regex: "^@testing-library/user-event$",
+        message:
+            "It builds its events in JavaScript. Use userEvent from vitest/browser, which drives the browser's real input (tools/README.md, Testing).",
+    },
 ];
 
 // The app's own bans, beside compact-mantine's list. Not in that shared list, because
@@ -71,6 +75,21 @@ const POPOVER_EXCEPTIONS = [
     "src/workspace/toolbar/WorkspaceToolbar.tsx",
 ];
 const WITHOUT_POPOVER_BAN = APP_REPLACEMENTS.filter((entry) => !entry.importNames.includes("Popover"));
+// vi.mock and vi.doMock, banned in every browser-project file (the block that uses it says why).
+const NO_MODULE_MOCK = {
+    selector: "CallExpression[callee.object.name='vi'][callee.property.name=/^(mock|doMock)$/]",
+    message:
+        "No vi.mock in a browser test: it switches the page's HTTP cache off (#3416). Pass the test double in through a prop, an option or a test-only setter.",
+};
+// An error's `.message` read in the app's own code (#5574): a GraphtyError's message is English for
+// people debugging, may change in any release and ignores the reader's Number format, so a reader
+// sees the app's words from the error's code and details (errorWords in
+// src/workspace/project/words.ts). Tests and stories may read it.
+const NO_ERROR_MESSAGE = {
+    selector: "MemberExpression[object.name=/^(e|err|error|reason|cause)$/][property.name='message']",
+    message:
+        "Never show an error's message to a reader: word it from its code and details with errorWords (src/workspace/project/words.ts).",
+};
 const NO_LUCIDE = { name: "lucide-react", message: "Use GLYPHS from src/workspace/glyphs.ts: one icon per concept." };
 
 export default tseslint.config(
@@ -189,6 +208,22 @@ export default tseslint.config(
         rules: { "jsdoc/no-types": "off" },
     },
 
+    // No module mocks in the app's own code: every test file and story under src/ runs in a browser
+    // project, and there every vi.mock makes Vitest add a Playwright route to the page's context.
+    // While a context has a route, Playwright switches the browser's HTTP cache off and holds every
+    // request until the one Vitest process answers it, so the file fetches its whole module graph
+    // again and slows every page beside it (issues #3350 and #3416). Pass a test double in instead:
+    // a prop, an option, or a test-only setter on the module.
+    {
+        files: ["src/**/*.{ts,tsx}"],
+        rules: { "no-restricted-syntax": ["error", NO_MODULE_MOCK] },
+    },
+    {
+        files: ["src/**/*.{ts,tsx}"],
+        ignores: ["src/**/*.test.{ts,tsx}", "src/**/*.stories.{ts,tsx}", "src/**/__tests__/**", "src/test/**"],
+        rules: { "no-restricted-syntax": ["error", NO_MODULE_MOCK, NO_ERROR_MESSAGE] },
+    },
+
     // A real-element test waits for an open on the workspace's `opened` (openBy in
     // src/test/open.tsx), never by polling the node count, which arrives before the rest of an
     // open (styles, history, focus), so a test that waits on it acts on a half-opened workspace (#3544).
@@ -199,6 +234,7 @@ export default tseslint.config(
         rules: {
             "no-restricted-syntax": [
                 "error",
+                NO_MODULE_MOCK,
                 {
                     // waitFor, vi.waitFor and expect.poll; statistics().nodeCount read or destructured inside
                     // one. A helper that reads it outside the call is not seen.
@@ -209,13 +245,5 @@ export default tseslint.config(
                 },
             ],
         },
-    },
-
-    // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline
-    // of its own under a test runner (#2930). The rule: tools/eslint-rules/story-wait-options.mjs.
-    {
-        files: ["src/**/*.stories.{ts,tsx}"],
-        plugins: { "local-stories": { rules: { "story-wait-options": storyWaitOptions } } },
-        rules: { "local-stories/story-wait-options": "error" },
     },
 );

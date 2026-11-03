@@ -4,6 +4,7 @@
 //
 //   node tools/channel/nightly.mjs decide        the verdict job: does a green-clean candidate promote now?
 //       env STATE (the verdict), GH_TOKEN, GITHUB_REPOSITORY, GATE (the screenshot gate's outcome: success or failure),
+//           GATE_REASON (the gate's refusal lines, from screenshot-gate.sh),
 //           HELD (the held candidate's head, from the pick), SHA
 //       writes promote (true | false) and why to GITHUB_OUTPUT
 //   node tools/channel/nightly.mjs channel-json  the site job: channel.json for the site-<sha> prerelease, on stdout
@@ -19,8 +20,15 @@
 //       hang guard)
 //   node tools/channel/nightly.mjs record        the site job: the promotion to the results store (fail open)
 //       env SHA, COMMIT, SITE_SHA256, CHANNEL_SHA256, RESULTS_URL and the job's OIDC token
-//   node tools/channel/nightly.mjs stall         every release.yml run's timings job: the age:nightly alarm
+//   node tools/channel/nightly.mjs stall         every release.yml run's timings job: the age:nightly alarm, now only
+//       the fallback for a slot that produced no run at all (quiet while a "Nightly missed slot" issue is open)
 //       env RESULTS_URL, GH_TOKEN, GITHUB_REPOSITORY, RUN_URL
+//   node tools/channel/nightly.mjs slot          the slot job at the end of every full, restart and candidate run: the
+//       missed-slot alarm (#5052). Nightly did not move: file or update one priority:critical "Nightly missed slot
+//       <date hh:mm> UTC: <cause>" issue; nightly moved: close it
+//       env MODE, PUSHED (the land job pushed channel/nightly), PICK_RESULT, RELEASE, PICK_WHY, RESUME, SHA, STATE,
+//       DEFERRED, HOLD, HELD, HELD_STATE, WHAT, ISSUE, PROMOTE, WHY, RUN_ID, RUN_URL, RESULTS_URL, GH_TOKEN,
+//       GITHUB_REPOSITORY
 //   node tools/channel/nightly.mjs failed        the site job, when it failed: one priority:critical issue
 //       env SHA, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY; prints the issue's number
 //   node tools/channel/nightly.mjs deployed      the site job, when it deployed: closes that issue, if open
@@ -31,10 +39,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { REVIEW_PAGE } from "../release-status.mjs";
 import { call, config } from "../results/client.mjs";
 
 const HOUR = 3_600_000;
 export const STALL_TITLE = "Nightly stalled since";
+export const MISSED_TITLE = "Nightly missed slot";
+const SLOT = 6 * HOUR;
+// one slot plus a full run's length: past it, a slot passed with no run that could report it (the stall fallback)
+const STALL_MS = SLOT + 2 * HOUR;
+
 export const FAILED_TITLE = "Nightly site deploy failed";
 export const PUBLISH_HOLD = "Release held: publish failed";
 
@@ -45,12 +59,14 @@ export const PUBLISH_HOLD = "Release held: publish failed";
  *   owner's screenshot approval
  * @param o.publishHold the open publish hold's issue number, or empty
  * @param o.gate the screenshot gate's outcome on the candidate against channel/nightly: success, or anything else
+ * @param [o.gateReason] the gate's own refusal lines (screenshot-gate.sh's reason), shown instead of the generic
+ *   text when present
  * @param [o.held] the held candidate's head (channels-pipeline.md section 3): "" for none, "unknown" when the store did
  *   not answer; while one is held, only it promotes
  * @param [o.sha] the judged commit
  * @returns `{ promote, why }`
  */
-export function promotion({ state, publishHold, gate, held = "", sha = "" }) {
+export function promotion({ state, publishHold, gate, gateReason = "", held = "", sha = "" }) {
     // approved: a green-images head the owner approved (tools/channel/resume.mjs), gated against its accept commit
     if (state !== "green-clean" && state !== "approved")
         return { promote: false, why: `the verdict is ${state || "missing"}, not green-clean` };
@@ -67,7 +83,9 @@ export function promotion({ state, publishHold, gate, held = "", sha = "" }) {
     if (gate !== "success") {
         return {
             promote: false,
-            why: "the screenshot gate refused: the candidate's visual-baselines/ differ from nightly's without the owner's signed approval of that tree",
+            why: gateReason
+                ? `the screenshot gate refused: ${gateReason}`
+                : "the screenshot gate refused: the candidate's visual-baselines/ differ from nightly's without the owner's signed approval of that tree",
         };
     }
     return { promote: true, why: "green-clean, no publish hold, and the screenshot gate passed" };
@@ -258,8 +276,9 @@ export function deployState({ runs, stamp, sha }) {
 }
 
 /**
- * The stall alarm (main section 7): over 24 hours since nightly moved while canary holds an unpromoted commit,
- * one priority:critical issue naming what blocks it; over 48 hours it asks the owner to act.
+ * The stall alarm (main section 7): over one slot and a run (8 hours) since nightly moved while canary holds an
+ * unpromoted commit, one priority:critical issue naming what blocks it; over 48 hours it asks the owner to act. The
+ * missed-slot alarm (missedSlot) reports every slot a run ended in; this is the fallback for a slot with no run.
  * @param o the inputs
  * @param o.state GET /v1/release-state's answer
  * @param o.publishHold the open publish hold's number, or empty
@@ -269,7 +288,7 @@ export function deployState({ runs, stamp, sha }) {
  */
 export function stall({ state, publishHold, now }) {
     const age = state?.ageNightlyMs ?? 0;
-    if (age <= 24 * HOUR) return null;
+    if (age <= STALL_MS) return null;
     const since = new Date(now - age).toISOString().slice(0, 10);
     const canary = state.canary?.sha?.slice(0, 7) ?? "canary";
     const redIssue = state.red?.issue ? " (#" + state.red.issue + ")" : "";
@@ -294,10 +313,132 @@ export function stall({ state, publishHold, now }) {
         "",
         ...what.map((w) => `- ${w}`),
         "",
+        "No full run reported a missed slot, so a slot may have produced no run at all: check the release scheduler (tools/release-scheduler/) and the newest release.yml runs.",
+        "",
         "This issue is updated by every release.yml run and closes itself once nightly moves (tools/channel/nightly.mjs stall).",
     ];
     if (urgent) body.push("", `ACTION NEEDED: nightly stalled ${hours} h; ${what[0]}`);
     return { title: `${STALL_TITLE} ${since}`, body: body.join("\n"), urgent };
+}
+
+const s7 = (sha) => (sha ?? "").slice(0, 7);
+
+/**
+ * The missed-slot alarm (#5052; owner, 2026-10-30: a successful nightly every 6-hour slot, and a slot that does not
+ * promote is an incident with a named cause): what kept a full, restart or candidate run from moving nightly.
+ * @param f the run's facts, as the slot job hands them (see the head of the file); moved: nightly moved in the run
+ * @param started when the run started, ms: its slot is that time rounded down to 00, 06, 12 or 18 UTC
+ * @param [state] GET /v1/release-state's answer: what still blocks nightly when the run tested nothing new (#5135)
+ * @returns null when nightly moved or the run decides nothing yet (an attempt 1 waiting for its re-run), else
+ *   `{ title, cause, detail }`
+ */
+export function missedSlot(f, started, state = null) {
+    if (f.moved || f.deferred === "true") return null;
+    const { cause, detail = "" } = pickCause(f, state) ?? verdictCause(f);
+    const slot = new Date(Math.floor(started / SLOT) * SLOT).toISOString().slice(0, 16).replace("T", " ");
+    const short = cause.length > 90 ? cause.slice(0, 87) + "..." : cause;
+    return { title: `${MISSED_TITLE} ${slot} UTC: ${short}`, cause, detail };
+}
+
+// a slot that judged nothing: the pick failed, found nothing new, or the run ended before its verdict
+function pickCause(f, state) {
+    if (f.pickResult && f.pickResult !== "success") return { cause: `the pick failed (${f.pickResult})` };
+    // a run that tested nothing new (#5135: a candidate run whose fix could not enter the held head) changes nothing:
+    // the slot is still blocked by what blocked it before, which the store's release state names
+    if (f.release !== "true" && f.resume !== "true")
+        return stateCause(state) ?? { cause: `no new candidate: ${f.pickWhy || "nothing to test"}` };
+    if (!f.state) return { cause: "no verdict: the run ended before judging its candidate" };
+    return null;
+}
+
+// what the verdict on the slot's commit kept from nightly
+function verdictCause(f) {
+    const sha = s7(f.sha);
+    const what = f.what || "see the run";
+    if (f.state === "red") return { cause: `red lane on ${sha}: ${what}` + (f.issue ? ` (#${f.issue})` : "") };
+    if (f.state === "owner-item") return { cause: `owner item on ${sha}: ${what}` };
+    if (f.state === "green-images") return imagesCause(f, sha);
+    if (f.promote === "true") return { cause: `the promotion of ${sha} failed before it landed` };
+    return { cause: `${sha} is green-clean but did not promote: ${f.why || "see the run"}` };
+}
+
+// changed screenshots: held for the owner's review, behind another held candidate, or behind a hold nobody reviews
+function imagesCause(f, sha) {
+    const held = s7(f.held);
+    if (f.hold === "start" || f.hold === "update")
+        return { cause: `waiting on the owner's screenshot review of ${sha}`, detail: `Review it on ${REVIEW_PAGE}.` };
+    if (f.heldState === "green-images") {
+        return {
+            cause: `waiting on the owner's screenshot review of the held ${held}`,
+            detail: `${sha} also changed screenshots but is not held: the held ${held} is reviewed first, on ${REVIEW_PAGE}.`,
+        };
+    }
+    return {
+        cause: `hold on ${held || "an unknown commit"} is not reviewable (${f.heldState || "not judged"})`,
+        detail: "A green run should have replaced it: fix it forward from its head, or abandon it (`gh workflow run nightly-abandon.yml --ref master -f reason=...`).",
+    };
+}
+
+// what blocks nightly by the store's release state, in the words a run that judged it uses, or null
+function stateCause(state) {
+    const offered = s7(state?.offered?.sha);
+    if (state?.hold) {
+        const held = s7(state.hold.head);
+        return offered === held
+            ? {
+                  cause: `waiting on the owner's screenshot review of the held ${held}`,
+                  detail: `Review it on ${REVIEW_PAGE}.`,
+              }
+            : imagesCause({ held: state.hold.head, heldState: "its head is not green-images" });
+    }
+    if (state?.blocking === "red" && state.red) {
+        return verdictCause({ state: "red", sha: state.red.sha, what: state.red.lane, issue: state.red.issue });
+    }
+    if (state?.blocking === "waiting-for-screenshots" && offered)
+        return {
+            cause: `waiting on the owner's screenshot review of ${offered}`,
+            detail: `Review it on ${REVIEW_PAGE}.`,
+        };
+    return null;
+}
+
+/**
+ * When nightly last moved (#5135): the store's newest nightly move, or the newest push to channel/nightly, whichever
+ * is later. The store misses a move whose record it refused (the 2026-10-29 promotion), and a push is the move itself.
+ * @param storeMovedAt the release state's nightly.movedAt, ms, or null
+ * @param pushedAt the newest push to channel/nightly, ms, or null
+ * @returns ms, or null when neither knows
+ */
+export function lastNightlyMove(storeMovedAt, pushedAt) {
+    const known = [storeMovedAt, pushedAt].filter((t) => typeof t === "number" && Number.isFinite(t));
+    return known.length ? Math.max(...known) : null;
+}
+
+/**
+ * The missed-slot issue's text.
+ * @param o the inputs
+ * @param o.mode the run's mode
+ * @param o.runUrl the run's URL
+ * @param o.alarm missedSlot's answer
+ * @param o.moved lastNightlyMove's answer
+ * @param o.now milliseconds
+ * @returns the markdown
+ */
+export function slotText({ mode, runUrl, alarm, moved, now }) {
+    const when =
+        moved === null
+            ? "at an unknown time (neither the results store nor channel/nightly's pushes say)"
+            : `at ${new Date(moved).toISOString().slice(0, 16).replace("T", " ")} UTC, ${Math.floor((now - moved) / HOUR)} hours ago`;
+    return [
+        `The slot's ${mode || "full"} run ended without moving nightly: ${runUrl ?? ""}`,
+        "",
+        `Cause: ${alarm.cause}`,
+        ...(alarm.detail ? ["", alarm.detail] : []),
+        "",
+        `Nightly last moved ${when}. Goal (owner, 2026-10-30): a nightly promotion every 6-hour slot; a slot that does not promote is an incident with a named cause.`,
+        "",
+        "This issue is retitled and commented on by every full, restart and candidate run that ends without moving nightly, and closes itself when nightly moves (tools/channel/nightly.mjs slot).",
+    ].join("\n");
 }
 
 // What a held candidate (channels-pipeline.md section 3) waits for: the owner's screenshot review once its head is
@@ -371,23 +512,19 @@ async function stallMain(env) {
     } catch {
         // the alarm matters more than the hold's number
     }
-    const alarm = stall({ state: res.data, publishHold, now: Date.now() });
+    // the missed-slot alarm names the cause of every slot a run ended in: the stall issue is only for a slot with none
+    const missed = openIssue(MISSED_TITLE, repo);
+    const alarm = missed ? null : stall({ state: res.data, publishHold, now: Date.now() });
     const open = openIssue(STALL_TITLE, repo);
     if (!alarm) {
         console.log(`age:nightly ${Math.round((res.data?.ageNightlyMs ?? 0) / HOUR)} h: not stalled`);
-        if (open)
-            gh(
-                "issue",
-                "close",
-                String(open.number),
-                "-R",
-                repo,
-                "--comment",
-                `Nightly moved (or caught up with canary): ${env.RUN_URL ?? ""}`,
-            );
+        const why = missed
+            ? `The missed-slot alarm #${missed.number} reports it`
+            : "Nightly moved (or caught up with canary)";
+        if (open) gh("issue", "close", String(open.number), "-R", repo, "--comment", `${why}: ${env.RUN_URL ?? ""}`);
         return;
     }
-    console.log(`::warning::age:nightly over 24 h: ${alarm.title}`);
+    console.log(`::warning::age:nightly over ${STALL_MS / HOUR} h: ${alarm.title}`);
     if (!open) {
         const file = bodyFile(alarm.body);
         console.log(
@@ -414,6 +551,73 @@ async function stallMain(env) {
     gh("issue", "edit", String(open.number), "-R", repo, "--body-file", bodyFile(alarm.body));
     // a comment notifies; an edit does not. Once on crossing 48 hours, never on every run.
     if (crossed) gh("issue", "comment", String(open.number), "-R", repo, "--body-file", bodyFile(alarm.body));
+}
+
+async function slotMain(env, now = Date.now()) {
+    const repo = env.GITHUB_REPOSITORY;
+    let started = now;
+    try {
+        started = Date.parse(gh("api", `repos/${repo}/actions/runs/${env.RUN_ID}`, "--jq", ".run_started_at")) || now;
+    } catch {
+        // the slot is then the one the run ends in
+    }
+    const res = await call(config(env), "GET", "/v1/release-state");
+    const state = res.ok ? res.data : null;
+    let pushedAt = null;
+    try {
+        pushedAt = Date.parse(
+            gh(
+                "api",
+                `repos/${repo}/activity?ref=refs/heads/channel/nightly&per_page=1`,
+                "--jq",
+                ".[0].timestamp // empty",
+            ),
+        );
+    } catch {
+        // the store's move, if it has one, says when
+    }
+    const movedAt = lastNightlyMove(state?.nightly?.movedAt ?? null, pushedAt);
+    // moved: this run pushed channel/nightly, or another run moved it since this one started
+    const moved = env.PUSHED === "true" || (movedAt !== null && movedAt >= started);
+    const facts = {
+        moved,
+        pickResult: env.PICK_RESULT,
+        release: env.RELEASE,
+        pickWhy: env.PICK_WHY,
+        resume: env.RESUME,
+        sha: env.SHA,
+        state: env.STATE,
+        deferred: env.DEFERRED,
+        hold: env.HOLD,
+        held: env.HELD,
+        heldState: env.HELD_STATE,
+        what: env.WHAT,
+        issue: env.ISSUE,
+        promote: env.PROMOTE,
+        why: env.WHY,
+    };
+    const alarm = missedSlot(facts, started, state);
+    const open = openIssue(MISSED_TITLE, repo);
+    if (!alarm) {
+        console.log(moved ? "nightly moved in this slot" : "attempt 1 waits for its re-run: the re-run reports");
+        if (moved && open)
+            gh("issue", "close", String(open.number), "-R", repo, "--comment", `Nightly moved: ${env.RUN_URL ?? ""}`);
+        return;
+    }
+    console.log(`::warning::${alarm.title}`);
+    const text = slotText({ mode: env.MODE, runUrl: env.RUN_URL, alarm, moved: movedAt, now });
+    if (!open) {
+        const labels = ["bug", "priority:critical", "effort:medium"].flatMap((l) => ["--label", l]);
+        console.log(
+            gh("issue", "create", "-R", repo, "--title", alarm.title, ...labels, "--body-file", bodyFile(text)),
+        );
+        return;
+    }
+    gh("issue", "edit", String(open.number), "-R", repo, "--title", alarm.title, "--body-file", bodyFile(text));
+    // a comment notifies; an edit does not. Only a new slot or a new cause is news: a second run in the same slot
+    // with the same cause (a re-run, a candidate run that tested nothing) only refreshes the body
+    if (open.title !== alarm.title)
+        gh("issue", "comment", String(open.number), "-R", repo, "--body-file", bodyFile(text));
 }
 
 // One look at the site's deploy: graphty-nightly's runs for the deployed.json commit, and the site's stamp.
@@ -493,7 +697,14 @@ function decideMain(env) {
             process.exit(1);
         }
     }
-    const p = promotion({ state: env.STATE, publishHold: hold, gate: env.GATE, held: env.HELD ?? "", sha: env.SHA });
+    const p = promotion({
+        state: env.STATE,
+        publishHold: hold,
+        gate: env.GATE,
+        gateReason: env.GATE_REASON ?? "",
+        held: env.HELD ?? "",
+        sha: env.SHA,
+    });
     if (!p.promote && env.STATE !== "green-images") console.log(`::notice::${p.why}`);
     if (!p.promote && env.STATE === "green-clean" && env.GATE !== "success" && env.FIRST === "true") {
         // no channel/nightly yet, so no move and no age: without this issue the stall alarm never fires
@@ -672,6 +883,7 @@ const COMMANDS = {
     wait: waitMain,
     record: recordMain,
     stall: stallMain,
+    slot: slotMain,
     failed: failedMain,
     deployed: deployedMain,
 };

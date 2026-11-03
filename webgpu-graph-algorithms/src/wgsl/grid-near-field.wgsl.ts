@@ -38,6 +38,7 @@ fn kick_magnitude(mi: f32, mj: f32) -> f32 {                   // the law's magn
     return P.scalingRatio * mi * mj / FA2_DIST_FLOOR;
 }
 fn pair_force(i: u32, pi: vec4f, jj: u32, o: vec4f) -> vec3f {  // the exact pair law of K3 (7.6, 7.20): the floor (FA2 only), the coincident kick
+    if (o.w <= 0.0) { return vec3f(0.0); }                     // an inert row (mass 0, setInert) repels nothing
     let d = pi.xyz - o.xyz;
     var d2 = dot(d, d);
     if (d2 < FA2_COINCIDENT_SQ) { return kick_dir(i, jj, P.dim) * kick_magnitude(pi.w, o.w); }

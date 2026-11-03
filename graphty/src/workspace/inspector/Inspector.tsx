@@ -1,4 +1,4 @@
-import { PopoutManager } from "@graphty/compact-mantine";
+import { PopoutManager, TargetTooltip } from "@graphty/compact-mantine";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { ActionIcon, Anchor, ColorSwatch, Group, Menu, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
@@ -32,6 +32,7 @@ import { findTreeRow, layerKindWords, placeOf, rowName, rowsHeading, runRowKind 
 import { LayerRowPanel } from "../graph-place/StyleTree";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
+import { useNumberFormats } from "../settings/numberFormat";
 import { tabFor, type WorkspaceState } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FolderPanel } from "../style/FolderPanel";
@@ -415,7 +416,7 @@ function HeaderMenu({
     return (
         <Menu position="bottom-end">
             <Menu.Target>
-                <Tooltip label={`${kindWord} actions`}>
+                <TargetTooltip label={`${kindWord} actions`}>
                     <ActionIcon
                         variant="subtle"
                         size="sm"
@@ -426,7 +427,7 @@ function HeaderMenu({
                     >
                         <GLYPHS.more size={14} />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
                 {treeRow === undefined ? (
@@ -457,6 +458,8 @@ function HeaderMenu({
 export function Inspector(): React.JSX.Element {
     const { session, store, registry, run: runCommand } = useWorkspace();
     const version = useSessionVersion(session);
+    // The reader's Number format respells every value the inspector draws.
+    useNumberFormats();
     // A filter step turned on or off changes its editor's header.
     useVisibilityVersion(session);
     const inspected = useWorkspaceState((state) => state.inspected);
@@ -560,17 +563,18 @@ export function Inspector(): React.JSX.Element {
                 <Stack gap={0} px="md" py={6}>
                     <Group gap={6} wrap="nowrap">
                         <HeaderGlyph session={session} header={header} treeRow={treeRow} kindId={kindId} />
-                        {/* Focusable from script only: where focus lands after a run or a find pick,
-                            so a screen reader starts here. A heading, not a control and not in the
-                            Tab order, so it takes no focus mark: a box read as a field, an
-                            underline as a link. The next Tab reaches the first control. */}
+                        {/* Focusable from script only: where focus lands after a graph opens, a run
+                            or a find pick, so a screen reader starts here. A heading, not a control
+                            and not in the Tab order; on keyboard focus it draws the app's shared
+                            inset ring, so a keyboard reader sees where the next key goes (WCAG
+                            2.4.7). The next Tab reaches the first control. */}
                         <Text
                             id={INSPECTOR_TITLE_ID}
+                            className="cm-focus-inside"
                             tabIndex={-1}
                             role="heading"
                             aria-level={2}
                             aria-label={header.spoken}
-                            style={{ outline: "none" }}
                             size="sm"
                             fw={600}
                             truncate

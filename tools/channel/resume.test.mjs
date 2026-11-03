@@ -27,6 +27,11 @@ describe("acceptsIn", () => {
         ];
         assert.deepEqual(acceptsIn(commits), [{ accept: A, candidate: H }]);
     });
+
+    it("ignores a rolling approval parented on the commit it names (it promotes nothing)", () => {
+        const rolling = `test(workspace): rolling approval of visual baselines rendered at ${H.slice(0, 12)}`;
+        assert.deepEqual(acceptsIn([{ sha: A, parents: [H], subject: rolling }]), []);
+    });
 });
 
 describe("resumeDecision", () => {

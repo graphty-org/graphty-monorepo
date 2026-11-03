@@ -48,8 +48,11 @@ async function subtle(): Promise<SubtleCrypto | null> {
     if (detectRuntime() !== "node") {
         return null;
     }
-    const name = "node:crypto";
-    return ((await import(/* @vite-ignore */ name)) as { webcrypto: Crypto }).webcrypto.subtle;
+    // Built at run time so no bundler sees a literal: a consumer's browser build has no
+    // `node:crypto`, and esbuild failed on the literal the build had folded the name into.
+    const name = ["node", "crypto"].join(":");
+    return ((await import(/* @vite-ignore */ /* webpackIgnore: true */ name)) as { webcrypto: Crypto }).webcrypto
+        .subtle;
 }
 
 /**

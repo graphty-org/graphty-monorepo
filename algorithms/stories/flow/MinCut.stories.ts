@@ -22,7 +22,6 @@ import {
     renderGraph,
     updateStatus,
 } from "../utils/visualization.js";
-import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -335,6 +334,6 @@ export const MinCut: Story = {
         await waitFor(async () => {
             const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
             await expect(statusText).toContain("Minimum cut found");
-        }, storyWaitOptions(5000));
+        });
     },
 };

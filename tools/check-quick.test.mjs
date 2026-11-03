@@ -35,6 +35,10 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
     writeFileSync(join(repo, "tools/sonar-gate.mjs"), envDump(out("sonar.json"), "STUB_RC_SONAR"));
     writeFileSync(join(repo, "tools/test-slots.mjs"), envDump(out("gpu.json"), "STUB_RC_GPU"));
     writeFileSync(join(repo, "tools/pr-integrity.mjs"), envDump(out("integrity.json"), "STUB_RC_INTEGRITY"));
+    writeFileSync(join(repo, "tools/ci-budgets.mjs"), envDump(out("budgets.json"), "STUB_RC_BUDGETS"));
+    writeFileSync(join(repo, "tools/check-links.sh"), `#!/bin/sh\necho "$*" > ${out("links")}\n`, { mode: 0o755 });
+    mkdirSync(join(repo, "graph-format"));
+    writeFileSync(join(repo, "graph-format/package.json"), "{}");
     mkdirSync(join(repo, "graphty/acceptance"), { recursive: true });
     writeFileSync(join(repo, "graphty/acceptance/run.mjs"), envDump(out("dryrun.json"), "STUB_RC_DRYRUN"));
     copyFileSync(new URL("./docs-affected.sh", import.meta.url).pathname, join(repo, "tools/docs-affected.sh"));
@@ -82,6 +86,14 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
         gpu: read("gpu.json"),
         integrity: read("integrity.json"),
         dryRun: read("dryrun.json"),
+        budgets: read("budgets.json"),
+        links: (() => {
+            try {
+                return readFileSync(out("links"), "utf8");
+            } catch {
+                return undefined;
+            }
+        })(),
     };
     rmSync(dir, { recursive: true, force: true });
     return result;
@@ -177,6 +189,45 @@ describe("tools/check-quick.sh", () => {
         const unbuilt = sandbox({ args: ["--with-dry-run"], env: { STUB_RC_APP: "1" } });
         assert.equal(unbuilt.r.status, 1);
         assert.equal(unbuilt.dryRun, undefined, "no walk of an old build");
+    });
+
+    it("runs ci.yml's Checks job steps, the package-only ones only for an affected package", () => {
+        const { r, pnpm, budgets, links } = sandbox();
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.deepEqual(budgets.argv, ["lint"]);
+        assert.equal(links, "--offline\n");
+        assert.match(r.stdout, /\[PASS\] No signing bypass in tools\/ and \.husky\//);
+        for (const script of [
+            "test:ci-workflows",
+            "lint:knip",
+            "lint:knip:prod",
+            "check:published-deps graph-format",
+            "lint:eslint-root",
+            "check:features",
+            "check:declared-tools",
+            "check:dry-run-checks",
+            "check:release-hold",
+            "check:migration-counts",
+            "check:legacy-use",
+            "check:committed-images",
+            "check:figma-lock",
+        ]) {
+            assert.match(pnpm, new RegExp(`^run ${script}$`, "m"), script);
+        }
+        assert.doesNotMatch(pnpm, /check:api-report|check:data-source-migration|format:check/);
+        const element = sandbox({ affected: "graphty-element" });
+        assert.match(element.pnpm, /^run check:api-report$/m);
+        assert.match(element.pnpm, /^run check:data-source-migration$/m);
+        assert.doesNotMatch(element.pnpm, /check:published-deps/, "no package directory, nothing to pack");
+    });
+
+    it("runs every `pnpm run` script of ci.yml's Checks job, so the two cannot drift", () => {
+        const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+        const job = ci.split(/^ {4}checks:$/m)[1].split(/^ {4}[a-z][\w-]*:$/m)[0];
+        const scripts = [...new Set([...job.matchAll(/pnpm run ([\w:-]+)/g)].map((m) => m[1]))];
+        assert.ok(scripts.length > 10, `found the Checks job's scripts: ${scripts}`);
+        const quick = readFileSync(SCRIPT, "utf8");
+        for (const script of scripts) assert.match(quick, new RegExp(`pnpm run ${script}\\b`), script);
     });
 
     it("refuses an unknown argument", () => {

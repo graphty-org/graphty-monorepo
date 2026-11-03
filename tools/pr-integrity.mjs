@@ -5,7 +5,8 @@
  * head, measured from its merge base with master:
  *
  *   - test integrity (tools/check-test-integrity.mjs): no test, assertion, timeout, retry or threshold
- *     weakened; a code owner's approval of the head clears it;
+ *     weakened; an agent review of the head that answers the finding clears it (`agentCleared`), and so does
+ *     a code owner's approval of the head; a finding about screenshot capture settings needs the owner;
  *   - no breaking change: a `!` in the title or a commit subject, or a `BREAKING CHANGE:` footer, fails
  *     unless a code owner approved the head;
  *   - baselines signed: a change to a PNG or story settings file under visual-baselines/ (review
@@ -32,6 +33,7 @@
  * exit 1 with one `::error` line per problem.
  */
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -96,14 +98,59 @@ export function isBreaking(message) {
 
 /**
  * Whether a pull request description has a non-empty `## Proof` section (HTML comments, such as the
- * template's hints, do not count).
+ * template's hints, do not count). The section ends at `PROOF_END` when the description has one, else at the
+ * next `## ` heading.
  * @param body the description
  * @returns boolean
  */
 export function hasProof(body = "") {
-    const text = body.replaceAll(/<!--[\s\S]*?-->/gu, "");
-    const m = /^##[ \t]+Proof[ \t]*$([\s\S]*?)(?=^##[ \t]|(?![\s\S]))/imu.exec(text);
-    return Boolean(m && m[1].trim());
+    // Strip comments until none is left: one pass leaves `<!--` behind in `<!<!-- -->-- -->` (CodeQL js/incomplete-multi-character-sanitization).
+    let text = body ?? "";
+    for (let prev = ""; prev !== text;) {
+        prev = text;
+        text = prev.replaceAll(/<!--[\s\S]*?-->/gu, (c) => (c === PROOF_END ? c : ""));
+    }
+    const m = /^##[ \t]+Proof[ \t]*\r?$/imu.exec(text);
+    if (!m) return false;
+    const rest = text.slice(m.index + m[0].length);
+    const end = rest.indexOf(PROOF_END);
+    const section = end >= 0 ? rest.slice(0, end) : rest.split(/^##[ \t]/mu)[0];
+    return Boolean(section.trim());
+}
+
+/** The line tools/pr-open.sh writes after the Proof it pastes: the Proof section ends there, whatever headings it holds. */
+export const PROOF_END = "<!-- /proof -->";
+
+/**
+ * A test-integrity finding only a code owner clears: screenshot capture settings are his (owner, 2026-10-29: he
+ * keeps screenshots, passkeys, releases, production, Figma, spending and one-way doors, and reviews no code).
+ */
+export const OWNER_ONLY_FINDING = /: parameters\.chromatic /u;
+
+/**
+ * The id tools/pr-review.sh writes for a finding it clears: the first 16 hex digits of its text's sha256.
+ * @param finding a check-test-integrity finding
+ * @returns the id
+ */
+export const findingId = (finding) => createHash("sha256").update(finding).digest("hex").slice(0, 16);
+
+/**
+ * The ids of the findings a trusted review cleared for this head: tools/pr-review.sh's lines
+ * `<!-- integrity-cleared <head sha> <finding id> -->`, written only for a finding its reviewer answered
+ * "cleared". A line naming another head (an older push) clears nothing.
+ * @param reviews the pull request's reviews
+ * @param trusted (review) => whether its author counts
+ * @param head the head sha
+ * @returns a Set of finding ids
+ */
+export function agentCleared(reviews, trusted, head) {
+    const ids = new Set();
+    for (const r of reviews.filter(trusted)) {
+        for (const m of (r.body ?? "").matchAll(/^<!-- integrity-cleared ([0-9a-f]{40}) ([0-9a-f]{16}) -->$/gmu)) {
+            if (m[1] === head) ids.add(m[2]);
+        }
+    }
+    return ids;
 }
 
 /**
@@ -178,6 +225,13 @@ const changesBaselines = (files) =>
     files.some((f) => f.startsWith(`${BASELINES}/`) && !f.startsWith(`${BASELINES}/reviews/`));
 
 /**
+ * Only the agent's own review (pr-open.sh) or a code owner's counts: anyone can review a public pull request.
+ * @param owners the code owners' logins
+ * @returns (review) => boolean
+ */
+const trustedReview = (owners) => (r) => r.user?.login === AGENT || owners.has(r.user?.login);
+
+/**
  * The problems of the agent-only rules: Proof and the fresh review.
  * @param cwd the repository
  * @param pr the pull request
@@ -190,10 +244,9 @@ function agentProblems(cwd, pr) {
             "Proof: the description has no non-empty `## Proof` section (the command and its output, the test that failed before the fix, or a capture)",
         );
     }
-    // Only the agent's own review (pr-open.sh) or a code owner's counts: anyone can review a public pull request.
     // One review per pull request (owner, 2026-10-26): any fresh-review marker counts, whatever the branch changed
     // after it, so a fix no longer needs a whole new review.
-    const trusted = (r) => r.user?.login === AGENT || pr.owners.has(r.user?.login);
+    const trusted = trustedReview(pr.owners);
     if (!pr.reviews.some((r) => trusted(r) && (r.body ?? "").includes("<!-- fresh-review "))) {
         problems.push(
             "Fresh review: the pull request has no review marked <!-- fresh-review ... -->; run tools/pr-review.sh",
@@ -204,7 +257,7 @@ function agentProblems(cwd, pr) {
 
 /**
  * Every problem PR Integrity finds.
- * @param cwd the repository, checked out at the head
+ * @param cwd the repository holding the head's commits (read through git only; nothing from the head runs)
  * @param pr `{ base, head, title, body, author, reviews, owners, baselineProblems }`;
  *     baselineProblems(mergeBase) runs master's gate on the baselines
  * @returns `{ kind, problems }`
@@ -222,11 +275,18 @@ export function prIntegrity(cwd, pr) {
     const problems = [];
     const exempt = kind.revert || kind.acceptOnly;
     if (!exempt && !approved) {
-        problems.push(
-            ...testIntegrity({ base: mergeBase, head: pr.head, cwd }).map(
-                (f) => `Test integrity: ${f} (a code owner's approval of the head clears it)`,
-            ),
-        );
+        const cleared = agentCleared(pr.reviews, trustedReview(pr.owners), pr.head);
+        for (const f of testIntegrity({ base: mergeBase, head: pr.head, cwd })) {
+            if (OWNER_ONLY_FINDING.test(f)) {
+                problems.push(
+                    `Test integrity: ${f} (screenshot settings: only a code owner's approval of the head clears it)`,
+                );
+            } else if (!cleared.has(findingId(f))) {
+                problems.push(
+                    `Test integrity: ${f} (an agent review of the head that answers it, tools/pr-review.sh, clears it)`,
+                );
+            }
+        }
     }
     if (!approved && [pr.title, ...messages].some(isBreaking)) {
         problems.push(

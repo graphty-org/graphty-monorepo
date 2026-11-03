@@ -274,7 +274,7 @@ export const registration = defineRegistration({
                 }
                 const centers = session.selection.nodes;
                 const depth = centers.length === 1 ? filteredReach(session, centers[0]) : 1;
-                await session.selection.apply({ neighborsOf: centers, depth });
+                await session.selection.apply({ neighborsOf: centers, depth }, "replace", { cause: "user" });
                 // The selection changed under the reader, so the change is said: "Ava and 14
                 // connections" for one center, the selection's size for several.
                 const { nodes } = session.selection;
@@ -309,7 +309,7 @@ export const registration = defineRegistration({
                     const edge = session.data.edge(id);
                     return edge === undefined ? [] : [edge.source, edge.target];
                 });
-                await session.selection.apply({ nodes: [...new Set(ends)] });
+                await session.selection.apply({ nodes: [...new Set(ends)] }, "replace", { cause: "user" });
             },
         },
     ],

@@ -3,25 +3,28 @@
  * Maintains exact same functionality as original implementation
  */
 
+/** A number, or an array of them nested to any depth. */
+export type NestedNumbers = number | readonly NestedNumbers[];
+
 export const np = {
-    zeros: function (shape: number | number[]): number[] | number[][] {
+    zeros: function (shape: number | number[]): number[] | NestedNumbers[] {
         if (typeof shape === "number") {
             return new Array(shape).fill(0) as number[];
         }
         if (shape.length === 1) {
             return new Array(shape[0]).fill(0) as number[];
         }
-        return new Array(shape[0]).fill(0).map(() => this.zeros(shape.slice(1))) as number[][];
+        return new Array(shape[0]).fill(0).map(() => this.zeros(shape.slice(1)));
     },
 
-    ones: function (shape: number | number[]): number[] | number[][] {
+    ones: function (shape: number | number[]): number[] | NestedNumbers[] {
         if (typeof shape === "number") {
             return new Array(shape).fill(1) as number[];
         }
         if (shape.length === 1) {
             return new Array(shape[0]).fill(1) as number[];
         }
-        return new Array(shape[0]).fill(1).map(() => this.ones(shape.slice(1))) as number[][];
+        return new Array(shape[0]).fill(1).map(() => this.ones(shape.slice(1)));
     },
 
     linspace: function (start: number, stop: number, num: number): number[] {
@@ -32,12 +35,12 @@ export const np = {
         return Array.from({ length: num }, (_, i) => start + i * step);
     },
 
-    array: function (arr: number | number[]): number[] {
+    array: function <T>(arr: T | T[]): T[] {
         return Array.isArray(arr) ? [...arr] : [arr];
     },
 
-    repeat: function (a: number | number[], repeats: number): number[] {
-        const result: number[] = [];
+    repeat: function <T>(a: T | T[], repeats: number): T[] {
+        const result: T[] = [];
         for (let i = 0; i < repeats; i++) {
             result.push(...np.array(a));
         }
@@ -95,18 +98,18 @@ export const np = {
         return a.map((val, i) => val - b[i]);
     },
 
-    max: function (arr: number | number[]): number {
-        if (!Array.isArray(arr)) {
+    max: function (arr: NestedNumbers): number {
+        if (typeof arr === "number") {
             return arr;
         }
-        return Math.max(...arr.flat(Infinity));
+        return Math.max(...((arr as readonly unknown[]).flat(Infinity) as number[]));
     },
 
-    min: function (arr: number | number[]): number {
-        if (!Array.isArray(arr)) {
+    min: function (arr: NestedNumbers): number {
+        if (typeof arr === "number") {
             return arr;
         }
-        return Math.min(...arr.flat(Infinity));
+        return Math.min(...((arr as readonly unknown[]).flat(Infinity) as number[]));
     },
 
     norm: function (arr: number[]): number {

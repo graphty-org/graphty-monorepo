@@ -87,7 +87,9 @@ function elementList(elements: unknown): readonly unknown[] {
     }
     if (elements !== null && typeof elements === "object") {
         const e = elements as Record<string, unknown>;
-        return [...(Array.isArray(e.nodes) ? e.nodes : []), ...(Array.isArray(e.edges) ? e.edges : [])];
+        const nodes: readonly unknown[] = Array.isArray(e.nodes) ? e.nodes : [];
+        const edges: readonly unknown[] = Array.isArray(e.edges) ? e.edges : [];
+        return [...nodes, ...edges];
     }
     return [];
 }

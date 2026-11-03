@@ -16,34 +16,29 @@ served at `/?next`.
 
 ## Top of mind
 
-- (2026-11-02) Tier 5 (selection workspace) is not ready to freeze: criteria's first line is still
-  a placeholder, T75 A is blocked on fc1d7ee4f6 (no So far on Largest component), and two build
-  notes already fail bars (false "Covered by Everything" in two halves = bar 4; table and matches
-  strip drawn together on every gauges start = bar 9). A round on that build fails before it runs.
-- (2026-11-02) A self-rated overwhelm scale from simulated participants did not separate anything
-  in the placement study (2-3 for all three placements). Calibrate it on the build the owner
-  rejected before it gates; if it rates that build calm too, it cannot see what he saw.
-- (2026-11-02) Bar 9's expert half ("where the eye lands first") has no confirmation path: the
-  screenshot audit confirms only visible facts. Make it countable (controls and words drawn per
-  screen against the step's needs and the words-at-rest budget, two counts of one result).
-- (2026-11-02) The owner's 50,000-node complaint was the reference list ("While has nodes"); T79
-  tests only a category checklist. Scripted walk of every list at 50k, not more sessions.
-- (2026-11-02) Follow-ups lead too: T70's "changed its colors for a while" tells the reader it was
-  temporary, which is what it measures. Grep follow-ups as well as prompts.
-- (2026-11-02) Screen words hide in option values: "Either" is Advanced's Edge ends segment on
-  T78's pane, and T73 B / T78 B say "either direction". The avoided list holds nouns, not options.
-- (2026-10-30) A tool line that contradicts the picture (tooltip:null on open popovers) produced
-  false findings; fix the tool first. Tool artifacts recur every round.
-- (2026-10-30) Wrong turns count before success only, with a written rule; post-success checks
-  and tool-caused hovers inflated tier 4's bar 3.
+- (2026-11-02, second review) Round 1 is planned on d3fda9f2b6 while that build already fails
+  bar 9 (calm-first: 2 sev 3 + 5 sev 2 candidates, limits 0 and 3) and "Large graphs" (the
+  matches strip at 50k has no search on all 18 walked screens; spec line 446 says it has one).
+  Item 8 still names fc1d7ee4f6's list. The gate must read calm-first-frozen.md and bars.json.
+- (2026-11-02) "Two counts of one result" must be defined by quantity against spec section 2 and
+  3.0's count rules, not by equal values on one screen; else the check deletes live counts.
+- (2026-11-02) The calm-first calibration proved only sensitivity: rejected and frozen builds
+  both fail it (2 sev 3 each), and the rejected run was not blind. Run blind, map findings to the
+  owner's six complaints, require the rejected build worse per complaint.
+- (2026-11-02) The rating did not separate the builds (gap 1.5, from a bug) and every reason
+  named something outside the editor's layout (Fill color box). Use named reasons at any rating.
+- (2026-11-02) Owed instruments: words at rest for tier 5 (bars.json says "(tier 1 not
+  measured)"), a pass rule for the two "+", calm-first on the 50k and reference screens.
+- (2026-11-02) Follow-ups lead too; screen words hide in option values and catalog keywords
+  (wording.mjs now reads both: vocabulary.json, no echoes on d3fda9f2b6).
+- (2026-10-30) Tool lines that contradict the picture produce false findings; fix the tool first.
+- (2026-10-30) Wrong turns count before success only, with a written rule.
 - (2026-10-30) Twice a bar failed on the grading rule, not the reader. Audit keys before counting.
 - (2026-10-30) Choices that arrive after the act with a default applied: attack in every design.
 - (2026-10-30) One source of truth per fact; one fact drawn two ways costs checks.
 - (2026-10-29) Fixes with no task that re-runs them report "not re-tested", never "passed".
 - (2026-10-21) Avoidance is not comprehension; success saturates fast -- score cost and routes.
 - (2026-10-21) Rejected generality traps stay rejected: no synonyms, task words or domain cases.
-- (2026-10-20) Still owed from tier 3: bars.mjs spoken/typing checks, wording.mjs reading the
-  frozen build's strings (not a hand list), score.mjs bar 4 start point.
 
 ## Priorities and values
 
@@ -93,6 +88,19 @@ served at `/?next`.
 
 ## Decisions and reasons
 
+- **2026-11-02, second tier 5 criteria review (after the rating and calm-first checks):**
+  proposed 7 changes: do not start round 1 on d3fda9f2b6 (calm-first-frozen fails bar 9's limits;
+  the 50k matches strip fails "Large graphs"; item 8 lists the old build's candidates; line 18
+  says "first build" of the sixth) -- audit and two skeptics on the calm-first screenshots now,
+  gate on both files; define "two counts of one result" by quantity per spec section 2/3.0
+  (finding 1 is ruled a different fact at spec 144-148 with two cards on; finding 2 is a spec gap:
+  extend "so far only where it differs" to a one-step group); re-run the calm-first calibration
+  blind and per complaint; words at rest counted by bars.mjs for tier 5; a pass rule for the two
+  "+"; named reasons at any rating (the frozen sessions' Fill color box); calm-first on the 50k
+  and reference screens, with the rejected build's "While has nodes" as the positive control.
+  Reason: the first review's changes were adopted as text, but the checks they produced already
+  fail the frozen build, and two of them (count duplication, calibration) cannot tell a real
+  defect from a decided rule or from the build the owner rejected.
 - **2026-11-02, tier 5 criteria review (selection workspace):** proposed 8 changes: freeze
   only a build with no blocked half (T75 A) and no build note that already fails a bar (false
   "covered" warning, table plus matches strip), with one path-step number per core half; calibrate
@@ -150,6 +158,12 @@ served at `/?next`.
 
 ## Tried: worked / did not work
 
+- (2026-11-02) Reading bars.json's largeLists for ok:false and spec.md for the strip's search:
+  worked -- one command found a sev 3 candidate on every 50k screen that no review had named.
+  Checking calm-first findings against the spec's count rules: worked -- finding 1 contradicts a
+  ruled count (spec 144-148). First review's 8 changes: adopted as text (rating check, calm-first
+  counts, 50k walk, coverage table, wrong-turn rule, --keys); did not work: the round plan still
+  targets a build those new checks fail.
 - (2026-11-02) Grepping the app's option labels (not just nouns) for prompt words: worked --
   found "Either" (Edge ends) and "Either direction" (Connected) against "either direction" in two
   prompts. Reading the placement study's ratings beside the owner's verdict: worked -- showed the
@@ -210,6 +224,10 @@ served at `/?next`.
 
 ## Sources
 
+- tier5/criteria.md (first line d3fda9f2b6, change log to the rating check), tier5/rounds/round-1/
+  {plan,rating-check,calm-first-rejected,calm-first-frozen}.md, bars/bars.json (largeLists,
+  wordsAtRest), bars/vocabulary.json, selection-groups/spec.md lines 52-55, 141-149, 446;
+  tool/bars.mjs:1421 (2026-11-02, second review)
 - tier5/{criteria,tasks,answers,roster,decided,placement-study,owner-feedback-2026-11-01}.md
   (2026-11-02, first line still `<sha>`), selection-groups/spec.md, main checkout
   `tmp/selection-redesign/study/{panel,results}.md`; `graphty/src/workspace/selection/StepPane.tsx`

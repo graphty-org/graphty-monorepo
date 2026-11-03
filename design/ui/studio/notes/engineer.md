@@ -32,6 +32,19 @@ Trimmed again 2026-11-02 (file at 28 KB): the main-table and test-mode re-walk, 
 50,000-node edit blocks, and the data table never taking an editor's selection:
 `git show 64cd59e285:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) RE-WALK of the covered-claim fix (557f065428, ff4d33c452) and the reference search
+  by name, on `graphty/dist` built from c3100058ab (newer than both fixes; same commit as the
+  frozen build). Script `design/ui/studio/tmp/r1-dry1-recheck-covered-claim/v2/walk.sh` replays the
+  round 1 pilot routes and, at a divergence, sends the rest of the route by hand. Result: no key and
+  no Fill row reads the edited layer as covered on any of T70A detour-5, T72A detour-3, T73A
+  success, T73B success, T74A/T74B detour-1, T77A and T77B success (`key.json` of each); where
+  "covered by" remains it is under PageRank, truly painted over by Layer 1. "James Carter" picks
+  v02 on Enter; "Cedar" lists Cedar Bend; on staff-50k and sensors-50k the list after "a" holds
+  "Nodes 8 of 42,804" and Tab, Shift+Tab, Escape match; the T73A keyboard walk replays unchanged.
+  Divergences were older, unrelated changes (the data table no longer opens under the workspace, a
+  color button's longer name). Worked: replay, then read `replay.json` `matched` and feed the
+  route's later lines to `--step` -- one script walks a whole fix group without a model.
+
 - (2026-11-02) A walk's defect may already be fixed: check the walk's `session.json` commit against
   the fix before building anything. The round 1 pilot's reference search "Nodes 0" for a person's
   name ran on baac78342b, before 92a64cffe5; on HEAD the search lists "v02 name James Carter"

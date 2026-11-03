@@ -389,8 +389,8 @@ export function circularLadderGraph(options: { n: number } & WeightOptions): Sam
     checkInt("n", n, 3);
     checkEdgeCount(3 * n);
     const out = ladderEdges(n);
-    out.push(n - 1, 0); // NOSONAR(S7778): EdgeBuffer.push adds one edge (u, v) per call; it is not Array#push
-    out.push(2 * n - 1, n);
+    out.push(n - 1, 0);
+    out.push(2 * n - 1, n); // NOSONAR(S7778): EdgeBuffer.push adds one edge (u, v) per call; it is not Array#push
     return applyWeights(toGraph(2 * n, out, false), options);
 }
 

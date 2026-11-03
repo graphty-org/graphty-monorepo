@@ -16,23 +16,22 @@ served at `/?next`.
 
 ## Top of mind
 
-- (2026-11-02, second review) Round 1 is planned on d3fda9f2b6 while that build already fails
-  bar 9 (calm-first: 2 sev 3 + 5 sev 2 candidates, limits 0 and 3) and "Large graphs" (the
-  matches strip at 50k has no search on all 18 walked screens; spec line 446 says it has one).
-  Item 8 still names fc1d7ee4f6's list. The gate must read calm-first-frozen.md and bars.json.
-- (2026-11-02) "Two counts of one result" must be defined by quantity against spec section 2 and
-  3.0's count rules, not by equal values on one screen; else the check deletes live counts.
-- (2026-11-02) The calm-first calibration proved only sensitivity: rejected and frozen builds
-  both fail it (2 sev 3 each), and the rejected run was not blind. Run blind, map findings to the
-  owner's six complaints, require the rejected build worse per complaint.
-- (2026-11-02) The rating did not separate the builds (gap 1.5, from a bug) and every reason
-  named something outside the editor's layout (Fill color box). Use named reasons at any rating.
-- (2026-11-02) Owed instruments: words at rest for tier 5 (bars.json says "(tier 1 not
-  measured)"), a pass rule for the two "+", calm-first on the 50k and reference screens.
-- (2026-11-02) Follow-ups lead too; screen words hide in option values and catalog keywords
-  (wording.mjs now reads both: vocabulary.json, no echoes on d3fda9f2b6).
-- (2026-10-30) Tool lines that contradict the picture produce false findings; fix the tool first.
-- (2026-10-30) Wrong turns count before success only, with a written rule.
+- (2026-11-03) Tier 5 round 1 measured no reader: all 60 sessions void because the start gate
+  never ran. A round launches only after the gate's evidence is written into plan.md, and the
+  runner stops at the first refused start whose cause every session shares.
+- (2026-11-03) The tool's leak check flags participants who quote the tool's own FAIL line (it
+  scans written content, not opened paths). Fix before any restart; tool lines make false findings.
+- (2026-11-03) Speak only from the surface that is showing: two writers to one status region let
+  a hidden panel's count replace the visible one (the round's only severity 3).
+- (2026-11-03) Two decided rules can collide (Escape takes a new card back vs. Escape never
+  discards work; Clear has undo). Ask decided.md which rule wins before calling either a defect.
+- (2026-11-03) A second build of a shared control (reference picker) breaks Tab, Escape and
+  announcements at once; one shared searchable combobox closes them. Attack every bespoke twin.
+- (2026-11-03) decided.md has no layout below 1280 px; a width floor is a rule to write, not a bug.
+- (2026-11-03) Scripted word counts confirm nothing: they include chrome, graph statistics and the
+  user's own names. Only a hand count decides the words budget.
+- (2026-11-02) Calm-first calibration proved only sensitivity; run it blind, per owner complaint.
+- (2026-11-02) "Two counts of one result" is defined by quantity, not equal values on one screen.
 - (2026-10-30) Twice a bar failed on the grading rule, not the reader. Audit keys before counting.
 - (2026-10-30) Choices that arrive after the act with a default applied: attack in every design.
 - (2026-10-30) One source of truth per fact; one fact drawn two ways costs checks.
@@ -203,6 +202,11 @@ served at `/?next`.
   enforced (leak check read 0 logs and passed; round 4 started without the gate); a leak fix that
   only supplied the right file. Taught: test end states; a rule needs a refusing gate; check the
   refusal myself.
+
+- (2026-11-03) Tier 5 round 1 closed at the 1-round cap with every session void (start gate never
+  ran). Did not work: launching without gate evidence. Worked: two independent skeptic checks cut
+  the expert findings to one severity 3 and several 2s, and dropped decided behavior reported as
+  defects. Lesson: the cheapest red-team move is to check the launch gate, not the screens.
 
 ## Thinking
 

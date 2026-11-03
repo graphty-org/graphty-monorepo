@@ -16,28 +16,31 @@ served at `/?next`.
 
 ## Top of mind
 
-- (2026-11-03) Tier 5 round 1 measured no reader: all 60 sessions void because the start gate
-  never ran. A round launches only after the gate's evidence is written into plan.md, and the
-  runner stops at the first refused start whose cause every session shares.
-- (2026-11-03) The tool's leak check flags participants who quote the tool's own FAIL line (it
-  scans written content, not opened paths). Fix before any restart; tool lines make false findings.
-- (2026-11-03) Speak only from the surface that is showing: two writers to one status region let
-  a hidden panel's count replace the visible one (the round's only severity 3).
-- (2026-11-03) Two decided rules can collide (Escape takes a new card back vs. Escape never
-  discards work; Clear has undo). Ask decided.md which rule wins before calling either a defect.
-- (2026-11-03) A second build of a shared control (reference picker) breaks Tab, Escape and
-  announcements at once; one shared searchable combobox closes them. Attack every bespoke twin.
-- (2026-11-03) decided.md has no layout below 1280 px; a width floor is a rule to write, not a bug.
-- (2026-11-03) Scripted word counts confirm nothing: they include chrome, graph statistics and the
-  user's own names. Only a hand count decides the words budget.
-- (2026-11-02) Calm-first calibration proved only sensitivity; run it blind, per owner complaint.
-- (2026-11-02) "Two counts of one result" is defined by quantity, not equal values on one screen.
-- (2026-10-30) Twice a bar failed on the grading rule, not the reader. Audit keys before counting.
-- (2026-10-30) Choices that arrive after the act with a default applied: attack in every design.
-- (2026-10-30) One source of truth per fact; one fact drawn two ways costs checks.
+- (2026-11-03) Tier 5 closed at the one-round cap, bars 1, 3, 4, 8, 9 failing. The editor is
+  doubted, not failed: Or-group sessions all succeeded at overwhelm 2-3. Attack cost and doubt.
+- (2026-11-03) Grade the key before the build: T73 0 of 4 measured an answer key that wanted a
+  rule the task never asked for. A task must ask for what only the feature gives, in plain words.
+- (2026-11-03) A picker entry must name what it binds: "Connected components" from a visible-only
+  run bound a whole-graph run (severity 3). One run, one scope fact from the element, app words it.
+- (2026-11-03) Speak only from the surface showing: a covered panel's count written to the same
+  status region was the other severity 3.
+- (2026-11-03) An empty control must still show its unit and direction, and its error may only
+  claim what is applied (By position: "highest 10" from a default nobody set).
+- (2026-11-03) Empty-state defects cluster: empty color box, "Is exactly" on empty text, Clear
+  then Escape deleting a saved card. Walk every control empty, then reopened.
+- (2026-11-03) "Least sure?" makes everyone name something; count only what repeats across halves.
+- (2026-11-03) Fixtures pre-colored in the task's color and leading follow-ups ("would you rather")
+  inflate findings. Vary the asked color; ask neutral questions.
+- (2026-11-03) Unmeasured is not held: bars 6 and 7 had no walks, calm-first did not run, so bar
+  9's count is a floor. A bar with no feed is reported "not measured".
+- (2026-11-03) Two decided rules can collide; ask decided.md which wins before calling a defect.
+- (2026-11-03) Every bespoke twin of a shared control breaks Tab, Escape and speech at once.
+- (2026-11-03) Only hand word counts decide the words budget; tool FAIL lines quoted by
+  participants trip the leak check.
+- (2026-10-30) Audit keys before counting; one source of truth per fact; defaults applied after
+  the act get attacked in every design.
 - (2026-10-29) Fixes with no task that re-runs them report "not re-tested", never "passed".
-- (2026-10-21) Avoidance is not comprehension; success saturates fast -- score cost and routes.
-- (2026-10-21) Rejected generality traps stay rejected: no synonyms, task words or domain cases.
+- (2026-10-21) Avoidance is not comprehension; no synonyms, task words or domain special cases.
 
 ## Priorities and values
 
@@ -291,3 +294,18 @@ served at `/?next`.
 - `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536.jsonl`, owner messages 2026-09-25 to
   2026-10-06 (via `design/ui/studio/tmp/owner-all.jsonl`)
 - Extraction scripts: `design/ui/studio/tmp/redteam/scan.py`, `group.py`, `triage.py`
+
+## Tier 5 round 1 lessons (2026-11-03)
+
+- Decision: insights.md's two-skeptic rule (both drop = drop, one = weaken) stands as the way to
+  settle a round; it cut "no orange swatch" (task color, Figma-locked swatches) and kept the two
+  severity 3s. Worked.
+- Tried: grading T73 by rule-vs-picked-ids. Did not work: the key graded P on correct answers.
+  Next time a key may require only what the task words require.
+- Tried: "least sure" and "would you rather" follow-ups. Partly worked: they surface doubt but
+  invite wishes; only cross-half repeats count.
+- Thinking: the round's real cost lives in empty states (color row is T70's largest overage) and
+  in first states of added parts (Or group at "B 0" with a full range bar). Smaller fix than any
+  new aid: give each empty control its unit, direction and a working first click.
+- Thinking: the single-round cap ended the studio with fixes known but unre-walked; the next
+  tier should start by re-walking insights 1, 2, 4-7 by their repros on a new frozen build.

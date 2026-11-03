@@ -1,4 +1,4 @@
-The study runs on build d3fda9f2b6 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d2-d3fda9f2b6
+The study runs on build 0c163f54bf served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1-0c163f54bf
 
 Frozen on 2026-11-02 for the tier 5 rounds. The bars below do not change after this line. Each
 refreeze of the build is written on the first line, with the build before it named in the change
@@ -591,3 +591,6 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
     - Not taken: replacing the 1-to-7 rating outright (it stays as a measure beside the placement
       study and the rating check); showing the owner three frozen screens now (the tier report
       shows them beside the rejected build's, as before-and-after evidence for his own review).
+- 2026-11-02: the first round's build, 0c163f54bf in `.study-builds/tier5-r1-0c163f54bf`,
+  replaces d3fda9f2b6 (`.study-builds/tier5-r1d2-d3fda9f2b6`). It carries everything master
+  held at the freeze, merged into this branch before the build.

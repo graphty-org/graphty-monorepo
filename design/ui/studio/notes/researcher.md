@@ -10,45 +10,34 @@ made and evidence comes in. Summarized 2026-11-03 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-03) Key matched to the 1e123d7d33 re-pilots (seven halves): no value, count or outline
-  differs; only the Fill line's description moved (empty "Node color, not set", Enter/Tab with
-  nothing typed writes nothing). When a fix changes a control's first state, grep the key for
-  the old state in paths, Not success and build notes ("6366F1", "text selected").
-
-- (2026-11-02) Second tier 5 criteria review: bar 9 is undetermined, not failing or holding --
-  the calm-first check skipped the reference picker (11 and 50,000), the 50,000 checklist and
-  words at rest, and the audit has confirmed none of its findings. A check that skipped a screen
-  must not let its bar hold.
-- (2026-11-02) The overwhelm rating is dead as an instrument this tier (1.5-point gap, reasons
-  named a bug and the Fill box, never crowding); its calibration ran on 7ca4cae647, not the
-  build the owner saw. Use the named reason, scoped to the editor, not the number.
-- (2026-11-02) "Kept on purpose" can hide an echo: T74 B's "routes" is Shortest route's search
-  keyword. A catalog keyword must never be overridable by the kept list.
-- (2026-11-03) Tier 5 round 1 plan re-pointed to 1e123d7d33 (tier5-r1d1): same 30 rows as
-  roster.md; all 30 brief on that build with the roster's starts. Still no "Gate evidence":
-  `real.mjs --gate` must write it before `--start` will open any session.
-- (2026-11-02) Key matched to the 0c163f54bf pilots (14 halves): no value or outline differs.
-  Grade spoilers there: a node under the canvas toolbar with the table open (count from top bar,
-  inspector or key), Edit in place of a count right after Done, T74 B's Shortest path "On the
-  route" giving a plausible wrong 3. T76's by-hand route only reaches P on this build.
-- (2026-11-02) Add the listed steps when copying a "Path steps" count: T74's said 12 for 13
-  listed steps since 797a4f6b47, and bar 8 reads that number. Check with steps.mjs pathSteps.
-- (2026-11-02) The canvas key now counts over the filtered graph (T70 B "2 of 7"); it drops its
-  count line when the layer covers all drawn nodes: grade from the inspector or header then.
-- (2026-11-02) Severity 3 candidates still open on baac78342b: the false "Covered by" warning (now
-  on PageRank and Everything, many tasks), table and strip drawn together, pickers flipping over
-  Done, two count bases. Close or confirm them before round 1 or bars 1, 4 and 9 fail by
-  construction.
-- (2026-11-02) Grader rulings live in the key, not in graders' heads: equal routes through
-  Analyze's own layer (T73 Steps away, T74 B Betweenness) are S; a route that recolors everyone
-  else is P when the prompt says to leave them.
-- (2026-11-02) Echo check: grep prompts against the catalog's search keywords and detour labels
-  too, not only rendered text; a prompt word that is a detour's label steers into it.
+- (2026-11-03) Tier 5 round 1 measured nothing from sessions: 60 of 60 VOID because `--gate` never
+  ran (plan.md has no "Gate evidence"), and the re-runs hit the same refusal. Bars 1, 2, 3, 8, Sam's
+  part of 5 and bar 9's follow-ups are "not measured", never "held". Before any launch, check
+  `grep -c "Gate evidence" plan.md` is 1; a refusal every session shares stops the round at once.
+- (2026-11-03) The leak check voids clean sessions: `leaksIn` (tool/real.mjs ~518) matches
+  facilitator file names in Write bodies and heredocs. Fix before round 1 restarts.
+- (2026-11-03) Round 1 on expert evidence alone: bar 4 has two severity 3s confirmed by expert plus
+  scripted repro (count spoken twice over another base; Clear then Escape loses a new card), one
+  disputed 2-or-3 (900 x 700 preview sliver); bar 9 has 4 confirmed severity 2 (Except column,
+  three outlines over the words budget) against 3. See rounds/round-1/scores.md.
+- (2026-11-03) Bar 7 sits on 8 unconfirmed Figma candidates; the audit must look at the typed
+  picker, a yes-or-no step and a two-step card at rest, or the bar cannot be called.
+- (2026-11-03) Key matched to 1e123d7d33: only the Fill line's description moved. When a fix
+  changes a control's first state, grep the key for the old state ("6366F1", "text selected").
+- (2026-11-02) Bar 9 cannot hold while a calm-first screen is unwalked: the check has not run on
+  1e123d7d33 and skipped the reference picker and the 50,000-node screens on d3fda9f2b6.
+- (2026-11-02) The overwhelm rating is dead as an instrument this tier (1.5-point gap); use the
+  named "least sure" reason, scoped to the editor.
+- (2026-11-02) "Kept on purpose" can hide an echo: a catalog keyword must never be overridable by
+  the kept list (T74 B "routes").
+- (2026-11-02) Add the listed steps when copying a "Path steps" count (steps.mjs pathSteps).
+- (2026-11-02) Grader rulings live in the key: equal routes through Analyze's own layer are S; a
+  route that recolors everyone else is P when the prompt says to leave them.
+- (2026-11-02) Echo check: grep prompts against catalog search keywords and detour labels too.
 - (2026-11-02) A task whose success path never opens the feature measures nothing about it.
-- (2026-10-30) One round cannot both find and confirm fixes: plan the cap for a fix round and a
-  re-test round.
+- (2026-10-30) One round cannot both find and confirm fixes: plan a fix round and a re-test round.
 - (2026-10-30) Simulated participants trust the tool's text over the picture: check tool lines
-  (tooltip: null, ambiguous names like `role`) against the screenshot.
+  against the screenshot.
 - (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing.
 
 ## Priorities and values
@@ -83,6 +72,16 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- 2026-11-03 -- Scored tier 5 round 1 (`rounds/round-1/scores.md`): every session-read bar "not
+  measured", bar 4 "failing, pending skeptics", bar 9 "failing on confirmed findings; main check not
+  run", bars 5 to 7 "not measured" with their parts listed. Recommended a full restart of round 1
+  that does not count toward the 3-round cap or the no-progress stop. Reason: a round where no
+  participant saw the app is no evidence about the editor, and a bar held by 0 sessions is a false
+  pass. Counted the three over-budget outlines as three severity 2 by the criteria's letter ("a
+  screen over the budget") and said beside it that by mechanism bar 9 is at its limit. Severity 2
+  experts and the audit disagree on (strip column, 900 x 700) left to the skeptics, not averaged.
+  Evidence: the 60 grades, expert/*.md, tool-dry-run-2.md section 6, plan.md (0 "Gate evidence").
 
 - 2026-11-03 -- Round 1 plan moved to the refrozen build 1e123d7d33: only the build line and the
   follow-up sentence (the rating now asks for the "least sure" moment) changed; the 30 rows
@@ -211,6 +210,12 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-03 (round 1 scoring) -- Worked: reading the tool's code for the leak check before
+  calling the 60 leak lines false (the regex runs on written content); mapping each expert finding
+  to the others' and the audit's by screen to apply "confirmed". Did not work: graders labeling a
+  study-tool failure `build-defect`, and graders calling the scratch folder a defect (it is
+  `real.mjs`'s design; `--end` copies back).
+
 - 2026-11-03 (plan re-point) -- Worked: diffing roster.md and tasks.md against the plan's commit
   before touching rows, then one script (`tmp/researcher-plan-r1/sessions.py`) that parses the
   plan's rows and each half's follow-up from tasks.md (asserts 30) for the workflow's return.
@@ -232,19 +237,11 @@ logged). Their reasons, in short:
 - 2026-11-02 (round 1 plan) -- Worked: copying tier 4's plan layout (the parser reads columns
   id, task, half, persona, start) and briefing every row in one loop, tallying REAL_DIST and the
   start. Note: `--brief` writes to the worktree's `tmp/studio-sessions/`, not the round folder.
-- 2026-11-02 (key vs d3fda9f2b6, T72 B) -- Worked: reusing a round folder (`r1d2`) for a newer
-  build by moving the older walks to `_<oldbuild>/`; the key names the move so walk paths stay
-  traceable. Did not work: the pilot subagent could not write its report.md; the caller saves it.
-
-- 2026-11-02 (key matches, folded) -- Worked: per-build "Build notes" naming what is fixed and
-  what still spoils a grade; a notes-only rebuild needs only a build-name pass. Also worked: viewing the four screenshots that change a number or a
-  route before editing; one asserted Python edit script (`tmp/researcher-key-r1/edit.py`) with
-  paragraph-level matches. Did not work: pilots still cannot write report.md (harness refuses);
-  their content arrives only in the returned fields.
-
-- 2026-11-02 (tier 5 criteria) -- Worked: grepping prompt words against the catalog's
-  `keywords` and the selection's value labels, not only rendered text; found one fix-alias echo and
-  two detour echoes. Did not work: grepping whole source trees for common words (mostly comments).
+- 2026-11-02 (key matches, folded) -- Worked: per-build "Build notes"; moving older walks to
+  `_<oldbuild>/`; viewing the screenshots that change a number before editing; one asserted Python
+  edit script. Did not work: pilots writing report.md (harness refuses; caller saves the text).
+- 2026-11-02 (tier 5 criteria) -- Worked: grepping prompts against catalog `keywords` and value
+  labels. Did not work: grepping whole source trees for common words.
 - 2026-10-30 (insights) -- Worked: viewing each owner screenshot before citing it (r1-s03/20.png
   showed "deliveri...", not one letter: wording corrected). Did not work: my scoring trusted the
   tool's `tooltip: null` and grader wrong-turn counts that included post-success checks.

@@ -180,8 +180,9 @@ state. One example of each kind:
   Final outline: "kind agency, company / Except on_record Yes", header "7 of 24".
 - **Path (B)**: + > Layer; Which nodes; `telemetry`; tick yes; Condition...; `installed`; type
   2000; Enter; the Except switch; Done; Fill; hex; Enter.
-  Path (B) walked on 797a4f6b47: telemetry yes / Except installed before 2000, 5 of 11, the key
-  "5 of 11". The date box applies as typed, so the Enter after 2000 changes nothing visible.
+  Path (B) walked on 797a4f6b47 and 47c95a09fc: telemetry yes / Except installed before 2000, 5 of
+  11, the key "5 of 11". The date box applies as typed (the count changes while the digits are
+  typed), so the Enter after 2000 changes nothing visible; it is still one step of the path.
 - **Also success**: a second step with on_record No (A; an equal result). B on 797a4f6b47 (read):
   installed After 2000 instead of the Except switch (5 of 11), and Except installed Between 1990
   and 1999 (5 of 11); the date step keeps Before, After or Between whether picked before or after a
@@ -273,7 +274,7 @@ state. One example of each kind:
 - **Path (A)** (walked on baac78342b, pointer and keyboard): Data; Add filter; type "degree";
   Enter; type 10; Enter; Condition...; type "component"; Connected components: Piece size;
   Advanced; So far; type 100; Enter; Done: "105 of 549 nodes, 869 of 2,084 edges" (14 steps; the
-  same on 797a4f6b47). The picker lists both "Connected components: Piece" and "Connected
+  same on 797a4f6b47 and 47c95a09fc). The picker lists both "Connected components: Piece" and "Connected
   components: Piece size" and highlights the first, so Enter after "component" takes Piece, not
   Piece size: the path clicks Piece size. The
   row is cut to "Connected compon... m... So far" (its bound cannot be read) and the strip's column
@@ -364,6 +365,26 @@ state. One example of each kind:
   place of "1,076 of 50k"; the count shows once focus moves. Enter in the checklist search ticks
   nothing; "Check 1" beside the one match ticks it. "32 more" is plain text. The Values tab offers
   `station` as a time too (B).
+
+## Build notes (47c95a09fc)
+
+Seen in the dry run's second targeted re-pilots of 2026-11-02 (walks under the main checkout's
+`tmp/design-studio/tier5/r1d2/pilot/<task>/`); each is a candidate, not a confirmed finding.
+
+- **Fixed since 797a4f6b47**: Cancel or Escape on a new filter card removes the card and clears
+  the top bar's filter mark, from Data > Add filter, the canvas toolbar's Filters and Quick actions
+  (T72 B, T75 A); Escape on the empty picker sends focus to Add filter. Cancel on an existing card
+  keeps it and restores it as it was.
+- **Can spoil a grade**: Control+Z right after Cancel on a new filter card brings the cancelled
+  card back, switched on (T72 B: "telemetry yes 7 of 11", top bar "7 of 11 nodes"), with the toast
+  "Undid deleting a filter condition." A card brought back this way counts as a card where the
+  number of filter cards is graded (T71, T77, T79).
+- **Keyboard**: Cancel on a new card announces "Filter not added" and then "Filter off" (T72 B).
+- **Unchanged from 797a4f6b47**: with the node table open, one orange node sits half under the
+  canvas toolbar (T72 B 4 of 5 in the picture); "With issues" counts every row (11); a filter card
+  is named by its first step only; the value picker flips up over Done once a search narrows it
+  (T75 A); a Piece size card shows Edit in place of its count after Done (T75 A); the canvas key
+  reads "Draw order: graphty.style.json.node.el.drawOrder" from the start (T75 A).
 
 ## Build notes (797a4f6b47)
 

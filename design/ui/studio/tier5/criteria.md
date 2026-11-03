@@ -413,3 +413,13 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
 - 2026-11-02: the dry run's third build, 47c95a09fc in `.study-builds/tier5-r1d2-47c95a09fc`,
   replaces 797a4f6b47 (`.study-builds/tier5-r1d1-797a4f6b47`). It carries the second dry-run
   pass's fixes.
+- 2026-11-02: `answers.md` matched to 47c95a09fc from the targeted re-pilots of T72 B and T75 A;
+  no bar changed and no prompt was wrong, so `tasks.md` is unchanged. Each change with its reason:
+    - T72 B's path keeps "type 2000; Enter" as walked (5 of 11, same outline); the note now says
+      the count changes while the digits are typed, so the Enter shows nothing new.
+    - T75 A's 14-step path and its notes (Piece highlighted before Piece size, the cut row, "Group
+      1") hold on this build too.
+    - "Build notes (47c95a09fc)" added: Cancel and Escape on a new filter card now remove it from
+      every opener tried, so that grade spoiler is gone; Control+Z right after that Cancel brings
+      the card back switched on, which counts as a card where card counts are graded (T71, T77,
+      T79).

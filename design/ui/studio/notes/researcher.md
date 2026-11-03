@@ -10,9 +10,11 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-11-02) On 47c95a09fc Cancel and Escape on a new filter card remove it (every opener). New
+  grade spoiler: Control+Z right after that Cancel brings the card back switched on, with an
+  "Undid deleting" toast; it counts as a card in T71, T77, T79. Watch for it in round 1 walks.
 - (2026-11-02) On 797a4f6b47 T74 is unblocked (By position walked, both halves, 12 steps), T72 B's
-  After / Between routes and T73 A's name search work. Still able to spoil a grade: Cancel on a
-  new filter card leaves an empty card switched on (T71, T77, T79 grade card counts).
+  After / Between routes and T73 A's name search work.
 - (2026-11-02) The canvas key now counts over the filtered graph (T70 B "2 of 7"); it drops its
   count line when the layer covers all drawn nodes: grade from the inspector or header then.
 - (2026-11-02) Severity 3 candidates still open on baac78342b: the false "Covered by" warning (now
@@ -163,6 +165,11 @@ logged). Their reasons, in short:
   prompt, not the key, when a prompt leads.
 
 ## Tried: worked / did not work
+
+- 2026-11-02 (key vs 47c95a09fc, T72 B and T75 A) -- Worked: a per-build "Build notes" section
+  that records what is fixed as well as what still spoils a grade, so graders stop applying an
+  older build's caveat. A pilot "mismatch" that the key already explains (Enter after a field that
+  applies as typed) needs only a clarified note, not a path change: the step still counts.
 
 - 2026-11-02 (key vs pilots) -- Worked: viewing the four screenshots that change a number or a
   route before editing; one asserted Python edit script (`tmp/researcher-key-r1/edit.py`) with

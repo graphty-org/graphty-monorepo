@@ -24,9 +24,9 @@ made and evidence comes in. Summarized 2026-11-03 (older entries folded; full te
   build the owner saw. Use the named reason, scoped to the editor, not the number.
 - (2026-11-02) "Kept on purpose" can hide an echo: T74 B's "routes" is Shortest route's search
   keyword. A catalog keyword must never be overridable by the kept list.
-- (2026-11-02) Tier 5 round 1 plan: 30 sessions on d3fda9f2b6 exactly as roster.md (core tasks
-  first, A and B alternating, Sam last with `--keys`); all 30 brief on the frozen build. The
-  plan has no "Gate evidence" yet: `real.mjs --gate` must write it before any session starts.
+- (2026-11-03) Tier 5 round 1 plan re-pointed to 1e123d7d33 (tier5-r1d1): same 30 rows as
+  roster.md; all 30 brief on that build with the roster's starts. Still no "Gate evidence":
+  `real.mjs --gate` must write it before `--start` will open any session.
 - (2026-11-02) Key matched to the 0c163f54bf pilots (14 halves): no value or outline differs.
   Grade spoilers there: a node under the canvas toolbar with the table open (count from top bar,
   inspector or key), Edit in place of a count right after Done, T74 B's Shortest path "On the
@@ -83,6 +83,13 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- 2026-11-03 -- Round 1 plan moved to the refrozen build 1e123d7d33: only the build line and the
+  follow-up sentence (the rating now asks for the "least sure" moment) changed; the 30 rows
+  stand, because roster.md is unchanged since the plan was written and tasks.md's changes since
+  (T74 B "journeys", T75 "one big tangle", the new follow-up) are read by the tool, not the row.
+  Evidence: `git diff 0910cffb53 HEAD` on roster.md (empty) and tasks.md; `--brief` on all 30
+  printed briefings with REAL_DIST tier5-r1d1-1e123d7d33 and the expected `setup:` lines.
 
 - 2026-11-03 -- Escape in a just-added color line that takes the whole line back (typed text and
   all) is recorded as build behavior, not a defect: decided.md's reversal entry takes back a
@@ -203,6 +210,10 @@ logged). Their reasons, in short:
   prompt, not the key, when a prompt leads.
 
 ## Tried: worked / did not work
+
+- 2026-11-03 (plan re-point) -- Worked: diffing roster.md and tasks.md against the plan's commit
+  before touching rows, then one script (`tmp/researcher-plan-r1/sessions.py`) that parses the
+  plan's rows and each half's follow-up from tasks.md (asserts 30) for the workflow's return.
 
 - 2026-11-03 (key vs 1e123d7d33) -- Worked: editing only the sentences a pilot named, adding a new
   build-notes section rather than rewriting older builds' notes (they stay the record), and

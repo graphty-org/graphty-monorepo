@@ -1,7 +1,7 @@
 # Tier 5 round 1 plan: returning users choosing which nodes
 
-Round 1 runs on the frozen study build d3fda9f2b6, served from
-`/home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d2-d3fda9f2b6` with
+Round 1 runs on the frozen study build 1e123d7d33, served from
+`/home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d1-1e123d7d33` with
 `REAL_DIST=<that folder>` on every `tool/real.mjs` command (the first line of `../../criteria.md`).
 The bars, how they are scored and what the round can conclude are in `../../criteria.md`; who takes
 which task is `../../roster.md`, "Who takes which task", and where each task half starts is its
@@ -15,8 +15,9 @@ which task is `../../roster.md`, "Who takes which task", and where each task hal
   which refuses every pointer step. The two 50,000-node starts (T79) read the files
   `tool/files/big-50k.py` wrote (present in `tool/files/`).
 - Every session gets its task half's follow-up after the participant's first `--end`, word for word
-  from `../../tasks.md` (the overwhelm rating first; in T70 and T71 the question about the drawing
-  or the screen); the tool gives it, and the participant never sees it before.
+  from `../../tasks.md` (the overwhelm rating first, with the moment the person was least sure
+  where to look or what to do next; in T70 and T71 then the question about the drawing or the
+  screen); the tool gives it, and the participant never sees it before.
 - Run order is the table's: the core tasks first, A and B alternating, then the rest, then Sam; at
   most 8 sessions at once.
 - A session that ends with no `01.png` or on a model API error is re-run from a clean folder as

@@ -149,7 +149,7 @@ state. One example of each kind:
   picker option and the matches strip's column header (a step script needs the option).
 - **Path (A)**: Style layers "+" (Add a layer or a folder) > Layer; Which nodes (the workspace
   opens, value picker open); `role`; tick staff; Done; Fill "+" (Add to node fill); type the hex
-  (the color box is focused, its text selected); Enter. Then Data; Filters "+" (Add filter; the
+  (the color box is focused and empty, named "Node color, not set"); Enter. Then Data; Filters "+" (Add filter; the
   workspace opens, picker open); `trained`; Value...; Yes; Done. Path steps: 15 (A) (walked on
   baac78342b: 15, the same controls in the same order). Between `trained` and Yes the new card and
   the workspace header are titled "trained pick yes or no".
@@ -223,8 +223,9 @@ state. One example of each kind:
   nothing for "not" or "1990".
 - **Not success**: a filter card; a second layer painting the on-record ones back in the default
   color (P: the count is right on the canvas but no layer holds the rule). Enter on a new layer's
-  Fill with nothing typed commits the default 6366F1, so such a second layer can change nothing on
-  the canvas (B, read on f0a9a014cb); grade the layers, not the picture.
+  Fill with nothing typed writes nothing: the box stays empty and the second layer paints no node,
+  so it can change nothing on the canvas (B, read on 1e123d7d33; on f0a9a014cb the same Enter
+  committed the default 6366F1); grade the layers, not the picture.
 
 ## T73. Close to one person or place
 
@@ -462,6 +463,34 @@ state. One example of each kind:
   place of "1,076 of 50k"; the count shows once focus moves. Enter in the checklist search ticks
   nothing; "Check 1" beside the one match ticks it. "32 more" is plain text. The Values tab offers
   `station` as a time too (B).
+
+## Build notes (1e123d7d33)
+
+Seen in the round 1 dry run's targeted re-pilots on the frozen build (T70 A and B, T71 A, T72 B,
+T73 A, T75 A, T79 B; walks under the main checkout's `tmp/design-studio/tier5/r1d1/pilot/<task>/`);
+each is a candidate, not a confirmed finding. No pilot found a value, a step count or a final
+outline that differs from this key.
+
+- **Fixed since 0c163f54bf**: a just-added Fill line draws an empty swatch and an empty hex box
+  named "Node color, not set", and no node changes until a color is committed (T70, T72 B, T73 A,
+  T79 B); Enter or Tab with nothing typed writes nothing and leaves the line waiting (Tab moves
+  focus on to "Node color by attribute"); the swatch's picker opens at 6366F1 when the colors
+  beneath vary, and writes nothing until a color is picked (T70 A). The notes below about a new
+  Fill showing 6366F1, or Enter committing it, describe older builds.
+- **Escape in a color box**: in a just-added line, Escape takes the line back, typed text and all
+  ("Node color not added"; focus on Fill "+", one more "+" brings it back) (T70 A, T73 A); in a
+  box holding a committed color, Escape keeps the color, and focus stays in the box (T70 B, T73 A
+  by keyboard). Enter and Tab commit a typed color. Grade the fill the layer ends with.
+- **Unchanged**: with the node table open, one node sits under the canvas toolbar (T70 B): count
+  from the top bar; E4572E sits inside PageRank's orange range, so the staff nodes are hard to tell
+  apart by eye (T70 A): grade from the key or the layer's count; Edit in place of a focused card's
+  count right after Done (T75 A); the key's "Draw order: graphty.style.json.node.el.drawOrder"
+  (T75 A); the number box named "Piece size from" before So far and "Connected components from"
+  after it (T75 A); while the filter workspace is open `role` names both the picker option and the
+  matches strip's column header (T71 A, as in T70 A).
+- **Keyboard** (T71 A): after Or..., typing "ho", Tab, Escape, Escape and Control+Z, the card
+  still shows an empty third group "or C 0" while the toast names the undone edit with its "hours
+  any value" group; the count stays 10 of 24.
 
 ## Build notes (0c163f54bf)
 

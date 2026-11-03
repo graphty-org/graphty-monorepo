@@ -616,3 +616,16 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
 - 2026-11-02: the round 1 dry run 1 build, 1e123d7d33 in `.study-builds/tier5-r1d1-1e123d7d33`,
   replaces 0c163f54bf (`.study-builds/tier5-r1-0c163f54bf`). It carries the dry run's fixes,
   including focus staying on a control the reader moves to while the selection workspace closes.
+- 2026-11-03: the answer key was made to match the dry run's targeted re-pilots on 1e123d7d33
+  (T70 A and B, T71 A, T72 B, T73 A, T75 A, T79 B). No bar, value, step count or task prompt
+  changed. Each change, with its reason:
+    - T70's path: after Fill "+" the color box is focused and empty ("Node color, not set"), where
+      the key said its text was selected. A just-added color line now shows no color until one is
+      picked, so there is no text to select; the steps (15) are the same.
+    - T72's Not success: Enter on a new layer's Fill with nothing typed writes nothing (the second
+      layer paints no node), where the key said it committed 6366F1. The grade still reads the
+      layers, not the picture.
+    - A "Build notes (1e123d7d33)" section: the empty new Fill line; Escape in a just-added line
+      takes the line back, and in a committed box keeps the color and focus; the spoilers that are
+      unchanged; and T71 A's empty "or" group left on the card after Control+Z (the count holds).
+      The older sections' 6366F1 notes are kept as the record of their builds.

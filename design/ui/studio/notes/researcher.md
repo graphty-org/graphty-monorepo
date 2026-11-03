@@ -6,9 +6,14 @@ every insight and every fix. The job is to make sure a finding is about the desi
 of the study, the prototype or the task wording.
 
 Read "Top of mind" first at the start of every session. Update the dated sections as decisions are
-made and evidence comes in. Summarized 2026-10-30 (older entries folded; full text in git history).
+made and evidence comes in. Summarized 2026-11-03 (older entries folded; full text in git history).
 
 ## Top of mind
+
+- (2026-11-03) Key matched to the 1e123d7d33 re-pilots (seven halves): no value, count or outline
+  differs; only the Fill line's description moved (empty "Node color, not set", Enter/Tab with
+  nothing typed writes nothing). When a fix changes a control's first state, grep the key for
+  the old state in paths, Not success and build notes ("6366F1", "text selected").
 
 - (2026-11-02) Second tier 5 criteria review: bar 9 is undetermined, not failing or holding --
   the calm-first check skipped the reference picker (11 and 50,000), the 50,000 checklist and
@@ -45,7 +50,6 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 - (2026-10-30) Simulated participants trust the tool's text over the picture: check tool lines
   (tooltip: null, ambiguous names like `role`) against the screenshot.
 - (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing.
-- (2026-10-21) Leading risk: every participant is one model; read tasks and key for leading.
 
 ## Priorities and values
 
@@ -79,6 +83,12 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- 2026-11-03 -- Escape in a just-added color line that takes the whole line back (typed text and
+  all) is recorded as build behavior, not a defect: decided.md's reversal entry takes back a
+  just-added line that holds no value, and the typed hex was never committed. Escape leaving focus
+  in a box with a committed color is noted as a candidate against the shared text-field rule
+  ("Escape reverts the typed text and leaves"), not a grade spoiler.
 
 - **2026-11-02 (answer key vs the 0c163f54bf pilots):** Corrected T74's path count 12 -> 13 (an
   addition slip; the key's own listed steps and the walk give 13; the bar's rule unchanged, logged
@@ -114,42 +124,14 @@ logged). Their reasons, in short:
   alone says what a session opens. Follow-ups come from tasks.md through the tool. Reason: the
   criteria and roster are frozen; the plan only orders them. Evidence: `--brief` on all 30 printed
   a briefing on REAL_DIST tier5-r1d2-d3fda9f2b6 with the expected setup.
-- **2026-11-02 (answer key matched to d3fda9f2b6 from the T72 B re-pilot):** Changed only
-  `answers.md` (path names the build; the Undo-after-Cancel note records Undo off at start and no
-  card returning; the half-hidden node note says still drawn) and the change log. No bar, no
-  prompt: the one mismatch (Enter after 2000 changes nothing) the key already explains. Reason:
-  graders need to know which caveats still apply on the frozen build.
-
-- **2026-11-02 (answer key matched to c3100058ab from 5 targeted re-pilots):** Changed only
-  `answers.md` and the change log; no bar, no prompt. T72 B, T75 A and T77 B paths hold; T75 B's
-  path notes that Enter on Largest component sends keyboard focus to Add filter (extra steps are
-  the build's, not the participant's wrong turns); T79's timing adds "Drawing" and 15 to 22 s
-  waits; new "Build notes (c3100058ab)". Why: the 47c95a09fc spoiler (Undo bringing a cancelled
-  card back) is gone, and a new one (the node table keeping the cancelled card's rows) replaces
-  it. Evidence: viewed T77B touched-2/03.png myself (table "1 of 11 nodes" one row G09, top bar
-  "7 of 11"; session.json build c3100058ab15). Did not work: four of five pilots could not write
-  report.md, so their walks have no committed report.
-
-- **2026-11-02 (answer key matched to 797a4f6b47 from 8 targeted re-pilots):** Changed only
-  `answers.md` and the change log; no bar, no prompt. Unblocked T74 (path as written, B cut read:
-  fourth 16), restored T72 B's After and Except Between routes, rewrote T73 A to type the name,
-  T70 B's key to "2 of 7", noted T75 A's Piece vs Piece size trap and T77 B's 14 steps, and added
-  "Build notes (797a4f6b47)". Why: a key that names a blocked path or a stale count makes graders
-  mark real successes wrong. Worked: every re-pilot gave screenshots per claim, so each edit cites
-  a walk. Did not work: subagents cannot write report.md, so reports arrive only as text.
-
-- **2026-11-02 (answer key matched to baac78342b from 16 round 1 pilots):** Changed only
-  `answers.md` (and logged in criteria.md); no bar, no prompt. Marked T74's By position path
-  blocked on both halves and spelled out its fallbacks with cut values (A 0.053, sixth 0.0512; B 19,
-  fourth G01 between 15 and 19); T75 A's 105 route (Piece size, So far, 100); T73 A types v02
-  (reference search ignores names; 12 steps, find box 18); removed T72 B's After route (mode select
-  stuck on Before); fixed T77 B's second-card trap count (1, not 2: only G09 is deep and sends
-  readings); ruled Steps away narrowed in its own layer S for T73 (consistent with T74's run-value
-  route) and T74 A's edit of the PageRank layer P (it recolors the other 19, against the prompt).
-  Added grader notes for "Color: Layer 1", fields that apply as typed, "Fill" as the "+", E4572E
-  spoken "red", and counts that are not the picture's. Reason: the key writes the screen of the
-  frozen build, and a grader without a ruling invents one. Evidence: pilot fields; viewed T74A
-  success/10.png, T75A detour-1/12.png, T77B detour-1/04.png, T73A success/08.png myself.
+- **2026-11-02 (answer key matched to baac78342b, 797a4f6b47, c3100058ab, f0a9a014cb and
+  d3fda9f2b6, folded):** Each pass changed only `answers.md` and the change log, never a bar or a
+  prompt, and added a "Build notes (<build>)" section. Rulings kept: a blocked path is marked
+  blocked with its fallbacks and cut values (T74 By position on baac78342b); equal routes through
+  Analyze's own layer are S (T73 Steps away), a route recoloring the rest against the prompt is P
+  (T74 A); graders get notes for counts that are not the picture's. Why: the key writes the frozen
+  build's screen, and a grader without a ruling invents one. Worked: every edit cites a walk's
+  screenshot. Did not work: subagents cannot write report.md, so reports arrive only as text.
 
 - **2026-11-02 (tier 5 criteria review, before any session):** Proposed eight changes, applied
   none (the Director freezes): (1) calibrate bar 9's rating with 2 dry-run sessions on the
@@ -220,13 +202,12 @@ logged). Their reasons, in short:
   every task walked first; task words never echo the screen; VOIDs re-run as `<id>b`; change the
   prompt, not the key, when a prompt leads.
 
-- **2026-11-02 (f0a9a014cb key match):** Matched T72 B, T73 B, T75 A and T77 B to f0a9a014cb by
-  adding the build to each walked-on list, not by rewording paths: its source equals c3100058ab's,
-  so every count held (5, 7, 105, 9 and 5). Two grader notes added because they can mislead a grade:
-  Enter on an empty new Fill commits default 6366F1, so a decoy layer changes nothing on canvas
-  (T72); a card off the pointer shows Edit in place of its count after Done (T75 A).
-
 ## Tried: worked / did not work
+
+- 2026-11-03 (key vs 1e123d7d33) -- Worked: editing only the sentences a pilot named, adding a new
+  build-notes section rather than rewriting older builds' notes (they stay the record), and
+  checking pathSteps before and after (counts identical). Did not work: pilots writing their own
+  report.md from a subagent (the harness refuses it); the caller must save the returned text.
 
 - 2026-11-02 (key vs 0c163f54bf) -- Worked: recounting each path's listed actions against the
   walk's route.jsonl and parsing the key with steps.mjs pathSteps after the edit. Did not work:

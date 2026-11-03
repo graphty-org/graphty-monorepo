@@ -1,4 +1,4 @@
-The study runs on build c3100058ab served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d3-c3100058ab
+The study runs on build f0a9a014cb served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d1-f0a9a014cb
 
 Frozen on 2026-11-02 for the tier 5 rounds. This is the dry run's first build: each dry-run fix
 pass refreezes on a new build, names it on the first line and the build before it here.
@@ -443,3 +443,6 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
     - "Build notes (c3100058ab)" added: Control+Z after Cancel on a new card no longer brings the
       card back (the 47c95a09fc spoiler is gone); what Undo takes instead is a setup step the
       participant never saw, and in T77 B that is the colleague's orange.
+- 2026-11-02: the dry run's fifth build, f0a9a014cb in `.study-builds/tier5-r1d1-f0a9a014cb`,
+  replaces c3100058ab (`.study-builds/tier5-r1d3-c3100058ab`). Its source is the same as
+  c3100058ab's: the fourth dry-run pass changed only notes and the answer key.

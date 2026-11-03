@@ -31,39 +31,18 @@ search by name on a file with no label column: `git show 50626246ff:design/ui/st
 Trimmed again 2026-11-02 (file at 28 KB): the main-table and test-mode re-walk, "Drawing" before a
 50,000-node edit blocks, and the data table never taking an editor's selection:
 `git show 64cd59e285:design/ui/studio/notes/engineer.md`.
+Trimmed again 2026-11-02 (file at 28 KB): the two units the round 1 pilot re-raised though already
+fixed (a test's mode is the step's own, a6257fe0c7; the data table never takes an editor's
+selection, 1c02b8a883), with their re-walk evidence, and the covered-claim and reference-search-by-name re-walk:
+`git show e464917d43:design/ui/studio/notes/engineer.md`.
 
-- (2026-11-02) "A test's mode is the step's own" came back as a unit from the round 1 pilot
-  (walked on baac78342b). Already fixed by a6257fe0c7 (element `UnionStep.mode`, measure runs
-  keyed without their test; tests `SelectionWorkspace.real-element.test.tsx` number card and
-  `DateCard.real-element.test.tsx`), re-walked in `design/ui/studio/tmp/r1-dry1-recheck-main-table/`
-  (T74A 5 of 24, T74B 3 of 11 G02 G03 G04, both reopen as By position; Between 1990 to 1999 3 of
-  11), and inside the frozen build c3100058ab. No code change. Second unit this round that a walk
-  on an older commit re-raised: compare the unit's walk commit with `git log` first.
-
-- (2026-11-02) "The data table never takes an editor's selection" came back as a unit from the
-  round 1 pilot (walked on baac78342b). Already fixed by 1c02b8a883 (test
-  `TableEditorSelection.real-element.test.tsx`), re-walked in `design/ui/studio/tmp/r1-dry1-recheck-main-table/`
-  (T75A d1 04.png: Shown 112 of 549, no Group column; T76B d2 28.png: strip lists edges), and in the
-  frozen build c3100058ab. No code change. Check a unit's walk commit against `git log` first.
-
-- (2026-11-02) RE-WALK of the covered-claim fix (557f065428, ff4d33c452) and the reference search
-  by name, on `graphty/dist` built from c3100058ab (newer than both fixes; same commit as the
-  frozen build). Script `design/ui/studio/tmp/r1-dry1-recheck-covered-claim/v2/walk.sh` replays the
-  round 1 pilot routes and, at a divergence, sends the rest of the route by hand. Result: no key and
-  no Fill row reads the edited layer as covered on any of T70A detour-5, T72A detour-3, T73A
-  success, T73B success, T74A/T74B detour-1, T77A and T77B success (`key.json` of each); where
-  "covered by" remains it is under PageRank, truly painted over by Layer 1. "James Carter" picks
-  v02 on Enter; "Cedar" lists Cedar Bend; on staff-50k and sensors-50k the list after "a" holds
-  "Nodes 8 of 42,804" and Tab, Shift+Tab, Escape match; the T73A keyboard walk replays unchanged.
-  Divergences were older, unrelated changes (the data table no longer opens under the workspace, a
-  color button's longer name). Worked: replay, then read `replay.json` `matched` and feed the
-  route's later lines to `--step` -- one script walks a whole fix group without a model.
-
-- (2026-11-02) A walk's defect may already be fixed: check the walk's `session.json` commit against
-  the fix before building anything. The round 1 pilot's reference search "Nodes 0" for a person's
-  name ran on baac78342b, before 92a64cffe5; on HEAD the search lists "v02 name James Carter"
-  first (fresh walk in `design/ui/studio/tmp/r1-dry1-reference-names/`), and the element test
-  `page-matching-file-names.test.ts` fails with the old line. No code change was needed.
+- (2026-11-02) A re-walk asked for "fix group" commits that change only these notes
+  (431539355f, e464917d43) has nothing to walk: `git diff --stat c3100058ab HEAD` outside
+  `design/` is empty, so `graphty/dist` (built 16:56 from c3100058ab, the frozen build's commit)
+  is the product the earlier sweep in `design/ui/studio/tmp/r1-dry1-recheck-main-table/` already
+  walked. Check the diff for product files first; a notes-only commit cannot regress a route.
+  Two pilot units this round were defects already fixed on an older walk commit: compare the
+  walk's `session.json` commit with `git log` before building or re-walking.
 
 - (2026-11-02) RE-WALK of one count base (50d50e28ae) on `graphty/dist` c3100058ab: holds, no
   regression. With a filter on, the layer row, Everything ("styles all 7 nodes"), the Which nodes

@@ -1042,37 +1042,58 @@ export function flakyFilings(stories, at, tail) {
 }
 
 // One open "Flaky in full run: <name>" issue per name: a comment when it recurs
-function fileFlaky(name, body) {
-    const title = `${FLAKY_TITLE} ${name}`;
-    const open = sh("gh", [
-        "api",
-        "repos/{owner}/{repo}/issues?state=open&labels=priority:critical&per_page=100",
-        "--jq",
-        `.[] | select(.title == ${JSON.stringify(title)}) | .number`,
-        "--paginate",
-    ]).split("\n")[0];
+function fileFlaky(name, body, open, run) {
     const file = join(tmpdir(), `full-run-flaky-${process.pid}.md`);
     writeFileSync(file, body);
-    if (open) return sh("gh", ["issue", "comment", open, "--body-file", file]);
+    if (open) return run("gh", ["issue", "comment", open, "--body-file", file]);
     const labels = ["bug", "priority:critical", "effort:medium"].flatMap((l) => ["--label", l]);
-    return sh("gh", ["issue", "create", "--title", title, ...labels, "--body-file", file]);
+    return run("gh", ["issue", "create", "--title", `${FLAKY_TITLE} ${name}`, ...labels, "--body-file", file]);
 }
 
-function fileFlakies(env, lanes, stories) {
+/**
+ * Files the flaky lanes and stories, each as a new issue or a comment on its open one. The open critical issues
+ * are read once, not once per filing: paging through them for each of 337 stories took 14 silent minutes (#4983).
+ * @param env the environment
+ * @param lanes the flaky lanes
+ * @param stories the flaky stories, as flakyStories returns them
+ * @param run runs a command and returns its output
+ */
+export function fileFlakies(env, lanes, stories, run = sh) {
     const at = `on ${env.SHA} (${env.RUN_URL}, attempt ${env.RUN_ATTEMPT ?? 1})`;
     const tail = "It does not block nightly: this is a confirmation, not a quarantine. Find the mechanism and fix it.";
-    for (const l of lanes) {
-        const body = `${LANES[l].name} failed on the full run's first attempt and passed when re-run ${at}.\n\n${tail}`;
-        bestEffort(
-            () => fileFlaky(LANES[l].name, body),
-            `filing the flaky ${LANES[l].name}`,
-            () => null,
-        );
+    const filings = [
+        ...lanes.map((l) => ({
+            name: LANES[l].name,
+            body: `${LANES[l].name} failed on the full run's first attempt and passed when re-run ${at}.\n\n${tail}`,
+        })),
+        ...flakyFilings(stories, at, tail),
+    ];
+    if (!filings.length) return;
+    const listed = bestEffort(
+        () =>
+            run("gh", [
+                "api",
+                "repos/{owner}/{repo}/issues?state=open&labels=priority:critical&per_page=100",
+                "--jq",
+                ".[] | [.number, .title] | @tsv",
+                "--paginate",
+            ]),
+        "reading the open critical issues",
+        () => null,
+    );
+    // without them a recurring flaky would be filed again as a duplicate: file nothing
+    if (listed === null) return;
+    const open = new Map();
+    for (const row of listed.split("\n").filter(Boolean)) {
+        const [n, title] = row.split("\t");
+        if (!open.has(title)) open.set(title, n);
     }
-    for (const { name, body } of flakyFilings(stories, at, tail)) {
+    for (const { name, body } of filings) {
+        const issue = open.get(`${FLAKY_TITLE} ${name}`);
+        console.log(issue ? `flaky: commenting on #${issue} (${name})` : `flaky: filing ${name}`);
         bestEffort(
-            () => fileFlaky(name, body),
-            `filing the flaky story ${name}`,
+            () => fileFlaky(name, body, issue, run),
+            `filing the flaky ${name}`,
             () => null,
         );
     }
@@ -1131,6 +1152,8 @@ export const heldLine = (held) =>
 
 async function verdictMain(env) {
     const cfg = config(env);
+    // one group per phase: a step that stops printing names the phase it stopped in
+    console.log("::group::verdict: judge the lanes and captures");
     const lanes = JSON.parse(env.LANES);
     const projects = Object.keys(JSON.parse(readFileSync("visual-review.config.json", "utf8")).projects ?? {});
     const { changed, missing } = differingImages(env.CAPTURES, projects);
@@ -1146,6 +1169,8 @@ async function verdictMain(env) {
     // does not hold it, so neither a bisect nor a restart on master could help
     const forward = !!env.FORWARD;
     const facts = { sha: env.SHA, good: env.GOOD, runId: env.RUN_ID, runUrl: env.RUN_URL, red, lanes, forward };
+    console.log("::endgroup::");
+    console.log("::group::verdict: red issue, bisect or close");
     if (wait) {
         console.log(`::notice::attempt 1 is red (${red.join(", ")}): release-rerun.yml re-runs its failed jobs once`);
     } else if (state === "red") {
@@ -1159,11 +1184,15 @@ async function verdictMain(env) {
     }
     // a lane red on the attempt before and green now, and a story the re-capture found flaky: filed, not blocking
     const before = attempt > 1 ? readJson(join(env.RECORDS ?? "", `verdict-${attempt - 1}.json`)) : null;
+    console.log("::endgroup::");
+    console.log("::group::verdict: flaky lanes and stories");
     if (!wait) fileFlakies(env, flakyLanes(before?.red ?? [], red), flakyStories(env.CAPTURES));
     // green-images: the owner reviews these (release.yml announces it); the files go to the run's log
     if (state === "green-images") console.log(`::notice::${what}\n${changed.join("\n")}`);
     // a failed pick judged no commit: recording red on one would make the next slot skip it. A deferred red is
     // recorded as deferred, which the pick ignores, until the re-run (or release-rerun.yml) decides
+    console.log("::endgroup::");
+    console.log("::group::verdict: record and hold");
     const recorded = wait ? DEFERRED : state;
     if (cfg && red[0] !== "pick")
         await record(cfg, { sha: env.SHA, state: recorded, lane: red.join(",") || null, issue });
@@ -1177,6 +1206,7 @@ async function verdictMain(env) {
     const hold =
         wait || red[0] === "pick" ? "none" : holdAction({ held, sha: env.SHA, state, heldState: now.state, newer });
     const owner = heldLine(env.VERSION_HELD);
+    console.log("::endgroup::");
     output({
         state,
         issue: issue ? String(issue) : "",

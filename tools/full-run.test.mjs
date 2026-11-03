@@ -18,6 +18,7 @@ import {
     deferred,
     differingImages,
     duplicateOf,
+    fileFlakies,
     fixedRecently,
     laneRedTitle,
     runsOnTitleCommit,
@@ -1012,6 +1013,69 @@ describe("flaky story issues name their story test", () => {
             flakyStoryBody(s, "on abc", "Fix it."),
             "The story p/a.png matched its baseline on abc.\n\nFix it.",
         );
+    });
+});
+
+describe("fileFlakies", () => {
+    const env = { SHA: "abc", RUN_URL: "https://x/runs/1", RUN_ATTEMPT: "2" };
+    const story = (project, i) => ({ name: `${project}/s${i}.png`, why: "drew a different picture", test: undefined });
+    const fake = (openIssues) => {
+        const calls = [];
+        const run = (cmd, args) => {
+            calls.push(args);
+            if (args[0] === "api") return openIssues.map(([n, t]) => `${n}\t${t}`).join("\n");
+            return "";
+        };
+        return { calls, run };
+    };
+    const quietly = (fn) => {
+        const lines = [];
+        const log = console.log;
+        console.log = (l) => lines.push(l);
+        try {
+            fn();
+        } finally {
+            console.log = log;
+        }
+        return lines;
+    };
+
+    // run 41003760177 paged through every open critical issue once per filing, 337 times, and printed nothing (#4983)
+    it("reads the open critical issues once, comments on the open ones, files the rest and prints a line for each", () => {
+        const { calls, run } = fake([[7, "Flaky in full run: p/s1.png"]]);
+        const stories = [story("p", 0), story("p", 1), story("q", 0)];
+        const lines = quietly(() => fileFlakies(env, ["t4"], stories, run));
+        assert.equal(calls.filter((a) => a[0] === "api").length, 1);
+        assert.deepEqual(
+            calls.filter((a) => a[0] === "issue").map((a) => a.slice(0, 3).join(" ")),
+            [`issue create --title`, "issue create --title", "issue comment 7", "issue create --title"],
+        );
+        assert.equal(lines.length, 4);
+        assert.match(lines[2], /^flaky: commenting on #7 \(p\/s1\.png\)$/);
+        assert.match(lines[3], /^flaky: filing q\/s0\.png$/);
+    });
+
+    it("files one issue for a project's many flaky stories, with one read", () => {
+        const { calls, run } = fake([]);
+        const many = Array.from({ length: 300 }, (_, i) => story("graph-io-fidelity", i));
+        quietly(() => fileFlakies(env, [], many, run));
+        assert.equal(calls.length, 2);
+        assert.equal(calls[1][3], "Flaky in full run: graph-io-fidelity (5+ stories at once)");
+    });
+
+    it("reads nothing when nothing is flaky, and files nothing when the read fails", () => {
+        const { calls, run } = fake([]);
+        quietly(() => fileFlakies(env, [], [], run));
+        assert.equal(calls.length, 0);
+        const failing = [];
+        const lines = quietly(() =>
+            fileFlakies(env, [], [story("p", 0)], (cmd, args) => {
+                failing.push(args);
+                throw new Error("HTTP 502");
+            }),
+        );
+        assert.equal(failing.length, 1);
+        assert.match(lines[0], /reading the open critical issues failed: HTTP 502/);
     });
 });
 

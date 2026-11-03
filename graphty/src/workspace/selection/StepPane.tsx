@@ -632,7 +632,10 @@ export function StepPane({
         commit(next);
     };
     // A step that waits on a run shows no count: the number would be what comes into it.
-    const count = reading === undefined || reading.waiting ? undefined : reading.count;
+    // A group that starts with nothing holds nothing until its step has a test: no "0 so far".
+    const untouched =
+        branch.start === "none" && (reading?.reason?.code === "test-unset" || reading?.reason?.code === "no-reference");
+    const count = reading === undefined || reading.waiting || untouched ? undefined : reading.count;
     const missing = missingOf(step.rule);
     // By position keeps every element tied at the cut (spec 5): when it keeps more than asked, the
     // pane says so beside the number box.

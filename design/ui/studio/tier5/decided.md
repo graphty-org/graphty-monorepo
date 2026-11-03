@@ -1139,15 +1139,15 @@ another test is named.
   in `MeasureLeaf`): the step reads the newest listed run with that algorithm, params and scope as
   the run left it, and starts one only when none is listed. The app writes `scope` only when the
   run covered another part of the graph than the step's base, and words the picker's entry with it:
-  "Separate pieces (112 visible)". Why: the entry described one run and the step read a new
+  "Connected components (112 showing)". Why: the entry described one run and the step read a new
   whole-graph run ("Group 1, 549" under "112 of 549"). graphty-element already reported a run's
   scope (`run.scope.spec`, `nodeCount`); what was missing was a way for a step to stay on it. Element
   test: `test/session/scope/watch-steps.test.ts` ("a measure that names its run's scope ...").
-- **By position says which end and in what** (insight 4, bar 9). Its row is "Highest | Lowest",
-  the box, then "nodes | % of nodes"; the rule is graphty-element's `threshold` with `from` and
+- **By position says which end and in what** (insight 4, bar 9). Its row is "Top | Bottom" (the
+  outline's own words, "top 5", "bottom 5"), the box, then "nodes | % of nodes"; the rule is graphty-element's `threshold` with `from` and
   `percentile`, which it already had. The step keeps the end and unit before a count is typed (its
-  mode, "top low percent"). A refused count on an untouched step says "Nothing is cut until a count is
-  typed." instead of naming "the highest 10", a default the step never applied.
+  mode, "top low percent"). A refused count on an untouched step says "The step keeps everything until a
+  count is typed." (true in both hosts) instead of naming "the highest 10", a default the step never applied.
 - **"Is exactly" takes on an empty text step** (insight 6). The empty rule cannot hold a match, so
   the step keeps it as its mode, as By position keeps its own, and the text typed after it is
   matched exactly.
@@ -1155,13 +1155,13 @@ another test is named.
   made in this opening goes when it is left empty, the same check Cancel makes; a saved card emptied
   by Clear stays at All nodes, and Undo brings its steps back.
 - **The empty Fill color box says what it takes and its picker stays open over the first pick**
-  (insight 5). The box's placeholder is "Pick or type a color" (compact-mantine's existing
+  (insight 5). The box's placeholder is "Pick or type" (the row already says Color) (compact-mantine's existing
   `emptyText`, no look change); the waiting box is now the same field as a set color, so the first
   pick no longer swaps the field and closes the picker. A pick is written at once, as on a set
   color: the change is that the reader can keep adjusting. Owner item, not built: if the owner wants
   the first click on an empty box to commit nothing at all, that is compact-mantine's picker
   behavior, which is Figma-locked.
-- **A new Or group is calm** (insight 3, bar 9). Its row shows no count, and says none, until one of
+- **A new Or group is calm** (insight 3, bar 9). Its row and its untouched step show no count ("0 so far"), and say none, until one of
   its steps has a test; an untouched range step lights no bar. compact-mantine's brush still draws
   its two thumbs at the ends (Figma-locked; recorded for the owner, not changed).
 - **"Condition..." is now "And..." in a group that starts with everything, and "Add..." in one that
@@ -1178,3 +1178,36 @@ another test is named.
   is P under the new wording, and round 1's picked-set answers are not re-graded. T70's follow-up
   ends "Did what you saw change what you did next?" in place of "Would you rather it had shown
   something else?", which invited a wish.
+
+### After the fix pass's three walks, 2026-11-03 (studio engineer)
+
+The walks on build 22a87a0679 are `fixpass-interaction.md`, `fixpass-content.md` and
+`fixpass-calm-first.md` in this folder. Changed after them, in the same pass:
+
+- **By position reads "Top | Bottom"**, the outline's own words ("top 5", "bottom 5"); "Highest" and
+  "Lowest" were cut to "Hig..." and "Low..." and disagreed with the outline. The unit select is wide
+  enough for "% of nodes".
+- **The run's scope says "showing"** ("Connected components (112 showing)"), the word the rest of the
+  screen uses for what is visible.
+- **The Fill box's cue is "Pick or type"**: the row already says Color, and the longer cue was cut.
+- **By position's refusal says "The step keeps everything until a count is typed."**, true in both
+  hosts ("Nothing is cut" was wrong in a style layer, which cuts nothing).
+- **A group that starts with nothing shows no count while its steps have no test or no reference**:
+  no "0" on the group, no "0 so far" on the step row or in its pane, for a range step and a
+  "Within hops of" step alike.
+- **A layer's Which row says its count over what is showing**, as the row draws it ("4 of 15" under
+  a filter); it said "4 of 24 nodes" after an Undo with the workspace closed (interaction walk,
+  severity 3).
+- **The colleague setup `volunteers-thanks.txt` says And...**: it named the old button.
+
+Not changed, with the reason:
+
+- **"And..." stays** (the content designer suggested "Keep..."): round 2 is the test the report
+  asked for; one change at a time.
+- **Three counts of one layer at rest** (the layer row, the inspector's Which row, the canvas key):
+  a calm-first severity 3 candidate. The layer row and the Which row are owner-approved surfaces
+  (tier 4), so no count is removed without the owner; it goes to the next report's owner questions.
+- **Forward Tab no longer leaves the workspace** (it goes to the header, then on through it); Shift+Tab
+  leaves it, F6 and Escape too. Kept: it is what the accessibility walk asked for. The style host's
+  preview has no Tab stop (F6 reaches it), as before.
+- **compact-mantine's brush track is lit across an untouched range**: Figma-locked, an owner item.

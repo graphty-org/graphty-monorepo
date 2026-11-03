@@ -136,7 +136,7 @@ describe("a filter step picked from a run's results", () => {
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Connected");
-        const entry = await screen.findByRole("option", { name: new RegExp(`\\(${String(showing)} visible\\)`) });
+        const entry = await screen.findByRole("option", { name: new RegExp(`\\(${String(showing)} showing\\)`) });
         await userEvent.click(entry);
         await waitFor(() => {
             const step = unionOf(session, 1)?.branches[0]?.steps[0]?.rule;
@@ -170,9 +170,9 @@ describe("By position", () => {
         await userEvent.type(count, "top 5{Enter}");
         const alert = await within(ws).findByRole("alert");
         assert.notInclude(alert.textContent ?? "", "highest 10", "no limit the step does not apply");
-        assert.include(alert.textContent ?? "", "Nothing is cut until a count is typed.");
+        assert.include(alert.textContent ?? "", "The step keeps everything until a count is typed.");
         await userEvent.click(within(ws).getByRole("combobox", { name: "Degree: which end" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Lowest" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Bottom" }));
         await userEvent.click(within(ws).getByRole("combobox", { name: "Degree: count or percent" }));
         await userEvent.click(await screen.findByRole("option", { name: "% of nodes" }));
         const percent = await within(ws).findByRole("textbox", { name: "Degree: what percent" });
@@ -269,7 +269,7 @@ describe("the empty Fill color box", () => {
             assert.isNotNull(found);
             return found;
         });
-        assert.strictEqual(box?.placeholder, "Pick or type a color");
+        assert.strictEqual(box?.placeholder, "Pick or type");
         await userEvent.click(await screen.findByRole("button", { name: /^Pick node color/ }));
         const field = await screen.findByTestId("color-picker-saturation");
         const at = field.getBoundingClientRect();
@@ -316,6 +316,7 @@ describe("the workspace's calm first states and its header", () => {
         assert.strictEqual(row.querySelector(".sel-count")?.textContent, "", "no count before a test");
         assert.notMatch(row.getAttribute("aria-label") ?? row.textContent ?? "", /0 of 77/);
         assert.isNull(ws.querySelector('.sel-ws-props [data-highlighted="true"]'), "no bar lit");
+        assert.notInclude(ws.querySelector(".sel-ws-props")?.textContent ?? "", "so far", "no 0 so far");
     });
 
     it("says And... and Or...; Tab past the last control reaches the header, an F6 stop; Done shows Escape", async () => {

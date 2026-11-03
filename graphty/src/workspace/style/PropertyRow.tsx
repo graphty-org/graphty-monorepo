@@ -881,7 +881,7 @@ function OneValue({
 }
 
 /** What a color box just added with "+" says it takes, in place of a color nobody chose. */
-const COLOR_CUE = "Pick or type a color";
+const COLOR_CUE = "Pick or type";
 
 /**
  * The color a layer sets, with its opacity box when it carries one: the box reads and writes the

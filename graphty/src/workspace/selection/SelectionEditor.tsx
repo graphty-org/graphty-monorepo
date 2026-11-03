@@ -1423,7 +1423,9 @@ export function SelectionEditor({
                                 // sidebar's does (ws-polish 2).
                                 const drawnState = state;
                                 const soFar =
-                                    read === undefined || read.waiting
+                                    read === undefined ||
+                                    read.waiting ||
+                                    (branch.start === "none" && UNSET.has(read.reason?.code ?? ""))
                                         ? ""
                                         : `, ${formatNumber(read.count)} of ${formatNumber(of)} ${NOUNS[side].many} so far`;
                                 const test = rowTest(words);
@@ -2081,6 +2083,9 @@ function allRow(branch: UnionBranch | undefined): boolean {
     return branch?.start === "all" && (branch.steps.length === 0 || branch.steps[0]?.op === "except");
 }
 
+/** The reasons a step has not been told enough to hold anything yet: no test, no reference. */
+const UNSET: ReadonlySet<string> = new Set(["test-unset", "no-reference"]);
+
 /**
  * A group's count at its row: "Waits" while it waits on a run, nothing while none of its steps
  * has a test yet (a just-added Or group is not "0"), else how many it holds.
@@ -2092,7 +2097,7 @@ function groupCount(branch: UnionBranch, read: StepsReading["branches"][number] 
     if (read?.state === "pending") {
         return "Waits";
     }
-    const untested = read !== undefined && read.steps.every((step) => step.reason?.code === "test-unset");
+    const untested = read !== undefined && read.steps.every((step) => UNSET.has(step.reason?.code ?? ""));
     return branch.start === "none" && untested ? "" : formatNumber(read?.count ?? 0);
 }
 

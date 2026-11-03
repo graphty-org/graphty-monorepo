@@ -315,7 +315,12 @@ function allOf(cards: readonly Card[]): RuleTree | null {
  */
 function useHead(session: GraphSession, rows: readonly PickRow[], side: Side, held?: readonly Card[]): string {
     const stats = session.data.statistics();
-    const total = side === "node" ? stats.nodeCount : stats.edgeCount;
+    // A layer paints only what is showing, and its row counts over that (4 of 15 under a filter):
+    // said over the same base, never the whole graph's.
+    const { summary } = session.visibility;
+    const showing = side === "node" ? summary.visibleNodes : summary.visibleEdges;
+    const whole = side === "node" ? stats.nodeCount : stats.edgeCount;
+    const total = held === undefined ? showing : whole;
     const heldRule = held === undefined ? null : allOf(held);
     const union = held === undefined && rows.length > 1 ? unionRule(rows) : heldRule;
     const unionCount = useLeafCount(session, union, side);
@@ -2459,7 +2464,7 @@ function NumberCard({
     const heldTop =
         card.top === undefined
             ? null
-            : `the ${card.from === "low" ? "lowest" : "highest"} ${String(card.top)}${card.percent === true ? "%" : ""}`;
+            : `the ${card.from === "low" ? "bottom" : "top"} ${String(card.top)}${card.percent === true ? "%" : ""}`;
     const held = card.match === "top" ? heldTop : `${String(card.min ?? low)} to ${String(card.max ?? high)}`;
     // Typing still held when the card goes (the picker closed, the card removed) is said, not lost.
     const leaving = useRef<string | null>(null);
@@ -2497,7 +2502,7 @@ function NumberCard({
         if (now.bad.length > 0) {
             const refusal = {
                 bad: now.bad,
-                why: `${now.why ?? ""} ${held === null ? "Nothing is cut until a count is typed." : `The count and drawing still use ${held}.`}`,
+                why: `${now.why ?? ""} ${held === null ? "The step keeps everything until a count is typed." : `The count and drawing still use ${held}.`}`,
                 reason: now.reason,
             };
             if (leaving && pressing.current) {
@@ -2654,10 +2659,10 @@ function NumberCard({
                     <Select
                         aria-label={`${name}: which end`}
                         allowDeselect={false}
-                        w={88}
+                        w={84}
                         data={[
-                            { value: "high", label: "Highest" },
-                            { value: "low", label: "Lowest" },
+                            { value: "high", label: "Top" },
+                            { value: "low", label: "Bottom" },
                         ]}
                         value={card.from ?? "high"}
                         onChange={(next) => {
@@ -2669,7 +2674,7 @@ function NumberCard({
                     <Select
                         aria-label={`${name}: count or percent`}
                         allowDeselect={false}
-                        w={96}
+                        w={116}
                         data={[
                             { value: "count", label: NOUN[side].many },
                             { value: "percent", label: `% of ${NOUN[side].many}` },

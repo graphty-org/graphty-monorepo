@@ -11,6 +11,14 @@ history).
 
 ## Top of mind
 
+- (2026-11-03) Tier 5 stopped at the 1-round safety cap with bars 1, 3, 4, 8, 9 failing and 6, 7
+  unmeasured. A one-round cap cannot meet bars that need a fix round plus a re-test round: ask
+  for a cap of at least 2 (find, then confirm) before the next tier launches.
+- (2026-11-03) Open work handed on (`rounds/round-1/insights.md` "What the round needs next"):
+  fix the Results-pick run binding, By position's box and false error, the empty Fill box, "Is
+  exactly" on an empty step, Clear-then-Escape deleting a saved card; re-walk each by its repro.
+- (2026-11-03) Bars 6 and 7 went unmeasured because two expert walks never ran: make every bar's
+  feed a launch precondition, not a best effort.
 - (2026-11-03) Tier 5 round 1 after the skeptics (`rounds/round-1/insights.md`): bar 4 fails on 2
   severity 3 (covered panel's speech, fixed after freeze; a Results pick binding another run); bar 9
   fails 4 of 3 (Or group, Condition.../Or..., By position box, header Tab order); bar 1 fails on
@@ -33,10 +41,7 @@ history).
 - (2026-11-03) A severity 3 from one session on a route the key does not use survives only with a
   repro; say so beside it.
 - (2026-11-03) Check the briefing against the setup before a round (T73 A's missing saved project).
-- (2026-11-03) Expert walks find what is wrong, not how often it hurts.
 - (2026-11-03) Check decided.md before scoring a defect; colliding decided rules need a ruling.
-- (2026-11-02) The overwhelm rating does not discriminate; use the named "least sure" element.
-- (2026-10-30) One round cannot both find and confirm fixes: plan a fix round and a re-test round.
 
 ## Priorities and values
 
@@ -118,6 +123,9 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-03 (tier 5 close) -- Did not work: a 1-round cap with fix-and-confirm bars; the round
+  could only find. Worked: two independent skeptics cut study defects (T73 key, leading
+  follow-up, pre-colored fixtures) before they reached the build's fix list.
 - 2026-11-03 (round 1 insights) -- Worked: a verdict table per item before writing, then the
   drop/weaken rule mechanically; grepping criteria for the allowance and counts-once text. Did not
   work: scoring's "least sure" coding from summaries (miscited sessions found by both skeptics).

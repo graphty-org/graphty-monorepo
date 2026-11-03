@@ -17,54 +17,48 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-- (2026-11-03) ROUND 1 (rerun) SCREENSHOT AUDIT on the same frozen build 1e123d7d33:
-  `tier5/rounds/round-1/expert/engineer.md`, sessions `expert/engineer/{style,filter,thanks,big}-<size>`
-  from `tmp/engineer-audit-r1/all.sh` (one browser at a time, sequential: the round's sessions held
-  the other slots). Same findings as the void round's audit, now with mechanisms: the matches strip
-  clips because `.sel-ws-strip-table` lacks `min-width: 0` under `overflow: hidden`
-  (`selection.css` 297-313); Control+A's 5,000 is the element's `DEFAULT_SELECTION_CAP` and the
-  element reports `truncated`, which nothing in `graphty/src` reads (app's to say); the
-  "Person 1" order is the element's tie order (graph order, `query.ts` 685); a chosen reference's
-  bare id breaks decided.md 694. 900 x 700 collapse rated 2 this time (spec checks only 1440 and 1280).
-  New: "Edges: nothing set" vs "not styled" (`stylesWords` vs `OtherLine`); the reference list widens
-  past its field when typed; the thanks card is named "trained Yes" while it also keeps hours >= 10.
-- (2026-11-03) Study tool: `--prove`'s warm-takeover check no longer depends on a spare machine slot.
-  `REAL_WARM_HOLD=1` (set only by the check) makes its warm browser queue for a slot and stay up
-  while starts queue; the check waits until it is ready while it still warms. Test:
-  `with-browser.test.mjs` "waits in the queue for a slot". Slip to avoid: `ls sessions | head -1`
-  on a folder that does not exist gave an empty id, and `--start round-1/sessions/` STARTED a
-  session in the round folder (only a planned `<id>` is refused). Always check the id is non-empty.
-- (2026-11-03) TIER 5 ROUND 1 CLOSED, STUDIO STOPPED (1-round cap, bars not met;
-  `tier5/rounds/round-1/insights.md`). All 60 sessions void: the start gate never ran, so
-  `plan.md` had no "Gate evidence" and every start was refused. Lesson: run the gate before launch
-  and stop the round at the first refused start whose cause every session shares. Only bar 4 fails,
-  on one severity 3. My next units, in order:
-- (2026-11-03) SEVERITY 3, app: speech from a hidden panel. With a workspace open over a selected
-  layer, `WhichPicker.tsx:435` (`useAnnounceChange`) still speaks the covered inspector row's count
-  into the shared status region after the workspace's, replacing it ("15 of 24" then "4 of 24").
-  `SelectionEditor.tsx:368` already goes quiet then: do the same. Rule: speak only from the surface
-  that is showing.
-- (2026-11-03) Reference picker is a second build of the picker (`ReferencePicker.tsx`, own
-  Combobox.Search in a portal): Tab escapes to Main menu leaving the list open, Escape dead, no
-  expanded state or result count. Fix: one shared searchable combobox (compact-mantine if the
-  shared one lacks it), not a patch. Data path may stay separate (`decided.md` 440).
-- (2026-11-03) Clear on a filter card renames it "a selection" (breaks `decided.md` 631-632) and a
-  chosen reference shows only its id "v02" (breaks 694). Small app fixes.
-- (2026-11-03) Clear then Escape drops a new card unrecoverably: two decided rules collide
-  (436/740/773 vs 599/601). Needs a `decided.md` entry on which wins before code.
-- (2026-11-03) Workspace below 1280 px: fixed-width outline, 320 px step pane and properties column
-  leave a 44 px preview at 900x700. Needs a width rule in `decided.md` first (it stops at 1280x800).
-- (2026-11-03) Study tool: `leakCheck` in `tool/real.mjs` scans written content via `stringsIn`, so a
-  participant echoing the tool's FAIL line is flagged. Fix: test only paths a call opens. Must land
-  before any restart.
-- (2026-11-03) Severity 1 leftovers: one surface mixes "37.5k of 50k" with "35,960" (one format per
-  surface); matches strip cuts its last column; value picker list cut mid-row at 900x700.
-- (2026-11-03) Lesson on my own audit: I rated the 900x700 collapse 3; both skeptics held it at 2
-  (no task blocked, no session at that size, no decided rule). Rate against decided rules and task
-  blockage, not how bad it looks. The scripted words-at-rest count confirms nothing alone.
-- (2026-11-03) Way of working that held: one walk script per host and size in `tmp/engineer-audit/`
-  run in parallel; 50,000-node walk started first. Earlier Top of mind (round 1 audit detail, tier 5
-  tool dry run fixes, waits.mjs, rejected-build evidence): `git show b30bb782d5:design/ui/studio/notes/engineer.md`.
+Refreshed 2026-11-03 after tier 5 round 1 closed; prior Top of mind (audit mechanisms, tool fixes,
+void-round lesson): `git show 296294ddad:design/ui/studio/notes/engineer.md`.
+
+- (2026-11-03) TIER 5 ROUND 1 CLOSED, studio stopped at the 1-round cap with bars 1, 3, 4, 8, 9
+  failing (`tier5/rounds/round-1/insights.md`, 30 valid sessions on build 1e123d7d33). Next round
+  starts with my fixes, each re-walked by its repro.
+- (2026-11-03) SEV 3, app: a filter step picked from a run's results binds a different run (picker
+  offers the 112-node run, card counts over a new whole-graph run). Fix where a run is named: the
+  element gives each run's facts including scope, the app words them and binds by that identity.
+  Trace first whether the binding defect is the app's or how the element identifies a run result.
+- (2026-11-03) SEV 3, app: speech from a hidden panel (`WhichPicker.tsx` useAnnounceChange
+  under an open workspace). Fixed after the freeze; re-walk only. Rule: speak only from the
+  surface that is showing.
+- (2026-11-03) By position box: add direction (top/bottom) and unit (number/percent); the error
+  built from `card.top ?? 10` claims a limit an untouched step does not apply -- derive the
+  sentence from what is applied, never from a default.
+- (2026-11-03) Empty Fill color box: give it a visible cue and stop the picker committing and
+  closing on the first click when empty. If that click is the shared color input's, fix it in
+  compact-mantine, not the app. Swatches are Figma-locked: do not add colors.
+- (2026-11-03) "Is exactly" on an empty text step reverts to Contains (`TextCard` sends
+  `{...card, match}`; the empty card is dropped downstream). Keep the match on an empty card.
+- (2026-11-03) Clear then Escape (and probably Clear then Done) deletes a REOPENED card:
+  `SelectionEditor.tsx:812` and `close("done")` call `onEmptyCancel()` without the
+  `openedNew` check. Gate on openedNew; test both paths.
+- (2026-11-03) Bar 9 editor elements: a just-added Or group opens at "B 0" with the picker open and
+  a full-drawn untouched range; "Condition..." / "Or..." never say "and" / "or else". Words are the
+  content designer's; I build the first state and wire whatever words are decided.
+- (2026-11-03) Workspace header deep in Tab order (Done 11-34 keys away, no F6 stop): make it an
+  F6 region per interaction-patterns before adding anything bespoke.
+- (2026-11-03) Bar 7 smaller fixes: value picker jumps over its field and Done (decided 734); Clear
+  renames to "a selection" (631-632); two-step card rests as one row with no caret; bare reference
+  id (694); card name stale after Or or a second step.
+- (2026-11-03) Lesson: one session can fail a bar (T75 A was n=1); a held bar is weak evidence.
+  Repro every finding myself before building, and cite the frozen source line, as the skeptics did.
+- (2026-11-03) Lesson: rate against decided rules and task blockage, not looks; both skeptics cut
+  my 900x700 rating and the "is exactly" and Clear-Escape items to 2 because no one met them or
+  the screen announced them. Still fix data-loss paths: Undo cannot restore the card.
+- (2026-11-03) Study design, not code: T73's key disagrees with its words; fixtures pre-colored in
+  the asked color inflate "drowned color" findings. Do not build for either.
+- (2026-11-03) Still open from the audit: reference picker is a second picker build (one shared
+  searchable combobox), matches strip `min-width: 0`, element's selection `truncated` unread,
+  width rule below 1280 needs decided.md first, `leakCheck` false positive in `tool/real.mjs`.
 
 ## Working facts and open defects
 

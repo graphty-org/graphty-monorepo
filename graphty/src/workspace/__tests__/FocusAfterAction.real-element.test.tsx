@@ -30,12 +30,12 @@ import { Workspace } from "../Workspace";
 /**
  * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
  * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
- * new step's Value field, or the selected row's pane button Condition... (spec 3.0, 3.2).
+ * new step's Value field, or the selected row's pane button And... (spec 3.0, 3.2).
  * @param scope - where to look.
  */
 async function startCondition(scope?: HTMLElement): Promise<void> {
     const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
-    const row = within(where).queryByRole("treeitem", { name: "Condition..." });
+    const row = within(where).queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ });
     if (row !== null) {
         await userEvent.click(row);
         return;
@@ -48,8 +48,8 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
         assert.isNotNull(ws, "the workspace is open");
         const found =
             within(ws ?? document.body).queryByRole("button", { name: "Value" }) ??
-            within(ws ?? document.body).queryByRole("button", { name: "Condition..." });
-        assert.isNotNull(found, "a new step's Value field or Condition...");
+            within(ws ?? document.body).queryByRole("button", { name: /^(And|Add)\.\.\.$/ });
+        assert.isNotNull(found, "a new step's Value field or And...");
         return found;
     });
     await userEvent.click(control);

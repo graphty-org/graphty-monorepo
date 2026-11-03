@@ -47,7 +47,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 
-import { canFocus, focusInspectorTitle, focusIsLost } from "../frame/focus";
+import { canFocus, focusInspectorTitle, focusIsLost, tabStops } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { isTypingTarget, matchesKey, printable } from "../keys/keys";
@@ -437,9 +437,11 @@ export function SelectionEditor({
     const close = (how: "done" | "cancel"): void => {
         const back = openedWith.current;
         const left = how === "cancel" && back !== null ? back : reading.rule;
+        // Only a card made in this opening goes: a saved card emptied by Clear stays, at All.
         const goes =
             onEmptyCancel !== undefined &&
-            (how === "cancel" ? openedNew.current : left.branches.every((branch) => branch.steps.length === 0));
+            openedNew.current &&
+            (how === "cancel" || left.branches.every((branch) => branch.steps.length === 0));
         const restore =
             !goes && how === "cancel" && back !== null && JSON.stringify(back) !== JSON.stringify(reading.rule);
         if (restore) {
@@ -707,9 +709,9 @@ export function SelectionEditor({
         return true;
     };
     /**
-     * The pane's add actions, first in its first row: "Condition..." adds a step to the selected
-     * row's group, "Or..." adds a group. They act on the selection, never move a row.
-     * @param branch - the group "Condition..." adds to, or undefined for none.
+     * The pane's add actions, first in its first row: "And..." (or "Add...") adds a step to the
+     * selected row's group, "Or..." adds a group. They act on the selection, never move a row.
+     * @param branch - the group "And..." adds to, or undefined for none.
      * @returns the buttons.
      */
     const adds = (branch: UnionBranch | undefined): React.ReactNode => {
@@ -725,7 +727,9 @@ export function SelectionEditor({
                             startAdding(branch, newVerb(branch));
                         }}
                     >
-                        Condition...
+                        {/* Said as what the step does to the group: narrows it (And), or widens a
+                            group that starts with nothing (Add), beside Or..., a new group. */}
+                        {newVerb(branch) === "keep" ? "And..." : "Add..."}
                     </Button>
                 )}
                 <Tooltip label={`No more: ${String(rule.branches.length)} is the most`} disabled={!full}>
@@ -809,7 +813,12 @@ export function SelectionEditor({
             focusAfter.current = ["[data-or]", `[data-row="${TITLE}"]`];
             return;
         }
-        if (escaped.current && onEmptyCancel !== undefined && rule.branches.every((each) => each.steps.length === 0)) {
+        if (
+            escaped.current &&
+            onEmptyCancel !== undefined &&
+            openedNew.current &&
+            rule.branches.every((each) => each.steps.length === 0)
+        ) {
             say("Filter not added");
             onEmptyCancel();
             return;
@@ -1091,9 +1100,9 @@ export function SelectionEditor({
             ),
         [session, rule, reading, side],
     );
-    // The outline holds only recipe rows: "Condition..." and "Or..." live in the pane's first row,
+    // The outline holds only recipe rows: "And..." and "Or..." live in the pane's first row,
     // so selecting a row changes only its highlight (the owner's review, repolish 2). An empty
-    // selection keeps its one "Condition..." row.
+    // selection keeps its one "And..." row.
     const showAdd = (branch: UnionBranch): boolean => empty && adding?.branch !== branch.id && !allRow(branch);
     // A filter card named after its only step draws no outline: its title row is the recipe, and its
     // title pane holds the step's controls under the card's own.
@@ -1275,7 +1284,9 @@ export function SelectionEditor({
                                             [
                                                 letter,
                                                 colorWord(color),
-                                                countWords(branchRead?.count ?? 0, of, side),
+                                                groupCount(branch, branchRead) === ""
+                                                    ? ""
+                                                    : countWords(branchRead?.count ?? 0, of, side),
                                                 branch.on === false ? "off" : "",
                                                 startEmpties(branch, branchRead) ? "passes none" : "",
                                             ]
@@ -1360,9 +1371,7 @@ export function SelectionEditor({
                                             />
                                         )}
                                         <Text size="sm" className="sel-count">
-                                            {branchRead?.state === "pending"
-                                                ? "Waits"
-                                                : formatNumber(branchRead?.count ?? 0)}
+                                            {groupCount(branch, branchRead)}
                                         </Text>
                                     </div>
                                 </Tooltip>
@@ -1494,6 +1503,7 @@ export function SelectionEditor({
                                 <AddRow
                                     id={`add:${branchId}`}
                                     branchId={branchId}
+                                    label={newVerb(branch) === "keep" ? "And..." : "Add..."}
                                     tabbed={tabbed}
                                     onWalk={(event) => walk(event, ws)}
                                     onFocus={setActive}
@@ -1853,6 +1863,24 @@ export function SelectionEditor({
         closeAfterPaint("done");
     };
 
+    // Tab past the workspace's last control goes to its header (Done, Cancel, Clear), never on to
+    // the status bar: the workspace is drawn last in the page, so the header is otherwise far back.
+    const tabToHead = (event: React.KeyboardEvent<HTMLElement>): void => {
+        if (event.key !== "Tab" || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) {
+            return;
+        }
+        const root = wsBox.current;
+        const head = root?.querySelector<HTMLElement>(".sel-ws-head");
+        if (root === null || head === null || head === undefined || tabStops(root).at(-1) !== event.target) {
+            return;
+        }
+        const first = tabStops(head).at(0);
+        if (first !== undefined) {
+            event.preventDefault();
+            first.focus();
+        }
+    };
+
     const workspace =
         open && frame !== null
             ? createPortal(
@@ -1884,7 +1912,10 @@ export function SelectionEditor({
                               wsKeys(event);
                           }
                       }}
-                      onKeyDown={wsKeys}
+                      onKeyDown={(event) => {
+                          tabToHead(event);
+                          wsKeys(event);
+                      }}
                   >
                       <header className="sel-ws-head">
                           <Text size="sm" fw={600} className="sel-ws-title" id={titleId} truncate>
@@ -1936,14 +1967,16 @@ export function SelectionEditor({
                           >
                               Cancel
                           </Button>
-                          <Button
-                              size="compact-xs"
-                              onClick={() => {
-                                  closeAfterPaint("done");
-                              }}
-                          >
-                              Done
-                          </Button>
+                          <Tooltip label="Done (Escape)">
+                              <Button
+                                  size="compact-xs"
+                                  onClick={() => {
+                                      closeAfterPaint("done");
+                                  }}
+                              >
+                                  Done
+                              </Button>
+                          </Tooltip>
                       </header>
                       <div className="sel-ws-body">
                           <div
@@ -2046,6 +2079,21 @@ const PANE_FOCUS: readonly string[] = [
  */
 function allRow(branch: UnionBranch | undefined): boolean {
     return branch?.start === "all" && (branch.steps.length === 0 || branch.steps[0]?.op === "except");
+}
+
+/**
+ * A group's count at its row: "Waits" while it waits on a run, nothing while none of its steps
+ * has a test yet (a just-added Or group is not "0"), else how many it holds.
+ * @param branch - the group.
+ * @param read - its reading.
+ * @returns the words.
+ */
+function groupCount(branch: UnionBranch, read: StepsReading["branches"][number] | undefined): string {
+    if (read?.state === "pending") {
+        return "Waits";
+    }
+    const untested = read !== undefined && read.steps.every((step) => step.reason?.code === "test-unset");
+    return branch.start === "none" && untested ? "" : formatNumber(read?.count ?? 0);
 }
 
 /**
@@ -2154,7 +2202,7 @@ function NewStepPane({
                 opened={open}
                 seed={seed}
                 onAdd={(field) => {
-                    choose(ruleOfField(session, field));
+                    choose(ruleOfField(session, field, rule.within));
                 }}
                 onOpened={(next) => {
                     // The list closes before a pick is handed over: decide once the pick has had its turn.
@@ -2218,11 +2266,13 @@ function NewStepPane({
 }
 
 /**
- * The Condition row of an empty selection: "Condition...", in the value column, a tree item of the outline's walk; it opens the
- * value picker for a step with the group's default verb (the pane's segment changes it).
+ * The add row of an empty selection: "And..." (or "Add..." in a group that starts with nothing), in
+ * the value column, a tree item of the outline's walk; it opens the value picker for a step with
+ * the group's default verb (the pane's segment changes it).
  * @param props - Component props
  * @param props.id - its row id
  * @param props.branchId - its group's id
+ * @param props.label - its words
  * @param props.tabbed - the row that holds the outline's Tab stop
  * @param props.onWalk - the outline's arrow walk
  * @param props.onFocus - takes its row id as it takes focus
@@ -2232,6 +2282,7 @@ function NewStepPane({
 function AddRow({
     id,
     branchId,
+    label,
     tabbed,
     onWalk,
     onFocus,
@@ -2239,6 +2290,7 @@ function AddRow({
 }: Readonly<{
     id: string;
     branchId: string;
+    label: string;
     tabbed: string;
     onWalk: (event: React.KeyboardEvent<HTMLElement>) => boolean;
     onFocus: (id: string) => void;
@@ -2267,7 +2319,7 @@ function AddRow({
             onClick={onRun}
         >
             <span className="sel-verb" />
-            <Text size="sm">Condition...</Text>
+            <Text size="sm">{label}</Text>
         </div>
     );
 }

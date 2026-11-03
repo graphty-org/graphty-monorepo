@@ -364,7 +364,10 @@ const MANY_NAMED = 7;
  */
 export function shortTest(session: GraphSession, card: Card): string | undefined {
     if (card.type === "number" && card.match === "top") {
-        return card.top === undefined ? "" : `top ${formatNumber(card.top)}`;
+        if (card.top === undefined) {
+            return "";
+        }
+        return `${card.from === "low" ? "bottom" : "top"} ${formatNumber(card.top)}${card.percent === true ? "%" : ""}`;
     }
     if (card.type === "number" && card.match === "range") {
         return boundsWords(card.min, card.max);

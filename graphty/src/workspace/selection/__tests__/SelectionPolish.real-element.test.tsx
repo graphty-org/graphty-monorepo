@@ -2,7 +2,7 @@
  * The selection editor's polish rounds (design/ui/studio/tier5/decided.md) on the REAL
  * graphty-element, driven by real clicks, keys and hovers: a yes-or-no value picked removes and
  * selects nothing until Yes or No, a data column named rank is listed, a text step takes the
- * reader's typing, "Condition..." adds a step with the group's verb after a group's first, a value with no test shows no
+ * reader's typing, "And..." adds a step with the group's verb after a group's first, a value with no test shows no
  * test in its pane, an edge step reading a node value can take either end (in Advanced), a So far
  * step's pane draws its test, a filter card is named as its rows say it, "Or..." then Escape leaves
  * no group, the key names a single group by the selection's title, hovering a group row marks it,
@@ -25,12 +25,12 @@ import { Workspace } from "../../Workspace";
 /**
  * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
  * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
- * new step's Value field, or the selected row's pane button Condition... (spec 3.0, 3.2).
+ * new step's Value field, or the selected row's pane button And... (spec 3.0, 3.2).
  * @param scope - where to look.
  */
 async function startCondition(scope?: HTMLElement): Promise<void> {
     const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
-    const row = within(where).queryByRole("treeitem", { name: "Condition..." });
+    const row = within(where).queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ });
     if (row !== null) {
         await userEvent.click(row);
         return;
@@ -43,8 +43,8 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
         assert.isNotNull(ws, "the workspace is open");
         const found =
             within(ws ?? document.body).queryByRole("button", { name: "Value" }) ??
-            within(ws ?? document.body).queryByRole("button", { name: "Condition..." });
-        assert.isNotNull(found, "a new step's Value field or Condition...");
+            within(ws ?? document.body).queryByRole("button", { name: /^(And|Add)\.\.\.$/ });
+        assert.isNotNull(found, "a new step's Value field or And...");
         return found;
     });
     await userEvent.click(control);
@@ -274,7 +274,7 @@ describe("the value picker and the cards a value opens", () => {
 });
 
 describe("the editor's verbs, groups and words", () => {
-    it("after a group's first step, Condition... adds a step with the group's verb, and the segment changes it", async () => {
+    it("after a group's first step, And... adds a step with the group's verb, and the segment changes it", async () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Refine", {
             match: "rule",

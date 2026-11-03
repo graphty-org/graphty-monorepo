@@ -11,6 +11,7 @@ import {
     type GraphSession,
     type MeasureTest,
     type RuleTree,
+    type Scope,
     type Selector,
     selectorRule,
     type StepReading,
@@ -22,7 +23,18 @@ import {
 
 import { groupAlgorithms, HEADINGS, wordsFor } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
-import { type Card, type CardField, cardFields, cardOf, leafOf, type Side, SOURCE_PATH } from "../style/cards";
+import { ranOverWords } from "../runWords";
+import {
+    type Card,
+    type CardField,
+    cardFields,
+    cardOf,
+    leafOf,
+    type Side,
+    SOURCE_PATH,
+    TEXT_WORDS,
+    type TextMode,
+} from "../style/cards";
 import type { ExtraItem } from "../style/WhichPicker";
 
 /** The While preset's name until it has a reference: the reference goes where the dots are. */
@@ -130,8 +142,33 @@ export function pickerFields(session: GraphSession, side: Side, within?: UnionLe
     const data = fields
         .filter((field) => field.group !== "Results")
         .map((field) => ({ ...field, group: "Data" as const }));
-    return [...data, ...fields.filter((field) => field.group === "Results")];
+    // A result computed over another part of the graph than the step's base says which part, so
+    // the entry is not read as the same values over the base (the step stays bound to that run).
+    const results = fields
+        .filter((field) => field.group === "Results")
+        .map((field) => {
+            const run = runFieldOf(session, field.path);
+            return run === undefined || sameScope(run.scope, baseOf(within))
+                ? field
+                : { ...field, name: `${field.name} (${ranOverWords(session, run.scope, run.nodes)})` };
+        });
+    return [...data, ...results];
 }
+
+/**
+ * The scope a step reads a run over when it names none: its selection's base.
+ * @param within - the selection's base.
+ * @returns the scope.
+ */
+const baseOf = (within?: UnionLeaf["within"]): Scope => (within === "visible" ? "visible" : "graph");
+
+/**
+ * Whether two scopes are written the same.
+ * @param a - one scope.
+ * @param b - the other.
+ * @returns true when equal.
+ */
+const sameScope = (a: Scope, b: Scope): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 /**
  * The run a Results field reads, and that field's name in the run.
@@ -142,7 +179,9 @@ export function pickerFields(session: GraphSession, side: Side, within?: UnionLe
 function runFieldOf(
     session: GraphSession,
     path: string,
-): { algorithm: string; params: Readonly<Record<string, unknown>>; field: string; scope: unknown } | undefined {
+):
+    | { algorithm: string; params: Readonly<Record<string, unknown>>; field: string; scope: Scope; nodes: number }
+    | undefined {
     const value = session.data.readableValues().find((each) => each.path === path && each.runId !== undefined);
     const run = value?.runId === undefined ? undefined : session.runs.get(value.runId);
     if (run === undefined) {
@@ -151,7 +190,13 @@ function runFieldOf(
     const field = run.fields.find((each) => session.results.path(run.id, each.name) === path);
     return field === undefined
         ? undefined
-        : { algorithm: run.algorithm, params: run.params, field: field.name, scope: run.scope.spec };
+        : {
+              algorithm: run.algorithm,
+              params: run.params,
+              field: field.name,
+              scope: run.scope.spec,
+              nodes: run.scope.nodeCount,
+          };
 }
 
 /**
@@ -160,9 +205,10 @@ function runFieldOf(
  * algorithm, settings, field and test).
  * @param session - the element's session.
  * @param field - the picked field.
+ * @param within - the selection's base: a run over another scope is named in the rule.
  * @returns the step's rule.
  */
-export function ruleOfField(session: GraphSession, field: CardField): RuleTree {
+export function ruleOfField(session: GraphSession, field: CardField, within?: UnionLeaf["within"]): RuleTree {
     if (field.group !== "Results") {
         return untested(field);
     }
@@ -174,6 +220,8 @@ export function ruleOfField(session: GraphSession, field: CardField): RuleTree {
               algorithm: run.algorithm,
               ...(Object.keys(run.params).length === 0 ? {} : { params: run.params }),
               field: run.field,
+              // Picked from a run over another part of the graph: the step reads that run.
+              ...(sameScope(run.scope, baseOf(within)) ? {} : { scope: run.scope }),
           };
 }
 
@@ -389,8 +437,21 @@ export function stepCard(
  * @returns the card.
  */
 function withMode(card: Card, mode: string | undefined): Card {
-    if (card.type === "number" && mode === "top" && card.match === "range") {
-        return card.min === undefined && card.max === undefined ? { ...card, match: "top" } : card;
+    // By position, with its end and its unit, kept before its count is typed: "top", "top low percent".
+    if (card.type === "number" && mode?.split(" ")[0] === "top" && card.match === "range") {
+        const words = mode.split(" ");
+        return card.min === undefined && card.max === undefined
+            ? {
+                  ...card,
+                  match: "top",
+                  ...(words.includes("low") ? { from: "low" as const } : {}),
+                  ...(words.includes("percent") ? { percent: true } : {}),
+              }
+            : card;
+    }
+    // A text test picked before any text is typed: the empty rule cannot hold it, the step does.
+    if (card.type === "text" && card.text === "" && card.match === "substring" && isTextMode(mode)) {
+        return { ...card, match: mode };
     }
     const dated =
         card.type === "date" && (card.match === "before" || card.match === "after" || card.match === "between");
@@ -403,14 +464,29 @@ function withMode(card: Card, mode: string | undefined): Card {
 }
 
 /**
+ * Whether a mode is one of a text test's ways to match (Contains, Is exactly, ...).
+ * @param mode - the mode.
+ * @returns true for a text match.
+ */
+const isTextMode = (mode: string | undefined): mode is TextMode => mode !== undefined && mode in TEXT_WORDS;
+
+/**
  * The mode a step keeps for its card: a number test's By value or By position, a date test's
  * Before, After or Between; none for any other test.
  * @param card - the card as edited.
  * @returns the mode.
  */
 export function modeOf(card: Card): string | undefined {
-    if (card.type === "number" && (card.match === "range" || card.match === "top")) {
+    if (card.type === "number" && card.match === "top") {
+        return ["top", card.from === "low" ? "low" : "", card.percent === true ? "percent" : ""]
+            .filter((each) => each !== "")
+            .join(" ");
+    }
+    if (card.type === "number" && card.match === "range") {
         return card.match;
+    }
+    if (card.type === "text") {
+        return isTextMode(card.match) ? card.match : undefined;
     }
     return card.type === "date" && card.match !== "present" && card.match !== "absent" ? card.match : undefined;
 }

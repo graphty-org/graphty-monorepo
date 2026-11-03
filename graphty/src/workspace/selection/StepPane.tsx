@@ -323,7 +323,7 @@ function ValueField({
             opened={open}
             seed={seed}
             onAdd={(field) => {
-                choose(ruleOfField(session, field));
+                choose(ruleOfField(session, field, rule.within));
             }}
             onOpened={(next) => {
                 if (!next) {

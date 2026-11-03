@@ -1722,6 +1722,7 @@ const HISTOGRAM_BINS = 32;
  * @param props.high - the values' highest
  * @param props.step - how far a thumb moves
  * @param props.value - the test's bounds, clamped to the values
+ * @param props.untouched - no bound is set yet, so no bar is lit
  * @param props.onChangeEnd - takes the bounds a gesture ended on
  * @param props.links - a selection step's Links, the edges a degree is counted over
  * @param props.given - the values' spread when no path names them (a step's own computation)
@@ -1738,6 +1739,7 @@ function ValueBrush({
     high,
     step,
     value,
+    untouched = false,
     onChangeEnd,
 }: Readonly<{
     session: GraphSession;
@@ -1750,6 +1752,8 @@ function ValueBrush({
     high: number;
     step: number;
     value: [number, number];
+    /** No bound is set yet: no bar is lit, so an untouched step never reads as a full range. */
+    untouched?: boolean;
     onChangeEnd: (value: [number, number]) => void;
 }>): React.JSX.Element | null {
     const linksKey = links === undefined ? "" : JSON.stringify(links);
@@ -1785,7 +1789,7 @@ function ValueBrush({
                     count: heights[at] ?? 0,
                     from: bin.from,
                     to: bin.to,
-                    highlighted: bin.to > shown[0] && bin.from <= shown[1],
+                    highlighted: (moving !== null || !untouched) && bin.to > shown[0] && bin.from <= shown[1],
                 }))}
                 minLabel={formatNumber(low)}
                 maxLabel={formatNumber(high)}
@@ -2335,6 +2339,17 @@ function checkDrafts(
             reason: "order",
         };
     }
+    if (card.match === "top" && card.percent === true) {
+        return values.top !== undefined && (values.top <= 0 || values.top > 100)
+            ? {
+                  ...values,
+                  bad: ["top"],
+                  why: "Type a percent above 0, up to 100.",
+                  gist: "a percent is above 0, up to 100",
+                  reason: "whole",
+              }
+            : { ...values, bad: [] };
+    }
     if (card.match === "top" && values.top !== undefined && (!Number.isInteger(values.top) || values.top < 1)) {
         return {
             ...values,
@@ -2439,16 +2454,19 @@ function NumberCard({
         card.match === "top"
             ? String(Math.max(1, Math.min(10, total)))
             : formatNumber(Number(((low + high) / 2).toPrecision(2)));
-    // What the count and the drawing still use while a box holds what the card cannot take.
-    const held =
-        card.match === "top"
-            ? `the highest ${String(card.top ?? 10)}`
-            : `${String(card.min ?? low)} to ${String(card.max ?? high)}`;
+    // What the count and the drawing still use while a box holds what the card cannot take: a
+    // By position with no count yet uses none, so it names none.
+    const heldTop =
+        card.top === undefined
+            ? null
+            : `the ${card.from === "low" ? "lowest" : "highest"} ${String(card.top)}${card.percent === true ? "%" : ""}`;
+    const held = card.match === "top" ? heldTop : `${String(card.min ?? low)} to ${String(card.max ?? high)}`;
     // Typing still held when the card goes (the picker closed, the card removed) is said, not lost.
     const leaving = useRef<string | null>(null);
     const count = { count: total, side };
     const check = checkDrafts(drafts, card, parse, example, count);
-    leaving.current = check.bad.length > 0 ? `${name}: ${check.gist ?? ""}, so it went back to ${held}.` : null;
+    const heldAfter = held === null ? "so it has no count yet" : `so it went back to ${held}`;
+    leaving.current = check.bad.length > 0 ? `${name}: ${check.gist ?? ""}, ${heldAfter}.` : null;
     useEffect(
         () => () => {
             if (leaving.current !== null) {
@@ -2479,7 +2497,7 @@ function NumberCard({
         if (now.bad.length > 0) {
             const refusal = {
                 bad: now.bad,
-                why: `${now.why ?? ""} The count and drawing still use ${held}.`,
+                why: `${now.why ?? ""} ${held === null ? "Nothing is cut until a count is typed." : `The count and drawing still use ${held}.`}`,
                 reason: now.reason,
             };
             if (leaving && pressing.current) {
@@ -2589,6 +2607,7 @@ function NumberCard({
                     high={high}
                     step={step}
                     value={value}
+                    untouched={card.min === undefined && card.max === undefined}
                     onChangeEnd={([min, max]) => {
                         clear();
                         onChange({ ...card, min, max });
@@ -2629,7 +2648,41 @@ function NumberCard({
                     </Group>
                 </>
             )}
-            {card.match === "top" && (
+            {card.match === "top" && variant === "step" && (
+                // By position says which end it counts from and in what (spec 5): Highest 5 nodes.
+                <Group gap={4} wrap="nowrap">
+                    <Select
+                        aria-label={`${name}: which end`}
+                        allowDeselect={false}
+                        w={88}
+                        data={[
+                            { value: "high", label: "Highest" },
+                            { value: "low", label: "Lowest" },
+                        ]}
+                        value={card.from ?? "high"}
+                        onChange={(next) => {
+                            clear();
+                            onChange({ ...card, from: next === "low" ? "low" : undefined });
+                        }}
+                    />
+                    {box("top", card.percent === true ? `${name}: what percent` : `${name}: how many`)}
+                    <Select
+                        aria-label={`${name}: count or percent`}
+                        allowDeselect={false}
+                        w={96}
+                        data={[
+                            { value: "count", label: NOUN[side].many },
+                            { value: "percent", label: `% of ${NOUN[side].many}` },
+                        ]}
+                        value={card.percent === true ? "percent" : "count"}
+                        onChange={(next) => {
+                            clear();
+                            onChange({ ...card, percent: next === "percent" ? true : undefined });
+                        }}
+                    />
+                </Group>
+            )}
+            {card.match === "top" && variant !== "step" && (
                 <Group gap={4} wrap="nowrap">
                     {box("top", `${name}: how many`)}
                     <Text size="xs" style={{ whiteSpace: "nowrap", flexShrink: 0 }}>
@@ -2642,7 +2695,7 @@ function NumberCard({
                     {refused.why}
                 </Text>
             )}
-            {refused === null && card.match === "top" && (card.top ?? 0) > total && (
+            {refused === null && card.match === "top" && card.percent !== true && (card.top ?? 0) > total && (
                 <Text size="xs" c="dimmed">
                     There are only {many(total, side)}, so this keeps all of them.
                 </Text>

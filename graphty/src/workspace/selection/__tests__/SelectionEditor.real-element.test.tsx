@@ -1,7 +1,7 @@
 /**
  * The selection editor (design/ui/selection-groups/spec.md, section 3) on the REAL graphty-element
  * and Les Miserables, driven by real clicks and keys. In a style layer's Which nodes: the outline
- * is drawn at rest, one line per row, with no control in it; "Condition..." adds a step and opens the
+ * is drawn at rest, one line per row, with no control in it; "And..." adds a step and opens the
  * value picker at once; a value with no test is kept and reads "No test"; Escape on a step with no
  * value takes it back; a number written in the pane's box narrows the layer; a flat tier 4 rule
  * opens as All nodes and a Keep step; Mod+[ and a drag reorder steps; a Relative to step takes its
@@ -27,12 +27,12 @@ import { Workspace } from "../../Workspace";
 /**
  * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
  * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
- * new step's Value field, or the selected row's pane button Condition... (spec 3.0, 3.2).
+ * new step's Value field, or the selected row's pane button And... (spec 3.0, 3.2).
  * @param scope - where to look.
  */
 async function startCondition(scope?: HTMLElement): Promise<void> {
     const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
-    const row = within(where).queryByRole("treeitem", { name: "Condition..." });
+    const row = within(where).queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ });
     if (row !== null) {
         await userEvent.click(row);
         return;
@@ -45,8 +45,8 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
         assert.isNotNull(ws, "the workspace is open");
         const found =
             within(ws ?? document.body).queryByRole("button", { name: "Value" }) ??
-            within(ws ?? document.body).queryByRole("button", { name: "Condition..." });
-        assert.isNotNull(found, "a new step's Value field or Condition...");
+            within(ws ?? document.body).queryByRole("button", { name: /^(And|Add)\.\.\.$/ });
+        assert.isNotNull(found, "a new step's Value field or And...");
         return found;
     });
     await userEvent.click(control);
@@ -185,7 +185,7 @@ async function filterCard(name: RegExp): Promise<HTMLElement> {
 }
 
 describe("the selection editor in a style layer", () => {
-    it("a fresh layer: Condition... adds a Keep step and opens its picker; a value with no test is kept and reads No test", async () => {
+    it("a fresh layer: And... adds a Keep step and opens its picker; a value with no test is kept and reads No test", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Busy", { match: "everything" });
         // A layer of every node reads as what it paints: All nodes, and only the verbs that narrow.
@@ -221,7 +221,7 @@ describe("the selection editor in a style layer", () => {
         assert.isAbove(expected, 0);
     });
 
-    it("the new step's picker then Escape leaves no step, and focus goes to Condition...", async () => {
+    it("the new step's picker then Escape leaves no step, and focus goes to And...", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Nothing", { match: "everything" });
         await startCondition();
@@ -230,14 +230,14 @@ describe("the selection editor in a style layer", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("combobox", { name: "Find attributes, results" }));
             // A selection with no step opened on its new step's pane; taken back, the pane's
-            // Condition... has focus (spec 3.2).
-            assert.isNotNull(document.activeElement?.closest("[data-add]"), "focus is on Condition...");
+            // And... has focus (spec 3.2).
+            assert.isNotNull(document.activeElement?.closest("[data-add]"), "focus is on And...");
         });
         assert.deepEqual(stepRows(), []);
         assert.deepEqual(session.styles.get(layer.id)?.selector, { match: "everything" });
     });
 
-    it("an empty None group's Condition... adds an Add step; a lone verb is said, not a segment of one", async () => {
+    it("an empty None group's And... adds an Add step; a lone verb is said, not a segment of one", async () => {
         const session = await openSample();
         const empty: UnionLeaf = {
             kind: "union",
@@ -694,7 +694,7 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
             assert.deepEqual(boxes(), before, `pointing at ${id}`);
             assert.equal(editor.getBoundingClientRect().height, height, `pointing at ${id}`);
         }
-        assert.isNull(screen.queryByRole("treeitem", { name: "Condition..." }), "no Condition row on hover");
+        assert.isNull(screen.queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ }), "no Condition row on hover");
     });
 
     it("Enter on a selected step puts focus in its pane; the outline's arrows then stay in the outline", async () => {
@@ -733,10 +733,13 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
             loose.map((each) => each.textContent),
             [],
         );
-        assert.isNull(screen.queryByRole("treeitem", { name: "Condition..." }), "the outline holds only recipe rows");
+        assert.isNull(
+            screen.queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ }),
+            "the outline holds only recipe rows",
+        );
         assert.isNotNull(
             within(document.querySelector<HTMLElement>(".sel-pane-box") ?? document.body).queryByRole("button", {
-                name: "Condition...",
+                name: /^(And|Add)\.\.\.$/,
             }),
             "the pane's first row adds a condition to the step's group",
         );

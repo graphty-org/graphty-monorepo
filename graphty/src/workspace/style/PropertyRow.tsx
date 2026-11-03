@@ -756,6 +756,22 @@ function fieldControl(props: FieldControlProps): React.ReactNode {
         // until a value is picked, holding what the elements draw now, else the element's starting
         // value (a color shows neither and only opens its picker there).
         const fresh = pending && partly === undefined;
+        if (fresh && descriptor.accepts === "color") {
+            // The same field the color has once set, so its picker stays open over the first pick.
+            return (
+                <OneValue
+                    ctx={ctx}
+                    descriptor={descriptor}
+                    name={name}
+                    value={undefined}
+                    combine={undefined}
+                    writeValue={pick}
+                    pick={pick}
+                    extraChoices={extraChoices}
+                    waiting
+                />
+            );
+        }
         return (
             <ValueField
                 descriptor={descriptor}
@@ -808,6 +824,7 @@ function fieldControl(props: FieldControlProps): React.ReactNode {
  * @param props.writeValue - writes a new value
  * @param props.pick - writes a picked choice, a shader as a shader
  * @param props.extraChoices - the shaders a list offers after its own choices
+ * @param props.waiting - just added with "+", no value picked yet (a color only)
  * @returns The field
  */
 function OneValue({
@@ -819,6 +836,7 @@ function OneValue({
     writeValue,
     pick,
     extraChoices,
+    waiting = false,
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
@@ -828,9 +846,19 @@ function OneValue({
     writeValue: (value: ChannelValue) => void;
     pick: (value: ChannelValue) => void;
     extraChoices: ExtraChoices;
+    waiting?: boolean;
 }>): React.JSX.Element {
     if (descriptor.accepts === "color") {
-        return <ColorValue ctx={ctx} descriptor={descriptor} name={name} value={value} writeValue={writeValue} />;
+        return (
+            <ColorValue
+                ctx={ctx}
+                descriptor={descriptor}
+                name={name}
+                value={value}
+                writeValue={writeValue}
+                waiting={waiting}
+            />
+        );
     }
     if (descriptor.accepts === "enum" || descriptor.accepts === "boolean") {
         return (
@@ -852,6 +880,9 @@ function OneValue({
     return <TextValue name={name} value={value} writeValue={writeValue} />;
 }
 
+/** What a color box just added with "+" says it takes, in place of a color nobody chose. */
+const COLOR_CUE = "Pick or type a color";
+
 /**
  * The color a layer sets, with its opacity box when it carries one: the box reads and writes the
  * opacity channel as a percent, and the color stays six digits.
@@ -861,6 +892,8 @@ function OneValue({
  * @param props.name - the property's name
  * @param props.value - the color it sets
  * @param props.writeValue - writes a new color
+ * @param props.waiting - just added with "+": an empty swatch, a box that says what it takes, and
+ *     the picker opening on the color the elements draw now
  * @returns The field
  */
 function ColorValue({
@@ -869,15 +902,18 @@ function ColorValue({
     name,
     value,
     writeValue,
+    waiting = false,
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
     name: string;
     value: Line["value"];
     writeValue: (value: ChannelValue) => void;
+    waiting?: boolean;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
-    const hex = hexOf(value) ?? "#000000";
+    const shown = waiting ? (ctx.beneath(descriptor.channel).value ?? startingValue(descriptor, ctx.session)) : value;
+    const hex = hexOf(shown) ?? "#000000";
     const channel = carriedOpacity(ctx, descriptor.channel);
     const percent = (read: unknown): number | undefined =>
         typeof read === "number" ? Math.round(read * 10_000) / 100 : undefined;
@@ -887,17 +923,21 @@ function ColorValue({
         <CompactColorInput
             aria-label={name}
             // The box is read with the color's word beside its hex: "Color, set, red".
-            valueText={colorName(hex)}
+            valueText={waiting ? undefined : colorName(hex)}
             width="100%"
-            color={hex}
+            color={waiting ? undefined : hex}
             defaultColor={hex}
+            // Waiting: an empty swatch, and words in the box saying what it takes, never a color
+            // nobody chose (Enter on it would write it).
+            emptySwatch={waiting}
+            emptyText={waiting ? COLOR_CUE : undefined}
             opacity={own}
             defaultOpacity={beneath ?? 100}
             showOpacity={channel !== undefined}
             showReset={false}
             swatches={ctx.documentColors}
             onChangeEnd={(next, opacity) => {
-                if (next !== undefined && next.slice(0, 7).toUpperCase() !== hex) {
+                if (next !== undefined && (waiting || next.slice(0, 7).toUpperCase() !== hex)) {
                     writeValue(next.slice(0, 7).toUpperCase());
                 }
                 if (channel !== undefined && opacity !== undefined && opacity !== (own ?? beneath ?? 100)) {

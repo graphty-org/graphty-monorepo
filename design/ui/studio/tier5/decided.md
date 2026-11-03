@@ -1127,3 +1127,54 @@ the spec's section 13 allows.
 | The Which nodes workspace on a step (outline, Except, the attribute box, the value checklist with counts)                               | `/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/reference/style-which-nodes-step.png`         |
 | A filter card in the workspace (the Data place host, its outline and step pane)                                                         | `/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/reference/filter-card-workspace.png`          |
 | Both read-only outlines at rest: the layer's Which nodes row ("4 of 15", "role staff") and the filter card header ("trained Yes", Edit) | `/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/reference/which-nodes-and-filter-outline.png` |
+
+## After round 1, the fix pass, 2026-11-03 (studio engineer)
+
+Each item below cites its insight in `rounds/round-1/insights.md` and is proved by a real-input test
+in `graphty/src/workspace/selection/__tests__/SelectionRound1Fixes.real-element.test.tsx` unless
+another test is named.
+
+- **A step picked from a run's results stays bound to that run** (insight 2, severity 3). A
+  graphty-element `measure` leaf may name `scope`, the scope of the run it reads (additive, `@beta`
+  in `MeasureLeaf`): the step reads the newest listed run with that algorithm, params and scope as
+  the run left it, and starts one only when none is listed. The app writes `scope` only when the
+  run covered another part of the graph than the step's base, and words the picker's entry with it:
+  "Separate pieces (112 visible)". Why: the entry described one run and the step read a new
+  whole-graph run ("Group 1, 549" under "112 of 549"). graphty-element already reported a run's
+  scope (`run.scope.spec`, `nodeCount`); what was missing was a way for a step to stay on it. Element
+  test: `test/session/scope/watch-steps.test.ts` ("a measure that names its run's scope ...").
+- **By position says which end and in what** (insight 4, bar 9). Its row is "Highest | Lowest",
+  the box, then "nodes | % of nodes"; the rule is graphty-element's `threshold` with `from` and
+  `percentile`, which it already had. The step keeps the end and unit before a count is typed (its
+  mode, "top low percent"). A refused count on an untouched step says "Nothing is cut until a count is
+  typed." instead of naming "the highest 10", a default the step never applied.
+- **"Is exactly" takes on an empty text step** (insight 6). The empty rule cannot hold a match, so
+  the step keeps it as its mode, as By position keeps its own, and the text typed after it is
+  matched exactly.
+- **Clear then Escape, or Clear then Done, keeps a reopened filter card** (insight 7). Only a card
+  made in this opening goes when it is left empty, the same check Cancel makes; a saved card emptied
+  by Clear stays at All nodes, and Undo brings its steps back.
+- **The empty Fill color box says what it takes and its picker stays open over the first pick**
+  (insight 5). The box's placeholder is "Pick or type a color" (compact-mantine's existing
+  `emptyText`, no look change); the waiting box is now the same field as a set color, so the first
+  pick no longer swaps the field and closes the picker. A pick is written at once, as on a set
+  color: the change is that the reader can keep adjusting. Owner item, not built: if the owner wants
+  the first click on an empty box to commit nothing at all, that is compact-mantine's picker
+  behavior, which is Figma-locked.
+- **A new Or group is calm** (insight 3, bar 9). Its row shows no count, and says none, until one of
+  its steps has a test; an untouched range step lights no bar. compact-mantine's brush still draws
+  its two thumbs at the ends (Figma-locked; recorded for the owner, not changed).
+- **"Condition..." is now "And..." in a group that starts with everything, and "Add..." in one that
+  starts with nothing; "Or..." stays** (insight 3, bar 9). Why: three sessions on three halves read
+  neither "Condition..." nor "Or..." as "and" or "or else"; the button now says what its step does to
+  the group, as the step's own verb does (Keep, Add). Two-way door: round 2 checks it. The empty
+  selection's add row follows the same words.
+- **The workspace header is reachable** (bar 9, accessibility finding 3). It is its own F6 stop, before
+  the outline and pane; Tab past the workspace's last control goes to the header, not the status bar;
+  Shift+Tab from the header's first control leaves the workspace as before (no trap). Done's tooltip
+  says "Done (Escape)", the key Escape already had.
+- **Study setup** (insights, "About the study"). T73's prompt now asks that people or gauges added
+  later turn orange too, the one thing only a rule gives, with no control named; a correct picked set
+  is P under the new wording, and round 1's picked-set answers are not re-graded. T70's follow-up
+  ends "Did what you saw change what you did next?" in place of "Would you rather it had shown
+  something else?", which invited a wish.

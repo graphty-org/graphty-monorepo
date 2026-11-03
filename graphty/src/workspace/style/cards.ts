@@ -89,6 +89,10 @@ export type Card =
           readonly min?: number;
           readonly max?: number;
           readonly top?: number;
+          /** Which end By position counts from: the highest values (the default) or the lowest. */
+          readonly from?: "high" | "low";
+          /** By position's count is a share of all the elements, in percent. */
+          readonly percent?: boolean;
       }
     | {
           readonly type: "category";
@@ -427,7 +431,15 @@ function dateLeaf(card: CardOf<"date">, path: string): RuleTree | null {
  */
 function numberLeaf(card: CardOf<"number">, path: string): RuleTree | null {
     if (card.match === "top") {
-        return card.top === undefined || card.top < 1 ? null : { kind: "threshold", path, top: card.top, ties: "all" };
+        const from = card.from === "low" ? { from: "low" as const } : {};
+        if (card.percent === true) {
+            return card.top === undefined || card.top <= 0 || card.top > 100
+                ? null
+                : { kind: "threshold", path, percentile: card.top, ...from };
+        }
+        return card.top === undefined || card.top < 1
+            ? null
+            : { kind: "threshold", path, top: card.top, ties: "all", ...from };
     }
     return {
         kind: "range",
@@ -708,8 +720,12 @@ function thresholdCard(leaf: LeafOf<"threshold">, field: FieldFinder, elsewhere:
         // "Above 16" has no card of its own (a range card keeps its ends); it is said, kept as it is.
         return { ...elsewhere, words: `${f.name} above ${num(leaf.above)}` };
     }
+    const from = leaf.from === "low" ? { from: "low" as const } : {};
+    if (leaf.percentile !== undefined && leaf.top === undefined && leaf.above === undefined) {
+        return { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.percentile, percent: true, ...from };
+    }
     return leaf.top !== undefined && leaf.above === undefined
-        ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top }
+        ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top, ...from }
         : elsewhere;
 }
 
@@ -996,10 +1012,14 @@ function numberWords(session: GraphSession, card: CardOf<"number">, name: string
         if (card.top === undefined) {
             return `${name}: how many?`;
         }
+        const end = card.from === "low" ? "bottom" : "top";
+        if (card.percent === true) {
+            return `${end} ${num(card.top)}% by ${name}`;
+        }
         // A count of every element there is keeps them all, and says so.
         const stats = session.data.statistics();
         const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
-        return card.top >= total ? `${name}: all ${String(total)}` : `top ${String(card.top)} by ${name}`;
+        return card.top >= total ? `${name}: all ${String(total)}` : `${end} ${String(card.top)} by ${name}`;
     }
     if (card.min !== undefined && card.max !== undefined) {
         return `${name} ${num(card.min)} to ${num(card.max)}`;

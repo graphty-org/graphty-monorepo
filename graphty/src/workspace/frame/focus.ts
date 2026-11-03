@@ -180,7 +180,7 @@ const CANVAS = ".ws-canvas graphty-element";
 /**
  * The regions F6 and Shift+F6 move between, in order, as a desktop application's do -- the one
  * place the app's F6 ring is defined: the top bar, the places rail, the left panel, then the
- * selection workspace while it is open, the inspector that edits what it picks (one press from a
+ * selection workspace's header and its body while it is open, the inspector that edits what it picks (one press from a
  * layer to its style), the drawing (right after the workspace while it is open: it is the
  * preview), the timeline dock while a time field is designated, the canvas toolbar, the table while it is open,
  * the Data page while it stands in for the panels, and the status bar; then round to the top bar.
@@ -191,8 +191,10 @@ const PANELS = [
     ".ws-header",
     ".ws-rail",
     ".ws-left",
-    // The selection workspace, between the panel it covers and the one beside it (spec 3.0).
-    ".sel-ws",
+    // The selection workspace, between the panel it covers and the one beside it (spec 3.0): its
+    // header (Done, Cancel, Clear) is a stop of its own, then its outline and pane.
+    ".sel-ws-head",
+    ".sel-ws-body",
     ".ws-right",
     CANVAS,
     // The timeline dock while a time field is designated: its brush is where focus lands.
@@ -229,7 +231,7 @@ export function cyclePanel(step: 1 | -1): void {
         document.querySelector(".sel-ws") === null
             ? PANELS
             : PANELS.filter((each) => each !== CANVAS).flatMap((each) =>
-                  each === ".sel-ws" ? [each, CANVAS] : [each],
+                  each === ".sel-ws-body" ? [each, CANVAS] : [each],
               );
     const panels = order
         .map((selector) => ({

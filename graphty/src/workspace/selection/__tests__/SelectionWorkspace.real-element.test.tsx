@@ -122,12 +122,12 @@ async function pickValue(name: string): Promise<void> {
 }
 
 /**
- * Adds a step from the workspace's pane: Condition..., then a value.
+ * Adds a step from the workspace's pane: And..., then a value.
  * @param name - the value.
  */
 async function addStep(name: string): Promise<void> {
     const ws = await opened();
-    await userEvent.click(await within(ws).findByRole("button", { name: "Condition..." }));
+    await userEvent.click(await within(ws).findByRole("button", { name: /^(And|Add)\.\.\.$/ }));
     await pickValue(name);
 }
 
@@ -278,7 +278,7 @@ describe("one workspace for every rule (check 40)", () => {
         });
         await userEvent.click(editButton());
         const ws = await screen.findByRole("region", { name: "Which nodes -- Owner" });
-        // A step selected, its pane's Condition... adds to its group.
+        // A step selected, its pane's And... adds to its group.
         await userEvent.click(within(ws).getByRole("treeitem", { name: /^Degree min 10/ }));
         await addStep("Isolated");
         await waitFor(() => {

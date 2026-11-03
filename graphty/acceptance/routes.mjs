@@ -84,7 +84,7 @@ async function openWhich(u) {
 }
 
 /**
- * A condition on the column. In the selection workspace: the new step's Value (or Condition...
+ * A condition on the column. In the selection workspace: the new step's Value (or And...
  * for a further step), the column typed into the value picker and Enter; focus lands on the
  * step's test. In a folder's cards: "Add a condition", then the column in its attribute list.
  * @param u the user's hands (README.md)
@@ -105,7 +105,7 @@ async function addCondition(u, column) {
         return;
     }
     const value = ws.getByRole("button", { name: "Value", exact: true });
-    await ((await value.isVisible()) ? value : ws.getByRole("button", { name: "Condition..." })).click();
+    await ((await value.isVisible()) ? value : ws.getByRole("button", { name: /^(And|Add)\.\.\.$/ })).click();
     await u.page.getByRole("combobox", { name: "Find attributes, results" }).waitFor();
     await u.type(column);
     await u.key("Enter");

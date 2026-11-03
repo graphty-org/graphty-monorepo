@@ -1,7 +1,7 @@
 /**
  * The selection editor's second repolish (design/ui/studio/tier5/decided.md, "Repolish 2 fixes")
  * on the REAL graphty-element, driven by real clicks and keys: selecting a row moves no row, the
- * pane's first row holds "Condition..." and "Or...", the title pane's "..." holds Select N, Start
+ * pane's first row holds "And..." and "Or...", the title pane's "..." holds Select N, Start
  * with lives in a group's Advanced, a condition is said once, groups read "or", a relative
  * condition is never cut, an exact id is listed first, a filter card's name keeps its verb, and a
  * collapsed filter card opens to its title row.
@@ -124,7 +124,7 @@ const TWO_GROUPS: UnionLeaf = {
 };
 
 describe("the outline holds only recipe rows", () => {
-    it("selecting the title, a group or a step moves no row; Condition... and Or... are in the pane", async () => {
+    it("selecting the title, a group or a step moves no row; And... and Or... are in the pane", async () => {
         const session = await lesMis();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
         await userEvent.click(row("title").querySelector(".sel-title") ?? row("title"));
@@ -141,7 +141,7 @@ describe("the outline holds only recipe rows", () => {
             const pane = document.querySelector<HTMLElement>(".sel-pane-box") ?? document.body;
             assert.isNotNull(within(pane).queryByRole("button", { name: "Or..." }), `Or... in ${id}'s pane`);
         }
-        assert.isNull(screen.queryByRole("treeitem", { name: "Condition..." }));
+        assert.isNull(screen.queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ }));
     });
 
     it("the title pane has no bare Select: Select N is in its '...', with Group colors", async () => {

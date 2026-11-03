@@ -144,7 +144,7 @@
     flex: 1 1 0;
 }
 
-/* An empty selection's "Condition..." sits in the value column, after an empty verb column. */
+/* An empty selection's "And..." sits in the value column, after an empty verb column. */
 .sel-add-row {
     cursor: pointer;
 }

@@ -32,26 +32,30 @@ Trimmed again 2026-11-02 (file at 28 KB): the main-table and test-mode re-walk, 
 50,000-node edit blocks, and the data table never taking an editor's selection:
 `git show 64cd59e285:design/ui/studio/notes/engineer.md`.
 
-- (2026-11-02) Cancel on a new filter card takes the card away again (the reverted 0ec56d2f3b,
-  re-applied), with its focus fixed. Two mechanisms: (1) the opener was whatever held focus, so
-  from Quick actions it was the body or Main menu; now `FiltersSection.open` keeps it only when it
-  matches `OPENS_FILTERS` (`[data-command="filters.open"]`, the toolbar's Filters; `[data-filters-plus]
-[data-add]`, Add filter), taken at `openFilterDraft` time (`takeDraftOpener`) for the toolbar and
-  an attribute's Filter to... (a menu item, gone once its menu closes, so it falls to Add filter).
-  (2) The toolbar's Filters is hidden while the workspace covers the canvas (`Frame.tsx` `covered`),
-  so focusing it at discard time failed (`checkVisibility()` false, seen in a logged test run) and
-  focus fell to Add filter. `backToOpener` now only records where to go; an effect moves focus once
-  `selectionWorkspace` is null. Cancel, Escape on the empty picker and Done with no step all reach
-  `onEmptyCancel` -> `onDiscard` -> `backToOpener` (one record).
-  Tests: `FilterCardKinds.real-element.test.tsx` "Cancel in a filter card's workspace" (Add filter;
-  Quick actions Cancel on a written card and Escape; toolbar Filters Escape; an existing card keeps
-  its rule). Re-walks on a fresh `graphty/dist` in `design/ui/studio/tmp/r1-dry2-cancel-new-card/`
-  (`walk*.sh`): T70B touched-35 and T79A touched-32 end with no card, no top-bar mark, `work.json`
-  end with no steps; T77B touched-34-c Escape leaves the ring on the toolbar's Filters and Enter
-  reopens a new card; T77B detour-2 Cancel restores "telemetry yes 7 of 11"; Quick actions then
-  Escape or Cancel lands on "Add filter", saying "Filter not added".
-  Lesson: test runs here wait 15 min on a failing `waitFor` (the hang guard); log to a file, never
-  pipe through `| tail`, and add a temporary console.log to see the state instead of guessing.
+- (2026-11-02) Cancel on a new filter card now leaves the history as it was before the card. Mechanism
+  on 47c95a09fc: Cancel called `removeCondition`, a third step, so Undo read "Undo deleting a filter
+  condition" and put the card back; the removal landed after the workspace closed, so the status
+  line said "Filter off" after "Filter not added". Fix: additive element option
+  `history.restoreTo(step, { redo: "drop" })` (History.dropRedo; owner-decisions "decided by the
+  team"). `FilterCard` keeps the newest step id at the card's birth; `takeBack` restores to it when
+  every step since touches only `visibility`, else falls back to `removeCondition`. A module counter
+  `takingBack` keeps FilterChip from announcing the take-back. Rejected: a transaction around the
+  card (Undo inside the card would cancel the whole card); `restoreTo` alone (Redo brings it back).
+  Tests: element `styles/undo.test.ts` "restores to a step and leaves nothing to redo"; app
+  `FilterCardKinds` "leaves the history as it was" (hangs on the old code: its waitFor never
+  settles). Re-walks on a fresh `graphty/dist` (`design/ui/studio/tmp/r1-dry3-cancel-no-undo/walk.sh`):
+  T79A staff-50k new card, Grants, Cancel: Undo names "changing the layout" (the step before),
+  Ctrl+Z / Ctrl+Shift+Z undo and redo that step, no card, no top-bar mark; T72B gauges the same with
+  "changing a column's role"; T70B keyboard and T72B touched-7 say only "Filter not added"; T79B
+  touched-6 (existing card Cancel) and touched-3/4 (focus) replay unchanged. Limit: a redo tail the
+  reader had before the card is still lost at its first tick, as any edit loses it.
+  Lesson: a negative check that patches a source file must not run in the background past the
+  turn; the hang guard holds the patched file for 15 minutes.
+
+- (2026-11-02) Cancel on a new filter card takes the card away, focus back to its opener (toolbar
+  Filters or Add filter; `OPENS_FILTERS`, `takeDraftOpener`, focus moved once `selectionWorkspace`
+  is null). Full entry with its tests, re-walks and the 15-minute hang-guard lesson:
+  `git show 4d9a4d4643:design/ui/studio/notes/engineer.md`.
 
 - (2026-11-02) RE-CHECK of the open-busy-sign fix (e13e34f007, 64cd59e285): `graphty/dist` was built
   at 14:15 from the uncommitted fix, before both commits; rebuilt from the committed tree (15:21).

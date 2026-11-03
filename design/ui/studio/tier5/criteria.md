@@ -479,3 +479,11 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
   reading. The rating check's sessions are walked as `rating-rejected` and `rating-frozen` under
   `pilot/T70A/` and `pilot/T70B/`, and the calm-first check on the rejected build is written to
   `rounds/<round>/calm-first-rejected.md`, so the gate can find them.
+- 2026-11-02: the rating check and the calm-first check ran (no bar or target changed). The
+  rating check does not hold: the rejected cards rated 3 (T70 A) and 5 (T70 B), the frozen build 2
+  and 3, a mean gap of 1.5 where 2 is needed, and the larger gap came from a defect on the old
+  build (its date test would not take "Between"), not from crowding. So bar 9's median is
+  reported as a measure only this tier; bar 9 rests on the calm-first check and the named
+  reasons. The calm-first check finds 2 severity 3 and 6 severity 2 on the rejected build, so it
+  gates with its limits unchanged (`rounds/round-1/rating-check.md`,
+  `rounds/round-1/calm-first-rejected.md`, `rounds/round-1/calm-first-frozen.md`).

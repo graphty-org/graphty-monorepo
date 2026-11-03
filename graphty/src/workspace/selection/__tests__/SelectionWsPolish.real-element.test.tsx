@@ -221,7 +221,10 @@ describe("the workspace over the canvas", () => {
         await openLayer(session, "Cover", COVERED);
         const ws = await edit();
         const dock = document.querySelector<HTMLElement>(".ws-toolbar-dock");
-        assert.isTrue(dock?.hidden === true && dock.inert, "hidden and inert");
+        // Once the workspace's first frame is painted, the panels around it follow (spec 3.0).
+        await waitFor(() => {
+            assert.isTrue(dock?.hidden === true && dock.inert, "hidden and inert");
+        });
         for (let press = 0; press < 12; press++) {
             await userEvent.keyboard("{F6}");
             assert.isFalse(dock?.contains(document.activeElement) === true, "F6 never lands on the toolbar");

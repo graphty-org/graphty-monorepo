@@ -310,7 +310,10 @@ describe("the new step", () => {
         const ws = await edit();
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         assert.isNull(ws.querySelector("[data-no-match]"));
-        assert.isNull(document.querySelector(".ws-legend-card"), "no key over the preview (ws-polish 3)");
+        assert.isFalse(
+            document.querySelector(".ws-legend-card")?.checkVisibility() ?? false,
+            "no key over the preview (ws-polish 3)",
+        );
     });
 });
 

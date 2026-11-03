@@ -1407,6 +1407,11 @@ async function serve(dir, sr) {
 // start waits in the queue. A warm browser that waits REAL_WARM_SECONDS (default 600) unclaimed, or
 // sees starts queue for a slot, closes and frees its slot. Its page was opened on a clean profile and
 // never touched, so the session it becomes is the one a cold start makes.
+// REAL_WARM_HOLD=1 (--prove's warm-pool check only) makes a warm browser wait in the queue for its
+// slot and stay up while starts queue: in try mode the check's verdict followed how busy the
+// machine's slots were (8 studio browsers held every spare slot for 152 s and no warm browser came
+// ready), not whether a warm browser is taken over.
+const WARM_HOLD = process.env.REAL_WARM_HOLD === "1";
 const WARM_DIR = "/tmp/graphty-real-warm";
 const WARM_POOL = Number(process.env.REAL_WARM_POOL ?? 2);
 const WARM_MS = (Number(process.env.REAL_WARM_SECONDS) || 600) * 1000;
@@ -1455,7 +1460,11 @@ function topUp() {
         const child = spawn(gate, [process.execPath, fileURLToPath(import.meta.url), "--warm"], {
             detached: true,
             stdio: ["ignore", log, log],
-            env: { ...process.env, BROWSER_SLOT_TRY: "1", ...(GPU ? { BROWSER_GPU: "1" } : {}) },
+            env: {
+                ...process.env,
+                ...(WARM_HOLD ? {} : { BROWSER_SLOT_TRY: "1" }),
+                ...(GPU ? { BROWSER_GPU: "1" } : {}),
+            },
         });
         writeFileSync(join(WARM_DIR, `${warmKey()}-${child.pid}.warming`), "");
         child.unref();
@@ -1506,7 +1515,7 @@ async function warmUp(s, browser, http) {
             if (Date.now() - s.warmSince > WARM_MS) quit(`unclaimed for ${WARM_MS / 1000} s`);
             // starts waiting for a slot (another build's, or one that missed the claim) come first
             queued = existsSync(QUEUE) && readdirSync(QUEUE).length ? queued + 1 : 0;
-            if (queued >= 3) quit("starts are queued for a slot");
+            if (queued >= 3 && !WARM_HOLD) quit("starts are queued for a slot");
         }, 2000);
         let taken = false;
         const server = netServer({ allowHalfOpen: true }, (c) => {
@@ -4199,12 +4208,16 @@ async function proveWarm(base, check) {
         BROWSER_SLOT_ALSO: dirname(QUEUE),
         REAL_WARM_POOL: "1",
         REAL_WARM_SECONDS: "180",
+        // its warm browser waits for a slot and holds it, so the verdict is the takeover's alone
+        REAL_WARM_HOLD: "1",
     };
     const run = (a) => spawnSync(process.execPath, [self, ...a], { encoding: "utf8", env });
     const [W1, W2] = [join(base, "warm-1"), join(base, "warm-2")];
     let r = run(["--start", W1, "empty"]);
     check("a cold start tops up the warm pool", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`);
-    for (let i = 0; i < 240 && !warmOnes().ready.length; i++) await new Promise((ok) => setTimeout(ok, 500));
+    // until it is ready, while it still waits or warms (a busy machine can hold every slot for minutes)
+    for (let i = 0; i < 1800 && !warmOnes().ready.length && warmOnes().warming; i++)
+        await new Promise((ok) => setTimeout(ok, 500));
     const t = Date.now();
     r = run(["--start", W2, "empty"]);
     const took = Date.now() - t;

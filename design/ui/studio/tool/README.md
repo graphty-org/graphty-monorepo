@@ -502,6 +502,10 @@ above 4, at once or not at all, and never while a start waits in the queue, so i
 between a start or a test shard and a slot. One that waits `REAL_WARM_SECONDS` (default 600)
 unclaimed, or sees starts queue for a slot for 6 seconds, closes and frees its slot. Warm browsers
 wait in `/tmp/graphty-real-warm/`, with their log there.
+`--prove`'s warm-pool check sets `REAL_WARM_HOLD=1`: its warm browser waits in the queue for a slot
+and stays up while starts queue, and the check waits until it is ready, so the verdict is whether a
+warm browser is taken over, not whether the machine had a spare slot at that moment (in try mode the
+check failed while 8 study browsers held every spare slot for minutes).
 
 **A start that must not wait in the background.** A start that waits longer than the caller's
 shell call allows is moved to the background, and an agent whose turn then ends never comes back

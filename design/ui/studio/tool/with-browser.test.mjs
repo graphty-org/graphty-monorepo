@@ -175,3 +175,44 @@ test("a planted pool with BROWSER_SLOT_ALSO also waits for, and holds, a slot of
         for (const p of [planted, machine]) rmSync(p, { recursive: true, force: true });
     }
 });
+
+test("a warm browser of --prove's warm-pool check (REAL_WARM_HOLD=1) waits in the queue for a slot", async () => {
+    // in try mode it gave up at once with every spare slot busy, so the check's verdict followed how
+    // busy the machine was, not whether a warm browser is taken over
+    const pool = mkdtempSync(join(tmpdir(), "with-browser-test-"));
+    const build = mkdtempSync(join(tmpdir(), "with-browser-build-"));
+    const holder = spawn("flock", [join(pool, "slot1"), "sleep", "600"], { stdio: "ignore", detached: true });
+    const queue = join(pool, "queue");
+    const tickets = () => (existsSync(queue) ? readdirSync(queue) : []);
+    try {
+        await until(() => spawnSync("flock", ["-n", join(pool, "slot1"), "true"]).status !== 0);
+        // an --end that names its build tops the warm pool up; the session it names does not exist
+        const real = join(dirname(gate), "real.mjs");
+        const env = {
+            ...process.env,
+            BROWSER_SLOT_DIR: pool,
+            BROWSER_SLOTS: "1",
+            REAL_DIST: build,
+            REAL_WARM_POOL: "1",
+            REAL_WARM_HOLD: "1",
+        };
+        const r = spawnSync(process.execPath, [real, "--end", join(build, "no-session")], { env, encoding: "utf8" });
+        assert.equal(r.status, 0, r.stderr);
+        await until(() => tickets().length > 0);
+        assert.equal(tickets().length, 1);
+    } finally {
+        for (const t of tickets()) {
+            try {
+                process.kill(-Number(t.split("-").pop()));
+            } catch {
+                // already gone
+            }
+        }
+        try {
+            process.kill(-holder.pid);
+        } catch {
+            // already let go
+        }
+        for (const p of [pool, build]) rmSync(p, { recursive: true, force: true });
+    }
+});

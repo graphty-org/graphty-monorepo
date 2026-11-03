@@ -17,6 +17,12 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-11-03) Study tool: `--prove`'s warm-takeover check no longer depends on a spare machine slot.
+  `REAL_WARM_HOLD=1` (set only by the check) makes its warm browser queue for a slot and stay up
+  while starts queue; the check waits until it is ready while it still warms. Test:
+  `with-browser.test.mjs` "waits in the queue for a slot". Slip to avoid: `ls sessions | head -1`
+  on a folder that does not exist gave an empty id, and `--start round-1/sessions/` STARTED a
+  session in the round folder (only a planned `<id>` is refused). Always check the id is non-empty.
 - (2026-11-03) TIER 5 ROUND 1 CLOSED, STUDIO STOPPED (1-round cap, bars not met;
   `tier5/rounds/round-1/insights.md`). All 60 sessions void: the start gate never ran, so
   `plan.md` had no "Gate evidence" and every start was refused. Lesson: run the gate before launch
@@ -100,6 +106,11 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
 
 ## Decisions and reasons
 
+- 2026-11-03: The warm-pool self-test holds its slot (queue, no quit on a queue) instead of the
+  pool's try mode. Reason: in try mode the verdict followed machine load (8 studio browsers for 152
+  of 167 s, no warm browser ready in 120 s, the next start cold); the check is about the takeover,
+  and try mode's slot policy is covered by `with-browser.test.mjs`'s try-mode test. Real warm
+  browsers keep try mode, so they never stand between a start and a slot.
 - 2026-11-02: An edit in the selection editor is handed on one painted frame after its input
   (`afterPaint` in `SelectionEditor.tsx`: `requestAnimationFrame` then `setTimeout`, the handover
   inside `flushSync` so no queued input runs between it and the host's write). The edit waits as
@@ -168,6 +179,11 @@ date)` lost its kind and column arguments: a text or number time field shows its
 
 ## Tried: worked / did not work
 
+- (2026-11-03) Warm-hold fix, checked on the frozen build: 10 starts at once peaked at 8 studio
+  browsers (count node processes only: `ps -eo comm,args | awk '$1=="node" && /real\.mjs --(serve|warm)/'`;
+  `pgrep -f` also counts the bash gate wrappers and read 20); all 10 GPU, 2 took over warm browsers;
+  a replay of T71B detour-1 matched all 13 steps. Did not work: reusing a gate folder from an
+  earlier run (s10 refused: "already holds a session's screenshots"); use a fresh folder.
 - (2026-11-03) Re-check of the study tool fix (2aa3ff3fad): it changes only design/ui/studio/tool, no app
   route, so no walk. Worked: with-browser.test (11 pass, incl. BROWSER_SLOT_ALSO), match.test (2),
   bar8-9.test (3), waits.mjs --self-test, and waits.mjs on round-1/bars/sessions (9 waits over 10 s on

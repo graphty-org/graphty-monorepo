@@ -11,36 +11,32 @@ history).
 
 ## Top of mind
 
-- (2026-11-03) Tier 5 round 1 (30 valid sessions, build 1e123d7d33) fails bars 1 (T73 0/4, T75 1/2),
-  3 (T75), 4 (four severity 3, before skeptics), 8 (T70, T74, T78 by half) and 9 (4 editor elements
-  named on different halves + 1 calm-first); bars 2 and 5 hold; 6 and 7 not measured (content and
-  interaction walks did not run; bar 7 already at 5 of 5). `rounds/round-1/scores.md`.
-- (2026-11-03) T73's four P's are one route: canvas Neighborhood > New layer from selection keeps
-  ids, not the rule. The editor's Within hops was never opened, so it is untested, not refuted. The
-  door people use must write the rule.
-- (2026-11-03) Bar 8's T70 overage is mostly outside the editor (layer name box in rename mode,
-  Fill box, hiding a drowning color layer, filter-first order). Decompose cost before blaming the
-  editor; tag Fill-box steps as the criteria say.
-- (2026-11-03) Score per half, not pooled: `steps.mjs` pools halves (T71 B fails by half by 0.5).
-- (2026-11-03) Tool fixes before round 2 scoring: `endstate.mjs` must skip `hidden: true` layers
-  (4 false mismatches); `score.mjs` misreads graders' layouts (5 grades, 19 overwhelm lines) --
-  score bars 1-3 and 9 by hand until fixed; graders' return form needs a P value.
-- (2026-11-03) Bar 9's named-element rule fires easily once people use the editor: count by
-  element and say what the fault-by-fault reading gives, so skeptics can rule.
-- (2026-11-03) A participant "no key does X" claim needs the decided keys checked: Sam never tried
-  Escape, which decided.md makes Done; a long route is cost, not a block.
-- (2026-11-03) Check the briefing against the setup before a round: T73 A's briefing promised a
-  saved project the setup never wrote (r1-s09 discarded its start).
-- (2026-11-03) Before launch: `grep -c "Gate evidence" plan.md` is 1; move a void round's tmp
-  folders aside before briefing a rerun; the runner stops at the first refusal all sessions share.
-- (2026-11-03) Expert walks find what is wrong, not how often it hurts; an expert-only round can
-  fail bar 4 but pass no session bar.
+- (2026-11-03) Tier 5 round 1 after the skeptics (`rounds/round-1/insights.md`): bar 4 fails on 2
+  severity 3 (covered panel's speech, fixed after freeze; a Results pick binding another run); bar 9
+  fails 4 of 3 (Or group, Condition.../Or..., By position box, header Tab order); bar 1 fails on
+  T75 A only (one session, several causes); bars 3 and 8 fail; 6 and 7 not measured.
+- (2026-11-03) T73 as worded cannot measure the editor: it asks for a colored set and a count, the
+  key wants a rule. Reword the task (no control words) or change the key before T73 runs again.
+- (2026-11-03) Check the task words against the key's success line before calling a bar failure:
+  a P that the words never asked to avoid is a study defect.
+- (2026-11-03) Follow-up questions must not invite a wish ("would you rather...?"): same-model
+  participants all say yes.
+- (2026-11-03) Fixtures that pre-color in the task's color manufacture "drowned color" findings.
+- (2026-11-03) "Each finding counts once, in the smaller allowance": a keyboard-named element that
+  is also a bar 7 item counts in bar 9. Apply it when scoring, not after.
+- (2026-11-03) Code "least sure" answers from the grade's quote, not a summary: two of four value
+  picker citations were miscoded (r1-s18, r1-s06).
+- (2026-11-03) Bar 8's T70 overage is mostly outside the editor (Fill box, layer name box, hiding
+  a ramp layer, filter-first order). Decompose cost before blaming the editor.
+- (2026-11-03) Score per half, not pooled; tool fixes before round 2 scoring (`endstate.mjs`
+  hidden layers, `score.mjs` layouts, P in the graders' form).
+- (2026-11-03) A severity 3 from one session on a route the key does not use survives only with a
+  repro; say so beside it.
+- (2026-11-03) Check the briefing against the setup before a round (T73 A's missing saved project).
+- (2026-11-03) Expert walks find what is wrong, not how often it hurts.
 - (2026-11-03) Check decided.md before scoring a defect; colliding decided rules need a ruling.
-- (2026-11-03) A second build of a shared control breeds defects; look for duplicated controls.
 - (2026-11-02) The overwhelm rating does not discriminate; use the named "least sure" element.
 - (2026-10-30) One round cannot both find and confirm fixes: plan a fix round and a re-test round.
-- (2026-10-30) Simulated participants trust the tool's text over the picture: check tool lines
-  against the screenshot.
 
 ## Priorities and values
 
@@ -75,6 +71,13 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-11-03 -- Applied round 1 skeptics (`rounds/round-1/insights.md`). Kept at 3: covered-panel
+  speech, the Results pick binding another run. To 2: "Is exactly" (empty step only), Clear then
+  Escape. Bar 9: value picker weakened out (one drop), Except to 1, header Tab order moved in from
+  bar 7 by the counts-once rule -> 4 of 3, fails. T73 reclassified as not measured (wording vs
+  key). Reason: the rule (two drops drop, one weakens) plus the criteria's counts-once line, which
+  scoring had missed. Evidence: viewed `repro/r1-s13/06.png`, `sessions/r1-s08/05.png`,
+  `sessions/r1-s04/17.png`; criteria.md lines 66 and 78-81.
 - 2026-11-03 -- Scored tier 5 round 1 (`rounds/round-1/scores.md`). Used `grade.md`'s P where the
   graders' form wrote F or G (7 sessions). Bar 8 per half (criteria's letter) over `steps.mjs`'s
   pooled verdict. Bar 4: four severity 3 confirmed before skeptics -- the covered inspector's
@@ -115,6 +118,9 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-03 (round 1 insights) -- Worked: a verdict table per item before writing, then the
+  drop/weaken rule mechanically; grepping criteria for the allowance and counts-once text. Did not
+  work: scoring's "least sure" coding from summaries (miscited sessions found by both skeptics).
 - 2026-11-03 (round 1 scoring) -- Worked: running steps, endstate, keydraw, waits and score first,
   then reading every grade's head lines in one loop; printing each route's first three actions to
   get first doors; reading `hidden` in `styles.json` before trusting an endstate mismatch; viewing
@@ -141,6 +147,9 @@ logged). Their reasons, in short:
 
 ## Thinking
 
+- 2026-11-03 -- Skeptics this round cut more from the study than from the build: the T73 key, a
+  leading follow-up, a fixture ramp. A pre-round check of words vs key vs fixture would have saved
+  four sessions' worth of findings.
 - 2026-11-03 -- When a task's every session takes one door around the feature, the result is a
   finding about the door, not about the feature: route the fix to where people already go
   (Neighborhood writes the rule) rather than teaching them the editor.

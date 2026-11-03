@@ -1,4 +1,4 @@
-The study runs on build 0c163f54bf served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1-0c163f54bf
+The study runs on build 1e123d7d33 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier5-r1d1-1e123d7d33
 
 Frozen on 2026-11-02 for the tier 5 rounds. The bars below do not change after this line. Each
 refreeze of the build is written on the first line, with the build before it named in the change
@@ -613,3 +613,6 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
     - Graders' notes: Edit in place of a count right after Done; the key's "Color: PageRank, full
       graph" under a filter; the node under the canvas toolbar; values read per task; and a "Build
       notes (0c163f54bf)" section listing what can spoil a grade on the frozen build.
+- 2026-11-02: the round 1 dry run 1 build, 1e123d7d33 in `.study-builds/tier5-r1d1-1e123d7d33`,
+  replaces 0c163f54bf (`.study-builds/tier5-r1-0c163f54bf`). It carries the dry run's fixes,
+  including focus staying on a control the reader moves to while the selection workspace closes.

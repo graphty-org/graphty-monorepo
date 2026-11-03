@@ -10,6 +10,10 @@ made and evidence comes in. Summarized 2026-11-03 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-11-03) Round 1 rerun planned in `rounds/round-1/plan.md` (same 30 rows as the void round,
+  same build 1e123d7d33; plan now says no session starts before the gate). Before briefing a rerun,
+  move the old round's `tmp/studio-sessions/` folder aside: a stale `grade.md` there made `--brief`
+  refuse r1-s08 ("facilitator words (grade.md)").
 - (2026-11-03) Tier 5 stopped at the 1-round cap with no session data: 60 of 60 VOID because the
   start gate never ran (plan.md has no "Gate evidence"). Bars 1, 2, 3, 8, the keyboard part of 5
   and bar 9's follow-ups are "not measured", never "held". Next tier: run `--gate` and check
@@ -38,7 +42,6 @@ made and evidence comes in. Summarized 2026-11-03 (older entries folded; full te
 - (2026-10-30) One round cannot both find and confirm fixes: plan a fix round and a re-test round.
 - (2026-10-30) Simulated participants trust the tool's text over the picture: check tool lines
   against the screenshot.
-- (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing.
 
 ## Priorities and values
 
@@ -72,6 +75,15 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- 2026-11-03 -- Planned the round 1 rerun: copied the void round's 30 rows unchanged and added one
+  bullet that no session starts before `real.mjs --gate` writes "Gate evidence". Reason: roster.md,
+  tasks.md and criteria.md are unchanged since the plan commit 17db260b87 (`git diff --stat` shows
+  only real.mjs, the gate and leak fixes); the frozen build line is the same. Moved the void
+  round's tmp session folders to `tmp/studio-sessions/tier5/rounds/round-1-void` and kept the one
+  grade only that folder held (r1-s08) in `rounds/round-1-void/sessions/r1-s08/grade.md`.
+  Evidence: `--brief` on all 30 printed a briefing with REAL_DIST tier5-r1d1-1e123d7d33 and the
+  expected `setup:` line (Sam's two with `--keys`).
 
 - 2026-11-03 -- Applied the two skeptics to round 1 and wrote `rounds/round-1/insights.md`. Kept
   at 3 only the count spoken from the covered panel (the filter-host case speaks a count nothing on
@@ -190,17 +202,9 @@ logged). Their reasons, in short:
   Changed T65 B's key facts to `5 gauges`/`3 gauges` so `--brief` stops refusing; kept plan.md on
   recheck (the plan script now keeps "## Gate evidence" on a rerun).
 
-- **2026-10-29 to 10-30 (tier 4 key matched to each frozen build, folded):** The key writes the
-  screen of the frozen build; earlier-build notes kept beside new ones; a count the build gets
-  wrong becomes a grading line, never the key's number; T66's prompt changed to "Take it out" and
-  "Leave out" named under Not success; findings from stale walks or decided.md wording change
-  nothing. Removed the T66 id-card route (cannot be built).
-
-- **2026-10-29 (tier 4 criteria review):** Proposed eight changes, applied none (the Director
-  freezes): grade from end-state records plus a script, confirm expert findings by repro, reword
-  echoing prompts, map every decided fix to a route, count Sam apart, move T65 B to a second domain,
-  give T63 a place not preset and T68 a filtered start. Most were adopted into the criteria.
-
+- **2026-10-29 to 10-30 (tier 4 key and criteria, folded):** The key writes the frozen build's
+  screen; a count the build gets wrong is a grading line, never the key's number. The criteria
+  review's eight proposals (end-state scripts, expert repros, reworded echoes) were mostly adopted.
 - **2026-10-21 (tier 3, folded):** Two skeptics per insight (two drops = dropped, one = weakened);
   disputed claims settled at their source; scored by hand where `score.mjs` was wrong and said so;
   stopped tier 3 at round 1 (remaining failures came from the grading rule and unreached backlog).
@@ -209,6 +213,10 @@ logged). Their reasons, in short:
   prompt, not the key, when a prompt leads.
 
 ## Tried: worked / did not work
+
+- 2026-11-03 (rerun plan) -- Did not work: briefing into the void round's tmp folders (`--brief`
+  scans the whole session folder, so an old `grade.md` reads as facilitator words). Worked: moving
+  the old tmp round aside, then briefing all 30 in one loop and tallying folders and `setup:` lines.
 
 - 2026-11-03 (round 1 insights) -- Worked: printing the cited route.jsonl steps (line N holds
   shot N.png) and viewing each cited screenshot before keeping a claim; reading decided.md at the
@@ -250,13 +258,8 @@ logged). Their reasons, in short:
 - 2026-10-30 (insights) -- Worked: viewing each owner screenshot before citing it (r1-s03/20.png
   showed "deliveri...", not one letter: wording corrected). Did not work: my scoring trusted the
   tool's `tooltip: null` and grader wrong-turn counts that included post-success checks.
-- 2026-10-30 (round 1 scoring) -- Worked: running `steps.mjs` and `endstate.mjs` on the round
-  first, then one script (`tmp/researcher/score-t4r1/doors.py`) for grade, wrong turns, first door
-  and build per session with an assert on the build; parsing grade.md problem tables for kind and
-  severity (`kinds.py`, assert > 100 rows) and checking the two that did not parse (r1-s16, r1-s19:
-  another table form) against the collected grades; viewing the reference image beside a session
-  screenshot before calling a bar 6 violation. Did not work: a multi-line `old` string in an
-  asserted Python replace (match a fragment on one line).
+- 2026-10-30 (tier 4 scoring, folded) -- Worked: `steps.mjs` and `endstate.mjs` first, then one
+  asserted script per tally; viewing the reference image beside a session screenshot.
 - 2026-10-30 (plan) -- Worked: diffing roster.md and tasks.md since the plan commit before
   regenerating; briefing all 28 and tallying `REAL_DIST` and `setup:` lines.
 - 2026-10-29 to 10-30 (key edits) -- Worked: one Python edit script with exact-match asserts per

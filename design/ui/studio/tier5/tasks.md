@@ -111,13 +111,13 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
       walk away), how did the program feel while you did this? Say the number. Then name the
       moment you were least sure where to look or what to do next, and what was on the screen.
       Then: what did you notice the drawing do while you were choosing who goes in
-      orange, and what did you take it to mean? Would you rather it had shown something else?"
+      orange, and what did you take it to mean? Did what you saw change what you did next?"
     - B: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
       walk away), how did the program feel while you did this? Say the number. Then name the
       moment you were least sure where to look or what to do next, and what was on the screen.
       Then: what did you notice the drawing do while you were choosing which gauges
-      go in orange, and what did you take it to mean? Would you rather it had shown something
-      else?"
+      go in orange, and what did you take it to mean? Did what you saw change what you did
+      next?"
 
 ### T71. Either of two things (two datasets)
 
@@ -162,19 +162,26 @@ a 40-value checklist whose value is not among the 8 drawn, and every edit's wait
 
 ### T73. Close to one person or place (two datasets)
 
-- **Prompt A (volunteers):** "James Carter is organizing a shift swap. Put everyone who worked a
-  shift with him, or with someone who worked a shift with him, in orange -- James too -- so he
-  knows whom to ask first. Tell us how many people are in orange."
+- **Prompt A (volunteers):** "James Carter is organizing shift swaps for the rest of the season.
+  Put everyone who worked a shift with him, or with someone who worked a shift with him, in
+  orange -- James too -- so he knows whom to ask first. Shifts are added all season: whoever
+  works with him later should turn orange too, without anyone redoing this. Tell us how many
+  people are in orange now."
 - **Prompt B (gauges):** "A spill was reported at Cedar Bend. Put Cedar Bend and every gauge no
-  more than two stretches of river from it, upriver or down, in orange, so the
-  crew knows which gauges to check first. Tell us how many gauges are in orange."
+  more than two stretches of river from it, upriver or down, in orange, so the crew knows which
+  gauges to check first. The crew is still mapping the river: a gauge they add within two
+  stretches later should turn orange too, without anyone redoing this. Tell us how many gauges
+  are in orange now."
 - **Kept on purpose:** `worked a shift with` -- what a tie in Grace's file is; `stretches of river`
   -- what a tie in Tom's file is; `upriver or down` -- says the river's flow does not matter, where
   the screens' Upstream of and Downstream of would (and where "either direction" would echo the
   Connected choice "Either direction"). `or with someone` -- "or" inside the person's
   sentence, not a choice between two ways. `James` -- the person in the data whom the task is
   about (finding him by name is what A tests); `more` -- inside the bound "no more than two";
-  `check` -- what the crew does (the 50,000-node "Check N" is not on any T73 screen).
+  `check` -- what the crew does (the 50,000-node "Check N" is not on any T73 screen). `added
+... later should turn orange too` -- the one thing only a rule gives (a picked set stays as
+  picked), said as what the reader wants to happen, with no control named. Round 1's wording asked
+  only for a colored set and a count, so a correct picked set met the words and failed the key.
 - **Follow-up** (asked after the participant's first `--end`):
     - A: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to
       walk away), how did the program feel while you did this? Say the number. Then name the

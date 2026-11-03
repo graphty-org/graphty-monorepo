@@ -230,7 +230,13 @@ state. One example of each kind:
 ## T73. Close to one person or place
 
 - **Success**: a style layer whose selection is within 2 hops of James Carter (A) / Cedar Bend
-  (B), the center included, filled orange; the participant reports the count.
+  (B), the center included, filled orange; the participant reports the count. The prompt asks that
+  people (A) or gauges (B) added later turn orange too, so only a rule that follows the data
+  meets it.
+- **Picked set (since round 2's wording)**: the right set picked by hand or from a selection,
+  with the right count, is P: the count is right and the "added later" half is not met. Round 1's
+  prompt did not ask for the second half, so round 1's four picked-set answers are not re-graded
+  against this key; they count as S for task success and not toward the editor's bars.
 - **A values**: **16 of 24**: v01-v10, v13-v17, v21. One hop would be 9.
 - **B values** (read): **7 of 11**: G01, G02, G03, G04, G05, G08, G11. The hop count ignores the
   river's direction; Downstream of Cedar Bend within 2 would be 4 (G03, G04, G05, G08), and is P

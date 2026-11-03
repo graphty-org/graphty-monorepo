@@ -12,30 +12,31 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-11-02) Tier 5's tools do not know tier 5: no `bars.mjs --tier 5` walk, `steps.mjs` CORE
-  is tier 4's, nothing parses `Overwhelm:`, and `--gate` checks only line one and the literal
-  "pilot to confirm". Gate items 3-7 are prose; prose asks have failed four tiers running.
-- (2026-11-02) A same-model overwhelm rating did not discriminate (placement study: 2-3 for all
-  three placements). Gate on the reasons people name, not on a median of 2.
-- (2026-11-02) Known sev 3 candidates in the build notes (false "covered", a count on two bases,
-  table and matches strip drawn together, T75 A blocked) fail bars 4 and 9 by plan unless the dry
-  run may fix them.
-- (2026-11-02) Large graphs: a 17 s wait per tick at 50,000 nodes is graded by no bar. A wait
-  needs a severity rule, not only a report line.
+- (2026-11-02, second review) The frozen build is behind the branch: 4fb3f45d59 (matches-strip
+  search, picker scroller) and d801a0fddd (50k repaint batching) fix two of the three gate
+  blockers after d3fda9f2b6. Check `git log <frozen>..HEAD` before reading any gate result.
+- (2026-11-02) The overwhelm rating failed its own check (gap 1.5 of 2). Reasons are specific and
+  useful at ratings of 2-3; gate on a named workspace element at ANY rating, not at 4+.
+- (2026-11-02) My own "placeholder shows what lies beneath" Fill field was named as the reason by
+  both frozen-build rating sessions (default 6366F1 read as the layer's color). Evidence against it.
+- (2026-11-02) A "double count" is severity 3 only when the two counts agree on every project, not
+  by coincidence of a one-card setup; else the fix deletes a count multi-card readers need.
+- (2026-11-02) The wording gate reads follow-ups as prompts: 30 of its 66 words are the shared
+  rating question ("clear", "away", "number"); "clear" is also an avoided word (the Clear button).
+- (2026-11-02) The dry run ran 6 passes against a cap of 2 "then stop for the owner"; a cap that
+  is ignored is worse than none. Replace with a bounded rule, never an owner ask.
+- (2026-11-02) Large graphs: waits now have severities, but a sev 2 wait gates nothing and the
+  owner's 50k complaint maps to lists only. Put waits in bar 9's complaint row.
 - (2026-10-30) Show the result before the act, in counts the reader already trusts; decide at the
   act, not after with a default applied; one fact, one drawing.
-- (2026-10-30) A tool line that can contradict the screen is fixed before any round; graders read
-  the screenshot.
 - (2026-10-30) Severity 3 only with a scripted repro and an end-state check; grade the user's
   goal, not a route property; wrong turns count only before success.
-- (2026-10-29) "Returning" means "knows the shell"; nothing measures second-time cost. Say so.
 - Top risk, every tier: a picture (or a count) that looks right and answers wrong. Severity 3+.
 - Same-model participants: a failure is strong evidence, a pass is weak; blind graders to the key.
 - Follow-ups that describe what happened ("the drawing changed its colors") prime the rating that
   follows; rate first, then ask neutral questions.
 - A new task brings its route's screens into the scripted walk; task wording never reuses the
   target's screen words.
-- No tours, hint panels or first-run aids; the same screens for everyone.
 - No product concept built around one task's wording or one domain; two kinds of data, not two
   people-networks.
 
@@ -96,6 +97,22 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- **2026-11-02 (me, second review of tier 5 criteria after the dry run; frozen d3fda9f2b6, no
+  round session run):** Eight changes: refreeze on a build with 4fb3f45d59 and d801a0fddd before
+  re-running the gate; replace the ignored 2-pass cap with one bounded pass on the gate blockers,
+  then round 1; `wording.mjs` reads prompts only (follow-ups are after the graded end state) and
+  the follow-up drops "clear"; the remaining lures (T74 B "routes" -> Shortest path keyword, T75
+  "middle", T78 "count"/"pair"/"shared", T76 "everything") kept on purpose and walked as detours;
+  bar 9 counts a workspace element named in two sessions on different halves at any rating as a
+  sev 2 finding, elements outside the editor (Fill color box, inspector) reported apart; a scripted
+  repro of the Fill box's default 6366F1 read as the layer's color; calm-first on the frozen build
+  must walk the reference picker (11 and 50k) and the 50k checklist and count words at rest; a
+  double count is sev 3 only when equal on every project; waits added to the owner's 50k
+  complaint row. No task echoes a fix it re-tests (Edges where, Edit, Drawing, name search, count
+  bases); every task has a people half and a river or genes half. Evidence: `git merge-base
+--is-ancestor d801a0fddd d3fda9f2b6` false; `wording.mjs` output (40 prompts = 20 prompts + 20
+  follow-ups, regex `[AB]:`); `rounds/round-1/rating-check.md`; `calm-first-frozen.md` ("Not
+  walked"); `report.md` (six passes, cap of 2).
 - **2026-11-02 (me, review of tier 5 criteria and tasks; no frozen build named, no session
   run):** Seven changes: `--gate` refuses gate items 3-7 and the answer key's "the dry run reads"
   phrases (T73 A, T74 B), with `steps.mjs` CORE, a tier 5 walk and an `Overwhelm:` parser built
@@ -145,14 +162,9 @@ insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/
 --is-ancestor f9d8b44b9 3ef9e6c1ec` false; `tool/bars.mjs` WALKS3 screen list;
   `tool/real.mjs` gateCheck (`piloted.set(basename(dir))`); `tool/wording.mjs` stem();
   `graphty/src/workspace/style/PropertyRow.tsx:1022` ("stays a fixed value").
-- **2026-10-17 to 2026-10-19 (me, first to fourth reviews of tier 3, summarized 2026-10-20):**
-  Landed: T51 added and run at 4; T47 A cubes; T45 B blue; T41 "is missing"; B prompts a
-  colleague's; T48 "when the file first opened"; Tom off several-layer tasks and T51; exit test
-  and `decided.md`; any community analysis counts on T46 to T48; T49 graded by the drawing; bar 4
-  = 10; T51 B companies; bar 5 not scored when the walk skips a screen; a styled node left
-  selected graded by the tree; "Starts with" typing in bar 6 (on paper). Not taken: T51 B on
-  College football's conferences. Reason throughout: routes no check saw, grades the key could
-  not give, bars that could not be met.
+- **2026-10-17 to 2026-10-19 (me, first to fourth reviews of tier 3, summarized):** Landed: T51
+  at 4, B prompts a colleague's, exit test and `decided.md`, bar 5 not scored when the walk skips
+  a screen. Reason throughout: routes no check saw, grades the key could not give.
 - **2026-10-16 (me, combined V7 + cards + bulk review):** Accepted the owner's V7 and dropped my
   2026-10-12 "groups, never tabs". Asks recorded in Top of mind.
 - **2026-10-16 (bulk iteration 7 frozen as `tier3-bulk7-457aa9f0f2`):** SpreadValues deleted; a
@@ -196,6 +208,11 @@ insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (second review) -- WORKED: `git log <frozen>..HEAD` on the product folders; it showed
+  the gate's blockers already fixed past the frozen build. WORKED: running `wording.mjs` and
+  reading which words repeat in every task (the follow-up). DID NOT: the overwhelm rating as an
+  instrument (1.5 gap, reasons named defects not crowding); the 2-pass safety cap as written;
+  the Fill placeholder-of-what-lies-beneath (2 of 2 named it).
 - 2026-11-02 -- WORKED: grepping the tools for the tier's task ids before reading the bars; it
   showed in one command that no tier 5 bar has a script. WORKED again: grepping the app's source
   for each prompt's words (no success-path echo in tier 5). DID NOT (in the placement study): a

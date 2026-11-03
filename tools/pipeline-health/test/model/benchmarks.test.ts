@@ -16,6 +16,27 @@ describe("benchmark regressions", () => {
         expect(trend(pts([40, 41, 42, 90, 90, 90]))).toEqual({ regressed: false });
     });
 
+    it("never flags a change of one timer tick", () => {
+        // layout-exact ms/iteration (profiler) n=1024 on the T4 lane: the GPU profiler reads in 65.536 us ticks, so
+        // every result is 2 or 3 ticks and a one-tick step reads as 1.5x.
+        const tick = 0.065536;
+        const oneTick = trend(pts([2, 3, 2, 2, 3, 2, 2, 3, 2, 2, 3, 3, 3].map((n) => n * tick)));
+        expect(oneTick.ratio).toBeCloseTo(1.5);
+        expect(oneTick.regressed).toBe(false);
+        // two ticks above is a real change
+        const twoTicks = [2, 2, 3, 2, 2, 3, 2, 2, 2, 2, 4, 4, 4].map((n) => n * tick);
+        expect(trend(pts(twoTicks)).regressed).toBe(true);
+        // a clean step between two levels is judged by the earlier results' resolution, never by the step itself
+        const step = [...Array.from({ length: 10 }, () => 2), 6, 6, 6].map((n) => n * tick);
+        expect(trend(pts(step))).toMatchObject({ ratio: 3, regressed: true });
+        expect(trend(pts([...Array.from({ length: 10 }, () => 100), 300, 300, 300])).regressed).toBe(true);
+        // one earlier outlier is not a tick, so it never hides a later step to its level
+        expect(trend(pts([...Array.from({ length: 9 }, () => 100), 300, 300, 300, 300])).regressed).toBe(true);
+        expect(trend(pts([...Array.from({ length: 9 }, () => 2), 6, 6, 6, 6].map((n) => n * tick))).regressed).toBe(
+            true,
+        );
+    });
+
     it("compares results only with results of the newest one's machine", () => {
         // Min-Cut n=50 as GitHub's hosted runners measured it (ms): EPYC 9V45 and 9V74 near 0.17, EPYC 7763 and
         // Xeon 8370C near 0.37, with nothing in the code changed. Across machines it reads as a 2.2x regression.

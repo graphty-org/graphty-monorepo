@@ -89,8 +89,25 @@ export const sameMachine = (points: BenchPoint[]): BenchPoint[] =>
     points.filter((p) => p.machine === points.at(-1)?.machine);
 
 /**
+ * The series' timer tick: the smallest gap between two of its distinct values, when every value is a whole number
+ * of that gap. A reading quantized to a timer tick (the T4 lane's GPU profiler reads in 65.536 us ticks) takes only
+ * whole ticks; a series that is not (an unquantized one, or a steady one with an outlier: 100 x9 and 300) has none.
+ * @param vs - the values
+ * @returns the tick, or 0 when the values show none
+ */
+export function quantum(vs: number[]): number {
+    const s = [...new Set(vs)].sort((a, b) => a - b);
+    const q = s.slice(1).reduce((m, v, i) => Math.min(m, v - s[i]), Infinity);
+    const whole = (v: number): boolean => Math.abs(v / q - Math.round(v / q)) < 1e-6;
+    return Number.isFinite(q) && s.every(whole) ? q : 0;
+}
+
+/**
  * A sustained regression: the median of the newest 3 results is over 1.2 times the median of the 10 before them,
- * among the results of the newest one's machine. Judged only with all 13, so one slow run never counts.
+ * among the results of the newest one's machine, and the medians differ by more than one step of the resolution
+ * (quantum) of the results before the newest 3, so a one-tick change of a reading at its timer's resolution never
+ * counts. The newest 3 are left out of the resolution so the change being judged never sets its own threshold.
+ * Judged only with all 13, so one slow run never counts.
  * @param all - oldest first
  * @returns the two medians, their ratio and whether it regressed
  */
@@ -102,7 +119,16 @@ export function trend(all: BenchPoint[]): BenchTrend {
     const recent = median(points.slice(-RECENT).map((p) => p.v));
     const before = median(points.slice(-(RECENT + BEFORE), -RECENT).map((p) => p.v));
     const ratio = before > 0 ? recent / before : undefined;
-    return { recent, before, ...(ratio === undefined ? {} : { ratio }), regressed: (ratio ?? 0) > REGRESSION_RATIO };
+    // 1.5 quanta so float noise in a one-tick gap never passes and two ticks always do.
+    // ponytail: earlier results all one value give no resolution (quantum 0), so a one-tick step off a perfectly
+    // steady series still counts; a known per-lane tick would close that if it shows up.
+    const aboveTick = recent - before > 1.5 * quantum(points.slice(0, -RECENT).map((p) => p.v));
+    return {
+        recent,
+        before,
+        ...(ratio === undefined ? {} : { ratio }),
+        regressed: (ratio ?? 0) > REGRESSION_RATIO && aboveTick,
+    };
 }
 
 /**

@@ -5,14 +5,16 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-03 (tier 5 round 1 closed with 30 valid sessions; studio stopped at
-the one-round cap).
+Last updated: 2026-11-03 (tier 5 report after round 1, returned as text).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times),
-2026-10-30 (five times), 2026-11-02 (four times) and 2026-11-03 (twice); the full earlier text is in this
-file's git history.
+2026-10-30 (five times), 2026-11-02 (four times) and 2026-11-03 (three times); the full earlier text is in
+this file's git history.
 
 ## Top of mind
 
+- (2026-11-03) "Condition... / Or..." sits on the owner list as a word choice, but it is a two-way
+  door and round 1 is its evidence (3 sessions, 3 halves read neither as and / or else). Take
+  "And... / Or..." as the team, record the reason, let round 2 check it.
 - (2026-11-03) TIER 5 ROUND 1 CLOSED, studio stopped at the 1-round cap: 30 valid sessions on
   1e123d7d33. Fails bars 1 and 3 (T75 only), 4 (two sev 3), 8 (T70, T74, T78; T71 B), 9 (4 of 3, a
   floor). Holds 2 and 5. 6 and 7 not measured. See `tier5/rounds/round-1/insights.md`.
@@ -35,15 +37,13 @@ file's git history.
   room for fix, refreeze, re-walk and a second round.
 - (2026-11-03) Launch path: gate check before launch, stop at first shared refusal, ONE smoke
   session before the roster (the 60-void first attempt).
-- (2026-11-03) The report file is refused from a subagent every tier; return the full report as
-  text and let the workflow write `tier5/report.md`.
+- (2026-11-03) The report file is refused from a subagent every tier (fourth time today); return
+  the full report as text and let the workflow write `tier5/report.md`.
 - (2026-11-02) Owner items for tier 5, breaking or Figma only: 5 element, 5 compact-mantine. Round
   1 added none.
 - (2026-10-30) Freezing with a known bar-failer fails the bar by construction; each decided fix
-  gets an acceptance check that walks one step past its own action.
-- (2026-10-30) Run `git diff <earlier> <frozen>` over source FIRST in any triage.
-- (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak; settle every
-  score through two skeptics.
+  gets an acceptance check that walks one step past its own action. Same-model participants: a
+  failure is strong evidence, a pass is weak; settle every score through two skeptics.
 
 ## Priorities and values
 
@@ -93,13 +93,15 @@ file's git history.
   Carry-over order for the next run: the two sev 3 (scope of a run as an element fact), then the
   four repro'd sev 2, then bar 9's three elements, then the T73 and follow-up rewording. Why: bar 4
   and bar 9 are the owner's; cost (bar 8) mostly falls out of the color row and By position fixes.
-- **2026-11-03, tier 5 report after round 1** (returned as text; the harness refused the file
-  again). Results table per round with a "predicted before the round" column beside round 1's
-  checked result, so the reader sees what moved: the three pre-round blockers (50k table search,
-  14 serious axe, 66 shared prompt words) closed on 1e123d7d33; bar 4 now fails on a different
-  finding. Round 1 does not count toward the cap. Why: a round that never showed the app is a tool
-  failure; counting it would stop the studio on a measurement of nothing. Owner list unchanged at
-  10 (5 breaking element, 5 Figma lock).
+- **2026-11-03, tier 5 report after the valid round 1** (returned as text; Write refused). Two
+  results tables: the void attempt (short, expert parts only) and round 1 after both skeptics, with
+  per-half cost inline. T73's 0 of 4 is reported as a key fault, not a build failure (both
+  skeptics); bar 7 reads 3 confirmed, not scores.md's 5 (the yes-or-no title fell to 1, the Tab
+  order moved to bar 9). Each package change carries a "confirmed by round 1?" column. Owner list
+  unchanged at 10. Why: the reader needs to see which pre-round fixes people confirmed (checklist
+  0 of 6 wrong, Escape 0 of 3, key 39 of 39) apart from what only the dry run saw.
+- **2026-11-03, tier 5 report after the void attempt** (returned as text). Round 1's void attempt
+  does not count toward the cap: a round that never showed the app is a tool failure.
 - **2026-11-03, dry run pass 8** (`tier5/dry-run-r1-8.md`, `decided.md` "Dry run pass 8"). No fix
   now. Backlog, not fix now: focus leaving the color box after Enter when a busy close ends (the fill
   is set and `answers.md` grades the fill the layer ends with; only a correction typed next would
@@ -114,19 +116,11 @@ file's git history.
   shortcuts); left the bars' failures for their re-run, nodes under overlays (the canvas is the
   frame) and the calm-first double counts (two facts by the criteria log).
 - **2026-11-02, tier 5 criteria after the second reviews, frozen for the rounds** (researcher
-  7e4f4e71aa, red team 7881e4e012, user advocate ba5a319098; they agreed on almost every point).
-  Taken: bar 9 counts named elements at any rating and T79 waits; "two counts" needs a reachable
-  state separating them, checked against spec 2 and 3.0; every "+" listed with a pass rule; a
-  tier 5 words budget (whole screen 50; workspace about 30, 40 at most; headings 3) counted by
-  script; blind per-complaint calibration; the calm-first check walks every screen it lists; item
-  1 requires the fixes since d3fda9f2b6; item 8 by file; findings count once; placement-study
-  fixes as rates against baselines; one-domain features reported as such; the dry-run cap that
-  starts the round instead of stopping; T74 B and T75 reworded, other shared words kept with
-  reasons, T76 "everything" and T78 "pair"/"count" walked as detours; `wording.mjs` grades prompts
-  only. Not taken: dropping the 1-to-7 rating (a measure for comparison); showing the owner three
-  screens now (the report carries before-and-after). Why: the owner's complaint must be able to
-  fail the round, and a bar that holds because a screen was skipped or a rule cannot fire is a
-  false pass.
+  7e4f4e71aa, red team 7881e4e012, user advocate ba5a319098; summarized 2026-11-03, full text in
+  git history). Taken: bar 9 counts named elements at any rating and T79 waits; "two counts" needs
+  a reachable state separating them; a scripted words budget (screen 50, workspace 30-40,
+  headings 3); fixes as rates against placement baselines; the dry-run cap starts the round. Not
+  taken: dropping the 1-to-7 rating. Why: the owner's complaint must be able to fail the round.
 - **2026-11-02, tier 5 report before round 1** (returned as text). Every bar "not measured" with its
   preview; only breaking or Figma-lock owner items. Why: previews dressed as results would be the
   false "done" bar 2 forbids.
@@ -160,6 +154,13 @@ file's git history.
   an element addition; the owner judges by interaction consistency; Figma is the paved path for chrome.
 
 ## Tried: worked / did not work
+
+- (2026-11-03, report after round 1) Worked: `git log 1e123d7d33..HEAD -- . ':!design'` showed
+  only one app fix and the runner fix since the freeze, so "what changed" is pre-freeze work plus
+  a round-1 confirmation column; reading `insights.md` over `scores.md` where they differ (bar 7,
+  T73, bar 9's value picker); checking that `round-1-void/calm-first-frozen.md` is on d3fda9f2b6,
+  not the frozen build, before claiming calm first ran. Did not work: Write on `tier5/report.md`
+  from a subagent (refused, fourth time).
 
 - (2026-11-03, round 1 close) Worked: two skeptic checks cut overclaims (T73's 0 of 4, orange
   swatches, "drowned" color, wish-inviting answers). Did not work: running a round without the
@@ -224,6 +225,13 @@ d3fda9f2b6..1e123d7d33 -- . ':!design'` to list what changed since the last repo
 
 ## Thinking
 
+- **2026-11-03, report after round 1:** the pre-round fixes people confirmed are the truth fixes
+  (no false done, key equals drawing, no wrong checklist value); the ones people never reached
+  (`hops`, Edges where, history) are exactly where tasks offered an easier door (canvas
+  Neighborhood, the Data place filter). A feature people route around is untested, not
+  validated: the next round's task words must make the editor the only door, or stop counting
+  those tasks toward the editor.
+
 - **2026-11-03, round 1 close:** the editor's structure held (0 false "done", every Or task
   succeeded); its doubt lives in small words and empty first states. Expect the next round to move
   on wording and defaults, not a redesign.
@@ -250,24 +258,12 @@ d3fda9f2b6..1e123d7d33 -- . ':!design'` to list what changed since the last repo
   prompts, and two instrument checks never run. A dry run's triage should read the scripted gate's
   output every pass, not only at the end, or the studio learns its round is blocked after six passes.
   And a fix-pass cap nobody enforces is a wish: the tool should count passes and refuse the next.
-- **2026-11-02, dry run passes 4-6:** a re-pilot only sees the routes it is told to walk, so check
-  the build carries every unit before trusting "nothing spoils"; an instrument that builds a start
-  by clicking leaves traces a real start never has (ask what a reopened saved project would NOT
-  have); what is left after six passes is one family, keyboard and screen-reader users around Undo
-  and Redo, which only the accessibility walk can test.
-- **2026-11-02, dry run pass 3:** each pass's fix leaves one neighbor open: pass 1's busy sign covered
-  edits but not the close, pass 2's Cancel removed the card but wrote history. The neighbor is always
-  what happens just AFTER the fixed step (the next Undo, the frame after the close). A unit's acceptance
-  should walk one step past its own action.
-- **2026-11-02, dry run pass 2:** both fix-now items were leftovers of pass 1, not new problems: one
-  fix reverted, one fix that covered edits but not opening. A pass converges when each fix's acceptance
-  names every entry route the decided behavior covers (Quick actions and the toolbar as openers;
-  opening as well as editing), so write those routes into the unit, not only the pilot's.
-- **2026-11-02, dry run pass 1:** the pilots found more "decided, not built" than new problems. A fix
-  round that is graded on spoils alone leaves those standing (tier 4's lesson again), so the backlog
-  carries them as their own first section and the decide-and-fix loop must take them before deciding
-  anything new. The most damaging defect was a quiet one: a table that keeps showing the last thing
-  edited reads as an answer.
+- **2026-11-02, dry run passes 1-6** (summarized 2026-11-03; full text in git history): each fix
+  leaves open the step just AFTER it (the next Undo, the frame after the close), so a unit's
+  acceptance walks one step past its own action and names every entry route; a re-pilot sees only
+  routes it is told to walk; a setup built by clicking leaves traces a real start never has;
+  "decided, not built" rows go first in every fix loop; a table still showing the last edit reads
+  as an answer.
 - **2026-11-02, tier 5 criteria:** the owner's complaint is mostly severity 2 clutter, and every earlier tier
   gated only severity 3-4. A bar built from his words that cannot see his words is the same failure as a
   success bar the model always meets. So the instrument is now tested against the build he rejected before

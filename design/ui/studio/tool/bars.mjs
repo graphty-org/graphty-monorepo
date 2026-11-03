@@ -25,6 +25,18 @@
 //   node bars.mjs <out dir> [--dist <build dir>] [--scheme dark|light]
 //   node bars.mjs <out dir> --tier 3 [--dist <build dir>] [--record-limits]
 //   node bars.mjs <out dir> --tier 4 [--dist <build dir>] [--scheme dark|light]
+//   node bars.mjs <out dir> --tier 5 [--dist <build dir>] [--scheme dark|light]
+//
+// --tier 5 walks the tier 5 screens of item 5 of ../tier5/criteria.md's "Before the first session"
+// (BAR5_TIER5 in measure.mjs; WALKS5 below): in both hosts the workspace on a new rule with its
+// picker open, a step pane, the Except switch, an Or group, the reference picker (closed, open,
+// typed, a result chosen), Advanced with Edges where, No match, the matches strip's Group column and
+// the read-only outline at rest; and at 50,000 nodes the checklist, Check N, the outline of a step
+// with many values, the reference picker, Selected (N), Hovered or selected and the outline at rest,
+// at 1440 x 900 and 900 x 700, in the scheme --scheme names (run it once per theme). Axe on every
+// screen (bar 5); every list on a 50,000-node screen held to "Large graphs" (bounded, a count, a
+// search); vocabulary.json (with the catalog's search keywords) and spoken.json for wording.mjs. The
+// axe, shared-name, focus and large-list checks each catch a planted failure at every size first.
 //
 // --tier 3 measures only tier 3's screens (../tier3/criteria.md): the Style panel reached from an
 // empty app by clicking, as a first-time user reaches it -- a sample opened, Everything's Node and
@@ -66,7 +78,7 @@ import { connect } from "node:net";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { AXE_TAGS, axeViolations, bar6Gaps, LAUNCH, serious, tier4Gaps, wordsOnScreen } from "./measure.mjs";
+import { AXE_TAGS, axeViolations, bar6Gaps, LAUNCH, serious, tier4Gaps, tier5Gaps, wordsOnScreen } from "./measure.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const self = fileURLToPath(import.meta.url);
@@ -91,7 +103,11 @@ const FILES = join(here, "files");
 const TIER = args.includes("--tier") ? args[args.indexOf("--tier") + 1] : "2";
 const RECORD = args.includes("--record-limits");
 // tier 3 and later measure only their own screens, at their two sizes, in the scheme given
-const OWN = TIER === "3" || TIER === "4";
+const OWN = TIER === "3" || TIER === "4" || TIER === "5";
+if (!["2", "3", "4", "5"].includes(TIER)) {
+    console.error(`--tier takes 3, 4 or 5 (or none, for tiers 1 and 2), not "${TIER}"`);
+    process.exit(2);
+}
 
 // ---------- bar 7 (a): how every run reads the loaded weight ----------
 // A loaded meaning and what a run says it read: "closer" is strength, "farther" distance
@@ -385,7 +401,9 @@ const real = (size, ...a) => {
             ...process.env,
             REAL_DIST: dist,
             REAL_VIEWPORT: size,
-            ...(TIER === "4" || (OWN && si > 0) ? { REAL_SCHEME: scheme } : {}),
+            ...(TIER === "4" || TIER === "5" || (OWN && si > 0) ? { REAL_SCHEME: scheme } : {}),
+            // tier 5's walks start from tier 5's setups (rounds/tier-5/setups)
+            ...(TIER === "5" ? { REAL_TIER: "5" } : {}),
         },
     });
     return { code: r.status, out: `${r.stdout || ""}${r.stderr || ""}`.trim() };
@@ -1023,6 +1041,145 @@ const WALKS4 = [
     },
 ];
 
+// Tier 5: the scripted walk of item 5 of ../tier5/criteria.md's "Before the first session", in both
+// hosts (a style layer's Which nodes, a Data place filter card) and at 50,000 nodes; BAR5_TIER5 in
+// measure.mjs is what it must cover. Every screen gets axe; every list on a 50,000-node screen is
+// held to "Large graphs" (largeLists in measure.mjs: bounded, with a count and a search)
+const EDITOR5 = (host) => [
+    {
+        do: steps("--click role=option:role", "--click staff", "--expect Except"),
+        screen: `${host}: a step pane`,
+    },
+    { do: steps("--click Except"), screen: `${host}: the Except switch on` },
+    {
+        do: steps("--click Or...", "--expect role=option:Within hops of"),
+        screen: `${host}: an Or group, its picker open`,
+    },
+    {
+        do: steps("--click role=option:Within hops of", "--expect Choose a reference"),
+        screen: `${host}: the reference picker, closed`,
+    },
+    {
+        // the filter's picker offers no Hovered or selected: Pick on canvas is in both
+        do: steps("--click Choose a reference", "--expect Pick on canvas"),
+        screen: `${host}: the reference picker, open`,
+    },
+    {
+        do: steps("--type James", "--expect role=option:v02 name James Carter"),
+        screen: `${host}: the reference picker, typed`,
+    },
+    {
+        do: steps("--click role=option:v02 name James Carter", "--expect Advanced"),
+        screen: `${host}: the reference picker, a result chosen`,
+    },
+    {
+        do: steps("--click Advanced", "--click Edges where ...", "--expect Edge value..."),
+        screen: `${host}: Advanced with Edges where`,
+    },
+    { do: steps("--click No match"), screen: `${host}: No match` },
+    { do: steps("--expect Group"), screen: `${host}: the matches strip's Group column` },
+];
+const WALKS5 = [
+    {
+        name: "style",
+        setup: "volunteers.txt",
+        moves: [
+            { do: steps("--key Shift", "--expect Style layers"), screen: "the graph at the start", plant: true },
+            {
+                do: steps(
+                    "--click Add a layer or a folder",
+                    "--click Layer",
+                    "--click Which nodes",
+                    "--expect role=combobox:Find attributes, results",
+                ),
+                screen: "style: a new rule, its picker open",
+            },
+            ...EDITOR5("style"),
+            { do: steps("--click Done", "--expect Edit"), screen: "style: the read-only outline at rest" },
+        ],
+    },
+    {
+        name: "filter",
+        setup: "volunteers.txt",
+        moves: [
+            { do: steps("--key Shift", "--expect Style layers"), screen: "the graph at the start", plant: true },
+            {
+                do: steps("--click Data", "--click Add filter", "--expect role=combobox:Find attributes, results"),
+                screen: "filter: a new rule, its picker open",
+            },
+            ...EDITOR5("filter"),
+            { do: steps("--click Done", "--expect Filters"), screen: "filter: the read-only outline at rest" },
+        ],
+    },
+    {
+        name: "big",
+        setup: "staff-50k.txt",
+        moves: [
+            {
+                // Control+A on the canvas selects nodes, so the reference picker offers Selected (N)
+                do: steps("--click-at 1170,60", "--key Control+a", "--expect Style layers"),
+                screen: "the graph at the start",
+                plant: true,
+                large: true,
+            },
+            {
+                do: steps(
+                    "--click Add a layer or a folder",
+                    "--click Layer",
+                    "--click Which nodes",
+                    "--click dept, 40 values",
+                    "--expect role=checkbox:Facilities",
+                ),
+                screen: "50,000: the checklist",
+                large: true,
+            },
+            { do: steps("--type s", "--expect Check 26"), screen: "50,000: Check N", large: true },
+            {
+                do: steps("--click Check 26"),
+                screen: "50,000: the outline of a step with many values",
+                large: true,
+            },
+            {
+                do: steps("--click Or...", "--click role=option:Within hops of", "--expect Choose a reference"),
+                screen: "50,000: the reference picker, closed",
+                large: true,
+            },
+            {
+                do: steps("--click Choose a reference", "--expect Hovered or selected"),
+                screen: "50,000: the reference picker, open",
+                large: true,
+            },
+            { do: steps("--type Person 1"), screen: "50,000: the reference picker, typed", large: true },
+            {
+                do: steps("--click role=option:n10569 name Person 10569"),
+                screen: "50,000: the reference picker, a result chosen",
+                large: true,
+            },
+            {
+                do: steps(
+                    "--click Or...",
+                    "--click role=option:Within hops of",
+                    "--click Choose a reference",
+                    "--click role=option:Selected (",
+                ),
+                screen: "50,000: Selected (N)",
+                large: true,
+            },
+            {
+                do: steps(
+                    "--click Or...",
+                    "--click role=option:Within hops of",
+                    "--click Choose a reference",
+                    "--click role=option:Hovered or selected",
+                ),
+                screen: "50,000: Hovered or selected",
+                large: true,
+            },
+            { do: steps("--click Done", "--expect Edit"), screen: "50,000: the outline at rest", large: true },
+        ],
+    },
+];
+
 async function walkTier2(base) {
     const screens = {};
     const names = {};
@@ -1036,6 +1193,8 @@ async function walkTier2(base) {
     const caught = [];
     const vocab = {};
     const typed = {};
+    // tier 5: every list on a 50,000-node screen, held to "Large graphs"
+    const lists = {};
     // what a screen says out loud: its controls' accessible names, and after each move what took
     // focus, what live regions said and the notices shown (real.mjs --sr), by move
     const spoken = {};
@@ -1043,7 +1202,7 @@ async function walkTier2(base) {
     const per = () => Object.fromEntries(SIZES.map((z) => [z, []]));
     const seen = { screens: per(), focus: per(), typed: per(), planted: per() };
     for (const size of SIZES)
-        for (const w of TIER === "4" ? WALKS4 : TIER === "3" ? WALKS3 : WALKS) {
+        for (const w of TIER === "5" ? WALKS5 : TIER === "4" ? WALKS4 : TIER === "3" ? WALKS3 : WALKS) {
             const first = size === SIZES[0];
             // bar 6's readings at a later size are kept under "<name> at <size>", so a failure there
             // fails the run beside the first size's (bar 8's word counts and the wording check's
@@ -1148,6 +1307,17 @@ async function walkTier2(base) {
                             `focus dropped to the page: caught on "${label}"`,
                             `the focus check missed focus dropped to the page on "${label}"`,
                         );
+                        if (TIER === "5") {
+                            // a list of 2,000 names with no count and no search must be caught
+                            const big = (await ask(dir, { op: "measure", plant: "biglist" })).data;
+                            proved(
+                                "large lists",
+                                big.lists.some((l) => l.list.includes("Planted long list") && !l.ok) &&
+                                    !data.lists.some((l) => l.list.includes("Planted long list")),
+                                `a list of 2,000 with no count and no search: caught by the large-list check on "${label}"`,
+                                `the large-list check missed a list of 2,000 with no count and no search on "${label}"`,
+                            );
+                        }
                         if (TIER === "3") {
                             // nothing on the start screen takes text, so typing must not write
                             const t = real(size, "--step", dir, "--type", "Plantedtext", "--expect", "Plantedtext");
@@ -1160,6 +1330,9 @@ async function walkTier2(base) {
                         }
                     }
                     if (!data.names.controls) planted.push(`the shared-name check read no controls on "${label}"`);
+                    if (m.large) lists[at(m.screen)] = data.lists;
+                    if (TIER === "5" && first && !vocab["the catalog's search keywords"] && data.keywords?.length)
+                        vocab["the catalog's search keywords"] = { words: [], names: data.keywords };
                     if (m.screen) {
                         screens[at(m.screen)] = data.axe;
                         names[at(m.screen)] = data.names.shared;
@@ -1208,7 +1381,28 @@ async function walkTier2(base) {
     const walked = seen;
     if (TIER === "3") log.push(...bar6Gaps(walked, SIZES));
     if (TIER === "4") log.push(...tier4Gaps(walked, SIZES));
-    return { screens, names, focus, scroll, words, cut, raw, log, planted, caught, vocab, typed, spoken, walked };
+    if (TIER === "5") log.push(...tier5Gaps(walked, SIZES));
+    if (TIER === "5" && !Object.values(lists).flat().length)
+        planted.push("the large-list check read no list on a 50,000-node screen");
+    if (TIER === "5" && !vocab["the catalog's search keywords"])
+        planted.push("the catalog's search keywords were not read");
+    return {
+        screens,
+        names,
+        focus,
+        scroll,
+        words,
+        cut,
+        raw,
+        log,
+        planted,
+        caught,
+        vocab,
+        typed,
+        spoken,
+        walked,
+        lists,
+    };
 }
 
 async function outer() {
@@ -1312,6 +1506,7 @@ async function outer() {
                 // what the walks reached, by bar 6's names: real.mjs --gate checks it against BAR6
                 walked: t2.walked,
                 bar10: { cut: t2.cut, raw: t2.raw },
+                ...(TIER === "5" ? { largeLists: t2.lists } : {}),
                 planted: { caught: t2.caught, missed: untrusted },
                 weights: { problems: weightProblems, notFinished, runs: inn.weights },
                 untrusted,
@@ -1376,24 +1571,39 @@ async function outer() {
     for (const [name, rs] of Object.entries(t2.raw))
         for (const r of rs) console.log(`  ${name}: ${r.element} ${r.kind} ${r.text}`);
     if (!Object.values(t2.raw).flat().length) console.log("  none");
+    // tier 5: "Large graphs" on every list of the 50,000-node screens (severity 3 by the criteria)
+    const tooBig = Object.entries(t2.lists ?? {}).flatMap(([k, ls]) => ls.filter((l) => !l.ok).map((l) => [k, l]));
+    if (TIER === "5") {
+        console.log('\n"Large graphs", every list on a 50,000-node screen (bounded, a count, a search):');
+        for (const [k, l] of tooBig)
+            console.log(
+                `  FAILS ${k}: ${l.list}, ${l.items} rendered${l.holds ? ` of ${l.holds}` : ""}${l.bounded ? "" : ", not bounded"}${l.count ? "" : ", no count"}${l.search ? "" : ", no search"}`,
+            );
+        const held = Object.values(t2.lists ?? {})
+            .flat()
+            .filter((l) => l.judged && l.ok).length;
+        console.log(`  ${held} long or partial lists hold${tooBig.length ? "" : "; none fails"}`);
+    }
     console.log(`\n${join(out, "bars.json")}`);
     // bar 5 of tier 4 is axe on its screens: a screen not reached or a planted case not caught also fails
     const fail4 = untrusted.length || missed.length || t2Failing.length || !Object.keys(t2.screens).length;
     const fail =
-        TIER === "4"
-            ? fail4
-            : untrusted.length ||
-              missed.length ||
-              weightProblems.length ||
-              t1Failing.length ||
-              t2Failing.length ||
-              shared.length ||
-              fell.length ||
-              unwritten.length ||
-              scrolled.length ||
-              (!OWN && (inn.rest.words.length === 0 || inn.rest.words.length > 50)) ||
-              over.length ||
-              unlimited.length;
+        TIER === "5"
+            ? fail4 || tooBig.length
+            : TIER === "4"
+              ? fail4
+              : untrusted.length ||
+                missed.length ||
+                weightProblems.length ||
+                t1Failing.length ||
+                t2Failing.length ||
+                shared.length ||
+                fell.length ||
+                unwritten.length ||
+                scrolled.length ||
+                (!OWN && (inn.rest.words.length === 0 || inn.rest.words.length > 50)) ||
+                over.length ||
+                unlimited.length;
     process.exit(fail ? 1 : 0);
 }
 

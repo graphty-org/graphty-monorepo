@@ -184,11 +184,11 @@ reason in this change log) until it does.
 ## Before the first session
 
 The round may not start until all of these hold on the frozen build. `real.mjs --gate` refuses
-item 1 and the "pilot to confirm" half of item 2 today; the refusals for the rest of item 2 and
-items 3 to 8 are owed, and are built into `--gate` before the dry run's first pilot (tier 2 to
-tier 4 each wrote a tool rule into the criteria and found it unchecked at the round). Owed with
-them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--tier 3` or `--tier
-4` only, and nothing parses `Overwhelm:`.
+items 1 to 7 and 9 (each check is listed in `tool/README.md`, "Before a round's first session: the
+gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's core tasks,
+`bars.mjs --tier 5` is item 5's scripted walk, `endstate.mjs` checks each style layer, and
+`score.mjs` scores bars 1 to 3 and bar 9's ratings from each grade's line
+`Overwhelm: <1-7> -- <screen element> -- <the reason, in the participant's words>`.
 
 1. The first line of this file names the frozen build.
 2. `answers.md` holds no "pilot to confirm" and no "the dry run reads": every value and path is
@@ -472,3 +472,10 @@ them: `tool/steps.mjs` names tier 4's core tasks (`CORE`), `bars.mjs` takes `--t
       returns and the setup's label role stays.
     - The orange node half under the canvas toolbar with the node table open is still drawn, so
       the note to count from the inspector or the key stands.
+- 2026-11-02: the study tool scores tier 5 (no bar or target changed). "Before the first session"
+  names what the gate now checks instead of what it owed. The grades' bar 9 line is written
+  `Overwhelm: <1-7> -- <screen element> -- <reason>` (`none` when the reason names no screen
+  element), so the "named in two sessions on different halves" rule is counted by script, not by
+  reading. The rating check's sessions are walked as `rating-rejected` and `rating-frozen` under
+  `pilot/T70A/` and `pilot/T70B/`, and the calm-first check on the rejected build is written to
+  `rounds/<round>/calm-first-rejected.md`, so the gate can find them.

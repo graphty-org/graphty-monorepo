@@ -40,6 +40,33 @@ notes-only commit cannot regress a route): `git show a93110cfb5:design/ui/studio
 Trimmed again 2026-11-02 (file at 27 KB): the cancel-new-card focus re-walk and the covered-claim
 fix in full: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
 
+- (2026-11-02) THE STUDY TOOL SCORES TIER 5 (tool dry run 1's check 6 and gate gap). What each
+  script now does, each with a planted case of its own that fails without the change:
+  `steps.mjs` `CORE_BY_TIER` (tier 5: T70 T71 T73 T74 T78; "Path\nsteps" across a line break counts:
+  T74 A was missing); `score.mjs` `scoreTier5` (bar 1 at 75% with 2 of 2 / 3 of 4 and no half at 0,
+  Sam's `--keys` sessions out and reported as bar 5, bar 2, bar 3, and bar 9 from
+  `Overwhelm: <1-7> -- <screen element> -- <reason>`; the median gates only with `--rating-gates`);
+  `endstate.mjs` `layerProblems` (each layer's count against the members graphty-element paints,
+  counted element by element through public `explain` at --start and --end as `painted` in
+  `styles-start.json` / `styles.json`; a preview still drawn with no workspace open fails; ended
+  with the workspace open, layers are listed not counted); `bars.mjs --tier 5` (WALKS5: both hosts
+  and the 50,000 staff network, 33 screens per size, axe, `largeLists`, catalog keywords into
+  vocabulary.json); `real.mjs --gate` for tier 5 (items 2, 3, 4, 6, 7, 9; `tier5Gate`). Tests:
+  `tool/tier5.test.mjs` (3), each script's `--self-test`, two new `--prove` checks.
+- (2026-11-02) Tool defects fixed: (1) a click on a control the app re-rendered between find and
+  act failed "Element is not attached to the DOM"; now found again by name and clicked once more
+  (`run`, the `act` catch; planted `rerender` in --prove marks-then-swaps on `data-try-key`).
+  (2) `screenOf` used `checkVisibility()` with no options and kept `visibility: hidden` controls
+  (21 nameless table buttons and rows behind an open workspace); now `{ visibilityProperty: true }`,
+  and `divergence` leaves nameless controls out on both sides so old routes still compare.
+  (3) FOUND WHILE BUILDING: `warmKey` hashed only real.mjs's mtime, so after a `measure.mjs` edit
+  every start took over a warm browser running the OLD measure code (my first large-list probes read
+  nothing); it now hashes real.mjs, measure.mjs and match.mjs.
+- (2026-11-02) The scripted walk's first real finding: at 50,000 nodes the matches strip (the data
+  table under the workspace's canvas, `aria-rowcount` 50,001) renders 16 rows with no search box,
+  on every 50,000-node workspace screen ("Large graphs": severity 3 by the criteria's own rule).
+  Count is taken from the workspace header ("35,960 of 50,000"). Not fixed here (app, not tool).
+
 - (2026-11-02) RE-WALK of the empty-history setup start (c8581ff123, tool only; `graphty/dist`
   bd404856c8 needed no rebuild): holds, no regression. `design/ui/studio/tmp/r1-dry2-recheck-setup-history/`
   (`walk.sh`, `run.mjs` replays a route then carries on by hand). Every start shows Undo and Redo
@@ -65,65 +92,10 @@ fix in full: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
   "after a setup start Undo is disabled, with the tooltip Nothing to undo". Seen: Control+s then
   Save leaves Undo enabled on a project with no history (reopen/04.png), unexplained yet.
 
-- (2026-11-02) RE-CHECK of the record-pages-after-history fix (a93110cfb5): holds; nine names-only
-  routes in `design/ui/studio/tmp/r1-dry2-recheck-table-after-history/`. Full entry:
-  `git show c8581ff123:design/ui/studio/notes/engineer.md`.
-
-- (2026-11-02) Record pages now follow a history move that changes the filter (a93110cfb5).
-  Mechanism: undo, redo, restore and restoreTo load the landing step's kept masks through
-  `ElementMask.load`, which moved the mask's own version but skipped `onVersion`, so the session's
-  input tick stood still and every cache keyed on it (`orders` behind `nodePage`/`edgePage`,
-  neighbor lists, scope resolutions) served the filter before the move. Fix: `load` bumps through
-  `bump()` like every other mutator. Test `test/session/history/filter-page.test.ts` (undo, redo,
-  restoreTo keep and drop) fails on the old line. Re-walks on a fresh `graphty/dist`:
-  `design/ui/studio/tmp/r1-dry2-table-after-history/` (`walk.sh`, hand routes with names only).
-  T77B touched-2 Cancel: table "7 of 11", 7 rows (was 1), same after Ctrl+Z; touched-1 the same;
-  T76B touched-6 Ctrl+Z: "0 of 11", No rows, Ctrl+Shift+Z back to 7 and 7 rows (`T76B-redo`);
-  T77B success ends 9 of 11 in both; T79A Cancel then Ctrl+Z and Ctrl+Shift+Z bring no card
-  (`T79A-undo`); T79B Cancel on the existing card restores "basin Otter Creek" (1,050 of 50,000);
-  T75A touched-5 Ctrl+Z: top bar, Overview and table all 549 of 549.
-
-- (2026-11-02) RE-WALK of one count base (50d50e28ae) on `graphty/dist` c3100058ab: holds, no
-  regression. Full entry: `git show 918f88b37e:design/ui/studio/notes/engineer.md`. Tool fact kept:
-  `--replay` refuses a folder an earlier session used (exit 2): pick fresh names.
-
-- (2026-11-02) Cancel on a new filter card now leaves the history as it was before the card. Mechanism
-  on 47c95a09fc: Cancel called `removeCondition`, a third step, so Undo read "Undo deleting a filter
-  condition" and put the card back; the removal landed after the workspace closed, so the status
-  line said "Filter off" after "Filter not added". Fix: additive element option
-  `history.restoreTo(step, { redo: "drop" })` (History.dropRedo; owner-decisions "decided by the
-  team"). `FilterCard` keeps the newest step id at the card's birth; `takeBack` restores to it when
-  every step since touches only `visibility`, else falls back to `removeCondition`. A module counter
-  `takingBack` keeps FilterChip from announcing the take-back. Rejected: a transaction around the
-  card (Undo inside the card would cancel the whole card); `restoreTo` alone (Redo brings it back).
-  Tests: element `styles/undo.test.ts` "restores to a step and leaves nothing to redo"; app
-  `FilterCardKinds` "leaves the history as it was" (hangs on the old code: its waitFor never
-  settles). Re-walks on a fresh `graphty/dist` (`design/ui/studio/tmp/r1-dry3-cancel-no-undo/walk.sh`):
-  T79A staff-50k new card, Grants, Cancel: Undo names "changing the layout" (the step before),
-  Ctrl+Z / Ctrl+Shift+Z undo and redo that step, no card, no top-bar mark; T72B gauges the same with
-  "changing a column's role"; T70B keyboard and T72B touched-7 say only "Filter not added"; T79B
-  touched-6 (existing card Cancel) and touched-3/4 (focus) replay unchanged. Limit: a redo tail the
-  reader had before the card is still lost at its first tick, as any edit loses it.
-  Lesson: a negative check that patches a source file must not run in the background past the
-  turn; the hang guard holds the patched file for 15 minutes.
-
-- (2026-11-02) Cancel on a new filter card takes the card away, focus back to its opener
-  (47c95a09fc, 9610767e29); re-walk and tests: `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
-
-- (2026-11-02) RE-CHECK of the open-busy-sign fix: script `design/ui/studio/tmp/r1-dry2-recheck-open-busy-sign/rewalk.sh`;
-  full entry: `git show bba6b7e9bb:design/ui/studio/notes/engineer.md`.
-
-- (2026-11-02) Opening Which nodes on 50,000 nodes shows the workspace with "Drawing" in its first
-  frame (StylesApi `kept` agreement per token; `stateRevision`; the box drawn ticked). Full entry:
-  `git show ae2a7f5a03:design/ui/studio/notes/engineer.md`.
-
-- (2026-11-02) Tier 5: every style count reads over the graph the filter leaves (`StyleCounts.visible`,
-  legend `scope.visible`); still over the whole graph: the collapsed Which row's `useHead`,
-  MultiRowPanel, LayerValues, PropertyRow. Full entry: `git show c8581ff123:design/ui/studio/notes/engineer.md`.
-
-- (2026-11-02) The false "Covered by <lower layer>" was a reading taken before a branches view's
-  end repaint landed; fixed in `StylesApi.ts` (`viewPending`). Full entry with tests and re-walks:
-  `git show 918f88b37e:design/ui/studio/notes/engineer.md`.
+- (2026-11-02) Older Top of mind entries (record pages after a history move a93110cfb5, one count
+  base 50d50e28ae, Cancel on a new filter card and `history.restoreTo(.., { redo: "drop" })`, the
+  open-busy sign, "Drawing" in the first frame at 50,000, counts over the filtered graph, the false
+  "Covered by"), in full: `git show 38b0351fa0:design/ui/studio/notes/engineer.md`.
 
 ## Working facts and open defects
 

@@ -10,6 +10,15 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-11-02) Second tier 5 criteria review: bar 9 is undetermined, not failing or holding --
+  the calm-first check skipped the reference picker (11 and 50,000), the 50,000 checklist and
+  words at rest, and the audit has confirmed none of its findings. A check that skipped a screen
+  must not let its bar hold.
+- (2026-11-02) The overwhelm rating is dead as an instrument this tier (1.5-point gap, reasons
+  named a bug and the Fill box, never crowding); its calibration ran on 7ca4cae647, not the
+  build the owner saw. Use the named reason, scoped to the editor, not the number.
+- (2026-11-02) "Kept on purpose" can hide an echo: T74 B's "routes" is Shortest route's search
+  keyword. A catalog keyword must never be overridable by the kept list.
 - (2026-11-02) Tier 5 round 1 plan: 30 sessions on d3fda9f2b6 exactly as roster.md (core tasks
   first, A and B alternating, Sam last with `--keys`); all 30 brief on the frozen build. The
   plan has no "Gate evidence" yet: `real.mjs --gate` must write it before any session starts.
@@ -18,30 +27,23 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
   node with the table open is still there: grade counts from the inspector or key.
 - (2026-11-02) Grade spoiler seen on c3100058ab: the node table keeps a cancelled new card's rows
   (T77 B "1 of 11" vs top bar 7). Watch it on each new build.
-- (2026-11-02) Subagent pilots cannot write report.md; their findings arrive as text and the
-  caller must save them. A keyboard walk without --keys does not count as keyboard for the gate.
 - (2026-11-02) The canvas key now counts over the filtered graph (T70 B "2 of 7"); it drops its
   count line when the layer covers all drawn nodes: grade from the inspector or header then.
 - (2026-11-02) Severity 3 candidates still open on baac78342b: the false "Covered by" warning (now
   on PageRank and Everything, many tasks), table and strip drawn together, pickers flipping over
   Done, two count bases. Close or confirm them before round 1 or bars 1, 4 and 9 fail by
   construction.
-- (2026-11-02) Bar 9's overwhelm rating did not separate three placements in the placement study:
-  calibrate it on the rejected in-sidebar build before it gates anything.
 - (2026-11-02) Grader rulings live in the key, not in graders' heads: equal routes through
   Analyze's own layer (T73 Steps away, T74 B Betweenness) are S; a route that recolors everyone
   else is P when the prompt says to leave them.
 - (2026-11-02) Echo check: grep prompts against the catalog's search keywords and detour labels
-  too, not only rendered text.
+  too, not only rendered text; a prompt word that is a detour's label steers into it.
 - (2026-11-02) A task whose success path never opens the feature measures nothing about it.
 - (2026-10-30) One round cannot both find and confirm fixes: plan the cap for a fix round and a
   re-test round.
 - (2026-10-30) Simulated participants trust the tool's text over the picture: check tool lines
   (tooltip: null, ambiguous names like `role`) against the screenshot.
 - (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing.
-- (2026-10-30) An A/B split with 2 sessions per half is confounded with dataset and persona.
-- (2026-10-30) A prompt word that is a detour control's label steers into it.
-- (2026-10-30) First check of any pilot finding: the build in its walk's session.json.
 - (2026-10-21) Leading risk: every participant is one model; read tasks and key for leading.
 
 ## Priorities and values
@@ -76,6 +78,25 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-02 (second tier 5 criteria review, before any session):** Proposed eight changes,
+  applied none (the Director freezes): (1) bar 9 cannot hold while a calm-first screen is unwalked
+  or a finding unaudited; walk the reference picker at 11 and 50,000, the 50,000 checklist and
+  words at rest as a start gate; (2) "two counts of one result" only when the two can never differ
+  in any state the tasks reach (else the bar drives deleting a needed count); (3) replace the 1-7
+  rating's role with an editor-scoped "where were you least sure" question coded by screen;
+  (4) a re-test rate per placement-study fix against its 9-person baseline (6/9 wrong tick, 4/9
+  wrong delete, 5/9 Escape, 3/9 guessed words, T4 1/3), not just "reached"; (5) T74 B "routes"
+  echoes Shortest route's keyword: reword, walk it as a detour, and make wording.mjs refuse a kept
+  word that is a catalog keyword; (6) one-half features (run-on-pick T74 B, So far T75 A, names
+  T73, directed Degree T78 B) reported as one-domain evidence; (7) start gate adds 0 serious axe
+  (14 per theme now) and the 50,000 table search; (8) count each defect once at its highest bar,
+  and 50,000-node waits over 10 s (15 to 22 s now) count in bar 9's severity 2 allowance.
+  Reason: each lets bar 9 or bar 5 pass or fail for a reason that is not the design, or leaves a
+  re-tested fix unmeasured. Evidence: criteria.md, tasks.md, rounds/round-1/rating-check.md,
+  calm-first-frozen.md, report.md summary, decided.md 585-601, graphty-element/src/catalog/
+  algorithms.ts line 703 (keywords route, distance, path between), tool/wording.mjs (kept word
+  passes).
 
 - **2026-11-02 (tier 5 round 1 plan):** Wrote `tier5/rounds/round-1/plan.md`: 30 rows, the
   roster's assignments unchanged (core tasks T70, T71, T73, T74, T78 at 2 per half; T72, T75, T77,
@@ -198,6 +219,11 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-02 (second criteria review) -- Worked: reading the dry run's own outputs
+  (rating-check.md, calm-first-frozen.md "Not walked") against each bar to see which bars could
+  hold by omission; mapping every catalog keyword to its plainName before reading prompts.
+  Did not work: relying on wording.mjs for echoes in "Kept on purpose" words (it passes them).
+
 - 2026-11-02 (round 1 plan) -- Worked: copying tier 4's plan layout (the parser reads columns
   id, task, half, persona, start) and briefing every row in one loop, tallying REAL_DIST and the
   start. Note: `--brief` writes to the worktree's `tmp/studio-sessions/`, not the round folder.
@@ -205,12 +231,8 @@ logged). Their reasons, in short:
   build by moving the older walks to `_<oldbuild>/`; the key names the move so walk paths stay
   traceable. Did not work: the pilot subagent could not write its report.md; the caller saves it.
 
-- 2026-11-02 (key vs 47c95a09fc, T72 B and T75 A) -- Worked: a per-build "Build notes" section
-  that records what is fixed as well as what still spoils a grade, so graders stop applying an
-  older build's caveat. A pilot "mismatch" that the key already explains (Enter after a field that
-  applies as typed) needs only a clarified note, not a path change: the step still counts.
-
-- 2026-11-02 (key vs pilots) -- Worked: viewing the four screenshots that change a number or a
+- 2026-11-02 (key matches, folded) -- Worked: per-build "Build notes" naming what is fixed and
+  what still spoils a grade; a notes-only rebuild needs only a build-name pass. Also worked: viewing the four screenshots that change a number or a
   route before editing; one asserted Python edit script (`tmp/researcher-key-r1/edit.py`) with
   paragraph-level matches. Did not work: pilots still cannot write report.md (harness refuses);
   their content arrives only in the returned fields.
@@ -241,11 +263,6 @@ logged). Their reasons, in short:
 - 2026-09-28 to 10-11 (tiers 1 and 2) -- Worked: `git status`, `git log` and round listings after
   any stop; viewing every cited screenshot; a browser gate. Did not work: launching every agent at
   once; editing a script while it runs.
-
-- 2026-11-02 -- Worked: a key match on a notes-only rebuild is a build-name pass plus the grade
-  spoilers the walks surfaced; the "Fill; hex" mismatch was already covered by the general "Small
-  things every path meets" note, so no path edit. Did not work: subagent pilots writing report.md
-  (T73 B, T75 A, T77 B reports still hold 797a4f6b47's text).
 
 ## Thinking
 

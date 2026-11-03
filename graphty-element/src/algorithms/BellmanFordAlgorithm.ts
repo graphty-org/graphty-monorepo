@@ -64,16 +64,16 @@ interface BellmanFordOptions extends Record<string, unknown> {
  * negative edge weights and detecting negative cycles.
  */
 export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> {
-    static namespace = "graphty";
-    static type = "bellman-ford";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "bellman-ford";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "distance" as const;
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = bellmanFordOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = bellmanFordOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         source: {
             type: "nodeId",
             default: null,

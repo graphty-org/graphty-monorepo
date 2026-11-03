@@ -54,13 +54,13 @@ interface LinkPredictionOptions extends Record<string, unknown> {
  * the two share, and keeps the best.
  */
 export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOptions> {
-    static namespace = "graphty";
-    static type = "link-prediction";
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "link-prediction";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = linkPredictionOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = linkPredictionOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         method: {
             type: "select",
             default: "adamic-adar",

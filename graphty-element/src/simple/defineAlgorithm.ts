@@ -658,13 +658,13 @@ function generateClass(algorithm: CheckedAlgorithm): GeneratedClass {
 
     /** The generated class. */
     class SimpleAlgorithm extends DeclaredAlgorithm {
-        static override namespace = id;
-        static override type = id;
-        static override descriptor = descriptorOf(algorithm);
+        static override readonly namespace = id;
+        static override readonly type = id;
+        static override readonly descriptor = descriptorOf(algorithm);
         // The view keeps parallel edges separate, so no merge happens and none is reported.
-        static override parallelEdges = "none" as const;
-        static version = algorithm.version;
-        static suggestedName = algorithm.suggestedName;
+        static override readonly parallelEdges = "none" as const;
+        static readonly version = algorithm.version;
+        static readonly suggestedName = algorithm.suggestedName;
 
         /**
          * Work units: one visit per node and two per edge for the per-element forms; one pass
@@ -674,7 +674,7 @@ function generateClass(algorithm: CheckedAlgorithm): GeneratedClass {
          * @param options - The run's option values.
          * @returns The units.
          */
-        static costUnits = (n: number, m: number, options: Readonly<Record<string, unknown>>): number => {
+        static readonly costUnits = (n: number, m: number, options: Readonly<Record<string, unknown>>): number => {
             if (perElement) {
                 return n + 2 * m;
             }

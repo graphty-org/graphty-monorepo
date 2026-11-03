@@ -2872,6 +2872,39 @@ describe("actions/cache in the workflows", () => {
         assert.ok(checked >= 4, `found the cache steps (${checked})`);
     });
 
+    it("never saves a cache from a pull request in ci.yml's own jobs or the system packages action (#3591)", () => {
+        // A pull request's saves land in its own ref's scope, which only that pull request reads: each open one
+        // held its own pnpm store, Playwright browsers and debs, and the total passed the 8 GB budget.
+        const ci = workflow("ci.yml");
+        assert.match(
+            ci,
+            /\n {4}SAVE_CACHES: \$\{\{ \(!inputs\.ref \|\| inputs\.ref == github\.sha\) && github\.event_name != 'pull_request' \}\}\n/,
+        );
+        const steps = parseYaml(ci).jobs;
+        for (const name of ["packages", "build", "lint", "checks", "docs", "test", "cost-accuracy"]) {
+            const all = steps[name].steps;
+            const i = all.findIndex((s) => s.uses?.startsWith("actions/setup-node@"));
+            assert.equal(all[i].with.cache, "${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}", `${name}: setup-node`);
+            assert.equal(all[i + 1].uses, "./.github/actions/restore-pnpm-store", `${name}: restores the store`);
+            assert.match(all[i + 1].if, /env\.SAVE_CACHES != 'true'$/);
+            for (const s of all.filter((s) => s.uses?.startsWith("actions/cache/save@")))
+                assert.match(s.if, /env\.SAVE_CACHES == 'true'/, `${name}: ${s.name} saves only when SAVE_CACHES`);
+        }
+        const deps = parseYaml(
+            readFileSync(new URL("../.github/actions/playwright-system-deps/action.yml", import.meta.url), "utf8"),
+        ).runs.steps;
+        assert.ok(!deps.some((s) => /^actions\/cache@/.test(s.uses ?? "")));
+        assert.match(
+            deps.find((s) => s.uses?.startsWith("actions/cache/save@")).if,
+            /github\.event_name != 'pull_request'/,
+        );
+        const store = readFileSync(
+            new URL("../.github/actions/restore-pnpm-store/action.yml", import.meta.url),
+            "utf8",
+        );
+        assert.doesNotMatch(store.replace(/^\s*#.*$/gm, ""), /actions\/cache@|cache\/save@/);
+    });
+
     it("bounds a failed restore's wait in every workflow that restores a cache (#5098)", () => {
         // @actions/cache races each segment download against a timer (SEGMENT_DOWNLOAD_TIMEOUT_MINS, 10 minutes
         // by default) and clears it only when the download settles successfully. A rejected download ("Egress is

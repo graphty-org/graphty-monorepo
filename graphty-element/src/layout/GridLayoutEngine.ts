@@ -49,9 +49,9 @@ type GridLayoutOpts = Partial<GridLayoutConfigType>;
  * Grid layout engine that places nodes in rows and columns on an evenly spaced lattice
  */
 export class GridLayout extends SnapshotLayoutEngine {
-    static type = "grid";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = gridLayoutOptionsSchema;
+    static readonly type: string = "grid";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = gridLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: GridLayoutConfigType;
 

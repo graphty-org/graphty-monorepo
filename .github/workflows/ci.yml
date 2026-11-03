@@ -111,9 +111,10 @@ env:
     # A cache a job saves is restored by every later run in the same ref's scope, master's included. The release
     # train's call checks out inputs.ref, which can be an older or held commit, not the commit the run belongs to:
     # a job saves its caches only when it checked out the run's own commit, and otherwise only restores them
-    # (CodeQL actions/cache-poisoning, #3261). A pull request, a master push and a dispatch always check out their
-    # own commit, so they save as before.
-    SAVE_CACHES: ${{ !inputs.ref || inputs.ref == github.sha }}
+    # (CodeQL actions/cache-poisoning, #3261). A master push and a dispatch always check out their own commit, so
+    # they save. A pull request never saves: its saves land in its own ref's scope, which only it reads, and every
+    # open one held its own copy of each big cache (#3591); it restores master's instead.
+    SAVE_CACHES: ${{ (!inputs.ref || inputs.ref == github.sha) && github.event_name != 'pull_request' }}
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
     MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
@@ -270,7 +271,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
@@ -837,7 +843,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: steps.reuse-build.outputs.artifacts-run == '' && env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               if: steps.reuse-build.outputs.artifacts-run == ''
@@ -1018,7 +1029,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
@@ -1168,7 +1184,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
@@ -1370,7 +1391,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
@@ -1585,7 +1611,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
@@ -2209,7 +2240,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile

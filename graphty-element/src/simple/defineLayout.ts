@@ -284,10 +284,10 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
     const { id } = plan;
 
     return class DefinedLayout extends StaticLayoutEngine {
-        static override type = id;
-        static override maxDimensions = maxDimensions;
-        static override scoped = true;
-        static override descriptor = descriptor;
+        static override readonly type = id;
+        static override readonly maxDimensions = maxDimensions;
+        static override readonly scoped: boolean = true;
+        static override readonly descriptor = descriptor;
 
         /** The resolved option values `place` receives. */
         readonly #values: Record<string, unknown>;

@@ -58,9 +58,9 @@ type PlanarLayoutOpts = Partial<PlanarLayoutConfigType>;
  * Planar layout engine for planar graphs (no edge crossings)
  */
 export class PlanarLayout extends SnapshotLayoutEngine {
-    static type = "planar";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = planarLayoutOptionsSchema;
+    static readonly type: string = "planar";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = planarLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: PlanarLayoutConfigType;
 

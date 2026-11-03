@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { DAY, HOUR, type IssueItem } from "../../src/model/items.js";
 import { MAX_VIEW_BYTES } from "../../src/views/index.js";
 import { buckets, issuesPage, issuesSummary, openAt, prioOf, typeOf } from "../../src/views/issue-sections.js";
-import type { PageResponse, Section, SeriesSection, TableSection } from "../../web/src/contract.js";
+import type { IssueRange, PageResponse, Section, SeriesSection, TableSection } from "../../web/src/contract.js";
 
 /** Sunday 2026-10-25 12:00 UTC. */
 const NOW = Date.UTC(2026, 9, 25, 12);
@@ -41,8 +41,7 @@ const i = issue(["bug", "priority:high", "blocked", "in-progress"], BEFORE - DAY
 const j = issue(["bug", "priority:critical"], D(2));
 const ALL = [a, b, c, d, e, f, g, i, j];
 
-const page = (range: "28d" | "all" = "28d", githubOpen?: number): PageResponse =>
-    issuesPage(ALL, range, NOW, githubOpen);
+const page = (range: IssueRange = "28d", githubOpen?: number): PageResponse => issuesPage(ALL, range, NOW, githubOpen);
 const find = (p: PageResponse, id: string): Section | undefined => p.sections.find((s) => s.id === id);
 const seriesOf = (p: PageResponse, id: string): SeriesSection => find(p, id) as SeriesSection;
 const tableOf = (p: PageResponse, id: string): TableSection => find(p, id) as TableSection;
@@ -78,6 +77,18 @@ describe("issue classification", () => {
             "2026-10-19",
         ]);
         expect(new Date(weeks.starts[0]).getUTCDay()).toBe(1);
+    });
+
+    it("buckets the short ranges by 5 minutes, 15 minutes, an hour and 6 hours, the last ending now", () => {
+        const want = { "1h": [12, 5], "6h": [24, 15], "1d": [24, 60], "7d": [28, 360] } as const;
+        for (const [range, [n, min]] of Object.entries(want)) {
+            const b = buckets(range as keyof typeof want, NOW, BEFORE);
+            expect(b.starts).toHaveLength(n);
+            expect(b.starts[1] - b.starts[0]).toBe(min * 60_000);
+            expect(b.starts[0] % (min * 60_000)).toBe(0);
+            expect(b.starts.at(-1)).toBeLessThanOrEqual(NOW);
+            expect(b.ends.at(-1)).toBe(NOW + 1);
+        }
     });
 });
 
@@ -125,7 +136,7 @@ describe("the Issues page", () => {
     });
 
     it("moves each bucket's open count by exactly that bucket's opened less closed", () => {
-        for (const range of ["28d", "all"] as const) {
+        for (const range of ["1h", "6h", "1d", "7d", "28d", "all"] as const) {
             const p = page(range);
             for (const [flowId, stockId] of [
                 ["bug-flow", "bugs"],

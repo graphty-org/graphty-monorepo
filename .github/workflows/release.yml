@@ -332,6 +332,7 @@ jobs:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
                   FIX_PR: ${{ inputs.fix_pr }}
+                  MODE: ${{ inputs.mode }}
               run: |
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"

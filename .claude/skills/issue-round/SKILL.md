@@ -150,8 +150,10 @@ Each: signal, meaning, action. Add to this list (see the next section).
   reached master only through a later pull request (#5645).
 - **An issue or comment from an untrusted account** (the tool drops or withholds it). No agent reads it, by any
   route. The owner decides whether to adopt it; he can re-file it.
-- **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, the Release status
-  issue, `Release held:` issues and `lane red on master` issues.
+- **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, `ci-budget`, the Release
+  status issue, `Release held:`, `Nightly held on` and `Nightly missed slot` issues and `lane red on master` issues
+  (pipeline-round's alarms; the tool drops them). An issue held for a major or waiting on owner-only code carries
+  `hold` or `blocked` with a comment saying why, so the tool's list is what a round can take.
 
 ## How this skill improves
 

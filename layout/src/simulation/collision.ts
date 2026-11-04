@@ -98,7 +98,8 @@ function addPush(sweep: Sweep, i: number, j: number, moves: Float64Array): boole
     }
     const share = fixed !== null && maskTest(fixed, j) ? 1 : 0.5;
     const coincident = squared < FA2_COINCIDENT_SQ;
-    const [dx, dy, dz] = coincident ? kickDir(i, j, flat ? 2 : 3) : [ox, oy, oz];
+    const kickDim = flat ? 2 : 3;
+    const [dx, dy, dz] = coincident ? kickDir(i, j, kickDim) : [ox, oy, oz];
     const distance = Math.sqrt(squared);
     const push = (coincident ? reach : (reach - distance) / distance) * share;
     moves[3 * i] += dx * push;

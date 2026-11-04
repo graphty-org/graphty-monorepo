@@ -1326,13 +1326,8 @@ export class ForceSimulation<
                 "setCollision: every radius must be finite and >= 0",
             );
         }
-        const previous = this.collision;
-        const same = previous !== null && previous.radii.every((radius, i) => radius === radii[i]);
-        this.collision = {
-            radii: same ? previous.radii : new Float32Array(radii),
-            radiusScale: scale / this.scale,
-            flat,
-        };
+        const same = this.collision?.radii.every((radius, i) => radius === radii[i]) === true;
+        this.collision = { radii: new Float32Array(radii), radiusScale: scale / this.scale, flat };
         this.collisionDirty = true;
         this.collisionRadiiDirty ||= !same;
         const { resources } = this;

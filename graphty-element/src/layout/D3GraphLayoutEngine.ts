@@ -359,19 +359,29 @@ export class D3GraphEngine extends LayoutEngine {
             collideForce(1);
             let moved = false;
             for (const d3node of this.nodeMapping.values()) {
-                moved ||= d3node.vx !== 0 || d3node.vy !== 0 || d3node.vz !== 0;
-                d3node.x += d3node.fx === undefined ? d3node.vx : 0;
-                d3node.y += d3node.fy === undefined ? d3node.vy : 0;
-                d3node.z += d3node.fz === undefined && this.dim === 3 ? d3node.vz : 0;
-                d3node.vx = 0;
-                d3node.vy = 0;
-                d3node.vz = 0;
+                moved = this.moveAlong(d3node) || moved;
             }
 
             if (!moved) {
                 return;
             }
         }
+    }
+
+    /**
+     * Moves a node by its velocity, as a tick would, and stops it. A fixed node stays.
+     * @param d3node - The node.
+     * @returns Whether it had a velocity.
+     */
+    private moveAlong(d3node: D3Node): boolean {
+        const moving = d3node.vx !== 0 || d3node.vy !== 0 || d3node.vz !== 0;
+        d3node.x += d3node.fx === undefined ? d3node.vx : 0;
+        d3node.y += d3node.fy === undefined ? d3node.vy : 0;
+        d3node.z += d3node.fz === undefined && this.dim === 3 ? d3node.vz : 0;
+        d3node.vx = 0;
+        d3node.vy = 0;
+        d3node.vz = 0;
+        return moving;
     }
 
     /**

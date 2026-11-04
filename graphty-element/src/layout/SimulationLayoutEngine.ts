@@ -1384,10 +1384,18 @@ export class SimulationLayoutEngine extends LayoutEngine {
         simulation.setFixed(mask);
 
         this.#applyInert(simulation, nodeCount);
+        this.#applyCollision(nodeCount);
+    }
 
-        // AFTER EVERY LOAD, because a freeze renumbers the rows. Fitted to the arrangement as it stands: the map the last
-        // publish left means nothing to a simulation that has not published yet, whose own units may be far from the
-        // scene's.
+    /**
+     * Tells a simulation that has just been loaded what to keep apart.
+     *
+     * AFTER EVERY LOAD, because a freeze renumbers the rows. Fitted to the arrangement as it stands: the map the last
+     * publish left means nothing to a simulation that has not published yet, whose own units may be far from the
+     * scene's.
+     * @param nodeCount - The loaded snapshot's node count.
+     */
+    #applyCollision(nodeCount: number): void {
         this.#radiiStale = true;
         const radii = this.#collisionRadii(nodeCount);
         const simPositions = this.#simPositions;

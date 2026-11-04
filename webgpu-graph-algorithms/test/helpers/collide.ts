@@ -18,7 +18,10 @@ import { type CheckReport, ratioOf } from "./check-report.js";
 /** The f32 kernel against the f64 oracle, relative to the largest radius. */
 const TOLERANCE = 1e-4;
 
-/** A scene: stride-4 rows, the radii in the rows' units, and the fixed rows. */
+/**
+ * A scene: stride-4 rows, the radii in the rows' units, and the fixed rows.
+ * @public
+ */
 export interface CollideScene {
     readonly positions: Float32Array<ArrayBuffer>;
     readonly radii: Float32Array<ArrayBuffer>;

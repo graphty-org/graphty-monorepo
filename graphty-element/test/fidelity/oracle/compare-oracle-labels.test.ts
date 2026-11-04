@@ -518,6 +518,17 @@ describe("group checks", () => {
         assert.deepEqual(pair(group(BOX), group(BOX, { fill: fill("#eeeeee", 0.3) })), { "group.fillOpacity": ["g1"] });
     });
 
+    it("judges a yFiles group's fill by its panel, and the band of its frame as drawn by itself", () => {
+        const framed = group(BOX, { fill: fill("#c8c8c8"), panel: fill("#ffffff") });
+        const white = group(BOX, { fill: fill("#ffffff") });
+        // the band is drawn only by the program
+        assert.deepEqual(Object.keys(pair(framed, white)), ["stray.present"]);
+        // painting the whole group in the band's color matches nothing: the panel behind the members is white
+        assert.includeMembers(Object.keys(pair(framed, group(BOX, { fill: fill("#c8c8c8") }))), ["group.fill"]);
+        // a band the color of its panel shows nothing
+        assert.deepEqual(pair(group(BOX, { fill: fill("#ffffff"), panel: fill("#ffffff") }), white), {});
+    });
+
     it("fails a group outline drawn see-through where the program's is opaque", () => {
         assert.deepEqual(pair(group(BOX), group(BOX, { stroke: { ...stroke("#333333", 1), opacity: 0.3 } })), {
             "group.stroke": ["g1"],

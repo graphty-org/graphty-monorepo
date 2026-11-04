@@ -59,9 +59,10 @@ const WEDGE: Pt[] = [
  * What the reader finds of an oracle drawing of a -> b: its line and one filled head at b's end.
  * @param line - the line's points
  * @param head - the head's outline, filled
+ * @param stroked - the stroke the head is drawn with instead of a fill
  * @returns the scene read
  */
-function read(line: Pt[], head: Pt[]): PScene {
+function read(line: Pt[], head: Pt[], stroked?: Prim["stroke"]): PScene {
     let index = 0;
     const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
         index: index++,
@@ -88,7 +89,7 @@ function read(line: Pt[], head: Pt[]): PScene {
             points: line,
             stroke: { color: "#505050", opacity: 1, width: 1.5, dash: null, dashClass: "solid" },
         }),
-        prim({ tag: "path", points: head, fill: paint }),
+        prim({ tag: "path", points: head, ...(stroked === undefined ? { fill: paint } : { stroke: stroked }) }),
     ];
     const hint: PScene = {
         side: "graphty",
@@ -209,6 +210,24 @@ describe("vis-network's crow", () => {
         [129.54, -720.33],
         [134.03, -715.83],
     ];
+
+    it("reads a bar drawn as a stroke across the line as a solid tee as long as its stroke is wide", () => {
+        // yEd's dash on a line running aslant: a line there and back, its coordinates rounded to four places
+        const bar: Pt[] = [
+            [281.8395, 95.5659],
+            [281.8399, 104.5617],
+            [281.8395, 95.5659],
+        ];
+        assert.strictEqual(arrowShapeOf(bar, [1, 0]), "tee");
+        const stroke = { color: "#333333", opacity: 1, width: 1, dash: null, dashClass: "solid" } as const;
+        const line: Pt[] = [
+            [120, 100],
+            [281, 100],
+        ];
+        const [head] = read(line, bar, stroke).edges[0]?.arrows ?? [];
+        assert.deepEqual([head.shape, head.filled, head.length, head.color], ["tee", true, 1, "#333333"]);
+        assert.closeTo(head.width, 9, 0.01);
+    });
 
     it("reads a vee turned back as no crow's foot, and a crow with a tine along the line as one", () => {
         assert.strictEqual(arrowShapeOf(visCrow, [1, 0]), "inverted-vee");

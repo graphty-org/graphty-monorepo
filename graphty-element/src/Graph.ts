@@ -5884,6 +5884,19 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether a frame showing the graph's nodes has been drawn.
+     *
+     * True from the first frame that draws the nodes, while the layout may still be moving them,
+     * until the graph is emptied of every node. The `graph-first-frame` event announces the moment
+     * it becomes true. A page uses it to take a loading placeholder away.
+     * @returns True once the nodes are on screen.
+     * @beta
+     */
+    get isGraphDrawn(): boolean {
+        return this.updateManager.graphIsDrawn;
+    }
+
+    /**
      * Wait until the picture is final.
      * @remarks
      * Resolves when all four of these are true, in this order: every queued operation has run,

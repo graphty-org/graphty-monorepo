@@ -232,6 +232,7 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         "screenshot-ready",
         "zoom-to-fit-complete",
         "graph-frame-stable",
+        "graph-first-frame",
         "input:pointer-move",
         "input:pointer-up",
         "input:touch-move",

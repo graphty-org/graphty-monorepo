@@ -4880,6 +4880,24 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether a frame showing the graph's nodes has been drawn.
+     *
+     * True from the first frame that draws the nodes, while the layout may still be moving them,
+     * until the graph is emptied of every node. The `graph-first-frame` event announces the moment
+     * it becomes true, so a page can show its own loading placeholder until then; the element
+     * draws none.
+     * @returns True once the nodes are on screen.
+     * @beta
+     * @example
+     * ```typescript
+     * element.addEventListener("graph-first-frame", () => placeholder.remove(), { once: true });
+     * ```
+     */
+    get isGraphDrawn(): boolean {
+        return this.#graph.isGraphDrawn;
+    }
+
+    /**
      * Make several changes one undoable step.
      *
      * `fn` receives `tx`, the session as seen from inside the step: what it does through `tx` is

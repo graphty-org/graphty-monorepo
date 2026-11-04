@@ -513,6 +513,15 @@ export class UpdateManager implements Manager {
      */
     private drewWithEveryShader = false;
 
+    /**
+     * Whether a frame has drawn the graph's nodes since the graph last held none; see
+     * {@link UpdateManager.graphIsDrawn}.
+     */
+    private nodesDrawn = false;
+
+    /** Whether the frame now being drawn has every node mesh's shader, while none has been drawn. */
+    private drawingNodes = false;
+
     /** Watches the engine for a new canvas size; see {@link UpdateManager.viewMoved}. */
     private resizeWatcher: Nullable<Observer<AbstractEngine>> = null;
 
@@ -615,6 +624,9 @@ export class UpdateManager implements Manager {
             this.noteFrameDrawn();
         });
         this.drawPhaseWatcher = scene.onBeforeDrawPhaseObservable.add(() => {
+            if (!this.nodesDrawn) {
+                this.drawingNodes = this.dataManager.nodes.size > 0 && this.everyDrawnMeshIsReady();
+            }
             this.drewWithEveryShader =
                 !this.stateIsFinished || this.drawnFrameIsFinished || this.everyDrawnMeshIsReady();
         });
@@ -1662,6 +1674,7 @@ export class UpdateManager implements Manager {
      * a consumer can wait for the frame rather than for the layout.
      */
     private noteFrameDrawn(): void {
+        this.noteNodesDrawn();
         if (!this.stateIsFinished || this.drawnFrameIsFinished) {
             return;
         }
@@ -1685,6 +1698,30 @@ export class UpdateManager implements Manager {
         this.fitRead = null;
         this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
         this.wakeOwedWaiters();
+    }
+
+    /**
+     * Announces the first frame that shows the graph's nodes, once per arrival of data: a graph
+     * emptied of every node is announced again when its next nodes are drawn.
+     */
+    private noteNodesDrawn(): void {
+        if (this.dataManager.nodes.size === 0) {
+            this.nodesDrawn = false;
+            return;
+        }
+        if (this.nodesDrawn || !this.drawingNodes) {
+            return;
+        }
+        this.nodesDrawn = true;
+        this.eventManager.emit("graph-first-frame", { frames: this.frameCount });
+    }
+
+    /**
+     * Whether a frame showing the graph's nodes has been drawn since the graph last held none.
+     * @returns True once the nodes are on screen.
+     */
+    get graphIsDrawn(): boolean {
+        return this.nodesDrawn && this.dataManager.nodes.size > 0;
     }
 
     /**

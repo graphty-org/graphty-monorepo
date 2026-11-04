@@ -481,6 +481,7 @@ export interface GraphtyElementJSXProps {
      */
     "onelements-removed"?: (event: CustomEvent<EventOfType<"elements-removed">>) => void;
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
+    "ongraph-first-frame"?: (event: CustomEvent<EventOfType<"graph-first-frame">>) => void;
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;
     /**

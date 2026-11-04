@@ -139,6 +139,8 @@ export interface GraphtyElementJSXProps {
     "ondata-loading-progress"?: (event: CustomEvent<EventOfType<"data-loading-progress">>) => void;
     "onelements-removed"?: (event: CustomEvent<EventOfType<"elements-removed">>) => void;
     // (undocumented)
+    "ongraph-first-frame"?: (event: CustomEvent<EventOfType<"graph-first-frame">>) => void;
+    // (undocumented)
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     // (undocumented)
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;

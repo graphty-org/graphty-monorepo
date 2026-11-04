@@ -3626,12 +3626,17 @@ function endWordsAt(guide: PScene, node: string): Set<string> {
     );
 }
 
+/** The most lines {@link stackedTexts} stacks into one text. */
+const MAX_STACKED_LINES = 16;
+
 /** The lines each stacked run of {@link stackedTexts} is made of. */
 const runParts = new WeakMap<Prim, Prim[]>();
 
 /**
- * The texts, and each run of two to four lines stacked one under another as one text: a program that wraps a long
- * label (Cytoscape at its label width) draws it as one `<text>` per line, where graphty's label is one line.
+ * The texts, and each run of two to {@link MAX_STACKED_LINES} lines stacked one under another as one text: a program
+ * that wraps a long label (Cytoscape at its label width) draws it as one `<text>` per line, where graphty's label is
+ * one line, or lines broken at other words (cx2-ndex-90f78bcd 304542: Cytoscape desktop's six lines, read as their
+ * first two alone while runs stopped at four, put the label above its node where both programs center it).
  * @param texts - the text primitives
  * @returns the texts, then the stacked runs (each the first line's primitive with the run's words and box)
  */
@@ -3659,7 +3664,7 @@ export function stackedTexts(texts: readonly Prim[]): Prim[] {
     const runs: Prim[] = [];
     for (const first of texts) {
         let run = [first];
-        for (let next = below(first); next !== undefined && run.length < 4; next = below(next)) {
+        for (let next = below(first); next !== undefined && run.length < MAX_STACKED_LINES; next = below(next)) {
             run = [...run, next];
             const stacked: Prim = {
                 ...first,

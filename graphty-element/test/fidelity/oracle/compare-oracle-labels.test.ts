@@ -731,6 +731,40 @@ describe("what the association reads as a label's own and a node's own", () => {
         );
     });
 
+    it("reads a label the program wraps into more than four lines at other words as one, and judges its place", () => {
+        // cx2-ndex-90f78bcd 304542: Cytoscape desktop wraps a long label into six lines centered on its node, at other
+        // words than graphty's six; read as its first two lines alone, the label sat above the node
+        const lines = ["Various", "neuronal", "effects", "induced by", "elavl3, sox10,", "and mbp"];
+        const prims = drawing((id) =>
+            id === "a"
+                ? lines.map((w, i) => {
+                      const t = text(w, 100, 75 + 10 * i, {}, 6 * w.length, 8);
+                      return prim({ tag: "text", kind: "text", points: [], closed: false, box: t.box, text: t });
+                  })
+                : [],
+        );
+        const graphtyLines = ["Various", "neuronal", "effects induced", "by elavl3,", "sox10, and", "mbp"];
+        const at = (dy: number): PScene => {
+            const label = mergeTexts(graphtyLines.map((w, i) => text(w, 100, 75 + dy + 10 * i, {}, 6 * w.length, 8)));
+            return scene(
+                "graphty",
+                {},
+                {
+                    ...Object.fromEntries(GRID.map(([id, x, y]) => [id, text(id.toUpperCase(), x, y)])),
+                    a: label ?? undefined,
+                },
+            );
+        };
+        const centered = at(0);
+        const { scene: o } = associate(prims, 600, 400, centered);
+        assert.lengthOf(o.nodes.find((n) => n.id === "a")?.label?.lines ?? [], 6);
+        assert.notInclude(compareOracle("t", o, centered).failures["label.anchor"] ?? [], "a");
+        // the same label drawn wholly above its node is still out of place
+        const above = at(-60);
+        const moved = associate(prims, 600, 400, above).scene;
+        assert.include(compareOracle("t", moved, above).failures["label.anchor"] ?? [], "a");
+    });
+
     it("reads a box drawn tight behind a label's words as its background, not a stray", () => {
         const prims = drawing(() => []);
         // a yellow box behind a's words, drawn just before them

@@ -31,6 +31,8 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 
+import { isYedDrawing } from "./own-drawing.mjs";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const oracles = resolve(here, "..");
 const fidelity = resolve(here, "../..");
@@ -282,7 +284,9 @@ const wanted = new Set(process.argv.slice(2));
 const failed = [];
 const work = mkdtempSync(join(tmpdir(), "cy-oracle-"));
 try {
-    for (const s of samples().filter((x) => wanted.size === 0 || wanted.has(x.id))) {
+    for (const s of samples().filter(
+        (x) => (wanted.size === 0 || wanted.has(x.id)) && !isYedDrawing(oracles, x.path ?? x.id),
+    )) {
         try {
             const stored = join(testDir, s.file);
             const bytes = readFileSync(stored);

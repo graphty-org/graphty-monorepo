@@ -40,3 +40,8 @@ graph-io/test/fidelity/references/cytoscape-loads/*.gz filter=lfs diff=lfs merge
 
 # The CI workflow test list: every branch adding a tool test appends a line, so a union merge keeps both sides.
 tools/tool-tests.txt merge=union
+
+# Studio memory: two studies on separate branches both rewrite the top of these files. Keep both sides'
+# lines on a merge instead of stopping it; the next notes step tidies them.
+design/ui/studio/notes/*.md merge=union
+design/ui/studio/owner-decisions.md merge=union

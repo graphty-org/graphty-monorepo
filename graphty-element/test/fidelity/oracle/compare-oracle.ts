@@ -2877,14 +2877,16 @@ export function compareOracle(
             [R(oBox.x0), R(oBox.y0), R(oBox.x1), R(oBox.y1)],
             [R(gBox.x0), R(gBox.y0), R(gBox.x1), R(gBox.y1), R(v)],
         );
-        judgeFill(j, "group.fill", "group", o.id, o.fill, g.fill);
-        if (o.fill !== null && g.fill !== null) {
+        // what shows behind the members; a yFiles group's band round its panel is judged as a stray of its own
+        const oFill = o.panel ?? o.fill;
+        judgeFill(j, "group.fill", "group", o.id, oFill, g.fill);
+        if (oFill !== null && g.fill !== null) {
             j.add(
                 "group.fillOpacity",
                 "group",
                 o.id,
-                opacityMiss(o.fill.opacity, g.fill.opacity),
-                o.fill.opacity,
+                opacityMiss(oFill.opacity, g.fill.opacity),
+                oFill.opacity,
                 g.fill.opacity,
             );
         }
@@ -3022,6 +3024,12 @@ export function compareOracle(
         // graphty's over a program's picture is no extra), so a picture graphty left out passed (json-vis-synth).
         ...oracle.nodes.flatMap((n) =>
             (n.pictures ?? []).map((box) => ({ tag: "picture", box, fill: null, stroke: null, text: null })),
+        ),
+        // the band of a yFiles group's frame round its panel: drawn, and not the group's fill
+        ...oracle.groups.flatMap((g) =>
+            g.panel === undefined || g.panel.color === g.fill?.color
+                ? []
+                : [{ tag: "tab", box: g.box, fill: g.fill?.color ?? null, stroke: null, text: null }],
         ),
     ]
         .filter((s) => onCanvas(s.box))
@@ -3489,39 +3497,14 @@ function judgeLabel(
     if (o === null || g === null) {
         return;
     }
-    if (words) {
+    if (words && o.glyphs !== true) {
         j.add("label.text", kind, id, norm(o.content) === norm(g.content) ? 0 : 1, o.content, g.content);
     }
     if (!geometry) {
         return;
     }
-    j.add(
-        "label.size",
-        kind,
-        id,
-        ratioMiss((g.sizePx * scale) / Math.max(o.sizePx, 1e-9), T.fontSizeRatio),
-        o.sizePx,
-        g.sizePx * scale,
-    );
-    j.add("label.weight", kind, id, Math.max(0, Math.abs(o.weight - g.weight) - T.fontWeight), o.weight, g.weight);
-    j.add("label.style", kind, id, o.style === g.style ? 0 : 1, o.style, g.style);
-    // a pinned face the program names is judged as that face (DejaVu Sans against Liberation Sans is two faces of
-    // one class); any other family by its class
-    const oFace = programFace(o.family);
-    const oFamily = programFontClass(o.family);
-    if (oFace !== null) {
-        const gFace = browserFace(g.family);
-        j.add("label.family", kind, id, oFace === gFace ? 0 : 1, `${o.family} (${oFace})`, `${g.family} (${gFace})`);
-    } else if (oFamily !== null) {
-        const gFamily = browserFontClass(g.family);
-        j.add(
-            "label.family",
-            kind,
-            id,
-            oFamily === gFamily ? 0 : 1,
-            `${o.family} (${oFamily})`,
-            `${g.family} (${gFamily})`,
-        );
+    if (o.glyphs !== true) {
+        judgeLabelFont(j, kind, id, o, g, scale);
     }
     j.add("label.color", kind, id, Math.max(0, deltaE(o.color, g.color) - T.colorDeltaE), o.color, g.color);
     j.add("label.opacity", kind, id, opacityMiss(o.opacity, g.opacity), o.opacity, g.opacity);
@@ -3578,6 +3561,47 @@ function judgeLabel(
         const off = Math.max(T.labelOffLineOfSize * o.sizePx, place.pixel);
         const gd = gp.d * place.scale;
         j.add("label.offLine", kind, id, Math.max(0, Math.abs(op.d - gd) / off - 1), R(op.d), R(gd));
+    }
+}
+
+/**
+ * Judges a label's font: its size, weight, style and family.
+ * @param j - the judge
+ * @param kind - what the label belongs to
+ * @param id - its element
+ * @param o - the oracle's label
+ * @param g - graphty's
+ * @param scale - graphty's pixels to the oracle's
+ */
+function judgeLabelFont(j: Judge, kind: string, id: string, o: PText, g: PText, scale: number): void {
+    const T = ORACLE_TOLERANCES;
+    j.add(
+        "label.size",
+        kind,
+        id,
+        ratioMiss((g.sizePx * scale) / Math.max(o.sizePx, 1e-9), T.fontSizeRatio),
+        o.sizePx,
+        g.sizePx * scale,
+    );
+    j.add("label.weight", kind, id, Math.max(0, Math.abs(o.weight - g.weight) - T.fontWeight), o.weight, g.weight);
+    j.add("label.style", kind, id, o.style === g.style ? 0 : 1, o.style, g.style);
+    // a pinned face the program names is judged as that face (DejaVu Sans against Liberation Sans is two faces of
+    // one class); any other family by its class
+    const oFace = programFace(o.family);
+    const oFamily = programFontClass(o.family);
+    if (oFace !== null) {
+        const gFace = browserFace(g.family);
+        j.add("label.family", kind, id, oFace === gFace ? 0 : 1, `${o.family} (${oFace})`, `${g.family} (${gFace})`);
+    } else if (oFamily !== null) {
+        const gFamily = browserFontClass(g.family);
+        j.add(
+            "label.family",
+            kind,
+            id,
+            oFamily === gFamily ? 0 : 1,
+            `${o.family} (${oFamily})`,
+            `${g.family} (${gFamily})`,
+        );
     }
 }
 

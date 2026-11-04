@@ -142,6 +142,11 @@ export interface PText {
      * `xml:space="preserve"`), which part it from a run of the same line drawn beside it.
      */
     blank?: { before: boolean; after: boolean };
+    /**
+     * The oracle's side only: drawn as glyph outlines (`Prim.lettering`), so `lines` and `color` are what was drawn, but
+     * `content` is empty and `sizePx` only the rows' height: the words and the face are not known.
+     */
+    glyphs?: true;
 }
 
 /** A box drawn behind a label's words (Cytoscape.js `text-background-*`, `text-border-*`; graphty's label plane). */
@@ -189,6 +194,8 @@ export interface Prim {
      * that are no arrowhead, band or body. Absent for everything else.
      */
     lettering?: true;
+    /** The fill of the panel a yFiles group lays over this, its tab. Absent for everything else. */
+    panel?: PFill;
     /** What the program's own markup says this belongs to, when it says. */
     hint: {
         role: "node" | "edge" | "group" | "graph";
@@ -347,6 +354,11 @@ export interface PGroup {
     box: PBox;
     fill: PFill | null;
     stroke: PStroke | null;
+    /**
+     * The oracle's side only: the panel a yFiles group lays over its frame. This is the fill behind its members, and
+     * `fill` is then the band of the frame left showing round it. Absent for any other group.
+     */
+    panel?: PFill;
     label: PText | null;
     /** Node ids drawn inside it. */
     members: string[];
@@ -1110,6 +1122,10 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
     const [a0, a1] = [Math.min(...a), Math.max(...a)];
     const [c0, c1] = [Math.min(...c), Math.max(...c)];
     const [L, W] = [a1 - a0, c1 - c0];
+    // a line across the edge with no length of its own, as far as its coordinates' rounding (yEd's dash and t_shape)
+    if (W > 1e-9 && L < BAR_LENGTH * W) {
+        return "tee";
+    }
     if (!(L > 1e-9 && W > 1e-9)) {
         return "other";
     }
@@ -1226,6 +1242,9 @@ export function strokedBarb(outline: readonly Pt[]): boolean {
     );
     return thickest <= STROKED_BARB * d;
 }
+
+/** The share of its width a head reaches along its line at most, to be a bar drawn as one line across it. */
+const BAR_LENGTH = 0.02;
 
 /**
  * The shape class of an arrowhead drawn as separate pieces in one path, where the pieces read as one outline make no

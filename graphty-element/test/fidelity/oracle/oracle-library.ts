@@ -34,7 +34,7 @@ import { judgesFor, type Reference, SHEET_JUDGES, specificationScene } from "./j
 import type { Pixels } from "./picture-gradient";
 import type { PScene } from "./primitives";
 import { pngPixels } from "./raster";
-import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
+import { embeddedPngs, readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
 
 /** The oracle canvas every program draws at, where it allows one. */
 export const ORACLE_CANVAS = { width: 1200, height: 900 };
@@ -367,10 +367,8 @@ let lastRead: { svg: string; read: SvgPrimitives } | undefined;
 async function readSvgOnce(svg: string): Promise<SvgPrimitives> {
     if (lastRead?.svg !== svg) {
         // the PNGs it embeds (Cytoscape desktop's gradient custom graphics), decoded so their pixels can be read
-        // keyed without whitespace: base64 written across lines reads back from the DOM with spaces for the breaks
-        const hrefs = new Set((svg.match(/data:image\/png;base64,[^"']+/gi) ?? []).map((h) => h.replace(/\s+/g, "")));
         const pictures = new Map<string, Pixels>();
-        for (const href of hrefs) {
+        for (const href of embeddedPngs(svg)) {
             pictures.set(href, await pngPixels(href));
         }
         lastRead = { svg, read: readSvgPrimitives(svg, pictures) };

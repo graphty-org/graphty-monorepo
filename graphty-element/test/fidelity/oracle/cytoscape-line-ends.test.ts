@@ -161,6 +161,38 @@ describe("the shapes drawn with a line", () => {
         );
     });
 
+    it("keeps a small head of the line's color that is wider than the line", () => {
+        // 5 across on a 3 px line: within the box a line-wide square has at 45 degrees, but no square
+        const edge = readEdge(
+            [
+                ["s", 100, 300, 20],
+                ["t", 500, 300, 20],
+            ],
+            [
+                stroked(
+                    [
+                        [120, 300],
+                        [475, 300],
+                    ],
+                    3,
+                ),
+                filled(
+                    [
+                        [480, 300],
+                        [475, 302.5],
+                        [475, 297.5],
+                        [480, 300],
+                    ],
+                    INK,
+                ),
+            ],
+        );
+        assert.deepEqual(
+            edge?.arrows.map((a) => [a.end, a.shape]),
+            [["target", "triangle"]],
+        );
+    });
+
     it("keeps a line's own head at its end when it lies over a small node's center", () => {
         const edge = readEdge(
             [
@@ -182,6 +214,37 @@ describe("the shapes drawn with a line", () => {
                         [380, 330],
                         [380, 270],
                         [480, 300],
+                    ],
+                    HEAD,
+                ),
+            ],
+        );
+        assert.deepEqual(
+            edge?.arrows.map((a) => [a.end, a.color]),
+            [["target", HEAD]],
+        );
+    });
+
+    it("gives a barb whose box holds both ends of a short line to the end its outline meets", () => {
+        const edge = readEdge(
+            [
+                ["s", 100, 300, 20],
+                ["t", 173, 300, 20],
+            ],
+            [
+                stroked(
+                    [
+                        [120, 300],
+                        [153, 300],
+                    ],
+                    2,
+                ),
+                filled(
+                    [
+                        [153, 300],
+                        [115, 340],
+                        [150, 340],
+                        [153, 300],
                     ],
                     HEAD,
                 ),

@@ -1265,18 +1265,36 @@ export function lineCapSize(e: Pick<PEdge, "stroke">): number {
 }
 
 /**
- * Whether a shape is the end of a line, painted in the line's own color and no bigger than the line however it is turned
+ * How thin a shape is, however it is turned: the least of its extents square to each of its sides.
+ * @param pts - the shape's points
+ * @returns the extent
+ */
+function thinnest(pts: readonly Pt[]): number {
+    const across = pts.map(([x, y], i) => {
+        const [qx, qy] = pts[(i + 1) % pts.length];
+        const len = Math.hypot(qx - x, qy - y);
+        const offs = pts.map(([px, py]) => ((px - x) * (qy - y) - (py - y) * (qx - x)) / (len || 1));
+        return len > 1e-9 ? Math.max(...offs) - Math.min(...offs) : Infinity;
+    });
+    return Math.min(...across);
+}
+
+/**
+ * Whether a shape is the end of a line, painted in the line's own color and no wider than the line however it is turned
  * (Cytoscape desktop closes a line under a diamond head with a notched square, which is 1.4 widths across its box when
- * the line runs at 45 degrees): it is the line, not one of its arrowheads.
+ * the line runs at 45 degrees): it is the line, not one of its arrowheads. A head of that color and box is wider than
+ * the line, and stays a head.
  * @param p - the shape
  * @param e - the line
  * @returns true for the line's end
  */
 function lineEndPiece(p: Prim, e: Pick<PEdge, "stroke">): boolean {
+    const size = lineCapSize(e);
     return (
         p.fill !== null &&
         p.fill.color === e.stroke?.color &&
-        Math.max(bw(p.box), bh(p.box)) <= Math.SQRT2 * lineCapSize(e)
+        Math.max(bw(p.box), bh(p.box)) <= Math.SQRT2 * size &&
+        thinnest(p.points) <= size
     );
 }
 

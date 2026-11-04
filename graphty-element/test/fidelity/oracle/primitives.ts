@@ -1167,13 +1167,13 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
         return span > 1e-9 ? inside / span : 1;
     };
     const [back, middle, tip] = [w[0], w[4], w[8]];
-    // half an arrow (a barb, a triangle with one side along the line) lies wholly to one side of its tip, which is on
-    // the line
-    // (full width all along is a box however it is turned: one a few degrees off its axis has one corner for a tip, at
-    // its side, as a zigzag's fitted axis leaves it on cx-syn-mappings 252->255)
+    // full width all along is a box however it is turned: one a few degrees off its axis has one corner for a tip, at
+    // its side, as a zigzag's fitted axis leaves it on cx-syn-mappings 252->255
     if (Math.min(...w) >= 0.85) {
         return L < 0.5 * W ? "tee" : "box";
     }
+    // half an arrow (a barb, a triangle with one side along the line) lies wholly to one side of its tip, which is on
+    // the line
     const tipped = outline.flatMap((_, i) => (a[i] >= a1 - 0.02 * L ? [c[i]] : []));
     const ct = tipped.reduce((x, y) => x + y, 0) / tipped.length;
     if (c0 >= ct - 0.15 * W || c1 <= ct + 0.15 * W) {

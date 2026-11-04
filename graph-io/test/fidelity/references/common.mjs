@@ -146,6 +146,10 @@ const ARROWS = {
     classic: "filled-triangle",
     block: "filled-triangle",
     inv: "filled-triangle",
+    // Cytoscape desktop's short heads draw the same filled outline, shorter (graph-io's Cytoscape lexicon)
+    arrowshort: "filled-triangle",
+    deltashort1: "filled-triangle",
+    deltashort2: "filled-triangle",
     crow: "other",
     onormal: "open-triangle",
     empty: "open-triangle",
@@ -161,6 +165,8 @@ const ARROWS = {
     whitediamond: "diamond",
     opendiamond: "diamond",
     ediamond: "diamond",
+    diamondshort1: "diamond",
+    diamondshort2: "diamond",
     dot: "circle",
     odot: "circle",
     circle: "circle",
@@ -201,7 +207,8 @@ export function lineStyle(name) {
     if (k.includes("dot")) {
         return k.includes("dash") ? "other" : "dotted";
     }
-    if (k.includes("dash")) {
+    // Cytoscape desktop's MARQUEE_EQUAL is its EQUAL_DASH, animated
+    if (k.includes("dash") || k === "marqueeequal") {
         return "dashed";
     }
     return "other";

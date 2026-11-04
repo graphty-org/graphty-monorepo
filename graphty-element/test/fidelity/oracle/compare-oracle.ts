@@ -17,6 +17,7 @@ import {
     compareIds,
     type DashClass,
     dashClassOf,
+    insideFigure,
     isPattern,
     type PArrow,
     type PBox,
@@ -913,11 +914,17 @@ export function curvatureOf(pts: readonly Pt[]): number {
     return m / L;
 }
 
-/** Whether a point is inside a node: its box for a rectangle, else the ellipse its box holds. */
+/**
+ * Whether a point is inside a node: its own outline for a figure (`PNode.figure`: Pajek's man, beside whose arm a line
+ * runs on in the ellipse his box holds), its box for a rectangle, else the ellipse its box holds.
+ */
 const insideNode = (n: PNode, [x, y]: Pt): boolean => {
     const [u, v] = [Math.abs(x - n.cx) / (n.w / 2), Math.abs(y - n.cy) / (n.h / 2)];
     if (!(n.w > 0 && n.h > 0)) {
         return false;
+    }
+    if (n.figure !== undefined) {
+        return insideFigure(n.figure, n, [x, y]);
     }
     return n.shape === "rect" || n.shape === "roundrect" ? u < 1 && v < 1 : u * u + v * v < 1;
 };
@@ -2211,7 +2218,13 @@ export function compareOracle(
         }
         const [w, h] = outerOf(n, "graphty");
         const [cx, cy] = edgeFrame([n.cx, n.cy]);
-        return { ...n, cx, cy, w: w * lengthScale, h: h * lengthScale };
+        // a figure turned and mirrored as the fit turns graphty's drawing, in halves of its box in the oracle's frame
+        const turn = (u: number, v: number): Pt => {
+            const [x, y] = vecToOracle([u * n.w, v * n.h]);
+            return [x / (n.w * lengthScale), y / (n.h * lengthScale)];
+        };
+        const figure = n.figure?.map(([a, b]): [Pt, Pt] => [turn(...a), turn(...b)]);
+        return { ...n, cx, cy, w: w * lengthScale, h: h * lengthScale, ...(figure === undefined ? {} : { figure }) };
     };
     // a node with no body (graphty's faceless node, the oracle's node found only by its label or by its lines' ends)
     // has no outline to cut a line at
@@ -2219,9 +2232,23 @@ export function compareOracle(
         n !== undefined &&
         n.faceless === undefined &&
         (n.fill !== null || n.stroke !== null || (n.pictures?.length ?? 0) > 0);
-    /** An end's outline on each side, or none on either where one side draws none there. */
-    const cutAt = (on: PNode | undefined, at: PNode | undefined): [PNode | undefined, PNode | undefined] =>
-        bodied(on) && bodied(at) ? [on, at] : [undefined, undefined];
+    /**
+     * An end's outline on each side, or none on either where one side draws none there. A figure (`PNode.figure`) cuts
+     * where both sides draw one; where only one side does (Pajek draws its cross as an ellipse, graphty as a plus, a
+     * shape judged apart as node.shape) both are cut at the ellipse their boxes hold, so the route is not judged on
+     * its node's shape.
+     */
+    const cutAt = (on: PNode | undefined, at: PNode | undefined): [PNode | undefined, PNode | undefined] => {
+        if (!bodied(on) || !bodied(at)) {
+            return [undefined, undefined];
+        }
+        return (on.figure === undefined) === (at.figure === undefined)
+            ? [on, at]
+            : [
+                  { ...on, figure: undefined },
+                  { ...at, figure: undefined },
+              ];
+    };
     /** Both routes between their own nodes, graphty's in the oracle's frame and direction. */
     const visible = (o: PEdge, g: PEdge): [Pt[], Pt[]] => {
         const [vo, vg] = shownParts(o, g);

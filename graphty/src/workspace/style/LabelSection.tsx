@@ -120,8 +120,8 @@ function channelsOf(kind: TextKindSpec): Channel[] {
 /**
  * The Text section of one kind (the owner's style panel design, 2026-10-13): labels and tooltips
  * on nodes, labels and end captions on edges, one entry of each. A layer that writes no text shows
- * only the dimmed title and "+". "+" ("Add to Text") lists the kinds of text not here yet and, for
- * each entry here, its look, size and position while it does not set them. Picking a kind opens its
+ * only the dimmed title and "+". "+" ("Add to Text") lists the kinds of text not here yet; each
+ * entry's own "+" adds its look, size and position while it does not set them. Picking a kind opens its
  * source list, with "Fixed text" first, and nothing is written until a source is picked or words
  * are typed; Escape leaves nothing. Picking a look, size or position adds it with its starting
  * value. Nothing from the layers beneath is drawn.
@@ -216,18 +216,8 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                   ]
                 : [{ key: kind.id, label: kind.name }];
         }
-        const style = styleOf(lineIn(ctx, kind.style));
-        const parts: AddOption[] = [];
-        if (style.look === undefined) {
-            parts.push({ key: `${kind.id}:look`, label: `${kind.name} look` });
-        }
-        if (lineIn(ctx, kind.size) === undefined && descriptorOf(target, kind.size) !== undefined) {
-            parts.push({ key: `${kind.id}:size`, label: `${kind.name} size` });
-        }
-        if (style.location === undefined) {
-            parts.push({ key: `${kind.id}:position`, label: `${kind.name} position` });
-        }
-        return parts;
+        // Its look, size and position are added from the entry's own "+".
+        return [];
     });
     const onAdd = (key: string): void => {
         const [id, part] = key.split(":");
@@ -354,7 +344,16 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                         );
                     }
                     if (hasEntry(kind)) {
-                        return <TextEntry key={kind.id} ctx={ctx} kind={kind} onWords={writeWords} onFail={fail} />;
+                        return (
+                            <TextEntry
+                                key={kind.id}
+                                ctx={ctx}
+                                kind={kind}
+                                onWords={writeWords}
+                                onPart={onAdd}
+                                onFail={fail}
+                            />
+                        );
                     }
                     const some = partlySet(ctx, kind.words, kind.style);
                     const { many } = ctx;
@@ -609,7 +608,30 @@ interface TextEntryProps {
     kind: TextKindSpec;
     /** Writes the words: typed, or read from a value. */
     onWords: (kind: TextKindSpec, write: { value: string } | { choice: DataChoice }) => void;
+    /** Adds the entry's look, size or position, by `<kind>:<part>`. */
+    onPart: (key: string) => void;
     onFail: (error: unknown) => void;
+}
+
+/**
+ * What a text entry's own "+" can still add: its look, size and position while it sets none.
+ * @param ctx - the row.
+ * @param kind - the kind of text.
+ * @returns the menu items, keyed `<kind>:<part>`.
+ */
+function partsOf(ctx: RowContext, kind: TextKindSpec): AddOption[] {
+    const style = styleOf(lineIn(ctx, kind.style));
+    const parts: AddOption[] = [];
+    if (style.look === undefined) {
+        parts.push({ key: `${kind.id}:look`, label: "Look" });
+    }
+    if (lineIn(ctx, kind.size) === undefined && descriptorOf(ctx.side, kind.size) !== undefined) {
+        parts.push({ key: `${kind.id}:size`, label: "Size" });
+    }
+    if (style.location === undefined) {
+        parts.push({ key: `${kind.id}:position`, label: "Position" });
+    }
+    return parts;
 }
 
 /**
@@ -623,10 +645,11 @@ interface TextEntryProps {
  * @param props.ctx - the row
  * @param props.kind - the kind of text
  * @param props.onWords - writes the words
+ * @param props.onPart - adds its look, size or position
  * @param props.onFail - reports a refused write
  * @returns The entry
  */
-function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): React.JSX.Element {
+function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryProps>): React.JSX.Element {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [sourceOpen, setSourceOpen] = useState(false);
     const [typing, setTyping] = useState(false);
@@ -638,6 +661,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
     const style = styleOf(styleLine);
     const locked = (words ?? styleLine)?.layer.locked === true;
     const hidden = style.enabled === false;
+    const parts = partsOf(ctx, kind);
     const descriptors = channelsFor(target);
     const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
         descriptors.find((d) => d.channel === channel);
@@ -732,6 +756,9 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                     <span className="ws-field-name" title={kind.name}>
                         {KIND_WORDS[kind.id] ?? kind.name}
                     </span>
+                    {locked || parts.length === 0 ? null : (
+                        <AddButton kind={target} title={kind.name} options={parts} inRow onAdd={onPart} />
+                    )}
                 </span>
                 {sourceControl}
                 <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>

@@ -126,8 +126,8 @@ describe("live announcements", () => {
         await userEvent.click(within(text()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
-        await userEvent.click(await within(text()).findByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Label size" }));
+        await userEvent.click(await within(text()).findByRole("button", { name: "Add to node label" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
         // The new size's box takes focus.
         const box = await waitFor(() => {
             const focused = document.activeElement;
